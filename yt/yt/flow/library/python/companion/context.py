@@ -9,6 +9,8 @@ import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
+from google.protobuf.message import DecodeError, EncodeError, Message as ProtoMessage
+
 from .computation import TransformResult
 from .row import (
     ExtendedMessage,
@@ -22,6 +24,8 @@ from .row import (
 from .state import (
     ExternalState,
     EXTERNAL_STATE_RESET,
+    ProtoExternalState,
+    StateFormat,
     State,
     StatesHolder,
 )
@@ -53,6 +57,21 @@ def _validate_external_state_name(name: str) -> None:
     pos = name.find("//")
     if pos != -1:
         raise ValueError(f"External state name contains two adjacent '/' at position {pos}: {name!r}")
+
+
+def _is_proto_message_class(value) -> bool:
+    """Whether |value| is a concrete protobuf message class; the base Message has no descriptor."""
+    return isinstance(value, type) and issubclass(value, ProtoMessage) and value.DESCRIPTOR is not None
+
+
+def _validated_proto_declarations(states) -> Dict[str, type]:
+    """Copy the state name to protobuf message class map, validating every entry."""
+    states = dict(states or {})
+    for name, proto_class in states.items():
+        _validate_external_state_name(name)
+        if not _is_proto_message_class(proto_class):
+            raise TypeError(f"External state {name} requires a protobuf message class")
+    return states
 
 
 # ---------- State Accessors ----------
@@ -293,6 +312,8 @@ class ExternalStateAccessor(Payload):
     """
 
     def __init__(self, states_holder: StatesHolder, key: Payload):
+        if states_holder.state_format != StateFormat.SIMPLE_ROW:
+            raise ValueError(f"External state {states_holder.name} is not in the row format")
         self._states_holder = states_holder
         self._row_key = key.row if key else None
         # Resolve current payload.
@@ -333,6 +354,74 @@ class ReadOnlyExternalStateAccessor(ExternalStateAccessor):
 
     def clear(self):
         raise ReadOnlyExternalStateError("joined external state is read-only; joiners never write back")
+
+
+class ProtoExternalStateAccessor:
+    """External protobuf state with explicit snapshot writes through set().
+
+    get() returns an independent message or None. Editing it has no effect until set();
+    set() replaces the whole profile, including clearing fields absent from the message.
+    """
+
+    def __init__(self, states_holder: StatesHolder, key: Payload, proto_class, *, read_only: bool = False):
+        if states_holder.state_format != StateFormat.PROTO:
+            raise ValueError(f"External state {states_holder.name} is not in the proto format")
+        if not _is_proto_message_class(proto_class):
+            raise TypeError("proto_class must be a protobuf message class")
+        registered_type = proto_class.DESCRIPTOR.full_name
+        if states_holder.proto_type != registered_type:
+            raise ValueError(
+                f"Proto type mismatch for external state {states_holder.name}: "
+                f"expected {states_holder.proto_type}, got {registered_type}"
+            )
+        if key is None:
+            raise ValueError(f"External state {states_holder.name} requires a key")
+        self._states_holder = states_holder
+        self._row_key = key.row
+        self._proto_class = proto_class
+        self._read_only = read_only
+
+    def get(self):
+        """Return an independent message, or None for missing/reset state."""
+        state = self._states_holder.get(self._row_key)
+        if state is None or state.reset or state.state is None:
+            return None
+        message = self._proto_class()
+        try:
+            message.ParseFromString(state.state)
+        except DecodeError as error:
+            raise ValueError(f"Failed to parse external state {self._states_holder.name}") from error
+        if not message.IsInitialized():
+            raise ValueError(f"Uninitialized protobuf in external state {self._states_holder.name}")
+        return message
+
+    def get_or_default(self):
+        """Return a message snapshot, or a fresh empty message without creating a state."""
+        message = self.get()
+        return message if message is not None else self._proto_class()
+
+    def set(self, value):
+        """Save a snapshot of value; subsequent edits to value are independent."""
+        self._validate_writable()
+        if not isinstance(value, self._proto_class):
+            raise TypeError(
+                f"External state {self._states_holder.name} expects {self._proto_class.DESCRIPTOR.full_name}"
+            )
+        # Serialize before touching the holder so failed writes preserve the previous value.
+        try:
+            payload = value.SerializeToString()
+        except EncodeError as error:
+            raise ValueError(f"Failed to serialize external state {self._states_holder.name}: {error}") from error
+        self._states_holder.set(self._row_key, ProtoExternalState(state=payload))
+
+    def clear(self):
+        """Reset the profile, distinct from storing an empty message."""
+        self._validate_writable()
+        self._states_holder.set(self._row_key, ProtoExternalState(reset=True))
+
+    def _validate_writable(self):
+        if self._read_only:
+            raise ReadOnlyExternalStateError("joined external state is read-only; joiners never write back")
 
 
 # ---------- RuntimeContext ----------
@@ -408,6 +497,23 @@ class DefaultRuntimeContext:
         if states_holder is None:
             raise ValueError(f"Joined external state {name} not found")
         return ReadOnlyExternalStateAccessor(states_holder, key)
+
+    def proto_external_state(self, name: str, message_or_timer, proto_class) -> ProtoExternalStateAccessor:
+        """Access a protobuf profile with explicit set()/clear() writes."""
+        _validate_external_state_name(name)
+        holder = self._external_states.get(name)
+        if holder is None:
+            raise ValueError(f"External state {name} not found")
+        return ProtoExternalStateAccessor(holder, getattr(message_or_timer, "key", None), proto_class)
+
+    def joined_proto_external_state(self, name: str, message_or_timer, proto_class) -> ProtoExternalStateAccessor:
+        """Read a joined protobuf profile; returned messages are independent snapshots."""
+        _validate_external_state_name(name)
+        self._validate_joiner_state_name(name)
+        holder = self._joined_external_states.get(name)
+        if holder is None:
+            raise ValueError(f"Joined external state {name} not found")
+        return ProtoExternalStateAccessor(holder, getattr(message_or_timer, "key", None), proto_class, read_only=True)
 
     @property
     def parameters(self) -> Dict[str, Any]:
@@ -558,14 +664,22 @@ class PipelineContext:
         self._computations: Dict[str, Any] = {}
         self._streams_context = FlowStreamsContext()
         self._resource_factories: Dict[str, Any] = {}
+        self._proto_external_states: Dict[str, Dict[str, type]] = {}
+        self._joined_proto_external_states: Dict[str, Dict[str, type]] = {}
         self._frozen = False
 
-    def register_computation(self, computation):
+    def register_computation(self, computation, *, proto_external_states=None, joined_proto_external_states=None):
         if self._frozen:
             raise RuntimeError(self._FROZEN_MSG)
         if computation.computation_id in self._computations:
             raise ValueError(f"Computation {computation.computation_id} already exists")
+        managers = _validated_proto_declarations(proto_external_states)
+        joiners = _validated_proto_declarations(joined_proto_external_states)
         self._computations[computation.computation_id] = computation
+        if managers:
+            self._proto_external_states[computation.computation_id] = managers
+        if joiners:
+            self._joined_proto_external_states[computation.computation_id] = joiners
 
     def register_resource_class(self, resource_class_name: str, factory):
         """Register a companion resource class by the name the pipeline spec
@@ -596,6 +710,14 @@ class PipelineContext:
 
     def get_computation(self, computation_id: str):
         return self._computations.get(computation_id)
+
+    def get_proto_external_states(self) -> Dict[str, Dict[str, type]]:
+        """Return profile manager declarations by computation id and state name."""
+        return {cid: dict(states) for cid, states in self._proto_external_states.items()}
+
+    def get_joined_proto_external_states(self) -> Dict[str, Dict[str, type]]:
+        """Return profile joiner declarations by computation id and state name."""
+        return {cid: dict(states) for cid, states in self._joined_proto_external_states.items()}
 
     def get_stream_context(self) -> FlowStreamsContext:
         return self._streams_context

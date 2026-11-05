@@ -1294,106 +1294,6 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
     EXPECT_EQ(subAliasMap.size(), 1ul);
 }
 
-TEST_F(TQueryPrepareTest, PushDownGroupBy)
-{
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//left"))
-        .WillRepeatedly(Return(MakeFuture(MakeSplit({
-            {"key_0", EValueType::Int64, ESortOrder::Ascending},
-            {"value_0", EValueType::Int64},
-        }))));
-
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//center"))
-        .WillRepeatedly(Return(MakeFuture(MakeSplit({
-            {"key_0", EValueType::Int64, ESortOrder::Ascending},
-            {"key_1", EValueType::Int64, ESortOrder::Ascending},
-            {"value_1", EValueType::Int64},
-        }))));
-
-    auto fmt = [] (const TNamedItemList& items) {
-        auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-            builder->AppendString(InferName(item.Expression));
-        };
-        return JoinToString(items, namedItemFormatter);
-    };
-
-    {
-        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
-            left join [//center] C with hint "{push_down_group_by=%true}"
-            on (L.key_0) = (C.key_0)
-            group by C.key_0)");
-
-        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
-
-        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
-    }
-    {
-        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
-            left join [//center] C with hint "{push_down_group_by=%true}"
-            on (L.key_0) = (C.key_0)
-            group by L.key_0)");
-
-        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
-
-        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
-    }
-    {
-        auto query = TStringBuf(R"(select sum(value_1) from [//left]
-            left join [//center] with hint "{push_down_group_by=%true}"
-            using key_0
-            group by key_0)");
-
-        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
-
-        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_0"));
-    }
-    {
-        auto query = TStringBuf(R"(select sum(value_1) from [//left]
-            left join [//center] with hint "{push_down_group_by=%true}"
-            on 1 = 1
-            group by value_0 + key_1)");
-
-        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
-
-        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_1"));
-    }
-    {
-        auto query = TStringBuf(R"(select sum(value_1 * value_0) from [//left]
-            left join [//center] with hint "{push_down_group_by=%true}"
-            on 1 = 1
-            group by value_0 % 10)");
-
-        EXPECT_THROW_THAT(
-            ParseAndPreparePlanFragment(&PrepareMock_, query),
-            HasSubstr("neither idempotent nor can be pushed behind join clause"));
-    }
-    {
-        auto query = TStringBuf(R"(select sum(value_1) from [//left]
-            left join [//center] with hint "{push_down_group_by=%true}"
-            using key_0
-            group by value_0 + key_1)");
-
-        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
-
-        EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
-    }
-    {
-        auto query = TStringBuf(R"(select sum(1) from [//left]
-            left join [//center] with hint "{push_down_group_by=%true}"
-            on 1 = 1
-            left join [//center]
-            on 2 = 2
-            group by 3)");
-
-        EXPECT_THROW_THAT(
-            ParseAndPreparePlanFragment(&PrepareMock_, query),
-            HasSubstr("is not supported at the current moment"));
-    }
-}
-
 TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -6974,17 +6874,19 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
+TEST_F(TQueryEvaluateTest, YPathTryGetFrontInt64FromList)
 {
     auto split = MakeSplit({
         {"yson", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+        {"unoptimized", OptionalLogicalType(ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))))},
+        {"unoptimized_2", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
     });
 
     auto source = TSource{
         "yson=[1; 2; 3]",
-        "yson=[4]",
-        "yson=[]",
-        "",
+        "yson=[4];unoptimized_2=[\"abacaba\"]",
+        "yson=[];unoptimized=[1;#]",
+        "unoptimized=[#]",
     };
 
     auto resultSplit = MakeSplit({
@@ -6992,13 +6894,17 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
     });
 
     auto result = YsonToRows({
-        "result=1",
-        "result=4",
-        "result=#",
-        "result=#",
+        "result=1; u1=#; u2=#",
+        "result=4; u1=#; u2=#",
+        "result=#; u1=1; u2=#",
+        "result=#; u1=#; u2=#",
     }, resultSplit);
 
-    Evaluate("try_get_int64(yson, \"/0\") as result FROM [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "try_get_int64(yson, \"/0\") as result, try_get_int64(unoptimized, \"/0\") as u1, try_get_int64(unoptimized_2, \"/0\") as u2 FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 
     SUCCEED();
 }
@@ -8899,6 +8805,32 @@ TEST_F(TQueryEvaluateTest, ArgMin)
     }, resultSplit);
 
     Evaluate("integer, argmin(any, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, ArgMaxWithComposite)
+{
+    auto split = MakeSplit({
+        {"discount_id", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"version_num", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"parasite_key", EValueType::Int64},
+        {"utc_start_period_dttm", EValueType::String},
+        {"tag_code_list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    });
+
+    auto source = TSource{
+        "discount_id=1;version_num=1;utc_start_period_dttm=\"abc\";tag_code_list=[\"x\";\"y\"]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"discount_id", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"am", EValueType::Any},
+    });
+
+    auto result = YsonToRows({
+        "discount_id=1;am=[\"x\";\"y\"]",
+    }, resultSplit);
+
+    Evaluate("discount_id, argmax(tag_code_list, version_num) as am from [//t] group by discount_id limit 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CardinalityAggregate)
@@ -11892,7 +11824,8 @@ TEST_F(TQueryEvaluateTest, OrderByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] order by a limit 4", split, source, ResultMatcher(result)),
+    Evaluate("a FROM [//t] order by a limit 4", split, source, ResultMatcher(result));
+
     SUCCEED();
 }
 
@@ -11923,7 +11856,8 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] group by a order by a limit 4", split, source, ResultMatcher(result)),
+    Evaluate("a FROM [//t] group by a order by a limit 4", split, source, ResultMatcher(result));
+
     SUCCEED();
 }
 

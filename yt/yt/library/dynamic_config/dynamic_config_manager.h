@@ -89,6 +89,15 @@ protected:
     virtual std::vector<std::string> GetInstanceTags() const;
 
 private:
+    struct TConfigFetch
+    {
+        //! Null if absent.
+        NYson::TYsonString Config;
+        std::vector<std::string> InstanceTags;
+
+        bool operator==(const TConfigFetch& other) const = default;
+    };
+
     const TDynamicConfigManagerOptions Options_;
     const TDynamicConfigManagerConfigPtr Config_;
 
@@ -112,6 +121,9 @@ private:
     NYTree::IMapNodePtr LastAppliedConfigPatchNode_;
 
     std::vector<std::string> InstanceTags_;
+
+    //! The fetch behind #AppliedConfigNode_.
+    std::optional<TConfigFetch> LastProcessedFetch_;
 
     //! This promise becomes set when dynamic config was loaded
     //! for the first time.

@@ -661,7 +661,10 @@ class TestMigration(QueriesTestBase):
 
 @pytest.fixture
 def spyt_home():
+    # NB: The SPYT engine looks for its distribution at this fixed path.
     create("map_node", "//home/spark", recursive=True)
+    yield
+    remove("//home")
 
 
 class TestQueryTrackerSpytInfo(QueriesTestBase):

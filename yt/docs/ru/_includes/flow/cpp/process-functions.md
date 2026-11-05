@@ -201,7 +201,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 
 Если несколько process function обрабатывают данные последовательно или разветвляют стрим, их можно запустить в одном `Computation` как граф. Каждый узел графа — отдельно зарегистрированная process function; сообщения между узлами передаются внутри воркера, а не через промежуточные стримы пайплайна.
 
-Граф описывается в статической спеке, в поле `process_function_graph` компьютейшена с `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform) или `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map). У узла те же поля, что у компьютейшена с одной process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams` и `streams_dependency`. Узлы соединяются через идентификаторы стримов — так же, как компьютейшены в пайплайне:
+Граф описывается в статической спеке, в поле `process_function_graph` компьютейшена с `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform), `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map) или `"NYT::NFlow::TProcessFunctionSourceComputation"` (source). У узла те же поля, что у компьютейшена с одной process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams` и `streams_dependency`. Узлы соединяются через идентификаторы стримов — так же, как компьютейшены в пайплайне:
 
 - `input_stream_ids` и `output_stream_ids` компьютейшена задают границу графа.
 - Узел читает стримы из своего `input_stream_ids`: входы компьютейшена или выходы других узлов. Один стрим могут читать несколько узлов, а один узел может читать несколько стримов.
@@ -211,7 +211,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/pipeline.yson' lang='yson' %}
 
-Все стримы, которые используют узлы, включая внутренние, регистрируются как обычные стримы пайплайна. В том же тесте это делается в `PrepareSpec`:
+Все стримы, которые используют узлы, включая внутренние, регистрируются как обычные стримы пайплайна. Исключение — стримы из `source_streams` source-компьютейшена: они не регистрируются. В том же тесте стримы регистрируются в `PrepareSpec`:
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/main.cpp' lang='cpp' lines='[BEGIN register_streams]-[END register_streams]' %}
 

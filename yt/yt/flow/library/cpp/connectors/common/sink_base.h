@@ -24,7 +24,11 @@ public:
     TSinkSpecPtr GetSpec() const;
     TDynamicSinkSpecPtr GetDynamicSpec() const;
 
+    void Terminate() final;
+
 protected:
+    virtual void DoTerminate();
+
     ISink::TParametersPtr GetParametersBase() const final;
     ISink::TDynamicParametersPtr GetDynamicParametersBase() const final;
 

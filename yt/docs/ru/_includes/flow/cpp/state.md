@@ -311,7 +311,7 @@ private:
 
 `TStaticTableKeyVisitorJoiner` — external state joiner поверх **статической** сортированной таблицы. Работает только в паре с [key-visitor-стримом](../../../flow/concepts/key_visitor.md#static-table-joiner): в отличие от `TSimpleExternalStateJoiner`, он не делает случайных чтений — фоновый обход визитора последовательно читает таблицу теми же диапазонами ключей, что и внутренний стейт, и строка таблицы становится доступна в `ProcessVisit` как read-only стейт ключа визита. Ключ, которого в таблице нет, отдаёт пустой стейт (`IsEmpty() == true`).
 
-Джойнер привязывается к visit-стриму перечислением его имени в `external_names` секции `key_visitor_streams` (см. [параметры статической спеки](../../../flow/concepts/key_visitor.md#static-params)); один джойнер можно привязать не более чем к одному visit-стриму (проверяется при submit'е спеки). `join_on/key_schema_override` не поддерживается — ключом всегда служит собственная `group_by_schema`.
+Джойнер привязывается к visit-стриму перечислением его имени в `external_names` (ключи таблицы участвуют в обходе) или `weak_external_names` (не участвуют: left join по собственным ключам стейта) секции `key_visitor_streams` (см. [параметры статической спеки](../../../flow/concepts/key_visitor.md#static-params)); один джойнер можно привязать не более чем к одному visit-стриму (проверяется при submit'е спеки). `join_on/key_schema_override` не поддерживается — ключом всегда служит собственная `group_by_schema`.
 
 Требования к таблице-источнику:
 

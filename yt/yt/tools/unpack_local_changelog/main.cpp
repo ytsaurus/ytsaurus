@@ -61,12 +61,9 @@ private:
             EIOEngineType::ThreadPool,
             ioEngineConfigNode);
 
-        auto changelogDispatcherConfig = New<TFileChangelogDispatcherConfig>();
-
         auto changelogDispatcher = CreateFileChangelogDispatcher(
             ioEngine,
             /*indexMemoryUsageTracker*/ nullptr,
-            changelogDispatcherConfig,
             "Dispatcher");
 
         auto changelogConfig = New<TFileChangelogConfig>();

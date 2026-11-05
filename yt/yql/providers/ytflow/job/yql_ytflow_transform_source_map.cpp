@@ -19,7 +19,8 @@ namespace NYql::NYtflow {
 namespace {
 
 struct TTransformSourceParameters
-    : public TCommonMapParameters
+    : public NYT::NFlow::TTransformOrderedSourceComputation::TParameters
+    , public TCommonMapParameters
 {
     NYT::NTableClient::TTableSchemaPtr SourceSchema;
 

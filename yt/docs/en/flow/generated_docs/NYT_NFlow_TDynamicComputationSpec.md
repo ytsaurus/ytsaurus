@@ -7,15 +7,18 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `batch_duration` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1s`
-Maximum time to collect an input batch. ||
+Maximum time to collect an input batch. For {{product-name}} queues, a non-full batch keeps collecting until this time passes since the previous batch; after a non-full queue response, the next request is also made no earlier than that moment. ||
 || `max_rows_per_batch` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `1K`
-Maximum size of an input batch in rows. Calculated separately for `input_streams`, `timer_streams`, and for each of the `source_streams`. ||
+Maximum size of an input batch in rows. Calculated separately for `input_streams`, `timer_streams`, and for each of the `source_streams`. For {{product-name}} queues, unpacked Flow messages are counted; a batch may exceed the limit by one queue row. ||
 || `max_bytes_per_batch` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `10Mi`
-Maximum size of an input batch in bytes. Calculated similarly to `max_rows_per_batch`. ||
+Maximum size of an input batch in bytes. Calculated similarly to `max_rows_per_batch`. For {{product-name}} queues, the size of unpacked messages is counted; the limit may be exceeded as for `max_rows_per_batch`. ||
 || `max_keys_per_batch` | **Type**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
  ||
+|| `source_read_delay_estimator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TSourceReadDelayEstimatorSpec](./all_yson_structs#NYT_NFlow_TSourceReadDelayEstimatorSpec)`>`
+**Default value**: `{}`
+Controls Offered and eligible unread Ready estimation in Swift ordered sources with nonempty `watermark_alignment.read_delays`. Estimation always applies; this section only changes its parameters. Learning follows the source key across partition restarts. Unknown estimates remain unknown. ||
 || `draining` | **Type**: `bool`
 **Default value**: `false`
 The `Draining` mode is used to drain the pipeline. In this mode, the `Computation` stops running timers and fetching new events from the `Source`.
@@ -73,12 +76,6 @@ Dynamic parameters of all `Sinks`. ||
  ||
 || `timer_store_byte_size_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `100Mi`
- ||
-|| `output_store_count_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Default value**: `1G`
- ||
-|| `output_store_byte_size_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Default value**: `100Gi`
  ||
 || `blocked_time_window` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`

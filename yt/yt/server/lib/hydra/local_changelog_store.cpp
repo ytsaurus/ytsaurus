@@ -331,7 +331,6 @@ public:
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
             /*indexMemoryUsageTracker*/ nullptr,
-            Config_,
             threadName,
             profiler))
         , Invoker_(Dispatcher_->GetInvoker())

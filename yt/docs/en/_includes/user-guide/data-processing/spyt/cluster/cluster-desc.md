@@ -39,8 +39,7 @@ Executors with a single core are not profitable due to the expense of communicat
 
 A more detailed description is available in the [Spark documentation](https://spark.apache.org/docs/latest/cluster-overview.html).
 
-
-## Spark Standalone in {{product-name}} { #sparkl-standalone }
+## Spark Standalone in {{product-name}} { #spark-standalone }
 
 To get executors, the driver sends a request to the resource *scheduler*.
 

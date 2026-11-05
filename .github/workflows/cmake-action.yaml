@@ -15,6 +15,10 @@ on:
         required: false
         default: false
         type: boolean
+      build-gpuagent:
+        required: false
+        default: true
+        type: boolean
       update-remote-cache:
         required: false
         default: false
@@ -37,9 +41,9 @@ on:
         type: boolean
     secrets:
       BUILD_CACHE_BAZEL_USERNAME:
-        required: true
+        required: false
       BUILD_CACHE_BAZEL_PASSWORD:
-        required: true
+        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -51,6 +55,7 @@ jobs:
       runs-on-value: ${{ inputs.runs-on-value }}
       cpp-build-system: cmake
       build-ytsaurus: true
+      build-gpuagent: ${{ inputs.build-gpuagent }}
       build-chyt: ${{ inputs.build-chyt }}
       build-python: true
       update-remote-cache: ${{ inputs.update-remote-cache }}
@@ -60,10 +65,27 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
+  remove-intermediate-build-files:
+    name: Remove intermediate build files
+    needs:
+      - build-cmake
+    runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 30
+    steps:
+      - name: Remove object files and static libraries
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          df -h .
+          find ../build_cmake_relwithdebinfo -type f \( -name '*.o' -o -name '*.a' \) -delete
+          df -h .
+
   check:
     name: Check
     needs:
       - build-cmake
+      - remove-intermediate-build-files
     with:
       runs-on-value: ${{ inputs.runs-on-value }}
       build-dir: build_cmake_relwithdebinfo

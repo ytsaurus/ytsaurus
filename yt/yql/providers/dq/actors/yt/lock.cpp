@@ -364,8 +364,6 @@ private:
         options.Recursive = true;
         options.IgnoreExisting = true;
 
-        TimerCookieHolder.Reset(NActors::ISchedulerCookie::Make2Way());
-
         IEventBase* event = nullptr;
         if (!FollowingMode) {
             YQL_CLOG(DEBUG, ProviderDq) << "TryLock: creating prefix=" << Prefix
@@ -377,9 +375,15 @@ private:
             event = new TEvGetNode(InfoNodePath, NYT::NApi::TGetNodeOptions());
         }
 
-        TActivationContext::Schedule(
-            TDuration::Seconds(5),
-            new IEventHandle(YtWrapper, SelfId(), event, 0), TimerCookieHolder.Get());
+        if (FirstAttempt) {
+            FirstAttempt = false;
+            Send(YtWrapper, event);
+        } else {
+            TimerCookieHolder.Reset(NActors::ISchedulerCookie::Make2Way());
+            TActivationContext::Schedule(
+                TDuration::Seconds(5),
+                new IEventHandle(YtWrapper, SelfId(), event, 0), TimerCookieHolder.Get());
+        }
     }
 
     void OnFollowingForever() {
@@ -495,6 +499,7 @@ private:
 
     const TString Revision;
     NActors::TSchedulerCookieHolder TimerCookieHolder;
+    bool FirstAttempt = true;
     bool FollowingMode = false;
 };
 

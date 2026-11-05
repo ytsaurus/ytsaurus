@@ -121,6 +121,8 @@ public:
         TSourceMessageBatchCookie Cookie;
         // Original message split result.
         std::vector<TInputMessageConstPtr> Messages;
+        //! Original split-input statistics, unaffected by downstream filtering.
+        std::optional<TBatchStatistics> OriginalStatistics;
     };
 
     //! Must complete quickly: callers may invoke it before the partition's first status update, so

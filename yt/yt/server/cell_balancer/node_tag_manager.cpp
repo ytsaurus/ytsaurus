@@ -891,6 +891,22 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
 
     THashMap<std::string, std::string> operationsToBundle;
     for (const auto& [bundleName, bundleState] : input.BundleStates) {
+        if (bundleState->SpareNodeAssignments.empty() && bundleState->SpareNodeReleasements.empty()) {
+            continue;
+        }
+
+        if (!input.Bundles.contains(bundleName)) {
+            YT_TLOG_WARNING("Skipping spare node operations for missing bundle")
+                .With("Bundle", bundleName);
+
+            mutations->AlertsToFire.push_back({
+                .Id = "spare_node_operations_for_missing_bundle",
+                .BundleName = bundleName,
+                .Description = Format("Skipping spare node operations for missing bundle %Qv", bundleName),
+            });
+            continue;
+        }
+
         for (const auto& [spareNode, _] : bundleState->SpareNodeAssignments) {
             operationsToBundle[spareNode] = bundleName;
         }

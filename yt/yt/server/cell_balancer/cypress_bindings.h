@@ -138,6 +138,7 @@ struct TBundleConfig
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, double> FairSharePoolWeights;
     bool InitChaosBundles;
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
@@ -406,6 +407,7 @@ struct TAllocationRequestStatus
     : public NYTree::TYsonStruct
 {
     std::string State;
+    std::string YPCluster;
     std::string NodeId;
     std::string PodId;
 
@@ -832,6 +834,7 @@ struct TBundleDynamicConfig
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, double> FairSharePoolWeights;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

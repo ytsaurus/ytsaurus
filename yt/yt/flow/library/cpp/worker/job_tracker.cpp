@@ -21,6 +21,11 @@
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/computation/stores/timer_page_catalogue.h>
+
+#include <yt/yt/flow/library/cpp/tables/context.h>
+#include <yt/yt/flow/library/cpp/tables/timer_pages.h>
+
 #include <yt/yt/flow/library/cpp/misc/ema.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -542,6 +547,7 @@ private:
     const TStateCachePtr StateCache_;
 
     IResourceManagerPtr ResourceManager_;
+    TTimerPageCataloguePtr TimerPageCatalogue_;
 
     TMessageTransferingInfoPtr MessageTransferingInfo_;
 
@@ -653,6 +659,25 @@ private:
             predecessorInstanceStates);
     }
 
+    TTimerPageCataloguePtr CreateTimerPageCatalogue()
+    {
+        auto client = Context_->GetClient();
+        auto tablesContext = New<NTables::TContext>();
+        tablesContext->Client = client;
+        tablesContext->PipelinePath = Context_->PipelinePath;
+        tablesContext->LoadThroughputThrottler = LoadThroughputThrottler_;
+        tablesContext->Logger = Logger();
+        tablesContext->Profiler = WorkerProfiler().WithPrefix("/tables");
+        return New<TTimerPageCatalogue>(
+            New<NTables::TTimerPages>(tablesContext, New<TDynamicTableRequestSpec>()),
+            [client] {
+                return client->StartTransaction(NTransactionClient::ETransactionType::Tablet);
+            },
+            JobControlThreadPool_->GetInvoker("TimerPages"),
+            Logger(),
+            WorkerProfiler());
+    }
+
     void UpdatePerformanceCounters()
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
@@ -739,6 +764,10 @@ private:
             jobId,
             streamLimitUsageStates.Output);
         jobContext->LoadThroughputThrottler = LoadThroughputThrottler_;
+        if (!TimerPageCatalogue_) {
+            TimerPageCatalogue_ = CreateTimerPageCatalogue();
+        }
+        jobContext->TimerPageCatalogue = TimerPageCatalogue_;
         jobContext->JobStateCache = StateCache_->WithJob(
             jobId,
             WorkerProfiler()

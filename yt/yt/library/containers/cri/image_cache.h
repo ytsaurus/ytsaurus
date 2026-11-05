@@ -61,6 +61,7 @@ struct ICriImageCache
 
     virtual TFuture<TCriImageCacheEntryPtr> LookupImage(const TCriImageDescriptor& image) = 0;
 
+    //! Canceling the returned future stops this caller's wait while the shared pull continues.
     virtual TFuture<TCriImageCacheEntryPtr> PullImage(
         const TCriImageDescriptor& image,
         TCriAuthConfigPtr authConfig = nullptr,

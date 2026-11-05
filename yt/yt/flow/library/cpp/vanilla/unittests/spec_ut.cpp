@@ -48,6 +48,17 @@ TEST(TVanillaSpecTest, OmitsDockerImageWhenUnset)
     EXPECT_FALSE(GetTask(operationSpec)->FindChild("docker_image"));
 }
 
+TEST(TVanillaSpecTest, EnablesRpcProxyInJobProxy)
+{
+    TVanillaTaskSpec task;
+    task.EnableRpcProxyInJobProxy = true;
+
+    auto operationSpec = BuildVanillaOperationSpec(MakeSpec(std::move(task)));
+    auto worker = GetTask(operationSpec);
+
+    EXPECT_TRUE(worker->GetChildOrThrow("enable_rpc_proxy_in_job_proxy")->AsBoolean()->GetValue());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

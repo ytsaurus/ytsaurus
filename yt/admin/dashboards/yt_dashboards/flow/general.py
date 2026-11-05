@@ -18,6 +18,7 @@ from .controller import add_partitions_by_current_job_status_cell, add_controlle
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.taggable import NotEquals
 
 from textwrap import dedent
 
@@ -121,6 +122,7 @@ def build_lags():
             .cell(
                 "Stream Time Lag",
                 MonitoringExpr(FlowController("yt.flow.controller.streams.time_lag"))
+                    .value("stream_id", NotEquals("__united*__"))
                     .alias("{{stream_id}}")
                     .unit("UNIT_SECONDS")
                     .precision(1))

@@ -37,10 +37,10 @@ DECLARE_REFCOUNTED_CLASS(TGraphProcessFunction)
 
 namespace {
 
-bool IsSwiftGraph(const TComputationSpecPtr& computation)
+EProcessFunctionGraphHost GetGraphHost(const TComputationSpecPtr& computation)
 {
     THROW_ERROR_EXCEPTION_UNLESS(computation, "Process function graph requires a hosting computation spec");
-    return computation->ComputationClassName == "NYT::NFlow::TProcessFunctionSwiftMapComputation";
+    return GetProcessFunctionGraphHost(*computation);
 }
 
 TMessageId GenerateGraphParentsId(
@@ -221,6 +221,21 @@ TComputationSpecPtr BuildNodeView(
     view->GroupBySchema = computation->GroupBySchema;
     view->InputStreamIds = node->InputStreamIds;
     view->OutputStreamIds = node->OutputStreamIds;
+    // A node sees the sources it reads and the sinks of the streams it writes, as a function hosted alone would.
+    for (const auto& [streamId, source] : computation->SourceStreams) {
+        if (node->InputStreamIds.contains(streamId)) {
+            view->InputStreamIds.erase(streamId);
+            view->SourceStreams.emplace(streamId, source);
+        }
+    }
+    for (const auto& [sinkId, sink] : computation->Sinks) {
+        for (const auto& streamId : sink->InputStreamIds) {
+            if (node->OutputStreamIds.contains(streamId)) {
+                view->Sinks.emplace(sinkId, sink);
+                break;
+            }
+        }
+    }
     view->TimerStreams = node->TimerStreams;
     for (const auto& streamId : node->OutputStreamIds) {
         view->StreamsDependency[streamId] = GetProcessFunctionGraphNodeDependencies(node, streamId);
@@ -285,6 +300,7 @@ public:
         , ComputationId_(std::move(computationId))
         , OuterSpec_(std::move(outerSpec))
         , BoundaryStreams_(GetBoundaryStreams(spec, OuterSpec_))
+        , Swift_(GetProcessFunctionGraphHost(*OuterSpec_) != EProcessFunctionGraphHost::Transform)
     { }
 
     void Refresh(const IRuntimeContextPtr& outer, const IMapNodePtr& dynamicParameters)
@@ -319,7 +335,7 @@ public:
         RefreshEpochState(
             localState,
             dynamicParameters,
-            IsSwiftGraph(OuterSpec_) ? std::nullopt : std::optional(outer->GetEpochUniqueSeqNo()));
+            Swift_ ? std::nullopt : std::optional(outer->GetEpochUniqueSeqNo()));
     }
 
     NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) override
@@ -339,6 +355,7 @@ private:
     const TComputationSpecPtr OuterSpec_;
     //! Only these keep outer watermarks: timer IDs never coincide with the message streams of their node.
     const THashSet<TStreamId> BoundaryStreams_;
+    const bool Swift_;
     IRuntimeContextPtr Outer_;
 };
 
@@ -405,6 +422,7 @@ private:
     };
 
     const TProcessFunctionContextPtr Context_;
+    const EProcessFunctionGraphHost Host_;
     const bool IsSwift_;
     const bool AllowMerging_;
     TComputationStreamSpecStoragePtr StreamSpecs_;
@@ -566,8 +584,13 @@ private:
 
 TGraphProcessFunction::TGraphProcessFunction(TProcessFunctionContextPtr context)
     : Context_(std::move(context))
-    , IsSwift_(IsSwiftGraph(Context_->ComputationSpec))
-    , AllowMerging_(!IsSwift_ || ConvertTo<TSwiftMapComputation::TParametersPtr>(Context_->ComputationSpec->Parameters)->AllowBatchingWithRelaxedGuarantees)
+    , Host_(GetGraphHost(Context_->ComputationSpec))
+    , IsSwift_(Host_ != EProcessFunctionGraphHost::Transform)
+    // A source requires a single source message per output, so it never merges parents.
+    , AllowMerging_(
+        Host_ == EProcessFunctionGraphHost::Transform ||
+        (Host_ == EProcessFunctionGraphHost::SwiftMap &&
+            ConvertTo<TSwiftMapComputation::TParametersPtr>(Context_->ComputationSpec->Parameters)->AllowBatchingWithRelaxedGuarantees))
 { }
 
 void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
@@ -576,7 +599,7 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
     const auto& graph = parameters->Graph;
     const auto& computation = Context_->ComputationSpec;
     THROW_ERROR_EXCEPTION_UNLESS(computation, "Process function graph requires a hosting computation spec");
-    auto topology = BuildProcessFunctionGraphTopology(graph, computation->InputStreamIds, computation->OutputStreamIds);
+    auto topology = BuildProcessFunctionGraphTopology(graph, GetProcessFunctionGraphInputStreamIds(*computation), computation->OutputStreamIds);
     auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
     StreamSpecs_ = BuildGraphStreams(parameters->Streams, computation->GroupBySchema, converterCache);
 
@@ -609,7 +632,7 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
         }
     }
     auto validateStreamSpec = [&] (const TStreamId& streamId) {
-        THROW_ERROR_EXCEPTION_UNLESS(StreamSpecs_->GetStreamSpecs()->HasStream(streamId),
+        THROW_ERROR_EXCEPTION_UNLESS(computation->SourceStreams.contains(streamId) || StreamSpecs_->GetStreamSpecs()->HasStream(streamId),
             "Process function graph stream %Qv has no spec",
             streamId);
     };
@@ -624,10 +647,18 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
     for (auto& node : Nodes_) {
         try {
             auto view = BuildNodeView(node.Spec, computation);
+            node.Runtime = New<TGraphNodeRuntimeContext>(
+                view,
+                StreamSpecs_,
+                converterCache,
+                GetOrCrash(topology.Boundaries, node.Id),
+                GetOrCrash(topology.SystemBoundaries, node.Id),
+                initContext->GetComputationId(),
+                computation);
             auto childInit = New<TGraphInitContext>(
                 initContext->WithPrefix("functions")->WithPrefix(node.Id),
-                node.Spec->ProcessingFunctionParameters,
-                TRegistry::Get()->ParseProcessFunctionParameters(view),
+                node.Runtime->GetParametersNode(),
+                node.Runtime->GetParametersObject(),
                 Format("/functions/%v", node.Id));
 
             auto processContext = New<TProcessFunctionContext>();
@@ -644,14 +675,6 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
                 TRegistry::Get()->ViewProcessFunctionAsSync(node.Spec->ProcessingFunction, function),
                 "Sync process functions are not supported inside a process function graph");
             node.Function = WrapAsBatch(function);
-            node.Runtime = New<TGraphNodeRuntimeContext>(
-                std::move(view),
-                StreamSpecs_,
-                converterCache,
-                GetOrCrash(topology.Boundaries, node.Id),
-                GetOrCrash(topology.SystemBoundaries, node.Id),
-                childInit->GetComputationId(),
-                computation);
             function->Init(childInit);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Cannot initialize process function graph node %Qv", node.Id)
@@ -830,17 +853,23 @@ void TGraphProcessFunction::Process(
         THROW_ERROR_EXCEPTION_IF(it == Consumers_.end(),
             "Process function graph received a message of stream %Qv, which no node reads",
             message->StreamId);
-        auto schema = StreamSpecs_->GetSchema(message->StreamId);
-        auto& checkedSchema = checkedInputSchemas[message->StreamId];
-        if (checkedSchema != message->PayloadSchema) {
-            THROW_ERROR_EXCEPTION_UNLESS(AreSchemasEqual(message->PayloadSchema, schema),
-                "Input message of stream %Qv has an unexpected schema",
-                message->StreamId);
-            checkedSchema = message->PayloadSchema;
+        TInputMessageConstPtr delivered;
+        if (Host_ == EProcessFunctionGraphHost::SwiftSource && Context_->ComputationSpec->SourceStreams.contains(message->StreamId)) {
+            // The source defines the schema of its messages, so they are delivered as is.
+            delivered = message;
+        } else {
+            auto schema = StreamSpecs_->GetSchema(message->StreamId);
+            auto& checkedSchema = checkedInputSchemas[message->StreamId];
+            if (checkedSchema != message->PayloadSchema) {
+                THROW_ERROR_EXCEPTION_UNLESS(AreSchemasEqual(message->PayloadSchema, schema),
+                    "Input message of stream %Qv has an unexpected schema",
+                    message->StreamId);
+                checkedSchema = message->PayloadSchema;
+            }
+            auto copy = TMessage(*message);
+            copy.PayloadSchema = std::move(schema);
+            delivered = New<TInputMessage>(std::move(copy), message->Key);
         }
-        auto copy = TMessage(*message);
-        copy.PayloadSchema = std::move(schema);
-        auto delivered = New<TInputMessage>(std::move(copy), message->Key);
         for (auto* node : it->second) {
             node->Messages.push_back(delivered);
         }
@@ -899,7 +928,8 @@ void TGraphProcessFunction::AddMessage(
     TOutputCollector* collector)
 {
     THROW_ERROR_EXCEPTION_UNLESS(Active_, "Process function graph output was used outside Process");
-    if (!options.Distribute) {
+    // Only a source lets a message it does not distribute advance the watermark; other hosts drop such messages.
+    if (!options.Distribute && Host_ != EProcessFunctionGraphHost::SwiftSource) {
         return;
     }
     const auto& outputs = node.Spec->OutputStreamIds;
@@ -943,24 +973,38 @@ void TGraphProcessFunction::AddMessage(
     }
     FillMessageMeta(node, message, parents);
 
+    if (!options.Distribute) {
+        // Other nodes never read a message that is not distributed, and the source sees it only on its outputs.
+        if (ExternalOutputs_.contains(streamId)) {
+            ExportMessage(std::move(message), parents.Origins, resolvedOptions);
+        }
+        return;
+    }
+
     // Check every destination before delivering the message to any of them.
     TInputMessageConstPtr delivered;
     const std::vector<TNode*>* consumers = nullptr;
     if (auto it = Consumers_.find(streamId); it != Consumers_.end()) {
         consumers = &it->second;
-        auto key = StreamSpecs_->ComputeKey(message);
         THROW_ERROR_EXCEPTION_IF(parents.HasMixedKeys,
             "Parents of a message on stream %Qv of process function graph node %Qv have different keys; "
             "a batch function must set the parents of each output with output->SetParents(...)",
             streamId,
             node.Id);
-        THROW_ERROR_EXCEPTION_IF(parents.Key != key,
-            "Process function graph node %Qv changed the key of a message on stream %Qv read by other nodes; "
-            "a key change requires a separate computation",
-            node.Id,
-            streamId)
-            .With("key", key)
-            .With("parent_key", parents.Key);
+        TKey key;
+        if (Host_ == EProcessFunctionGraphHost::SwiftSource) {
+            // A source keys its messages by partition rather than by payload, so their descendants keep that key.
+            key = parents.Key;
+        } else {
+            key = StreamSpecs_->ComputeKey(message);
+            THROW_ERROR_EXCEPTION_IF(parents.Key != key,
+                "Process function graph node %Qv changed the key of a message on stream %Qv read by other nodes; "
+                "a key change requires a separate computation",
+                node.Id,
+                streamId)
+                .With("key", key)
+                .With("parent_key", parents.Key);
+        }
         auto& index = MessageIndices_[std::pair(parents.Origins->MessageId, streamId)];
         message.MessageId = GenerateInheritedMessageId(
             parents.Origins->MessageId,
@@ -990,11 +1034,16 @@ void TGraphProcessFunction::FillMessageMeta(
         THROW_ERROR_EXCEPTION_UNLESS(origins->Timers.empty(),
             "Output of Swift process function graph node %Qv has parent timers",
             node.Id);
-        THROW_ERROR_EXCEPTION_UNLESS(AllowMerging_ || origins->Messages.size() == 1,
-            "Output of Swift process function graph node %Qv has %v boundary parents; "
-            "merging requires allow_batching_with_relaxed_guarantees=true",
-            node.Id,
-            origins->Messages.size());
+        if (!AllowMerging_ && origins->Messages.size() != 1) {
+            if (Host_ == EProcessFunctionGraphHost::SwiftSource) {
+                THROW_ERROR_EXCEPTION("Output of process function graph node %Qv derives from %v source messages; each output of a source computation must derive from one source message",
+                    node.Id,
+                    origins->Messages.size());
+            }
+            THROW_ERROR_EXCEPTION("Output of Swift process function graph node %Qv has %v boundary parents; merging requires allow_batching_with_relaxed_guarantees=true",
+                node.Id,
+                origins->Messages.size());
+        }
     }
 
     if (IsSwift_) {

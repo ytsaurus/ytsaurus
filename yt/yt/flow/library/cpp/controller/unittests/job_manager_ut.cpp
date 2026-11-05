@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/common/watermark_history.h>
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 #include <yt/yt/flow/library/cpp/controller/config.h>
@@ -1478,6 +1479,323 @@ TEST_F(TInputSystemWatermarkTest, DoesNotAdvanceWithoutPartitionTraverseData)
 
     EXPECT_TRUE(FlowView->EphemeralState->TraverseUncoveredComputations.empty());
     EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(100));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTimerReadyWatermarkTest
+    : public TJobManagerTest
+{
+public:
+    struct TPartitionStream
+    {
+        std::optional<ui64> SystemWatermark;
+        std::optional<ui64> MinTriggerTimestamp;
+        std::optional<i64> ReadyCount;
+    };
+
+    using TPartitionStreams = THashMap<TStreamId, TPartitionStream>;
+
+    const TComputationId ProducerId = TComputationId("producer");
+    const TComputationId ConsumerId = TComputationId("timers");
+    const TStreamId InputStreamId = TStreamId("stream");
+    const TStreamId TimerStreamId = TStreamId("timer");
+    const TStreamId EventTimerStreamId = TStreamId("event_timer");
+    const TStreamId SystemTimerStreamId = TStreamId("system_timer");
+
+    //! A producer feeds the input stream of a computation with timers of every time type.
+    void PreparePipeline()
+    {
+        auto spec = New<TPipelineSpec>();
+        auto producerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        producerSpec->InputStreamIds.clear();
+        producerSpec->KeyVisitorStreams["source"] = New<TKeyVisitorStreamSpec>();
+        producerSpec->OutputStreamIds.insert(InputStreamId);
+        spec->Computations[ProducerId] = std::move(producerSpec);
+
+        auto consumerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        consumerSpec->InputStreamIds = {InputStreamId};
+        auto addTimer = [&] (const TStreamId& timerStreamId, ETimeType timeType, THashMap<TStreamId, TDuration> streamsWithDelays) {
+            auto timerSpec = New<TTimerSpec>();
+            timerSpec->TimeType = timeType;
+            timerSpec->StreamsWithDelays = std::move(streamsWithDelays);
+            consumerSpec->TimerStreams[timerStreamId] = std::move(timerSpec);
+        };
+
+        addTimer(TimerStreamId, ETimeType::CurrentTime, {{InputStreamId, TDuration::Seconds(10)}});
+        addTimer(EventTimerStreamId, ETimeType::EventTime, {{InputStreamId, TDuration::Zero()}});
+        addTimer(SystemTimerStreamId, ETimeType::SystemTime, {{InputStreamId, TDuration::Seconds(5)}});
+        spec->Computations[ConsumerId] = std::move(consumerSpec);
+
+        auto dynamicSpec = New<TDynamicPipelineSpec>();
+        dynamicSpec->JobManager->AsyncBalancing = false;
+
+        for (const auto& [computationId, partitionCount] : {std::pair(ProducerId, 1u), std::pair(ConsumerId, 2u)}) {
+            dynamicSpec->Computations[computationId] = New<TDynamicComputationSpec>();
+            dynamicSpec->Computations[computationId]->Parameters->AddChild(
+                "desired_partition_count",
+                NYTree::ConvertToNode(partitionCount));
+        }
+
+        Prepare(spec, dynamicSpec);
+        FlowView->State->CurrentTimestamp = TSystemTimestamp(1000);
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+        SetProducerWatermarks(/*systemWatermark*/ 1000, /*eventWatermark*/ 1000);
+    }
+
+    std::vector<TPartitionId> GetPartitionIds(const TComputationId& computationId)
+    {
+        std::vector<TPartitionId> partitionIds;
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId) {
+                partitionIds.push_back(partitionId);
+            }
+        }
+
+        Sort(partitionIds);
+        return partitionIds;
+    }
+
+    void SetNodeTraverseData(const TPartitionId& partitionId, const TComputationId& computationId, const std::function<void(const TStreamId&, const TStreamTraverseDataPtr&)>& fillStream)
+    {
+        const auto& extendedSpec = GetOrCrash(
+            FlowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue()->Computations,
+            computationId);
+        auto traverseData = New<TFromPartitionTraverseData>();
+        traverseData->Node = New<TNodeTraverseData>();
+        for (const auto& streamId : extendedSpec->AllStreamIds) {
+            auto stream = New<TStreamTraverseData>();
+            stream->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+            stream->SystemWatermark = stream->EventWatermark = FlowView->State->CurrentTimestamp;
+            fillStream(streamId, stream);
+            traverseData->Node->Streams[streamId] = std::move(stream);
+        }
+
+        auto status = New<TPartitionJobStatus>();
+        status->LastTraverseData = std::move(traverseData);
+        FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(status);
+    }
+
+    void SetProducerWatermarks(ui64 systemWatermark, ui64 eventWatermark)
+    {
+        for (const auto& partitionId : GetPartitionIds(ProducerId)) {
+            SetNodeTraverseData(partitionId, ProducerId, [&] (const TStreamId& /*streamId*/, const TStreamTraverseDataPtr& stream) {
+                stream->SystemWatermark = TSystemTimestamp(systemWatermark);
+                stream->EventWatermark = TSystemTimestamp(eventWatermark);
+            });
+        }
+    }
+
+    //! Unspecified streams report the current timestamp as their watermark and no timers.
+    void SetPartitionTraverseData(const std::vector<TPartitionStreams>& partitionStreams)
+    {
+        auto partitionIds = GetPartitionIds(ConsumerId);
+        ASSERT_EQ(std::ssize(partitionIds), std::ssize(partitionStreams));
+
+        for (int index = 0; index < std::ssize(partitionIds); ++index) {
+            SetNodeTraverseData(partitionIds[index], ConsumerId, [&] (const TStreamId& streamId, const TStreamTraverseDataPtr& stream) {
+                const auto* partitionStream = partitionStreams[index].FindPtr(streamId);
+                if (!partitionStream) {
+                    return;
+                }
+
+                if (partitionStream->SystemWatermark) {
+                    stream->SystemWatermark = TSystemTimestamp(*partitionStream->SystemWatermark);
+                }
+
+                if (partitionStream->MinTriggerTimestamp) {
+                    stream->MinTriggerTimestamp = TSystemTimestamp(*partitionStream->MinTriggerTimestamp);
+                }
+
+                stream->InflightMetrics->ReadyCount = partitionStream->ReadyCount;
+            });
+        }
+    }
+
+    //! One controller iteration: aggregation resolves ready watermarks, then the published watermarks are recorded.
+    void Iterate(ui64 now)
+    {
+        FlowView->State->CurrentTimestamp = TSystemTimestamp(now);
+        JobManager->AggregateTraverseData(FlowView);
+        JobManager->UpdateWatermarkState(FlowView);
+    }
+
+    //! Records one sample per iteration: the input stream's system watermark 900 + 10 i and event watermark 500 + 100 i at 1000 + 10 i.
+    void RecordHistory(int iterationCount)
+    {
+        for (int index = 0; index < iterationCount; ++index) {
+            auto now = 1000 + 10 * index;
+            FlowView->State->CurrentTimestamp = TSystemTimestamp(now);
+            SetProducerWatermarks(/*systemWatermark*/ 900 + 10 * index, /*eventWatermark*/ 500 + 100 * index);
+            // Old timers keep the advanced system watermarks of the timer streams low.
+            TPartitionStreams streams;
+            for (const auto& streamId : {TimerStreamId, EventTimerStreamId, SystemTimerStreamId}) {
+                streams[streamId] = {.SystemWatermark = 100};
+            }
+
+            ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({streams, streams}));
+            Iterate(now);
+        }
+    }
+
+    TStreamTraverseDataPtr GetStream(const TStreamId& streamId)
+    {
+        return GetOrCrash(FlowView->State->TraverseData->Streams, TStreamId(Format("%v/%v", ConsumerId, streamId)));
+    }
+};
+
+TEST_F(TTimerReadyWatermarkTest, ResolvesCurrentTimeTimersPerPartition)
+{
+    PreparePipeline();
+    // The first partition holds old future timers, the second one has a timer due since 700.
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{TimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 2000}}, {EventTimerStreamId, {.SystemWatermark = 800}}},
+        {{TimerStreamId, {.SystemWatermark = 500, .MinTriggerTimestamp = 700}}, {EventTimerStreamId, {.SystemWatermark = 900}}},
+    }));
+
+    Iterate(/*now*/ 1000);
+
+    auto timerStream = GetStream(TimerStreamId);
+    EXPECT_EQ(timerStream->SystemWatermark, TSystemTimestamp(100));
+    EXPECT_EQ(timerStream->ReadyWatermark, TSystemTimestamp(700));
+    EXPECT_FALSE(timerStream->ReadyWatermarkUnknown);
+    EXPECT_EQ(GetStream(EventTimerStreamId)->ReadyWatermark, TSystemTimestamp(800));
+    EXPECT_FALSE(GetOrCrash(FlowView->State->TraverseData->Streams, InputStreamId)->ReadyWatermark);
+
+    const auto& traverseData = FlowView->State->TraverseData;
+    EXPECT_EQ(traverseData->UnitedTimerStream->ReadyWatermark, TSystemTimestamp(700));
+    EXPECT_EQ(traverseData->UnitedStream->ReadyWatermark, TSystemTimestamp(700));
+    EXPECT_FALSE(traverseData->UnitedKeyVisitorStream->ReadyWatermark);
+
+    // The resolved value is part of the persisted traverse data.
+    auto recovered = NYTree::ConvertTo<TPipelineTraverseDataPtr>(NYson::ConvertToYsonString(traverseData));
+    EXPECT_EQ(GetOrCrash(recovered->Streams, TStreamId("timers/timer"))->ReadyWatermark, TSystemTimestamp(700));
+}
+
+TEST_F(TTimerReadyWatermarkTest, PartitionWithoutTriggerTimestampUsesSystemWatermark)
+{
+    PreparePipeline();
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{TimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 2000}}},
+        {{TimerStreamId, {.SystemWatermark = 500}}},
+    }));
+
+    Iterate(/*now*/ 1000);
+
+    EXPECT_EQ(GetStream(TimerStreamId)->ReadyWatermark, TSystemTimestamp(500));
+}
+
+TEST_F(TTimerReadyWatermarkTest, NothingDueResolvesToNow)
+{
+    PreparePipeline();
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{TimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 2000}}},
+        {{TimerStreamId, {.SystemWatermark = 500, .MinTriggerTimestamp = 1005}}},
+    }));
+
+    Iterate(/*now*/ 1000);
+
+    EXPECT_EQ(GetStream(TimerStreamId)->ReadyWatermark, TSystemTimestamp(1000));
+}
+
+TEST_F(TTimerReadyWatermarkTest, ReadyWatermarkIsNotBelowAdvancedSystemWatermark)
+{
+    PreparePipeline();
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{TimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 2000}}},
+        {{TimerStreamId, {.SystemWatermark = 500, .MinTriggerTimestamp = 700}}},
+    }));
+    Iterate(/*now*/ 1000);
+
+    // The previous traverse holds a newer system watermark, so the advanced watermark exceeds the resolved one.
+    auto& node = GetOrCrash(FlowView->State->TraverseData->Computations, ConsumerId);
+    auto previousStream = GetOrCrash(node->Streams, TimerStreamId);
+    previousStream->SystemWatermark = TSystemTimestamp(900);
+    Iterate(/*now*/ 1000);
+
+    auto timerStream = GetStream(TimerStreamId);
+    EXPECT_EQ(timerStream->SystemWatermark, TSystemTimestamp(900));
+    EXPECT_EQ(timerStream->ReadyWatermark, TSystemTimestamp(900));
+}
+
+TEST_F(TTimerReadyWatermarkTest, ResolvesEveryTimeTypeWithItsOwnSource)
+{
+    PreparePipeline();
+    FlowView->State->WatermarkHistory->Event["unreferenced"].Append(/*instant*/ TSystemTimestamp(900), /*watermark*/ TSystemTimestamp(1), /*thinningFactor*/ 4);
+    ASSERT_NO_FATAL_FAILURE(RecordHistory(/*iterationCount*/ 4));
+    EXPECT_FALSE(FlowView->State->WatermarkHistory->Event.contains("unreferenced"));
+    EXPECT_EQ(GetKeys(FlowView->State->WatermarkHistory->Event), std::vector{InputStreamId});
+    EXPECT_EQ(GetKeys(FlowView->State->WatermarkHistory->System), std::vector{InputStreamId});
+
+    // A new leader recovers the persisted history.
+    FlowView->State->WatermarkHistory = NYTree::ConvertTo<TPipelineWatermarkHistoryPtr>(
+        NYson::ConvertToYsonString(FlowView->State->WatermarkHistory));
+
+    FlowView->State->CurrentTimestamp = TSystemTimestamp(1040);
+    SetProducerWatermarks(/*systemWatermark*/ 940, /*eventWatermark*/ 900);
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {
+            {TimerStreamId, {.SystemWatermark = 300, .MinTriggerTimestamp = 1015}},
+            {EventTimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 650}},
+            {SystemTimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 915}},
+        },
+        {
+            {TimerStreamId, {.SystemWatermark = 300, .MinTriggerTimestamp = 2000}},
+            {EventTimerStreamId, {.SystemWatermark = 200, .MinTriggerTimestamp = 2000}},
+            {SystemTimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 905}},
+        },
+    }));
+    Iterate(/*now*/ 1040);
+
+    // Current time: due at the trigger timestamp.
+    EXPECT_EQ(GetStream(TimerStreamId)->ReadyWatermark, TSystemTimestamp(1015));
+    // Event time: the input event watermark first reached 650 at 1020.
+    EXPECT_EQ(GetStream(EventTimerStreamId)->ReadyWatermark, TSystemTimestamp(1020));
+    // System time: 905 + 5 was first reached at 1010, earlier than 915 + 5 at 1020.
+    EXPECT_EQ(GetStream(SystemTimerStreamId)->ReadyWatermark, TSystemTimestamp(1010));
+
+    const auto& traverseData = FlowView->State->TraverseData;
+    EXPECT_EQ(traverseData->UnitedTimerStream->ReadyWatermark, TSystemTimestamp(1010));
+    EXPECT_FALSE(traverseData->UnitedTimerStream->ReadyWatermarkUnknown);
+}
+
+TEST_F(TTimerReadyWatermarkTest, KeyBeforeHistoryOmitsReadyWatermarkUntilResolvable)
+{
+    PreparePipeline();
+    ASSERT_NO_FATAL_FAILURE(RecordHistory(/*iterationCount*/ 2));
+
+    // The event watermark history starts at 500, so the trigger timestamp 400 cannot be resolved.
+    FlowView->State->CurrentTimestamp = TSystemTimestamp(1020);
+    SetProducerWatermarks(/*systemWatermark*/ 920, /*eventWatermark*/ 700);
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{EventTimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 400, .ReadyCount = 3}}, {SystemTimerStreamId, {.SystemWatermark = 800}}},
+        {{EventTimerStreamId, {.SystemWatermark = 200, .MinTriggerTimestamp = 550, .ReadyCount = 2}}},
+    }));
+    Iterate(/*now*/ 1020);
+
+    auto eventStream = GetStream(EventTimerStreamId);
+    EXPECT_TRUE(eventStream->ReadyWatermarkUnknown);
+    EXPECT_FALSE(eventStream->ReadyWatermark);
+    EXPECT_EQ(eventStream->InflightMetrics->ReadyCount, 5);
+    EXPECT_EQ(GetStream(SystemTimerStreamId)->ReadyWatermark, TSystemTimestamp(800));
+    const auto& traverseData = FlowView->State->TraverseData;
+    EXPECT_TRUE(traverseData->UnitedTimerStream->ReadyWatermarkUnknown);
+    EXPECT_FALSE(traverseData->UnitedTimerStream->ReadyWatermark);
+    EXPECT_TRUE(traverseData->UnitedStream->ReadyWatermarkUnknown);
+
+    // Once the unresolvable timer is processed, the next aggregation resolves again: 550 was reached at 1010.
+    FlowView->State->CurrentTimestamp = TSystemTimestamp(1030);
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData({
+        {{EventTimerStreamId, {.SystemWatermark = 100, .MinTriggerTimestamp = 550}}},
+        {},
+    }));
+    Iterate(/*now*/ 1030);
+
+    eventStream = GetStream(EventTimerStreamId);
+    EXPECT_FALSE(eventStream->ReadyWatermarkUnknown);
+    EXPECT_EQ(eventStream->ReadyWatermark, TSystemTimestamp(1010));
+    EXPECT_FALSE(FlowView->State->TraverseData->UnitedTimerStream->ReadyWatermarkUnknown);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3816,6 +4134,33 @@ TEST_F(TJobBalancerTest, WorkerGroupAsync)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TJobBalancerTest, KeyCountFailureSnapshotSurvivesOrdinaryCleanup)
+{
+    Reset();
+    PrepareBalancerTest(1, {TComputationDescription{2, {}}}, 1, TDuration::MilliSeconds(50));
+    auto dynamic = CloneYsonStruct(FlowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue());
+    const auto& id = FlowView->State->ExecutionSpec->PipelineSpec->GetValue()->Computations.begin()->first;
+    auto computation = New<TDynamicComputationSpec>();
+
+    dynamic->Computations[id] = computation;
+    JobManager->Reconfigure(dynamic);
+    DistributeJobs();
+    auto& layout = FlowView->State->ExecutionSpec->Layout;
+    const auto partition = layout->Partitions.begin()->second;
+    ASSERT_TRUE(partition->CurrentJobId);
+    const auto jobId = *partition->CurrentJobId;
+    SimulateJobFinished(FlowView, partition->PartitionId, TError(NFlow::EErrorCode::PartitionKeyLimitExceeded, "Key limit"));
+    auto& status = FlowView->Feedback->PartitionJobStatuses[partition->PartitionId]->CurrentJobStatus;
+    const auto key = *partition->LowerKey == MinKey() ? MakeKey(0u) : *partition->LowerKey;
+    status->ObservedKeys = THashMap<TKey, TInstant>{{key, TInstant::Now()}};
+    FlowView->State->StartMutation();
+    JobManager->BeginIteration(FlowView);
+    JobManager->RemoveFailedJobs(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_TRUE(layout->Jobs.contains(jobId));
+    EXPECT_EQ(status->ObservedKeys->size(), 1u);
+}
+
 TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
 {
     // Same scenario as GracefulMoveJobCompletesOnTargetWorker, but the worker reports
@@ -4087,6 +4432,78 @@ TEST_F(TJobBalancerTest, InvalidGracefulRebalanceIsCancelledBeforeJobFinishes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TJobBalancerTest, KeyCountCreationCountsNewJobsWithinPass)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 3}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    GetOrCrash(dynamic->Computations, GetComputationId(0))->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(2));
+    JobManager->Reconfigure(dynamic);
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 2u);
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 2u);
+    FlowView->State->CommitMutation();
+}
+
+TEST_F(TJobBalancerTest, KeyCountImmediateMoveReusesReleasedCapacity)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 4}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    dynamic->JobManager->GracefulMove = false;
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    GetOrCrash(dynamic->Computations, GetComputationId(0))->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(4));
+    JobManager->Reconfigure(dynamic);
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    for (const auto& [id, partition] : layout->Partitions) {
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->PartitionId = id;
+        job->WorkerAddress = GetWorkerAddress(0);
+        job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, GetWorkerAddress(0))->IncarnationId;
+        layout->CreateJob(job);
+    }
+    FlowView->State->CommitMutation();
+    SetCpuLoadUniform();
+
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 4u);
+    EXPECT_GT(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+    FlowView->State->CommitMutation();
+}
+
+TEST_F(TJobBalancerTest, KeyCountCreationHonorsCapDuringInheritedHandoff)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 2}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    auto computation = GetOrCrash(dynamic->Computations, GetComputationId(0));
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    computation->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(1));
+    JobManager->Reconfigure(dynamic);
+    FlowView->CurrentDynamicSpec->TrySetValue(dynamic, TestVersionProvider());
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamic, TestVersionProvider());
+    const auto ids = GetPartitionIds();
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    auto retiring = CloneYsonStruct(GetOrCrash(layout->Partitions, ids[0]));
+    retiring->State = EPartitionState::Interrupting;
+    layout->UpdatePartition(retiring);
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 1u);
+    EXPECT_TRUE(GetOrCrash(layout->Partitions, ids[0])->CurrentJobId);
+    EXPECT_FALSE(GetOrCrash(layout->Partitions, ids[1])->CurrentJobId);
+    FlowView->State->CommitMutation();
+}
 
 TEST_F(TJobBalancerTest, GracefulMoveDisabledDoesImmediateStop)
 {

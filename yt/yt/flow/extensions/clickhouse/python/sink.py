@@ -1,7 +1,6 @@
 EXACTLY_ONCE_SINK = "NYT::NFlow::TClickHouseBatchingSink"
 SHARDED_EXACTLY_ONCE_SINK = "NYT::NFlow::TShardedClickHouseBatchingSink"
 AT_LEAST_ONCE_SINK = "NYT::NFlow::TAtLeastOnceClickHouseSink"
-AT_MOST_ONCE_SINK = "NYT::NFlow::TAtMostOnceClickHouseSink"
 
 
 def make_clickhouse_sink(

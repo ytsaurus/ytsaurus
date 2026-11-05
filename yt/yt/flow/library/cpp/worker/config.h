@@ -20,6 +20,9 @@ struct TWorkerConfig
     int MessageServiceThreads{};
     NFileStorage::TFileStorageConfigPtr FileStorage;
 
+    //! Connector settings used until the controller supplies a dynamic pipeline spec.
+    TDynamicControllerConnectorSpecPtr InitialControllerConnector;
+
     REGISTER_YSON_STRUCT(TWorkerConfig);
 
     static void Register(TRegistrar registrar);

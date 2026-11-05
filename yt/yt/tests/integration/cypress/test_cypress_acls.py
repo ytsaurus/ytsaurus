@@ -1545,12 +1545,6 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("shakurov", "danilalexeev")
     @pytest.mark.parametrize("removal", ["abort", "unlock"])
     def test_orphaned_node(self, removal):
-        if removal == "unlock":
-            # Using unlock() on snapshot branch leads to
-            # "Non-zero reference counter after object removal" alert.
-            # TODO(kvk1920): investigate it.
-            pytest.skip()
-
         create_user("u")
 
         create(

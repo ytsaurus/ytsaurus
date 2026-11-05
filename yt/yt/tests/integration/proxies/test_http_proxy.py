@@ -17,7 +17,7 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, add_member, Operation, discover_proxies,
+    read_table, write_table, write_file, add_member, Operation, discover_proxies,
     start_transaction,
 )
 
@@ -80,11 +80,6 @@ class HttpProxyTestBase(YTEnvSetup):
             },
         },
         "cancel_fiber_on_connection_close": True,
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
     }
 
     USER = "root"
@@ -764,6 +759,101 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
+    def _wait_heavy_request_memory_reservation_config(self, proxy_name, enable):
+        def config_updated():
+            config = get(
+                f"//sys/http_proxies/{proxy_name}/orchid/dynamic_config_manager/effective_config")
+            reservation_config = config.get("api", {}).get("heavy_request_memory_reservation", {})
+            return reservation_config.get("enable") == enable
+
+        wait(config_updated)
+
+    def _start_streaming_read_file(self, path):
+        headers = {
+            "X-YT-Parameters": yson.dumps({"path": path}),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-User-Name": "root",
+        }
+        rsp = requests.get(
+            f"{self._get_proxy_address()}/api/v4/read_file",
+            headers=headers,
+            stream=True,
+        )
+        try_parse_yt_error_headers(rsp)
+        return rsp
+
+    @authors("achains")
+    @pytest.mark.timeout(180)
+    def test_heavy_request_memory_reservation(self):
+        # https://st.yandex-team.ru/YT-30254
+        return
+        proxy_name = ls("//sys/http_proxies")[0]
+        reservation = 300 * 10**6
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"x" * (128 * 2**20))
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "heavy_request_memory_limit_ratio": 0.5,
+                },
+                "heavy_request_memory_reservation": {
+                    "enable": True,
+                    "commands": {"read_file": {"reservation": reservation}},
+                },
+            },
+        })
+        self._wait_heavy_request_memory_reservation_config(proxy_name, True)
+
+        profiler = profiler_factory().at_http_proxy(
+            proxy_name,
+            fixed_tags={"category": "heavy_request"},
+        )
+        heavy_request_memory_usage = profiler.gauge("http_proxy/memory_usage/used")
+
+        # The body is not consumed, so the proxy blocks on the socket and keeps the reservation.
+        blocked_rsp = self._start_streaming_read_file("//tmp/file")
+        wait(lambda: heavy_request_memory_usage.get(default=0) >= reservation)
+
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+        assert err[0].is_rpc_unavailable()
+        assert err[0].find_matching_error(
+            predicate=lambda error: "heavy_request_memory_reservation" in error.attributes)
+
+        self._execute_command("GET", "get", {"path": "//@"})
+
+        blocked_rsp.close()
+        wait(lambda: heavy_request_memory_usage.get(default=0) < reservation)
+
+        self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+
+    @authors("achains")
+    @pytest.mark.timeout(180)
+    def test_heavy_request_memory_reservation_disabled(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"x" * (128 * 2**20))
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "heavy_request_memory_limit_ratio": 0.5,
+                },
+                "heavy_request_memory_reservation": {
+                    "enable": False,
+                    "commands": {"read_file": {"reservation": 300 * 10**6}},
+                },
+            },
+        })
+        self._wait_heavy_request_memory_reservation_config(proxy_name, False)
+
+        blocked_rsp = self._start_streaming_read_file("//tmp/file")
+        self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+        blocked_rsp.close()
+
 
 class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
@@ -1020,6 +1110,10 @@ class TestHttpProxyPoolMetrics(HttpProxyTestBase):
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
     NUM_SCHEDULERS = 1
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 2
@@ -1090,6 +1184,11 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {}
     ENABLE_RPC_PROXY = True
     NUM_SCHEDULERS = 1
     NUM_RPC_PROXIES = 2
@@ -1794,7 +1893,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
             in_="//tmp/t_in",
             command=with_breakpoint("cat > /dev/null; BREAKPOINT"))
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
 
         headers = {
             "X-YT-Parameters": yson.dumps({
@@ -2399,6 +2498,103 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
 
         set("//sys/http_proxies/@config", {})
         wait(lambda: frozenset(ls(owner_path)) != static_keys)
+
+
+class TestHttpProxyHeavyCommandThreadPool(HttpProxyTestBase):
+    NUM_HTTP_PROXIES = 1
+
+    HEAVY_COMMAND_THREAD_POOL_SIZE = 2
+    HEAVY_COMMAND_THREAD_NAME = "HeavyCommand"
+    ENABLE_RESOURCE_TRACKING = True
+
+    DELTA_HTTP_PROXY_CONFIG = deep_update(HttpProxyTestBase.DELTA_HTTP_PROXY_CONFIG, {
+        "heavy_command_thread_pool_size": HEAVY_COMMAND_THREAD_POOL_SIZE,
+    })
+
+    @classmethod
+    def setup_class(cls):
+        super(TestHttpProxyHeavyCommandThreadPool, cls).setup_class()
+        # Distributed write needs signatures, so wait until the proxy publishes its keys.
+        owner = ls("//sys/http_proxies")[0]
+        wait(lambda: exists(f"{TestHttpProxySignaturesBase.OWNERS_PATH}/{owner}"))
+
+    def teardown_method(self, method):
+        set("//sys/http_proxies/@config", {})
+        super(TestHttpProxyHeavyCommandThreadPool, self).teardown_method(method)
+
+    def _heavy_pool_profiler(self):
+        proxy = ls("//sys/http_proxies")[0]
+        return profiler_factory().at_http_proxy(
+            proxy,
+            fixed_tags={"thread": self.HEAVY_COMMAND_THREAD_NAME})
+
+    @authors("achains")
+    def test_heavy_commands_run_in_dedicated_pool(self):
+        table_path = "//tmp/heavy_command_pool_table"
+        create("table", table_path, attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "values", "type_v3": {"type_name": "list", "item": "uint32"}},
+        ]})
+
+        dequeued = self._heavy_pool_profiler().counter("action_queue/dequeued")
+
+        # Light commands stay on the connection thread pool.
+        for _ in range(5):
+            self._execute_command("GET", "get", {"path": table_path + "/@row_count"})
+            self._execute_command("GET", "exists", {"path": table_path})
+        assert dequeued.get_delta() == 0
+
+        # Distributed write: session commands are light, fragments are heavy.
+        rsp = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": table_path, "cookie_count": 2})
+        session_with_cookies = yson.loads(rsp.content)
+
+        rows = [
+            {"key": i, "values": [yson.YsonUint64(i), yson.YsonUint64(i + 1)]}
+            for i in range(100)
+        ]
+        results = []
+        for cookie in session_with_cookies["cookies"]:
+            rsp = self._execute_command(
+                "PUT",
+                "write_table_fragment",
+                {"cookie": cookie},
+                data=yson.dumps(rows, yson_type="list_fragment"))
+            results.append(yson.loads(rsp.content))
+
+        self._execute_command(
+            "POST",
+            "finish_distributed_write_session",
+            {"session": session_with_cookies["session"], "results": results})
+
+        assert read_table(table_path) == rows * 2
+        wait(lambda: dequeued.get_delta() > 0)
+
+        # A plain heavy command goes to the same pool.
+        dequeued = self._heavy_pool_profiler().counter("action_queue/dequeued")
+        self._execute_command("GET", "read_table", {"path": table_path})
+        wait(lambda: dequeued.get_delta() > 0)
+
+    @authors("achains")
+    def test_heavy_command_thread_pool_dynamic_config(self):
+        # Thread pools spawn their threads lazily, so run a heavy command first.
+        table_path = "//tmp/heavy_command_pool_warmup_table"
+        create("table", table_path)
+        self._execute_command("GET", "read_table", {"path": table_path})
+
+        thread_count = self._heavy_pool_profiler().gauge("resource_tracker/thread_count")
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE)
+
+        set("//sys/http_proxies/@config", {
+            "heavy_command_thread_pool_size": self.HEAVY_COMMAND_THREAD_POOL_SIZE + 1,
+        })
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE + 1)
+
+        # Dropping the override returns the pool to the static size.
+        set("//sys/http_proxies/@config", {})
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE)
 
 
 class TestHttpsProxy(HttpProxyTestBase):

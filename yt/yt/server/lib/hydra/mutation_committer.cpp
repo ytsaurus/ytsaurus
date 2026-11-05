@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "changelog.h"
 #include "config.h"
+#include "config_wrapper.h"
 #include "mutation_context.h"
 #include "serialize.h"
 #include "snapshot.h"
@@ -304,6 +305,7 @@ TLeaderCommitter::TLeaderCommitter(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::MaybeCheckpoint, MakeWeak(this)),
         Config_->Get()->CheckpointCheckPeriod))
+    , ConfigChangedCallback_(BIND_NO_PROPAGATE(&TLeaderCommitter::OnConfigChanged, MakeWeak(this)))
     , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
     , BatchSizeSummary_(Profiler_.Summary("/mutation_batch_size"))
@@ -322,7 +324,24 @@ TLeaderCommitter::TLeaderCommitter(
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
     NextLoggedSequenceNumber_ = CommittedState_.SequenceNumber + 1;
 
+    Config_->SubscribeChanged(ConfigChangedCallback_);
+    // Catch up with config changes that raced with construction.
+    OnConfigChanged(Config_->Get());
+
     FlushMutationsExecutor_->Start();
+}
+
+TLeaderCommitter::~TLeaderCommitter()
+{
+    Config_->UnsubscribeChanged(ConfigChangedCallback_);
+}
+
+void TLeaderCommitter::OnConfigChanged(const TDistributedHydraManagerConfigPtr& config)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    FlushMutationsExecutor_->SetPeriod(config->MutationFlushPeriod);
+    CheckpointCheckExecutor_->SetPeriod(config->CheckpointCheckPeriod);
 }
 
 TFuture<void> TLeaderCommitter::GetLastMutationFuture()
@@ -440,15 +459,6 @@ void TLeaderCommitter::BuildMonitoring(TFluentMap fluent)
                     .Item("accept_mutations_mode").Value(peer.Mode)
                 .EndMap();
             });
-}
-
-void TLeaderCommitter::Reconfigure()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    auto config = Config_->Get();
-    FlushMutationsExecutor_->SetPeriod(config->MutationFlushPeriod);
-    CheckpointCheckExecutor_->SetPeriod(config->CheckpointCheckPeriod);
 }
 
 bool TLeaderCommitter::IsActive() const

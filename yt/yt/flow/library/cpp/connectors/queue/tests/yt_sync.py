@@ -28,7 +28,9 @@ def run_yt_sync(cluster, folder, queue_tablet_count):
                     {"name": "$cumulative_data_weight", "type": "int64"},
                 ],
                 "clusters": {
-                    "_all_data_clusters": {"attributes": {"tablet_count": queue_tablet_count}},
+                    "_all_data_clusters": {
+                        "attributes": {"tablet_count": queue_tablet_count, "commit_ordering": "strong"},
+                    },
                 },
             },
         },

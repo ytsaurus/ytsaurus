@@ -55,6 +55,7 @@ class TestCypressRootCreationTime(YTEnvSetup):
         create("map_node", "//a", tx=tx)
         commit_transaction(tx)
         assert creation_time == get("//@creation_time")
+        remove("//a")
 
 
 class TestCypress(YTEnvSetup):
@@ -720,7 +721,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/p2")
 
         create("file", "//tmp/p1/f", attributes={"account": "a"})
-        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
+        wait(lambda: get("//sys/accounts/a/@resource_usage/node_count") > 0)
 
         with raises_yt_error("Cannot remove account .* because its usage is not zero"):
             remove("//sys/accounts/a")
@@ -4289,12 +4290,13 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/child/@annotation")
 
     @authors("danilalexeev")
+    @with_portals_dir
     def test_annotation_clone(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
         set("//tmp/test_node/@annotation", "test")
-        move("//tmp/test_node", "//test")
-        assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
+        move("//tmp/test_node", "//portals/test")
+        assert get("//portals/test/@annotation") == get("//portals/test/child/@annotation") == "test"
 
     @authors("theevilbird")
     def test_immediate_annotation_attribute(self):
@@ -5820,7 +5822,6 @@ class TestCypressSequoia(TestCypressMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
-        "14": {"roles": ["sequoia_node_host"]},
     }
 
     @authors("theevilbird")

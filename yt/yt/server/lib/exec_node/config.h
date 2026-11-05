@@ -248,6 +248,7 @@ struct TLayerCacheDynamicConfig
     //! For testing.
     std::optional<TDuration> DelayAfterLayerImported;
 
+    //! Node-wide limit on layer imports running concurrently across all locations.
     int LayerImportConcurrency;
 
     bool EnableAsyncLayerRemoval;
@@ -397,7 +398,11 @@ struct TChunkCacheDynamicConfig
 {
     bool TestCacheLocationDisabling;
 
+    // TODO(dann239): Move these into exec node cache location config.
     bool TestDisableOnOutOfDiskSpace;
+    bool EnablePendingDownloadsTracker;
+    bool EnforceCacheQuota;
+    double DiskSpaceGapRatio;
 
     REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
 
@@ -597,6 +602,9 @@ struct TJobCommonConfig
     TDuration WaitingForJobCleanupTimeout;
 
     std::optional<TDuration> JobPrepareTimeLimit;
+
+    //! Job container host name is <pattern>.<node address>; supports $(SlotIndex).
+    std::string JobHostNamePrefixPattern;
 
     //! This option is used for testing purposes only.
     //! Adds inner errors for failed jobs.

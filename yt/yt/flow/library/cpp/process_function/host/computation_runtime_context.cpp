@@ -24,13 +24,18 @@ TComputationRuntimeContext::TComputationRuntimeContext(
     TComputationStreamSpecStoragePtr streamSpecs,
     TTableSchemaPtr keySchema,
     IPayloadConverterCachePtr converterCache,
-    NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory)
+    NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory,
+    TYsonStructPtr parameters)
     : Spec_(std::move(spec))
     , StreamSpecs_(std::move(streamSpecs))
     , KeySchema_(std::move(keySchema))
     , ConverterCache_(std::move(converterCache))
     , ThrottlerFactory_(std::move(throttlerFactory))
+    , ParametersNode_(Spec_->ProcessingFunctionParameters
+            ? Spec_->ProcessingFunctionParameters
+            : GetEphemeralNodeFactory()->CreateMap())
     , EmptyDynamicParametersNode_(GetEphemeralNodeFactory()->CreateMap())
+    , Parameters_(std::move(parameters))
 { }
 
 void TComputationRuntimeContext::RefreshEpochState(
@@ -156,6 +161,19 @@ IThroughputThrottlerPtr TComputationRuntimeContext::TryGetThrottler(const TThrot
 {
     YT_VERIFY(ThrottlerFactory_);
     return ThrottlerFactory_->TryGetClient(throttlerId.Underlying());
+}
+
+IMapNodePtr TComputationRuntimeContext::GetParametersNode() const
+{
+    return ParametersNode_;
+}
+
+TYsonStructPtr TComputationRuntimeContext::GetParametersObject() const
+{
+    if (!Parameters_ && Spec_->ProcessingFunction) {
+        Parameters_ = TRegistry::Get()->ParseProcessFunctionParameters(Spec_);
+    }
+    return Parameters_;
 }
 
 IMapNodePtr TComputationRuntimeContext::GetDynamicParametersNode() const

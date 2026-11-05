@@ -24,6 +24,7 @@ SRCS(
     inflight_tracker.cpp
     input_context.cpp
     job_directory.cpp
+    job_proxy_client.cpp
     key.cpp
     lag.cpp
     message_batch.cpp
@@ -57,15 +58,20 @@ SRCS(
     stream_spec_storage.cpp
     timestamp_statistics.cpp
     timer.cpp
+    timer_page.cpp
     traverse.cpp
+    trigger_condition.cpp
     visit.cpp
+    watermark_history.cpp
     yson_message.cpp
     control_table.cpp
     yt_connector.cpp
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/source_read_delay
     yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/pipeline_tables
     yt/yt/flow/library/cpp/serializer
     yt/yt/flow/library/cpp/common/proto
     yt/yt/flow/library/cpp/common/controller/proto

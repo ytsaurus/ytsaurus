@@ -642,7 +642,7 @@ class TestResourceOverdraftAbort(YTEnvSetup):
                 "file_paths": ["//tmp/script_500.py"],
             })
 
-        job_id_a, = wait_breakpoint(breakpoint_name="a")
+        job_id_a, = wait_breakpoint(op_a, breakpoint_name="a")
         print_debug("Job id for operation {}".format(op_a.id), job_id_a)
 
         statistics = op_a.get_job_statistics(job_id_a)
@@ -672,7 +672,7 @@ class TestResourceOverdraftAbort(YTEnvSetup):
                 "user_job_memory_digest_lower_bound": 1.0,
                 "file_paths": ["//tmp/script_500.py"],
             })
-        job_id_b, = wait_breakpoint(breakpoint_name="b")
+        job_id_b, = wait_breakpoint(op_b, breakpoint_name="b")
         print_debug("Job id for operation {}".format(op_b.id), job_id_b)
 
         release_breakpoint(breakpoint_name="a")
@@ -739,7 +739,7 @@ class TestContainerCpuProperties(YTEnvSetup):
 
     @authors("psushin", "max42")
     def test_container_cpu_limit_spec(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             wait_for_jobs=True,
             command=with_breakpoint("BREAKPOINT ; cat"),
             task_patch={
@@ -748,18 +748,18 @@ class TestContainerCpuProperties(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         assert self.get_job_container_property("cpu_limit") == "0.1c"
         release_breakpoint()
 
     @authors("psushin")
     def test_container_cpu_limit_no_spec(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             wait_for_jobs=True,
             command=with_breakpoint("BREAKPOINT ; cat"),
             task_patch={"cpu_limit": 0.1},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         # Cpu limit is set due to vanilla_operation_options.
         # Explanation:
         #   - Overcommit multiplier equals 2
@@ -770,13 +770,13 @@ class TestContainerCpuProperties(YTEnvSetup):
 
     @authors("ignat")
     def test_operation_options_experiment_override(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             wait_for_jobs=True,
             command=with_breakpoint("BREAKPOINT ; cat"),
             task_patch={"cpu_limit": 0.1},
             spec={"experiment_overrides": ["exp_cpu_overcommit"]},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         # Cpu limit is set due to operation_options experiment override.
         # Explanation:
         #   - Overcommit multiplier equals 2
@@ -792,12 +792,12 @@ class TestContainerCpuProperties(YTEnvSetup):
                 "vanilla_operation_options/cpu_limit_overcommit_mode",
                 "minimum")
 
-            run_test_vanilla(
+            op = run_test_vanilla(
                 wait_for_jobs=True,
                 command=with_breakpoint("BREAKPOINT ; cat"),
                 task_patch={"cpu_limit": 0.1},
             )
-            wait_breakpoint()
+            wait_breakpoint(op)
             # Cpu limit is set due to vanilla_operation_options.
             # Explanation:
             #   - Overcommit multiplier equals 2
@@ -829,7 +829,7 @@ class TestContainerCpuProperties(YTEnvSetup):
                 }
             })
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         assert self.get_job_container_property("cpu_policy") == "idle"
         release_breakpoint()
         op.track()
@@ -1060,7 +1060,7 @@ class TestSchedulerGpu(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
@@ -1193,7 +1193,7 @@ class TestPorts(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1
 
         # Not enough ports

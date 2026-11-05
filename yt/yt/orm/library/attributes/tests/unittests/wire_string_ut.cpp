@@ -56,6 +56,22 @@ TEST(TWireStringTest, MutableWireStringPreservesParts)
     }
 }
 
+TEST(TWireStringTest, UnpackPreservesPackedFields)
+{
+    NProto::TCar car;
+    car.add_quality_controls(true);
+    car.add_quality_controls(false);
+
+    auto serialized = car.SerializeAsString();
+    auto wire = TWireString::FromSerialized(serialized);
+    auto fields = wire.Unpack(car.GetDescriptor());
+
+    constexpr int fieldNumber = NProto::TCar::kQualityControlsFieldNumber;
+    ASSERT_EQ(fields.size(), 1u);
+    ASSERT_TRUE(fields.contains(fieldNumber));
+    EXPECT_TRUE(IsMessageEqualTo(car, fields[fieldNumber]));
+}
+
 TEST(TWireStringTest, Equality)
 {
     EXPECT_EQ(TWireString::Empty, TWireString::Empty);

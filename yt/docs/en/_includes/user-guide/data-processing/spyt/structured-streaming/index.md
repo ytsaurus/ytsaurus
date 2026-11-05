@@ -132,14 +132,14 @@ with spark_session() as spark:
 
    For each partition:
    * If lowerIndex < upperIndex:
-     * Calls the [advanceConsumer](../../../../../user-guide/dynamic-tables/queues.md#rabota-s-konsyumerom) method to commit offsets for batch `#N‑1` in the consumer.
+     * Calls the [advanceConsumer](../../../../../user-guide/dynamic-tables/queues.md#work-consumer) method to commit offsets for batch `#N‑1` in the consumer.
      * Generates tasks for executors.
    * Otherwise: skips processing (empty batch).
 
 3. **Execution on executors**
 
    Each executor for its partition:
-   * Reads data using the [pullConsumer](../../../../../user-guide/dynamic-tables/queues.md#chtenie-dannyh) method.
+   * Reads data using the [pullConsumer](../../../../../user-guide/dynamic-tables/queues.md#reading-data) method.
    * Applies transformations (if any).
    * Writes data to the output table.
 

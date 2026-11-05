@@ -82,10 +82,10 @@ Regardless of the installation method, the required system components will be de
        ```
 
        As you can see, we launched the following components:
-       - The [master server](../../admin-guide/components#master) is responsible for fault-tolerant storage of the cluster's metadata. This includes information about system users, stored objects, and the location of the data itself.
+       - The [master server](../../admin-guide/components.md#master) is responsible for fault-tolerant storage of the cluster's metadata. This includes information about system users, stored objects, and the location of the data itself.
        - The node combines the functionality of a [data node](../../admin-guide/components.md#data-nodes) and an [exec node](../../admin-guide/components.md#exec-nodes). It is responsible for data storage, dynamic tables, and job execution.
-       - The [scheduler](../../admin-guide/components.md#planirovshik) plans data processing operations, such as Map and Reduce.
-       - The [controller agent](../../admin-guide/components.md#planirovshik) schedules the jobs of individual operations.
+       - The [scheduler](../../admin-guide/components.md#scheduler) plans data processing operations, such as Map and Reduce.
+       - The [controller agent](../../admin-guide/components.md#scheduler) schedules the jobs of individual operations.
        - The [HTTP proxy](../../admin-guide/components.md#proxy) is a server used for external communication.
        - The [YQL agent](../../admin-guide/components.md#yql-agent) is an execution engine for SQL-like queries.
        - The [{{product-name}} queue](../../user-guide/dynamic-tables/queues.md) contains ordered dynamic tables.
@@ -636,7 +636,7 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
   {% note warning %}
 
-  Here, the token is set in an environment variable. This is done intentionally for the sake of simplicity and clarity of the example. Avoid this practice in real-world scenarios: {{product-name}} provides dedicated commands for managing tokens. For more information, see [Authentication](../../user-guide/storage/auth.md#upravlenie-tokenami).
+  Here, the token is set in an environment variable. This is done intentionally for the sake of simplicity and clarity of the example. Avoid this practice in real-world scenarios: {{product-name}} provides dedicated commands for managing tokens. For more information, see [Authentication](../../user-guide/storage/auth.md#token-management).
 
   {% endnote %}
 
@@ -651,7 +651,7 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
   {% note warning %}
 
-  Here the token is set in an environment variable — this is intentional, for simplicity and clarity of the example. In real scenarios, this approach should not be used; {{product-name}} provides special commands for working with tokens. For more details, see the [Authentication](../../user-guide/storage/auth.md#upravlenie-tokenami) section.
+  Here the token is set in an environment variable — this is intentional, for simplicity and clarity of the example. In real scenarios, this approach should not be used; {{product-name}} provides special commands for working with tokens. For more details, see the [Authentication](../../user-guide/storage/auth.md#token-management) section.
 
   {% endnote %}
 

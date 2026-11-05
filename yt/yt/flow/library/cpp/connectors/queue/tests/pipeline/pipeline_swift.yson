@@ -39,6 +39,7 @@
     "dynamic_spec" = {
         "computations" = {
             "reader" = {
+                "max_rows_per_batch" = 10;
                 "parameters" = {
                 };
             };

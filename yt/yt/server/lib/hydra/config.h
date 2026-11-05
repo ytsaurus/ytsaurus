@@ -49,21 +49,8 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileChangelogDispatcherConfig
-    : public virtual NYTree::TYsonStruct
-{
-    TDuration FlushQuantum;
-
-    REGISTER_YSON_STRUCT(TFileChangelogDispatcherConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
-
 struct TFileChangelogStoreConfig
     : public TFileChangelogConfig
-    , public TFileChangelogDispatcherConfig
 {
     //! A path where changelogs are stored.
     std::string Path;
@@ -440,7 +427,7 @@ struct TDistributedHydraManagerConfig
     bool EnableStateHashChecker;
 
     //! If set, stores all (sequenceNumber, stateHash) pairs in state hash checker
-    // and enables state hash reporting during recovery.
+    //! and enables state hash reporting during recovery.
     bool EnableStateHashCheckerDuringRecovery;
 
     //! Maximum number of entries stored in state hash checker.

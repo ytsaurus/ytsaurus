@@ -5,7 +5,49 @@
 
 
 
+
 **Релизы:**
+
+{% cut "**2.19.0**" %}
+
+**Дата релиза:** 2026-08-03
+
+
+**Страница релиза:** [2.19.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.19.0)
+
+
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.19.0](https://github.com/orgs/ytsaurus/packages/container/chyt/1133249434?tag=2.19.0)
+
+
+#### Новые возможности
+
+- Код ClickHouse обновлён до версии 25.3.13.19 ([8f32778](https://github.com/ytsaurus/ytsaurus/commit/8f327788b63da1c3b8fc35233aa96b40e575a3d6))
+- Набор возможностей CHYT 2.18 включён по умолчанию ([f9eab3d](https://github.com/ytsaurus/ytsaurus/commit/f9eab3d8770962f3d6723c58c2637f1ec9db6479)).
+- Добавлена поддержка `CREATE DICTIONARY` и `DROP DICTIONARY` на основе нового репозитория конфигураций словарей ([34b00e3](https://github.com/ytsaurus/ytsaurus/commit/34b00e35812bb99eb274c50640de22ad319fc1d4)).
+- Добавлено управление разрешениями для словарей на основе YT с помощью ACL исходных таблиц и контроля доступа к словарям ([6110125](https://github.com/ytsaurus/ytsaurus/commit/61101252a4dad7e61ff7c80860d506a7f242f9de), [d8797c1](https://github.com/ytsaurus/ytsaurus/commit/d8797c1cd775e8185103044f2de0cc7c647d3314)).
+- Добавлена поддержка недостающих схем размещения словарей, чтения отдельных столбцов, кеширования и фоновых обновлений для словарей на основе YT ([7bb6211](https://github.com/ytsaurus/ytsaurus/commit/7bb6211b8b921637797d94047e219dc574080d03), [68c5b0d](https://github.com/ytsaurus/ytsaurus/commit/68c5b0d7447b3484b7742b2a39f9e8e70e74d43a), [40a03ac](https://github.com/ytsaurus/ytsaurus/commit/40a03ac1a56445da125f155a1635d54d9523d9ed)).
+- Получение схем таблиц разделено на этапы, добавлен SLRU-кеш схем ([bee91e2](https://github.com/ytsaurus/ytsaurus/commit/bee91e2500705942838b697a90d78bde7201f282), [3cd80b5](https://github.com/ytsaurus/ytsaurus/commit/3cd80b5640bdc1d34875004238690287e0742f40)).
+- Добавлено опциональное преобразование выбранных столбцов в `LowCardinality` и предоставлена соответствующая переменная времени выполнения ([61f7927](https://github.com/ytsaurus/ytsaurus/commit/61f79274f50c05be7fcfc016dcb90a2b927c3f92), [ec09374](https://github.com/ytsaurus/ytsaurus/commit/ec09374408c87f015e3ae8ec2c853e2ed6052d37)).
+- Добавлена поддержка типов даты и времени YT с часовыми поясами ([4b3113f](https://github.com/ytsaurus/ytsaurus/commit/4b3113f6de83e0c0cc2288fabe12ff18e4019aaf)).
+- Унифицировано получение атрибутов таблиц и добавлено профилирование ([9a01e5b](https://github.com/ytsaurus/ytsaurus/commit/9a01e5bc1d2b0e2daa5a650f3b23c4795df6af77)).
+- В экспортируемые таблицы системных логов добавлены виртуальные столбцы `$cumulative_data_weight` и `$timestamp` ([56c0645](https://github.com/ytsaurus/ytsaurus/commit/56c06451c14264c57e00597a3b7eda133df9a6a4)).
+
+#### Исправления
+
+- Улучшен вывод общего типа при конкатенации таблиц YT ([eda7986](https://github.com/ytsaurus/ytsaurus/commit/eda798616e76bb0ab253f43d8678c895457d5718)).
+- Исправлены обработка `YSONExtract` и приведения типов ([a9175db](https://github.com/ytsaurus/ytsaurus/commit/a9175db72cd25da6e68dc83264e4f393b72cbaff), [c5d4299](https://github.com/ytsaurus/ytsaurus/commit/c5d4299684cf83370afdf133275c4c4d1e53b614)).
+- Исправлена передача предикатов в табличные функции и улучшены передаваемые условия ([f76052f](https://github.com/ytsaurus/ytsaurus/commit/f76052f9b451ad899f20c28483f470052134d14e), [df228c0](https://github.com/ytsaurus/ytsaurus/commit/df228c051c5160cc4da76a1d0aaa29d2e6ea8cf2), [b32a17c](https://github.com/ytsaurus/ytsaurus/commit/b32a17c89ae9c338bdd4396c4132647eabe971d4)).
+- Исправлены совместимость и инициализация пользовательских настроек ([88b9531](https://github.com/ytsaurus/ytsaurus/commit/88b953175af96ec8b2f3b373fa3eb912a3c3daf0), [0ab4127](https://github.com/ytsaurus/ytsaurus/commit/0ab4127fd26e9b9e53b1b5a79dbf7a8279693bd0)).
+- Исправлено повторное закрытие средств записи ([cfa5254](https://github.com/ytsaurus/ytsaurus/commit/cfa5254e7d6c6b9845758f87681b1d9261f063c5)).
+
+#### Замечания
+
+- Для корректного использования нового релиза требуется YTsaurus server версии 25.4 или новее.
+- Для поддержки словарей в CHYT 2.19 требуется Strawberry controller версии [0.0.18](https://github.com/ytsaurus/ytsaurus/releases/tag/yt%2Fchyt%2Fcontroller%2Fv0.0.18) или новее.
+
+
+{% endcut %}
+
 
 {% cut "**2.18.6**" %}
 
@@ -42,7 +84,7 @@
 **Docker-образ:** [ghcr.io/ytsaurus/chyt:2.18.5](https://github.com/orgs/ytsaurus/packages/container/chyt/939459874?tag=2.18.5)
 
 
-**Новые возможности:**
+**Возможности:**
 
 * Поддержка omit_inaccessible_rows (90b6b7ae985f849f63b876ae3d60b79217e65a03)
 * Отдельный пул потоков для обработки pull-задач (fa4c50776aed759301acf4ebc20fa6934d7ffe3f)
@@ -70,8 +112,8 @@
 
 **Исправления:**
 
-* Добавлены недостающие функции `extractKeyValuePairs` в целевой компонент CHYT (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Использование FetcherInvoker для `TableAttributeCache` (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* В цель CHYT добавлены отсутствующие функции `extractKeyValuePairs` (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Для `TableAttributeCache` используется FetcherInvoker (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -141,7 +183,7 @@
 **Страница релиза:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
 
 
-#### Новые возможности:
+#### Возможности:
 - Поддержка RLS в CHYT, [3fe297c](https://github.com/ytsaurus/ytsaurus/commit/3fe297cd8ffc38e019c0121126ceaf5f636166ef).
 - Добавлен вывод диапазона чтения из предиката, [3a9eb82](https://github.com/ytsaurus/ytsaurus/commit/3a9eb82c7ec5495632f13dc3e8884a158312de4d).
 - Добавлена статистика chyt\_query\_statistics для insert-запросов и завершившихся с ошибкой запросов, [974b2c2](https://github.com/ytsaurus/ytsaurus/commit/974b2c28d5dcf44316516e285596b9c13090ee71), [99a08a3](https://github.com/ytsaurus/ytsaurus/commit/99a08a3449806035c48dd74ee587486569b7a6e1).
@@ -176,8 +218,8 @@
 - Бэкпорт YT-25206: настройка сервиса транзакций Cypress на прокси-серверах Cypress (коммит: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Бэкпорт поддержки TLS в YT (коммит: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Исправлено использование CTE в распределенных запросах (коммит: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Добавлена поддержка aklomp-base64 для функций `base64` (коммит: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Добавлено использование нового анализатора в функции `ytTables` (коммит: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Добавлена поддержка aklomp-base64 для функций `base64` (Коммит: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- В функцию `ytTables` добавлено использование нового анализатора (Коммит: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 
@@ -254,3 +296,4 @@
 - Настройка временного хранилища данных
 
 {% endcut %}
+

@@ -3,6 +3,8 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    key_count_observer.cpp
+    read_delay.cpp
     computation_base.cpp
     computation_tracer.cpp
     controller_base.cpp
@@ -23,6 +25,10 @@ SRCS(
     job_state/state_manager.cpp
     stores/compact_output_store.cpp
     stores/input_store.cpp
+    stores/paged_timer_store.cpp
+    stores/timer_page_catalogue.cpp
+    stores/timer_page_data.cpp
+    stores/timer_store_conversion.cpp
     stores/timer_store.cpp
     swift_map_computation.cpp
     swift_ordered_source_computation.cpp
@@ -36,6 +42,7 @@ SRCS(
 
 PEERDIR(
     contrib/libs/pdqsort
+    yt/yt/flow/library/cpp/source_read_delay
     library/cpp/containers/absl
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/iterator

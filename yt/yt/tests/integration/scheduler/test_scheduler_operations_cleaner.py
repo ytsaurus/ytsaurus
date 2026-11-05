@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, MASTERS_SERV
 
 from yt_commands import (
     authors, wait, wait_no_assert, events_on_fs,
-    create, create_table, get, set, remove, exists, start_transaction, lock, unlock,
+    create, create_table, get, set, remove, exists, ls, start_transaction, lock, unlock,
     lookup_rows, write_table,
     map, list_operations, get_operation, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
     sync_mount_table, sync_unmount_table,
@@ -13,7 +13,9 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
+
+import pytest
 
 from datetime import datetime, timedelta
 import builtins
@@ -111,6 +113,15 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         },
     }
 
+    @classmethod
+    def modify_scheduler_config(cls, config, cluster_index):
+        config["logging"]["rules"].append({
+            "family": "plain_text",
+            "min_level": "debug",
+            "include_categories": ["OperationsCleaner"],
+            "writers": ["json-scheduler-0"],
+        })
+
     def setup_method(self, method):
         super(TestSchedulerOperationsCleaner, self).setup_method(method)
         sync_create_cells(1)
@@ -193,7 +204,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         update_controller_agent_config("operations_update_period", 100)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), track=False)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         # While the operation runs, brief_progress and progress are served from the controller orchid
         # (include_runtime): they reflect the running jobs even though the archive (not Cypress) is the sink.
@@ -226,7 +237,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         update_controller_agent_config("operations_update_period", 100)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), track=False)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: get_operation(op.id, attributes=["brief_progress"], include_runtime=True)
              .get("brief_progress", {}).get("jobs", {}).get("running") == 1)
@@ -320,6 +331,65 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     @authors("asaitgalin", "eshcherbin")
     def test_start_stop(self):
         self._test_start_stop_impl("cat")
+
+    @authors("bystrovserg")
+    @pytest.mark.parametrize("restart_scheduler", [False, True])
+    def test_operation_removed_while_fetching_ops(self, restart_scheduler):
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        update_scheduler_config("operations_cleaner", {
+            "enable": False,
+            "soft_retained_operation_count": 0,
+            "clean_delay": 0,
+            "parse_operation_attributes_batch_size": 2,
+            # A reconnect could hide the failure by listing the surviving operations again.
+            "disconnect_on_finished_operation_fetch_failure": False,
+        })
+        wait(lambda: not get(CLEANER_ORCHID + "/enable"))
+
+        ops = _run_maps_parallel(4, "cat")
+        wait(lambda: all(
+            not exists("//sys/scheduler/orchid/scheduler/operations/{}".format(op))
+            for op in ops
+        ))
+        specs = {op: get(get_operation_cypress_path(op) + "/@spec") for op in ops}
+
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        log_path = self.path_to_run + "/logs/scheduler-0.json.log"
+        from_barrier = write_log_barrier(scheduler_address)
+
+        def cleaner_has_logged(message, operation_id=None):
+            return bool(read_structured_log(
+                log_path,
+                from_barrier=from_barrier,
+                category_filter={"OperationsCleaner"},
+                row_filter=lambda event: (
+                    message in event.get("message", "")
+                    and (operation_id is None or operation_id in event.get("message", ""))
+                ),
+            ))
+
+        fetch_delay_path = "testing_options/operations_cleaner_fetch_delay"
+        update_scheduler_config(fetch_delay_path, {"duration": 30000, "type": "async"})
+        if restart_scheduler:
+            with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
+                update_scheduler_config(
+                    "operations_cleaner/enable", True, wait_for_orchid=False)
+        else:
+            update_scheduler_config("operations_cleaner/enable", True, wait_for_orchid=False)
+
+        wait(lambda: cleaner_has_logged("Making test delay"), timeout=60)
+        remove(get_operation_cypress_path(ops[0]))
+
+        wait(lambda: cleaner_has_logged("Operation node is missing in Cypress", ops[0]), timeout=60)
+        wait(lambda: all(not self._operation_exist(op) for op in ops[1:]))
+
+        for op in ops[1:]:
+            row = self._lookup_ordered_by_id_row(op)
+            assert row["state"] == "completed"
+            assert row["spec"] == specs[op]
 
     @authors("asaitgalin", "eshcherbin")
     def test_revive(self):

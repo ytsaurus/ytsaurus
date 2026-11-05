@@ -240,7 +240,6 @@ std::optional<TRenderedKind> RenderKindStats(const std::string& kind, const TStr
     double blockedScore = blocked / WarningBlockedTimeShareThreshold;
     result.Severity = std::max(fillScore, blockedScore);
 
-    // Count limits (e.g. output_store_count) are counts, not bytes.
     bool isCount = kind.ends_with("_count");
     auto formatValue = [&] (i64 value) {
         return isCount ? FormatCountShort(value) : FormatBytesShort(value);

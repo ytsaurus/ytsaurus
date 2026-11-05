@@ -95,7 +95,7 @@
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TTimerSpec.md) %}
 
-Если не указаны `streams` и `streams_with_delays`, то таймер следит за потоками согласно `streams_dependency` с нулевой дополнительной задержкой.
+Если не указаны `streams` и `streams_with_delays`, то таймер следит за потоками согласно `streams_dependency` с нулевой дополнительной задержкой. Для таймеров `current_time` поля `streams` и `streams_with_delays` игнорируются: такой таймер срабатывает, когда текущее время достигает `TriggerTimestamp`.
 
 #### Source {#source_spec}
 

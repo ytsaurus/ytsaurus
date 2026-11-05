@@ -2,6 +2,12 @@
 
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 
+#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
+
+#include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
+
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/options.h>
 
 #include <yt/yt/client/api/rpc_proxy/config.h>
@@ -132,6 +138,51 @@ TEST(TRootClientsCacheTest, CustomFactory)
     EXPECT_EQ("test-user", fakeCache->Options.ClientOptions.GetAuthenticatedUser());
     EXPECT_EQ(options.PipelinePath.GetPath(), fakeCache->Options.PipelinePath.GetPath());
     EXPECT_EQ(parameters, fakeCache->Options.Parameters);
+}
+
+TEST(TRootClientsCacheTest, RoutesAllLocalClientsThroughJobProxy)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto options = MakeOptions();
+    options.ProxyRole = "flow";
+    auto rootCache = CreateRootClientsCache(options);
+    auto original = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(
+        rootCache->GetClient("localhost")->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(original->ProxyUnixDomainSocket);
+    auto cache = CreateJobProxyClientsCache(std::move(rootCache));
+    for (auto cluster : {"localhost", "localhost/explicit"}) {
+        auto client = cache->GetClient(cluster);
+        auto config = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(client->GetConnection()->GetConfigYson());
+        EXPECT_EQ(config->ProxyUnixDomainSocket, "/tmp/job.sock");
+        EXPECT_FALSE(config->EnableProxyDiscovery);
+        EXPECT_EQ(client, cache->GetClient(cluster));
+        EXPECT_EQ(client->GetOptions().GetAuthenticatedUser(), "test-user");
+    }
+    auto remote = cache->GetClient("other/explicit");
+    auto config = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(remote->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(config->ProxyUnixDomainSocket);
+    EXPECT_EQ(config->ProxyRole, "explicit");
+}
+
+TEST(TRootClientsCacheTest, RequiresJobProxySocket)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH");
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateJobProxyClientsCache(CreateRootClientsCache(MakeOptions())),
+        "YT_JOB_PROXY_SOCKET_PATH is absent");
+}
+
+TEST(TRootClientsCacheTest, RejectsCustomFactoryWithJobProxy)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    TFactoryGuard guard([] (const TRootClientsCacheOptions&) -> IClientsCachePtr {
+        ADD_FAILURE() << "Custom factory must not be called";
+        return nullptr;
+    });
+    EXPECT_THROW_WITH_SUBSTRING(CreateRootClientsCache(MakeOptions()), "not supported with a custom root clients cache factory");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

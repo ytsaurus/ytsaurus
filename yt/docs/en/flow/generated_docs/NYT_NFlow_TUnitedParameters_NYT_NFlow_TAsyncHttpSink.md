@@ -5,8 +5,6 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
-|| `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
-Optional at-most-once delivery strategy. Connector support varies; check the connector documentation before enabling it. ||
 || `url` | **Type**: `std::string`
 **Required parameter**
 Target HTTP or HTTPS URL. The URL must contain a host. ||

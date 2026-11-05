@@ -45,7 +45,7 @@ In the {{product-name}} ecosystem, a task is a group of jobs of the same type ru
 
 General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
-## Operation options
+## Operation options { #operation-parameters }
 
 Vanilla operations support the following additional options:
 
@@ -106,7 +106,7 @@ One of the most important concepts in the gang operation model is incarnation.
 
   In this use case, jobs interact with each other over the network. Incarnations are primarily essential for user code to prevent communication between jobs from the new incarnation and from the old one.
 
-### Restarting a gang operation
+### Restarting a gang operation { #gang-operation-restart }
 
 What happens when the controller agent decides to restart a gang operation: controller agent aborts all jobs and attempts to restart jobs in the new incarnation. Controller agent attempts to reuse the allocations for the new jobs due to optimization. Completed jobs are also restarted.
 
@@ -162,7 +162,7 @@ In gang operations, jobs have the following additional environment variables:
 * `YT_GANG_RANK`: The current job rank on the task (from 0 to `YT_GANG_SIZE - 1`).
 * `YT_TASK_JOB_COUNT`: The total number of jobs in a task.
 
-### Restrictions and special features
+### Restrictions and special features { #gang-operation-limitations }
 
 * Gang operations are not compatible with `fail_on_job_restart`.
 * Gang operations are not compatible with `restart_completed_jobs = true`.

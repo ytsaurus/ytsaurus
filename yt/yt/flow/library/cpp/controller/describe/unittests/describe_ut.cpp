@@ -787,6 +787,40 @@ TEST_W(TDescribeTest, DescribePipeline)
     EXPECT_EQ(description.Computations.size(), 3u);
 }
 
+// After a recovered pipeline gets a replaced spec, its traverse data may still have computations that the spec lacks.
+TEST_W(TDescribeTest, DescribeToleratesComputationMissingFromSpec)
+{
+    Prepare();
+
+    auto traverseData = ConvertTo<TNodeTraverseDataPtr>(TYsonStringBuf(TStringBuf(R""""({
+            "streams" = {
+                "output_stream" = {
+                    "state" = "Active";
+                    "inflight_metrics" = {
+                        "count" = 10;
+                        "byte_size" = 100;
+                        "processed_bytes_per_sec" = 200.;
+                    }
+                };
+            }
+        })"""")));
+    for (const auto& computationId : {TComputationId("Computation_1"), TComputationId("Computation_removed")}) {
+        FlowView->State->TraverseData->Computations[computationId] = CloneYsonStruct(traverseData);
+    }
+
+    for (bool statusOnly : {false, true}) {
+        SCOPED_TRACE(Format("StatusOnly: %v", statusOnly));
+        auto description = DescribePipeline({.FlowView = FlowView, .Logger = TLogger("test"), .StatusOnly = statusOnly});
+        // Computations present in the spec are still described from their traverse data.
+        EXPECT_TRUE(MessagesContain(description.Messages, "TotalStreams: 1"));
+        if (!statusOnly) {
+            EXPECT_EQ(description.Computations.size(), Spec->Computations.size());
+            EXPECT_FALSE(description.Computations.contains(TComputationId("Computation_removed")));
+            EXPECT_EQ(description.Streams.at(TStreamId("output_stream")).InflightRows, 10);
+        }
+    }
+}
+
 TEST_W(TDescribeTest, DescribePipelineUsesProvidedNow)
 {
     Prepare();
@@ -1671,17 +1705,6 @@ TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
     outStats.MaxBlockedTimeShare = 0.6;
     outStats.MaxBlockedPartitionId = blockedPartition;
 
-    // Zero limit with usage: percentages are meaningless, bytes are printed.
-    auto& storeStats = comp.OutputLimitStats[out]["output_store_bytes"];
-    storeStats.Max.Used = 5_MB;
-    storeStats.Max.Limit = 0;
-    storeStats.MaxPartitionId = blockedPartition;
-
-    // Count limits are formatted as counts, not bytes.
-    auto& countStats = comp.OutputLimitStats[out]["output_store_count"];
-    countStats.Max.Used = 12000;
-    countStats.Max.Limit = 50000;
-
     THashMap<TGraphEntityId, TWriterBlockedShare> writerBlocked;
     writerBlocked[in] = {0.56, writerPartition};
 
@@ -1694,8 +1717,6 @@ TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
     EXPECT_THAT(markdown, HasSubstr(Format("input_buffer_bytes{limit=100B, used=**97%%**, pending=500%%, backpressured_partition=%v}", fillPartition)));
     EXPECT_THAT(markdown, HasSubstr(Format("writer{blocked_share=**0.56**, backpressured_partition=%v}", writerPartition)));
     EXPECT_THAT(markdown, HasSubstr(Format("output_buffer_bytes{blocked_share=**0.60**, limit=100B, used=20%%, backpressured_partition=%v}", blockedPartition)));
-    EXPECT_THAT(markdown, HasSubstr("output_store_bytes{limit=0B, used=**5.0MB**"));
-    EXPECT_THAT(markdown, HasSubstr("output_store_count{limit=50K, used=24%}"));
     // The calm stream is listed without bold or a partition.
     EXPECT_THAT(markdown, HasSubstr("input_buffer_bytes{limit=100B, used=10%}\n"));
 
@@ -2065,6 +2086,50 @@ TEST_W(TDescribeTest, DescribePipelineUsesProvidedControllerBuildInfo)
     EXPECT_TRUE(MessagesContain(description.Messages, "ui-test-branch"));
     EXPECT_TRUE(MessagesContain(description.Messages, "* Built on: `localhost`"));
     EXPECT_TRUE(MessagesContain(description.Messages, "* Built at: `1970-01-12T13:46:40Z`"));
+}
+
+TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreRevision)
+{
+    Prepare();
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
+
+    auto buildInfo = New<TFlowCoreBuildInfo>();
+    buildInfo->SvnRevision = 123;
+    buildInfo->BaseSvnRevision = 456;
+    auto describe = [&] {
+        return DescribePipeline({
+            .FlowView = FlowView,
+            .Logger = TLogger("test"),
+            .StatusOnly = true,
+            .ControllerFlowCoreVersion = GetBinaryChecksum(),
+            .ControllerBuildInfo = buildInfo,
+        });
+    };
+    auto expectedMarkdown = [] (int revision) {
+        auto revisionLink = NInternalUrls::VcsRevisionUrlPrefix.empty()
+            ? Format("`r%v`", revision)
+            : Format("[r%v](https://a.yandex-team.ru/arcadia?rev=r%v)", revision, revision);
+        return revisionLink + " -- the base trunk revision of the FlowCore library, excluding commits from the user's branch.";
+    };
+
+    auto description = describe();
+    bool found = false;
+    for (int index = 1; index < std::ssize(description.Messages); ++index) {
+        const auto& message = description.Messages[index];
+        if (message.Text == "FlowCore library revision") {
+            found = true;
+            EXPECT_EQ(message.Level, ELogLevel::Info);
+            EXPECT_EQ(description.Messages[index - 1].Text, "Flow binaries matching");
+            EXPECT_THAT(message.MarkdownText, testing::Optional(testing::StrEq(expectedMarkdown(456))));
+        }
+    }
+    EXPECT_TRUE(found);
+
+    buildInfo->BaseSvnRevision = -1;
+    EXPECT_FALSE(MessagesContain(describe().Messages, "FlowCore library revision"));
+
+    buildInfo->BaseSvnRevision = 0;
+    EXPECT_FALSE(MessagesContain(describe().Messages, "FlowCore library revision"));
 }
 
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)

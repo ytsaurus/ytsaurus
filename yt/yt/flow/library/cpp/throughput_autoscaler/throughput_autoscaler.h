@@ -48,7 +48,7 @@ public:
     {
         TComputationSpecPtr Spec;
         //! Null for source or other non-range partitioning.
-        TPartitioningSpecPtr PartitioningSpec;
+        TDynamicPartitioningSpecPtr PartitioningSpec;
     };
 
     using TComputations = THashMap<TComputationId, TComputation>;

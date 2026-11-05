@@ -97,6 +97,8 @@ void TControllerServiceConfig::Register(TRegistrar registrar)
         .Default(3);
     registrar.Parameter("set_spec_retry_period", &TThis::SetSpecRetryPeriod)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("enable_paged_timer_store", &TThis::EnablePagedTimerStore)
+        .Default(false);
     registrar.Parameter("tables_throttler", &TThis::TablesThrottler)
         .DefaultNew();
 }
@@ -116,6 +118,8 @@ void TControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("scheduler_period", &TThis::SchedulerPeriod)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("no_spec_iteration_backoff", &TThis::NoSpecIterationBackoff)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("cache_period", &TThis::CachePeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("feedback_period", &TThis::FeedbackPeriod)
@@ -203,7 +207,7 @@ void TControllerConfig::Register(TRegistrar registrar)
         // the scheduling cadence with room for a slow iteration and its commit latency. The
         // widest regular gap is the no-spec backoff, but a long iteration produces the same one.
         const auto& backendConfig = config->ElectionManager.GetConcrete<TDyntableElectionBackendConfig>();
-        auto cadence = std::max(config->SchedulerPeriod, NoSpecIterationBackoff);
+        auto cadence = std::max(config->SchedulerPeriod, config->NoSpecIterationBackoff);
         auto minLeaderLeaseTtl = MinLeaderLeaseTtlToCadenceRatio * cadence;
         if (backendConfig->LeaderLeaseTtl < minLeaderLeaseTtl) {
             THROW_ERROR_EXCEPTION("%Qv is too small for the scheduling cadence", "leader_lease_ttl")

@@ -34,8 +34,10 @@ SRCS(
     stream_inflight_limits_ut.cpp
     stream_spec_storage_ut.cpp
     time_provider_ut.cpp
+    timer_page_ut.cpp
     traverse_ut.cpp
     visit_ut.cpp
+    watermark_history_ut.cpp
     yson_message_ut.cpp
     yt_connector_ut.cpp
 )

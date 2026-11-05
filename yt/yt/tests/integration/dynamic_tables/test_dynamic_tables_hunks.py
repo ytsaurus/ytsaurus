@@ -16,7 +16,8 @@ from yt_env_setup import (
     YTEnvSetup,
     Restarter,
     NODES_SERVICE,
-    MASTERS_SERVICE
+    MASTERS_SERVICE,
+    with_portals_dir,
 )
 
 from yt.common import YtError
@@ -310,6 +311,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 340
 
         assert get("//tmp/t/@chunk_format_statistics/hunk_default/chunk_count") == 1
+        assert get("//tmp/t/@hunk_reference_statistics/hunk_chunk_count") == 1
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
         assert hunk_statistics["hunk_chunk_count"] == 1
@@ -3246,6 +3248,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
 
         self._create_table(path="//tmp/t")
+        assert get("//tmp/t/@hunk_reference_statistics/hunk_chunk_count") == 0
         sync_reshard_table("//tmp/t", 2)
 
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
@@ -3260,11 +3263,15 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             self._insert_rows_with_hunk_storage("//tmp/t", new_rows)
 
         sync_unmount_table("//tmp/t")
-        sync_unmount_table("//tmp/h")
         store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = list(hunk_chunk_ids)[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+        assert get("//tmp/t/@hunk_reference_statistics/hunk_chunk_count") == 0
+
+        sync_unmount_table("//tmp/h")
         wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@hunk_reference_statistics/hunk_chunk_count") == 1
 
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
         hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
@@ -5988,8 +5995,9 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
     }
 
     @authors("akozhikhov")
+    @with_portals_dir
     def test_static_hunks_portals_1(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
 
         sync_create_cells(1)
 
@@ -5998,28 +6006,27 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             hunk_storage_attrs={"external_cell_tag": 12})
 
         chunk_ids = get("//tmp/t/@chunk_ids")
-        move("//tmp/t", "//p/t")
+        move("//tmp/t", "//portals/p/t")
         sync_unmount_table("//tmp/h")
         remove("//tmp/h")
-        assert read_table("//p/t") == rows
+        assert read_table("//portals/p/t") == rows
 
-        assert chunk_ids == get("//p/t/@chunk_ids")
+        assert chunk_ids == get("//portals/p/t/@chunk_ids")
 
         assert not exists("//tmp/t")
         assert get("#{}/@sealed".format(chunk_ids[0]))
         assert get("#{}/@sealed".format(chunk_ids[1]))
-        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//p/t"]
-        assert get("#{}/@owning_nodes".format(chunk_ids[1])) == ["//p/t"]
+        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//portals/p/t"]
+        assert get("#{}/@owning_nodes".format(chunk_ids[1])) == ["//portals/p/t"]
 
-        remove("//p/t")
+        remove("//portals/p/t")
         wait(lambda: not exists("#{}".format(chunk_ids[0])))
         wait(lambda: not exists("#{}".format(chunk_ids[1])))
 
-        remove("//p")
-
     @authors("akozhikhov")
+    @with_portals_dir
     def test_static_hunks_portals_2(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         sync_create_cells(1)
 
@@ -6028,9 +6035,7 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             hunk_storage_attrs={"external": False})
 
         with raises_yt_error("Node .* must be external to support cross-cell copying"):
-            move("//tmp/t", "//p/t")
-
-        remove("//p")
+            move("//tmp/t", "//portals/p/t")
 
 
 class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):

@@ -98,13 +98,13 @@ graph TB
 
 **[`TJob`](job.h)** — the core job execution object. Orchestrates the entire job lifecycle: downloads artifacts, builds workspace via `TJobWorkspaceBuilder`, spawns job_proxy via `IUserSlot::RunJobProxy`, supervises via `SupervisorService`, collects results, and cleans up. Holds `TJobFSSecretary` for filesystem description, `IJobProbePtr` for probing the running job_proxy.
 
-**[`TJobFSSecretary`](job_fs_secretary.h)** — stores and manages the job's filesystem description: artifact list, layer keys, Docker image, root/GPU-check/tmpfs volumes, NBD device IDs. Shared between `TAllocation` (across sequential jobs) and `TJob` (for the current job). Separates "what the filesystem should look like" from "how to build it".
+**[`TJobFSSecretary`](job_fs_secretary.h)** — stores the job's filesystem description and references to prepared resources: artifact list, layer keys, Docker image, root/GPU-check/tmpfs volumes, NBD device IDs. The environment creates the secretary owned by `TAllocation` and shared across its sequential jobs. `TPortoJobFSSecretary` retains prepared overlay layers. Workspace builders and user slots perform filesystem preparation and cleanup using the information held by the secretary.
 
 **[`IJobController`](job_controller.h)** — central job registry. Maintains a map of all active jobs. Prepares scheduler heartbeat requests (allocation states) and processes responses (new allocations, preemption). Prepares controller_agent heartbeat requests (job status/statistics) and processes responses (job commands). Exposes `FindJob`, `GetJobOrThrow`, `FindRecentlyRemovedJob`.
 
 **[`TSlotManager`](slot_manager.h)** — manages the pool of `IUserSlot` instances. Handles slot acquisition (`AcquireSlot`) and release. Tracks `ESlotManagerAlertType` alerts (Porto failures, GPU check failures, too many consecutive aborts/GPU failures, job_proxy unavailability). Supports resurrection: can re-initialize after fixable alerts. Manages NUMA node affinity for CPU scheduling.
 
-**[`IUserSlot`](slot.h)** — per-job execution slot. Key methods: `RunJobProxy` (spawns the job_proxy process), `PrepareSandboxDirectories` (sets up quotas), `PrepareRootVolume`/`PrepareTmpfsVolumes`/`LinkTmpfsVolumes` (volume management), `MakeLink`/`MakeCopy`/`MakeFile` (artifact placement), `RunPreparationCommands` (setup commands), `CleanProcesses`/`CleanSandbox` (cleanup).
+**[`IUserSlot`](slot.h)** — per-job execution slot. Key methods: `RunJobProxy` (spawns the job_proxy process), `PrepareSandboxDirectories` (sets up quotas), `MakeLink`/`MakeCopy`/`MakeFile` (artifact placement), `RunPreparationCommands` (setup commands), and common process, sandbox and workspace cleanup. The common implementation is `TUserSlotBase`; Host and Porto slot implementations provide the preparation APIs used by their workspace builders.
 
 **[`IJobEnvironment`](job_environment.h)** — node-level container backend. Initializes all slots (`Init`, `InitSlot`), runs job_proxy processes (`RunJobProxy`), cleans processes (`CleanProcesses`), manages CPU limits, creates `IJobDirectoryManager` and `IVolumeManager`. Implementations: Porto, CRI, Simple.
 
@@ -187,9 +187,9 @@ flowchart TD
 - Only the root chain drives job phases; the GPU chain performs no phase transitions, so the reported phase timeline stays monotonic.
 - The chains are joined with `AllSet`, so both always run to completion: every volume they create reaches `TJobFSSecretary` for cleanup. All errors from both chains are reported (a failure in the shared prefix is reported once).
 
-During `PreparingLayers`, overlay layers for root, GPU check and non-root volumes are downloaded and imported in parallel; the resulting `TOverlayData` is stored in `TJobFSSecretary::PreparedLayers_` and consumed by subsequent volume-preparation steps. `TJobFSSecretary` is owned by `TAllocation`, so `PreparedLayers_` lives for the whole allocation: subsequent jobs in the same allocation skip the layer-import step for keys that are already present (only new keys go through `slot->PrepareLayers`). The strong `TLayerPtr` references stored inside each `TOverlayData` keep the underlying `TLayer` alive even if the SLRU `TLayerCache` decides to evict the entry, which both prevents redundant re-imports and keeps the on-disk layer files until the allocation finishes.
+During `PreparingLayers`, overlay layers for root, GPU check and non-root volumes are downloaded and imported in parallel; the resulting `TOverlayData` is stored in `TPortoJobFSSecretary` and consumed by subsequent volume-preparation steps. The secretary is owned by `TAllocation`, so prepared layers live for the whole allocation: subsequent jobs in the same allocation skip the layer-import step for keys that are already present (only new keys go through the Porto slot's `PrepareLayers`). The strong `TLayerPtr` references stored inside each `TOverlayData` keep the underlying `TLayer` alive even if the SLRU `TLayerCache` decides to evict the entry, which both prevents redundant re-imports and keeps the on-disk layer files until the allocation finishes.
 
-During `PreparingSlotDirectories`, `DoBuildSlotRootDirectory` calls `IUserSlot::BuildSlotRootDirectory` after layer preparation and before volume preparation. This step wipes and recreates `Home`, `Tmp`, `Cores`, `Pipes` and `User`, but only creates missing `Logs` and porto place directories, preserving reusable root volumes for the allocation's lifetime. Location initialization, job cleanup (`CleanSandboxes`) and allocation cleanup (`CleanPortoPlace`) do not rebuild the layout; missing slot directories are created during job preparation.
+During `PreparingSlotDirectories`, `DoBuildSlotRootDirectory` calls `IUserSlot::BuildSlotRootDirectory` after layer preparation and before volume preparation. This step wipes and recreates `Home`, `Tmp`, `Cores`, `Pipes` and `User`, but only creates missing `Logs` and porto place directories, preserving reusable root volumes for the allocation's lifetime. Location initialization, job cleanup (`CleanSandboxes`) and allocation cleanup (`CleanAllocationWorkspace` / `CleanAllocationDirectories`) do not rebuild the layout; missing slot directories are created during job preparation.
 
 Artifacts are placed into the sandbox via `IUserSlot`: symlinks (`MakeLink`), copies (`MakeCopy`), or bind-mounts (`MakeFileForSandboxBind`). The `TJobFSSecretary` tracks which artifacts go where and whether they can be accessed via virtual sandbox (NBD-backed) or direct bind.
 
@@ -234,14 +234,40 @@ When armed persistent alerts exist, `IsJobSchedulingDisabled()` returns true and
 - **CRI** — container runtime interface (e.g., containerd); similar capabilities via different API.
 - **Simple** — cgroup-based, no full container support; used where Porto/CRI is unavailable.
 
+### Environment Code Organization
+
+Shared interfaces and mechanisms live directly in `exec_node/`:
+
+- [`job_environment.h`](job_environment.h) defines `IJobEnvironment` and `TJobEnvironmentCapabilities`; [`job_environment.cpp`](job_environment.cpp) dispatches environment and health-checker creation to backend factories. Capabilities govern volume reuse, GPU layers, supported sidecar resources and private sandbox access in shared orchestration code.
+- [`job_workspace_builder.h`](job_workspace_builder.h) and its implementation define the workspace context, result, phase tracking and sequential preparation pipeline. The inline header defines the step callback template; the implementation guards and dispatches steps through virtual methods. Step names in logs come from the reflected step enum.
+- [`job_directory_manager.h`](job_directory_manager.h), [`volume_manager.h`](volume_manager.h) and [`volume.h`](volume.h) define the directory and volume contracts. `IVolumeManager` provides slot initialization, node-wide readiness, disabling and preparation for replacement. Host and Porto manager interfaces define their respective preparation operations. The environment creates its allocation-owned `TJobFSSecretary` subtype, which holds prepared resources and releases backend references through `ReleaseWorkspaceResources` during allocation cleanup.
+- Volume preparation options, artifact-cache adapters and volume counters are shared by backend implementations and node orchestration.
+
+Backend factories create the matching Host or Porto slot implementation. Workspace builders use their concrete slot preparation API inside the backend; the shared `IUserSlot` contract contains no overlay data or layer/root-volume preparation methods. Root-FS validation is a common workspace stage; the shared slot validator is a no-op, and Porto supplies the filesystem check. Porto slot-location helpers build the `slot`, `slot/sandbox` and `slot/tmp` tree inside a prepared root volume on the location's tool invoker; host-slot directory creation remains common.
+
+Job cleanup calls `IUserSlot::CleanJobWorkspaceResources` with a const secretary after process cleanup and before releasing volumes. The Porto slot preserves the volumes recorded by the secretary while removing remaining volumes and layers from the slot's Porto place. The common slot implementation performs no workspace-resource cleanup.
+
+Concrete implementations and their factory declarations live together:
+
+| Directory | Responsibilities |
+|---|---|
+| [`environment/common/`](environment/common/) | Shared process job-environment and slot bases; Host slot, directory and volume managers, tmpfs volumes and filesystem tools used by Simple and CRI |
+| [`environment/porto/`](environment/porto/) | Porto job environment, slot, workspace builder and FS secretary; directory and volume managers; overlay data and allocation-owned prepared layers, volumes, layer locations, caches, counters and persisted metadata; health-checker adapter |
+| [`environment/cri/`](environment/cri/) | CRI job environment and workspace builder; pods, container specifications and Docker image preparation |
+| [`environment/simple/`](environment/simple/) | Simple job environment and its Testing subclass, workspace builder |
+
+Simple and CRI use the host directory and volume managers from `environment/common/` for filesystem preparation. The shared process job-environment base handles job-proxy spawning, process completion, alerts and environment disabling. Shared orchestration queries semantic capabilities through `IBootstrap`; factory selection resolves the configured backend type. `IJobEnvironment::GetCapabilities` supplies the backend capabilities on JobThread through a strong reference to the selected environment. Each slot location retains an immutable capability snapshot for its filesystem invokers. The slot manager accesses its environment only on JobThread. Porto initialization validates its GPU flavor compatibility. All environment sources belong to the `yt/yt/server/node` build module and are registered in its `ya.make`. Porto job-environment, directory-manager and workspace-builder factories are guarded by `_linux_`.
+
+The slot manager owns its health checker for its entire lifetime, including environment resurrection. [`IJobEnvironmentHealthChecker`](job_environment_health_checker.h) provides checker startup, success/failure callbacks and dynamic reconfiguration. The Porto adapter owns its executor and attaches backend error codes; the shared slot manager controls initialization and alert state. Volume managers provide backend health errors and prepare their state for replacement. Porto marks cached layers non-removable before clearing caches. Its initialization and per-job cleanup share the Porto-place cleanup helper; shared location initialization delegates backend cleanup through `IVolumeManager::InitializeSlot`.
+
 ## Artifact & Volume Management
 
 **`TArtifactCache`** is an SLRU cache backed by `TCacheLocation` disk locations. `DownloadArtifact` deduplicates concurrent downloads of the same `TArtifactKey`. Artifacts include: user files, executable binaries, and container layers (Porto layers, Docker images).
 
-**`IVolumeManager`** manages:
-- **Root volumes** (`PrepareVolume`): overlayfs stacks of layers. Porto implementation uses Porto volumes; Simple implementation uses bind mounts.
-- **Tmpfs volumes** (`PrepareTmpfsVolumes`): in-memory filesystems for job scratch space.
-- **Rbind volumes** (`RbindRootVolume`): bind-mount of an existing volume (legacy compat).
+**`IVolumeManager`** provides per-slot initialization, node-wide readiness, reconfiguration, profiling, disabling and resource-cleanup synchronization. Backend preparation APIs live with their implementations:
+
+- **`IPortoVolumeManager`** prepares overlay layers and root/non-root volumes, links them into a root filesystem, and supports binding an existing root volume through `RbindRootVolume`. It also owns Porto-place volume/layer removal and layer-cache controls.
+- **`IHostVolumeManager`** prepares non-root tmpfs volumes through `PrepareNonRootVolumes`; Simple and CRI use this interface.
 
 **`TTmpfsLayerCache`**: keeps frequently-used layers in a tmpfs mount for fast access, avoiding repeated disk reads.
 
@@ -324,19 +350,19 @@ Key RPC methods:
 - **Do NOT** add new alert types without explicitly classifying them as fixable-by-resurrect, fixable-by-request, persistent, or transient in `TSlotManager::TAlertSet`.
 - **Do NOT** bypass `TArtifactCache` for artifact downloads — direct downloads skip deduplication and quota tracking.
 - **Do NOT** add environment-specific logic directly to `TJob` — extend `IJobEnvironment` or `TJobWorkspaceBuilder` instead.
-- **Do NOT** call `IUserSlot` methods after `CleanProcesses()` — the container may no longer exist.
+- **Do NOT** launch preparation actions or processes for a finished job after `CleanProcesses()`. Filesystem cleanup remains valid until the resource holder resets and releases the slot.
 - **Do NOT** forget to release allocation-scoped `TJobFSSecretary` resources on allocation cleanup — reusable volumes, prepared layers, and artifact cache entries are all kept across sequential jobs in the same allocation.
-- **Do NOT** call `TJobFSSecretary::ReleaseVolumes()`, `ReleasePreparedLayers()`, or `ReleaseArtifacts()` from `OnNewJobStarted` or `TJob::Cleanup`. Reusable volumes and prepared layers must live for the lifetime of the allocation; they are released once in `TAllocation::OnAllocationFinished`.
+- **Do NOT** call `TJobFSSecretary::ReleaseVolumes()`, `ReleaseWorkspaceResources()`, or `ReleaseArtifacts()` from `OnNewJobStarted` or `TJob::Cleanup`. Reusable volumes and prepared layers must live for the lifetime of the allocation; they are released once in `TAllocation::OnAllocationFinished`.
 
 ## Extension Points
 
 **Adding a new job environment backend:**
-1. Implement `IJobEnvironment` in a new `*_job_environment.h/cpp` file.
+1. Implement `IJobEnvironment` and declare its factory in `environment/<backend>/job_environment.h/cpp`. Reuse `TProcessJobEnvironmentBase` from `environment/common/job_environment_base.h` for shared process management.
 2. Add a new `EJobEnvironmentType` value in `yt/yt/server/lib/job_proxy/public.h`.
 3. Add the corresponding config struct inheriting `TJobEnvironmentConfigBase`.
 4. Register in `CreateJobEnvironment()` factory in [`job_environment.cpp`](job_environment.cpp).
-5. Implement a corresponding `TJobWorkspaceBuilder` subclass if workspace preparation differs.
-6. Implement a corresponding `IVolumeManager` if volume management differs.
+5. Implement a corresponding `TJobWorkspaceBuilder` subclass in `environment/<backend>/job_workspace_builder.h/cpp` if workspace preparation differs.
+6. Implement the backend volume preparation interface or directory manager when filesystem preparation differs. The environment's `CreateUserSlot` factory selects the slot implementation; `CreateJobWorkspaceBuilder` supplies its builder and `CreateJobFSSecretary` supplies the allocation-owned secretary. Backend secretary subtypes retain their prepared state across jobs and explicitly release it through `ReleaseWorkspaceResources` during allocation cleanup.
 
 **Adding a new volume type:**
 1. Add a new `EVolumeType` value in [`public.h`](public.h).

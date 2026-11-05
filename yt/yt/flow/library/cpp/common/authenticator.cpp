@@ -1,5 +1,6 @@
 #include "authenticator.h"
 #include "internal_urls.h"
+#include "job_proxy_client.h"
 #include "private.h"
 
 #include <yt/yt/flow/library/cpp/client/authentication.h>
@@ -15,6 +16,7 @@
 #include <yt/yt/library/signature/validation/signature_validator.h>
 
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/cache/config.h>
@@ -556,7 +558,13 @@ public:
     {
         YT_VERIFY(NodeInfo_);
 
-        Connection_ = NApi::NRpcProxy::CreateConnection(BuildConnectionConfig());
+        auto connection = NApi::NRpcProxy::CreateConnection(BuildConnectionConfig());
+        Connection_ = GetJobProxyClient(
+            connection->CreateClient(ClientOptions_),
+            *PipelinePath_.GetCluster(),
+            GetEnv("YT_FLOW_JOB_PROXY_CLUSTER"),
+            GetEnv("YT_JOB_PROXY_SOCKET_PATH"))
+            ->GetConnection();
         auto client = Connection_->CreateClient(ClientOptions_);
 
         auto pipelineObjectId = FetchPipelineObjectId(client);

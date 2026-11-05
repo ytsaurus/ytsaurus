@@ -78,6 +78,8 @@
 
 {% include [_](./NYT_NFlow_ETimeType.md) %}
 
+{% include [_](./NYT_NFlow_ETimerStoreBackend.md) %}
+
 {% include [_](./NYT_NFlow_ETimestampFormat.md) %}
 
 {% include [_](./NYT_NFlow_EUnavailableSourcePolicy.md) %}
@@ -144,6 +146,8 @@
 
 {% include [_](./NYT_NFlow_TDynamicJobTrackerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicKeyCountPartitioningSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicKeyVisitorStreamSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicMessageDistributorSpec.md) %}
@@ -152,7 +156,7 @@
 
 {% include [_](./NYT_NFlow_TDynamicPartitionTracerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TDynamicPartitioningSpec.md) %}
+{% include [_](./NYT_NFlow_TDynamicPartitioningCoordinatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicPipelineSpec.md) %}
 
@@ -214,8 +218,6 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
 
-{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
-
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TKafkaSink.md) %}
@@ -260,6 +262,8 @@
 
 {% include [_](./NYT_NFlow_TKafkaClientConfig.md) %}
 
+{% include [_](./NYT_NFlow_TKeyCountPartitioningSpec.md) %}
+
 {% include [_](./NYT_NFlow_TKeyStateRow.md) %}
 
 {% include [_](./NYT_NFlow_TKeyVisitorStreamSpec.md) %}
@@ -299,6 +303,8 @@
 {% include [_](./NYT_NFlow_TSimpleRunnerConfig.md) %}
 
 {% include [_](./NYT_NFlow_TSinkSpec.md) %}
+
+{% include [_](./NYT_NFlow_TSourceReadDelayEstimatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_TSourceSpec.md) %}
 
@@ -349,8 +355,6 @@
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
-
-{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
 

@@ -206,7 +206,7 @@ void TUnpackedWireString::FillFieldNumberToFieldMap(
                 stream.CheckpointIf(extractValuesFor(fieldNumber));
                 stream.Skip(size);
 
-                if (packedFieldWireType) {
+                if (packedFieldWireType && extractValuesFor(fieldNumber)) {
                     UnpackRepeatedField(map[fieldNumber], stream.Checkpoint(), *packedFieldWireType);
                     continue;
                 }
@@ -1162,7 +1162,6 @@ std::vector<std::string> DoConvertToWireString(
     const NYson::TProtobufWriterOptions& options)
 {
     if (std::holds_alternative<std::unique_ptr<NYson::TProtobufAnyElement>>(element)) {
-        // The caller identifies yson_string by the typed attribute or protobuf field descriptor.
         THROW_ERROR_EXCEPTION_UNLESS(ysonString,
             "Cannot convert arbitrary protobuf element to wire string");
         return {NYson::ConvertToYsonString(value).ToString()};

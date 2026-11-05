@@ -16,6 +16,7 @@ SRCS(
     partitioning_ut.cpp
     resource_balancer_ut.cpp
     state_manager_ut.cpp
+    stream_metrics_ut.cpp
     worker_coef_estimator_ut.cpp
     yt_connector_ut.cpp
 )

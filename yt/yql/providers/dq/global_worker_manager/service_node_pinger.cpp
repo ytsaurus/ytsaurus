@@ -1,5 +1,6 @@
 #include "service_node_pinger.h"
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/worker_info.h>
 
 #include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/log/log.h>
@@ -109,8 +110,8 @@ private:
             return;
         }
 
-        for (auto file : it->second) {
-            Downloading.erase(/*objectId = */ file.LocalFileName);
+        for (const auto& key : it->second) {
+            Downloading.erase(key);
         }
 
         DownloadProcess.erase(it);
@@ -175,38 +176,55 @@ private:
         }
         THolder<TEvInterconnect::TEvNodesInfo> reply(new TEvInterconnect::TEvNodesInfo(nodes));
 
-        TVector<TResourceFile> downloadList;
-        for (auto& file : resp.GetDownloadList()) {
-            if (Downloading.contains(file.GetObjectId()) || (Options.FileCache && Options.FileCache->Contains(file.GetObjectId()))) {
-                continue;
+        if (Options.FileCache) {
+            const auto download = [&] (const auto& files, const TString& uploadClusterAddress, const TString& uploadPrefix) {
+                auto rmOptions = Options;
+                rmOptions.UploadClusterAddress = uploadClusterAddress.empty() ? Options.YtBackend.GetProxyAddress() : uploadClusterAddress;
+                rmOptions.UploadPrefix = uploadPrefix.empty() ? Options.YtBackend.GetUploadPrefix() : uploadPrefix;
+                TVector<TResourceFile> downloadList;
+                TVector<NDqs::TDownloadKey> downloadKeys;
+                for (const auto& file : files) {
+                    NDqs::TDownloadKey key{
+                        .ObjectId = file.GetObjectId(),
+                        .UploadPrefix = rmOptions.UploadPrefix,
+                        .UploadClusterAddress = rmOptions.UploadClusterAddress,
+                    };
+                    if (Options.FileCache->Contains(file.GetObjectId()) || !Downloading.insert(key).second) {
+                        continue;
+                    }
+                    TResourceFile resource;
+                    switch (file.GetObjectType()) {
+                        case Yql::DqsProto::TFile::EEXE_FILE:
+                            resource.RemoteFileName = "bin/" + file.GetObjectId() + "/" + file.GetName();
+                            break;
+                        default:
+                            resource.RemoteFileName = "udfs/" + file.GetObjectId();
+                            break;
+                    }
+                    resource.LocalFileName = file.GetObjectId();
+                    YQL_CLOG(TRACE, ProviderDq) << "Start downloading: " << file.GetObjectId() << ", resource.RemoteFileName: " << resource.RemoteFileName;
+                    downloadList.push_back(std::move(resource));
+                    downloadKeys.push_back(std::move(key));
+                }
+                if (downloadList.empty()) {
+                    return;
+                }
+
+                rmOptions.Files = std::move(downloadList);
+
+                YQL_CLOG(DEBUG, ProviderDq) << "Start downloading from " << rmOptions.UploadClusterAddress
+                    << " prefix=" << rmOptions.UploadPrefix;
+                DownloadProcess.emplace(ctx.Register(CreateResourceDownloader(rmOptions, Coordinator)), std::move(downloadKeys));
+            };
+
+            if (!resp.GetDownloadGroups().empty()) {
+                for (const auto& group : resp.GetDownloadGroups()) {
+                    download(group.GetFiles(), group.GetUploadClusterAddress(), group.GetUploadPrefix());
+                }
+            } else {
+                // Old service nodes only send DownloadList, with the worker's configured location.
+                download(resp.GetDownloadList(), {}, {});
             }
-            TResourceFile resource;
-
-            switch (file.GetObjectType()) {
-                case Yql::DqsProto::TFile::EEXE_FILE:
-                    resource.RemoteFileName = "bin/" + file.GetObjectId() + "/" + file.GetName();
-                    break;
-                default:
-                    resource.RemoteFileName = "udfs/" + file.GetObjectId();
-                    break;
-            }
-
-            resource.LocalFileName = file.GetObjectId();
-
-            downloadList.push_back(resource);
-
-            YQL_CLOG(TRACE, ProviderDq) << "Start downloading: " << file.GetObjectId() << ", resource.RemoteFileName: " << resource.RemoteFileName;
-
-            Downloading.insert(file.GetObjectId());
-        }
-
-        if (!downloadList.empty() && Options.FileCache) {
-            auto rmOptions = Options;
-            rmOptions.Files = downloadList;
-            rmOptions.UploadPrefix = rmOptions.YtBackend.GetUploadPrefix();
-
-            YQL_CLOG(DEBUG, ProviderDq) << "Start downloading from " << rmOptions.YtBackend.GetClusterName();
-            DownloadProcess.emplace(ctx.Register(CreateResourceDownloader(rmOptions, Coordinator)), downloadList);
         }
 
         Send(NActors::GetNameserviceActorId(), reply.Release());
@@ -400,8 +418,8 @@ private:
     const ICoordinationHelper::TPtr Coordinator;
     const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
 
-    THashSet<TString> Downloading;
-    THashMap<TActorId, TVector<TResourceFile>> DownloadProcess;
+    THashSet<NDqs::TDownloadKey, NDqs::TDownloadKeyHash> Downloading;
+    THashMap<TActorId, TVector<NDqs::TDownloadKey>> DownloadProcess;
 
     TDuration HeartbeatPeriod = TDuration::Seconds(5);
 

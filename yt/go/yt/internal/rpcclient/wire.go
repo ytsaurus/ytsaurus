@@ -1,6 +1,7 @@
 package rpcclient
 
 import (
+	"bytes"
 	"reflect"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
@@ -84,23 +85,15 @@ func convertNameTable(t wire.NameTable) ([]*rpc_proxy.TRowsetDescriptor_TNameTab
 }
 
 func decodeFromWire(attachments [][]byte) ([]wire.Row, error) {
-	var ret []wire.Row
-
 	rows, err := wire.UnmarshalRowset(mergeAttachments(attachments))
 	if err != nil {
 		return nil, xerrors.Errorf("unable to deserialize attachments: %w", err)
 	}
-	ret = append(ret, rows...)
-
-	return ret, nil
+	return rows, nil
 }
 
 func mergeAttachments(attachments [][]byte) []byte {
-	var merged []byte
-	for _, a := range attachments {
-		merged = append(merged, a...)
-	}
-	return merged
+	return bytes.Join(attachments, nil)
 }
 
 func makeNameTable(d *rpc_proxy.TRowsetDescriptor) (wire.NameTable, error) {

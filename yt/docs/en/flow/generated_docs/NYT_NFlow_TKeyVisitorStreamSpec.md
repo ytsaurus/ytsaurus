@@ -9,6 +9,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
  ||
 || `external_names` | **Type**: `std::optional<THashSet<std::string>>`
  ||
+|| `weak_external_names` | **Type**: `std::optional<THashSet<std::string>>`
+Visitor-driven external-state joiners scanned in step with the visit stream without contributing keys: the joiner is read over the same key ranges as the other sources, so its row is available in `ProcessVisit` for the visit key, but a key present only in the joiner produces no visit (a left join against the keys of `names`/`external_names`).
+Must not overlap with `external_names`; the "at most one visit stream per joiner" rule covers both lists. ||
 || `upstream_streams` | **Type**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
 List of the computation's input and source streams whose completion the visitor waits for. Only meaningful with `finite=%true` (see the dynamic spec): with `finite=%false` the visitor never finishes, so the parameter has no effect.
 When unset, the visitor waits for every input and source stream, that is, it finishes together with the whole input of the computation.

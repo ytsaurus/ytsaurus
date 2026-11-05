@@ -16,7 +16,6 @@ TEST(TClickHouseRollbackCompatibilityTest, OldRegistryRejectsShardedSpecWithPend
     TRegistry oldRegistry;
     oldRegistry.RegisterSink<TClickHouseBatchingSink>();
     oldRegistry.RegisterSink<TAtLeastOnceClickHouseSink>();
-    oldRegistry.RegisterSink<TAtMostOnceClickHouseSink>();
     auto stateManager = New<TStateManagerMock>();
     TMutableStateClient<TOrderedBatchingAsyncSinkState> state;
     stateManager->CreateContext()->InitClient<TOrderedBatchingAsyncSinkState>(state, "v0");

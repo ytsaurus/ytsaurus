@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads, with_portals_dir
 
 from yt_commands import (
     authors, copy, create_user, get_driver, print_debug, set_nodes_banned, wait, create, ls, get, set, remove, exists,
@@ -8,7 +8,7 @@ from yt_commands import (
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
-    create_domestic_medium,
+    create_domestic_medium, make_batch_request, execute_batch, get_batch_error
 )
 
 from yt_helpers import profiler_factory
@@ -67,6 +67,24 @@ class TestChunkServer(YTEnvSetup):
                     return None
                 refresh_queue_size += count
         return refresh_queue_size
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("non_default")
+
+    def teardown_method(self, method):
+        requests = [
+            make_batch_request(
+                "remove",
+                path=f"//sys/chunk_locations/{str(location)}/@medium_override",
+            )
+            for location in ls("//sys/chunk_locations", attributes=["medium_override"])
+            if "medium_override" in location.attributes
+        ]
+        for response in execute_batch(requests):
+            assert not get_batch_error(response)
+
+        super().teardown_method(method)
 
     @authors("kvk1920")
     def test_invalid_medium_name(self):
@@ -325,7 +343,11 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        master = ls("//sys/primary_masters")[0]
+        # The upload requisition is replaced by the committed one asynchronously.
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: all(entry["committed"] for entry in get(f"#{chunk_id}/@requisition")))
+
+        master = get_active_primary_master_leader_address(self)
         master_orchid_path = "//sys/primary_masters/{0}/orchid/chunk_manager/requisition_registry".format(master)
 
         known_requisition_indexes = frozenset(ls(master_orchid_path))
@@ -542,6 +564,47 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+
+    @authors("kvk1920")
+    def test_cross_medium_historically_non_vital(self):
+        non_default_location = ls("//sys/chunk_locations")[0]
+        set(f"//sys/chunk_locations/{non_default_location}/@medium_override", "non_default")
+        wait(lambda: get(f"//sys/chunk_locations/{non_default_location}/@statistics/medium_name") == "non_default")
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", [{"key": "abc", "value": 42}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_replication_factors():
+            rf = {}
+            for r in get(f"#{chunk_id}/@stored_replicas"):
+                medium = r.attributes["medium"]
+                rf[medium] = rf.get(medium, 0) + 1
+            return rf
+
+        wait(lambda: get_replication_factors() == {"default": 3})
+
+        set("//tmp/t/@media", {
+            "default": {
+                "replication_factor": 2,
+                "data_parts_only": False,
+            },
+            "non_default": {
+                "replication_factor": 1,
+                "data_parts_only": False,
+            },
+        })
+
+        wait(lambda: get_replication_factors() == {
+            "default": 2,
+            "non_default": 1,
+        })
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        assert get(f"#{chunk_id}/@vital")
+
+        set_nodes_banned(ls("//sys/data_nodes"), True)
+        wait(lambda: chunk_id in ls("//sys/lost_vital_chunks"))
 
     @authors("danilalexeev")
     def test_unexpected_overreplicated_chunks(self):
@@ -1875,11 +1938,11 @@ class TestChunkServerMulticell(TestChunkServer):
         create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
+    @with_portals_dir
     def test_multicell_with_primary_chunk_host(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
 
-        create("table", "//t")
-        remove("//t")
+        create("table", "//portals/t")
 
     @authors("babenko")
     def test_owning_nodes3(self):
@@ -1907,6 +1970,7 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("to_concatenate", [True, False])
+    @with_portals_dir
     def test_owning_nodes4(self, to_concatenate):
         def check_owning_nodes(object_id, owning_nodes):
             cell_indices = {0}  # primary cell
@@ -1923,22 +1987,21 @@ class TestChunkServerMulticell(TestChunkServer):
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         chunk_list_owning_nodes = ["//tmp/t"]
         if to_concatenate:
-            create("table", "//home/t", recursive=True, force=True, attributes={"external_cell_tag": 11})
+            create("table", "//portals/t", attributes={"external_cell_tag": 11})
             # Export from 12 cell to 11.
-            concatenate(["//tmp/t", "//tmp/t"], "//home/t")
+            concatenate(["//tmp/t", "//tmp/t"], "//portals/t")
 
             create("table", "//tmp/t1", attributes={"external_cell_tag": 13})
             # Export from 11 cell to 13.
-            concatenate(["//home/t", "//home/t"], "//tmp/t1")
+            concatenate(["//portals/t", "//portals/t"], "//tmp/t1")
         else:
-            copy("//tmp/t", "//home/t", recursive=True, force=True)
-            copy("//home/t", "//tmp/t1")
-            chunk_list_owning_nodes.append("//home/t")
+            copy("//tmp/t", "//portals/t")
+            copy("//portals/t", "//tmp/t1")
+            chunk_list_owning_nodes.append("//portals/t")
             chunk_list_owning_nodes.append("//tmp/t1")
 
-        check_owning_nodes(chunk_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+        check_owning_nodes(chunk_id, ["//tmp/t", "//portals/t", "//tmp/t1"])
         check_owning_nodes(chunk_list_id, chunk_list_owning_nodes)
-        remove("//home/t")
 
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
@@ -2092,6 +2155,65 @@ class TestChunkServerMulticell(TestChunkServer):
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert get("//sys/@lost_vital_chunk_count") == 0
         assert chunk_id not in get("//sys/lost_vital_chunks")
+
+    @authors("grphil")
+    def test_detailed_replication_statistics(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        write_table("//tmp/t1", {"a": "b"})
+
+        def check_replication_statistics(chunks, local_chunks, available):
+            def check_response(statistics, lost_chunks, local):
+                if local:
+                    chunk_count = len(local_chunks)
+                    chunks_list = local_chunks
+                else:
+                    chunk_count = len(chunks)
+                    chunks_list = chunks
+                if statistics["dead"] != 0:
+                    return False
+                if statistics["available"] + statistics["lost"] != chunk_count:
+                    return False
+                if available:
+                    return statistics["lost"] == 0 and len(lost_chunks) == 0
+                else:
+                    if statistics["available"] != 0:
+                        return False
+                    if len(lost_chunks) != chunk_count:
+                        return False
+                    for chunk in lost_chunks:
+                        if chunk not in chunks_list:
+                            return False
+                    return True
+
+            return \
+                check_response(
+                    get("//tmp/t1/@local_detailed_chunk_replication_statistics"),
+                    get("//tmp/t1/@local_lost_chunk_ids"),
+                    True) and \
+                check_response(
+                    get("//tmp/t1/@detailed_chunk_replication_statistics"),
+                    get("//tmp/t1/@lost_chunk_ids"),
+                    False)
+
+        local_chunks = get("//tmp/t1/@chunk_ids")
+        wait(lambda: check_replication_statistics(local_chunks, local_chunks, True))
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t2", {"a": "b"})
+        concatenate(["//tmp/t2"], "<append=true>//tmp/t1")
+
+        chunks = get("//tmp/t1/@chunk_ids")
+        assert len(chunks) == 2
+        wait(lambda: check_replication_statistics(chunks, local_chunks, True))
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: check_replication_statistics(chunks, local_chunks, False))
+            set("//sys/@config/chunk_manager/max_lost_chunks_to_report_in_detailed_replication_statistics", 1)
+            lost_chunks = get("//tmp/t1/@lost_chunk_ids")
+            assert len(lost_chunks) == 1
+            assert lost_chunks.attributes["incomplete"]
+
+        wait(lambda: check_replication_statistics(chunks, local_chunks, True))
 
 
 class TestChunkServerPortal(TestChunkServerMulticell):

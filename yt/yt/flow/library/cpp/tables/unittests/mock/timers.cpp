@@ -1,5 +1,7 @@
 #include "timers.h"
 
+#include <yt/yt/flow/library/cpp/common/key.h>
+
 namespace NYT::NFlow::NTables {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,8 +36,9 @@ TFuture<ITimers::TLoadResult> TInMemoryTimers::Load(
         if (filter.LowerKey && storageKey.Key < *filter.LowerKey) {
             continue;
         }
-        if (filter.UpperKey && !(*filter.UpperKey < storageKey.Key) && storageKey.Key != *filter.UpperKey) {
-            // UpperKey is exclusive upper bound.
+        // UpperKey is exclusive upper bound.
+        if (filter.UpperKey && *filter.UpperKey != MaxKey() && !(storageKey.Key < *filter.UpperKey)) {
+            continue;
         }
         if (offsetExclusive) {
             TStorageKey offsetKey{
@@ -48,11 +51,8 @@ TFuture<ITimers::TLoadResult> TInMemoryTimers::Load(
             }
         }
         if (count >= limit) {
-            result.ContinuationOffsetExclusive = TTableKey{
-                .ComputationId = storageKey.ComputationId,
-                .Key = storageKey.Key,
-                .MessageId = storageKey.MessageId,
-            };
+            // Like TTimers: the continuation is the last returned row.
+            result.ContinuationOffsetExclusive = result.Timers.back().first;
             break;
         }
         result.Timers.emplace_back(

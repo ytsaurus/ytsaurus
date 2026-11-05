@@ -511,12 +511,21 @@ struct TArrayJoin
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnionAllClause
+{
+    std::vector<TQueryAstHeadPtr> Subqueries;
+    std::optional<std::string> Alias;
+
+    bool operator==(const TUnionAllClause& other) const = default;
+};
+
 struct TQuery
 {
     std::variant<
         TTableDescriptor,
         TQueryAstHeadPtr,
-        TExpressionList> FromClause;
+        TExpressionList,
+        TUnionAllClause> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -532,7 +541,7 @@ struct TQuery
     std::optional<i64> Offset;
     std::optional<i64> Limit;
 
-    bool operator==(const TQuery& other) const = default;
+    bool operator==(const TQuery& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

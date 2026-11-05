@@ -263,6 +263,25 @@ void BuildQueryDescriptor(
                     allowUnorderedGroupByWithLimit,
                     allowReverseScanForOrderBy,
                     /*subquery*/ true);
+            } else if (fragment->UnionAllQuery) {
+                GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
+
+                fluent
+                    .Item("union_all_subqueries").DoListFor(
+                        fragment->UnionAllQuery->SubqueryFragments,
+                        [&] (auto fluent, const TPlanFragmentPtr& subqueryPlanFragment) {
+                            fluent.Item().DoMap([&] (auto fluent) {
+                                BuildQueryDescriptor(
+                                    fluent,
+                                    connection,
+                                    subqueryPlanFragment,
+                                    options,
+                                    memoryChunkProvider,
+                                    allowUnorderedGroupByWithLimit,
+                                    allowReverseScanForOrderBy,
+                                    /*subquery*/ true);
+                            });
+                        });
             } else {
                 auto inferred = InferQueryRanges(
                     connection,

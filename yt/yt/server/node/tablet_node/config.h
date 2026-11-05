@@ -250,6 +250,8 @@ struct TStoreFlusherDynamicConfig
     std::optional<int> MaxConcurrentFlushes;
     std::optional<i64> MinForcedFlushDataSize;
 
+    bool UseQueryPool;
+
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
     REGISTER_YSON_STRUCT(TStoreFlusherDynamicConfig);
@@ -294,8 +296,10 @@ struct TStoreCompactorDynamicConfig
 
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
+    // COMPAT(sabdenovch): Deprecate in next release.
     std::optional<std::string> CompactionFairSharePool;
     std::optional<std::string> PartitioningFairSharePool;
+    bool UseQueryPool;
 
     bool ReuseCompactionInvokerForWriterCompression;
     bool ReuseCompactionInvokerForReaderDecompression;
@@ -793,6 +797,9 @@ struct TTabletNodeDynamicConfig
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
 
     TSlruCacheDynamicConfigPtr ClientCache;
+
+    bool UseQueryPoolForBusXfer;
+    bool UseQueryPoolForRpc;
 
     TTestingTabletNodeDynamicConfig Testing;
 

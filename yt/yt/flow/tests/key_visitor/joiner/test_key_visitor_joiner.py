@@ -54,25 +54,42 @@ class Test(FlowTestBase):
 
         self.client.link(data_path, self.source, force=True)
 
-    def get_mirror_keys(self):
+    def get_mirror_payloads(self):
+        """Payload of every key the mirror holds, by the key the payload names."""
         res = self.client.read_states(
             self.pipeline_path,
             computation_id="mirror",
             target="key_state",
             limit=1000,
         )
-        keys = set()
+        payloads = {}
         for row in res["key_states"]:
             state = row["states"].get("/mirror")
             if state is None:
                 continue
-            payload = state.get("payload", "")
+            # The row key is the group-by tuple (hash, key); the string key comes last.
+            payloads[list(row["key"])[-1]] = state.get("payload", "")
+        return payloads
+
+    def get_mirror_keys(self):
+        keys = set()
+        for key, payload in self.get_mirror_payloads().items():
             assert payload.startswith("p_"), f"unexpected mirror payload {payload!r}"
-            keys.add(payload[len("p_") :])
+            assert payload == f"p_{key}", f"mirror key {key!r} carries payload {payload!r}"
+            keys.add(key)
         return keys
 
-    def prepare_pipeline_config(self, period_ms=1000, unavailable_source_policy="retry"):
+    def send_keys(self, keys):
+        self.client.insert_rows(self.input_queue, [{"key": k} for k in keys])
+
+    def prepare_pipeline_config(self, period_ms=1000, unavailable_source_policy="retry", weak=False):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
+
+        if weak:
+            # The source is read in step with the sweep but contributes no keys: only the
+            # mirror's own keys are visited.
+            visit_stream = pipeline_config["spec"]["computations"]["mirror"]["key_visitor_streams"]["visit_iter"]
+            visit_stream["weak_external_names"] = visit_stream.pop("external_names")
 
         source_params = pipeline_config["spec"]["computations"]["key_reader"]["source_streams"]["queue"]["parameters"]
         source_params.update(
@@ -125,6 +142,30 @@ class Test(FlowTestBase):
             assert "d" in mirror, "key 'd' should have been added to the mirror"
             assert mirror == phase_b
             logging.info("scenario 2 phase B converged: mirror == {b,c,d} (a deleted, d added)")
+
+    @pytest.mark.authors(["svkrasnov"])
+    def test_weak_source_enriches_only_own_keys(self):
+        run_yt_sync("primary", self.work_yt_path)
+
+        pipeline_config_path = self.prepare_pipeline_config(period_ms=1000, weak=True)
+        self.set_source({"a", "b", "c"})
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+        ):
+            # Only the keys the mirror holds are visited: "c" lives in the source alone.
+            self.send_keys(["a", "b"])
+            wait(lambda: self.get_mirror_payloads() == {"a": "p_a", "b": "p_b"}, timeout=240)
+            logging.info("weak source enriched the mirror's own keys: {a: p_a, b: p_b}")
+
+            for _ in range(10):
+                time.sleep(1)
+                assert set(self.get_mirror_payloads()) == {"a", "b"}, "a source-only key must not be visited"
+            logging.info("key 'c' never entered the mirror across 10 sweeps")
+
+            # Own keys are still reconciled against the source: a key gone from it is dropped.
+            self.set_source({"b", "c"})
+            wait(lambda: self.get_mirror_payloads() == {"b": "p_b"}, timeout=240)
+            logging.info("weak source reconciliation: mirror == {b: p_b}")
 
     @pytest.mark.authors(["mikari"])
     def test_unreadable_source_does_not_delete_mirror(self):

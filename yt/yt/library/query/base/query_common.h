@@ -279,6 +279,7 @@ struct TPlanFragment final
     TQueryPtr Query;
     TDataSource DataSource;
     TPlanFragmentPtr SubqueryFragment;
+    TUnionAllQueryPtr UnionAllQuery;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

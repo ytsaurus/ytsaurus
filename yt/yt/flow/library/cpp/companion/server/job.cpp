@@ -267,10 +267,20 @@ bool TJob::EnsureInitialized()
         Spec_->GroupBySchema,
         std::move(joinedStateConfigs));
 
+    RuntimeContext_ = New<TCompanionRuntimeContext>(
+        Spec_,
+        New<TComputationStreamSpecStorage>(
+            StreamSpecs_,
+            Spec_->GroupBySchema,
+            ConverterCache_),
+        Spec_->GroupBySchema,
+        ConverterCache_,
+        /*throttlerFactory*/ nullptr);
+
     auto initContext = New<TCompanionRuntimeInitContext>(
         StateStore_,
-        Spec_->ProcessingFunctionParameters,
-        TRegistry::Get()->ParseProcessFunctionParameters(Spec_),
+        RuntimeContext_->GetParametersNode(),
+        RuntimeContext_->GetParametersObject(),
         std::move(*resources),
         /*prefix*/ std::string(),
         Profiler_,
@@ -293,15 +303,6 @@ bool TJob::EnsureInitialized()
     function->Init(context->InitContext);
 
     BatchFunction_ = WrapAsBatch(function);
-    RuntimeContext_ = New<TCompanionRuntimeContext>(
-        Spec_,
-        New<TComputationStreamSpecStorage>(
-            StreamSpecs_,
-            Spec_->GroupBySchema,
-            ConverterCache_),
-        Spec_->GroupBySchema,
-        ConverterCache_,
-        /*throttlerFactory*/ nullptr);
     Initialized_ = true;
     return true;
 }
@@ -353,7 +354,8 @@ bool TJob::ProcessBatch(
                 ConverterCache_),
             Spec_->GroupBySchema,
             ConverterCache_,
-            /*throttlerFactory*/ nullptr)
+            /*throttlerFactory*/ nullptr,
+            RuntimeContext_->GetParametersObject())
         : RuntimeContext_;
     runtimeContext->RefreshEpochState(
         BuildWatermarkState(input.Watermarks),

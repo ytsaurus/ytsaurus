@@ -5,6 +5,9 @@
 
 #|
 || **Параметр** | **Описание** ||
+|| `key_count_partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyCountPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyCountPartitioningSpec)`>`
+**Значение по умолчанию**: `{}`
+Настройки разбиения по числу ключей в партиции. ||
 || `throughput_warmup_period` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
 Окно измерений Throughput для этого Computation. Если не задано, используется глобальный warmup_period. Увеличьте для длинных батчей или волнообразного потока. ||
 || `throughput_max_exploration_factor` | **Тип**: `double`
@@ -31,7 +34,7 @@
 || `allowed_partition_count_deviation` | **Тип**: `std::optional<double>`
  ||
 || `partition_count_double_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
- ||
+Опорная задержка удвоения числа партиций. Перенарезка по весам может менять границы без изменения числа партиций. Её задержка делится на min(1 + CV, 10). CV — отношение стандартного отклонения текущих весов партиций к их среднему. Чем сильнее перекос, тем меньше ожидание. Перемещение границ не перезапускает задержку изменения числа партиций. ||
 || `partition_count_half_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
 || `weight_multiplier` | **Тип**: `double`

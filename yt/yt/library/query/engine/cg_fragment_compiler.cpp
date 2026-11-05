@@ -1657,6 +1657,8 @@ TCGValue CodegenRelationalBinaryOpExpr(
         Value* evalData = nullptr;
 
         switch (operandType) {
+            case EValueType::Null:
+                return compareNulls();
             case EValueType::Int64:
                 switch (opcode) {
                     CMP_OP(Equal, ICmpEQ)
@@ -2385,6 +2387,7 @@ TCGValue CodegenCaseExpr(
     TRange<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
+    bool nullable,
     TCGExprContext& builder)
 {
     auto* resultPtr = CodegenAllocateValues(builder, /*valueCount*/ 1);
@@ -2431,7 +2434,7 @@ TCGValue CodegenCaseExpr(
     builder->CreateBr(endBB);
 
     builder->SetInsertPoint(endBB);
-    return TCGValue::LoadFromRowValue(builder, resultPtr, resultType);
+    return TCGValue::LoadFromRowValue(builder, resultPtr, nullable, resultType);
 }
 
 } // namespace NDetail
@@ -2441,6 +2444,7 @@ TCodegenExpression MakeCodegenCaseExpr(
     std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
+    bool nullable,
     TComparerManagerPtr comparerManager,
     bool useCanonicalNullRelations)
 {
@@ -2480,6 +2484,7 @@ TCodegenExpression MakeCodegenCaseExpr(
             whenThenExpressionIds,
             defaultId,
             resultType,
+            nullable,
             builder);
     };
 }

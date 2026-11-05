@@ -130,9 +130,19 @@ struct IChunkManager
 
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context) = 0;
+    // NB: if original request was patched use this method instead of the
+    // previous one.
+    virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
+        TCtxExecuteBatchPtr context,
+        NChunkClient::NProto::TReqExecuteBatch* request) = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
         TCtxCreateChunkPtr context) = 0;
+    // NB: if original request was patched use this method instead of the
+    // previous one.
+    virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
+        TCtxCreateChunkPtr context,
+        NChunkClient::NProto::TReqCreateChunk* request) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateConfirmChunkMutation(
         NChunkClient::NProto::TReqConfirmChunk* request,
         NChunkClient::NProto::TRspConfirmChunk* response) = 0;
@@ -425,6 +435,15 @@ struct IChunkManager
     virtual TError ExtractConfirmSequoiaChunkError(NRpc::TRequestId requestId) = 0;
 
     virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
+
+    virtual TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetChunksReplicationStatuses(
+        const std::vector<TChunkRawPtr>& chunks) = 0;
+
+    virtual void ProlongChunk(
+        TChunkId chunkId,
+        TChunkProlongationCookie prolongationCookie,
+        TInstant prolongationInstant) = 0;
+    virtual void ExpireProlongedChunk(TChunkId chunkId, TChunkProlongationCookie prolongationCookie) = 0;
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
 

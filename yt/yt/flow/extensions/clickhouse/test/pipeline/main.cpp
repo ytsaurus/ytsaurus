@@ -20,7 +20,7 @@ using namespace NYT::NTableClient;
 // Emits a deterministic typed row per input message so a replay produces a
 // byte-identical row. The id column is the input MessageId (globally unique and
 // stable across replay), which lets the test assert the exactly-once / at-least-once
-// / at-most-once row set on the ClickHouse side.
+// row set on the ClickHouse side.
 class TTypedReader
     : public TSwiftOrderedSourceComputation
 {

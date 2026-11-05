@@ -1,21 +1,24 @@
+#include <yt/yql/providers/ytflow/gateway/yql_ytflow_config_clusters.h>
 #include <yt/yql/providers/ytflow/gateway/yql_ytflow_pipeline_spec.h>
-
-#include <yt/yql/providers/ytflow/provider/yql_ytflow_configuration.h>
 
 #include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
 
 #include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
 
 #include <yt/yql/providers/ytflow/integration/proto/pq.pb.h>
+#include <yt/yql/providers/ytflow/integration/proto/yt.pb.h>
+
+#include <yt/yql/providers/ytflow/provider/yql_ytflow_configuration.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 
 #include <yql/essentials/minikql/mkql_function_registry.h>
+
 #include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 
-#include <yql/essentials/providers/common/provider/yql_data_provider_impl.h>
+#include <yql/essentials/providers/common/proto/gateways_config.pb.h>
 
-#include <google/protobuf/any.pb.h>
+#include <yql/essentials/providers/common/provider/yql_data_provider_impl.h>
 
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/gtest.h>
@@ -23,8 +26,14 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/resources/public.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+
+#include <google/protobuf/any.pb.h>
+
+#include <utility>
 
 namespace NYql::NYtflow::NPrivate {
 namespace {
@@ -34,20 +43,40 @@ using namespace NNodes;
 class TStreamTestIntegration : public TEmptyYtflowIntegration {
 public:
     void FillSourceSettings(
-        const TExprNode& /*source*/,
+        const TExprNode& sourceNode,
         ::google::protobuf::Any& settings,
         TExprContext& /*ctx*/) override
     {
+        if (sourceNode.IsCallable("TestQueueRead")) {
+            NProto::TYtQueueSourceMessage source;
+
+            source.SetCluster(TString(sourceNode.Child(2)->Content()));
+            source.SetPath("//tmp/queue");
+            source.SetConsumerPath(TString(sourceNode.Child(3)->Content()));
+            settings.PackFrom(source);
+
+            return;
+        }
+
         NProto::TPQSourceMessage source;
         source.SetTopicPath("input");
         settings.PackFrom(source);
     }
 
     void FillSinkSettings(
-        const TExprNode& /*sink*/,
+        const TExprNode& sinkNode,
         ::google::protobuf::Any& settings,
         TExprContext& /*ctx*/) override
     {
+        if (sinkNode.IsCallable("TestQueueWrite")) {
+            NProto::TYtQueueSinkMessage sink;
+            sink.SetCluster(TString(sinkNode.Child(2)->Content()));
+            sink.SetPath(TString(sinkNode.Child(3)->Content()));
+            sink.SetProducerPath(TString(sinkNode.Child(4)->Content()));
+            settings.PackFrom(sink);
+            return;
+        }
+
         NProto::TPQSinkMessage sink;
         sink.SetTopicPath("output");
         settings.PackFrom(sink);
@@ -87,10 +116,18 @@ protected:
         return lambda;
     }
 
-    TExprNode::TPtr MakeSourceMap()
+    TExprNode::TPtr MakeSourceMap(TString cluster = {}, TString consumer = {})
     {
         auto dataSource = Build<TCoDataSource>(Ctx_, Pos_).Category().Value("test").Build().Done();
         auto read = Ctx_.NewCallable(Pos_, "TestRead", {Ctx_.NewWorld(Pos_), dataSource.Ptr()});
+        if (!cluster.empty()) {
+            read = Ctx_.NewCallable(Pos_, "TestQueueRead", {
+                Ctx_.NewWorld(Pos_),
+                dataSource.Ptr(),
+                Ctx_.NewAtom(Pos_, cluster),
+                Ctx_.NewAtom(Pos_, consumer),
+            });
+        }
         auto source = Build<TYtflowPersistentSource>(Ctx_, Pos_)
             .Input<TYtflowReadWrap>().Input(read).Build()
             .Done();
@@ -155,17 +192,61 @@ protected:
         YQL_ENSURE(config->Dispatch(
             NCommon::ALL_CLUSTERS, "_FiniteStreams", TString("false"),
             NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "_YtUseSourceWatermark", TString("false"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "Cluster", TString("primary"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "YtConsumerPath", TString("//tmp/pragma-consumer"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+
+        TYtflowGatewayConfig gatewayConfig;
+        for (const auto& cluster : {"primary", "remote", "remote_0", "remote_1"}) {
+            auto* mapping = gatewayConfig.AddClusterMapping();
+            mapping->SetName(cluster);
+            mapping->SetRealName(TString(cluster) + "-cluster");
+            mapping->SetProxyUrl(TString(cluster) + ".example.com");
+        }
+
+        auto clusters = MakeIntrusive<TConfigClusters>(gatewayConfig);
 
         IYtflowGateway::TRunOptions runOptions;
         runOptions.Config(std::make_shared<const TYtflowSettings>(*config)).Types(&types);
 
-        NPrepare::TContext prepareCtx{Ctx_, runOptions, nullptr};
+        NPrepare::TContext prepareCtx{Ctx_, runOptions, clusters};
         auto registry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
         THashMap<TStringBuf, ui32> computationCounters;
         TUserDataTable userDataBlocks;
         TBuildPipelineSpecContext buildCtx(prepareCtx, computationCounters, registry.Get(), userDataBlocks, {});
 
         return BuildPipelineSpec(Ctx_.NewList(Pos_, std::move(roots)), buildCtx).PipelineSpec;
+    }
+
+    TExprNode::TPtr MakeQueueSink(const TExprNode::TPtr& output, TString cluster, TString producer)
+    {
+        auto dataSink = Build<TCoDataSink>(Ctx_, Pos_)
+            .Category()
+                .Value("test")
+                .Build()
+            .Done();
+
+        auto write = Ctx_.NewCallable(Pos_, "TestQueueWrite", {
+            Ctx_.NewWorld(Pos_),
+            dataSink.Ptr(),
+            Ctx_.NewAtom(Pos_, cluster),
+            Ctx_.NewAtom(Pos_, "//tmp/queue_" + cluster),
+            Ctx_.NewAtom(Pos_, producer),
+        });
+
+        return Build<TYtflowPersistentSink>(Ctx_, Pos_)
+            .World(Ctx_.NewWorld(Pos_))
+            .Output(output)
+            .Write<TYtflowWriteWrap>()
+                .Input(write)
+                .Build()
+            .Done().Ptr();
     }
 
     void AssertSharedStream(const NYT::NFlow::TPipelineSpecPtr& spec)
@@ -189,6 +270,77 @@ protected:
         }
     }
 };
+
+TEST_F(TPipelineStreamsTest, WritesToLocalAndTwoRemoteQueuesWithDistinctProducers)
+{
+    auto output = MakeOutput(MakeSourceMap());
+    auto spec = BuildSpec({
+        MakeQueueSink(output, "primary", ""),
+        MakeQueueSink(output, "remote_0", "//tmp/producer_0"),
+        MakeQueueSink(output, "remote_1", "//tmp/producer_1"),
+    });
+
+    THashMap<TString, TString> producers;
+    size_t syncSinkCount = 0;
+
+    for (const auto& [_, computation] : spec->Computations) {
+        for (const auto& [sinkId, sink] : computation->Sinks) {
+            Y_UNUSED(sinkId);
+
+            if (sink->SinkClassName == "NYT::NFlow::TSyncQueueSink") {
+                ++syncSinkCount;
+                EXPECT_FALSE(sink->Parameters->FindChild("producer_path"));
+            } else {
+                ASSERT_EQ("NYT::NFlow::TAsyncQueueSink", sink->SinkClassName);
+
+                auto producer = sink->Parameters->GetChildValueOrThrow<
+                    NYT::NYPath::TRichYPath
+                >("producer_path");
+
+                ASSERT_TRUE(producer.GetCluster());
+
+                producers.emplace(
+                    TString(*producer.GetCluster()),
+                    TString(producer.GetPath()));
+            }
+        }
+    }
+
+    EXPECT_EQ(1, syncSinkCount);
+    ASSERT_EQ(2U, producers.size());
+    EXPECT_EQ("//tmp/producer_0", producers.at("remote_0-cluster"));
+    EXPECT_EQ("//tmp/producer_1", producers.at("remote_1-cluster"));
+}
+
+TEST_F(TPipelineStreamsTest, PerSourceConsumerHintsAndPragmaFallback)
+{
+    auto spec = BuildSpec({
+        MakeSink(MakeOutput(MakeSourceMap("primary", "//tmp/hinted-consumer"))),
+        MakeSink(MakeOutput(MakeSourceMap("remote", "<cluster=remote-cluster;>//tmp/remote-consumer"))),
+        MakeSink(MakeOutput(MakeSourceMap("remote"))),
+    });
+
+    THashMap<TString, TString> consumers;
+    for (const auto& [_, computation] : spec->Computations) {
+        for (const auto& [sourceId, source] : computation->SourceStreams) {
+            Y_UNUSED(sourceId);
+
+            auto consumer = source->Parameters->GetChildValueOrThrow<
+                NYT::NYPath::TRichYPath
+            >("consumer_path");
+
+            ASSERT_TRUE(consumer.GetCluster());
+            consumers.emplace(
+                TString(consumer.GetPath()),
+                TString(*consumer.GetCluster()));
+        }
+    }
+
+    ASSERT_EQ(3U, consumers.size());
+    EXPECT_EQ("primary-cluster", consumers.at("//tmp/hinted-consumer"));
+    EXPECT_EQ("remote-cluster", consumers.at("//tmp/remote-consumer"));
+    EXPECT_EQ("primary-cluster", consumers.at("//tmp/pragma-consumer"));
+}
 
 TUserDataBlock MakeUserDataBlock(std::initializer_list<EUserDataBlockUsage> usages)
 {
@@ -247,11 +399,13 @@ template <class TCallback>
 void WithBuildPipelineSpecContext(
     bool enabled,
     const TUserDataTable& userDataBlocks,
-    TCallback callback)
+    TCallback callback,
+    TMaybe<TString> optLLVM = Nothing())
 {
     TExprContext exprContext;
     TTypeAnnotationContext types;
     types.RuntimeSettings = MakeRuntimeSettings();
+    types.OptLLVM = std::move(optLLVM);
 
     IYtflowGateway::TRunOptions runOptions;
     runOptions
@@ -269,6 +423,76 @@ void WithBuildPipelineSpecContext(
         secureParams);
 
     callback(buildCtx);
+}
+
+class TQueueSourceProvider
+    : public TDataProviderBase
+    , public TEmptyYtflowIntegration
+{
+public:
+    TStringBuf GetName() const override
+    {
+        return "test";
+    }
+
+    IYtflowIntegration* GetYtflowIntegration() override
+    {
+        return this;
+    }
+
+    void FillSourceSettings(
+        const TExprNode& /*source*/,
+        ::google::protobuf::Any& settings,
+        TExprContext& /*ctx*/) override
+    {
+        NProto::TYtQueueSourceMessage sourceSettings;
+        sourceSettings.SetCluster("test");
+        sourceSettings.SetPath("//queue");
+        settings.PackFrom(sourceSettings);
+    }
+};
+
+TExprNode::TPtr MakeSourceMap(TExprContext& ctx)
+{
+    using namespace NNodes;
+
+    TPositionHandle position;
+    const auto* rowType = ctx.MakeType<TStructExprType>(TVector<const TItemExprType*>{
+        ctx.MakeType<TItemExprType>(
+            "value",
+            ctx.MakeType<TDataExprType>(NUdf::EDataSlot::Int64)),
+    });
+    auto world = ctx.NewWorld(position);
+    auto dataSource = ctx.NewCallable(
+        position,
+        "DataSource",
+        {ctx.NewAtom(position, "test")});
+    auto read = ctx.NewCallable(position, "TestRead", {world, dataSource});
+    auto readWrap = ctx.NewCallable(position, TYtflowReadWrap::CallableName(), {read});
+    auto source = ctx.NewCallable(
+        position,
+        TYtflowPersistentSource::CallableName(),
+        {readWrap});
+    source->SetTypeAnn(ctx.MakeType<TListExprType>(rowType));
+
+    const auto* streamType = ctx.MakeType<TStreamExprType>(rowType);
+    auto stream = ctx.NewArgument(position, "stream");
+    stream->SetTypeAnn(streamType);
+    auto lambda = ctx.NewLambda(
+        position,
+        ctx.NewArguments(position, {stream}),
+        std::move(stream));
+    lambda->SetTypeAnn(streamType);
+
+    return ctx.NewCallable(
+        position,
+        TYtflowSourceMap::CallableName(),
+        {
+            world,
+            ctx.NewList(position, {source}),
+            ctx.NewList(position, /*children*/ {}),
+            lambda,
+        });
 }
 
 NYT::NFlow::TComputationSpecPtr MakeMapComputationSpec(
@@ -326,7 +550,8 @@ void AssertComputationPatternResource(
     const NYT::NFlow::TPipelineSpecPtr& pipelineSpec,
     const NYT::NFlow::TResourceId& resourceId,
     TStringBuf lambdaFile,
-    const TTypeAnnotationContext& types)
+    const TTypeAnnotationContext& types,
+    TStringBuf expectedOptLLVM = "")
 {
     const auto resourceIt = pipelineSpec->Resources.find(resourceId);
     ASSERT_NE(pipelineSpec->Resources.end(), resourceIt);
@@ -346,7 +571,7 @@ void AssertComputationPatternResource(
         types.LangVer,
         resourceSpec->Parameters->GetChildValueOrThrow<TLangVersion>("lang_version"));
     ASSERT_EQ(
-        "OFF",
+        expectedOptLLVM,
         resourceSpec->Parameters->GetChildValueOrThrow<TString>("opt_llvm"));
     ASSERT_EQ(
         SerializeRuntimeSettingsToString(*types.RuntimeSettings),
@@ -414,6 +639,9 @@ void PrepareTransformForPipelineValidation(
     computationSpec->Parameters->AddChild(
         "lang_version",
         NYT::NYTree::ConvertToNode(types.LangVer));
+    computationSpec->Parameters->AddChild(
+        "opt_llvm",
+        NYT::NYTree::ConvertToNode(types.OptLLVM.GetOrElse(TString())));
     computationSpec->Parameters->AddChild(
         "runtime_settings",
         NYT::NYTree::ConvertToNode(SerializeRuntimeSettingsToString(
@@ -502,13 +730,16 @@ TEST(TEnableComputationPatternResources, AbsentValueIsDisabled)
 TEST(TEnableComputationPatternResources, BuildContextStoresResolvedValue)
 {
     TExprContext exprContext;
+    TTypeAnnotationContext types;
     THashMap<TStringBuf, ui32> computationCounters;
     TUserDataTable userDataBlocks;
     THashMap<TString, TString> secureParams;
 
     const auto assertContextValue = [&](TYtflowSettings::TConstPtr config, bool enabled) {
         IYtflowGateway::TRunOptions runOptions;
-        runOptions.Config(std::move(config));
+        runOptions
+            .Config(std::move(config))
+            .Types(&types);
         NPrepare::TContext prepareCtx{exprContext, runOptions, nullptr};
         TBuildPipelineSpecContext buildCtx(
             prepareCtx,
@@ -528,6 +759,7 @@ TEST(TEnableComputationPatternResources, BuildContextStoresResolvedValue)
 TEST(TEnableComputationPatternResources, NoOperationSpecDoesNotGainResources)
 {
     TExprContext exprContext;
+    TTypeAnnotationContext types;
     const auto world = exprContext.NewWorld(TPositionHandle{});
     TUserDataTable userDataBlocks;
     THashMap<TString, TString> secureParams;
@@ -535,7 +767,9 @@ TEST(TEnableComputationPatternResources, NoOperationSpecDoesNotGainResources)
     TVector<NYT::NFlow::TPipelineSpecPtr> pipelineSpecs;
     for (bool enabled : {false, true}) {
         IYtflowGateway::TRunOptions runOptions;
-        runOptions.Config(MakeConfig(TString(enabled ? "true" : "false")));
+        runOptions
+            .Config(MakeConfig(TString(enabled ? "true" : "false")))
+            .Types(&types);
         NPrepare::TContext prepareCtx{exprContext, runOptions, nullptr};
         THashMap<TStringBuf, ui32> computationCounters;
         TBuildPipelineSpecContext buildCtx(
@@ -555,6 +789,88 @@ TEST(TEnableComputationPatternResources, NoOperationSpecDoesNotGainResources)
     ASSERT_TRUE(NYT::NYTree::AreNodesEqual(
         NYT::NYTree::ConvertToNode(pipelineSpecs[0]),
         NYT::NYTree::ConvertToNode(pipelineSpecs[1])));
+}
+
+TEST(TPipelineOptLLVMTest, SerializesEffectiveValueForOperationsAndPatterns)
+{
+    const std::pair<TMaybe<TString>, TString> cases[] = {
+        {Nothing(), ""},
+        {TString(), ""},
+        {TString("OFF"), "OFF"},
+        {TString("--compile-options -O1 --dump-stats"), "--compile-options -O1 --dump-stats"},
+    };
+
+    for (bool enabled : {false, true}) {
+        for (const auto& [optLLVM, expectedOptLLVM] : cases) {
+            SCOPED_TRACE(::testing::Message()
+                << "Enabled: " << enabled
+                << ", OptLLVM: " << optLLVM.GetOrElse("<missing>"));
+
+            TExprContext exprContext;
+            TTypeAnnotationContext types;
+            types.RuntimeSettings = MakeRuntimeSettings();
+            types.OptLLVM = optLLVM;
+            types.DataSourceMap.emplace("test", MakeIntrusive<TQueueSourceProvider>());
+
+            TYtflowGatewayConfig gatewayConfig;
+            auto* cluster = gatewayConfig.AddClusterMapping();
+            cluster->SetName("test");
+            cluster->SetRealName("test");
+            const std::pair<TString, TString> settings[] = {
+                {"EnableComputationPatternResources", enabled ? "true" : "false"},
+                {"_FiniteStreams", "true"},
+                {"_YtUseSourceWatermark", "false"},
+                {"Cluster", "test"},
+                {"YtConsumerPath", "//consumer"},
+            };
+            for (const auto& [name, value] : settings) {
+                auto* setting = gatewayConfig.AddDefaultSettings();
+                setting->SetName(name);
+                setting->SetValue(value);
+            }
+            auto config = MakeIntrusive<TYtflowConfiguration>();
+            config->Init(gatewayConfig);
+
+            IYtflowGateway::TRunOptions runOptions;
+            runOptions
+                .Config(std::make_shared<const TYtflowSettings>(*config))
+                .Types(&types);
+            NPrepare::TContext prepareCtx{
+                .ExprContext = exprContext,
+                .RunOptions = runOptions,
+                .ConfigClusters = MakeIntrusive<TConfigClusters>(gatewayConfig),
+            };
+            auto registry = NKikimr::NMiniKQL::CreateFunctionRegistry(
+                NKikimr::NMiniKQL::CreateBuiltinRegistry());
+            THashMap<TStringBuf, ui32> computationCounters;
+            TUserDataTable userDataBlocks;
+            THashMap<TString, TString> secureParams;
+            TBuildPipelineSpecContext buildCtx(
+                prepareCtx,
+                computationCounters,
+                registry.Get(),
+                userDataBlocks,
+                secureParams);
+
+            auto pipelineSpec = BuildPipelineSpec(MakeSourceMap(exprContext), buildCtx).PipelineSpec;
+            ASSERT_EQ(1, pipelineSpec->Computations.size());
+            const auto& computationSpec = pipelineSpec->Computations.begin()->second;
+            ASSERT_EQ(
+                expectedOptLLVM,
+                computationSpec->Parameters->GetChildValueOrThrow<TString>("opt_llvm"));
+            if (enabled) {
+                AssertComputationPatternResource(
+                    pipelineSpec,
+                    NYT::NFlow::TResourceId("computation_YtflowSourceMap_0-lambda-computation-pattern"),
+                    "computation_YtflowSourceMap_0_lambda",
+                    types,
+                    expectedOptLLVM);
+            } else {
+                ASSERT_EQ(1, pipelineSpec->Resources.size());
+                ASSERT_EQ(1, computationSpec->RequiredResourceIds.size());
+            }
+        }
+    }
 }
 
 TEST(TPipelineUdfPaths, SelectsOnlyUdfAndHasStableOrder)
@@ -806,6 +1122,7 @@ TEST(TComputationPatternResourcePlanning, DisabledHoppingAggregatePatternResourc
 
 TEST(TComputationPatternResourcePlanning, HoppingAggregateGetsSharedRegistryAndTwoPatterns)
 {
+    const TString optLLVM = "--compile-options -O1";
     TUserDataTable userDataBlocks;
     userDataBlocks.emplace(
         TUserDataKey::Udf("/home/z.so"_sb),
@@ -814,7 +1131,7 @@ TEST(TComputationPatternResourcePlanning, HoppingAggregateGetsSharedRegistryAndT
         TUserDataKey::Udf("/home/a.so"_sb),
         MakeUserDataBlock({EUserDataBlockUsage::Udf}));
 
-    WithBuildPipelineSpecContext(true, userDataBlocks, [&](auto& buildCtx) {
+    WithBuildPipelineSpecContext(/*enabled*/ true, userDataBlocks, [&] (auto& buildCtx) {
         const auto pipelineSpec = NYT::New<NYT::NFlow::TPipelineSpec>();
         const auto computationSpec = NYT::New<NYT::NFlow::TComputationSpec>();
         computationSpec->Parameters->AddChild(
@@ -842,12 +1159,14 @@ TEST(TComputationPatternResourcePlanning, HoppingAggregateGetsSharedRegistryAndT
             pipelineSpec,
             updateStatePatternId,
             "update-state-lambda",
-            *buildCtx.RunOptions.Types());
+            *buildCtx.RunOptions.Types(),
+            optLLVM);
         AssertComputationPatternResource(
             pipelineSpec,
             postprocessPatternId,
             "postprocess-lambda",
-            *buildCtx.RunOptions.Types());
+            *buildCtx.RunOptions.Types(),
+            optLLVM);
         AssertPatternRequirements(
             computationSpec,
             updateStatePatternId,
@@ -860,7 +1179,7 @@ TEST(TComputationPatternResourcePlanning, HoppingAggregateGetsSharedRegistryAndT
             "postprocess_computation_pattern",
             3,
             2);
-    });
+    }, optLLVM);
 }
 
 } // namespace NYql::NYtflow::NPrivate

@@ -1554,6 +1554,18 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")
 
+    @authors("akozhikhov")
+    def test_reshard_cannot_reduce_tablet_count_with_cumulative_data_weight(self):
+        self._create_simple_table("//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, tablet_count=3)
+
+        sync_reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=1)
+        assert get("//tmp/t/@tablet_count") == 4
+        sync_reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=2)
+        assert get("//tmp/t/@tablet_count") == 4
+
+        with raises_yt_error("Cannot reduce tablet count"):
+            reshard_table("//tmp/t", 1, first_tablet_index=1, last_tablet_index=2)
+
     @authors("ifsmirnov")
     def test_stress_reshard_with_trimmed_row_count(self):
         if self.DRIVER_BACKEND == "rpc":

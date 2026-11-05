@@ -12,32 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(restricted-boost-convert INTERFACE)
-
-
-target_compile_options(restricted-boost-convert INTERFACE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(restricted-boost-convert INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/convert/include
-)
-
-target_link_libraries(restricted-boost-convert INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  restricted-boost-config
-  restricted-boost-core
-  restricted-boost-function_types
-  restricted-boost-lexical_cast
-  restricted-boost-math
-  restricted-boost-mpl
-  restricted-boost-optional
-  restricted-boost-parameter
-  restricted-boost-range
-  restricted-boost-spirit
-  restricted-boost-type_traits
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

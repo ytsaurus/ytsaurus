@@ -74,6 +74,7 @@ public:
 
     //! Checks if a given #row has any locks from #lockMask with prepared timestamp
     //! less than #timestamp. If so, raises |RowBlocked| signal and loops.
+    //! Checks the mask as supplied; callers must include all required lock groups.
     TDuration WaitOnBlockedRow(
         TSortedDynamicRow row,
         TLockMask lockMask,

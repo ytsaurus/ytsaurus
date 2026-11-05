@@ -521,7 +521,7 @@ namespace NYql::NDqs {
                 taskPreprocessors.push_back(factory());
             }
 
-            auto graphExecutionEventsActorId = ActorSystem.Register(NDqs::MakeGraphExecutionEventsActor(request->GetSession(), std::move(taskPreprocessors)));
+            auto graphExecutionEventsActorId = NDqs::RegisterGraphExecutionEventsActor(ActorSystem, request->GetSession(), std::move(taskPreprocessors));
 
             RunningRequests++;
             auto actor = MakeHolder<TExecuteGraphProxyActor>(ctx, Counters, request->GetSession(), session->GetUsername(), graphExecutionEventsActorId, WorkerManagerActorId);
@@ -759,7 +759,7 @@ namespace NYql::NDqs {
                         << " role=" << reqRole
                         << " responseEpoch=" << response.GetEpoch()
                         << " nodes=" << response.GetNodes().size()
-                        << " downloadList=" << response.GetDownloadList().size();
+                        << " downloadGroups=" << response.GetDownloadGroups().size();
                     auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::RegisterNodeResponse>(ctx->GetArena());
                     result->MergeFrom(response);
                     ctx->Reply(result, Ydb::StatusIds::SUCCESS);

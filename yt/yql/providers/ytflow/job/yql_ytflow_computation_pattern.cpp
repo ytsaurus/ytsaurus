@@ -135,7 +135,8 @@ TComputationPatternHolder::TComputationPatternHolder(
     TIntrusivePtr<TFunctionRegistryHolder> functionRegistryHolder,
     TLangVersion langVersion,
     TString optLLVM,
-    TRuntimeSettings::TConstPtr runtimeSettings)
+    TRuntimeSettings::TConstPtr runtimeSettings,
+    NKikimr::NMiniKQL::IStatsRegistry* stats)
     : FunctionRegistryHolder_(std::move(functionRegistryHolder))
     , PatternAlloc_(__LOCATION__)
     , LangVersion_(langVersion)
@@ -175,7 +176,7 @@ TComputationPatternHolder::TComputationPatternHolder(
         NUdf::EValidatePolicy::Fail,
         std::move(optLLVM),
         NKikimr::NMiniKQL::EGraphPerProcess::Multi,
-        /*stats*/ nullptr,
+        stats,
         /*countersProvider*/ nullptr,
         SecureParamsProvider_.get(),
         /*logProvider*/ nullptr,
@@ -254,7 +255,8 @@ TIntrusivePtr<TComputationPatternHolder> BuildComputationPatternHolder(
         std::move(functionRegistryHolder),
         langVersion,
         std::move(optLLVM),
-        std::move(runtimeSettings));
+        std::move(runtimeSettings),
+        /*stats*/ nullptr);
 }
 
 THolder<NKikimr::NMiniKQL::IComputationGraph> CloneComputationGraph(

@@ -379,7 +379,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             out="//tmp/out",
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         update_controller_agent_config("operation_time_limit", 100)
 
         wait(lambda: op.get_state() == "failed")
@@ -436,9 +436,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for i in range(op_count):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
+            # 7/4/1 jobs: counts differ by 3, so a job scheduled out of order does not flip the FIFO order.
             write_table(
                 "//tmp/in" + str(i),
-                [{"foo": j} for j in range(op_count * (op_count - i))],
+                [{"foo": j} for j in range(3 * (op_count - i) - 2)],
             )
 
         create_pool("fifo_pool", ignore_existing=True, attributes=dict(mode="fifo", fifo_sort_parameters=["pending_job_count"]))
@@ -453,7 +454,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             ops.append(
                 map(
                     track=False,
-                    command="sleep 1.0; cat >/dev/null",
+                    command="cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1},
@@ -530,7 +531,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op.wait_for_fresh_snapshot()
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         events = get(op.get_path() + "/@events")
         assert [
@@ -638,26 +639,33 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op = map(
             track=False,
-            command="sleep 1; cat",
+            command=with_breakpoint("BREAKPOINT; cat"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
+            spec={"job_count": 1},
         )
 
-        for i in range(5):
-            time.sleep(0.5)
+        for i in range(2):
+            job_id, = wait_breakpoint(op)
             op.suspend(abort_running_jobs=True)
-            time.sleep(0.5)
+            wait(lambda: op.get_job_count("aborted") == i + 1)
+            # NB: Aborted job's breakpoint file persists; drop it.
+            release_breakpoint(job_id=job_id)
             op.resume()
 
+        job_id, = wait_breakpoint(op)
         for i in range(5):
             op.suspend()
             op.resume()
+        assert job_id in op.get_running_jobs()
+        assert op.get_job_count("aborted") == 2
 
+        # Suspend right after resume to race with job scheduling.
         for i in range(5):
             op.suspend(abort_running_jobs=True)
             op.resume()
 
+        release_breakpoint()
         op.track()
 
         assert sorted_dicts(read_table("//tmp/t_out")) == [{"foo": i} for i in range(10)]
@@ -829,7 +837,8 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
 
     @authors("yaishenka")
     @pytest.mark.timeout(120)
-    def test_suspend_operation_during_master_disconnect(self):
+    @pytest.mark.parametrize("unregister_agent_first", [False, True])
+    def test_suspend_operation_during_master_disconnect(self, unregister_agent_first):
         op = run_sleeping_vanilla()
         op.wait_for_state("running")
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -865,6 +874,19 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
             # command has reached its asynchronous delay.
             assert get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/running")
 
+            if unregister_agent_first:
+                agent_address = op.get_controller_agent_address()
+                incarnation_id = get(
+                    f"//sys/controller_agents/instances/{agent_address}"
+                    "/orchid/controller_agent/incarnation_id"
+                )
+                abort_transaction(incarnation_id)
+                wait(response.is_set)
+                assert not response.is_ok()
+                assert YtResponseError(response.error()).contains_code(
+                    yt_error_codes.Scheduler.AgentUnregistered
+                )
+
             abort_transaction(scheduler_transaction)
             wait(lambda: get(f"#{blocking_lock}/@state") == "acquired")
             wait(lambda: not get("//sys/scheduler/orchid/scheduler/service/connected"))
@@ -874,8 +896,12 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
             time.sleep(suspension_delay / 1000)
             response.wait()
             assert not response.is_ok()
-            assert YtResponseError(response.error()).contains_code(
-                yt_error_codes.MasterDisconnected
+            # The agent incarnation transaction is nested in the scheduler one, so
+            # agent unregistration may cancel the suspend request first.
+            error = YtResponseError(response.error())
+            assert (
+                error.contains_code(yt_error_codes.MasterDisconnected)
+                or error.contains_code(yt_error_codes.Scheduler.AgentUnregistered)
             )
             self.Env.check_liveness(
                 callback_func=lambda env, process, args: pytest.fail(
@@ -1442,7 +1468,6 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
     }
 
     @classmethod
@@ -1779,7 +1804,7 @@ class TestSchedulerAttributes(YTEnvSetup):
         transaction_id = start_transaction(timeout=300 * 1000)
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), tx=transaction_id)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: exists(op.get_path() + "/@brief_spec"))
         assert get(op.get_path() + "/@brief_spec/user_transaction_id") == transaction_id
@@ -1827,7 +1852,7 @@ class TestAsyncControllerActions(YTEnvSetup):
     def test_fast_operation_flow_revive(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

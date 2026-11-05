@@ -27,8 +27,8 @@ class TestCypressCookieAuth(YTEnvSetup):
             "enable_authentication": True,
             "cypress_cookie_manager": {
                 "cookie_generator": {
-                    "cookie_expiration_timeout": 4000,
-                    "cookie_renewal_period": 2000,
+                    "cookie_expiration_timeout": 8000,
+                    "cookie_renewal_period": 4000,
                 },
                 "cookie_store": {
                     "full_fetch_period": 200,
@@ -107,7 +107,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         assert get(f"//sys/cypress_cookies/{cookie}/password_revision") == password_revision
         assert exists(f"//sys/cypress_cookies/{cookie}/@expiration_time")
 
-        time.sleep(4.2)
+        time.sleep(8.2)
 
         assert not exists(f"//sys/cypress_cookies/{cookie}")
 
@@ -128,7 +128,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         now = datetime.datetime.now(datetime.timezone.utc)
         expiration_timeout = expire_time - now
         assert expiration_timeout >= datetime.timedelta(seconds=0)
-        assert expiration_timeout <= datetime.timedelta(seconds=4)
+        assert expiration_timeout <= datetime.timedelta(seconds=8)
 
         assert secure == " Secure"
         assert http_only == " HttpOnly"
@@ -187,10 +187,10 @@ class TestCypressCookieAuth(YTEnvSetup):
         # Cookie expired.
         cookie = self._login("u", "1235")
         self._check_allow(cookie)
-        time.sleep(2)
+        time.sleep(4)
         # Create another cookie that should not be used for rotation on failure.
         self._login("u", "1235")
-        time.sleep(2.2)
+        time.sleep(4.2)
         self._check_deny(cookie)
 
     @authors("ermolovd")
@@ -199,7 +199,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         set_user_password("u", "1234")
         cookie1 = self._login("u", "1234")
 
-        time.sleep(2.2)
+        time.sleep(4.2)
         rsp = self._make_request(cookie1)
         cookie2 = rsp.cookies["YTCypressCookie"]
         assert cookie2 != cookie1
@@ -217,7 +217,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         create_user("u")
         set_user_password("u", "1234")
         cookie1 = self._login("u", "1234")
-        time.sleep(2.2)
+        time.sleep(4.2)
         cookie2 = self._login("u", "1234")
 
         assert \

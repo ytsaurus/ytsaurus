@@ -646,7 +646,8 @@ private:
             *options.Config(),
             *ConfigClusters_,
             options.UserDataBlocks(),
-            files);
+            files,
+            pipelineSpec);
 
         const auto& pipelinePath = workerConfig["path"].AsString();
 

@@ -647,6 +647,14 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_event_log_operation_batch_size", &TThis::MaxEventLogOperationBatchSize)
         .Default(1000);
 
+    registrar.Parameter("max_accumulated_usage_log_pool_batch_size", &TThis::MaxAccumulatedUsageLogPoolBatchSize)
+        .Default(1'000'000)
+        .GreaterThan(0);
+
+    registrar.Parameter("max_accumulated_usage_log_operation_batch_size", &TThis::MaxAccumulatedUsageLogOperationBatchSize)
+        .Default(1'000'000)
+        .GreaterThan(0);
+
     registrar.Parameter("accumulated_resource_distribution_update_period", &TThis::AccumulatedResourceDistributionUpdatePeriod)
         .Alias("accumulated_resource_usage_update_period")
         .Default(TDuration::Seconds(1));
@@ -734,6 +742,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_detailed_logs_for_single_allocation_vanilla_operations", &TThis::EnableDetailedLogsForSingleAllocationVanillaOperations)
+        .Default(false);
+
+    registrar.Parameter("enable_scheduling_status_logging", &TThis::EnableSchedulingStatusLogging)
         .Default(false);
 
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
@@ -995,6 +1006,8 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)
         .Default();
     registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
+        .Default();
+    registrar.Parameter("operations_cleaner_fetch_delay", &TThis::OperationsCleanerFetchDelay)
         .Default();
 }
 

@@ -110,6 +110,10 @@ struct TChunkLocationConfig
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
+    //! When absent, categories of the corresponding group remain directly under the root.
+    std::optional<double> FairShareSystemWeight;
+    std::optional<double> FairShareUserWeight;
+
     double WeightedRequestWeight;
     double UnweightedRequestWeight;
 
@@ -137,6 +141,9 @@ struct TChunkLocationDynamicConfig
     std::optional<i64> CoalescedReadMaxGapSize;
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
+    std::optional<double> FairShareSystemWeight;
+    std::optional<double> FairShareUserWeight;
 
     std::optional<double> WeightedRequestWeight;
     std::optional<double> UnweightedRequestWeight;
@@ -260,7 +267,6 @@ DEFINE_REFCOUNTED_TYPE(TCacheLocationDynamicConfig);
 
 struct TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
-    , public NHydra::TFileChangelogDispatcherConfig
 {
     static constexpr bool EnableHazard = true;
 
@@ -332,6 +338,13 @@ struct TLayerLocationConfig
     bool LocationIsAbsolute;
 
     bool ResidesOnTmpfs;
+
+    //! Number of concurrent layer imports served by this location's dedicated Porto
+    //! executor; 1 means sequential imports.
+    //! The total across locations is additionally bounded by the node-wide dynamic
+    //! option "layer_import_concurrency"
+    //! (see #NExecNode::TLayerCacheDynamicConfig::LayerImportConcurrency).
+    int LayerImportLocationConcurrency;
 
     NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 

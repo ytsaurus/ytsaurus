@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/streams/zstd/zstd.h>
+
 #include <library/cpp/yt/cpu_clock/clock.h>
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/logging/structured_payload.h>
@@ -21,7 +23,9 @@
 
 #include <util/generic/size_literals.h>
 
+#include <util/stream/file.h>
 #include <util/stream/str.h>
+#include <util/stream/zlib.h>
 #include <util/string/split.h>
 #include <util/system/file.h>
 #include <util/system/tempfile.h>
@@ -39,6 +43,21 @@ const TLoggingCategory* GetTestCategory()
     static NLogging::TLogger Logger("Test");
     return Logger.GetCategory();
 }
+
+class TOutputFailingOnce
+    : public IOutputStream
+{
+private:
+    bool Failed_ = false;
+
+    void DoWrite(const void* /*buffer*/, size_t /*length*/) override
+    {
+        if (!Failed_) {
+            Failed_ = true;
+            throw std::runtime_error("Output failed");
+        }
+    }
+};
 
 class TLogSliceTest
     : public ::testing::Test
@@ -72,30 +91,7 @@ protected:
         const std::vector<std::pair<TInstant, TString>>& events,
         bool structured = false)
     {
-        auto config = New<TFileLogWriterConfig>();
-        config->FileName = fileName;
-        config->EnableCompression = compressionMethod.has_value();
-        if (compressionMethod) {
-            config->CompressionMethod = *compressionMethod;
-        }
-        // Keep the file deterministic: no "Logging started" banner.
-        config->EnableSystemMessages = false;
-
-        std::unique_ptr<ILogFormatter> formatter;
-        if (structured) {
-            formatter = std::make_unique<TStructuredLogFormatter>(TStructuredLogFormatterOptions{
-                .Format = ELogFormat::Yson,
-            });
-        } else {
-            formatter = std::make_unique<TPlainTextLogFormatter>();
-        }
-        auto writer = CreateFileLogWriter(
-            std::move(formatter),
-            CreateDefaultSystemLogEventProvider(config),
-            "test_writer",
-            config,
-            this);
-
+        auto writer = CreateWriter(fileName, compressionMethod, structured ? ELogFormat::Yson : ELogFormat::PlainText);
         for (const auto& [instant, message] : events) {
             auto event = MakeEvent(instant, message);
             if (structured) {
@@ -113,15 +109,84 @@ protected:
         writer->Flush();
     }
 
+    using TLogBlock = std::vector<std::pair<TInstant, TString>>;
+    using TLogSession = std::vector<TLogBlock>;
+
+    //! Writes [sessions] to [fileName], reopening the writer for each session and
+    //! flushing after each block, so a compressed log gets one block per entry.
+    //! Structured "Logging started" events carry no "timestamp", as the system
+    //! event provider writes them.
+    void WriteLogSessions(
+        const TString& fileName,
+        std::optional<ECompressionMethod> compressionMethod,
+        const std::vector<TLogSession>& sessions,
+        ELogFormat format = ELogFormat::PlainText)
+    {
+        for (const auto& session : sessions) {
+            auto writer = CreateWriter(fileName, compressionMethod, format);
+            for (const auto& block : session) {
+                for (const auto& [instant, message] : block) {
+                    auto event = MakeEvent(instant, message);
+                    if (format != ELogFormat::PlainText) {
+                        event.Family = ELogFamily::Structured;
+                        event.Payload = MakeStructuredPayloadFromYson(
+                            NYTree::BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
+                                .DoIf(!message.StartsWith("Logging started"), [&] (auto fluent) {
+                                    fluent.Item("timestamp").Value(instant);
+                                })
+                                .Item("message").Value(message)
+                                .Finish());
+                    }
+                    writer->Write(event);
+                }
+                writer->Flush();
+            }
+        }
+    }
+
+    IFileLogWriterPtr CreateWriter(
+        const TString& fileName,
+        std::optional<ECompressionMethod> compressionMethod,
+        ELogFormat format)
+    {
+        auto config = New<TFileLogWriterConfig>();
+        config->FileName = fileName;
+        config->EnableCompression = compressionMethod.has_value();
+        if (compressionMethod) {
+            config->CompressionMethod = *compressionMethod;
+        }
+        // Keep the file deterministic: no "Logging started" banner.
+        config->EnableSystemMessages = false;
+
+        std::unique_ptr<ILogFormatter> formatter;
+        if (format == ELogFormat::PlainText) {
+            formatter = std::make_unique<TPlainTextLogFormatter>();
+        } else {
+            formatter = std::make_unique<TStructuredLogFormatter>(TStructuredLogFormatterOptions{
+                .Format = format,
+            });
+        }
+        return CreateFileLogWriter(
+            std::move(formatter),
+            CreateDefaultSystemLogEventProvider(config),
+            "test_writer",
+            config,
+            this);
+    }
+
     //! Slices [fileName] using an auto-detected engine (so the file's extension
     //! also drives which engine is selected).
-    std::vector<std::string> Slice(const TString& fileName, TInstant from, TInstant to)
+    std::vector<std::string> Slice(
+        const TString& fileName,
+        TInstant from,
+        TInstant to,
+        TDuration seekMargin = TDuration::Zero())
     {
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
 
         TFile file(fileName, OpenExisting | RdOnly);
         TStringStream output;
-        engine->Slice(file, from, to, output);
+        engine->Slice(file, from, to, seekMargin, output);
 
         std::vector<std::string> lines;
         for (TStringBuf line : StringSplitter(output.Str()).Split('\n').SkipEmpty()) {
@@ -196,6 +261,27 @@ protected:
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
         TFile file(fileName, OpenExisting | RdOnly);
         return engine->GetTimeRange(file);
+    }
+
+    std::optional<TInstant> FindFirstTime(const TString& fileName)
+    {
+        auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
+        TFile file(fileName, OpenExisting | RdOnly);
+        return engine->FindFirstTime(file);
+    }
+
+    static void CompressAsOneFrame(const TString& sourceFileName, const TString& fileName, ECompressionMethod method)
+    {
+        auto text = TUnbufferedFileInput(sourceFileName).ReadAll();
+        TUnbufferedFileOutput output(fileName);
+        std::unique_ptr<IOutputStream> compressor;
+        if (method == ECompressionMethod::Zstd) {
+            compressor = std::make_unique<TZstdCompress>(&output);
+        } else {
+            compressor = std::make_unique<TZLibCompress>(&output, ZLib::GZip);
+        }
+        compressor->Write(text);
+        compressor->Finish();
     }
 
     std::vector<std::pair<TInstant, TString>> MakeEvents(TInstant base)
@@ -372,6 +458,156 @@ TEST_F(TLogSliceTest, SlicePlainText)
     CheckSliceRanges(logFile.Name(), base);
 }
 
+TEST_F(TLogSliceTest, SliceFindsLinesOutOfOrder)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto at = [&] (int seconds) {
+        return base + TDuration::Seconds(seconds);
+    };
+    auto half = TDuration::MilliSeconds(500);
+    const char* logStart = "Logging started (Version: test)";
+    auto blockPerLine = [] (const TLogBlock& lines) {
+        TLogSession session;
+        for (const auto& line : lines) {
+            session.push_back({line});
+        }
+        return session;
+    };
+
+    struct TCase
+    {
+        std::string Name;
+        std::vector<TLogSession> Sessions;
+        TInstant From;
+        TInstant To;
+        TDuration SeekMargin;
+        std::vector<std::string> Expected;
+    };
+    std::vector<TCase> cases{
+        {
+            .Name = "LateAtStart",
+            .Sessions = {blockPerLine({{at(0), "msg-0"}, {at(1), "msg-1"}, {at(3), "msg-3"}, {at(2), "msg-2"}, {at(4), "msg-4"}})},
+            .From = at(2) + half,
+            .To = at(4) + half,
+            .SeekMargin = TDuration::Seconds(1),
+            .Expected = {"msg-3", "msg-4"},
+        },
+        {
+            .Name = "LateAtEnd",
+            .Sessions = {blockPerLine({{at(0), "msg-0"}, {at(1), "msg-1"}, {at(2), "msg-2"}, {at(4), "msg-4"}, {at(3), "msg-3"}})},
+            .From = at(0) + half,
+            .To = at(3) + half,
+            .SeekMargin = TDuration::Seconds(1),
+            .Expected = {"msg-1", "msg-2", "msg-3"},
+        },
+        {
+            .Name = "InOrderLogStart",
+            .Sessions = {blockPerLine({{at(1), logStart}, {at(3), "msg-3"}})},
+            .From = at(0) + half,
+            .To = at(1) + half,
+            .Expected = {logStart},
+        },
+        {
+            .Name = "InOrderReopenedLogStart",
+            .Sessions = {
+                blockPerLine({{at(0), "msg-0"}}),
+                blockPerLine({{at(2), logStart}, {at(4), "msg-4"}}),
+            },
+            .From = at(1) + half,
+            .To = at(2) + half,
+            .Expected = {logStart},
+        },
+        {
+            .Name = "LogStartBeforeQueuedBlocks",
+            .Sessions = {blockPerLine({{at(3), logStart}, {at(0), "msg-0"}, {at(1), "msg-1"}, {at(2), "msg-2"}, {at(4), "msg-4"}, {at(5), "msg-5"}})},
+            .From = at(2) + half,
+            .To = at(3) + half,
+            .Expected = {logStart},
+        },
+        {
+            .Name = "QueuedLinesInLogStartBlock",
+            .Sessions = {{{{at(3), logStart}, {at(0), "msg-0"}, {at(1), "msg-1"}}, {{at(4), "msg-4"}}}},
+            .From = at(0) + half,
+            .To = at(1) + half,
+            .Expected = {"msg-1"},
+        },
+        {
+            .Name = "LogStartSharingBlockWithQueuedLines",
+            .Sessions = {{{{at(3), logStart}, {at(0), "msg-0"}, {at(1), "msg-1"}}, {{at(4), "msg-4"}}}},
+            .From = at(2) + half,
+            .To = at(3) + half,
+            .Expected = {logStart},
+        },
+        {
+            .Name = "QueuedLinesInReopenedLogStartBlock",
+            .Sessions = {
+                blockPerLine({{at(0), "msg-0"}, {at(1), "msg-1"}}),
+                {{{at(4), logStart}, {at(2), "msg-2"}, {at(3), "msg-3"}}, {{at(5), "msg-5"}}},
+            },
+            .From = at(1) + half,
+            .To = at(2) + half,
+            .Expected = {"msg-2"},
+        },
+    };
+
+    for (const auto& testCase : cases) {
+        for (const auto& [suffix, method] : std::vector<std::pair<TString, std::optional<ECompressionMethod>>>{
+            {".log", std::nullopt},
+            {".log.zst", ECompressionMethod::Zstd},
+            {".log.gz", ECompressionMethod::Gzip},
+        }) {
+            SCOPED_TRACE(testCase.Name + std::string(suffix));
+            TTempFile logFile(GenerateRandomFileName("log") + suffix);
+            WriteLogSessions(logFile.Name(), method, testCase.Sessions);
+            auto messages = MessagesOf(Slice(logFile.Name(), testCase.From, testCase.To, testCase.SeekMargin));
+            EXPECT_EQ(testCase.Expected, messages);
+        }
+    }
+}
+
+TEST_F(TLogSliceTest, SliceStructuredWithQueuedLinesInLogStartBlock)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto at = [&] (int seconds) {
+        return base + TDuration::Seconds(seconds);
+    };
+    auto half = TDuration::MilliSeconds(500);
+    std::vector<TLogSession> sessions{
+        {{{at(3), "Logging started"}, {at(0), "msg-0"}, {at(1), "msg-1"}}, {{at(4), "msg-4"}}},
+    };
+    for (const auto& [format, extension, logStartHasTime] : std::vector<std::tuple<ELogFormat, TString, bool>>{
+        {ELogFormat::Yson, ".yson", false},
+        {ELogFormat::Json, ".json", true},
+    }) {
+        for (const auto& [suffix, method] : std::vector<std::pair<TString, std::optional<ECompressionMethod>>>{
+            {"", std::nullopt},
+            {".zst", ECompressionMethod::Zstd},
+            {".gz", ECompressionMethod::Gzip},
+        }) {
+            SCOPED_TRACE(std::string(extension + suffix));
+            TTempFile logFile(GenerateRandomFileName("log") + extension + suffix);
+            WriteLogSessions(logFile.Name(), method, sessions, format);
+
+            auto queued = Slice(logFile.Name(), at(0) + half, at(1) + half);
+            ASSERT_EQ(queued.size(), 1u);
+            EXPECT_NE(queued[0].find("msg-1"), std::string::npos);
+
+            auto firstTime = FindFirstTime(logFile.Name());
+            ASSERT_TRUE(firstTime.has_value());
+            EXPECT_LT(*firstTime - at(0), TDuration::MilliSeconds(1));
+            EXPECT_LT(at(0) - *firstTime, TDuration::MilliSeconds(1));
+
+            auto logStart = Slice(logFile.Name(), at(2) + half, at(3) + half);
+            if (logStartHasTime) {
+                ASSERT_EQ(logStart.size(), 1u);
+                EXPECT_NE(logStart[0].find("Logging started"), std::string::npos);
+            } else {
+                EXPECT_TRUE(logStart.empty());
+            }
+        }
+    }
+}
+
 TEST_F(TLogSliceTest, SliceYsonAndTimeRange)
 {
     auto base = ParseQueryTime("2026-08-19T11:20:00.123456Z");
@@ -498,6 +734,89 @@ TEST_F(TLogSliceTest, GetTimeRangeBrokenLastLine)
         EXPECT_EQ("msg-9", messages.back());
         EXPECT_EQ(10u, messages.size());
     }
+}
+
+TEST_F(TLogSliceTest, FindFirstTime)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto tolerance = TDuration::MilliSeconds(1);
+
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    WriteLog(plainFile.Name(), /*compressionMethod*/ std::nullopt, MakeEvents(base));
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    WriteLog(zstdFile.Name(), ECompressionMethod::Zstd, MakeEvents(base));
+    TTempFile gzipFile(GenerateRandomFileName("log") + ".gz");
+    WriteLog(gzipFile.Name(), ECompressionMethod::Gzip, MakeEvents(base));
+    TTempFile zstdFrameFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFrameFile.Name(), ECompressionMethod::Zstd);
+    TTempFile gzipMemberFile(GenerateRandomFileName("log") + ".gz");
+    CompressAsOneFrame(plainFile.Name(), gzipMemberFile.Name(), ECompressionMethod::Gzip);
+
+    for (const auto* logFile : {&plainFile, &zstdFile, &gzipFile, &zstdFrameFile, &gzipMemberFile}) {
+        auto firstTime = FindFirstTime(logFile->Name());
+        ASSERT_TRUE(firstTime.has_value()) << logFile->Name();
+        EXPECT_LT(*firstTime - base, tolerance) << logFile->Name();
+        EXPECT_LT(base - *firstTime, tolerance) << logFile->Name();
+    }
+}
+
+TEST_F(TLogSliceTest, FindFirstTimeWithoutTimestampedLines)
+{
+    TTempFile emptyFile(GenerateRandomFileName("log") + ".log");
+    TFile(emptyFile.Name(), CreateAlways | WrOnly).Close();
+    EXPECT_FALSE(FindFirstTime(emptyFile.Name()).has_value());
+
+    TTempFile untimedFile(GenerateRandomFileName("log") + ".log");
+    TUnbufferedFileOutput(untimedFile.Name()).Write("not a log line\nnor this one\n");
+    EXPECT_FALSE(FindFirstTime(untimedFile.Name()).has_value());
+}
+
+TEST_F(TLogSliceTest, SliceTruncatedFileKeepsOutputErrors)
+{
+    constexpr i64 ZstdBlockSize = 128_KB;
+    constexpr i64 DecodeChunkSize = 256_KB;
+
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(plainFile.Name());
+        for (int index = 0; index < 10; ++index) {
+            output << FormatLogTime(base + TDuration::Seconds(index)) << "\tI\tTest\t" << std::string(20_KB, 'x') << "\n";
+        }
+    }
+    i64 decodedSize = TFile(plainFile.Name(), OpenExisting | RdOnly).GetLength();
+    ASSERT_LT(ZstdBlockSize, decodedSize);
+    ASSERT_LE(decodedSize, DecodeChunkSize);
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFile.Name(), ECompressionMethod::Zstd);
+    {
+        TFile file(zstdFile.Name(), OpenExisting | RdWr);
+        file.Resize(file.GetLength() - 1);
+    }
+    EXPECT_FALSE(Slice(zstdFile.Name(), TInstant::Zero(), TInstant::Max()).empty());
+
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, zstdFile.Name());
+    TFile file(zstdFile.Name(), OpenExisting | RdOnly);
+    TOutputFailingOnce output;
+    EXPECT_THROW(engine->Slice(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero(), output), std::runtime_error);
+}
+
+TEST_F(TLogSliceTest, SliceCutsLongLines)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(logFile.Name());
+        for (int index = 0; index < 3; ++index) {
+            output << FormatLogTime(base + TDuration::Seconds(index)) << "\tI\tTest\t";
+            output << (index == 1 ? std::string(17_MB, 'x') : std::string("msg")) << "\n";
+        }
+    }
+
+    auto lines = Slice(logFile.Name(), TInstant::Zero(), TInstant::Max());
+    ASSERT_EQ(3u, lines.size());
+    EXPECT_EQ(16_MB, lines[1].size());
+    EXPECT_EQ("msg", MessageOf(lines[2]));
 }
 
 // Test wrapper: runs the streaming FilterWithGrep over an in-memory string and

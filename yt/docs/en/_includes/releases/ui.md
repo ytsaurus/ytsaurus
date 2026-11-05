@@ -8,6 +8,149 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.28.0**" %}
+
+**Release date:** 2026-10-01
+
+
+**Release page:** [3.28.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.28.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.28.0](https://github.com/orgs/ytsaurus/packages/container/ui/1321968726?tag=3.28.0)
+
+
+#### [[3.28.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.26.0...ui-v3.28.0)] (2026-10-01)
+
+#### Features
+
+* **Accounts:** load account data progressively by tab [YTFRONT-5765] ([[c073bc7](https://github.com/ytsaurus/ytsaurus-ui/commit/c073bc7facfa5f8e152d3896501ee0a827d6640a)](https://github.com/ytsaurus/ytsaurus-ui/commit/c073bc7facfa5f8e152d3896501ee0a827d6640a))
+* **Bundles:** mark deprecated instance sizes [YTFRONT-5980] ([[b2a51ce](https://github.com/ytsaurus/ytsaurus-ui/commit/b2a51cefd90f7b2f462f61d100f15cf0a512d687)](https://github.com/ytsaurus/ytsaurus-ui/commit/b2a51cefd90f7b2f462f61d100f15cf0a512d687))
+* **Flow:** fall back to leader_controller_address attribute [[#1814](https://github.com/ytsaurus/ytsaurus-ui/issues/1814)](https://github.com/ytsaurus/ytsaurus-ui/issues/1814) ([[5466699](https://github.com/ytsaurus/ytsaurus-ui/commit/54666992d54dae475726c726381ed741faa86b0a)](https://github.com/ytsaurus/ytsaurus-ui/commit/54666992d54dae475726c726381ed741faa86b0a))
+* **Flow:** read leader controller address from flow_control [[#1814](https://github.com/ytsaurus/ytsaurus-ui/issues/1814)](https://github.com/ytsaurus/ytsaurus-ui/issues/1814) ([[d84dfa0](https://github.com/ytsaurus/ytsaurus-ui/commit/d84dfa07ab3c8d0f264c5e8f4e7647f8416a2b0c)](https://github.com/ytsaurus/ytsaurus-ui/commit/d84dfa07ab3c8d0f264c5e8f4e7647f8416a2b0c))
+* **Flow:** disable state buttons until pipeline reaches requested state [YTFRONT-6077] ([[9df4fe6](https://github.com/ytsaurus/ytsaurus-ui/commit/9df4fe68a4c28bd951d905f911d247e9e8edc683)](https://github.com/ytsaurus/ytsaurus-ui/commit/9df4fe68a4c28bd951d905f911d247e9e8edc683))
+* **MetaTable:** render YQL operation links with Markdown [YTFRONT-6026] ([[89accdd](https://github.com/ytsaurus/ytsaurus-ui/commit/89accddf07ab0d6cd63b24b6cdd24f1a42b35ade)](https://github.com/ytsaurus/ytsaurus-ui/commit/89accddf07ab0d6cd63b24b6cdd24f1a42b35ade))
+* **Navigation:** copy big cells value [YTFRONT-5629] ([[970c505](https://github.com/ytsaurus/ytsaurus-ui/commit/970c50572e5779e76e0e0fa52735598023b2ac38)](https://github.com/ytsaurus/ytsaurus-ui/commit/970c50572e5779e76e0e0fa52735598023b2ac38))
+* **Navigation:** highlight symlinks in the path bar [YTFRONT-6066] ([[5c59d08](https://github.com/ytsaurus/ytsaurus-ui/commit/5c59d086bab7daa7fdd6bb7dfbe1a3b35f427779)](https://github.com/ytsaurus/ytsaurus-ui/commit/5c59d086bab7daa7fdd6bb7dfbe1a3b35f427779))
+* **Operation/Specification:** support runtime specification patches [YTFRONT-5272] ([[b66c3e2](https://github.com/ytsaurus/ytsaurus-ui/commit/b66c3e23e3c8e2e162a098760cbdc16a4e018db0)](https://github.com/ytsaurus/ytsaurus-ui/commit/b66c3e23e3c8e2e162a098760cbdc16a4e018db0))
+* **Queries:** add waitingRemoteId support [YTFRONT-5955] ([[6bbcbd6](https://github.com/ytsaurus/ytsaurus-ui/commit/6bbcbd6e536bc52377489f185beef125fd1936d8)](https://github.com/ytsaurus/ytsaurus-ui/commit/6bbcbd6e536bc52377489f185beef125fd1936d8))
+
+#### Bug Fixes
+
+* **Accounts:** refresh account state after edits [YTFRONT-5765] ([[1ada292](https://github.com/ytsaurus/ytsaurus-ui/commit/1ada2928fc86f80d32e6af7754f1153cd319c0f7)](https://github.com/ytsaurus/ytsaurus-ui/commit/1ada2928fc86f80d32e6af7754f1153cd319c0f7))
+* **Accounts:** allow rendering between account parsing chunks [YTFRONT-6021] ([[37822ba](https://github.com/ytsaurus/ytsaurus-ui/commit/37822ba7afc1054064919f52e74e2c66df12b29f)](https://github.com/ytsaurus/ytsaurus-ui/commit/37822ba7afc1054064919f52e74e2c66df12b29f))
+* **Accounts:** avoid full parsing of lightweight account lists [YTFRONT-6021] ([[c9e0f27](https://github.com/ytsaurus/ytsaurus-ui/commit/c9e0f27a384d3e9dea970d1243883889ce271bdc)](https://github.com/ytsaurus/ytsaurus-ui/commit/c9e0f27a384d3e9dea970d1243883889ce271bdc))
+* **Accounts:** chunk account model creation [YTFRONT-6021] ([[ad9341d](https://github.com/ytsaurus/ytsaurus-ui/commit/ad9341d23b28ec9a1590638b6d5efef64428ec64)](https://github.com/ytsaurus/ytsaurus-ui/commit/ad9341d23b28ec9a1590638b6d5efef64428ec64))
+* **BundleTableField:** truncate long types with ellipsis [[#1827](https://github.com/ytsaurus/ytsaurus-ui/issues/1827)](https://github.com/ytsaurus/ytsaurus-ui/issues/1827) ([[39b7905](https://github.com/ytsaurus/ytsaurus-ui/commit/39b7905beddcd298b7ef076f7b6154dd7d2015d9)](https://github.com/ytsaurus/ytsaurus-ui/commit/39b7905beddcd298b7ef076f7b6154dd7d2015d9))
+* **Flow/Graph:** order sources like their source streams [[#1828](https://github.com/ytsaurus/ytsaurus-ui/issues/1828)](https://github.com/ytsaurus/ytsaurus-ui/issues/1828) ([[9093991](https://github.com/ytsaurus/ytsaurus-ui/commit/90939916eb3991a1ec0ff30b1c1cd335b58ac3a7)](https://github.com/ytsaurus/ytsaurus-ui/commit/90939916eb3991a1ec0ff30b1c1cd335b58ac3a7))
+* **Flow:** align leader address fallback with RPC proxy [[#1814](https://github.com/ytsaurus/ytsaurus-ui/issues/1814)](https://github.com/ytsaurus/ytsaurus-ui/issues/1814) ([[612707a](https://github.com/ytsaurus/ytsaurus-ui/commit/612707a78b9412fddb273a54a414fe7579cffeb5)](https://github.com/ytsaurus/ytsaurus-ui/commit/612707a78b9412fddb273a54a414fe7579cffeb5))
+* **HelpLink:** stabilize icon size [YTFRONT-5958] ([[123a39c](https://github.com/ytsaurus/ytsaurus-ui/commit/123a39c1f136c16c9ff33962054e8a25e6d5a7e5)](https://github.com/ytsaurus/ytsaurus-ui/commit/123a39c1f136c16c9ff33962054e8a25e6d5a7e5))
+* **Job:** truncate long event phase names [YTFRONT-6059] ([[071c731](https://github.com/ytsaurus/ytsaurus-ui/commit/071c7315730161c46aedaa2391a43b28c9fa1b26)](https://github.com/ytsaurus/ytsaurus-ui/commit/071c7315730161c46aedaa2391a43b28c9fa1b26))
+* **Markdown:** handle fallback request errors [YTFRONT-6026] ([[453b0dd](https://github.com/ytsaurus/ytsaurus-ui/commit/453b0dd54636d1affd2ceef07426e927af2edbf9)](https://github.com/ytsaurus/ytsaurus-ui/commit/453b0dd54636d1affd2ceef07426e927af2edbf9))
+* **Markdown:** linkify plain URLs in fallback [YTFRONT-6026] ([[eb2b1ff](https://github.com/ytsaurus/ytsaurus-ui/commit/eb2b1ff1f979eb0641058471aebe2e988ac870a3)](https://github.com/ytsaurus/ytsaurus-ui/commit/eb2b1ff1f979eb0641058471aebe2e988ac870a3))
+* **Navigation/Content:** add gap before source-path copy button [YTFRONT-5813] ([[da27f69](https://github.com/ytsaurus/ytsaurus-ui/commit/da27f6991976601be1fa276eeb4120f7eabead49)](https://github.com/ytsaurus/ytsaurus-ui/commit/da27f6991976601be1fa276eeb4120f7eabead49))
+* **Navigation:** html injection [YTFRONT-6067] ([[0dcea28](https://github.com/ytsaurus/ytsaurus-ui/commit/0dcea285c90a89408f8ac465298e84c4891a8390)](https://github.com/ytsaurus/ytsaurus-ui/commit/0dcea285c90a89408f8ac465298e84c4891a8390))
+* **Navigation:** localize map node labels [YTFRONT-5069] ([[fc4ce24](https://github.com/ytsaurus/ytsaurus-ui/commit/fc4ce24da63080bab4d0e3f9e55af5fa0a7240de)](https://github.com/ytsaurus/ytsaurus-ui/commit/fc4ce24da63080bab4d0e3f9e55af5fa0a7240de))
+* **Navigation:** show download notice for oversized media cells [YTFRONT-6065] ([[e5ee6cf](https://github.com/ytsaurus/ytsaurus-ui/commit/e5ee6cf624291ea5107c13bc8f0a7d5d2cbc850b)](https://github.com/ytsaurus/ytsaurus-ui/commit/e5ee6cf624291ea5107c13bc8f0a7d5d2cbc850b))
+* **Navigation:** use real paths for queue and consumer metrics [YTFRONT-5853] ([[ec89662](https://github.com/ytsaurus/ytsaurus-ui/commit/ec896623cceea70c67987ee7cc6b2055d37b0c89)](https://github.com/ytsaurus/ytsaurus-ui/commit/ec896623cceea70c67987ee7cc6b2055d37b0c89))
+* **Operations:** stabilize icon sizes in screenshots [YTFRONT-5272] ([[53f9302](https://github.com/ytsaurus/ytsaurus-ui/commit/53f93025f46b2b06b002eb1feabd0931cbfab294)](https://github.com/ytsaurus/ytsaurus-ui/commit/53f93025f46b2b06b002eb1feabd0931cbfab294))
+* **Queries:** prioritize query name column width [YTFRONT-6025] ([[ec312fd](https://github.com/ytsaurus/ytsaurus-ui/commit/ec312fdf5d8cfc823fef66620550f024237f6cef)](https://github.com/ytsaurus/ytsaurus-ui/commit/ec312fdf5d8cfc823fef66620550f024237f6cef))
+* **Queries:** skip legacy Livy for SPYT Connect [YTFRONT-6074] ([[239d80d](https://github.com/ytsaurus/ytsaurus-ui/commit/239d80df254aa41cb2b46406a888e43a4e252fa4)](https://github.com/ytsaurus/ytsaurus-ui/commit/239d80df254aa41cb2b46406a888e43a4e252fa4))
+* **scripts:** create docker mount directories on host [YTFRONT-6030] ([[f6d49de](https://github.com/ytsaurus/ytsaurus-ui/commit/f6d49dedde7a339d21ef89ebdb99c4425cb85496)](https://github.com/ytsaurus/ytsaurus-ui/commit/f6d49dedde7a339d21ef89ebdb99c4425cb85496))
+* **Storybook:** verify production preview runtime [[#1827](https://github.com/ytsaurus/ytsaurus-ui/issues/1827)](https://github.com/ytsaurus/ytsaurus-ui/issues/1827) ([[954cf17](https://github.com/ytsaurus/ytsaurus-ui/commit/954cf17b3bae1895f2d42c6ce7b87bb8bbc10f8e)](https://github.com/ytsaurus/ytsaurus-ui/commit/954cf17b3bae1895f2d42c6ce7b87bb8bbc10f8e))
+
+#### Performance Improvements
+
+* **Accounts:** yield during account parsing [YTFRONT-6021] ([[a6e2e1a](https://github.com/ytsaurus/ytsaurus-ui/commit/a6e2e1a76fa01f2d2d8eb3aea39811dbdeb8db4a)](https://github.com/ytsaurus/ytsaurus-ui/commit/a6e2e1a76fa01f2d2d8eb3aea39811dbdeb8db4a))
+* **TreeList:** reduce flatten allocations [YTFRONT-6021] ([[7673066](https://github.com/ytsaurus/ytsaurus-ui/commit/76730665c037b573caf26037785c9e69b0bf38fb)](https://github.com/ytsaurus/ytsaurus-ui/commit/76730665c037b573caf26037785c9e69b0bf38fb))
+* **TreeList:** skip trivial tree sorting [YTFRONT-6021] ([[597aed7](https://github.com/ytsaurus/ytsaurus-ui/commit/597aed70f12fbe7b2503e3929ba9ce748a73f5a4)](https://github.com/ytsaurus/ytsaurus-ui/commit/597aed70f12fbe7b2503e3929ba9ce748a73f5a4))
+
+{% endcut %}
+
+
+{% cut "**3.26.0**" %}
+
+**Release date:** 2026-09-17
+
+
+**Release page:** [3.26.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.26.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.26.0](https://github.com/orgs/ytsaurus/packages/container/ui/1260553638?tag=3.26.0)
+
+
+#### [3.26.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.25.0...ui-v3.26.0) (2026-09-16)
+
+
+#### Features
+
+* **Flow/Graph:** display messages by click on computation anchors [YTFRONT-5792] ([5045100](https://github.com/ytsaurus/ytsaurus-ui/commit/5045100dc2c65f59cb048087dffedc6cc7a333de))
+* **MetaTable:** render Nirvana links with inline errors [YTFRONT-6026] ([fcb4c34](https://github.com/ytsaurus/ytsaurus-ui/commit/fcb4c34f74f1bfed592e4047776809df822a0d93))
+
+
+#### Bug Fixes
+
+* **Dashboard:** widget-table cell padding [YTFRONT-6028] ([fc09d5a](https://github.com/ytsaurus/ytsaurus-ui/commit/fc09d5a5604cb03936d389f4f8590f88f801b4a7))
+* **flow:** remove messages dialog import cycle ([9dbbb95](https://github.com/ytsaurus/ytsaurus-ui/commit/9dbbb95f65ef089277e729fd0e3bdb08d1dc99b7))
+* **unipika:** resolve root-relative URLs before wrapping in referrer redirect [YTFRONT-5896] ([d987c8a](https://github.com/ytsaurus/ytsaurus-ui/commit/d987c8af6305daa1c59f07608b5e0c27c97a78ae))
+
+{% endcut %}
+
+
+{% cut "**3.25.0**" %}
+
+**Release date:** 2026-09-11
+
+
+**Release page:** [3.25.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.25.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.25.0](https://github.com/orgs/ytsaurus/packages/container/ui/1237878449?tag=3.25.0)
+
+
+#### [3.25.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.24.0...ui-v3.25.0) (2026-09-10)
+
+
+#### Features
+
+* **Flow:** add partitions distribution for computations [[#1753](https://github.com/ytsaurus/ytsaurus-ui/issues/1753)] ([1e2e649](https://github.com/ytsaurus/ytsaurus-ui/commit/1e2e64959af0d034a1d661fd593582dbf7db9760))
+* **Scheduling:** allow custom pool metadata rendering [YTFRONT-5882] ([c815953](https://github.com/ytsaurus/ytsaurus-ui/commit/c81595344ca4be9f1d6247e80237abd8ea4a1b45))
+
+
+#### Bug Fixes
+
+* **Scheduling:** wrong filter color [YTFRONT-6016] ([ceb7aab](https://github.com/ytsaurus/ytsaurus-ui/commit/ceb7aabd8e0d6a13f015327b231154a599f0c239))
+
+{% endcut %}
+
+
+{% cut "**3.24.0**" %}
+
+**Release date:** 2026-09-03
+
+
+**Release page:** [3.24.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.24.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.24.0](https://github.com/orgs/ytsaurus/packages/container/ui/1206054167?tag=3.24.0)
+
+
+#### [3.24.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.23.0...ui-v3.24.0) (2026-09-03)
+
+
+#### Features
+
+* **Navigation:** host metadata [YTFRONT-5757] ([8e8edae](https://github.com/ytsaurus/ytsaurus-ui/commit/8e8edaeeab0ea8f9fa58872336bad998efc81ed3))
+* **server/configs:** add setting [YTFRONT-5702] ([36cab9c](https://github.com/ytsaurus/ytsaurus-ui/commit/36cab9c98d5060a1a26bc573b42fc569118bbccb))
+
+
+#### Bug Fixes
+
+* **Navigation/Table:** download file as application/octet-stream [YTFRONT-5970] ([3fd7a9b](https://github.com/ytsaurus/ytsaurus-ui/commit/3fd7a9be4225f4f204ec4ff9b5483e401498b884))
+* **Queries:** change yql version default logic [YTFRONT-5876] ([2956e03](https://github.com/ytsaurus/ytsaurus-ui/commit/2956e03c5f644b7d1eb09bd4e1373d747c7060f1))
+
+{% endcut %}
+
+
 {% cut "**3.23.0**" %}
 
 **Release date:** 2026-08-26
@@ -1260,7 +1403,7 @@ Is released as a docker image.
 
 #### Bug Fixes
 
-* **BFF** fix logging of axios error in `sendAndLogError` function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
+* **BFF** fix logging of axios error in sendAndLogError function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
 * **Navigation:** pool tree select popup [YTFRONT-4380] ([f52eb90](https://github.com/ytsaurus/ytsaurus-ui/commit/f52eb90da82306d6bf191a0d1375f3c30eaa3aac))
 * **Navigation/Consumer,Navigation/Queue:** show errors [YTFRONT-4144] ([914a6a0](https://github.com/ytsaurus/ytsaurus-ui/commit/914a6a066ce30928673749bd8e2250c51a3e637b))
 * **Navigation/Table/CellPreview:** fix opening preview for table with offset [[#778](https://github.com/ytsaurus/ytsaurus-ui/issues/778)] ([7347349](https://github.com/ytsaurus/ytsaurus-ui/commit/7347349c9adaedb1a8d7ea4a933a8316f2b296d2))
@@ -2201,7 +2344,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 * **Operations/Details:** minor css fix [YTFRONT-3518] ([91d9b01](https://github.com/ytsaurus/ytsaurus-ui/commit/91d9b0172dd8de0c1d610bc9eb1ca8d2117b1dd6))
 * **Scheduling/PoolEditor:** correct value for fifo_sort_parameters [YTFRONT-3957] ([34d5cdb](https://github.com/ytsaurus/ytsaurus-ui/commit/34d5cdb672b0eeadce80f10d1f828f1579e326ac))
-* **SupportForm:** rework api of `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
+* **SupportForm:** rework api of makeSupportContent [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
 
 {% endcut %}
 

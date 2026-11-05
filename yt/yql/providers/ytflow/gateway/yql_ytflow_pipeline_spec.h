@@ -46,6 +46,7 @@ struct TBuildPipelineSpecContext: public NPrepare::TContext
     const TUserDataTable& UserDataBlocks;
     THashMap<TString, TString> SecureParams;
     bool EnableComputationPatternResources;
+    const TString OptLLVM;
     TVector<TFile> Files;
     THashMap<TString, ui32> StreamCounters;
     // Intermediate streams use (operation, output index); persistent streams use (source/sink, 0).

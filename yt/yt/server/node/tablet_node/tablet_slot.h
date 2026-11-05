@@ -43,6 +43,7 @@ struct ITabletAutomatonHost
     virtual NHydra::TCellId GetCellId() = 0;
     virtual const IInvokerPtr& GetAsyncSnapshotInvoker() = 0;
     virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
+    virtual const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletAutomatonHost);

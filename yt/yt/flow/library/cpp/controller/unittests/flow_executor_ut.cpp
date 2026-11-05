@@ -91,6 +91,7 @@ TPipelineSpecPtr MakeGraphPipelineSpec(bool includeRemovedNode)
         addNode("removed");
     }
     spec->Computations["graph"] = computation;
+    spec->Postprocess();
     ResolveProcessFunctionGraphs(spec);
     ValidatePipelineSpec(spec);
     return spec;
@@ -124,6 +125,11 @@ protected:
     TPromise<void> ResumePersist_ = NewPromise<void>();
     bool BlockNextPersist_ = false;
     int PersistCount_ = 0;
+
+    virtual bool EnablePagedTimerStore() const
+    {
+        return false;
+    }
 
     void SetUp() override
     {
@@ -177,6 +183,7 @@ protected:
 
         auto config = New<TControllerServiceConfig>();
         config->SetSpecRetryCount = 1;
+        config->EnablePagedTimerStore = EnablePagedTimerStore();
         Executor_ = CreateFlowExecutor(
             controller,
             stateManager,
@@ -283,6 +290,53 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Bool(),
     [] (const ::testing::TestParamInfo<bool>& info) {
         return info.param ? "Combined" : "Separate";
+    });
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFlowExecutorPagedTimerStoreTest
+    : public TFlowExecutorSpecUpdateTest
+{
+protected:
+    bool EnablePagedTimerStore() const override
+    {
+        return GetParam();
+    }
+
+    void SetPipelineSpecAndCheck(const TPipelineSpecPtr& spec)
+    {
+        WaitFor(BIND([&] {
+            TSetPipelineSpecArg argument;
+            argument.Spec = ConvertToNode(spec);
+            if (EnablePagedTimerStore()) {
+                Executor_->SetPipelineSpec(argument);
+                EXPECT_EQ(PersistCount_, 1);
+            } else {
+                EXPECT_THROW_WITH_SUBSTRING(
+                    Executor_->SetPipelineSpec(argument),
+                    "\"timer_store_backend\" = \"paged\" is not enabled on this controller (enable_paged_timer_store)");
+                EXPECT_EQ(PersistCount_, 0);
+            }
+        }).AsyncVia(Queue_->GetInvoker())
+                .Run()
+                .WithTimeout(TDuration::Seconds(20)))
+            .ThrowOnError();
+    }
+};
+
+TEST_P(TFlowExecutorPagedTimerStoreTest, ComputationLevelBackend)
+{
+    auto spec = MakeGraphPipelineSpec(/*includeRemovedNode*/ true);
+    spec->Computations["graph"]->TimerStoreBackend = ETimerStoreBackend::Paged;
+    SetPipelineSpecAndCheck(spec);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PagedTimerStoreFlag,
+    TFlowExecutorPagedTimerStoreTest,
+    ::testing::Bool(),
+    [] (const ::testing::TestParamInfo<bool>& info) {
+        return info.param ? "Enabled" : "Disabled";
     });
 
 ////////////////////////////////////////////////////////////////////////////////

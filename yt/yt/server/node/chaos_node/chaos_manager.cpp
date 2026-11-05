@@ -1454,6 +1454,23 @@ private:
         // COMPAT(osidorkin)
         int reign = GetCurrentMutationContext()->Request().Reign;
         bool shouldThrowOnLowQueuesCount = reign >= static_cast<int>(EChaosReign::ForbidSyncQueuesCountBelowLimit);
+        bool earlyCheckReplicaPathDuplication = reign >= static_cast<int>(EChaosReign::CheckReplicaPathBeforeApplying) ||
+            (reign >= static_cast<int>(EChaosReign::CheckReplicaPathBeforeApplying_26_1) && reign < static_cast<int>(EChaosReign::Start_26_2));
+
+        if (earlyCheckReplicaPathDuplication) {
+            if (replicaPath && replicaInfo->ReplicaPath != *replicaPath) {
+                for (const auto& [existingReplicaId, existingReplicaInfo] : replicationCard->Replicas()) {
+                    if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName &&
+                        existingReplicaInfo.ReplicaPath == *replicaPath)
+                    {
+                        THROW_ERROR_EXCEPTION("Replica already exists")
+                            .With("replica_id", existingReplicaId)
+                            .With("cluster_name", existingReplicaInfo.ClusterName)
+                            .With("replica_path", existingReplicaInfo.ReplicaPath);
+                    }
+                }
+            }
+        }
 
         bool revoke = false;
 
@@ -1523,14 +1540,16 @@ private:
         }
 
         if (replicaPath && replicaInfo->ReplicaPath != *replicaPath) {
-            for (const auto& [existingReplicaId, existingReplicaInfo] : replicationCard->Replicas()) {
-                if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName &&
-                    existingReplicaInfo.ReplicaPath == *replicaPath)
-                {
-                    THROW_ERROR_EXCEPTION("Replica already exists")
-                        .With("replica_id", existingReplicaId)
-                        .With("cluster_name", existingReplicaInfo.ClusterName)
-                        .With("replica_path", existingReplicaInfo.ReplicaPath);
+            if (!earlyCheckReplicaPathDuplication) {
+                for (const auto& [existingReplicaId, existingReplicaInfo] : replicationCard->Replicas()) {
+                    if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName &&
+                        existingReplicaInfo.ReplicaPath == *replicaPath)
+                    {
+                        THROW_ERROR_EXCEPTION("Replica already exists")
+                            .With("replica_id", existingReplicaId)
+                            .With("cluster_name", existingReplicaInfo.ClusterName)
+                            .With("replica_path", existingReplicaInfo.ReplicaPath);
+                    }
                 }
             }
 
@@ -3771,7 +3790,6 @@ private:
         tagsList.emplace_back("replication_card_id", ToString(replicationCard.GetId()));
         tagsList.emplace_back("replica_cluster_name", replica.ClusterName);
         tagsList.emplace_back("replica_path", replica.ReplicaPath);
-        tagsList.emplace_back("chaos_cell_bundle", Slot_->GetCellBundleName());
         if (!replicationCard.GetTablePath().empty()) {
             tagsList.emplace_back("chaos_replicated_table_cluster", replicationCard.GetTableClusterName());
             tagsList.emplace_back("chaos_replicated_table_path", replicationCard.GetTablePath());

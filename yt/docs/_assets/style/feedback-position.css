@@ -1,0 +1,13 @@
+@media (min-width: 481px) {
+    #dc-widgets [data-theme] > div:first-child > div > button:not([class]) {
+        top: auto !important;
+        bottom: 280px !important;
+    }
+}
+
+/* The native mobile tab intersects the cookie notice and the survey. */
+body:has(.consent-popup) #dc-widgets [data-theme] > div:first-child > div > button:not([class]),
+body.ya-feedback__modal_open #dc-widgets [data-theme] > div:first-child > div > button:not([class]) {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}

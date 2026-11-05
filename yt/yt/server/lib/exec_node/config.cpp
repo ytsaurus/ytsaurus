@@ -226,7 +226,7 @@ void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("layer_import_concurrency", &TThis::LayerImportConcurrency)
         .Default(2)
         .GreaterThan(0)
-        .LessThanOrEqual(10);
+        .LessThanOrEqual(64);
 
     registrar.Parameter("enable_async_layer_removal", &TThis::EnableAsyncLayerRemoval)
         .Default(true);
@@ -278,6 +278,17 @@ void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_disable_on_out_of_disk_space", &TThis::TestDisableOnOutOfDiskSpace)
         .Default(false);
+
+    registrar.Parameter("enable_pending_downloads_tracker", &TThis::EnablePendingDownloadsTracker)
+        .Default(true);
+
+    registrar.Parameter("enforce_cache_quota", &TThis::EnforceCacheQuota)
+        .Default(false);
+
+    registrar.Parameter("disk_space_gap_ratio", &TThis::DiskSpaceGapRatio)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Default(0.02);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,6 +726,10 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
         .Default();
+
+    registrar.Parameter("job_host_name_prefix_pattern", &TThis::JobHostNamePrefixPattern)
+        .Default("slot-$(SlotIndex)")
+        .NonEmpty();
 
     registrar.Parameter("test_job_error_truncation", &TThis::TestJobErrorTruncation)
         .Default(false);

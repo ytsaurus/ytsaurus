@@ -51,15 +51,32 @@ Explanations:
   - `system_time` — compared with `SystemWatermark`.
   - `real_time` — compared with real astronomical time.
 
-- `streams` / `streams_with_delays` — let you limit which input streams contribute to the watermark calculation for this timer. `streams_with_delays` also lets you set an individual delay for each stream.
+- `streams` / `streams_with_delays` — let you limit which input streams contribute to the watermark calculation for this timer. `streams_with_delays` also lets you set an individual delay for each stream. These parameters apply only to `event_time` and `system_time` timers. A `current_time` timer triggers when the current time reaches `TriggerTimestamp`; `streams` and `streams_with_delays` are ignored for it.
 
 - `deduplicate_equal_timestamps` — merges timers in the same stream with the same key and `TriggerTimestamp`, keeping the smallest `EventTimestamp`. Deduplication is not guaranteed: duplicates are possible. Enabled by default.
+
+### Timer store {#timer-store-backend}
+
+Where a computation's timers live is set by the static `timer_store_backend` field of the computation spec:
+
+- `in_memory` (default) — all active timers of a partition are held in the job's memory and mirrored in the `timers` table. The dynamic `timer_store_count_limit` / `timer_store_byte_size_limit` limits apply to the number and size of the timers.
+- `paged` — the timers live in pages of `timer_page_size` timers in the `timer_pages` / `timer_page_meta` / `timer_page_journal` tables, ordered by trigger time; the job keeps in memory only the head of every page family (the few batches closest to firing) and the page metadata, about one entry per `timer_page_size` timers. The `timer_store_count_limit` / `timer_store_byte_size_limit` limits apply to the resident timers. The exception is timers sharing one trigger timestamp (for example, the end of a window for every key): they stay in one page that cannot be split and is loaded whole. Shared-page exploration grows geometrically when few timers belong to the partition. Reading completes the known nearest-timer window before firing. The write allowance is configured by `timer_store.timer_write_multiplier` in the dynamic spec.
+
+The dynamic `timer_write_multiplier` limits timer row writes per iteration. Its default is 2. The value must be finite and at least 1. Let `R` be the mandatory writes for new or replacement timers, after deduplication. At most `floor(timer_write_multiplier * R)` timer rows may be written. Repartitioning transfers use the remaining allowance. Without mandatory writes, existing timers remain in shared or nested pages. They fire from the resident portion belonging to the partition. Deletions and page metadata do not count. Unused allowance does not carry over.
+
+Changing `timer_store_backend` is a static spec change: the pipeline is stopped, and at the next start every job moves the timers of its partition between the `timers` table and the pages before its first iteration, in batches of separate transactions; an interrupted move is continued at the next start. A change of `deduplicate_equal_timestamps` is applied at a start the same way: the pages of the partition are rewritten into the new form, duplicates within a page are collapsed, and duplicates in different pages are removed when they fire. A page shared with a neighbouring partition after repartitioning is rewritten by the partition that owns the beginning of its key range; the other one waits for it to start. A change of `timer_page_size` applies gradually: pages are split and merged over several iterations without moving timer rows. A limitation of the first stage: `paged` is incompatible with a `watermark_percentile` below 100 on a computation with timers; such a spec is rejected by the validation.
+
+The `paged` store must be enabled on the controller with the `enable_paged_timer_store` parameter (the `controller_service` section of the controller config). The current release ships with it disabled. A spec with `timer_store_backend: paged` is rejected. The flag is checked when a spec is set: a pipeline whose stored spec already selects `paged` keeps running. This keeps a rollback safe. The previous release cannot read the page format yet. It must never meet that format in pipeline data. Before a downgrade to a release without `paged` support, switch such computations to `in_memory` in the spec and wait for the conversion. Timers move from the pages back to the `timers` table at the next job start.
+
+Every timer page has a format version (`format_version` in `timer_page_meta`). A job refuses to start when it meets a page with a version newer than it supports. Such a page was written by a newer binary. The only safe moves are to upgrade or to roll back. A new format version will be rolled out in two releases. First comes a binary that reads both versions and writes the old one. Then comes a binary that writes the new one and converts old pages when a job starts.
+
+The timers of a computation or timer stream removed from the spec stay in the tables: they are never removed automatically.
 
 ## Processing order {#timer-ordering}
 
 Within one timer stream, timers for the same key are processed in `TriggerTimestamp` order.
 
-Processing order across timer streams is not guaranteed. To make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
+Processing order across timer streams is not guaranteed. For `event_time` and `system_time` timers, to make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
 
 ## Blocking related timer streams {#timer-stream-blocking}
 
@@ -68,6 +85,26 @@ When output limits block a timer stream, delivery of ready timers pauses for its
 Timer streams belong to the same group if they use the same `time_type` (`event_time` or `system_time`) and their watermark input sets overlap. Grouping is transitive: streams that wait for `{a, b}`, `{b, c}`, and `{c, d}` form one group. Differences in `streams_with_delays` values do not split a group. All `real_time` timer streams form a separate group, regardless of their configured inputs and delays.
 
 Groups include all timer streams configured for the computation, not just those with registered timers. Grouping does not add ordering guarantees across streams.
+
+## Monitoring timer lag {#monitoring}
+
+For every stream, including timer streams and united streams (`__united__`, `__united_timer__`, and others), the controller publishes `yt.flow.controller.streams.*` metrics with the `stream_id` tag:
+
+- `time_lag`, `count_lag`, `byte_size_lag` — include all registered timers. A timer's lag starts at its creation, so timers scheduled far in the future produce a constant lag "shelf" even when processing keeps up.
+- `ready_time_lag` — the longest time an unprocessed timer has been due: time since the earliest due moment among timers that are not processed yet. For timers with `time_type` `current_time`, the due moment is `TriggerTimestamp` itself. For `event_time` and `system_time`, the controller finds the moment when the watermarks of the streams the timer waits for first reached `TriggerTimestamp` plus their delays, using a persisted history of these watermarks. The history is thinned over time, so for timers that became due long ago the lag can be over-reported by up to `1 / watermark_history_thinning_factor` (25% by default), but it is never under-reported.
+- `ready_count_lag`, `ready_byte_size_lag` — the number and size of timers that have triggered but are not processed yet. Timers that have not triggered are excluded.
+
+For streams without timers, `ready_*` equal `time_lag`, `count_lag`, and `byte_size_lag`. The `ready_*` metrics never exceed the corresponding regular lags.
+
+{% note warning %}
+
+- If the watermark that timers wait for does not advance, the timers never become due and `ready_time_lag` stays near zero. Use `time_lag` and the lags of input streams as a backstop for alerts.
+- A timer registered with a `TriggerTimestamp` in the past can briefly (usually for 1–2 job reports, until it is processed) raise `ready_time_lag` up to `time_lag`.
+- If an `event_time` or `system_time` timer became due before the watermark history starts, `ready_time_lag` is not published for its stream and the united streams that include it until that timer is processed. This happens right after the first rollout or a controller rollback, and for timers with a `TriggerTimestamp` far in the past. `ready_count_lag` and `ready_byte_size_lag` are still published. Configure alerts on `ready_time_lag` to treat missing data as OK, and use `time_lag` as a backstop.
+
+{% endnote %}
+
+The `ready_count_lag` metric is not the same as the `ready_count` lifecycle metric. For timer streams their values match. For other streams, `ready_count_lag` equals `count_lag`, while `ready_count` counts only messages that are ready to be delivered but not yet handed over for processing.
 
 ## Timer structure {#timer-structure}
 
@@ -178,7 +215,7 @@ Example implementation of a join with wait (impression + click, 30-minute timeou
 
 {% note warning %}
 
-**Process memory**. In the current implementation, all active timers are additionally stored in the process memory, on top of {{product-name}}. With a large number of timers, this can lead to Out of Memory errors when jobs start.
+**Process memory**. In the `in_memory` store, all active timers are additionally stored in the process memory, on top of {{product-name}}. With a large number of timers, this can lead to Out of Memory errors when jobs start; the `paged` store exists for such computations (see [Timer store](#timer-store-backend)).
 
 {% endnote %}
 

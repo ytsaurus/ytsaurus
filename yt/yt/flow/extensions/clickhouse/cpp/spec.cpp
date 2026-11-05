@@ -166,14 +166,6 @@ void TDynamicAtLeastOnceClickHouseSinkParameters::Register(TRegistrar /*registra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAtMostOnceClickHouseSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
-
-void TDynamicAtMostOnceClickHouseSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TClickHouseSinkControllerParameters::Register(TRegistrar /*registrar*/)
 { }
 

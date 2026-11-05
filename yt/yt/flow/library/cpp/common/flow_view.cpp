@@ -6,6 +6,7 @@
 
 #include "checksum.h"
 #include "resource.h"
+#include "watermark_history.h"
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -502,6 +503,9 @@ void TJobStatus::Register(TRegistrar registrar)
 
     registrar.Parameter("from_partition_traverse_data", &TThis::FromPartitionTraverseData)
         .Default();
+    registrar.Parameter("observed_keys", &TThis::ObservedKeys)
+        .Optional()
+        .DontSerializeDefault();
     registrar.Parameter("processing_observation", &TThis::ProcessingObservation)
         .DontSerializeDefault()
         .Default();
@@ -1441,6 +1445,10 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
+    registrar.Parameter("key_count_partitioning_blocked_computations", &TThis::KeyCountPartitioningBlockedComputations)
+        .Default();
+    registrar.Parameter("key_count_partitioning", &TThis::KeyCountPartitioning)
+        .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
         .Default();
     registrar.Parameter("lineage_ratios", &TThis::LineageRatios)
@@ -1518,6 +1526,9 @@ void TFlowState::Register(TRegistrar registrar)
 
     registrar.Parameter("speed_statistics", &TThis::SpeedStatistics)
         .Default();
+
+    registrar.Parameter("watermark_history", &TThis::WatermarkHistory)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -302,7 +302,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         self._check_operation_info(rows, op_id)
 
     def _run_script_table_mode(self, input_data, target, expiration_timeout):
-        prepare_scheduling_usage_dir = "//prepare_scheduling_usage"
+        prepare_scheduling_usage_dir = "//tmp/prepare_scheduling_usage"
 
         if not os.path.exists(os.path.join(self.Env.path, "prepare_scheduling_usage")):
             os.mkdir(os.path.join(self.Env.path, "prepare_scheduling_usage"))

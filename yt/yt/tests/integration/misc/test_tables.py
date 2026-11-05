@@ -2820,6 +2820,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/t_in") == rows
 
     @authors("h0pless")
+    @with_portals_dir
     def test_schemaful_node_type_handler(self):
         def create_table_on_specific_cell(path, schema):
             while True:
@@ -2893,9 +2894,9 @@ class TestTables(YTEnvSetup):
 
         # Cross shard copy if portals are enabled
         if self.ENABLE_TMP_PORTAL:
-            create("portal_entrance", "//non_tmp", attributes={"exit_cell_tag": 12})
-            copy("//tmp/table", "//non_tmp/table_copy")
-            assert get("//tmp/table/@schema") == get("//non_tmp/table_copy/@schema")
+            create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+            copy("//tmp/table", "//portals/p/table_copy")
+            assert get("//tmp/table/@schema") == get("//portals/p/table_copy/@schema")
 
     @authors("cherepashka", "babenko")
     def test_opaque_schema_attribute(self):

@@ -342,7 +342,7 @@ void DoExportSnapshot(
         EYsonType::ListFragment);
     auto fluent = BuildYsonListFragmentFluently(writer.get());
     do {
-        auto node = sortedNodes[nodeIdx];
+        auto* node = sortedNodes[nodeIdx];
         ++nodeIdx;
 
         auto nodeType = node->GetType();
@@ -351,18 +351,34 @@ void DoExportSnapshot(
         }
 
         std::vector<NCypressClient::TNodeId> extraNodesHeld;
-        if (config->CalculateExtendedBranchStatistics && !node->IsTrunk() && nodeType == EObjectType::MapNode) {
-            auto* mapNode = node->As<TCypressMapNode>();
-            const auto& nodeChildren = mapNode->ChildToKey();
-            auto isSnapshotBranch = mapNode->GetLockMode() == ELockMode::Snapshot;
+        if (config->CalculateExtendedBranchStatistics && !node->IsTrunk()) {
+            if (nodeType == EObjectType::MapNode) {
+                auto* mapNode = node->As<TCypressMapNode>();
+                const auto& nodeChildren = mapNode->ChildToKey();
+                auto isSnapshotBranch = mapNode->GetLockMode() == ELockMode::Snapshot;
 
-            auto* originator = node->GetOriginator()->As<TCypressMapNode>();
-            const auto& originatorChildren = originator->ChildToKey();
+                auto* originator = node->GetOriginator()->As<TCypressMapNode>();
+                const auto& originatorChildren = originator->ChildToKey();
 
-            for (const auto& [child, _] : nodeChildren) {
-                // Non-snapshot branches only hold changes, i.e. deltas.
-                if (!isSnapshotBranch || !originatorChildren.contains(child)) {
-                    extraNodesHeld.push_back(child->GetId());
+                for (const auto& [child, _] : nodeChildren) {
+                    // Non-snapshot branches only hold changes, i.e. deltas.
+                    if (!isSnapshotBranch || !originatorChildren.contains(child)) {
+                        extraNodesHeld.push_back(child->GetId());
+                    }
+                }
+            } else if (nodeType == EObjectType::SequoiaMapNode) {
+                auto* mapNode = node->As<TSequoiaMapNode>();
+                const auto& nodeChildren = mapNode->ChildToKey();
+                auto isSnapshotBranch = mapNode->GetLockMode() == ELockMode::Snapshot;
+
+                auto* originator = node->GetOriginator()->As<TSequoiaMapNode>();
+                const auto& originatorChildren = originator->ChildToKey();
+
+                for (const auto& [childId, _] : nodeChildren) {
+                    // Non-snapshot branches only hold changes, i.e. deltas.
+                    if (!isSnapshotBranch || !originatorChildren.contains(childId)) {
+                        extraNodesHeld.push_back(childId);
+                    }
                 }
             }
         }

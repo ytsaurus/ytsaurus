@@ -61,37 +61,20 @@ def test_queue_agent_controller_liveness_partially_available(yt_env_one_queue_ag
     assert status == PARTIALLY_AVAILABLE_STATE
 
 
-@pytest.mark.parametrize("object_type", ["queue", "consumer"])
-def test_queue_agent_controller_liveness_unavailable(yt_env_one_queue_agent, object_type):
-    client: YtClient = yt_env_one_queue_agent.yt_client
-    proxy_url = client.config["proxy"]["url"]
-
-    bad_object_path = f"//tmp/{object_type}_bad"
-
+def create_object(client, object_type, path):
     if object_type == "queue":
-        client.create("table", bad_object_path, attributes={
+        client.create("table", path, attributes={
             "dynamic": True,
             "schema": [{"name": "data", "type": "string"}],
         })
-        client.mount_table(bad_object_path, sync=True)
+        client.mount_table(path, sync=True)
     else:
-        client.create("queue_consumer", bad_object_path)
+        client.create("queue_consumer", path)
 
-    cluster_name = client.get("//sys/@cluster_name")
-    instance = str(client.list("//sys/queue_agents/instances")[0])
 
-    # We need to wait for the second pass of #bad_object or otherwise it won't be counted
-    wait_for_controller_passes(client, instance, bad_object_path)
-
+def update_queue_agent_config(client, instance, patch):
     config = client.get(QUEUE_AGENT_DYNAMIC_CONFIG_PATH)
-    update_inplace(config, {
-        "queue_agent": {
-            "controller": {
-                "delayed_objects": [yson.loads(f"<cluster={cluster_name}>\"{bad_object_path}\"".encode())],
-                "controller_delay": 3_600_000,  # 1 hour
-            },
-        }
-    })
+    update_inplace(config, patch)
     client.set(QUEUE_AGENT_DYNAMIC_CONFIG_PATH, config)
 
     def check_config_updated():
@@ -100,10 +83,89 @@ def test_queue_agent_controller_liveness_unavailable(yt_env_one_queue_agent, obj
 
     wait(check_config_updated)
 
+
+def delay_object(client, instance, object_cluster, object_path):
+    update_queue_agent_config(client, instance, {
+        "queue_agent": {
+            "controller": {
+                "delayed_objects": [yson.loads(f"<cluster={object_cluster}>\"{object_path}\"".encode())],
+                "controller_delay": 3_600_000,  # 1 hour
+            },
+        }
+    })
+
+
+@pytest.mark.parametrize("use_stage_clusters", [False, True])
+@pytest.mark.parametrize("object_type", ["queue", "consumer"])
+def test_queue_agent_controller_liveness_unavailable(yt_env_one_queue_agent, object_type, use_stage_clusters):
+    client: YtClient = yt_env_one_queue_agent.yt_client
+    proxy_url = client.config["proxy"]["url"]
+
+    bad_object_path = f"//tmp/{object_type}_bad"
+    create_object(client, object_type, bad_object_path)
+
+    cluster_name = str(client.get("//sys/@cluster_name"))
+    instance = str(client.list("//sys/queue_agents/instances")[0])
+
+    # We need to wait for the second pass of #bad_object or otherwise it won't be counted
+    wait_for_controller_passes(client, instance, bad_object_path)
+
+    delay_object(client, instance, cluster_name, bad_object_path)
+
     # Wait for a new pass to start and lag to grow
     time.sleep(10)
 
-    checks_path = make_check_dir("queue_agent_controller_liveness", CHECK_OPTIONS)
+    options = CHECK_OPTIONS
+    if use_stage_clusters:
+        options = update(CHECK_OPTIONS, {"queue_agent_stage_clusters": {cluster_name: proxy_url}})
+    checks_path = make_check_dir("queue_agent_controller_liveness", options)
+    storage = configure_and_run_checks(proxy_url, checks_path, cluster_name)
+    status = storage.get_service_states("queue_agent_controller_liveness")[-1]
+    assert status == UNAVAILABLE_STATE
+
+
+def test_queue_agent_controller_liveness_unreachable_foreign_stage(yt_env_one_queue_agent):
+    client = yt_env_one_queue_agent.yt_client
+    proxy_url = client.config["proxy"]["url"]
+
+    options = update(CHECK_OPTIONS, {"queue_agent_stage_clusters": {"foreign": "localhost:1"}})
+    checks_path = make_check_dir("queue_agent_controller_liveness", options)
     storage = configure_and_run_checks(proxy_url, checks_path)
+    record = storage.get_all_records("queue_agent_controller_liveness")[-1]
+    assert record.state == FULLY_AVAILABLE_STATE
+    assert "Could not list queue agent instances on cluster foreign" in record.messages
+
+
+@pytest.mark.parametrize("object_type", ["queue", "consumer"])
+def test_queue_agent_controller_liveness_unavailable_on_remote_cluster(yt_env_two_clusters_one_queue_agent, object_type):
+    queue_agent_environment, remote_environment = yt_env_two_clusters_one_queue_agent
+    queue_agent_client: YtClient = queue_agent_environment.yt_client
+    remote_client: YtClient = remote_environment.yt_client
+    queue_agent_proxy_url = queue_agent_client.config["proxy"]["url"]
+    remote_proxy_url = remote_client.config["proxy"]["url"]
+    queue_agent_cluster_name = str(queue_agent_client.get("//sys/@cluster_name"))
+    remote_cluster_name = str(remote_client.get("//sys/@cluster_name"))
+
+    instance = str(queue_agent_client.list("//sys/queue_agents/instances")[0])
+    update_queue_agent_config(queue_agent_client, instance, {
+        "cypress_synchronizer": {
+            "clusters": [queue_agent_cluster_name, remote_cluster_name],
+        },
+    })
+
+    bad_object_path = f"//tmp/{object_type}_bad"
+    create_object(remote_client, object_type, bad_object_path)
+
+    # We need to wait for the second pass of #bad_object or otherwise it won't be counted
+    wait_for_controller_passes(queue_agent_client, instance, bad_object_path)
+
+    delay_object(queue_agent_client, instance, remote_cluster_name, bad_object_path)
+
+    # Wait for a new pass to start and lag to grow
+    time.sleep(10)
+
+    options = update(CHECK_OPTIONS, {"queue_agent_stage_clusters": {queue_agent_cluster_name: queue_agent_proxy_url}})
+    checks_path = make_check_dir("queue_agent_controller_liveness", options)
+    storage = configure_and_run_checks(remote_proxy_url, checks_path, remote_cluster_name)
     status = storage.get_service_states("queue_agent_controller_liveness")[-1]
     assert status == UNAVAILABLE_STATE

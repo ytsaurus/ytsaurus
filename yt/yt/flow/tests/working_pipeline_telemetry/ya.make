@@ -9,6 +9,7 @@ TEST_SRCS(
 PEERDIR(
     yt/yt/flow/library/python/integration_test_base
     yt/yt/flow/library/python/integration_test_base/yt_sync_preset
+    yt/yt/flow/tests/test_telemetry/common
 )
 
 DEPENDS(

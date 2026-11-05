@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, ROOTFS_LAYER_PATH
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
@@ -484,7 +484,7 @@ class TestLayers(TestPortoLayersBase):
             },
         )
 
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
         # The controller agent prepends the system layer independently of the operation spec.
         assert get_job_root_volume_layer_paths(job_id)[1:] == [ROOTFS_LAYER_PATH]
         release_breakpoint(job_id=job_id)
@@ -518,11 +518,11 @@ class TestLayers(TestPortoLayersBase):
             },
         )
 
-        mapper_job_id, = wait_breakpoint(breakpoint_name="mapper")
+        mapper_job_id, = wait_breakpoint(op, breakpoint_name="mapper")
         assert get_job_root_volume_layer_paths(mapper_job_id)[1:] == [ROOTFS_LAYER_PATH]
         release_breakpoint(breakpoint_name="mapper", job_id=mapper_job_id)
 
-        reducer_job_id, = wait_breakpoint(breakpoint_name="reducer")
+        reducer_job_id, = wait_breakpoint(op, breakpoint_name="reducer")
         assert get_job_root_volume_layer_paths(reducer_job_id)[1:] == ["//tmp/layer2", ROOTFS_LAYER_PATH]
         release_breakpoint(breakpoint_name="reducer", job_id=reducer_job_id)
 
@@ -618,7 +618,7 @@ class TestRootFS(TestLayersBase):
             with_breakpoint('set -e; test -d /home/yt_slot_0; touch /home/yt_slot_0/my_file; ls /slot/home >&2; BREAKPOINT'),
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id = job_ids[0]
@@ -704,7 +704,7 @@ class TestPrivateDirectory(TestLayersBase):
             },
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         private_path = os.path.normpath(
             f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
         )
@@ -756,7 +756,7 @@ class TestPrivateDirectory(TestLayersBase):
             spec={"max_failed_job_count": 1},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         private_path = os.path.normpath(
             f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
         )
@@ -1041,7 +1041,15 @@ class TestDockerImage(TestPortoLayersBase):
         )
 
     @staticmethod
-    def run_map(docker_image, **kwargs):
+    def create_mock_docker_image_with_env(tag, layers, env):
+        # Env hangs off the tag entry as node attributes; old controller
+        # agents ignore attributes and still parse the layers.
+        entry = yson.yson_types.YsonList(layers)
+        entry.attributes = {"env": env}
+        TestDockerImage.create_mock_docker_image({tag: entry})
+
+    @staticmethod
+    def run_map(docker_image, command=COMMAND, **kwargs):
         spec = {
             "max_failed_job_count": 1,
             "mapper": {
@@ -1053,7 +1061,7 @@ class TestDockerImage(TestPortoLayersBase):
         map(
             in_=TestDockerImage.INPUT_TABLE,
             out=TestDockerImage.OUTPUT_TABLE,
-            command=TestDockerImage.COMMAND,
+            command=command,
             spec=spec,
         )
 
@@ -1078,6 +1086,84 @@ class TestDockerImage(TestPortoLayersBase):
         self.create_mock_docker_image({tag: ["//tmp/layer1", ROOTFS_LAYER_PATH]})
 
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    def test_docker_image_env(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        # HOME is part of the cluster-wide controller agent environment; the image must not override it.
+        self.create_mock_docker_image_with_env(
+            tag,
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=[
+                "DOCKER_IMAGE_ENV=image",
+                "SHARED_ENV=image",
+                "HOME=/root",
+                "DOCKER_IMAGE_DUP=first",
+                "DOCKER_IMAGE_DUP=last",
+                "LITERAL_VALUE=$(SandboxPath)",
+            ],
+        )
+
+        self.run_map(
+            f"{TestDockerImage.IMAGE}:{tag}",
+            command=(
+                'test "$DOCKER_IMAGE_ENV" = "image"'
+                ' && test "$SHARED_ENV" = "user"'
+                ' && test "$HOME" != "/root"'
+                ' && test "$DOCKER_IMAGE_DUP" = "last"'
+                " && test \"$LITERAL_VALUE\" = '$(SandboxPath)'"
+            ),
+            environment={"SHARED_ENV": "user"},
+        )
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize(
+        "env, expected_error",
+        [
+            (["PATH_WITHOUT_EQUALS_SIGN", "VALID=yes"], "sets a malformed environment variable"),
+            (["FOO BAR=1"], "sets an invalid environment variable"),
+            (["=value"], "sets an invalid environment variable"),
+        ],
+    )
+    @pytest.mark.timeout(180)
+    def test_docker_image_env_rejected(self, env, expected_error):
+        self.setup_files()
+        self.create_tables()
+
+        self.create_mock_docker_image_with_env(
+            "bad_env",
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=env,
+        )
+        with raises_yt_error(expected_error):
+            self.run_map(f"{TestDockerImage.IMAGE}:bad_env")
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    def test_docker_image_env_spec_rejected(self):
+        self.setup_files()
+        self.create_tables()
+
+        with raises_yt_error('Option "docker_image_environment" is not allowed in the spec'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag", docker_image_environment={"FOO": "bar"})
+        for stage in ("mapper", "reduce_combiner"):
+            with raises_yt_error('Option "docker_image_environment" is not allowed in the spec'):
+                map_reduce(
+                    in_=TestDockerImage.INPUT_TABLE,
+                    out=TestDockerImage.OUTPUT_TABLE,
+                    mapper_command="cat",
+                    reducer_command="cat",
+                    reduce_combiner_command="cat",
+                    sort_by=["a"],
+                    spec={
+                        "max_failed_job_count": 1,
+                        stage: {"docker_image_environment": {"FOO": "bar"}},
+                    },
+                )
 
     @authors("galtsev")
     @pytest.mark.timeout(180)
@@ -1130,6 +1216,62 @@ class TestDockerImage(TestPortoLayersBase):
 
         with raises_yt_error('External docker image is not supported in Porto job environment'):
             self.run_map(self.INVALID_EXTERNAL_IMAGE)
+
+
+class TestDockerImageRevival(TestDockerImage):
+    # There are component restarts.
+    ENABLE_MULTIDAEMON = False
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        },
+    }
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(300)
+    def test_docker_image_env_revival(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image_with_env(
+            tag,
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=["DOCKER_IMAGE_ENV=image", "LITERAL_VALUE=$(SandboxPath)"],
+        )
+
+        op = map(
+            in_=TestDockerImage.INPUT_TABLE,
+            out=TestDockerImage.OUTPUT_TABLE,
+            track=False,
+            command=with_breakpoint(
+                'test "$DOCKER_IMAGE_ENV" = "image"'
+                " && test \"$LITERAL_VALUE\" = '$(SandboxPath)'"
+                " && cat"
+                " && BREAKPOINT"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "docker_image": f"{TestDockerImage.IMAGE}:{tag}",
+                },
+            },
+        )
+
+        # Hold the job so that the retried one is started by the revived controller.
+        job_id, = wait_breakpoint(op)
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            time.sleep(10)
+        op.ensure_running()
+
+        abort_job(job_id)
+        # The aborted job's breakpoint is still registered, pick the fresh one.
+        breakpoint_job_ids = wait_breakpoint(op, check_fn=lambda ids: any(j != job_id for j in ids))
+        retry_job_id = next(j for j in breakpoint_job_ids if j != job_id)
+        release_breakpoint(job_id=retry_job_id)
+        op.track()
 
 
 class TestLayerCacheBase(TestPortoLayersBase):
@@ -1328,7 +1470,7 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op1, job_count=1)
 
         logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 1
@@ -2175,7 +2317,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1, breakpoint_name="first_operation")
+        job_id, = wait_breakpoint(op1, job_count=1, breakpoint_name="first_operation")
 
         print_debug(f"First operation job id is {job_id}")
 
@@ -2192,7 +2334,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         cache_hit_count = cache_hit_counter.get_delta()
 
-        map(
+        op2 = map(
             track=False,
             in_="//tmp/t_in",
             out="<append=%true>//tmp/t_out",
@@ -2205,7 +2347,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1, breakpoint_name="second_operation")
+        job_id, = wait_breakpoint(op2, job_count=1, breakpoint_name="second_operation")
         time.sleep(1)
         assert squashfs_volume_count.get() == 1
 
@@ -2616,6 +2758,71 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         # Check that all jobs but the one hit cache (either sync or async).
         wait(lambda: cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() >= self.NUM_USER_SLOTS - 1)
         assert cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() == self.NUM_USER_SLOTS - 1
+
+
+class TestNbdNonRootLayer(YTEnvSetup):
+    USE_PORTO = True
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {"volume_manager": {"enable_disk_quota": False}},
+        "job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 1}},
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "enabled": True,
+                    "client": {"io_timeout": 30000},
+                    "server": {"unix_domain_socket": {"path": _make_random_uds_path()}},
+                },
+            },
+        },
+    }
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("share_with_root", [False, True])
+    def test_nbd_layer_in_non_root_volume(self, share_with_root):
+        layer_path = "//tmp/non_root_only_squashfs_{}.img".format(make_random_string(16))
+        create("file", layer_path, attributes={"replication_factor": 1})
+        with open("layers/squashfs.img", "rb") as image:
+            write_file(layer_path, image.read(), file_writer={"upload_replication_factor": 1})
+        set(layer_path + "/@access_method", "nbd")
+        set(layer_path + "/@filesystem", "squashfs")
+
+        vanilla(spec={
+            "max_failed_job_count": 1,
+            "tasks": {
+                "master": {
+                    "job_count": 1,
+                    "command": " ; ".join([
+                        "set -eu",
+                        "ls /dir | grep -q squash_file" if share_with_root else "test ! -e /dir",
+                        "ls /data/dir | grep -q squash_file",
+                        "echo writable > /data/written",
+                        'test "$(cat /data/written)" = writable',
+                    ]),
+                    "volumes": {
+                        "root": {
+                            "disk_request": {"type": "local_disk", "disk_space": 10 * 1024 * 1024},
+                            "layers": rootfs_layers(layer_path) if share_with_root else rootfs_layers(),
+                        },
+                        "data": {
+                            "disk_request": {"type": "local_disk", "disk_space": 4 * 1024 * 1024},
+                            "layers": [{"path": layer_path}],
+                        },
+                    },
+                    "job_volume_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/data"},
+                    ],
+                },
+            },
+        })
 
 
 @authors("yuryalekseev")
@@ -3769,7 +3976,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         first_job_id = job_ids[0]
 
         first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
@@ -3785,7 +3992,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -3887,7 +4094,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -3963,7 +4170,7 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
                         # Size of unpacked layer layers/static-bin.tar is 3207704 bytes.
                         # Quota below the layer size forces SLRU eviction after the
                         # first job; the layer must remain alive via the TLayerPtr
-                        # stored in TJobFSSecretary::PreparedLayers_.
+                        # stored in TPortoJobFSSecretary::PreparedLayers_.
                         "quota": 1 * 1024 * 1024,
                     },
                 ],
@@ -4047,10 +4254,10 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -4059,7 +4266,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         op.track()
 
         # The layer must be imported exactly once for the entire allocation:
-        # the second job sees its key already in TJobFSSecretary::PreparedLayers_
+        # the second job sees its key already in TPortoJobFSSecretary::PreparedLayers_
         # and the layer-preparation phase is skipped via the existing
         # "Layer preparation is not needed" early exit, even though the SLRU
         # cache evicted the layer due to quota (the TLayerPtr stored in
@@ -4084,6 +4291,19 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_layer_cache_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_chunk_cache_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_layer_cache_async_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_chunk_cache_async_hit_size"]["sum"] == 0
+
+        # For any job, layers_cached_size must be the sum of the four breakdown stats.
+        for job_stats in (stats1, stats2):
+            artifacts = job_stats["exec_agent"]["artifacts"]
+            assert artifacts["layers_cached_size"]["sum"] == (
+                artifacts["layers_layer_cache_hit_size"]["sum"]
+                + artifacts["layers_chunk_cache_hit_size"]["sum"]
+                + artifacts["layers_layer_cache_async_hit_size"]["sum"]
+                + artifacts["layers_chunk_cache_async_hit_size"]["sum"])
 
     @authors("pogorelov")
     def test_layer_evicted_when_allocation_not_reused(self):
@@ -4117,10 +4337,10 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -4167,7 +4387,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         first_job_id = job_ids[0]
 
@@ -4190,7 +4410,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
         for jid in job_ids:
             release_breakpoint(job_id=jid)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()

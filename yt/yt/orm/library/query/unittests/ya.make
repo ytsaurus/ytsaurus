@@ -20,6 +20,8 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/yt/orm/client/misc
+
     yt/yt/orm/library/query
     yt/yt/orm/library/query/heavy
 

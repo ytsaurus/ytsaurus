@@ -37,7 +37,9 @@ target_link_libraries(library-cpp-common PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  library-cpp-source_read_delay
   library-cpp-client
+  library-cpp-pipeline_tables
   library-cpp-serializer
   cpp-common-proto
   common-controller-proto
@@ -85,6 +87,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/inflight_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/input_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_proxy_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/lag.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_batch.cpp
@@ -118,8 +121,11 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/stream_spec_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timestamp_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timer_page.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/traverse.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/trigger_condition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/visit.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/watermark_history.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/yson_message.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/control_table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/yt_connector.cpp

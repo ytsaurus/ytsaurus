@@ -26,8 +26,10 @@ DATA(
     arcadia/yt/yt/flow/library/python/yt_sync_mini
 )
 
-# For the constants drift test only; skipped when yt_sync is absent.
 IF (NOT OPENSOURCE)
+    DATA(arcadia/yt/packages/ytflow_latest/ya.make)
+
+    # For the constants drift test only; skipped when yt_sync is absent.
     PEERDIR(
         yt/yt_sync/core/constants
     )

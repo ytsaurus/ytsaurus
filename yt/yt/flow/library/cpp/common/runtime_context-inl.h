@@ -11,6 +11,23 @@ namespace NYT::NFlow {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TIntrusivePtr<T> IRuntimeContext::GetParameters() const
+{
+    auto object = GetParametersObject();
+    if (!object) {
+        // The spec names no processing function (possible only under the test builder):
+        // the static block is absent and defaults apply.
+        return New<T>();
+    }
+    auto parameters = DynamicPointerCast<T>(object);
+    THROW_ERROR_EXCEPTION_UNLESS(parameters,
+        "Static function parameters type mismatch: requested %Qv, registered %Qv",
+        TypeName<T>(),
+        TypeName(*object));
+    return parameters;
+}
+
+template <class T>
 TIntrusivePtr<T> IRuntimeContext::GetDynamicParameters() const
 {
     auto object = GetDynamicParametersObject();

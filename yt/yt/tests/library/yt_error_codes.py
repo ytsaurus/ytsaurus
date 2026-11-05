@@ -95,5 +95,6 @@ class Scheduler(object):
     CannotUseBothAclAndAco = 221
     GangOperationsAllowedOnlyInFifoPools = 222
     OperationLaunchedInNonexistentPool = 223
+    AgentUnregistered = 225
     PoolTreeGuaranteesOvercommit = 29000
     PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002

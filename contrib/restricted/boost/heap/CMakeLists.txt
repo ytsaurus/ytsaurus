@@ -12,29 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(restricted-boost-heap INTERFACE)
-
-
-target_compile_options(restricted-boost-heap INTERFACE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(restricted-boost-heap INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/heap/include
-)
-
-target_link_libraries(restricted-boost-heap INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  restricted-boost-assert
-  restricted-boost-concept_check
-  restricted-boost-config
-  restricted-boost-core
-  restricted-boost-intrusive
-  restricted-boost-iterator
-  restricted-boost-parameter
-  restricted-boost-throw_exception
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

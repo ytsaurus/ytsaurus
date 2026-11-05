@@ -247,7 +247,7 @@ TInternalReadResponse DoRead(
             i64 toRead = AlignUp<i64>(Min<i64>(toReadRemaining, AlignDown<i64>(maxBytesPerRead, blockSize)), blockSize);
             i64 reallyRead = -1;
             bool hugePageAvailable = hugePageBlob && static_cast<i64>(hugePageBlob.Size()) >= toRead;
-            TRequestStatsGuard statsGuard(sensors->ReadSensors[category], hugePageAvailable);
+            TRequestStatsGuard statsGuard(sensors->ReadSensors[category]);
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
             if (hugePageAvailable) {
@@ -447,7 +447,7 @@ TWriteResponse DoWriteAligned(
 
             i32 reallyWritten;
             {
-                TRequestStatsGuard statsGuard(sensors->WriteSensors[category], /*usingHugePages*/ true);
+                TRequestStatsGuard statsGuard(sensors->WriteSensors[category]);
                 NTracing::TNullTraceContextGuard nullTraceContextGuard;
                 reallyWritten = HandleEintr(::pwrite, *request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
             }

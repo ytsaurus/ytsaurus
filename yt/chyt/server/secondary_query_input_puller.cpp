@@ -69,15 +69,17 @@ void TSecondaryQueryReadTaskPuller::DoPullAsync(std::vector<TPromise<TSecondaryQ
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    using namespace NStatisticPath;
-    auto timeGuard = QueryContext_->CreateStatisticsTimerGuard("/secondary_query_read_task_puller/do_pull_task"_SP);
-
     std::string protoReadTaskString;
 
-    bool finished = Finished_.load(std::memory_order::acquire);
+    {
+        using namespace NStatisticPath;
+        auto timeGuard = QueryContext_->CreateStatisticsTimerGuard("/secondary_query_read_task_puller/do_pull_task"_SP);
 
-    if (!finished) {
-        protoReadTaskString = NextTaskCallback_();
+        bool finished = Finished_.load(std::memory_order::acquire);
+
+        if (!finished) {
+            protoReadTaskString = NextTaskCallback_();
+        }
     }
 
     if (protoReadTaskString.empty()) {

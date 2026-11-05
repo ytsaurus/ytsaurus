@@ -531,7 +531,7 @@ class TestListJobsCommon(TestListJobsBase):
         )
 
         job_ids = {}
-        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=3)
+        job_ids["completed_map"] = wait_breakpoint(op, breakpoint_name="mapper", job_count=3)
         return op, job_ids
 
     def _run_op_and_fill_job_ids(self):
@@ -546,7 +546,7 @@ class TestListJobsCommon(TestListJobsBase):
         job_ids["aborted_map"] = [job_ids["completed_map"].pop()]
         abort_job(job_ids["aborted_map"][0])
 
-        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=4)
+        job_ids["completed_map"] = wait_breakpoint(op, breakpoint_name="mapper", job_count=4)
         aborted_job_index = job_ids["completed_map"].index(job_ids["aborted_map"][0])
         del job_ids["completed_map"][aborted_job_index]
 
@@ -643,7 +643,7 @@ class TestListJobsCommon(TestListJobsBase):
         wait_no_assert(lambda: self._check_during_map(op, job_ids))
 
         release_breakpoint(breakpoint_name="mapper")
-        job_ids["reduce"] = wait_breakpoint(breakpoint_name="reducer", job_count=1)
+        job_ids["reduce"] = wait_breakpoint(op, breakpoint_name="reducer", job_count=1)
 
         wait_no_assert(lambda: self._check_during_reduce(op, job_ids))
 
@@ -679,7 +679,7 @@ class TestListJobs(TestListJobsCommon):
 
         expected_stderr_size = len(b"MAPPER-STDERR-OUTPUT\n")
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
 
         def get_stderr_size():
             return get(op.get_path() + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
@@ -729,7 +729,7 @@ class TestListJobs(TestListJobsCommon):
             spec={"job_count": 3},
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
 
         assert jobs
         abort_job(jobs[0])
@@ -803,7 +803,7 @@ class TestListJobs(TestListJobsCommon):
             out=output_table,
             command=with_breakpoint("BREAKPOINT"),
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
@@ -833,7 +833,7 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "running")
 
@@ -867,7 +867,7 @@ class TestListJobs(TestListJobsCommon):
             job_count=1,
             spec={"testing": {"delay_inside_revive": 5000}},
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -891,7 +891,7 @@ class TestListJobs(TestListJobsCommon):
             with_breakpoint("BREAKPOINT"),
             job_count=1,
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "running")
 
@@ -959,8 +959,8 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        master_job_ids = wait_breakpoint(breakpoint_name="master", job_count=1)
-        slave_job_ids = wait_breakpoint(breakpoint_name="slave", job_count=2)
+        master_job_ids = wait_breakpoint(op, breakpoint_name="master", job_count=1)
+        slave_job_ids = wait_breakpoint(op, breakpoint_name="slave", job_count=2)
 
         def check_task_names():
             jobs = checked_list_jobs(
@@ -1041,9 +1041,9 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        wait_breakpoint(breakpoint_name="a", job_count=1)
-        wait_breakpoint(breakpoint_name="b", job_count=1)
-        wait_breakpoint(breakpoint_name="c", job_count=1)
+        wait_breakpoint(op, breakpoint_name="a", job_count=1)
+        wait_breakpoint(op, breakpoint_name="b", job_count=1)
+        wait_breakpoint(op, breakpoint_name="c", job_count=1)
 
         def check_sorted_list_jobs_with_attr(attr):
             jobs = list_jobs(op.id, sort_field="task_name", attributes=attr)["jobs"]
@@ -1104,7 +1104,7 @@ class TestListJobs(TestListJobsCommon):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         assert len(job_ids) == 2
 
@@ -1137,7 +1137,7 @@ class TestListJobs(TestListJobsCommon):
         release_breakpoint(job_id=job_ids[1])
         wait(lambda: not exists(job_orchid_addresses[job_ids[1]]))
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
 
         assert len(builtins.set(job_ids) & builtins.set(new_job_ids)) == 0
 
@@ -1191,7 +1191,7 @@ class TestListJobs(TestListJobsCommon):
             task_patch={"gang_options": {}},
         )
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         op.wait_for_fresh_snapshot()
 
@@ -1200,7 +1200,7 @@ class TestListJobs(TestListJobsCommon):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         release_breakpoint()
 
         op.track()
@@ -1243,7 +1243,7 @@ class TestListJobs(TestListJobsCommon):
         # Incarnation switch because there was no jobs for op
         assert first_incarnation_id != second_incarnation_id
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1267,7 +1267,7 @@ class TestListJobs(TestListJobsCommon):
                 "gang_options": {},
             },
         )
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         job_id_to_interrupt = first_job_ids[0]
 
         interrupt_job(job_id_to_interrupt)
@@ -1278,7 +1278,7 @@ class TestListJobs(TestListJobsCommon):
         for job_id in first_job_ids:
             release_breakpoint(job_id=job_id)
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1310,7 +1310,7 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         interrupt_job(job_id, interrupt_timeout=2000)
 
@@ -1353,8 +1353,8 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        wait_breakpoint(breakpoint_name="a", job_count=1)
-        wait_breakpoint(breakpoint_name="b", job_count=1)
+        wait_breakpoint(op, breakpoint_name="a", job_count=1)
+        wait_breakpoint(op, breakpoint_name="b", job_count=1)
 
         # Both to_time and from_time filters use start_time for comparison.
         middle_time_before_breakpoint = datetime_to_string(utcnow())
@@ -1389,7 +1389,7 @@ class TestListJobs(TestListJobsCommon):
         create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
-        wait_breakpoint()
+        wait_breakpoint(op1)
 
         op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
 
@@ -1403,7 +1403,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         def check_addresses(list_jobs_response):
             return len(list_jobs_response) == 1 and "address" in list_jobs_response[0] and "addresses" in list_jobs_response[0]
@@ -1426,7 +1426,7 @@ class TestListJobs(TestListJobsCommon):
             with_breakpoint("BREAKPOINT"),
             job_count=1,
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         def test_attributes(attr, expected_attr, is_optional=False):
             wait(lambda: len(list_jobs(op.id, attributes=attr)["jobs"]) == 1)
@@ -1462,7 +1462,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         def check_times(op_finished):
             jobs = list_jobs(op.id)["jobs"]
@@ -1496,7 +1496,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
         running_jobs = list_jobs(op.id)["jobs"]
@@ -1514,7 +1514,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
@@ -1570,7 +1570,7 @@ class TestListJobs(TestListJobsCommon):
             with_breakpoint("BREAKPOINT"),
             job_count=2,
         )
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         release_breakpoint(job_id=jobs[0])
 
         wait(lambda: get_job(op.id, jobs[0])["state"] == "completed")
@@ -1594,7 +1594,7 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         wait(lambda: len(op.get_running_jobs()) == 3)
         running_jobs = op.get_running_jobs()
@@ -1634,7 +1634,7 @@ class TestListJobs(TestListJobsCommon):
             },
         )
 
-        jobs_before = wait_breakpoint(job_count=2)
+        jobs_before = wait_breakpoint(op, job_count=2)
         wait(lambda: len(list_jobs(op.id)["jobs"]) == 2)
 
         jobs_with_monitoring_descriptor = list_jobs(op.id, with_monitoring_decriptor=True)["jobs"]
@@ -1711,7 +1711,7 @@ class TestListJobsAllocation(TestListJobsBase):
                 assert job_from_list["allocation_id"] == job_allocation_id_from_archive
             assert job_from_list["allocation_id"] == get_allocation_id_from_job_id(job_id)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
         check_allocation_id(job_ids[0], include_archive=False)
 
@@ -1736,7 +1736,7 @@ class TestListJobsAllocation(TestListJobsBase):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id1 = job_ids[0]
@@ -1747,7 +1747,7 @@ class TestListJobsAllocation(TestListJobsBase):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id2 = job_ids[0]

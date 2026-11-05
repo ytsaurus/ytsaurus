@@ -62,6 +62,15 @@ struct TStreamTraverseData
     // Approximate. Information about current inflight. So even with State == Active, InflightMetrics->Count could be equal 0.
     TInflightMetricsPtr InflightMetrics;
 
+    //! Minimum trigger timestamp over unprocessed timers of a timer stream.
+    std::optional<TSystemTimestamp> MinTriggerTimestamp;
+
+    //! Earliest instant at which some unprocessed message of the stream became ready for processing.
+    //! Resolved by the controller; unset with #ReadyWatermarkUnknown when it cannot be resolved,
+    //! unset without it when it was never resolved (#SystemWatermark applies then).
+    std::optional<TSystemTimestamp> ReadyWatermark;
+    bool ReadyWatermarkUnknown{};
+
     REGISTER_YSON_STRUCT(TStreamTraverseData);
 
     static void Register(TRegistrar registrar);
@@ -138,6 +147,7 @@ struct TInflightStreamTraverseData
 
     std::optional<TSystemTimestamp> MinSystemTimestamp;
     std::optional<TSystemTimestamp> MinEventTimestamp;
+    std::optional<TSystemTimestamp> MinTriggerTimestamp;
 
     // Approximate inflight metrics
     TInflightMetricsPtr InflightMetrics;

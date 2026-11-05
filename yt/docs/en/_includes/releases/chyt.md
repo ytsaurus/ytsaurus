@@ -112,8 +112,8 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 **Fixes:**
 
-* Add missing `extractKeyValuePairs` functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Use FetcherInvoker for `TableAttributeCache` (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -218,8 +218,8 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Backport YT TLS support (Commit: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Fix usage of CTE in distributed queries (Commit: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Add aklomp-base64 support for `base64` functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Add usage of new analyzer to `ytTables` function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Add aklomp-base64 support for base64 functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- Add usage of new analyzer to ytTables function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 

@@ -14,6 +14,7 @@ void PrepareSpec(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dy
     streamBuilder.RegisterStream<TKeyMessage>("left");
     streamBuilder.RegisterStream<TKeyMessage>("right");
     // Streams between graph nodes are registered like any other stream.
+    streamBuilder.RegisterStream<TKeyMessage>("left_keys");
     streamBuilder.RegisterStream<TStageMessage>("left_counts");
     streamBuilder.RegisterStream<TStageMessage>("right_counts");
     streamBuilder.RegisterStream<TFinalMessage>("result");

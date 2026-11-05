@@ -309,8 +309,7 @@ def get_graph(args):
                 edge = input_edges.setdefault((computation_id, full_stream_id), EdgeLimitInfo())
                 _update_edge_limit_info(edge, limit_type, full_stream_id, raw_status, partition_id)
 
-        # Output limits (output_buffer_bytes, output_store_bytes, output_store_count,
-        # controller, etc.).
+        # Output limits (output_buffer_bytes, controller, etc.).
         for limit_type, streams_statuses in current_job_status.get("output_limits", {}).items():
             for raw_stream_id, raw_status in streams_statuses.items():
                 full_stream_id = stream_id_map.get(raw_stream_id, raw_stream_id)

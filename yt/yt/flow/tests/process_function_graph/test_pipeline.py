@@ -7,6 +7,7 @@ import yatest.common
 
 from yt.common import wait
 from yt.yt.flow.library.python.bullied_process import ProcessExitedNormallyException
+from yt.yt.flow.library.python.client.state_unpack import unpack_state
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.queue import batching_write_rows
@@ -62,9 +63,11 @@ class TestProcessFunctionGraph(FlowTestBase):
         return list(self.client.select_rows(f"key, count, branch_count, kind from [{self.work_yt_path}/output_queue]"))
 
     def graph_states(self):
-        rows = self.client.select_rows(f'name, state from [{self.pipeline_path}/states] where computation_id = "graph"')
+        rows = self.client.select_rows(f'* from [{self.pipeline_path}/states] where computation_id = "graph"')
         return {
-            row["name"].lstrip("/"): row["state"] for row in rows if row["name"].lstrip("/").startswith("functions/")
+            row["name"].lstrip("/"): unpack_state(row)
+            for row in rows
+            if row["name"].lstrip("/").startswith("functions/")
         }
 
     def check_result(self):

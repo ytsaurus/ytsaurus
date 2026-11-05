@@ -60,7 +60,7 @@ yt merge --src //your/table --dst //your/table --spec '{combine_chunks=true;mode
 
 ## Большое количество записей с одинаковым ключом в reduce-фазе
 
-Для борьбы с данной проблемой в {{product-name}} существуют [Reduce-комбайнеры](../../../../user-guide/data-processing/operations/mapreduce#reduce_combiner.md), которые позволяют обрабатывать большие ключи в нескольких джобах в reduce-фазе.
+Для борьбы с данной проблемой в {{product-name}} существуют [Reduce-комбайнеры](../../../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner), которые позволяют обрабатывать большие ключи в нескольких джобах в reduce-фазе.
 
 ### Map-комбайнеры
 

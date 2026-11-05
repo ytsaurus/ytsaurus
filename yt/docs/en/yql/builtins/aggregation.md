@@ -36,7 +36,7 @@ SELECT key, COUNT(value) FROM my_table GROUP BY key;
 SELECT COUNT(DISTINCT value) FROM my_table;
 ```
 
-## MIN and MAX {#min-max}
+## MIN and MAX {#min-max} {#min}
 
 #### Signature
 
@@ -278,7 +278,7 @@ FROM my_table;
 
 
 
-## AGGREGATE_LIST {#agg-list}
+## AGGREGATE_LIST {#agg-list} {#aggregate-list}
 
 #### Signature
 
@@ -337,7 +337,7 @@ If the number of items in the list is exceeded, the `Memory limit exceeded` erro
 {% if audience == "internal" %}[Example in tutorial]({{yql.link}}/Tutorial/yt_07_Conditional_values_and_UDF){% endif %}
 
 
-## MAX_BY and MIN_BY {#max-min-by}
+## MAX_BY and MIN_BY {#max-min-by} {#minby}
 
 #### Signature
 
@@ -607,7 +607,7 @@ SELECT
 FROM my_table;
 ```
 
-## PERCENTILE and MEDIAN {#percentile-median}
+## PERCENTILE and MEDIAN {#percentile-median} {#percentile}
 
 #### Signature
 
@@ -922,7 +922,7 @@ Returns the value of the `SessionWindow` key column. In case of `SessionWindow` 
 In case of the extended variant of `SessionWindoow` — the value of the second tuple item returned by `<calculate_lambda>` when the first tuple item is `True`.
 
 
-## AGGREGATE_BY and MULTI_AGGREGATE_BY {#aggregate-by}
+## AGGREGATE_BY and MULTI_AGGREGATE_BY {#aggregate-by} {#aggregateby} {#multiaggregateby}
 
 Applying the [aggregate function factory](basic.md#aggregationfactory) to all column or expression values. The `MULTI_AGGREGATE_BY` function requires a structure, tuple, or list in a column or expression value and applies the factory on an item-by-item basis, placing the result in a container of the same form. If different column or expression values contain lists of different lengths, the resulting list will have the smallest of the lengths of those lists.
 

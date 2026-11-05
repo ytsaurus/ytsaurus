@@ -1,9 +1,9 @@
-import copy
 import functools
 import itertools
 import json
 import os
 import os.path
+import resource
 import shutil
 import urllib.request
 
@@ -39,8 +39,9 @@ from yt.yql.tests.common.test_framework.test_utils import (
 )
 
 from yt_commands import (
-    authors, create, sync_mount_table, insert_rows, select_rows,
-    list_queue_consumer_registrations, raises_yt_error, get, get_driver,
+    authors, create, mount_table, insert_rows, select_rows,
+    list_queue_consumer_registrations,
+    raises_yt_error, get, get_driver, wait,
 )
 
 from yt_queries import start_query
@@ -92,7 +93,90 @@ def with_ytflow_default_settings(**new_values):
 
 
 class TestYtflowBase(TestQueueAgentBase):
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = False
+    PREPARE_QUEUE_AGENT_STATE_ONCE = True
+    CLASS_TEST_LIMIT = 1000
     ENABLE_MULTIDAEMON = True
+
+    # Make newly materialized operations eligible for scheduling promptly.
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 10,
+        },
+    }
+
+    # Avoid tablet commit timestamp batching and reuse nearby resource-limit checks.
+    DELTA_NODE_CONFIG = {
+        # Persist tablet journal records without the data-node batching delay.
+        "data_node": {
+            "multiplexed_changelog": {
+                "flush_period": 0,
+            },
+        },
+        # Request transaction timestamps without waiting for a batch to accumulate.
+        "cluster_connection": {
+            "timestamp_provider": {
+                "batch_period": 0,
+            },
+        },
+        "tablet_node": {
+            # Synchronize prerequisite leases without delaying the first write.
+            "hive_manager": {
+                "sync_delay": 0,
+            },
+            # Send journal batches promptly once data-node flush batching is disabled.
+            "changelogs": {
+                "writer": {
+                    "max_batch_delay": 0,
+                },
+            },
+            # Reuse account resource-limit checks across nearby tablet writes.
+            "security_manager": {
+                "resource_limits_cache": {
+                    "expire_after_successful_update_time": 1000,
+                    "refresh_time": 1000,
+                    "expiration_period": 1000,
+                },
+            },
+        },
+    }
+
+    # Flush master mutations and deliver leadership leases without batching delays.
+    DELTA_MASTER_CONFIG = {
+        "changelogs": {
+            "flush_period": 0,
+        },
+        "hive_manager": {
+            "post_batching_period": 0,
+        },
+    }
+
+    # Avoid timestamp batching waits when starting and locking cache transactions.
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "enable_large_columnar_statistics": True,
+        },
+        "cluster_connection": {
+            "timestamp_provider": {
+                "batch_period": 0,
+            },
+        },
+    }
+
+    # Avoid cross-proxy batching delays in the local single-proxy test environment.
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "cache": {
+            "batch_lookup": {
+                "startup_batch_delay": 0,
+            },
+        },
+    }
+
+    # Pick up submitted queries and refresh active-query ownership more frequently.
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "active_query_acquisition_period": 100,
+        "active_query_ping_period": 100,
+    }
 
     NUM_MASTERS = 1
     NUM_DISCOVERY_SERVERS = 1
@@ -120,17 +204,53 @@ class TestYtflowBase(TestQueueAgentBase):
 
     YT_TABLE_PATH = '//tmp/Table'
     YT_CONSUMER_PATH = '//tmp/main_consumer'
-    YT_PRODUCER_PATH = '//tmp/main_producer'
 
     YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
 
+    @classmethod
+    def get_operations_archive_prepared(cls):
+        return cls._operations_archive_prepared
+
+    @classmethod
+    def set_operations_archive_prepared(cls, value):
+        cls._operations_archive_prepared = value
+
+    @classmethod
+    def setup_class(cls):
+        # Effectively disable mlock calls for test runs.
+        mlock_limits = resource.getrlimit(resource.RLIMIT_MEMLOCK)
+        try:
+            resource.setrlimit(resource.RLIMIT_MEMLOCK, (0, mlock_limits[1]))
+            super(TestYtflowBase, cls).setup_class()
+        finally:
+            resource.setrlimit(resource.RLIMIT_MEMLOCK, mlock_limits)
+
+        cls.set_operations_archive_prepared(False)
+
     def setup_method(self, method):
         super(TestYtflowBase, self).setup_method(method)
-        init_operations_archive.create_tables_latest_version(self.Env.create_client())
+
+        if not self.get_operations_archive_prepared():
+            client = self.Env.create_client()
+            init_operations_archive.create_tables_latest_version(client)
+
+            if not self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+                self.add_cleanup_ignore_object_ids(
+                    client.get("//sys/accounts/operations_archive/@id")
+                )
+
+            self.set_operations_archive_prepared(True)
+
+    def teardown_method(self, method):
+        super(TestYtflowBase, self).teardown_method(method)
+
+        if self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+            self.set_operations_archive_prepared(False)
 
     @classmethod
     def modify_yql_agent_config(cls, config):
         run_vanilla_operation = cls.debug_flow_output_directory is None
+        config.setdefault('dynamic_config_manager', {})['update_period'] = 100
 
         config['yql_agent']['ytflow_gateway_config'] = dict(
             ytflow_worker_bin=cls.YTFLOW_WORKER_BIN,
@@ -141,10 +261,26 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_MasterLockPingPeriod', value='30s'),
                 # Controller timings (ms) patched into the controller job config.
                 dict(name='_ControllerConfig',
-                     value='{warm_up_time=1000;scheduler_period=500;publish_retry_period=1000;'
-                           'controller_service={set_spec_retry_period=1000};}'),
+                     value='{warm_up_time=0;scheduler_period=10;no_spec_iteration_backoff=100;'
+                           'cache_period=100;feedback_period=10;'
+                           'publish_retry_period=1000;'
+                           'publish_request_timeout=10000;'
+                           'election_manager={transaction_timeout=1000;transaction_ping_period=100;'
+                           'lock_acquisition_period=100;leader_cache_update_period=100;};'
+                           'controller_service={set_spec_retry_period=100};}'),
+                dict(name='_ControllerConnectorConfig',
+                     value='{controller_heartbeat_period=10;controller_discover_period=100;'
+                           'controller_wait_timeout=1000;controller_heartbeat_rpc_timeout=1000;'
+                           'controller_handshake_rpc_timeout=1000;'
+                           'controller_heartbeat_failure_backoff=100;controller_handshake_failure_backoff=100;}'),
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
-                dict(name='_JobManagerConfig', value='{rebalance_sync_period=500;}'),
+                dict(name='_JobManagerConfig', value='{rebalance_sync_period=100;}'),
+                dict(name='_ComputationConfig',
+                     value='{batch_duration=100;empty_batch_backoff=25;}'),
+                dict(name='_YtQueueSourceUpdateInfoPeriod', value='100ms'),
+                dict(name='_EnablePortoResourceTracker', value='false'),
+                dict(name='_SolomonExporterConfig', value='{enable_self_profiling=%false;}'),
+                dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='_YtUseSourceWatermark', value='false'),
                 dict(name='EnableComputationPatternResources', value='false'),
@@ -271,12 +407,25 @@ class TestYtflowBase(TestQueueAgentBase):
         table_path = self.YT_TABLE_PATH + str(table_index)
         return table_path
 
-    def _create_yt_table(self, input_table_attrs, cluster=None):
+    def _wait_yt_table_mounted(self, table_path, cluster=None):
+        driver = None
+        if cluster is not None:
+            driver = get_driver(cluster=cluster)
+
+        wait(
+            lambda: get(table_path + "/@tablet_state", driver=driver) == "mounted",
+            sleep_backoff=0.05,
+            timeout=30)
+
+    def _create_yt_table(self, input_table_attrs, cluster=None, wait_for_mount=True):
         table_path = self._allocate_yt_table_path()
         input_table_attrs.update(dynamic=True)
         driver = get_driver(cluster=cluster) if cluster is not None else None
         create("table", table_path, attributes=input_table_attrs, driver=driver)
-        sync_mount_table(table_path, driver=driver)
+        mount_table(table_path, driver=driver)
+        if wait_for_mount:
+            self._wait_yt_table_mounted(table_path, cluster=cluster)
+
         return table_path
 
     def _write_yt_table(self, table_path, rows, cluster=None):
@@ -419,7 +568,6 @@ pragma Ytflow.Cluster = "primary";
 pragma Ytflow.PipelinePath = "{pipeline_path}";
 
 pragma Ytflow.YtConsumerPath = "{self.YT_CONSUMER_PATH}";
-pragma Ytflow.YtProducerPath = "{self.YT_PRODUCER_PATH}";
 pragma Ytflow.ControllerRpcPort = "{port_manager.get_port()}";
 pragma Ytflow.ControllerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
@@ -474,7 +622,8 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
                     wait_pipeline_state_or_failed_jobs(
                         target_state, pipeline_path,
                         client=client,
-                        timeout=600)
+                        timeout=600,
+                        poll_period=0.1)
 
                     if on_target_state_reached is not None:
                         on_target_state_reached(client)
@@ -487,6 +636,7 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
                             timeout=success_condition_timeout,
                             condition_description="query success condition",
                             ignore_exceptions=True,
+                            poll_period=0.1,
                         )
 
                 finally:
@@ -536,12 +686,7 @@ class TestYtflow(TestYtflowBase):
                 {"name": "string_field", "type": "string"},
                 {"name": "int64_field", "type": "int64"},
             ]),
-        ))
-        self._write_yt_table(input_table_path, [
-            {"string_field": "foo", "int64_field": 1},
-            {"string_field": "bar", "int64_field": 10},
-            {"string_field": "foobar", "int64_field": 100},
-        ])
+        ), wait_for_mount=False)
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
@@ -549,7 +694,16 @@ class TestYtflow(TestYtflowBase):
                 {"name": "int64_field", "type": "int64"},
                 {"name": "bool_field", "type": "boolean"},
             ]),
-        ))
+        ), wait_for_mount=False)
+
+        self._wait_yt_table_mounted(input_table_path)
+        self._write_yt_table(input_table_path, [
+            {"string_field": "foo", "int64_field": 1},
+            {"string_field": "bar", "int64_field": 10},
+            {"string_field": "foobar", "int64_field": 100},
+        ])
+
+        self._wait_yt_table_mounted(out_table_path)
 
         run_query(f"""
 insert into `{out_table_path}`
@@ -1311,19 +1465,9 @@ class TestYtflowRemoteCluster(TestYtflowBase):
     }
 
     @classmethod
-    def _use_primary_timestamp_provider(cls, config, cluster_index):
-        # The queue agent uses primary-cluster clocks for both clusters' tablet bundles.
-        if cluster_index > 0:
-            config["cluster_connection"]["timestamp_provider"] = copy.deepcopy(
-                cls.Env.configs["master"][0]["cluster_connection"]["timestamp_provider"])
-
-    @classmethod
-    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
-        cls._use_primary_timestamp_provider(config, cluster_index)
-
-    @classmethod
-    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
-        cls._use_primary_timestamp_provider(config, cluster_index)
+    def _set_clock_cluster_tag(cls):
+        # Keep each cluster's clock independent instead of using the queue-agent base's shared clock.
+        pass
 
     @classmethod
     def extend_yql_agent_config(cls, config):
@@ -1333,6 +1477,83 @@ class TestYtflowRemoteCluster(TestYtflowBase):
                 real_name=remote_env.id,
                 proxy_url=remote_env.get_http_proxy_address(),
             ))
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("consumer_cluster", ["primary", "remote_1"])
+    @pytest.mark.parametrize("shared_consumer", [False, True])
+    def test_source_consumer_hints(
+        self, query_tracker, yql_agent, run_query, consumer_cluster, shared_consumer
+    ):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        statements = []
+        outputs = []
+        consumers = []
+
+        for index, queue_cluster in enumerate(["primary", "remote_0", "remote_1"]):
+            input_path = self._create_yt_table(dict(schema=schema), cluster=queue_cluster)
+            self._write_yt_table(input_path, rows, cluster=queue_cluster)
+
+            output_path = self._create_yt_table(dict(schema=schema))
+            outputs.append(output_path)
+
+            # The last source uses the pragma fallback alongside explicitly hinted sources.
+            if queue_cluster == "remote_1":
+                hint = ""
+                consumer_path = self.YT_CONSUMER_PATH
+                cluster = "primary"
+            else:
+                consumer_index = 0 if shared_consumer else index
+                consumer_path = f"//tmp/hinted_consumer_{consumer_index}"
+
+                cluster = consumer_cluster
+                rich_path = f'<cluster="{cluster}";>{consumer_path}'
+
+                hint = f" with consumer = '{rich_path}'"
+
+            consumers.append(
+                (queue_cluster, input_path, cluster, consumer_path)
+            )
+
+            statements.append(f"""
+insert into `{output_path}`
+select value from {queue_cluster}.`{input_path}`{hint};
+""")
+
+        run_query("\n".join(statements))
+
+        for output_path in outputs:
+            self._assert_yt_table_content(output_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("hint, error", [
+        ("with consumer = ''", "Consumer path must not be empty"),
+        ("", "Consumer cluster cannot be set via pragmas"),
+    ])
+    def test_invalid_source_consumer(self, query_tracker, yql_agent, run_query, hint, error):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        output_path = self._create_yt_table(dict(schema=schema))
+
+        with raises_yt_error(error):
+            run_query(f"""
+pragma Ytflow.YtConsumerPath = '<cluster="remote_1";>//tmp/invalid_pragma_consumer';
+
+insert into `{output_path}`
+select value from `{input_path}` {hint};
+""")
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
@@ -1362,7 +1583,7 @@ select key, value from remote_0.`{input_path}`;
             output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
 
             run_query(f"""
-insert into remote_0.`{output_path}`
+insert into remote_0.`{output_path}` with producer = '//tmp/remote_read_write_producer'
 select * from remote_0.`{input_path}`;
 """)
 
@@ -1404,7 +1625,7 @@ select key, value from `{input_path}`;
 insert into `{local_path}`
 select * from `{input_path}`;
 
-insert into remote_0.`{remote_path}`
+insert into remote_0.`{remote_path}` with producer = "//tmp/local_and_remote_write_producer"
 select * from `{input_path}`;
 """)
 
@@ -1414,7 +1635,10 @@ select * from `{input_path}`;
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
-    def test_write_to_two_remote_clusters(self, query_tracker, yql_agent, run_query, kind):
+    @pytest.mark.parametrize("write_local", [False, True])
+    def test_write_to_two_remote_clusters(
+        self, query_tracker, yql_agent, run_query, kind, write_local
+    ):
         schema = self._make_queue_schema([
             {"name": "key", "type": "string"},
             {"name": "value", "type": "int64"},
@@ -1428,16 +1652,33 @@ select * from `{input_path}`;
         input_path = self._create_yt_table(dict(schema=schema))
         self._write_yt_table(input_path, rows)
 
+        local_write = ""
+        if write_local:
+            if kind == "sorted_table":
+                local_path = self._allocate_yt_table_path()
+                local_write = f"""
+replace into `{local_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+"""
+            else:
+                local_path = self._create_yt_table(dict(schema=schema))
+                local_write = f"""
+insert into `{local_path}`
+select * from `{input_path}`;
+"""
+
         if kind == "queue":
             output_0 = self._create_yt_table(dict(schema=schema), cluster="remote_0")
             output_1 = self._create_yt_table(dict(schema=schema), cluster="remote_1")
+            producer_0 = "//tmp/remote_0_producer"
+            producer_1 = "//tmp/remote_1_producer"
 
-            with raises_yt_error("Writing into several remote YT queues"):
-                run_query(f"""
-insert into remote_0.`{output_0}`
+            run_query(f"""
+{local_write}
+insert into remote_0.`{output_0}` with producer = "{producer_0}"
 select * from `{input_path}`;
 
-insert into remote_1.`{output_1}`
+insert into remote_1.`{output_1}` with producer = "{producer_1}"
 select * from `{input_path}`;
 """)
         else:
@@ -1445,6 +1686,7 @@ select * from `{input_path}`;
             output_1 = self._allocate_yt_table_path()
 
             run_query(f"""
+{local_write}
 replace into remote_0.`{output_0}` with primary_key = "[key]"
 select key, value from `{input_path}`;
 
@@ -1452,8 +1694,73 @@ replace into remote_1.`{output_1}` with primary_key = "[key]"
 select key, value from `{input_path}`;
 """)
 
-            self._assert_yt_table_content(output_0, rows, cluster="remote_0")
-            self._assert_yt_table_content(output_1, rows, cluster="remote_1")
+        self._assert_yt_table_content(output_0, rows, cluster="remote_0")
+        self._assert_yt_table_content(output_1, rows, cluster="remote_1")
+        if write_local:
+            self._assert_yt_table_content(local_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("shared_producer", [False, True])
+    def test_prepare_multiple_remote_producers(
+        self, query_tracker, yql_agent, run_query, shared_producer
+    ):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        outputs = [
+            self._create_yt_table(dict(schema=schema), cluster="remote_0")
+            for _ in range(2)
+        ]
+
+        producers = [
+            "//tmp/first_producer",
+            "//tmp/first_producer" if shared_producer else "//tmp/second_producer"
+        ]
+
+        statements = [
+            f"""
+insert into remote_0.`{output}` with producer = '{producer}'
+select * from `{input_path}`;
+"""
+            for output, producer in zip(outputs, producers)
+        ]
+
+        run_query("\n".join(statements))
+
+        for output in outputs:
+            self._assert_yt_table_content(output, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("producer, error", [
+        (None, "requires an explicit 'producer' hint"),
+        ("", "Producer path must not be empty"),
+    ])
+    def test_invalid_remote_queue_producer(self, query_tracker, yql_agent, run_query, producer, error):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+        hint = f" with producer = '{producer}'" if producer is not None else ""
+
+        with raises_yt_error(error):
+            run_query(f"""
+insert into remote_0.`{output_path}`{hint}
+select * from `{input_path}`;
+""")
 
     @authors("ngc224")
     @pytest.mark.timeout(180)

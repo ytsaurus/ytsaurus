@@ -3,8 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
-    async_at_most_once_sink_base.cpp
-    delegating_async_sink_base.cpp
     flow_queue_meta.cpp
     ordered_async_sink_base.cpp
     ordered_batching_async_sink_base.cpp

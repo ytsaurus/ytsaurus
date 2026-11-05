@@ -493,7 +493,13 @@ void FillStreamTraverseData(const TFlowViewPtr& flowView, const TPipelineSpecPtr
     };
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             if (computationSpec->InputStreamIds.contains(streamId)) {
                 // Use stream from corresponding output stream.
@@ -568,7 +574,13 @@ void FillStreamStateMessage(
     int drainedStreams = 0;
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
 
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             // Skip input streams.
@@ -745,6 +757,20 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         arguments.ControllerFlowCoreVersion,
         *arguments.ControllerBuildInfo,
         pipeline.Messages);
+
+    const auto& buildInfo = *arguments.ControllerBuildInfo;
+    int revision = buildInfo.BaseSvnRevision;
+    if (revision > 0) {
+        auto& message = pipeline.Messages.emplace_back();
+        message.Text = "FlowCore library revision";
+        auto url = VcsRevisionUrlPrefix.empty()
+            ? TString{}
+            : Format("%v%v", VcsRevisionUrlPrefix, revision);
+        TStringBuilder markdownText;
+        markdownText.AppendString(FormatMaybeLink(Format("r%v", revision), url));
+        markdownText.AppendString(" -- the base trunk revision of the FlowCore library, excluding commits from the user's branch.");
+        message.MarkdownText = markdownText.Flush();
+    }
 
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     auto computationBaseDescriptions = MakeComputationDescriptions(

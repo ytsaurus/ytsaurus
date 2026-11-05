@@ -640,7 +640,7 @@ class TestGetJobStderr(YTEnvSetup):
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         wait(lambda: retry(lambda: get_job_stderr(op.id, job_id)) == b"STDERR-OUTPUT\n")
         release_breakpoint()
@@ -673,7 +673,7 @@ class TestGetJobStderr(YTEnvSetup):
             spec={"mapper": {"input_format": "json", "output_format": "json", "max_stderr_size": 1000}},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(
             lambda: retry(lambda: get_job_stderr_paged(op.id, job_id))["data"].endswith(
                 b"STDERR-BREAKP\n"
@@ -857,7 +857,7 @@ class TestGetJobStderr(YTEnvSetup):
                 authenticated_user="u",
             )
 
-            job_ids = wait_breakpoint(job_count=3)
+            job_ids = wait_breakpoint(op, job_count=3)
             job_id = job_ids[0]
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
@@ -912,7 +912,7 @@ class TestGetJobSpec(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT; cat"),
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -962,7 +962,7 @@ class TestGetJobSpec(YTEnvSetup):
             authenticated_user="u",
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]

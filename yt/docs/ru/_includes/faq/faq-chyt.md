@@ -12,7 +12,7 @@
 
 #### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?** {#subquery-data-weight-limit}
 
-**A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики.
+**A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt_config) клики.
 
 ------
 
@@ -102,4 +102,4 @@ $ yt get //home/dev/test_table/@chunk_media_statistics
 
 #### **Q: Как мне получить имя таблицы в запросе?** {#get-table-name-query}
 
-**A:** Можно воспользоваться виртуальными колонками `$table_name` и `$table_path`. Подробнее про виртуальные колонки читайте в разделе [Работа с таблицами {{product-name}}](../../user-guide/data-processing/chyt/yt-tables.md##virtual_columns).
+**A:** Можно воспользоваться виртуальными колонками `$table_name` и `$table_path`. Подробнее про виртуальные колонки читайте в разделе [Работа с таблицами {{product-name}}](../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).

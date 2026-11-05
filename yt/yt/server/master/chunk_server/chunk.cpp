@@ -115,7 +115,7 @@ TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
 
         if (includeReferencedHunkData) {
             if (auto hunkChunkRefsExt = ChunkMeta_->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
-                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                TEnumIndexedArray<NErasure::ECodec, i64> codecToDataSize;
                 for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                     result.HunkDataWeight += protoRef.total_hunk_length();
                     result.LogicalHunkDataWeight += protoRef.total_hunk_length();

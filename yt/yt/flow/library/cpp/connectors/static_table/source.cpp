@@ -193,7 +193,8 @@ TSource::TSource(
 void TSource::DoInit()
 {
     ReadErrorState_ = CreateAvailabilityErrorState("/read");
-    Client_ = CreateClient(GetContext(), GetDynamicPartitionSpec()->Table);
+    auto cluster = *GetDynamicPartitionSpec()->Table.GetCluster();
+    Client_ = GetContext()->ClientsCache->GetClient(cluster);
 }
 
 void TSource::DoTerminate()

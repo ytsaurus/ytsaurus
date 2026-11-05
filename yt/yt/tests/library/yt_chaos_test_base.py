@@ -117,6 +117,16 @@ class ChaosTestBase(DynamicTablesBase):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
         return exists("{0}{1}".format(orchid_path, path), driver=driver)
 
+    def _wait_for_chaos_lease_shortcuts(self, cell_id, lease_id, driver=None):
+        def _are_shortcuts_granted():
+            coordinators = self._get_chaos_cell_orchid(
+                cell_id,
+                f"/chaos_lease_manager/chaos_leases/{lease_id}/coordinators",
+                driver=driver)
+            return coordinators and all(state == "granted" for state in coordinators.values())
+
+        wait(_are_shortcuts_granted)
+
     def _wait_for_card_era(self, replica, card_id, era=1, driver=None):
         import logging
         logger = logging.getLogger()
@@ -436,6 +446,7 @@ class ChaosTestBase(DynamicTablesBase):
         super(ChaosTestBase, self)._create_ordered_table(path, **attributes)
 
     def _create_queue_table(self, path, **attributes):
+        self._update_mount_config(attributes)
         attributes.update({"dynamic": True})
         if "schema" not in attributes:
             attributes.update({
@@ -453,6 +464,18 @@ class ChaosTestBase(DynamicTablesBase):
                 return True
             except YtError as err:
                 print_debug("Insert into {0} failed: ".format(table), err)
+                return False
+        wait(_do)
+
+    def _insistent_create(self, type, path, **kwargs):
+        def _do():
+            try:
+                create(type, path, **kwargs)
+                return True
+            except YtError as err:
+                if not err.contains_code(yt_error_codes.Unavailable):
+                    raise
+                print_debug("Create of {0} failed: ".format(path), err)
                 return False
         wait(_do)
 

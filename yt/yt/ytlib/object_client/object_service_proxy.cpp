@@ -12,9 +12,12 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/jitter.h>
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/helpers.h>
+
+#include <util/random/normal.h>
 
 #include <utility>
 
@@ -798,7 +801,13 @@ TDuration TObjectServiceProxy::TReqExecuteBatch::GetCurrentDelay()
     YT_VERIFY(CurrentRetry_ < Config_->RetryCount);
 
     double backoffMultiplier = std::pow(Config_->BackoffMultiplier, CurrentRetry_);
-    return std::min(Config_->StartBackoff * backoffMultiplier, Config_->MaxBackoff);
+    auto backoffDuration = Config_->StartBackoff * backoffMultiplier;
+    backoffDuration = ApplyJitter(
+        backoffDuration,
+        Config_->BackoffJitter,
+        &DefaultJitterRandomGenerator);
+
+    return std::min(backoffDuration, Config_->MaxBackoff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

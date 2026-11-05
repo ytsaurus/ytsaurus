@@ -310,7 +310,8 @@ class SidecarVanillaBase(YTEnvSetup):
         self.ensure_operation_finish(op)
 
     @authors("pavel-bash")
-    def test_restart_always_after_success(self):
+    @pytest.mark.parametrize("simultaneous_finish", [False, True])
+    def test_restart_always_after_success(self, simultaneous_finish):
         """
         Check the {restart_policy=always & sidecar-finished-with-success} case; we expect that
         the sidecar will be launched for the 2nd time, emitting the corresponding event.
@@ -321,12 +322,13 @@ class SidecarVanillaBase(YTEnvSetup):
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
+        sidecar_finish_event = "finish" if simultaneous_finish else "finish_sidecar_second"
         sidecar_command = f"""
 #!/bin/bash
 if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
   # It's the 2nd time the sidecar is launched.
   {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
-  {events_on_fs().wait_event_cmd("finish_sidecar_second")}
+  {events_on_fs().wait_event_cmd(sidecar_finish_event)}
 else
   {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
   {events_on_fs().wait_event_cmd("finish_sidecar_first")}
@@ -344,7 +346,8 @@ fi
 
         # When the sidecar starts for 2nd time, it will emit another event; finish the test after that.
         events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
-        events_on_fs().notify_event("finish_sidecar_second")
+        if not simultaneous_finish:
+            events_on_fs().notify_event("finish_sidecar_second")
 
         events_on_fs().notify_event("finish")
 

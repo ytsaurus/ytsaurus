@@ -244,6 +244,9 @@ struct TChunkTeleporterConfig
     //! Maximum number of chunks to export/import per request.
     i64 MaxTeleportChunksPerRequest;
 
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
+
     REGISTER_YSON_STRUCT(TChunkTeleporterConfig);
 
     static void Register(TRegistrar registrar);

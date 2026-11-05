@@ -19,6 +19,8 @@ DECLARE_REFCOUNTED_STRUCT(TCompactOutputStoreContext);
 DECLARE_REFCOUNTED_STRUCT(TTimerStoreContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicTimerStoreContext);
 DECLARE_REFCOUNTED_STRUCT(ITimerStore);
+DECLARE_REFCOUNTED_STRUCT(IPagedTimerStore);
+DECLARE_REFCOUNTED_CLASS(TTimerPageCatalogue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

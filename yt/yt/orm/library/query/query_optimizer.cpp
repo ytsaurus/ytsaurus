@@ -281,6 +281,9 @@ public:
             },
             [&] (const TExpressionList& /*expression*/) -> bool {
                 THROW_ERROR_EXCEPTION("Unexpected expression");
+            },
+            [&] (const TUnionAllClause& /*unionAll*/) -> bool {
+                THROW_ERROR_EXCEPTION("Subqueries are not supported yet");
             });
     }
 
@@ -449,8 +452,9 @@ public:
     std::optional<int> OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
-            YT_VERIFY(binaryExpr->Lhs.size() == 1);
-            YT_VERIFY(binaryExpr->Rhs.size() == 1);
+            if (!HasScalarOperands(*binaryExpr)) {
+                return std::nullopt;
+            }
             auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
             auto prefixRangesRight = Visit(binaryExpr->Rhs[0]);
             if (!prefixRangesLeft || !prefixRangesRight) {

@@ -9,7 +9,7 @@ PY_SRCS(
     client_helpers.py
     cypress_helpers.py
     master_config_helpers.py
-    portal_cell_helpers.py
+    node_host_cell_helpers.py
 )
 
 IF (NOT OPENSOURCE)

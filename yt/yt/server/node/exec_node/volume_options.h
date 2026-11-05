@@ -79,32 +79,4 @@ struct TPrepareRWNbdVolumeOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPrepareLayerOptions
-{
-    TJobId JobId;
-    TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareSquashFSVolumeOptions
-{
-    TJobId JobId;
-    TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareRootOverlayVolumeOptions
-{
-    TJobId JobId;
-    TUserSandboxOptions UserSandboxOptions;
-    std::vector<TOverlayData> OverlayDataArray;
-    TBaseVolumeParamsPtr RootVolumeParams;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NExecNode

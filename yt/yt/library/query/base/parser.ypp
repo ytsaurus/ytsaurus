@@ -40,6 +40,7 @@
 
 %code {
     #include <yt/yt/library/query/base/lexer.h>
+    #include <yt/yt/library/query/base/private.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -113,6 +114,9 @@
 %token KwRegexp "keyword `REGEXP`"
 %token KwEscape "keyword `ESCAPE`"
 
+%token KwUnion "keyword `UNION`"
+%token KwAll "keyword `ALL`"
+
 %token KwInf "keyword `INF`"
 
 %token KwFalse "keyword `TRUE`"
@@ -161,8 +165,9 @@
 
 %type <TQuery> full-query
 %type <TNullableExpressionList> select-clause
-%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList>> from-clause
-%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList>> from-clause-tail
+%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList, TUnionAllClause>> from-clause
+%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList, TUnionAllClause>> from-clause-tail
+%type <std::vector<TQueryAstHeadPtr>> union-all-tail
 %type <std::optional<TTableDescriptor>> with-index-clause
 %type <std::vector<std::variant<TJoin, TArrayJoin>>> join-clause
 %type <TNullableExpressionList> where-clause
@@ -373,18 +378,40 @@ from-clause-tail
         {
             $$ = std::move($table);
         }
+    | LeftParenthesis push-alias-map KwSelect full-query[query] union-all-tail[tail] RightParenthesis optional-alias[alias]
+        {
+            TUnionAllClause clause;
+
+            auto* firstSubquery = head->New<TQueryAstHead>();
+            firstSubquery->Ast = std::move($query);
+            // The first subquery's alias map was stashed on the alias map stack
+            // in the first mid-rule action of union-all-tail.
+            firstSubquery->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+            clause.Subqueries.push_back(firstSubquery);
+
+            for (auto* tailSubquery : $tail) {
+                clause.Subqueries.push_back(tailSubquery);
+            }
+
+            clause.Alias = std::move($alias);
+
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+
+            $$ = std::move(clause);
+        }
     | atomic-expr-other[expr] optional-alias[alias]
         {
             bool asQueryAstHead = false;
 
-            // COMPAT
             if ($expr.size() == 1) {
-                if (auto queryExpr = $expr[0]->As<TQueryExpression>()) {
+                if (auto* queryExpr = $expr[0]->As<TQueryExpression>()) {
+                    // COMPAT: single subquery without UNION ALL
                     auto subqueryHead = head->New<TQueryAstHead>();
                     subqueryHead->Ast = std::move(queryExpr->Query);
                     subqueryHead->AliasMap = std::move(queryExpr->AliasMap);
                     subqueryHead->Alias = std::move($alias);
-
                     $$ = std::move(subqueryHead);
                     asQueryAstHead = true;
                 }
@@ -393,6 +420,55 @@ from-clause-tail
             if (!asQueryAstHead) {
                 $$ = std::move($expr);
             }
+        }
+;
+
+push-alias-map
+    :
+        {
+            aliasMapStack.push(std::move(head->AliasMap));
+            head->AliasMap = {};
+        }
+;
+
+union-all-tail
+    : KwUnion KwAll KwSelect
+        {
+            // The first subquery's alias map is still in head->AliasMap;
+            // stash it on the alias map stack, and push an empty ambient
+            // alias map for the next subquery.
+            aliasMapStack.push(std::move(head->AliasMap));
+            aliasMapStack.push(TAliasMap{});
+            head->AliasMap = {};
+        }
+        full-query[query]
+        {
+            auto* subqueryHead = head->New<TQueryAstHead>();
+            subqueryHead->Ast = std::move($query);
+            subqueryHead->AliasMap = std::move(head->AliasMap);
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+            $$.push_back(subqueryHead);
+        }
+    | union-all-tail[list] KwUnion KwAll KwSelect
+        {
+            // The first subquery is not accounted for in $list.
+            if (std::ssize($list) >= MaxUnionAllSubqueryCount - 1) {
+                THROW_ERROR_EXCEPTION("UNION ALL clause exceeds maximum subquery count of %v",
+                    MaxUnionAllSubqueryCount);
+            }
+            aliasMapStack.push(std::move(head->AliasMap));
+            head->AliasMap = {};
+        }
+        full-query[query]
+        {
+            $$ = std::move($list);
+            auto* subqueryHead = head->New<TQueryAstHead>();
+            subqueryHead->Ast = std::move($query);
+            subqueryHead->AliasMap = std::move(head->AliasMap);
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+            $$.push_back(subqueryHead);
         }
 ;
 
@@ -787,7 +863,7 @@ shift-op-expr
  * Such expansion will produce conflict with AND operand from BETWEEN expression.
  * To solve this issue, we introduce restricted-additive-op-expr, which can't contain boolean keywords.
  *
- * Common parts of additive-op-expr and restricted-additive-op-expr are placed in 
+ * Common parts of additive-op-expr and restricted-additive-op-expr are placed in
  * expressions with postfix "-common"; it's factored out just to eliminate redundant coding.
  */
 additive-op-expr
@@ -953,13 +1029,10 @@ atomic-expr-other-common
         {
             $$ = MakeExpression<TFunctionExpression>(head, @$, $name, $args);
         }
-    | LeftParenthesis
+    | LeftParenthesis push-alias-map KwSelect full-query[query] RightParenthesis
         {
-            aliasMapStack.push(std::move(head->AliasMap));
-        }
-        KwSelect full-query[query] RightParenthesis
-        {
-            $$ = MakeExpression<TQueryExpression>(head, @$, std::move($query), std::move(head->AliasMap));
+            auto aliasMap = std::move(head->AliasMap);
+            $$ = MakeExpression<TQueryExpression>(head, @$, std::move($query), std::move(aliasMap));
             head->AliasMap = std::move(aliasMapStack.top());
             aliasMapStack.pop();
         }

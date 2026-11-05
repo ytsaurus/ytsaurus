@@ -393,13 +393,26 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
     auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
 
     if (GroupClause) {
+        THashMap<std::string, size_t> groupColumnIndices;
         size_t foreignColumnsIndex = 0;
         for (const auto& groupItem : GroupClause->GroupItems) {
-            if (ForeignJoinedColumns.contains(groupItem.Name)) {
-                foreignColumns.push_back(foreignColumnsIndex);
+            if (const auto* reference = groupItem.Expression->As<TReferenceExpression>()) {
+                groupColumnIndices.emplace(reference->ColumnName, foreignColumnsIndex);
             }
             foreignColumnsIndex++;
         }
+
+        for (const auto& renamedColumn : joinRenamedTableColumns) {
+            if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+                auto it = groupColumnIndices.find(renamedColumn.Name());
+                if (it == groupColumnIndices.end()) {
+                    THROW_ERROR_EXCEPTION("Foreign column %Qv is missing from the pushed group clause",
+                        renamedColumn.Name());
+                }
+                foreignColumns.push_back(it->second);
+            }
+        }
+
         for (const auto& _ : GroupClause->AggregateItems) {
             foreignColumns.push_back(foreignColumnsIndex++);
         }

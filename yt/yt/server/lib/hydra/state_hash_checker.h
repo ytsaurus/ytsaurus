@@ -31,7 +31,7 @@ private:
     const NLogging::TLogger Logger;
 
     int Limit_;
-    int TotalPeerCount_;
+    const int TotalPeerCount_;
 
     struct TReportedStateHash
     {

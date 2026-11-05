@@ -375,6 +375,9 @@ struct TDynamicTabletManagerConfig
 
     i64 MaxReshardComplexity;
 
+    // COMPAT(akozhikhov)
+    bool ForbidMergingTabletsWithCumulativeDataWeight;
+
     bool UpdateTableContentRevisionOnHeartbeat;
     bool LogReviseOnHeartbeatAtNativeCell;
 

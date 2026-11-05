@@ -62,7 +62,7 @@ class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
             "probing_pool_tree": "cloud_tree",
         }, job_count=1)
 
-        wait_breakpoint(job_count=1, timeout=datetime.timedelta(seconds=15))
+        wait_breakpoint(op, job_count=1, timeout=datetime.timedelta(seconds=15))
         release_breakpoint()
         op.track()
 
@@ -115,7 +115,7 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         self.ban_nodes_with_intermediate_chunks()
 
@@ -206,7 +206,7 @@ class TestProbingJobs(YTEnvSetup):
             "probing_ratio": 1,
             "probing_pool_tree": "cloud_tree",
         }, job_count=1)
-        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        wait_breakpoint(op, job_count=2, timeout=datetime.timedelta(seconds=15))
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         counters = self.wait_for_running_and_get_counters(op, 2)
@@ -239,7 +239,7 @@ class TestProbingJobs(YTEnvSetup):
             },
             track=False,
         )
-        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        wait_breakpoint(op, job_count=2, timeout=datetime.timedelta(seconds=15))
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         counters = self.wait_for_running_and_get_counters(op, 2)
@@ -469,7 +469,7 @@ class TestProbingJobs(YTEnvSetup):
             "probing_pool_tree": "cloud_tree",
             "testing": {"testing_speculative_launch_mode": "always"}
         }, job_count=1)
-        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        wait_breakpoint(op, job_count=2, timeout=datetime.timedelta(seconds=15))
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         time.sleep(2)
@@ -485,7 +485,7 @@ class TestProbingJobs(YTEnvSetup):
             "probing_pool_tree": "cloud_tree",
         }, job_count=1)
 
-        job_ids = wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        job_ids = wait_breakpoint(op, job_count=2, timeout=datetime.timedelta(seconds=15))
         primary_job, probing_job = self.get_primary_and_probing_job(op, job_ids)
         return op, primary_job, probing_job
 

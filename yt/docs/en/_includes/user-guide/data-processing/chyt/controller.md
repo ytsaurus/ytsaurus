@@ -128,7 +128,7 @@ yt clickhouse ctl set-option chyt_version '"stable-2.08"'
 
 The optional `--alias <alias>` argument sets the alias for the clique to be updated. You can omit this argument; in this case, its value will be taken from `CHYT_ALIAS`. If it is empty, an error will be returned.
 
-To view all the set options, run the [get-speclet](#get-speclet) command. For a description of all available options, see [Configuration](../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
+To view all the set options, run the [get-speclet](#get-speclet) command. For a description of all available options, see [Configuration](../../../../user-guide/data-processing/chyt/cliques/configs.md#options).
 
 ### Remove-option { #remove_option }
 
@@ -188,4 +188,4 @@ $ yt clickhouse ctl start test_clique_name
 ## Available options { #options }
 
 
-For a list of the clique options that can be set by the `set-option` command, see [Configuration](../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
+For a list of the clique options that can be set by the `set-option` command, see [Configuration](../../../../user-guide/data-processing/chyt/cliques/configs.md#options).

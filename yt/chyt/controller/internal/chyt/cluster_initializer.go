@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	YTClickHouseUser   = "yt-clickhouse"
-	CHYTSQLObjectsUser = "chyt-sql-objects"
+	YTClickHouseUser             = "yt-clickhouse"
+	YTClickHouseCacheUser        = "yt-clickhouse-cache"
+	YTClickHouseDictionariesUser = "yt-clickhouse-dictionaries"
+	CHYTSQLObjectsUser           = "chyt-sql-objects"
 )
 
 type ClusterInitializer struct {
@@ -202,6 +204,12 @@ func (initializer *ClusterInitializer) InitializeCluster() error {
 		return err
 	}
 	if err := initializer.setUpCHYTSQLObjectsUser(ctx); err != nil {
+		return err
+	}
+	if err := initializer.createUserIfNotExists(ctx, YTClickHouseDictionariesUser); err != nil {
+		return err
+	}
+	if err := initializer.createUserIfNotExists(ctx, YTClickHouseCacheUser); err != nil {
 		return err
 	}
 	return nil

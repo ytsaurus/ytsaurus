@@ -1224,13 +1224,13 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Список команд для работы с содержимым динамических таблиц.
 - [insert_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.insert_rows) — [вставить](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#insert_rows) строки в динамическую таблицу
-- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows) — [выбрать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#chtenie-stroki) строки с заданными ключами
-- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows) — [удалить](../../../user-guide/dynamic-tables//sorted-dynamic-tables.md#udalenie-stroki) строки с заданными ключами
-- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows) — [выбрать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#vypolnenie-zaprosa) строки, удовлетворяющие запросу на [диалекте SQL](../../../user-guide/dynamic-tables/dyn-query-language.md)
-- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows) — [заблокировать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#blokirovka-stroki) строки с заданными ключами
+- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows) — [выбрать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#reading-rows) строки с заданными ключами
+- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows) — [удалить](../../../user-guide/dynamic-tables//sorted-dynamic-tables.md#deleting-rows) строки с заданными ключами
+- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows) — [выбрать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#running-a-script) строки, удовлетворяющие запросу на [диалекте SQL](../../../user-guide/dynamic-tables/dyn-query-language.md)
+- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows) — [заблокировать](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#locking-rows) строки с заданными ключами
 - [trim_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.trim_rows) — [удалить](../../../user-guide/dynamic-tables/ordered-dynamic-tables#trim) заданное количество строк из упорядоченной таблицы
 
-Команды, связанные с [монтирование](../../../user-guide/dynamic-tables/overview.md#mount_table) таблиц.
+Команды, связанные с [монтированием](../../../user-guide/dynamic-tables/operations.md#mount_table) таблиц.
 - [mount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.mount_table) — примонтировать динамическую таблицу
 - [unmount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unmount_table) — отмонтировать динамическую таблицу
 - [remount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.remount_table) — перемонтировать динамическую таблицу
@@ -1240,12 +1240,12 @@ yt.get_attribute("//sys/groups/testers", "members")
 - [reshard_table_automatic](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.reshard_table_automatic) — пошардировать примонтированные таблеты в соответствии с конфигурацией таблет-балансера.
 
 Другие команды.
-- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table) — [заморозить](../../../user-guide/dynamic-tables/overview.md#zamorozka) таблицу
-- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table) — [разморозить](../../../user-guide/dynamic-tables/overview.md#zamorozka) таблицу
-- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells) — распределить таблеты равномерно по [таблет-селлам](../../../user-guide/dynamic-tables/overview.md#tablet_cells)
-- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos) — получить атрибуты [таблета](../../../user-guide/dynamic-tables/overview.md#tablets)
-- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors) — получить ошибки [таблета](../../../user-guide/dynamic-tables/overview.md#tablets)
-- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica) — [изменить атрибуты](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#nastrojki-replik) реплики [реплицированной таблицы](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md)
+- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table) — [заморозить](../../../user-guide/dynamic-tables/operations.md#freeze) таблицу
+- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table) — [разморозить](../../../user-guide/dynamic-tables/operations.md#freeze) таблицу
+- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells) — распределить таблеты равномерно по [таблет-селлам](../../../user-guide/dynamic-tables/concepts.md#tablet_cells)
+- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos) — получить атрибуты [таблета](../../../user-guide/dynamic-tables/concepts.md#tablets)
+- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors) — получить ошибки [таблета](../../../user-guide/dynamic-tables/concepts.md#tablets)
+- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica) — [изменить атрибуты](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#replica-state) реплики [реплицированной таблицы](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md)
 
 ### Другие команды { #etc_commands }
 
@@ -1263,7 +1263,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 ### Общая информация { #python_operations_intro }
 
-Для того, чтобы запустить операцию, необходимо описать специальный класс-наследник `yt.wrapper.TypedJob` и передать объект данного класса в [функцию](#run_operation_commands) запуска операции (либо указать в соответствующем поле [SpecBuilder-а](#spec_builders)).
+Для того, чтобы запустить операцию, необходимо описать специальный класс-наследник `yt.wrapper.TypedJob` и передать объект данного класса в [функцию](#run_operation_commands) запуска операции (либо указать в соответствующем поле [SpecBuilder-а](#spec_builder)).
 
 В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки, которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](../../../api/python/examples.md#table_switches) в туториале).
 
@@ -1280,7 +1280,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 ### Описание типа данных { #prepare_operation }
 
-Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](../../../api/python/examples.md#simple_map), [два](../../../api/python/examples.md#multiple_input_reduce), [три](../../../api/python/examples.md#multiple_input_multiple_output_reduce) и [четыре](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
+Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](../../../api/python/examples.md#simple_map), [два](../../../api/python/examples.md#reduce_multiple_output), [три](../../../api/python/examples.md#reduce_multiple_input_output) и [четыре](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
    1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): позволяет указать для нескольких входных таблиц тип входной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), список имён колонок, которые нужны джобу, а также переименования колонок.
    2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): позволяет указать для нескольких выходных таблиц тип выходной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), а также схему, которую хочется вывести для этих таблиц (по умолчанию схема выводится из датакласса).
    3. `input` и `output` — аналоги соответствующих методов, принимающие единственный индекс.
@@ -1344,7 +1344,7 @@ print(op.get_job_statistics()["custom"])
 ### Porto-слои { #porto_layers }
 
 При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
-Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
+Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers), которые находятся по пути `//porto_layers`.
 
 Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
 ```python

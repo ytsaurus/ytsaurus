@@ -4,6 +4,7 @@
 
 #include "job_state/job_init_context.h"
 #include "job_state/state_manager.h"
+#include "key_count_observer.h"
 #include "key_visitor.h"
 #include "lineage_accumulator.h"
 #include "processing_observation_accumulator.h"
@@ -56,6 +57,8 @@ namespace NYT::NFlow {
 
 inline constexpr TStringBuf ActiveSourceStateName = "$active_source";
 inline constexpr TStringBuf WatermarkStateName = "$watermark";
+inline constexpr char BufferWarmupStateName[] = "/__buffer_warmup";
+inline constexpr char LegacyBufferWarmupStateName[] = "__buffer_warmup";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -365,9 +368,18 @@ class TUniversalComputationBase
     : public TComputationBase
 {
 private:
+    struct TExtendedParameters
+        : public virtual TComputationBase::TParameters
+        , public virtual TPartitioningSpec
+    {
+        REGISTER_YSON_STRUCT(TExtendedParameters);
+
+        static void Register(TRegistrar registrar);
+    };
+
     struct TExtendedDynamicParameters
         : public virtual TComputationBase::TDynamicParameters
-        , public virtual TPartitioningSpec
+        , public virtual TDynamicPartitioningSpec
     {
         REGISTER_YSON_STRUCT(TExtendedDynamicParameters);
 
@@ -376,6 +388,8 @@ private:
 
 public:
     using TComputationController = TUniversalComputationController;
+
+    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
 
     YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TExtendedDynamicParameters);
     YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
@@ -386,7 +400,6 @@ public:
 
         // If AllowedInputStreams.empty() at least one of flags is true.
         bool OutputBufferOverflow = false;
-        bool OutputStoreOverflow = false;
         bool BlockedByController = false;
 
         // TODO: Highlight critical output stream (the one that is latest in stream DAG).
@@ -432,6 +445,11 @@ protected:
         std::vector<TInputMessageConstPtr> Messages;
         THashMap<TStreamId, TBatchStatistics> SkippedStatistics;
     };
+
+    void ObserveKeyCountInput(
+        const std::vector<TInputMessageConstPtr>& messages,
+        const std::vector<TInputTimerConstPtr>& timers,
+        const std::vector<TInputVisitConstPtr>& visits);
 
     TFilteredInputBatch FilterInputBatch(
         const IComputationRunContextPtr& context,
@@ -603,6 +621,7 @@ protected:
     IMutableStateProviderPtr BufferWarmupState_;
     TPartitionBufferWarmup LastWrittenWarmup_;
     TInstant LastWarmupRefreshInstant_;
+    bool LegacyBufferWarmupCleanupPending_ = true;
     const bool HasVisitorDrivenJoiners_;
     const std::optional<TStreamId> ActiveSourceStreamId_;
     const ISourcePtr ActiveSource_;
@@ -657,6 +676,7 @@ private:
 
     TProcessingObservationAccumulator ProcessingObservationAccumulator_{StartTime_};
     TAtomicIntrusivePtr<TProcessingObservation> ProcessingObservation_;
+    TKeyCountObserver KeyCountObserver_;
 
     std::optional<TStreamId> CreateActiveSourceStreamId();
     ISourcePtr CreateActiveSource();

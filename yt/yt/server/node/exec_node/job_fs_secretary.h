@@ -19,12 +19,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Prepared overlay layer data, indexed by artifact key.
-struct TPreparedLayers
-{
-    THashMap<TArtifactKey, TOverlayData> ArtifactKeyToOverlayData;
-};
-
 struct TJobFSDescription
     : public TRefCounted
 {
@@ -116,17 +110,7 @@ public:
 
     const TArtifactDescription& GetUserArtifactDescriptor(const std::string& name) const;
 
-    //! Adds prepared overlay layers to the allocation-scoped cache.
-    //! Crashes if any of the keys is already present.
-    void AddPreparedLayers(TPreparedLayers layers);
-
-    bool HasPreparedLayer(const TArtifactKey& key) const;
-
-    std::vector<TOverlayData> GetPreparedRootVolumeOverlayData() const;
-    std::vector<TOverlayData> GetPreparedGpuCheckVolumeOverlayData() const;
-    std::vector<TOverlayData> GetPreparedNonRootVolumeOverlayData(const TBaseVolumeParams& params) const;
-
-    void ReleasePreparedLayers();
+    virtual void ReleaseWorkspaceResources();
 
     //! Returns artifact descriptions that need to be cached
     //! (excludes artifacts that bypass cache or are accessed via virtual sandbox).
@@ -137,6 +121,9 @@ public:
     void SetCachedArtifacts(std::vector<TArtifactPtr> artifacts);
 
     void ReleaseArtifacts();
+
+protected:
+    const NLogging::TLogger& GetLogger() const;
 
 private:
     TJobId JobId_;
@@ -157,7 +144,6 @@ private:
     bool ArtifactsCached_ = false;
 
     TIntrusivePtr<const TJobFSDescription> Description_ = New<const TJobFSDescription>();
-    TPreparedLayers PreparedLayers_;
 
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureGpuCheckVolume(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId);
@@ -176,8 +162,6 @@ private:
     bool CanBeAccessedViaBind(const TArtifactDescription& artifact) const;
 
     void OnNewJobStarted(TJobId jobId);
-
-    std::vector<TOverlayData> GetPreparedOverlayData(const TBaseVolumeParams& params) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobFSSecretary)

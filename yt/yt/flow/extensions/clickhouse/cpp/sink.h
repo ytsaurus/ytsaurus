@@ -7,7 +7,6 @@
 #include "shard.h"
 #include "spec.h"
 
-#include <yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sync_sink_base.h>
@@ -32,7 +31,6 @@ namespace NYT::NFlow {
 DEFINE_ENUM(EWriteGuarantee,
     (ExactlyOnce)
     (AtLeastOnce)
-    (AtMostOnce)
 );
 
 DEFINE_ENUM(EClickHouseErrorKind,
@@ -45,7 +43,6 @@ EClickHouseErrorKind ClassifyClickHouseError(const std::exception& ex);
 
 DEFINE_ENUM(EClickHouseFailureAction,
     (Retry)
-    (Acknowledge)
     (Fail)
 );
 
@@ -69,8 +66,6 @@ TClickHouseRequestOptions MakeClickHouseRequestOptions(
     const TDynamicCommonClickHouseSinkParameters& dynamicParameters);
 
 EClickHouseFailureAction GetClickHouseFailureAction(
-    EWriteGuarantee guarantee,
-    bool insertStarted,
     EClickHouseErrorKind errorKind,
     const TClickHouseRequestOptions& requestOptions,
     TClickHouseAttemptState* attemptState);
@@ -187,7 +182,7 @@ private:
     {
         EWriteGuarantee Guarantee = EWriteGuarantee::ExactlyOnce;
         std::vector<TClickHouseShardWrite> ShardWrites;
-        // Shards before it are already committed or abandoned; a retry resumes here so an
+        // Shards before it are already committed; a retry resumes here so an
         // already inserted shard is never written twice within one attempt.
         int NextShardIndex = 0;
         TPromise<void> Promise;
@@ -254,8 +249,6 @@ protected:
     const NLogging::TLogger Logger;
 
     void EnsureSessionStarted();
-    void EnsureSessionStartedWithRetry();
-    TIntrusivePtr<TRefCounted> GetSessionLifetime() const;
     std::vector<std::string> GetShardTargetIdentityFingerprints() const;
 
     TFuture<void> WriteMessages(
@@ -365,38 +358,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAtLeastOnceClickHouseSink);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAtMostOnceClickHouseSink
-    : public TDelegatingAsyncSinkBase
-    , public TCommonClickHouseSink
-{
-public:
-    YT_FLOW_EXTEND_PARAMETERS(TAtMostOnceClickHouseSinkParameters);
-    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TDynamicAtMostOnceClickHouseSinkParameters);
-
-    using TSinkController = TClickHouseSinkController;
-    using TDescribeTraits = TClickHouseDescribeTraits;
-
-    TAtMostOnceClickHouseSink(
-        TSinkContextPtr context,
-        TDynamicSinkContextPtr dynamicContext);
-
-    ~TAtMostOnceClickHouseSink() override;
-
-    void Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed) override;
-
-private:
-    using TCommonClickHouseSink::Logger;
-
-    bool IsAtMostOnceStrategyEnabled() const;
-
-    void DoInit(const std::string& producerId) final;
-    std::pair<TFuture<void>, ui64> DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo) final;
-};
-
-DEFINE_REFCOUNTED_TYPE(TAtMostOnceClickHouseSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 

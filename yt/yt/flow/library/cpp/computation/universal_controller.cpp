@@ -272,7 +272,8 @@ IComputationController::TPartitioningDescription TUniversalComputationController
 
         const auto dynamicParameters = GetDynamicParameters();
         TPartitioningDescription::TRange range{
-            .PartitioningSpec = dynamicParameters,
+            .PartitioningSpec = GetParameters(),
+            .DynamicPartitioningSpec = dynamicParameters,
             .MaxSinkChannelCount = maxSinkChannelCount,
             .SinkTopologyVersion = PartitioningState_->SinkChannelCounts->GetVersion(),
         };

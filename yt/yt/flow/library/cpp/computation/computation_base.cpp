@@ -7,6 +7,7 @@
 #include "stores/compact_output_store.h"
 #include "stores/input_store.h"
 #include "stores/output_store.h"
+#include "stores/timer_page_catalogue.h"
 #include "stores/timer_store.h"
 
 #include "job_state/state_manager.h"
@@ -26,6 +27,7 @@
 #include <yt/yt/flow/library/cpp/tables/compact_partition_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/context.h>
 #include <yt/yt/flow/library/cpp/tables/input_messages.h>
+#include <yt/yt/flow/library/cpp/tables/timer_pages.h>
 #include <yt/yt/flow/library/cpp/tables/timers.h>
 #include <yt/yt/flow/library/cpp/tables/transaction_manager.h>
 
@@ -622,6 +624,9 @@ void TOutputCollector::AddTimer(TTimer&& timer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUniversalComputationBase::TExtendedParameters::Register(TRegistrar /*registrar*/)
+{ }
+
 void TUniversalComputationBase::TExtendedDynamicParameters::Register(TRegistrar /*registrar*/)
 { }
 
@@ -696,6 +701,7 @@ TUniversalComputationBase::TUniversalComputationBase(
                 auto dynamicTimerStoreContext = New<TDynamicTimerStoreContext>();
                 dynamicTimerStoreContext->DynamicTimerStoreSpec = GetDynamicSpec()->TimerStore;
                 dynamicTimerStoreContext->Draining = GetDynamicSpec()->Draining;
+                dynamicTimerStoreContext->MaxRowsPerBatch = GetDynamicSpec()->MaxRowsPerBatch;
                 TimerStore_->Reconfigure(std::move(dynamicTimerStoreContext));
             }
             if (InputStore_) {
@@ -752,6 +758,9 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto status = New<TComputationStatus>();
+    if (GetParameters()->KeyCountPartitioning->Enable) {
+        status->ObservedKeys = KeyCountObserver_.GetKeys();
+    }
     status->NodeTraverse = GetNodeTraverse();
     status->ProcessingObservation = ProcessingObservation_.Acquire();
     status->NonEmptyIterationCount = NonEmptyRunIterations_.load();
@@ -861,21 +870,7 @@ bool TUniversalComputationBase::UpdateStatus(
 
     auto inputLimits = GetExtraInputLimits();
 
-    const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> outputLimits;
-    for (const auto& streamId : GetSpec()->OutputStreamIds) {
-        auto [count, byteSize] = GetOrCrash(outputStoreCountAndByteSize, streamId);
-        {
-            auto& entityLimitStatus = outputLimits[OutputStoreBytesLimitType][streamId];
-            entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreByteSizeLimit;
-            entityLimitStatus.Used = byteSize;
-        }
-        {
-            auto& entityLimitStatus = outputLimits[OutputStoreCountLimitType][streamId];
-            entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreCountLimit;
-            entityLimitStatus.Used = count;
-        }
-    }
     BlockedTimeAccountant_.FillShares(&outputLimits);
     {
         auto guard = Guard(LimitsLock_);
@@ -884,6 +879,33 @@ bool TUniversalComputationBase::UpdateStatus(
     }
 
     return isFinished;
+}
+
+void TUniversalComputationBase::ObserveKeyCountInput(
+    const std::vector<TInputMessageConstPtr>& messages,
+    const std::vector<TInputTimerConstPtr>& timers,
+    const std::vector<TInputVisitConstPtr>& visits)
+{
+    const auto& config = GetParameters()->KeyCountPartitioning;
+    if (!config->Enable) {
+        return;
+    }
+    const auto now = TInstant::Now();
+    for (const auto& message : messages) {
+        KeyCountObserver_.ObserveKey(message->Key, now);
+    }
+    for (const auto& timer : timers) {
+        KeyCountObserver_.ObserveKey(timer->Key, now);
+    }
+    for (const auto& visit : visits) {
+        KeyCountObserver_.ObserveKey(visit->Key, now);
+    }
+    if (KeyCountObserver_.GetKeyCount() > config->MaxKeysPerPartition) {
+        THROW_ERROR_EXCEPTION(EErrorCode::PartitionKeyLimitExceeded,
+            "Partition encountered more keys than its configured limit")
+            .With("key_count", KeyCountObserver_.GetKeyCount())
+            .With("max_keys_per_partition", config->MaxKeysPerPartition);
+    }
 }
 
 THashMap<TStreamId, TKeyVisitorPtr> TUniversalComputationBase::CreateKeyVisitors() const
@@ -956,6 +978,13 @@ TJobStateManagerPtr TUniversalComputationBase::CreateStateManager() const
     managerContext->ComputationId = GetContext()->Partition->ComputationId;
     managerContext->PartitionId = GetContext()->Partition->PartitionId;
     managerContext->StateCache = GetContext()->JobStateCache;
+    managerContext->EpochUniqueSeqNoProvider = [weakThis = MakeWeak(this)] {
+        auto computation = weakThis.Lock();
+
+        THROW_ERROR_EXCEPTION_UNLESS(computation, "Cannot sync state after computation destruction");
+
+        return computation->GetEpochUniqueSeqNo();
+    };
     managerContext->LoadThroughputThrottler = GetContext()->LoadThroughputThrottler;
     managerContext->Logger = Logger;
     managerContext->Profiler = GetContext()->Profiler;
@@ -1075,9 +1104,39 @@ ITimerStorePtr TUniversalComputationBase::CreateTimerStore()
         tableContext->Tag = Format("%s:timers", GetContext()->Partition->ComputationId);
         context->TimersTable = New<NTables::TTimers>(tableContext, New<TDynamicTableRequestSpec>());
     }
+    context->Backend = GetSpec()->TimerStoreBackend;
+    context->TransactionManager = GetTransactionManager();
+    // The in-memory backend needs the page tables only to take back the pages of a former
+    // paged backend, and only a worker knows whether the pipeline has them.
+    if (context->Backend == ETimerStoreBackend::Paged || (GetContext()->TimerPageCatalogue && !context->TimerSpecs.empty())) {
+        auto tableContext = New<NTables::TContext>();
+        tableContext->Client = GetRetryableClient()->WithErrorComponent("timer_pages");
+        tableContext->PipelinePath = GetContext()->PipelinePath;
+        tableContext->LoadThroughputThrottler = GetContext()->LoadThroughputThrottler;
+        tableContext->Logger = Logger;
+        tableContext->Profiler = GetContext()->Profiler.WithPrefix("/tables");
+        tableContext->Tag = Format("%s:timer_pages", GetContext()->Partition->ComputationId);
+        context->TimerPageSize = static_cast<i64>(GetSpec()->TimerPageSize);
+        context->TimerPagesTable = New<NTables::TTimerPages>(tableContext, New<TDynamicTableRequestSpec>());
+        context->PageCatalogue = StaticPointerCast<TTimerPageCatalogue>(GetContext()->TimerPageCatalogue);
+        context->TimeProvider = GetTimeProvider();
+        if (!context->PageCatalogue) {
+            // Outside a worker job there is no shared catalogue; a private one serves this store.
+            auto client = tableContext->Client;
+            context->PageCatalogue = New<TTimerPageCatalogue>(
+                context->TimerPagesTable,
+                [client] {
+                    return client->StartTransaction(NTransactionClient::ETransactionType::Tablet);
+                },
+                GetContext()->PoolInvoker,
+                Logger,
+                GetContext()->Profiler);
+        }
+    }
     auto dynamicTimerStoreContext = New<TDynamicTimerStoreContext>();
     dynamicTimerStoreContext->DynamicTimerStoreSpec = GetDynamicSpec()->TimerStore;
     dynamicTimerStoreContext->Draining = GetDynamicSpec()->Draining;
+    dynamicTimerStoreContext->MaxRowsPerBatch = GetDynamicSpec()->MaxRowsPerBatch;
     return NFlow::CreateTimerStore(context, std::move(dynamicTimerStoreContext));
 }
 
@@ -1461,6 +1520,8 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     EpochUniqueSeqNo_.reset();
 
     if (TimerStore_) {
+        // The pages due next are read before the watermark fires them.
+        WaitFor(TimerStore_->Preload()).ThrowOnError();
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
     }
     for (const auto& [_, sink] : Sinks_) {
@@ -1576,10 +1637,17 @@ void TUniversalComputationBase::Commit(
         }
         RefreshBufferWarmupState();
         StateManager_->Sync(transaction);
+        // Drop this compatibility erase only after old workers and rollback releases
+        // can no longer recreate the legacy key and all persisted legacy rows are gone.
+        // Discarding the old sizing estimates intentionally allows a cold start.
+        if (LegacyBufferWarmupCleanupPending_) {
+            StateManager_->ErasePartitionState(transaction, LegacyBufferWarmupStateName);
+        }
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
+        LegacyBufferWarmupCleanupPending_ = false;
         committed = true;
     }
     {
@@ -1672,7 +1740,6 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
 
     TCheckOutputLimitsResult result;
     THashSet<TStreamId> allowedOutputStreams(GetSpec()->OutputStreamIds.size());
-    const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
     const auto streamsAllowedByLimits = GetStreamsWithinLimits(GetContext()->PartitionBufferState->GetOutputStreamLimitUsageStates());
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         if (dynamicPartitionSpec && dynamicPartitionSpec->BlockedOutputStreams.contains(streamId)) {
@@ -1689,23 +1756,6 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
             blockedLimits.push_back({OutputBufferBytesLimitType, streamId});
             YT_TLOG_INFO("Output buffer is full for stream")
                 .With("StreamId", streamId);
-            continue;
-        }
-        auto [count, byteSize] = outputStoreCountAndByteSize.at(streamId);
-        if (count >= dynamicSpec->OutputStoreCountLimit ||
-            byteSize >= dynamicSpec->OutputStoreByteSizeLimit)
-        {
-            result.OutputStoreOverflow = true;
-            auto limitType = byteSize >= dynamicSpec->OutputStoreByteSizeLimit
-                ? OutputStoreBytesLimitType
-                : OutputStoreCountLimitType;
-            blockedLimits.push_back({limitType, streamId});
-            YT_TLOG_INFO("Output store is full for stream")
-                .With("StreamId", streamId)
-                .With("Count", count)
-                .With("CountLimit", dynamicSpec->OutputStoreCountLimit)
-                .With("ByteSize", byteSize)
-                .With("ByteSizeLimit", dynamicSpec->OutputStoreByteSizeLimit);
             continue;
         }
         allowedOutputStreams.insert(streamId);
@@ -1733,11 +1783,7 @@ void TUniversalComputationBase::WaitForBackoff(
     const TCheckOutputLimitsResult& outputLimitsCheckResult,
     bool emptyInput) const
 {
-    if (outputLimitsCheckResult.OutputStoreOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::WaitingForOutput));
-        YT_TLOG_INFO("Output store overflow epoch");
-        TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
-    } else if (outputLimitsCheckResult.OutputBufferOverflow) {
+    if (outputLimitsCheckResult.OutputBufferOverflow) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
@@ -1756,11 +1802,11 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
 {
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
 
-    if (TimerStore_->GetCount() > dynamicSpec->TimerStoreCountLimit) {
-        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetCount(), dynamicSpec->TimerStoreCountLimit);
+    if (TimerStore_->GetInMemoryCount() > dynamicSpec->TimerStoreCountLimit) {
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetInMemoryCount(), dynamicSpec->TimerStoreCountLimit);
     }
-    if (TimerStore_->GetByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
-        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
+    if (TimerStore_->GetInMemoryByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetInMemoryByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
     }
 }
 
@@ -1830,6 +1876,7 @@ void TUniversalComputationBase::InitSinks()
         auto dynamicSinkContext = New<TDynamicSinkContext>();
         dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
         auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
+        EmplaceOrCrash(Sinks_, sinkId, sink);
         sink->UpdateWatermarkState(GetWatermarkState());
 
         const auto stateName = Format("sinks/%v", sinkId);
@@ -1839,7 +1886,6 @@ void TUniversalComputationBase::InitSinks()
         } else {
             sink->Init(initContext->AsPartition()->WithPrefix(stateName));
         }
-        EmplaceOrCrash(Sinks_, sinkId, std::move(sink));
     }
 }
 
@@ -1872,7 +1918,7 @@ void TUniversalComputationBase::InitBufferWarmupState()
     // block the partition, it just means a cold start.
     try {
         BufferWarmupState_ = WaitFor(StateManager_->CreatePartitionMutableStateProvider(
-            "__buffer_warmup",
+            BufferWarmupStateName,
             [] () -> IStateHolderPtr {
                 return New<TYsonSerializableStateHolder<TPartitionBufferWarmup>>();
             }))
@@ -1920,6 +1966,10 @@ void TUniversalComputationBase::RefreshBufferWarmupState()
 void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    auto clearStateOwnersGuard = Finally([this] {
+        ClearStateOwners();
+    });
 
     YT_TLOG_INFO("Starting execution");
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
@@ -2068,6 +2118,9 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
 
 void TUniversalComputationBase::ClearStateOwners()
 {
+    for (const auto& [_, sink] : Sinks_) {
+        sink->Terminate();
+    }
     Sinks_.clear();
     BufferWarmupState_.Reset();
     StateManager_->Clear();
@@ -2091,6 +2144,29 @@ ISinkPtr TUniversalComputationBase::GetSink(const TSinkId& sinkId) const
     return GetOrCrash(Sinks_, sinkId);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> GetSweptJoinerNames(const TKeyVisitorStreamSpec& streamSpec)
+{
+    std::vector<std::string> names;
+    for (const auto* list : {&streamSpec.ExternalNames, &streamSpec.WeakExternalNames}) {
+        if (*list) {
+            names.insert(names.end(), (*list)->begin(), (*list)->end());
+        }
+    }
+    return names;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorDrivenJoinerKeys(
     const IInputContextPtr& inputContext) const
 {
@@ -2100,10 +2176,7 @@ THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorD
     const auto& joiners = StateManager_->GetExternalStateJoiners();
     THashMap<TStreamId, std::vector<std::string>> boundJoinersByStream;
     for (const auto& [streamId, streamSpec] : GetSpec()->KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = joiners.find(name);
             if (it != joiners.end() && it->second->IsVisitorDriven()) {
                 boundJoinersByStream[streamId].push_back(name);
@@ -2130,10 +2203,7 @@ bool TUniversalComputationBase::ComputeHasVisitorDrivenJoiners() const
 {
     const auto& joiners = StateManager_->GetExternalStateJoiners();
     for (const auto& [streamId, streamSpec] : GetSpec()->KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = joiners.find(name);
             if (it != joiners.end() && it->second->IsVisitorDriven()) {
                 return true;
@@ -2147,10 +2217,7 @@ void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec)
 {
     THashMap<std::string, TStreamId> bindingStream;
     for (const auto& [streamId, streamSpec] : spec.KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = spec.ExternalStateJoiners.find(name);
             if (it == spec.ExternalStateJoiners.end()) {
                 continue;

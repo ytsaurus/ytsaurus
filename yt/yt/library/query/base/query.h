@@ -584,6 +584,19 @@ struct TFrontQuery
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUnionAllQuery
+    : public TRefCounted
+{
+    std::vector<TPlanFragmentPtr> SubqueryFragments;
+    TTableSchemaPtr Schema;
+};
+
+DEFINE_REFCOUNTED_TYPE(TUnionAllQuery)
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
 

@@ -6,6 +6,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -43,6 +44,8 @@ type Config struct {
 	// RobotUsername is the name of the robot from which all the operations are started.
 	// It is used to check permission to the pool during setting "pool" option.
 	RobotUsername string `yson:"robot_username"`
+
+	BaseACL []yt.ACE
 
 	// PassWorkerNumber is the number of workers used to process oplets.
 	PassWorkerNumber *int `yson:"pass_worker_number"`

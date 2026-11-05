@@ -148,6 +148,16 @@ void TransformWithIndexStatement(
         return;
     }
 
+    if (auto* unionAll = std::get_if<NAst::TUnionAllClause>(&query->FromClause)) {
+        THROW_ERROR_EXCEPTION_IF(query->WithIndex,
+            "WITH INDEX clause is not supported with UNION ALL at the moment");
+
+        for (auto* subquery : unionAll->Subqueries) {
+            TransformWithIndexStatement(&subquery->Ast, cache, holder);
+        }
+        return;
+    }
+
     if (!query->WithIndex) {
         return;
     }

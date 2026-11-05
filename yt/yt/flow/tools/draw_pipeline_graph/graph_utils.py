@@ -62,7 +62,6 @@ def format_limit_entry(limit_type, status):
     parts = []
     if status.blocked_time_share >= MIN_VISIBLE_BLOCKED_TIME_SHARE:
         parts.append(f"blocked_share={status.blocked_time_share:.2f}")
-    # Count limits (e.g. output_store_count) are counts, not bytes.
     format_value = format_count_short if limit_type.endswith("_count") else format_bytes_short
 
     def of_limit(value):

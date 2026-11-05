@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
@@ -34,6 +36,7 @@ public:
         TApiPtr api,
         NHttp::IRequestPtr request,
         NHttp::IResponseWriterPtr response);
+    ~TContext();
 
     bool TryParseRequest();
     bool TryParseCommandName();
@@ -92,6 +95,7 @@ private:
     std::string Parameters_;
 
     std::optional<TSemaphoreGuard> SemaphoreGuard_;
+    TMemoryUsageTrackerGuard HeavyRequestMemoryGuard_;
 
     NDriver::TDriverRequest DriverRequest_;
     std::optional<NDriver::TCommandDescriptor> Descriptor_;
@@ -143,6 +147,9 @@ private:
 
     void ProcessDelayBeforeCommandTestingOption();
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
+
+    void ReserveHeavyRequestMemory();
+    void ReleaseHeavyRequestMemory();
 
     IInvokerPtr GetCompressionInvoker() const;
     void ProfileCumulativeCpu(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const std::string& commandName);

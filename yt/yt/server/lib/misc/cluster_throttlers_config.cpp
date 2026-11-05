@@ -36,7 +36,7 @@ void TClusterThrottlersConfig::Register(TRegistrar registrar)
     registrar.Parameter("leader_node_tag_filter", &TThis::LeaderNodeTagFilter)
         .Default();
     registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -181,7 +181,7 @@ public:
         YT_VERIFY(bootstrap);
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
 
-        OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
+        OperationsCleaner_ = New<TOperationsCleaner>(Config_, this, Bootstrap_);
 
         OperationsCleaner_->SubscribeOperationsRemovedFromCypress(BIND_NO_PROPAGATE(&TImpl::OnOperationsRemovedFromCypress, MakeWeak(this)));
 
@@ -533,6 +533,16 @@ public:
         return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert, timeout)
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
             .Run();
+    }
+
+    void SetOperationAlertSync(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        DoSetOperationAlert(operationId, alertType, alert);
     }
 
     void ValidatePoolPermission(
@@ -1000,7 +1010,7 @@ public:
 
         Strategy_->DisableOperation(operation.Get());
 
-        operation->Restart(TError("Agent unregistered"));
+        operation->Restart(TError(NScheduler::EErrorCode::AgentUnregistered, "Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
         AdvanceEpoch(operation->ControllerEpoch());
 
@@ -1816,6 +1826,7 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
+    TYsonString LastConfigYson_;
     int ConfigRevision_ = 0;
 
     TBootstrap* const Bootstrap_;
@@ -2411,10 +2422,19 @@ private:
             THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
         }
 
+        auto configYson = TYsonString(rspOrError.Value()->value());
+        if (LastConfigYson_ && configYson == LastConfigYson_) {
+            ++ConfigRevision_;
+            return;
+        }
+
+        // Applying a different config may fail after changing Config_.
+        // Do not skip reloading the previous config in that case.
+        LastConfigYson_ = {};
+
         auto newConfig = CloneYsonStruct(InitialConfig_);
         try {
-            const auto& rsp = rspOrError.Value();
-            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+            auto configFromCypress = ConvertToNode(configYson);
             try {
                 newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
@@ -2445,7 +2465,7 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
-            OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
+            OperationsCleaner_->UpdateConfig(Config_);
             ExecNodeMemoryDistributionByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
@@ -2479,6 +2499,7 @@ private:
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
         }
 
+        LastConfigYson_ = std::move(configYson);
         ++ConfigRevision_;
     }
 
@@ -4442,12 +4463,12 @@ private:
 
         i64 GetSize() const override
         {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Getting allocation count is not supported");
         }
 
         std::vector<std::string> GetKeys(i64 /*limit*/) const override
         {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Listing allocations is not supported");
         }
 
         IYPathServicePtr FindItemService(const std::string& key) const override
@@ -4727,6 +4748,14 @@ TFuture<void> TScheduler::SetOperationAlert(
         std::optional<TDuration> timeout)
 {
     return Impl_->SetOperationAlert(operationId, alertType, alert, timeout);
+}
+
+void TScheduler::SetOperationAlertSync(
+    TOperationId operationId,
+    EOperationAlertType alertType,
+    const TError& alert)
+{
+    Impl_->SetOperationAlertSync(operationId, alertType, alert);
 }
 
 TFuture<void> TScheduler::ValidateJobShellAccess(

@@ -469,7 +469,7 @@ bool ValidateJoinLinkSettings(
             settings.begin(),
             settings.end(),
             std::back_inserter(unsupportedSettings),
-            [](const auto& setting) { return !EqualToOneOf(setting, "any"); });
+            [](const auto& setting) { return !EqualToOneOf(setting, "any", "unessential_any"); });
     };
 
     auto settings = GetEquiJoinLinkSettings(joinLinkSettings);

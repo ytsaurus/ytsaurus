@@ -1342,7 +1342,6 @@ void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFil
     auto dispatcher = CreateFileChangelogDispatcher(
         std::move(ioEngine),
         /*indexMemoryUsageTracker*/ nullptr,
-        changelogsConfig,
         "DryRunChangelogDispatcher",
         /*profiler*/ {});
 

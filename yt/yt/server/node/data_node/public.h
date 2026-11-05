@@ -205,6 +205,24 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (ReincarnationIn)
     //! Controls outcoming bandwidth consumed by reincarnation jobs.
     (ReincarnationOut)
+    //! NB: The user workload throttlers below are used only when the matching fair share
+    //! bucket is configured; otherwise the workload shares the default bucket.
+    //! Controls incoming bandwidth used by user batch workload.
+    (UserBatchIn)
+    //! Controls outcoming bandwidth used by user batch workload.
+    (UserBatchOut)
+    //! Controls incoming bandwidth used by user interactive workload.
+    (UserInteractiveIn)
+    //! Controls outcoming bandwidth used by user interactive workload.
+    (UserInteractiveOut)
+    //! Controls incoming bandwidth used by user realtime workload.
+    (UserRealtimeIn)
+    //! Controls outcoming bandwidth used by user realtime workload.
+    (UserRealtimeOut)
+    //! Controls incoming bandwidth used by user dynamic store read workload.
+    (UserDynamicStoreReadIn)
+    //! Controls outcoming bandwidth used by user dynamic store read workload.
+    (UserDynamicStoreReadOut)
 );
 
 DEFINE_ENUM(EChunkLocationThrottlerKind,

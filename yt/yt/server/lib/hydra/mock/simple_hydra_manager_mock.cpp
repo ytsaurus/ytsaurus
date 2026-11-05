@@ -244,11 +244,8 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
     return CancelableContext;
 }
 
-TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/)
-{
-    // Do nothing.
-    return OKFuture;
-}
+void TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/)
+{ }
 
 ELogLevel TSimpleHydraManagerMock::GetMutationHandlerFailureLogLevel(TStringBuf /*mutationType*/) const
 {

@@ -271,8 +271,6 @@ THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsBy
 //! Keys of the per-limit maps in #TJobStatus::InputLimits and OutputLimits.
 inline constexpr TStringBuf InputBufferBytesLimitType = "input_buffer_bytes";
 inline constexpr TStringBuf OutputBufferBytesLimitType = "output_buffer_bytes";
-inline constexpr TStringBuf OutputStoreBytesLimitType = "output_store_bytes";
-inline constexpr TStringBuf OutputStoreCountLimitType = "output_store_count";
 //! Not a buffer: the controller withholding a stream. Carries a blocked-time
 //! share and nothing else.
 inline constexpr TStringBuf ControllerLimitType = "controller";
@@ -319,6 +317,7 @@ struct TJobStatus
 
     TFromPartitionTraverseDataPtr FromPartitionTraverseData;
     TProcessingObservationPtr ProcessingObservation;
+    std::optional<THashMap<TKey, TInstant>> ObservedKeys;
 
     TNodePerformanceMetricsPtr PerformanceMetrics;
     TNodeInputMetricsPtr InputMetrics;
@@ -328,7 +327,7 @@ struct TJobStatus
     THashMap<std::string, double> EpochPartTimes;
     // Limits of input buffer. Source buffers may be added.
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits;
-    // Limits of output buffer and output store. Sink buffers may be added.
+    // Output buffer limits and controller blocking. Sink buffers may be added.
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits;
 
     REGISTER_YSON_STRUCT(TJobStatus);
@@ -926,6 +925,8 @@ struct TFlowEphemeralState
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+    THashSet<TComputationId> KeyCountPartitioningBlockedComputations;
+    THashMap<TComputationId, NYTree::IMapNodePtr> KeyCountPartitioning;
 
     TLineageRatios LineageRatios;
 
@@ -973,6 +974,9 @@ struct TFlowState
 
     // Used to warm up buffer demand on pipeline restart. Stored here to survive controller restarts.
     TPipelineSpeedStatistics SpeedStatistics;
+
+    // Used to resolve when timers became due. Stored here to survive controller restarts.
+    TPipelineWatermarkHistoryPtr WatermarkHistory;
 
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();

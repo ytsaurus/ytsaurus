@@ -64,6 +64,8 @@ def get_args():
             "compact_output_messages",
             "compact_partition_output_messages",
             "timers",
+            "timer_pages",
+            "timer_page_meta",
             "states",
             "partition_states",
             "partition_transactions",
@@ -975,6 +977,32 @@ def plan_timer_table(computations, path, tablet_count):
     return plan_computation_key_table(computations, {}, f"{path}/timers", tablet_count)
 
 
+def plan_computation_uint64_table(computations, table, tablet_count):
+    """Pivots for a table keyed by (computation_id, uint64 hash, ...): every computation gets
+    ``tablet_count`` tablets cut uniformly over the uint64 column."""
+    if len(computations) == 0:
+        logging.info(f"Skip {table} because there are no computations")
+        return None
+
+    hash_step = 2**64 // tablet_count
+
+    pivot_keys = []
+    for computation_id in sorted(computations):
+        pivot_keys.append([computation_id] if pivot_keys else [])
+        for i in range(1, tablet_count):
+            pivot_keys.append([computation_id, yson.YsonUint64(i * hash_step)])
+    return ReshardRequest(table, {"pivot_keys": pivot_keys}, tuple(computations))
+
+
+def plan_timer_pages_table(computations, path, tablet_count):
+    # The first key column is the mixed family id, uniform over the whole uint64 range.
+    return plan_partition_table(computations, f"{path}/timer_pages", tablet_count)
+
+
+def plan_timer_page_meta_table(computations, path, tablet_count):
+    return plan_computation_uint64_table(computations, f"{path}/timer_page_meta", tablet_count)
+
+
 def reshard_timer_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
     """Plan and apply the timers reshard in one call.
 
@@ -1141,6 +1169,10 @@ def plan_pipeline_tables(client, args):
         plans.append(plan_compact_partition_output_table(outputs, path, tablet_count))
     if args.table is None or args.table == "timers":
         plans.append(plan_timer_table(timers, path, tablet_count))
+    if args.table is None or args.table == "timer_pages":
+        plans.append(plan_timer_pages_table(timers, path, tablet_count))
+    if args.table is None or args.table == "timer_page_meta":
+        plans.append(plan_timer_page_meta_table(timers, path, tablet_count))
     if args.table is None or args.table == "states":
         plans.append(plan_state_table(computations, source_keys, path, tablet_count))
     if args.table is None or args.table == "partition_states":

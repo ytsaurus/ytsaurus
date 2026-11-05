@@ -605,6 +605,10 @@ public:
 
     void Start(TOutput<TRowAfterMap>&) override
     {
+        if (NodeIdDictCluster_.empty()) {
+            return;
+        }
+
         TString clusterUrl = CreateUrl(NodeIdDictCluster_);
         NApi::NRpcProxy::TConnectionConfigPtr connectionConfig = NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl);
         NApi::IConnectionPtr connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
@@ -661,31 +665,34 @@ private:
 
     void ResolvePaths(TOutput<TRowAfterMap>& output)
     {
-        std::vector<NTableClient::TUnversionedOwningRow> requestRows(OriginalRows_.size());
-        std::vector<NYT::NTableClient::TLegacyKey> rowsToLookup;
-        rowsToLookup.reserve(OriginalRows_.size());
-        NYT::TIntrusivePtr<NYT::NTableClient::TNameTable> nameTable = NYT::New<NYT::NTableClient::TNameTable>();
-        for (size_t i = 0; i < OriginalRows_.size(); ++i) {
-            TStringBuf nodeId = GetClearNodeId(OriginalRows_[i].Path);
-            requestRows[i] = NYT::NNamedValue::MakeRow(nameTable, {{"cluster", ClusterToLookup_}, {"node_id", nodeId}});
-            rowsToLookup.emplace_back(std::move(requestRows[i]));
-        }
-        auto keys = MakeSharedRange(rowsToLookup, nameTable);
-        NYT::TIntrusivePtr<NYT::NApi::IRowset<NYT::NTableClient::TUnversionedRow>> lookupResult;
-        for (size_t i = 0;; ++i) {
-            try {
-                lookupResult = NYT::NConcurrency::WaitFor(Client_->LookupRows(NodeIdDict_, nameTable, keys)).ValueOrThrow().Rowset;
-                break;
-            } catch (const std::exception& e) {
-                Cerr << e.what() << Endl;
-                if (i < 12) {
-                    Sleep(TDuration::Seconds(5));  // sleep and retry
-                } else {
-                    throw;  // throw and terminate
+        TSharedRange<NTableClient::TUnversionedRow> rows;
+        if (!NodeIdDictCluster_.empty()) {
+            std::vector<NTableClient::TUnversionedOwningRow> requestRows(OriginalRows_.size());
+            std::vector<NYT::NTableClient::TLegacyKey> rowsToLookup;
+            rowsToLookup.reserve(OriginalRows_.size());
+            NYT::TIntrusivePtr<NYT::NTableClient::TNameTable> nameTable = NYT::New<NYT::NTableClient::TNameTable>();
+            for (size_t i = 0; i < OriginalRows_.size(); ++i) {
+                TStringBuf nodeId = GetClearNodeId(OriginalRows_[i].Path);
+                requestRows[i] = NYT::NNamedValue::MakeRow(nameTable, {{"cluster", ClusterToLookup_}, {"node_id", nodeId}});
+                rowsToLookup.emplace_back(std::move(requestRows[i]));
+            }
+            auto keys = MakeSharedRange(rowsToLookup, nameTable);
+            for (size_t i = 0;; ++i) {
+                try {
+                    rows = NYT::NConcurrency::WaitFor(Client_->LookupRows(NodeIdDict_, nameTable, keys))
+                        .ValueOrThrow()
+                        .Rowset->GetRows();
+                    break;
+                } catch (const std::exception& e) {
+                    Cerr << e.what() << Endl;
+                    if (i < 12) {
+                        Sleep(TDuration::Seconds(5));  // sleep and retry
+                    } else {
+                        throw;  // throw and terminate
+                    }
                 }
             }
         }
-        std::vector<NYT::NTableClient::TUnversionedRow> rows = lookupResult->GetRows().ToVector();
 
         size_t resultIndex = 0;
         for (auto& originalRow : OriginalRows_) {
@@ -1020,7 +1027,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     opts.AddLongOption("source").DefaultValue("//sys/admin/snapshots/snapshot_exports");
     opts.AddLongOption("destination").DefaultValue("//sys/admin/yt-microservices/resource_usage");
     opts.AddLongOption("node-id-dict").DefaultValue("//sys/admin/yt-microservices/node_id_dict/data");
-    opts.AddLongOption("node-id-dict-cluster").DefaultValue("hahn");
+    opts.AddLongOption("node-id-dict-cluster", "Cluster with the node ID dictionary; empty or omitted disables node ID to path resolution");
     opts.AddLongOption("snapshot-id").DefaultValue("latest");
     opts.AddLongOption("pool").DefaultValue("yt-microservices");
     opts.AddLongOption("network-project");
@@ -1041,7 +1048,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     TString source = r.Get("source");
     TString destination = r.Get("destination");
     TString nodeIdDict = r.Get("node-id-dict");
-    TString nodeIdDictCluster = r.Get("node-id-dict-cluster");
+    TString nodeIdDictCluster = r.GetOrElse("node-id-dict-cluster", "");
     TString snapshotId = r.Get("snapshot-id");
     std::optional<TString> pool = r.Has("pool") ? r.Get("pool") : std::optional<TString>{};
     std::optional<TString> networkProject;

@@ -15,6 +15,9 @@ CPU limit per job. If not set, a single shared default of `6` is used, the same 
 || `set_container_cpu_limit` | **Type**: `bool`
 **Default value**: `false`
 Request a container CPU ceiling equal to `cpu_limit` on execution backends that support it. When `%false`, the runner leaves the operation field unset. ||
+|| `enable_rpc_proxy_in_job_proxy` | **Type**: `bool`
+**Default value**: `false`
+Enable the local RPC proxy in the vanilla job proxy. Built-in YT clients in this task access the execution cluster over a Unix socket, including state and transactions. Other clusters use regular RPC proxies. Incompatible with a custom root clients cache factory. Requires restarting the operation. ||
 || `port_count` | **Type**: `std::optional<int>`
 Number of ports to request from YT (ports are provided via `YT_PORT_<i>` and override fixed ports from node-config): `YT_PORT_0` is `rpc_port` (and `bus_server.port`), `YT_PORT_1` is `monitoring_port`, `YT_PORT_2` is `companion.port`. Needed on hosts with a shared network where fixed ports of neighboring jobs would collide: `2` for the controller and a worker without a companion, `3` for a worker with a companion (Python, Java, Go, C++ companion). A launch without a network project fills it in automatically (`2` for the controller, `3` for the worker); an explicit `0` keeps the fixed ports. Once the worker's `port_count` is positive, the fixed `companion.port = 10082` is no longer filled in: a worker with a companion and fewer than three ports fails to start instead of dialing a neighboring job's companion. ||
 || `local_files` | **Type**: `THashMap<std::string, std::string>`

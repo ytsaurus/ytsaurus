@@ -1879,6 +1879,10 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     };
 
     auto replicateToCellTags = [&] () -> TCellTagList {
+        if (GetConfig()->UseLazyTransactionExternalization) {
+            return {};
+        }
+
         switch (type) {
             // NB: These transactions are started when no basic attributes have been
             // fetched yet and collecting cell tags is therefore useless.
@@ -1987,7 +1991,8 @@ void TOperationControllerBase::InitChunkListPools()
             OutputClient_,
             CancelableInvokerPool_,
             OperationId_,
-            OutputTransaction_->GetId());
+            OutputTransaction_->GetId(),
+            GetConfig()->UseLazyTransactionExternalization);
 
         CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : OutputTables_) {
@@ -2004,6 +2009,7 @@ void TOperationControllerBase::InitChunkListPools()
                         CancelableInvokerPool_,
                         OperationId_,
                         OutputTransaction_->GetId(),
+                        GetConfig()->UseLazyTransactionExternalization,
                         EChunkListKind::Hunk);
 
                     CellTagToRequiredOutputHunkChunkListCount_.clear();
@@ -2024,7 +2030,8 @@ void TOperationControllerBase::InitChunkListPools()
             OutputClient_,
             CancelableInvokerPool_,
             OperationId_,
-            DebugTransaction_->GetId());
+            DebugTransaction_->GetId(),
+            GetConfig()->UseLazyTransactionExternalization);
     }
 
     CellTagToRequiredDebugChunkListCount_.clear();
@@ -2788,12 +2795,20 @@ void TOperationControllerBase::TeleportOutputChunks()
         OutputClient_,
         GetCancelableInvoker(),
         OutputCompletionTransaction_->GetId(),
-        Logger);
+        Logger,
+        /*useLazyTransactionExternalizationOverride*/ Config_->UseLazyTransactionExternalization);
 
+    auto transactionId = OutputCompletionTransaction_->GetId();
     for (auto& table : OutputTables_) {
         for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
             if (IsPhysicalChunkType(TypeFromId(chunkTreeId))) {
-                teleporter->RegisterChunk(chunkTreeId, table->ExternalCellTag);
+                teleporter->RegisterChunk(
+                    chunkTreeId,
+                    table->ExternalCellTag,
+                    CellTagFromId(transactionId) == CellTagFromId(chunkTreeId)
+                        ? transactionId
+                        : MakeExternalizedTransactionId(transactionId, CellTagFromId(transactionId)),
+                    table->ExternalTransactionId);
             }
         }
     }
@@ -4091,8 +4106,9 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
 
     if (!joblet->JobInterruptible) {
         THROW_ERROR_EXCEPTION(
-            "Cannot interrupt job %v of type %Qlv "
-            "because it does not support interruption or \"interruption_signal\" is not set",
+            "Cannot interrupt job %v of type %Qlv; possible causes include interruption being disabled "
+            "by the operation or controller configuration, the job type not supporting interruption, "
+            "or \"interruption_signal\" not being set for a vanilla job",
             jobId,
             joblet->JobType);
     }
@@ -10751,6 +10767,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     };
 
+    // Image environment is passed through a separate channel: the job proxy
+    // applies it verbatim, without $(...)-pattern substitution.
+    for (const auto& [key, value] : jobSpecConfig->DockerImageEnvironment) {
+        jobSpec->add_docker_image_environment(Format("%v=%v", key, value));
+    }
+
     // Global environment.
     fillEnvironment(Config_->Environment);
 
@@ -11845,7 +11867,10 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
 
 bool TOperationControllerBase::CanInterruptJobs() const
 {
-    return Config_->EnableJobInterrupts && InputManager_->CanInterruptJobs();
+    return
+        Config_->EnableJobInterrupts &&
+        Spec_->EnableJobInterrupts &&
+        InputManager_->CanInterruptJobs();
 }
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason reason)

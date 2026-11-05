@@ -13,6 +13,7 @@
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 
 #include <yt/yql/providers/dq/runtime/file_cache.h>
+#include <yt/yql/providers/dq/runtime/porto.h>
 #include <yt/yql/providers/dq/runtime/task_runner_invoker_factory.h>
 #include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
@@ -32,7 +33,6 @@
 #include <util/system/fs.h>
 #include <util/stream/file.h>
 #include <util/system/env.h>
-#include <util/system/shellcommand.h>
 #include <util/string/type.h>
 #include <util/system/execpath.h>
 
@@ -60,33 +60,6 @@ namespace {
         ShouldContinue.SetValue();
     }
 
-    void ConfigurePorto(const NYql::NProto::TDqConfig::TYtBackend& config, const TString portoCtl) {
-        TString settings[][2] = {
-            {"enable_porto", "isolate"},
-            {"respawn", "true"}
-        };
-        int nSettings = 2;
-        {
-            TShellCommand cmd(portoCtl, {"create", "Outer"});
-            cmd.Run().Wait();
-        }
-        for (int i = 0; i < nSettings; i++) {
-            TShellCommand cmd(portoCtl, {"set", "Outer", settings[i][0], settings[i][1]});
-            cmd.Run().Wait();
-        }
-        for (const auto& attr : config.GetPortoSettings().GetSetting()) {
-            TShellCommand cmd(portoCtl, {"set", "Outer", attr.GetName(), attr.GetValue()});
-            cmd.Run().Wait();
-        }
-        {
-            TShellCommand cmd(portoCtl, {"start", "Outer"});
-            cmd.Run().Wait();
-        }
-        {
-            TShellCommand cmd(portoCtl, {"wait", "Outer"});
-            cmd.Run().Wait();
-        }
-    }
 }
 
 namespace NYql::NDq::NWorker {
@@ -193,24 +166,6 @@ namespace NYql::NDq::NWorker {
             : 16000000000L;
         TIntrusivePtr<IFileCache> fileCache = new TFileCache(fileCacheDir + "/cache", cacheSize);
         NFs::SymLink(fileCacheDir, "file_cache"); // COMPAT
-        TString layerDir = fileCacheDir + "/layer";
-        if (backendConfig.GetPortoLayer().size() > 0) {
-            NFs::MakeDirectoryRecursive(layerDir + "/mnt/work");
-            for (const auto& layerPath : backendConfig.GetPortoLayer()) {
-                auto pos = layerPath.rfind('/');
-                auto archive = layerPath.substr(pos+1);
-                TShellCommand cmd("tar", {"xf", archive, "-C", layerDir});
-                cmd.Run().Wait();
-                TMaybe<int> exitCode = cmd.GetExitCode();
-                if (!exitCode.Defined() || exitCode != 0) {
-                    const TString msg = TStringBuilder() << "'tar' exited with non-zero code, stderr: " << cmd.GetError();
-                    YQL_LOG(ERROR) << msg;
-                }
-            }
-        } else {
-            NFs::MakeDirectoryRecursive("mnt/work");
-            NFs::MakeDirectoryRecursive("usr/local/bin");
-        }
 
         int capacity = backendConfig.GetWorkerCapacity()
                 ? backendConfig.GetWorkerCapacity()
@@ -257,25 +212,15 @@ namespace NYql::NDq::NWorker {
             pfOptions.Env["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = "0";
             pfOptions.Env["YT_FORBID_REQUESTS_FROM_JOB"] = "1";
         }
-        pfOptions.EnablePorto = enablePorto;
-        pfOptions.EnablePortoAnonLimitRaiseBeforeDestroy = backendConfig.GetEnablePortoAnonLimitRaiseBeforeDestroy();
-        pfOptions.PortoLayer = backendConfig.GetPortoLayer().size() == 0 ? "" : layerDir;
         pfOptions.MaxProcesses = capacity*1.5;
-        pfOptions.ContainerName = "Outer";
+        const auto portoCtlToWatch = NDq::PrepareTaskRunnerPorto(
+            backendConfig, fileCacheDir, &pfOptions, NDq::ETaskRunnerPortoRoot::SandboxArchives);
 
         TResourceManagerOptions rmOptions;
         rmOptions.YtBackend = backendConfig;
         rmOptions.FileCache = fileCache;
         rmOptions.TmpDir =  fileCacheDir + "/tmp";
-
-        if (NFs::Exists(layerDir + "/usr/bin/portoctl")) {
-            TString dst = fileCache->GetDir() + "/portoctl";
-            NFs::Copy(layerDir + "/usr/bin/portoctl", dst);
-            NFs::HardLink(layerDir + "/usr/bin/portoctl", layerDir + "/usr/sbin/portoctl"); // workaround PORTO-997
-            chmod(dst.c_str(), 0755);
-            pfOptions.PortoCtlPath = dst;
-            rmOptions.DieOnFileAbsence = dst; // die on file absence
-        }
+        rmOptions.DieOnFileAbsence = portoCtlToWatch;
 
         Cerr << host + ":" + ip << Endl;
 
@@ -303,7 +248,7 @@ namespace NYql::NDq::NWorker {
 
         if (enablePorto) {
             Cerr << "Configure porto" << Endl;
-            ConfigurePorto(backendConfig, pfOptions.PortoCtlPath);
+            NDq::ConfigureTaskRunnerPorto(backendConfig, pfOptions);
             Cerr << "Configure porto done" << Endl;
         }
 

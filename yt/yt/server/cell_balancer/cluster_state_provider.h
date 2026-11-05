@@ -50,7 +50,9 @@ private:
     THashMap<const NCellServer::TCellBase*, THashSet<int>> AlienPeers_;
     THashMap<std::string, NNodeTrackerServer::TNode*> AddressToNode_;
 
-    const NCellServer::TCellSet* FindAssignedCells(const std::string& address) const;
+    NCellServer::TCellSet FindAssignedCells(
+        const std::string& address,
+        NCellarClient::ECellarType cellarType) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterStateProvider)

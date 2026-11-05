@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Set
 
 from ..computation import Computation, SourceComputation, _classify_callable
-from ..context import RequestContext
+from ..context import RequestContext, _is_proto_message_class
 from ..http_client import get_http_clients
 from ..job import Job
 from ..row import (
@@ -17,7 +17,7 @@ from ..row import (
     Visit,
     EMPTY_SCHEMA,
 )
-from ..state import ExternalState, State, StatesHolder
+from ..state import ExternalState, ProtoExternalState, State, StateFormat, StatesHolder
 from ..stream import RawStream, StreamIdsMapping, StreamSpecs
 from .response import ProcessResponse
 
@@ -74,6 +74,8 @@ class ComputationHarness:
         internal_states: Optional[Set[str]] = None,
         external_states: Optional[Dict[str, TableSchema]] = None,
         joined_external_states: Optional[Dict[str, TableSchema]] = None,
+        proto_external_states: Optional[Dict[str, type]] = None,
+        joined_proto_external_states: Optional[Dict[str, type]] = None,
         parameters: Optional[Dict[str, Any]] = None,
         resources: Optional[Dict[str, Any]] = None,
         source: bool = False,
@@ -84,6 +86,17 @@ class ComputationHarness:
         self._internal_state_names = internal_states or set()
         self._external_state_schemas = external_states or {}
         self._joined_external_state_schemas = joined_external_states or {}
+        self._proto_external_states = proto_external_states or {}
+        self._joined_proto_external_states = joined_proto_external_states or {}
+        for schemas, messages in (
+            (self._external_state_schemas, self._proto_external_states),
+            (self._joined_external_state_schemas, self._joined_proto_external_states),
+        ):
+            if schemas.keys() & messages.keys():
+                raise ValueError("An external state cannot have both row and proto formats")
+            for name, proto_class in messages.items():
+                if not _is_proto_message_class(proto_class):
+                    raise TypeError(f"External state {name} requires a protobuf message class")
         self._parameters = parameters or {}
         # Companion-hosted resources by the alias the computation looks them up
         # under; stubs are fine, nothing here drives the resource lifecycle.
@@ -180,10 +193,10 @@ class ComputationHarness:
                 State, bytes, dict (YSON-serialized), or protobuf message.
             external_states: Pre-populated external state.
                 ``{state_name: {key_payload: value}}`` where value is
-                ExternalState or Payload.
+                ExternalState, Payload, ProtoExternalState or a declared protobuf message.
             joined_external_states: Pre-populated read-only joined external state.
                 ``{state_name: {key_payload: value}}`` where value is
-                ExternalState or Payload.
+                ExternalState, Payload, ProtoExternalState or a declared protobuf message.
 
         Yields:
             ProcessResponse for assertions.
@@ -217,10 +230,12 @@ class ComputationHarness:
             static_params["internal_states"] = list(self._internal_state_names)
 
         static_spec = {"parameters": static_params}
-        if self._external_state_schemas:
-            static_spec["external_state_managers"] = {name: {} for name in self._external_state_schemas}
-        if self._joined_external_state_schemas:
-            static_spec["external_state_joiners"] = {name: {} for name in self._joined_external_state_schemas}
+        manager_names = self._external_state_schemas.keys() | self._proto_external_states.keys()
+        if manager_names:
+            static_spec["external_state_managers"] = {name: {} for name in manager_names}
+        joiner_names = self._joined_external_state_schemas.keys() | self._joined_proto_external_states.keys()
+        if joiner_names:
+            static_spec["external_state_joiners"] = {name: {} for name in joiner_names}
 
         job = Job(
             job_id="test-job",
@@ -259,6 +274,21 @@ class ComputationHarness:
                 state_obj = self._coerce_external_state(value)
                 holder.load(key_payload.row, state_obj)
             joined_holders[state_name] = holder
+
+        for proto_messages, preload, holders in (
+            (self._proto_external_states, external_states, ext_holders),
+            (self._joined_proto_external_states, joined_external_states, joined_holders),
+        ):
+            for name, proto_class in proto_messages.items():
+                holder = StatesHolder(
+                    name,
+                    self._key_schema,
+                    state_format=StateFormat.PROTO,
+                    proto_type=proto_class.DESCRIPTOR.full_name,
+                )
+                for key, value in preload.get(name, {}).items():
+                    holder.load(key.row, self._coerce_proto_external_state(value, proto_class))
+                holders[name] = holder
 
         # Compute min watermark.
         min_wm = min(watermarks.values()) if watermarks else 0
@@ -314,3 +344,11 @@ class ComputationHarness:
         if isinstance(value, Payload):
             return ExternalState(reset=False, state=value)
         raise TypeError(f"Cannot coerce {type(value)} to ExternalState")
+
+    @staticmethod
+    def _coerce_proto_external_state(value, proto_class) -> ProtoExternalState:
+        if isinstance(value, ProtoExternalState):
+            return ProtoExternalState(reset=value.reset, state=value.state)
+        if isinstance(value, proto_class):
+            return ProtoExternalState(state=value.SerializeToString())
+        raise TypeError(f"Expected {proto_class.DESCRIPTOR.full_name} or ProtoExternalState, got {type(value)}")

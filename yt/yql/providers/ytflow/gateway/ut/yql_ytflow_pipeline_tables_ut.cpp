@@ -45,6 +45,17 @@ TEST(TYqlPipelineTablesTest, UsesCanonicalSchemas)
     };
     checkDefinitions(definitions.Tables);
     checkDefinitions(definitions.Queues);
+
+    auto nodes = BuildYqlPipelineNodeDefinitions();
+    ASSERT_EQ(nodes.size(), 1u);
+    EXPECT_EQ(nodes.front().first, "logs");
+    auto logsDefinition = definitions.Nodes.find("logs");
+    ASSERT_NE(logsDefinition, definitions.Nodes.end());
+    EXPECT_EQ(nodes.front().second.Type, logsDefinition->second.Type);
+    EXPECT_TRUE(AreNodesEqual(
+        nodes.front().second.Attributes->ToMap(),
+        logsDefinition->second.Attributes->ToMap()));
+    EXPECT_EQ(nodes.front().second.Attributes->Get<int>("yt_logs_format_version"), 1);
 }
 
 TEST(TYqlPipelineTablesTest, WorkerLogsReuseControllerLogsSchema)

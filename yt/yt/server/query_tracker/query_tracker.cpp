@@ -226,16 +226,6 @@ private:
         auto traceContext = TTraceContext::NewRoot("QuerySelect");
         auto guard = TCurrentTraceContextGuard(traceContext);
 
-        if (!LeaseTransaction_) {
-            YT_TLOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
-            return;
-        }
-
-        if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_TLOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
-            return;
-        }
-
         YT_TLOG_DEBUG("Selecting active queries for potential acquisition");
 
         std::vector<TActiveQuery> queryRecords;
@@ -258,21 +248,6 @@ private:
         YT_TLOG_DEBUG("Active queries selected")
             .With("ActiveQueryCount", queryRecords.size());
 
-        THashSet<TTransactionId> leaseTransactionIds;
-        for (const auto& record : queryRecords) {
-            leaseTransactionIds.insert(record.LeaseTransactionId);
-        }
-
-        THashSet<TTransactionId> activeLeaseTransactionIds;
-        try {
-            activeLeaseTransactionIds = WaitFor(GetAliveTransactions(leaseTransactionIds))
-                .ValueOrThrow();
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error while getting alive lease transactions for active queries")
-                .With(ex);
-            return;
-        }
-
         // Save profile counters.
         THashMap<TProfilingTags, int> activeQueryCounts;
 
@@ -288,6 +263,31 @@ private:
                 QueryTrackerProfilerGlobal,
                 tags)->ActiveQueries;
             activeQueriesCounter.Update(count);
+        }
+
+        if (ComponentStateChecker_->IsComponentBanned()) {
+            YT_TLOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
+            return;
+        }
+
+        if (!LeaseTransaction_) {
+            YT_TLOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
+            return;
+        }
+
+        THashSet<TTransactionId> leaseTransactionIds;
+        for (const auto& record : queryRecords) {
+            leaseTransactionIds.insert(record.LeaseTransactionId);
+        }
+
+        THashSet<TTransactionId> activeLeaseTransactionIds;
+        try {
+            activeLeaseTransactionIds = WaitFor(GetAliveTransactions(leaseTransactionIds))
+                .ValueOrThrow();
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Error while getting alive lease transactions for active queries")
+                .With(ex);
+            return;
         }
 
         std::vector<TActiveQuery> orphanedQueries;

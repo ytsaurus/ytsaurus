@@ -145,7 +145,7 @@ ON a.key == b.key;
 
 
 
-## Стратегии выполнения JOIN в {{product-name}}
+## Стратегии выполнения JOIN в {{product-name}} {#join_strategy}
 
 ### Введение
 
@@ -369,7 +369,7 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 
 Установка `yt.MapJoinLimit` в 0 отключает стратегию MapJoin.
 
-### Стратегия StarJoin
+### Стратегия StarJoin {#starjoin}
 
 Особенностью данной стратегии является то, что она позволяет выполнять сразу несколько последовательных `JOIN` через одну операцию Reduce.
 

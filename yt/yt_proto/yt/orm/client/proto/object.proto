@@ -998,7 +998,15 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31067.
+message TProtobufStorageRawAliasOptions
+{
+    optional string name = 1;
+    optional int32 number = 2;
+    // Standard protobuf deprecation marker for the public raw alias field.
+    optional bool deprecated = 3;
+}
+
+// Next field 31068.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1171,6 +1179,10 @@ extend google.protobuf.FieldOptions
     // Store this message-typed field as raw protobuf bytes in a codegen-synthesized column.
     // Single-field form of |raw_protobuf|: the storage column is not visible in the client proto.
     optional bool protobuf_storage = 31066;
+
+    // Expose a bytes (or repeated bytes) alias of a protobuf_storage field.
+    // The alias shares its owner's storage and uses the owner's write mode.
+    optional TProtobufStorageRawAliasOptions protobuf_storage_raw_alias = 31067;
 
     // Each predicate is an ORM QL expression over field's attribute.
     // Alias `value` can be used instead of spelling out full attribute path in the expression.

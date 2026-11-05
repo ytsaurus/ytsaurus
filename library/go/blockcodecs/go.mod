@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/library/go/blockcodecs
 
-go 1.23.8
+go 1.24.0
 
 require (
 	github.com/andybalholm/brotli v1.1.0

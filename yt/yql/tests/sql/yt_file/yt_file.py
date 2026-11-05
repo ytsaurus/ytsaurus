@@ -7,7 +7,7 @@ import yql_utils
 import yatest.common
 from yql_utils import execute, get_tables, get_files, get_http_files, get_table_clusters, \
     KSV_ATTR, yql_binary_path, is_xfail, is_canonize_peephole, is_peephole_use_blocks, is_canonize_lineage, \
-    is_skip_forceblocks, get_param, normalize_source_code_path, replace_vals, get_gateway_cfg_suffix, \
+    is_skip_forceblocks, get_param, normalize_source_code_path, replace_vals, \
     do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, get_langver, \
     get_gateway_cfg_patch
 from yqlrun import YQLRun
@@ -77,9 +77,6 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     if get_param('SQL_FLAGS'):
         if what == 'Debug' or what == 'Plan' or what == 'Peephole' or what == 'Lineage':
             pytest.skip('SKIP')
-    if get_gateway_cfg_suffix() != '' and what != 'Results':
-        pytest.skip('non-trivial gateways.conf')
-
     ytfilerun_binary = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
     config = get_config(suite, case, cfg, data_path=DATA_PATH)
     cfg_postprocess = add_table_clusters(suite, config)

@@ -4,7 +4,7 @@ This section contains information about running computations and data processing
 
 Data processing is performed in a distributed manner. The logical unit of computation is an **operation**. Most operations have a set of input and output tables. They process data from the input tables, writing the results to an output table. For example, an operation may sort table `A` and save the result to table `B`, or it may execute user code to process rows from table `A` and write the result to table `B`. {{product-name}} also allows running operations that execute a custom bash command, such as running a user-defined executable, in a distributed manner. This feature is particularly useful for running distributed ML operations on a cluster.
 
-There are several [types of operations](operations/overview#obzor). Among other things, they implement the [MapReduce](https://en.wikipedia.org/wiki/MapReduce) paradigm for distributed data processing.
+There are several [types of operations](operations/overview.md#overview). Among other things, they implement the [MapReduce](https://en.wikipedia.org/wiki/MapReduce) paradigm for distributed data processing.
 
 Each operation consists of a number of **jobs**, which are executed in the cluster in parallel and usually independently. Each job is an isolated process that handles a part of the overall computation and is executed on one of the cluster nodes. Before starting a job, an **allocation** is made on the node. An allocation is a logical entity characterized by a set of computational resources, such as RAM and CPU. After this, the job is executed within the created allocation.
 
@@ -77,11 +77,11 @@ For more information about resource allocation, see [Scheduler and pools](schedu
 
 In addition, the system is designed to be reactive, which means that scheduler tries to start new jobs as quickly as possible using any available resources, while the efficient packing of jobs on the exec nodes is not a priority for the scheduling algorithm. Because of this, highly imbalanced loads may lead to fragmentation of resources in the cluster.
 
-### GPU support
+### GPU support { #gpu-support }
 
 Exec nodes are capable to start jobs that require GPU devices. In addition, the scheduler can be informed of the network topology on GPU hosts, and it will be taken into account for [gang operations](https://en.wikipedia.org/wiki/Gang_scheduling) scheduling.
 
-Internally, GPU resource is represented as a single integer indicating the number of devices, e.g. the total number of GPUs on a node or a number of GPUs required by a job. For this reason, it's recommended to split nodes with different GPU types into separate [pool trees](scheduler/scheduler-and-pools#puly-i-derevya-pulov).
+Internally, GPU resource is represented as a single integer indicating the number of devices, e.g. the total number of GPUs on a node or a number of GPUs required by a job. For this reason, it's recommended to split nodes with different GPU types into separate [pool trees](scheduler/scheduler-and-pools.md#pools-and-pool-trees).
 
 {% if audience == "internal" %}
 For more information about GPU support, see [GPU support in YT](operations/gpu).

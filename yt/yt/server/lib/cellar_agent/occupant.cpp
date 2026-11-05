@@ -795,7 +795,7 @@ public:
 
         if (CanConfigure()) {
             if (const auto& hydraManager = HydraManager_.Acquire()) {
-                YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig->HydraManager));
+                hydraManager->Reconfigure(dynamicConfig->HydraManager);
             }
             if (ChangelogStoreFactory_) {
                 try {

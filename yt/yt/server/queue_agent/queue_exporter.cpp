@@ -1118,7 +1118,9 @@ private:
             Logger);
 
         for (const auto* chunkSpec : taskPart.ChunkSpecsToExport) {
-            teleporter->RegisterChunk(FromProto<TChunkId>(chunkSpec->chunk_id()), taskPart.DestinationObject.ExternalCellTag);
+            teleporter->RegisterChunk(
+                FromProto<TChunkId>(chunkSpec->chunk_id()),
+                taskPart.DestinationObject.ExternalCellTag);
         }
         WaitFor(teleporter->Run())
             .ThrowOnError();

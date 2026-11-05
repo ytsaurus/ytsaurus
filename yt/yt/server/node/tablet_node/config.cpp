@@ -232,6 +232,8 @@ void TStoreFlusherDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Optional();
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
     registrar.Parameter("orchid", &TThis::Orchid)
         .DefaultNew();
 }
@@ -287,6 +289,8 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("partitioning_query_pool", &TThis::PartitioningFairSharePool)
         .Optional();
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
 
     registrar.Parameter("reuse_compaction_invoker_for_writer_compression", &TThis::ReuseCompactionInvokerForWriterCompression)
         .Default(false);
@@ -799,6 +803,11 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Parameter("use_query_pool_for_bus_xfer", &TThis::UseQueryPoolForBusXfer)
+        .Default(false);
+    registrar.Parameter("use_query_pool_for_rpc", &TThis::UseQueryPoolForRpc)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.

@@ -647,12 +647,17 @@ public:
         }
     }
 
-    const TCellSet* FindAssignedCells(const std::string& address) const override
+    TCellSet FindAssignedCells(const std::string& address, ECellarType cellarType) const override
     {
-        auto it = AddressToCell_.find(address);
-        return it != AddressToCell_.end()
-            ? &it->second
-            : nullptr;
+        TCellSet assignedCells;
+        if (auto it = AddressToCell_.find(address); it != AddressToCell_.end()) {
+            for (const auto& [cell, peerId] : it->second) {
+                if (cell->GetCellarType() == cellarType) {
+                    assignedCells.emplace_back(cell, peerId);
+                }
+            }
+        }
+        return assignedCells;
     }
 
     const IBundleNodeTrackerPtr& GetBundleNodeTracker() override
@@ -1820,7 +1825,7 @@ private:
             int availableSlots = node->GetAvailableSlotCount(cellarType);
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end() && availableSlots > 0) {
-                for (auto [cell, peerId] : it->second) {
+                for (const auto& [cell, peerId] : it->second) {
                     if (!IsObjectAlive(cell) || cell->GetCellarType() != cellarType) {
                         continue;
                     }

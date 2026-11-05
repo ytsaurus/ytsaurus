@@ -2,7 +2,9 @@ from yt_queue_agent_test_base import TestQueueAgentBase, GenericObjectPath
 
 from yt_commands import (
     authors,
+    create,
     get,
+    sync_mount_table,
     insert_rows,
     ls,
     pull_consumer,
@@ -62,23 +64,28 @@ def validate_consumer_table(consumer_path: str, expected_offsets: dict[str, dict
 
 
 class TestQueueApi(TestQueueAgentBase):
-    @pytest.mark.parametrize("partition_to_insert", [
-        0,
-        1,
-        2,
+    @pytest.mark.parametrize("partition_to_insert, hash_expression", [
+        (0, None),
+        (1, None),
+        (2, None),
+        (1, "farm_hash(queue_consumer_name, queue_path)"),
+        (1, "farm_hash(queue_cluster, queue_path) % 3"),
     ])
     @authors("panesher")
-    def test_multi_consumer_api(self, partition_to_insert):
+    def test_multi_consumer_api(self, partition_to_insert, hash_expression):
         consumer_path = "//tmp/consumer"
         consumer_name = "my_1"
         other_consumer_name = "other_1"
 
-        self._create_consumer(consumer_path, multi_consumer=True)
+        self._create_consumer(consumer_path, multi_consumer=True, hash_expression=hash_expression)
 
         assert get(f"{consumer_path}/@type") == "table"
         assert get(f"{consumer_path}/@treat_as_queue_consumer")
+        expected_columns = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+        if hash_expression is not None:
+            expected_columns = [{**expected_columns[0], "expression": hash_expression}] + expected_columns[1:]
         expected_schema = make_schema(
-            init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA,
+            expected_columns,
             strict=True,
             unique_keys=True,
         )
@@ -131,6 +138,51 @@ class TestQueueApi(TestQueueAgentBase):
             consumer_name: partition_index_to_offset,
             other_consumer_name: other_partition_index_to_offset,
         })
+
+    @authors("panesher")
+    def test_multi_consumer_api_without_hash_column(self):
+        consumer_path = "//tmp/consumer"
+        consumer_name = "my_1"
+        self._create_consumer(consumer_path, multi_consumer=True, without_hash_column=True)
+
+        queue_path = "//tmp/queue"
+        queue_ref = GenericObjectPath(queue_path, "primary")
+        consumer_ref = GenericObjectPath(consumer_path, "primary", consumer_name)
+        partition_count = 3
+        self._create_queue(queue_path, partition_count=partition_count)
+        insert_rows(queue_path, [{"$tablet_index": 1, "data": f"hello world {index}"} for index in range(3)])
+
+        register_queue_consumer(queue_ref, consumer_ref, vital=False)
+
+        assert len(pull_consumer(str(consumer_ref), str(queue_ref), partition_index=1)) == 3
+
+        partition_index_to_offset = {i: 0 for i in range(partition_count)}
+        partition_index_to_offset[1] = 2
+        advance_consumer_partitions(queue_ref, consumer_ref, partition_index_to_offset)
+        assert len(pull_consumer(str(consumer_ref), str(queue_ref), partition_index=1)) == 1
+
+        validate_consumer_table(consumer_path, {consumer_name: partition_index_to_offset})
+
+    @authors("panesher")
+    def test_multi_consumer_invalid_hash_column(self):
+        consumer_path = "//tmp/consumer"
+        schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+        schema = [{**schema[0], "type": "int64", "expression": "int64(farm_hash(queue_consumer_name))"}] + schema[1:]
+        create("table", consumer_path, attributes={
+            "dynamic": True,
+            "schema": schema,
+            "treat_as_queue_consumer": True,
+        })
+        sync_mount_table(consumer_path)
+
+        queue_path = "//tmp/queue"
+        queue_ref = GenericObjectPath(queue_path, "primary")
+        consumer_ref = GenericObjectPath(consumer_path, "primary", "my_1")
+        self._create_queue(queue_path)
+        register_queue_consumer(queue_ref, consumer_ref, vital=False)
+
+        with raises_yt_error("Invalid queue multi consumer schema"):
+            pull_consumer(str(consumer_ref), str(queue_ref), partition_index=0)
 
     @pytest.mark.parametrize("partition_order_to_insert", [
         [("my_1", 0, 1), ("other_1", 0, 1), ("my_1", 1, 2), ("other_1", 1, 2), ("my_1", 2, 3), ("other_1", 2, 3)],

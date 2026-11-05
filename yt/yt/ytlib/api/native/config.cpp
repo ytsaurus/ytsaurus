@@ -115,6 +115,7 @@ void TSequoiaRetriesConfig::Register(TRegistrar registrar)
         config->StartBackoff = TDuration::MilliSeconds(150); // Average duration of Sequoia tx.
         config->MaxBackoff = TDuration::Seconds(10);
         config->BackoffMultiplier = 2;
+        config->BackoffJitter = 0.2;
         config->RetryCount = 15;
     });
 }
@@ -623,6 +624,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     // COMPAT(ifsmirnov)
     registrar.Parameter("use_two_phase_dynamicity_alter", &TThis::UseTwoPhaseDynamicityAlter)
+        .Default(false);
+
+    // COMPAT(shamteev)
+    registrar.Parameter("enable_chaos_lease_transaction_participants", &TThis::EnableChaosLeaseTransactionParticipants)
         .Default(false);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {

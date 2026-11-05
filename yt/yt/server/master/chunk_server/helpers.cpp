@@ -1879,7 +1879,7 @@ int EncodeRepairQueueKey(int mediumIndex, int priority)
 
 std::pair<int, int> DecodeRepairQueueKey(int key)
 {
-    return std::make_pair(
+    return std::pair(
         key / RepairPriorityCount,      // mediumIndex
         key % RepairPriorityCount);     // priority
 }

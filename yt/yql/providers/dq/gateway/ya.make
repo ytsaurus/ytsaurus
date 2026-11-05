@@ -11,7 +11,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
     contrib/ydb/library/yql/providers/dq/provider
-    contrib/ydb/public/lib/yson_value
     contrib/ydb/public/sdk/cpp/src/library/grpc/client
     library/cpp/threading/future
     library/cpp/threading/task_scheduler

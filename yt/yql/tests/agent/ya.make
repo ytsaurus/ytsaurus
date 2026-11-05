@@ -14,6 +14,7 @@ TEST_SRCS(
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
+YT_SPEC(yt/yql/tests/agent/spec_non_root.yson)
 
 DEPENDS(
     yt/yt/packages/tests_package
@@ -59,7 +60,7 @@ ELSE()
     )
 ENDIF()
 
-FORK_TESTS()
+FORK_TESTS(MODULO)
 SPLIT_FACTOR(16)
 
 ENV(YT_LOCAL=1)

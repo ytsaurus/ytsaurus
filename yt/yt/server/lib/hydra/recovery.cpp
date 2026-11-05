@@ -52,7 +52,7 @@ TRecovery::TRecovery(
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , ChangelogStore_(std::move(changelogStore))
     , SnapshotStore_(std::move(snapshotStore))
-    , StateHashChecker_(stateHashChecker)
+    , StateHashChecker_(std::move(stateHashChecker))
     , ResponseKeeper_(std::move(responseKeeper))
     , EpochContext_(epochContext)
     , TargetState_(targetState)
@@ -428,14 +428,13 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
 
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    auto initialSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     if (automatonVersion.GetSegmentId() == changelog->GetId()) {
         currentRecordId = automatonVersion.GetPhysicalVersion().Advance().RecordId;
     }
 
     while (currentRecordId < changelogRecordCount && DecoratedAutomaton_->GetSequenceNumber() < targetSequenceNumber) {
-        auto automatonNumber = DecoratedAutomaton_->GetSequenceNumber();
-        auto recordsNeeded = targetSequenceNumber - automatonNumber;
+        auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+        auto recordsNeeded = targetSequenceNumber - automatonSequenceNumber;
         YT_VERIFY(recordsNeeded > 0);
 
         YT_TLOG_INFO("Started reading changelog records")
@@ -471,7 +470,9 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
             Config_->EnableStateHashChecker &&
             Config_->EnableStateHashCheckerDuringRecovery)
         {
-            ReportMutationStateHashesToLeader(initialSequenceNumber, targetSequenceNumber);
+            ReportMutationStateHashesToLeader(
+                automatonSequenceNumber + 1,
+                DecoratedAutomaton_->GetSequenceNumber());
         }
 
         currentRecordId += recordsRead;

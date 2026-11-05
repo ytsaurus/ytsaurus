@@ -45,6 +45,7 @@ target_link_options(yt-cpp-mapreduce-http-ut PRIVATE
 
 target_sources(yt-cpp-mapreduce-http-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/connection_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/host_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/http_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/ut/simple_server.cpp
 )

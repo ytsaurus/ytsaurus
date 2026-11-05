@@ -5,6 +5,7 @@
 #include <yql/essentials/utils/yql_panic.h>
 
 #include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
 
 #include <contrib/ydb/library/grpc/server/actors/logger.h>
@@ -85,12 +86,16 @@ namespace NYql {
         , Threads(threads)
         , MetricsRegistry(std::move(metricsRegistry))
     {
+        TVector<ui32> poolThreads(EExecutorPoolType::TotalCount);
+        poolThreads[EExecutorPoolType::Main] = Threads;
+        poolThreads[EExecutorPoolType::FullResultWriter] = 8;
+        poolThreads[EExecutorPoolType::GraphEvents] = 8;
         std::tie(Setup, LogSettings) = BuildActorSetup(
             Config.NodeId,
             Config.InterconnectAddress,
             Config.Port,
             Config.Socket,
-            {Threads, 8},
+            std::move(poolThreads),
             MetricsRegistry->GetSensors(),
             Config.NameserverFactory,
             Config.MaxNodeId,

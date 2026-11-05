@@ -8,6 +8,7 @@
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
 #include "job_lineage_tracker.h"
+#include "key.h"
 #include "partition_buffer_state.h"
 #include "spec_validation.h"
 #include "stream_inflight_limits.h"
@@ -36,6 +37,14 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The worker's catalogue of timer pages as the context carries it; the implementation lives
+//! in the computation library and is shared by every job of the worker.
+struct ITimerPageCatalogue
+    : public TRefCounted
+{ };
+
+DEFINE_REFCOUNTED_TYPE(ITimerPageCatalogue);
+
 struct TComputationContextBase
 {
     TComputationSpecPtr ComputationSpec;
@@ -53,6 +62,8 @@ struct TComputationContextBase
     NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache;
     IPayloadConverterCachePtr ConverterCache;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
+    //! The worker's timer page catalogue; null outside a worker job.
+    ITimerPageCataloguePtr TimerPageCatalogue;
     //! Per-job view of the worker's buffer manager; null outside a worker job.
     IPartitionBufferStatePtr PartitionBufferState;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
@@ -147,6 +158,7 @@ DEFINE_REFCOUNTED_TYPE(IComputationRunContext);
 struct TComputationStatus
     : public NYTree::TYsonStruct
 {
+    std::optional<THashMap<TKey, TInstant>> ObservedKeys;
     TNodeTraverseDataPtr NodeTraverse;
     TProcessingObservationPtr ProcessingObservation;
     NYTree::IMapNodePtr PartitionStatus;

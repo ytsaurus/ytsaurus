@@ -35,7 +35,7 @@ class TestJobs(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
@@ -72,7 +72,7 @@ class TestJobs(YTEnvSetup):
             },
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         interrupt_job(job_id, interrupt_timeout=2000)
 
@@ -220,7 +220,7 @@ class TestNodeBanned(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         set_node_banned(node, True)
 
@@ -431,7 +431,7 @@ class TestAllocationReuse(YTEnvSetup):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id1 = job_ids[0]
@@ -440,7 +440,7 @@ class TestAllocationReuse(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id2 = job_ids[0]
@@ -526,7 +526,7 @@ if job_index == 0:
                 "enable_multiple_jobs_in_allocation": True,
             })
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
 
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
@@ -551,7 +551,7 @@ if job_index == 0:
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         print_debug(f"Second job is {job_id2}")
 
@@ -679,7 +679,7 @@ time.sleep(100500)
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
 
         # Until job-proxy signals OnJobPrepared to the node, the node will return an empty string here.
         wait(lambda: op.read_stderr(job_id) != b"")
@@ -826,7 +826,7 @@ breakpoint()
                 "sanity_check_delay": 600 * 1000,
             })
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         print_debug(f"First job ids are {job_ids}")
 
@@ -880,7 +880,7 @@ breakpoint()
                     print_debug(f"Job {job_id} is not waiting on breakpoint")
                     pass
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         print_debug(f"Killing node {node_to_kill}")
         self.Env.kill_nodes(addresses=[node_to_kill])
         release_breakpoint(job_id=new_job_id)
@@ -904,7 +904,7 @@ breakpoint()
             release_breakpoint(job_id=preserved_job_id)
             wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
 
-            second_job_id, = wait_breakpoint(job_count=1)
+            second_job_id, = wait_breakpoint(op, job_count=1)
 
             print_debug(f"Second job id is {second_job_id}")
             assert allocation_id == get_allocation_id_from_job_id(second_job_id)
@@ -1001,7 +1001,7 @@ breakpoint()
                 "sanity_check_delay": 600 * 1000,
             })
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         print_debug(f"First job ids are {job_ids}")
 
@@ -1055,7 +1055,7 @@ breakpoint()
                     print_debug(f"Job {job_id} is not waiting on breakpoint")
                     pass
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         print_debug(f"Killing node {node_to_kill}")
         set_nodes_banned([node_to_kill], True, wait_for_scheduler=True)
         release_breakpoint(job_id=new_job_id)
@@ -1235,7 +1235,7 @@ breakpoint()
             "file_paths": ["//tmp/script.py"],
         })
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
 
         # op.track()
 
@@ -1281,7 +1281,7 @@ class TestNodeAddressResolveFailed(YTEnvSetup):
 
         update_nodes_dynamic_config(value=False, path="exec_node/job_controller/job_common/testing/fail_address_resolve")
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         release_breakpoint()
 

@@ -1,4 +1,5 @@
 #include <yt/yt/flow/library/cpp/computation/job_state/state_manager.h>
+#include <yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.h>
 
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/key_states.h>
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/partition_states.h>
@@ -202,6 +203,50 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 // Partition State — basic lifecycle
+
+TEST_F(TStateClientTest, ReadDelayEstimatorFollowsSourceKeyAcrossPartitionRestart)
+{
+    auto context = MakeManagerContext();
+    const auto key = MakeKey(17);
+    const auto config = New<TSourceReadDelayEstimatorSpec>();
+    const auto observe = [] (int seconds) {
+        return TSourceReadDelayObservation{
+            .ObservationTime = TInstant::Seconds(100000 + seconds),
+            .ReadDelayEventThreshold = TInstant::Seconds(96400 + seconds),
+            .NewRate = TSourceWork{1600, 20000},
+            .Unread = TSourceWork{7200000, 72000000},
+        };
+    };
+    {
+        auto manager = MakeManager(context);
+        auto memory = WaitFor(manager->CreateContext()->AsKey(key)->CreateMutableStateClient<TSwiftOrderedSourceTimestampMemory>(TimestampMemoryStateName)).ValueOrThrow();
+        memory->ReadDelayEstimator.RegisterInput("00", TInstant::Seconds(92800), TInstant::Seconds(92800), {60000, 600000}, TInstant::Seconds(100000), config);
+        memory->ReadDelayEstimator.Estimate(observe(0), config);
+        memory->ReadDelayEstimator.RegisterInput("01", TInstant::Seconds(92860), TInstant::Seconds(92860), {60000, 600000}, TInstant::Seconds(100060), config);
+        EXPECT_TRUE(memory->empty());
+        EXPECT_FALSE(memory.IsEmpty());
+        manager->Sync(/*transaction*/ nullptr);
+        // Status smoothing is reported after commit and becomes durable in the next epoch.
+        ASSERT_TRUE(memory->ReadDelayEstimator.Estimate(observe(60), config).Offered);
+    }
+    context->PartitionId = TPartitionId(TGuid::Create());
+    {
+        auto manager = MakeManager(context);
+        auto memory = WaitFor(manager->CreateContext()->AsKey(key)->CreateMutableStateClient<TSwiftOrderedSourceTimestampMemory>(TimestampMemoryStateName)).ValueOrThrow();
+        const auto estimate = memory->ReadDelayEstimator.Estimate(observe(61), config);
+        ASSERT_TRUE(estimate.Offered);
+        EXPECT_NEAR(estimate.Offered->Count, 1300, 1);
+        EXPECT_NEAR(estimate.Offered->Bytes, 15000, 1);
+        EXPECT_FALSE(estimate.Ready);
+        memory->ReadDelayEstimator.RegisterInput("00", TInstant::Seconds(92800), TInstant::Seconds(92800), {60000, 600000}, TInstant::Seconds(100061), config);
+        const auto replay = memory->ReadDelayEstimator.Estimate(observe(62), config);
+        ASSERT_TRUE(replay.Ready);
+        EXPECT_GT(replay.Ready->Count, 0);
+        EXPECT_DOUBLE_EQ(replay.HistoricalDensity.Count, 1000);
+        auto other = WaitFor(manager->CreateContext()->AsKey(MakeKey(18))->CreateMutableStateClient<TSwiftOrderedSourceTimestampMemory>(TimestampMemoryStateName)).ValueOrThrow();
+        EXPECT_FALSE(other->ReadDelayEstimator.Estimate(observe(62), config).Offered);
+    }
+}
 
 TEST_F(TStateClientTest, PartitionStateInitialIsEmpty)
 {

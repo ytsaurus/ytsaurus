@@ -1,6 +1,7 @@
 YQL_LIBRARY()
 
 SRCS(
+    coordination_helper_common.cpp
     dq_warmup_common.cpp
     global_worker_manager.cpp
     service_node_pinger.cpp
@@ -28,7 +29,6 @@ PEERDIR(
     yt/yql/providers/dq/actors/yt
     yt/yql/providers/dq/common
     yt/yql/providers/dq/config
-    yt/yql/providers/dq/gateway
     yt/yql/providers/dq/scheduler
     yt/yql/providers/dq/service
 )

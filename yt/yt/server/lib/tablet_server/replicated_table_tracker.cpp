@@ -1471,7 +1471,7 @@ private:
         for (const auto& [collocationId, collocation] : IdToCollocation_) {
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
                 std::optional<THashSet<std::string>> goodReplicaClusters;
-                std::optional<THashSet<std::string>> goodSyncReplicaClusters;
+                THashMap<std::string, int> goodSyncReplicaCounts;
 
                 for (auto tableId : collocation.TableIds) {
                     auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
@@ -1481,11 +1481,10 @@ private:
 
                     if (it != replicaFamilyToReplicasByState.end()) {
                         THashSet<std::string> tableGoodReplicaClusters;
-                        THashSet<std::string> tableGoodSyncReplicaClusters;
 
                         for (auto* replica : it->second[EReplicaState::GoodSync]) {
                             tableGoodReplicaClusters.insert(replica->GetClusterName());
-                            tableGoodSyncReplicaClusters.insert(replica->GetClusterName());
+                            ++goodSyncReplicaCounts[replica->GetClusterName()];
                         }
                         for (auto* replica : it->second[EReplicaState::GoodAsync]) {
                             tableGoodReplicaClusters.insert(replica->GetClusterName());
@@ -1493,7 +1492,6 @@ private:
 
                         if (!goodReplicaClusters) {
                             goodReplicaClusters = tableGoodReplicaClusters;
-                            goodSyncReplicaClusters = tableGoodSyncReplicaClusters;
                         } else {
                             auto filterReplicaClusters = [] (auto* result, const auto& mask) {
                                 for (auto it = result->begin(); it != result->end();) {
@@ -1506,7 +1504,6 @@ private:
                             };
 
                             filterReplicaClusters(&*goodReplicaClusters, tableGoodReplicaClusters);
-                            filterReplicaClusters(&*goodSyncReplicaClusters, tableGoodSyncReplicaClusters);
                         }
                     }
                 }
@@ -1514,7 +1511,8 @@ private:
                 YT_TLOG_DEBUG("Identified good clusters for collocation")
                     .With("CollocationId", collocationId)
                     .With("ContentType", contentType)
-                    .With("GoodClusters", goodReplicaClusters);
+                    .With("GoodClusters", goodReplicaClusters)
+                    .With("GoodSyncReplicaCounts", goodSyncReplicaCounts);
 
                 auto it = EmplaceOrCrash(
                     collocationIdToClusterPriorities[contentType],
@@ -1522,11 +1520,7 @@ private:
                     THashMap<std::string, int>());
                 if (goodReplicaClusters) {
                     for (const auto& clusterName : *goodReplicaClusters) {
-                        it->second[clusterName] = 1;
-                    }
-                    for (const auto& clusterName : *goodSyncReplicaClusters) {
-                        YT_VERIFY(it->second[clusterName] >= 1);
-                        it->second[clusterName] = 2;
+                        it->second[clusterName] = 1 + goodSyncReplicaCounts[clusterName];
                     }
                 }
             }
@@ -1678,24 +1672,19 @@ private:
                 return;
             }
 
-            // Priorities:
-            // 4 - good-sync and preferred
-            // 3 - good-async and preferred
-            // 2 - good-sync
-            // 1 - good-async
-            // 0/null - bad
+            // Prefer good clusters from the preferred list, then clusters with more good sync replicas.
+            // Break ties by cluster name so that all tables in a collocation make the same choice.
             auto getPriority = [&] (auto* replica) {
                 int result = 0;
+                bool preferred = false;
 
                 auto it = goodReplicaPriorities.find(replica->GetClusterName());
                 if (it != goodReplicaPriorities.end()) {
-                    result += it->second;
-                    if (currentPreferredReplicas.contains(replica->GetClusterName())) {
-                        result += 2;
-                    }
+                    result = it->second;
+                    preferred = currentPreferredReplicas.contains(replica->GetClusterName());
                 }
 
-                return std::pair(result, replica->GetClusterName());
+                return std::tuple(preferred, result, replica->GetClusterName());
             };
 
             SortBy(syncReplicas, getPriority);

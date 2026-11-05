@@ -64,7 +64,7 @@ struct TVolumePreparationOptions
 {
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
+    TArtifactDownloadContext ArtifactDownloadContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 #include "config.h"
 #include "failing_on_rotation_reader.h"
 #include "hedging_manager_registry.h"
+#include "helpers.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -665,7 +666,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    enrichedColumnFilter,
+                    GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -689,7 +690,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                enrichedColumnFilter,
+                GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;
@@ -946,7 +947,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    enrichedColumnFilter,
+                    GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -970,7 +971,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                enrichedColumnFilter,
+                GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;
@@ -1203,6 +1204,8 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         YT_TLOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
     }
 
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+
     YT_TLOG_DEBUG("Creating versioned tablet reader")
         .With("TabletId", tabletSnapshot->TabletId)
         .With("CellId", tabletSnapshot->CellId)
@@ -1213,9 +1216,8 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
         .With("ReadSessionId", chunkReadOptions.ReadSessionId)
         .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
-        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()));
-
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()))
+        .With("ForceZeroMajorTimestamp", mountConfig->ForceZeroMajorTimestamp);
 
     auto rowMerger = NRowMerger::CreateVersionedRowMerger(
         mountConfig->RowMergerType,
@@ -1224,7 +1226,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         TColumnFilter(),
         mountConfig,
         currentTimestamp,
-        majorTimestamp,
+        mountConfig->ForceZeroMajorTimestamp ? MinTimestamp : majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
         tabletSnapshot->CustomRuntimeData,
         /*mergeRowsOnFlush*/ false,

@@ -23,6 +23,7 @@ struct TOrderedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
     bool ShouldSliceByRowIndices = false;
+    bool AllowMultipleRangesInJob = true;
     NLogging::TSerializableLogger Logger;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
 

@@ -947,12 +947,34 @@ private:
             }
 
             if (workerInfo && !workerInfo->IsDead) {
-                for (auto& r : AllCriticalFiles.GetResources()) {
-                    workerInfo->AddToDownloadList(r.GetObjectId(), r);
+                const auto uploadOptionsIt = FindIf(ResourceUploaderOptions, [&] (const auto& options) {
+                    return options.YtBackend.GetClusterName() == workerInfo->ClusterName;
+                });
+                for (const auto& file : AllCriticalFiles.GetResources()) {
+                    TWorkerInfo::TDownloadResource resource{
+                        .File = file,
+                    };
+                    if (uploadOptionsIt != ResourceUploaderOptions.end()) {
+                        // Warmup uploads use the GWM's configured backend for this worker's cluster.
+                        resource.UploadPrefix = uploadOptionsIt->UploadPrefix;
+                        resource.UploadClusterAddress = uploadOptionsIt->YtBackend.GetProxyAddress();
+                    }
+                    workerInfo->AddToDownloadList(resource);
                 }
 
-                for (const auto& [_, file] : workerInfo->GetResourcesForDownloading()) {
-                    *mutableRequest->AddDownloadList() = file;
+                THashMap<std::pair<TString, TString>, Yql::DqsProto::TDownloadGroup*> downloadGroups;
+                mutableRequest->ClearDownloadGroups();
+                mutableRequest->ClearDownloadList();
+                for (const auto& [_, resource] : workerInfo->GetResourcesForDownloading()) {
+                    auto& group = downloadGroups[std::make_pair(resource.UploadClusterAddress, resource.UploadPrefix)];
+                    if (!group) {
+                        group = mutableRequest->AddDownloadGroups();
+                        group->SetUploadClusterAddress(resource.UploadClusterAddress);
+                        group->SetUploadPrefix(resource.UploadPrefix);
+                    }
+                    *group->AddFiles() = resource.File;
+                    // Old workers read DownloadList and use their configured upload location.
+                    *mutableRequest->AddDownloadList() = resource.File;
                 }
             }
         }

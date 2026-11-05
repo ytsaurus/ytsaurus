@@ -10,7 +10,7 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 Path to the queue including the cluster. ||
 || `write_flow_queue_meta` | **Type**: `bool`
 **Default value**: `false`
-Whether to write meta to the queue (watermarks are written in meta). ||
+Whether to write meta to the queue (watermarks are written in meta). Heartbeats require `commit_ordering=strong` on the queue. With `weak` ordering the controller reports an error because heartbeats may overtake data rows, but continues writing them. A multi-cluster async queue sink rejects it together with an enabled `at_most_once_strategy`. ||
 || `flow_queue_meta_column` | **Type**: `std::string`
 **Default value**: `flow_queue_meta`
 Column to which to write meta. ||

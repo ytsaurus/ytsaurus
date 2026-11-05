@@ -52,7 +52,7 @@ A two-phase commit is used to ensure atomicity and the server waits until the da
 
 Transaction atomicity means that if a user at time `t` observes an effect (written data) from the `T` transaction, then at any subsequent time `t'` they observe all effects from the `T` transaction. For example, if user 1 changes rows with `k_1` and ` k_2` keys in a single or different dynamic tables, it is impossible that user 2 reads the changed `k_1` row, but not the changed k_2 row.
 
-Tables have the `atomicity` attribute which defines the guarantees for the transactions to be applied. This attribute can only be changed for [unmounted](../../../user-guide/dynamic-tables/overview.md#mount_table) tables. The attribute values can be the following:
+Tables have the `atomicity` attribute which defines the guarantees for the transactions to be applied. This attribute can only be changed for [unmounted](../../../user-guide/dynamic-tables/operations.md#mount_table) tables. The attribute values can be the following:
 
 - `full`: Means that transactions are fully atomic (default mode). In `full` mode, changes become atomically visible at any time after commit timestamp (as stated earlier, the system provides a snapshot isolation level in this mode).
 - `none`: Means that the system does not give any guarantees about the atomicity of the changes. In `none` mode, there may be situations where commit fails (for example, because a tablet is not available), but some of the changes are committed and became visible to users.

@@ -16,6 +16,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/actions/bind.h>
+
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/statistics.h>
 
@@ -365,6 +367,18 @@ public:
         , Logger(std::move(logger))
     { }
 
+    void Start()
+    {
+        TablePreparationFuture_ = BIND(&TSystemLogExporter::PrepareTable, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    void Stop()
+    {
+        TablePreparationFuture_.Cancel(TError("System log table exporter stopped"));
+    }
+
     void ConvertAndEnqueue(const DB::Block& header, const DB::Chunks& chunks)
     {
         EnsureInitialized();
@@ -415,6 +429,7 @@ private:
 
     const TLogger Logger;
 
+    TFuture<void> TablePreparationFuture_;
     IArchiveReporterPtr ArchiveReporter_;
 
     static TTableSchema BuildOutputSchema(
@@ -441,12 +456,25 @@ private:
         return TTableSchema(std::move(columns), inputSchema.IsStrict(), inputSchema.IsUniqueKeys());
     }
 
+    void PrepareTable()
+    {
+        try {
+            EnsureTableReady();
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to prepare Cypress table during startup")
+                .With(ex);
+        }
+    }
+
     void EnsureInitialized()
     {
         // NB: System log flushing is performed in a single thread, so synchronization is not required.
         if (ArchiveReporter_) {
             return;
         }
+
+        WaitFor(TablePreparationFuture_)
+            .ThrowOnError();
 
         auto tablePath = EnsureTableReady();
 
@@ -687,6 +715,20 @@ public:
     String getName() const override
     {
         return Name;
+    }
+
+    void startup() override
+    {
+        if (LogExporter_) {
+            LogExporter_->Start();
+        }
+    }
+
+    void shutdown(bool /*isDrop*/) override
+    {
+        if (LogExporter_) {
+            LogExporter_->Stop();
+        }
     }
 
     DB::Pipe read(

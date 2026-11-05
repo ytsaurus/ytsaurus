@@ -36,7 +36,7 @@ target_link_libraries(library-cpp-partitioning PUBLIC
 )
 
 target_sources(library-cpp-partitioning PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/input_partitioning.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/key_count_partitioning.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/partitioning_helpers.cpp
 )

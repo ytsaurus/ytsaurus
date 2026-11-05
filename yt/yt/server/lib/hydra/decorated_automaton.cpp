@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "changelog.h"
 #include "config.h"
+#include "config_wrapper.h"
 #include "helpers.h"
 #include "serialize.h"
 #include "snapshot.h"
@@ -1539,8 +1540,7 @@ void TDecoratedAutomaton::DoApplyMutation(
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
     if (Config_->Get()->EnableStateHashChecker) {
-        const auto& cellManager = GetEpochContext()->CellManager;
-        auto peerId = cellManager->GetSelfPeerId();
+        auto peerId = GetEpochContext()->CellManager->GetSelfPeerId();
         StateHashChecker_->Report(sequenceNumber, StateHash_, peerId);
     }
 

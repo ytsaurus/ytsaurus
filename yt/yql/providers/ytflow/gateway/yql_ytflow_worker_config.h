@@ -32,6 +32,10 @@ namespace NPrivate {
 TMaybe<NYT::TNode> SerializeUseCpuAwareBalancer(
     TMaybe<bool> useCpuAwareBalancer);
 
+NYT::TNode SerializeDynamicComputationConfig(
+    const TString& computationConfig,
+    const NYT::NFlow::TPipelineSpecPtr& pipelineSpec);
+
 } // namespace NPrivate
 
 NYT::TNode MakeWorkerConfig(
@@ -39,6 +43,7 @@ NYT::TNode MakeWorkerConfig(
     const TYtflowSettings& config,
     const TConfigClusters& configClusters,
     const TUserDataTable& userDataBlocks,
-    const TVector<TFile>& files);
+    const TVector<TFile>& files,
+    const NYT::NFlow::TPipelineSpecPtr& pipelineSpec);
 
 } // namespace NYql::NYtflow

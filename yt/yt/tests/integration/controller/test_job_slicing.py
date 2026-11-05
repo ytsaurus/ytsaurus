@@ -1179,7 +1179,7 @@ fi
             },
         )
 
-        jobs = wait_breakpoint(job_count=user_slots)
+        jobs = wait_breakpoint(op, job_count=user_slots)
         for job_id in jobs:
             interrupt_job(job_id, interrupt_timeout=10000)
 
@@ -1291,7 +1291,7 @@ fi
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.abort()
         release_breakpoint()
         with raises_yt_error():

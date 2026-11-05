@@ -175,7 +175,7 @@ class TestDiskUsagePorto(YTEnvSetup):
                 "max_failed_job_count": 1,
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op1)
 
         assert op1.get_job_count("running") == 1
 
@@ -229,7 +229,7 @@ class TestDiskUsagePorto(YTEnvSetup):
             assert get_disk_statistic(statistics, "max_usage") == max_usage
             assert get_disk_statistic(statistics, "limit") == limit
 
-        events_on_fs().wait_breakpoint("before_write")
+        wait_breakpoint(op, "before_write")
         wait(lambda: get_disk_statistic(op.get_statistics(), "limit") == 1024 * 1024)
         # The root volume has its own disk usage. Measure the exact size added
         # by zeros.txt relative to the running job's baseline.
@@ -240,11 +240,11 @@ class TestDiskUsagePorto(YTEnvSetup):
 
         written_usage = initial_usage + 500 * 1024
         max_usage = max(initial_max_usage, written_usage)
-        events_on_fs().wait_breakpoint("file_written")
+        wait_breakpoint(op, "file_written")
         wait_no_assert(lambda: check_disk_statistics(usage=written_usage, max_usage=max_usage, limit=1024 * 1024))
 
         events_on_fs().release_breakpoint("file_written")
-        events_on_fs().wait_breakpoint("file_removed")
+        wait_breakpoint(op, "file_removed")
 
         wait_no_assert(lambda: check_disk_statistics(usage=initial_usage, max_usage=max_usage, limit=1024 * 1024))
 
@@ -367,7 +367,7 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1
 
         job_id = jobs[0]

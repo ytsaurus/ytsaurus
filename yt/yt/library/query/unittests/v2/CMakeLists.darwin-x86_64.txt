@@ -43,6 +43,7 @@ target_sources(unittester-query-v2 PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/ql_cast_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/ql_hierarchical_join_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/ql_nested_subqueries_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/ql_union_all_ut.cpp
 )
 
 

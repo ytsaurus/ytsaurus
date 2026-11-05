@@ -43,7 +43,7 @@ class TestNewLivePreview(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -90,7 +90,7 @@ class TestNewLivePreview(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -216,7 +216,7 @@ class TestNewLivePreview(YTEnvSetup):
                 authenticated_user=authenticated_user,
             )
 
-            wait_breakpoint(job_count=2, breakpoint_name=str(index))
+            wait_breakpoint(op, job_count=2, breakpoint_name=str(index))
 
             async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
             live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
@@ -308,7 +308,7 @@ class TestNewLivePreview(YTEnvSetup):
             assert False, f"Unknown operation {operation}"
 
         complete_jobs = 2
-        jobs = wait_breakpoint(job_count=complete_jobs)
+        jobs = wait_breakpoint(op, job_count=complete_jobs)
         for job_id in jobs[:complete_jobs]:
             release_breakpoint(job_id=job_id)
 
@@ -353,7 +353,7 @@ class TestNewLivePreview(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
 
         assert exists(op.get_path() + "/controller_orchid")
 

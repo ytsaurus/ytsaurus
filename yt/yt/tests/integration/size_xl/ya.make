@@ -16,6 +16,8 @@ ENV(YT_TEST_FILTER=XLARGE)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
+
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:52

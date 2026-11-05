@@ -7,15 +7,18 @@
 || **Параметр** | **Описание** ||
 || `batch_duration` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1s`
-Время максимального набора входного батча. ||
+Время максимального набора входного батча. Для очередей {{product-name}} неполный батч добирается, пока с предыдущего батча не пройдёт это время; после неполного ответа очереди следующий запрос тоже выполняется не раньше этого момента. ||
 || `max_rows_per_batch` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `1K`
-Максимальный размер входного батча в строках. Считается отдельно для `input_streams`, `timer_streams` и для каждого из `source_streams`. ||
+Максимальный размер входного батча в строках. Считается отдельно для `input_streams`, `timer_streams` и для каждого из `source_streams`. Для очередей {{product-name}} считаются распакованные сообщения Flow; батч может превысить лимит на одну строку очереди. ||
 || `max_bytes_per_batch` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `10Mi`
-Максимальный размер входного батча в байтах. Считается аналогично `max_rows_per_batch`. ||
+Максимальный размер входного батча в байтах. Считается аналогично `max_rows_per_batch`. Для очередей {{product-name}} считается размер распакованных сообщений; превышение — как для `max_rows_per_batch`. ||
 || `max_keys_per_batch` | **Тип**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
  ||
+|| `source_read_delay_estimator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TSourceReadDelayEstimatorSpec](./all_yson_structs#NYT_NFlow_TSourceReadDelayEstimatorSpec)`>`
+**Значение по умолчанию**: `{}`
+Настройки оценки Offered и доступного непрочитанного объёма Ready для Swift ordered source с непустым `watermark_alignment.read_delays`. Оценка применяется всегда; раздел задаёт только её параметры. Обученные величины сохраняются по ключу Source при рестарте партиции. Неизвестная оценка остаётся неизвестной. ||
 || `draining` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
 Режим `Draining` нужен для сброса пайплайна &mdash; в нём `Computation` перестанет запускать таймеры и доставать новые события из `Source`.
@@ -73,12 +76,6 @@
  ||
 || `timer_store_byte_size_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `100Mi`
- ||
-|| `output_store_count_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Значение по умолчанию**: `1G`
- ||
-|| `output_store_byte_size_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Значение по умолчанию**: `100Gi`
  ||
 || `blocked_time_window` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10m`

@@ -2474,6 +2474,38 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 }
 
 
+TEST_P(TBundleSchedulerTest, CheckCollidingBundleShortNames)
+{
+    const std::string bundleName = "my_b";
+    const std::string baseShortName = "my-b";
+
+    for (int suffix : {1, 10}) {
+        SCOPED_TRACE(suffix);
+
+        auto input = GenerateSimpleInputContext(/*nodeCount*/ 0);
+        SetBundleInfo(input, baseShortName, /*nodeCount*/ 0)->ShortName = baseShortName;
+        for (int index = 1; index < suffix; ++index) {
+            auto shortName = Format("%v%v", baseShortName, index);
+            SetBundleInfo(input, shortName, /*nodeCount*/ 0)->ShortName = shortName;
+        }
+        SetBundleInfo(input, bundleName, /*nodeCount*/ 1);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        auto expectedShortName = Format("%v%v", baseShortName, suffix);
+        EXPECT_EQ(expectedShortName, GetOrCrash(input.BundleToShortName, bundleName));
+        EXPECT_EQ(1, std::ssize(mutations.ChangedBundleShortName));
+        EXPECT_EQ(expectedShortName, GetOrCrash(mutations.ChangedBundleShortName, bundleName));
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+
+        ASSERT_EQ(1, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(
+            GetInstancePodIdTemplate(input.Config->Cluster, expectedShortName, "tab", /*index*/ 1),
+            mutations.NewAllocations.begin()->second->Spec->PodIdTemplate);
+    }
+}
+
 TEST_P(TBundleSchedulerTest, CheckBundleAutoShorteningName)
 {
     const std::string LongBundleName = "m_looooooong_bundle-name";
@@ -4279,6 +4311,50 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
+}
+
+TEST_P(TNodeTagsFilterManager, SpareNodeOperationsForRemovedBundle)
+{
+    for (bool releasing : {false, true}) {
+        auto input = GenerateInputContext(DefaultNodeCount);
+        auto dataCenters = GetDataCenters(input);
+        input.Zones["default-zone"]->SpareTargetConfig->TabletNodeCount = GetDataCenterCount();
+        auto nodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+        auto bundleState = New<TBundleControllerState>();
+        input.BundleStates["bigd"] = bundleState;
+        auto& operations = releasing
+            ? bundleState->SpareNodeReleasements
+            : bundleState->SpareNodeAssignments;
+
+        for (const auto& dataCenter : dataCenters) {
+            auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, /*nodeCount*/ 1, {.DC = dataCenter});
+            const auto& nodeName = *spareNodes.begin();
+            input.TabletNodes[nodeName]->UserTags.insert(nodeTagFilter);
+            operations[nodeName] = New<TNodeTagFilterOperationState>();
+        }
+
+        EraseOrCrash(input.Bundles, "bigd");
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        ASSERT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ("spare_node_operations_for_missing_bundle", mutations.AlertsToFire.front().Id);
+        EXPECT_EQ("bigd", mutations.AlertsToFire.front().BundleName);
+
+        for (const auto& dataCenter : dataCenters) {
+            const auto& spareNodes = input.ZoneToSpareNodes.at("default-zone").at(dataCenter);
+            EXPECT_EQ(1, std::ssize(spareNodes.FreeNodes));
+            EXPECT_TRUE(spareNodes.UsedByBundle.empty());
+            EXPECT_TRUE(spareNodes.ReleasingByBundle.empty());
+        }
+
+        operations.clear();
+        mutations = {};
+        ScheduleBundles(input, &mutations);
+
+        CheckEmptyAlerts(mutations);
+    }
 }
 
 TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)

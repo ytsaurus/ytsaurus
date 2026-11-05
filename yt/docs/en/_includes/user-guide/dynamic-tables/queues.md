@@ -70,7 +70,7 @@ To delete a registration, use the `unregister_queue_consumer` method. Executing 
 
 Both Cypress arguments in both of these commands are of [rich YPath](../../../user-guide/storage/ypath.md#rich_ypath) type and can take cluster names. Otherwise, the command uses the cluster on which it was executed.
 
-### Reading data
+### Reading data { #reading-data }
 
 There are two similar methods for reading data from queues.
 
@@ -87,7 +87,7 @@ The `pull_queue` and `pull_queue_consumer` methods may return fewer rows than sp
 
 {% endnote %}
 
-### Working with a consumer
+### Working with a consumer { #work-consumer }
 
 You can work with a consumer by using the `advance_queue_consumer` method, which moves the consumer offset in the specified partition of the specified queue. Within the passed transaction, the method updates the corresponding consumer offset row. You can also perform other operations with dynamic tables as part of the same transaction.
 

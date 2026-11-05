@@ -85,7 +85,7 @@ class TOperationsCleaner
 {
 public:
     TOperationsCleaner(
-        TOperationsCleanerConfigPtr config,
+        TSchedulerConfigPtr config,
         IOperationsCleanerHost* host,
         TBootstrap* bootstrap);
 
@@ -99,7 +99,7 @@ public:
 
     void SubmitForRemoval(std::vector<TRemoveOperationRequest> requests);
 
-    void UpdateConfig(const TOperationsCleanerConfigPtr& config);
+    void UpdateConfig(const TSchedulerConfigPtr& config);
 
     void SetArchiveVersion(int version);
     bool IsEnabled() const;

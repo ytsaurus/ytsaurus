@@ -40,6 +40,8 @@
 
 #include <yt/yt/library/re2/public.h>
 
+#include <yt/yt/library/tvm/public.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -906,6 +908,9 @@ struct TYtConfig
 
     bool EnableHttpHeaderLog;
     NRe2::TRe2Ptr HttpHeaderBlacklist;
+
+    bool EnableHttpTvmAuthentication;
+    THashSet<NAuth::TTvmId> HttpAllowedServiceTvmIds;
 
     //! By default, CHYT gets the table schema along with the rest of the attributes.
     //! This option allows you to separate the schema fetch from the attribute fetch

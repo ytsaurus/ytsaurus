@@ -1,12 +1,23 @@
 #include "flow_core_build_info.h"
 
+#include <yt/yt/core/actions/bind.h>
+
+#include <yt/yt/core/json/json_parser.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 #include <build/scripts/c_templates/svnversion.h>
 
 #include <util/charset/wide.h>
+
+#include <util/stream/file.h>
+
 #include <util/string/builder.h>
 #include <util/string/strip.h>
+
+#include <util/system/fs.h>
 
 #include <string>
 #include <string_view>
@@ -18,6 +29,22 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
+
+int ReadBaseSvnRevision(const std::string& path)
+{
+    if (!NFs::Exists(TString(path))) {
+        return -1;
+    }
+
+    auto metadata = NYTree::ConvertTo<NYTree::IMapNodePtr>(BIND(
+        [path] (NYson::IYsonConsumer* consumer) {
+            TFileInput input(path);
+            NJson::ParseJson(&input, consumer);
+        }));
+    int revision = NYTree::ConvertTo<int>(metadata->GetChildOrThrow("base_svn_revision"));
+    THROW_ERROR_EXCEPTION_UNLESS(revision > 0, "Package trunk revision must be positive");
+    return revision;
+}
 
 std::string ExtractScmField(std::string_view scmData, std::string_view key)
 {
@@ -123,6 +150,13 @@ TFlowCoreBuildInfoPtr ComputeFlowCoreBuildInfo()
         info->SvnRevision = revision;
     }
 
+    try {
+        info->BaseSvnRevision = NDetail::ReadBaseSvnRevision("/app/meta.json");
+    } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Failed to read package trunk revision")
+            .With(ex);
+    }
+
     std::string buildHost(GetProgramBuildHost());
     if (!buildHost.empty() && buildHost != UnknownBuildHost) {
         info->BuildHost = std::move(buildHost);
@@ -161,6 +195,7 @@ TFlowCoreBuildInfoPtr ComputeFlowCoreBuildInfo()
     appendFieldIfNotEmpty("Tag", info->Tag);
     appendFieldIfNotEmpty("CommitSummary", info->CommitSummary);
     appendNumericFieldIfPositive("SvnRevision", "r", info->SvnRevision);
+    appendNumericFieldIfPositive("BaseSvnRevision", "r", info->BaseSvnRevision);
     appendFieldIfNotEmpty("BuildHost", info->BuildHost);
     appendNumericFieldIfPositive("BuildTimestamp", "", info->BuildTimestamp);
     logMessage.AppendChar(')');
@@ -188,6 +223,8 @@ void TFlowCoreBuildInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("svn_revision", &TThis::SvnRevision)
         .Default();
+    registrar.Parameter("base_svn_revision", &TThis::BaseSvnRevision)
+        .Default();
     registrar.Parameter("build_host", &TThis::BuildHost)
         .Default();
     registrar.Parameter("build_timestamp", &TThis::BuildTimestamp)
@@ -196,9 +233,8 @@ void TFlowCoreBuildInfo::Register(TRegistrar registrar)
 
 bool TFlowCoreBuildInfo::IsEmpty() const
 {
-    // SvnRevision <= 0 catches both our canonical absent sentinel (-1)
-    // and the svnversion.h fallback value (0).
-    return CommitHash.empty() && Author.empty() && Branch.empty() && Tag.empty() && CommitSummary.empty() && SvnRevision <= 0 && BuildHost.empty() && BuildTimestamp <= 0;
+    static const TFlowCoreBuildInfoPtr empty = New<TFlowCoreBuildInfo>();
+    return *this == *empty;
 }
 
 const TFlowCoreBuildInfoPtr& GetFlowCoreBuildInfo()

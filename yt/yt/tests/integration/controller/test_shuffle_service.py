@@ -1076,7 +1076,7 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
         # path string is ~108 characters.
         os.chdir(self.path_to_test)
 
-        job_ids = wait_breakpoint(job_count=job_count)
+        job_ids = wait_breakpoint(op, job_count=job_count)
         for job_id in job_ids:
             wait(lambda: len(op.read_stderr(job_id)) > 0)
 
@@ -1155,7 +1155,7 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
 
         os.chdir(self.path_to_test)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         socket_file = os.path.relpath(op.read_stderr(job_ids[0]).decode("ascii").strip())
         driver = self.create_driver_from_uds(socket_file)
 

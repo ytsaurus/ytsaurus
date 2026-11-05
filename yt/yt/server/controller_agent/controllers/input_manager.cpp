@@ -1181,6 +1181,11 @@ bool TInputManager::HasRowLevelAcl() const
     return AnyOf(InputTables_, [] (const auto& table) { return table->RowLevelAcl.has_value(); });
 }
 
+bool TInputManager::HasSkippedInputChunks() const
+{
+    return HasSkippedInputChunks_;
+}
+
 const std::vector<TInputTablePtr>& TInputManager::GetInputTables() const
 {
     return InputTables_;
@@ -1361,6 +1366,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
             break;
 
         case EUnavailableChunkAction::Skip: {
+            HasSkippedInputChunks_ = true;
             descriptor->State = EInputChunkState::Skipped;
             for (const auto& inputStripe : descriptor->InputStripes) {
                 auto& dataSlices = inputStripe->Stripe->DataSlices();
@@ -1368,15 +1374,16 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     std::remove_if(
                         dataSlices.begin(),
                         dataSlices.end(),
-                        [&] (TDataSlicePtr slice) {
-                            try {
+                        [&] (const TDataSlicePtr& slice) {
+                            if (slice->IsTrivial()) {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
-                            } catch (const std::exception& ex) {
-                                //FIXME(savrus) allow data slices to be unavailable.
-                                Host_->OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Dynamic table chunk became unavailable")
-                                    .With(ex));
-                                return true;
                             }
+                            //FIXME(savrus) allow data slices to be unavailable.
+                            Host_->OnOperationFailed(TError(
+                                NChunkClient::EErrorCode::ChunkUnavailable,
+                                "Dynamic table chunk %v became unavailable",
+                                chunkId));
+                            return true;
                         }),
                     dataSlices.end());
 
@@ -1683,6 +1690,8 @@ void TInputManager::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, InputHasOrderedDynamicStores_);
     PHOENIX_REGISTER_FIELD(7, Clusters_);
     PHOENIX_REGISTER_FIELD(8, ClusterResolver_);
+    PHOENIX_REGISTER_FIELD(9, HasSkippedInputChunks_,
+        .SinceVersion(ESnapshotVersion::PersistSkippedInputChunks));
 }
 
 PHOENIX_DEFINE_TYPE(TInputManager);

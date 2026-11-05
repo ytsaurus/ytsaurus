@@ -1,24 +1,22 @@
 {
   "info": {
-    "created": "2026-10-20T07:43:28.883Z",
-    "pr": {
-      "id": 16567371,
-      "author": "baymer",
-      "summary": "FBP-3542: Передавать registry в окружение pnpm в Python builder"
-    }
+    "created": "2026-11-03T23:44:07Z",
+    "commit": "04d412093e69a2b47ce67b678b010974139f7995",
+    "branch": "FBP-3478-remove-tsc",
+    "dirty": false
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:14089323870"
+      "uri": "sbr:14193700099"
     },
     "darwin-arm64": {
-      "uri": "sbr:14089322632"
+      "uri": "sbr:14193700413"
     },
     "linux": {
-      "uri": "sbr:14089326233"
+      "uri": "sbr:14193699513"
     },
     "linux-aarch64": {
-      "uri": "sbr:14089325094"
+      "uri": "sbr:14193699761"
     }
   }
 }

@@ -73,4 +73,4 @@ public:
 
 #include <contrib/ydb/library/yql/dq/expr_nodes/dq_expr_nodes.defs.inl.h>
 
-} // namespace NYql::NNodes
+} // namespace NYql::NDq

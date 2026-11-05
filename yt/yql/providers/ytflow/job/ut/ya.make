@@ -7,9 +7,9 @@ YQL_LAST_ABI_VERSION()
 PEERDIR(
     library/cpp/testing/common
 
-    yql/essentials/minikql/comp_nodes/no_llvm
-    yql/essentials/minikql/computation/no_llvm
-    yql/essentials/minikql/invoke_builtins/no_llvm
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/minikql/computation/llvm16
+    yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/public/udf/service/exception_policy
 
     yt/yql/providers/ytflow/common

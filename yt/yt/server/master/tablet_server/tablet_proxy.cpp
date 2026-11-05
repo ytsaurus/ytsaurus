@@ -90,6 +90,7 @@ private:
             .SetPresent(!tablet->ReplicationProgress().Segments.empty()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountHint)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProlongedChunkCount));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -184,6 +185,11 @@ private:
                     .BeginMap()
                         .Item("eden_store_ids").List(tablet->EdenStoreIds())
                     .EndMap();
+                return true;
+
+            case EInternedAttributeKey::ProlongedChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->ProlongedChunks().size());
                 return true;
 
             default:

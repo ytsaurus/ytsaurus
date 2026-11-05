@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/library/go/core/log
 
-go 1.23.8
+go 1.24.0
 
 require (
 	github.com/google/go-cmp v0.7.0

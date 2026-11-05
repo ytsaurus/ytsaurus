@@ -1515,6 +1515,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_operations_on_offshore_media", &TThis::ForbidOperationsOnOffshoreMedia)
         .Default(true);
 
+    registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

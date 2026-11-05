@@ -12,69 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(base-poco-NetSSL_OpenSSL)
-
-
-target_compile_options(base-poco-NetSSL_OpenSSL PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(base-poco-NetSSL_OpenSSL PRIVATE
-  -DPOCO_HAVE_FD_EPOLL
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_OS_FAMILY_UNIX
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(base-poco-NetSSL_OpenSSL PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
-)
-
-target_include_directories(base-poco-NetSSL_OpenSSL PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
-)
-
-target_link_libraries(base-poco-NetSSL_OpenSSL PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  base-poco-Crypto
-  base-poco-Net
-  base-poco-Util
-)
-
-target_sources(base-poco-NetSSL_OpenSSL PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/AcceptCertificateHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/CertificateHandlerFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/CertificateHandlerFactoryMgr.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/Context.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/HTTPSClientSession.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/HTTPSSessionInstantiator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/HTTPSStreamFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/InvalidCertificateHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/KeyConsoleHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/KeyFileHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/PrivateKeyFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/PrivateKeyFactoryMgr.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/PrivateKeyPassphraseHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/RejectCertificateHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SSLException.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SSLManager.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureSMTPClientSession.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureServerSocket.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureServerSocketImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureSocketImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureStreamSocket.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/SecureStreamSocketImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/Session.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/Utility.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/VerificationErrorArgs.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/src/X509Certificate.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

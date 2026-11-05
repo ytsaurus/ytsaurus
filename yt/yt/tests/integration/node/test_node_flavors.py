@@ -59,7 +59,7 @@ class TestNodeFlavors(YTEnvSetup):
         assert len(exec_nodes) == 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2)
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         for job_id in job_ids:
             get(op.get_path() + "/controller_orchid/running_jobs/{}/address".format(job_id)) in exec_nodes
         release_breakpoint()

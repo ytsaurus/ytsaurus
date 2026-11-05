@@ -26,11 +26,7 @@
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/helpers.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
@@ -129,18 +125,14 @@ public:
     TImpl(
         THost* owner,
         IInvokerPtr controlInvoker,
-        TYtConfigPtr config,
-        TConnectionCompoundConfigPtr connectionConfig,
-        EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-        NYTree::INodePtr clusterConnectionNode,
-        TPorts ports)
+        NNative::IConnectionPtr connection,
+        TPorts ports,
+        TYtConfigPtr config)
         : Owner_(owner)
         , ControlInvoker_(std::move(controlInvoker))
         , Config_(std::move(config))
+        , Connection_(std::move(connection))
         , Ports_(ports)
-        , ConnectionConfig_(std::move(connectionConfig))
-        , ConnectionDynamicConfigPolicy_(connectionDynamicConfigPolicy)
-        , ClusterConnectionNode_(std::move(clusterConnectionNode))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -1021,10 +1013,8 @@ private:
     THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
     const TYtConfigPtr Config_;
+    const NNative::IConnectionPtr Connection_;
     TPorts Ports_;
-    const TConnectionCompoundConfigPtr ConnectionConfig_;
-    const EClusterConnectionDynamicConfigPolicy ConnectionDynamicConfigPolicy_;
-    const NYTree::INodePtr ClusterConnectionNode_;
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
@@ -1039,8 +1029,6 @@ private:
     IThreadPoolPtr TaskPullerThreadPool_;
     IInvokerPtr ClickHouseTaskPullerInvoker_;
     TActionQueuePtr SystemLogTableExporterActionQueue_;
-
-    NApi::NNative::IConnectionPtr Connection_;
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
@@ -1080,38 +1068,7 @@ private:
 
     void InitializeClients()
     {
-        NApi::NNative::TConnectionOptions connectionOptions;
-        connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-        connectionOptions.CreateQueueConsumerRegistrationManager =
-            Config_->CypressObjectRepository && Config_->MaterializedViews;
-
-        Connection_ = NApi::NNative::CreateConnection(
-            ConnectionConfig_,
-            connectionOptions);
         ChannelFactory_ = Connection_->GetChannelFactory();
-
-        if (ConnectionDynamicConfigPolicy_ != EClusterConnectionDynamicConfigPolicy::FromStaticConfig) {
-            // Cache sizes belong to the clique's memory budget, including overrides
-            // applied by the bootstrap config postprocessor.
-            auto cachePatch = BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("block_cache").Value(ConnectionConfig_->Dynamic->BlockCache)
-                    .Item("chunk_meta_cache").Value(ConnectionConfig_->Dynamic->ChunkMetaCache)
-                .EndMap();
-            auto staticPatch = ConnectionDynamicConfigPolicy_ == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
-                ? cachePatch
-                : PatchNode(ClusterConnectionNode_, cachePatch);
-            NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
-                Connection_,
-                EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
-                staticPatch,
-                Logger());
-            Connection_->GetClusterDirectorySynchronizer()->Start();
-        }
-
-        // Kick-start node directory synchronizing; otherwise it will start only with first query.
-        Connection_->GetNodeDirectorySynchronizer()->Start();
-
         ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
         auto getClientForUser = [&] (const std::string& user) {
@@ -1370,19 +1327,15 @@ private:
 
 THost::THost(
     IInvokerPtr controlInvoker,
+    NNative::IConnectionPtr connection,
     TPorts ports,
-    TYtConfigPtr config,
-    TConnectionCompoundConfigPtr connectionConfig,
-    EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-    NYTree::INodePtr clusterConnectionNode)
+    TYtConfigPtr config)
     : Impl_(New<TImpl>(
         this,
         std::move(controlInvoker),
-        std::move(config),
-        std::move(connectionConfig),
-        connectionDynamicConfigPolicy,
-        std::move(clusterConnectionNode),
-        ports))
+        std::move(connection),
+        ports,
+        std::move(config)))
 { }
 
 void THost::Start()

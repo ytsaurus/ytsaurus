@@ -9,7 +9,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
-    contrib/ydb/public/lib/yson_value
     contrib/ydb/public/sdk/cpp/src/library/grpc/client
     library/cpp/svnversion
     yql/essentials/core/file_storage

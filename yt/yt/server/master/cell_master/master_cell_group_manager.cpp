@@ -256,6 +256,7 @@ private:
     {
         ValidateObjectName(name, EObjectType::MasterCellGroup, MaxMasterCellGroupNameLength);
 
+        // These checks currently overlap, but general object name rules may evolve independently.
         CheckObjectName(name)
             .ThrowOnError();
     }

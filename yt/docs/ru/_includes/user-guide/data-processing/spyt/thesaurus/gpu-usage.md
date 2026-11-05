@@ -1,6 +1,6 @@
 # Использование GPU
 
-При исполнении задач некоторые вычисления могут быть произведены на GPU устройствах. Про планирование GPU ресурсов в {{product-name}} можно прочесть в соответствующей [статье](../../../../../user-guide/data-processing/overview#podderzhka-gpu).
+При исполнении задач некоторые вычисления могут быть произведены на GPU устройствах. Про планирование GPU ресурсов в {{product-name}} можно прочесть в соответствующей [статье](../../../../../user-guide/data-processing/overview.md#gpu-support).
 
 Исполнение задач с использованием GPU опирается на плагин [RAPIDS Accelerator](https://docs.nvidia.com/spark-rapids/user-guide/23.08/getting-started/on-premise.html). Он переносит часть операций, для которых описаны преобразования, на GPU. Основные параметры описаны в документации плагина.
 
@@ -37,7 +37,7 @@ python python-examples/gpu_example/main.py <cluster-name> gpu_pool gpu_tree
 
 ### Запуск кластера
 
-При [старте кластера](../../../../../user-guide/data-processing/spyt/launch#standalone) каждому воркеру будет выделено целое количество GPU, указанное в опции `--worker-gpu-limit`:
+При [старте кластера](../../../../../user-guide/data-processing/spyt/launch.md#standalone) каждому воркеру будет выделено целое количество GPU, указанное в опции `--worker-gpu-limit`:
 
 ```
 spark-launch-yt ... --pool gpu_pool --params '{operation_spec={pool_trees=[gpu_tree]}}' --worker-gpu-limit 2

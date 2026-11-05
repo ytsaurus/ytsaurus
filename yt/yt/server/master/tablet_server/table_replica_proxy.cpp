@@ -144,7 +144,9 @@ private:
                                 .Item("current_replication_row_index").Value(replicaInfo->GetCommittedReplicationRowIndex())
                                 .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
                                 .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
-                                    timestampProvider->GetLatestTimestamp(), *replicaInfo))
+                                    timestampProvider->GetLatestTimestamp(),
+                                    *replicaInfo,
+                                    replica->GetStartReplicationTimestamp()))
                                 .Item("has_error").Value(replicaInfo->GetHasError())
                                 .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
                                 .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)

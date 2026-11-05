@@ -69,6 +69,10 @@ TProcessFunctionGraphTestHarness::TProcessFunctionGraphTestHarness(
 {
     THROW_ERROR_EXCEPTION_UNLESS(Computation_->ProcessFunctionGraph,
         "Computation spec of a process function graph test has no \"process_function_graph\"");
+    // A source keys messages by its partition, so its computation keeps its own `group_by_schema`.
+    if (GetProcessFunctionGraphHost(*Computation_) == EProcessFunctionGraphHost::SwiftSource) {
+        return;
+    }
     // An omitted `group_by_schema` parses as an empty schema.
     if (!Computation_->GroupBySchema || Computation_->GroupBySchema->Columns().empty()) {
         Computation_->GroupBySchema = KeySchema_;
@@ -148,7 +152,8 @@ void TProcessFunctionGraphTestHarness::RunEpoch(
     TRegistry::Get()->ValidateProcessFunctionGraphDynamicParameters(Computation_, ConvertTo<IMapNodePtr>(DynamicParameters_));
 
     auto seqNo = TUniqueSeqNo(NextEpochSeqNo_++);
-    const bool swift = Computation_->ComputationClassName == "NYT::NFlow::TProcessFunctionSwiftMapComputation";
+    auto host = GetProcessFunctionGraphHost(*Computation_);
+    const bool swift = host != EProcessFunctionGraphHost::Transform;
     TTestRuntimeContextBuilder builder;
     for (const auto& streamId : Computation_->InputStreamIds) {
         builder.RegisterStream(streamId, GetOrCrash(Streams_, streamId)->Schema);
@@ -172,12 +177,24 @@ void TProcessFunctionGraphTestHarness::RunEpoch(
 
     auto input = New<TInputContext>(std::move(messages), std::move(timers));
     auto assigner = CreateEventTimestampAssigner(/*spec*/ nullptr);
-    auto setter = swift
-        ? (ConvertTo<TSwiftMapComputation::TParametersPtr>(Computation_->Parameters)->AllowBatchingWithRelaxedGuarantees
+    // Each host sets the meta of the graph outputs as in production.
+    IMetaSetterPtr setter;
+    switch (host) {
+        case EProcessFunctionGraphHost::Transform:
+            setter = CreateUniqueMetaSetter(Computation_, seqNo, CurrentTimestamp_, assigner);
+            break;
+
+        case EProcessFunctionGraphHost::SwiftMap:
+            setter = ConvertTo<TSwiftMapComputation::TParametersPtr>(Computation_->Parameters)->AllowBatchingWithRelaxedGuarantees
                 ? CreateSwiftMergeMetaSetter(Computation_, seqNo, assigner)
-                : CreateDeterministicMetaSetter(Computation_, assigner))
-        : CreateUniqueMetaSetter(Computation_, seqNo, CurrentTimestamp_, assigner);
-    auto output = New<TRootOutputCollector>(Computation_, setter);
+                : CreateDeterministicMetaSetter(Computation_, assigner);
+            break;
+
+        case EProcessFunctionGraphHost::SwiftSource:
+            setter = CreateDeterministicMetaSetter(Computation_, assigner);
+            break;
+    }
+    auto output = New<TRootOutputCollector>(Computation_, setter, /*supportsDistribute*/ host == EProcessFunctionGraphHost::SwiftSource);
     Environment_.PreloadEpoch(input);
     Function_->Process(input, output->SetParents(input->GetMessages(), input->GetTimers(), {}), runtime);
     Environment_.CommitEpoch();
@@ -187,6 +204,8 @@ void TProcessFunctionGraphTestHarness::RunEpoch(
         Messages_.push_back({
             .Message = std::move(result.OutputMessages[index]),
             .ParentIds = GetParentIds(result.OutputMessagesParentMessageIds[index]),
+            // Only a source collects this flag.
+            .Distribute = result.OutputMessagesDistribute.empty() || result.OutputMessagesDistribute[index],
         });
     }
     for (int index = 0; index < std::ssize(result.OutputTimers); ++index) {
@@ -239,7 +258,10 @@ void TProcessFunctionGraphTestHarness::EnsureInitialized()
     auto computationId = Environment_.GetComputationId();
     auto pipeline = New<TPipelineSpec>();
     for (const auto& [streamId, spec] : Streams_) {
-        pipeline->Streams[streamId] = CloneYsonStruct(spec);
+        // The source defines the schema of its stream, which has no pipeline spec.
+        if (!Computation_->SourceStreams.contains(streamId)) {
+            pipeline->Streams[streamId] = CloneYsonStruct(spec);
+        }
     }
     pipeline->Computations[computationId] = Computation_;
     ResolveProcessFunctionGraphs(pipeline);

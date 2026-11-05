@@ -1247,6 +1247,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .BeginMap()
+                    .Item("hunk_chunk_count").Value(hunkChunkListStatistics.ChunkCount)
                     .Item("local_referenced_data_weight").Value(chunkListStatistics.HunkDataWeight)
                     .Item("local_referenced_data_size").Value(chunkListStatistics.HunkDataSize)
                     .Item("local_referenced_regular_disk_space").Value(chunkListStatistics.HunkRegularDiskSpace)
@@ -1311,6 +1312,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                 });
         }
 
+        // NB: The attribute is obsolete; use HunkReferenceStatistics instead.
+        // The visitor counts shared hunk chunks once per occurrence in the chunk tree.
         case EInternedAttributeKey::HunkStatistics: {
             if (isExternal) {
                 break;

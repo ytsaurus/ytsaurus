@@ -164,13 +164,11 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_fs_secretary.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_info.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_directory_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_gpu_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_prober_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_proxy_log_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_workspace_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/layer_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_input_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
@@ -179,19 +177,39 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/supervisor_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/throttler_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_artifact.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_counters.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/porto_volume.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/tmpfs_layer_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/host_slot.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/job_directory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/job_environment_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/job_filesystem.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/slot.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/tmpfs_volume.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/common/volume_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/cri/job_environment.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/cri/job_workspace_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/health_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/job_directory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/job_environment.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/job_fs_secretary.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/job_workspace_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/layer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/layer_counters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/layer_location.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/overlay_data.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/porto_volume.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/slot.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/slot_location.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/tmpfs_layer_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/volume_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/volume_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/simple/job_environment.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/simple/job_workspace_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/job_agent/job_resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/helpers.cpp
@@ -211,6 +229,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/cached_row.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chaos_agent.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_prolongator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_replica_cache_pinger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_view_size_compaction_hint.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_controllers.cpp
@@ -301,14 +320,14 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_log.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/artifact.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/environment/porto/volume.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
 )
 
 target_proto_messages(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/environment/porto/volume.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
 )

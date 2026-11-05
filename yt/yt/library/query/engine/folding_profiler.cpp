@@ -115,6 +115,7 @@ protected:
     void Fold(int numeric);
     void Fold(size_t numeric);
     void Fold(const char* str);
+    void Fold(const std::string& str);
     void Fold(const llvm::FoldingSetNodeID& id);
 
     static void AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id);
@@ -178,6 +179,13 @@ void TSchemaProfiler::Fold(const char* str)
     }
 }
 
+void TSchemaProfiler::Fold(const std::string& str)
+{
+    if (Id_) {
+        Id_->AddString(ToStringRef(str));
+    }
+}
+
 void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
 {
     if (Id_) {
@@ -210,6 +218,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
             for (int referencedIndex = 0; referencedIndex < std::ssize(columns); ++referencedIndex) {
                 if (referencedColumns.contains(columns[referencedIndex].Name())) {
                     Fold(referencedIndex);
+                    Fold(columns[referencedIndex].Name());
                 }
             }
         }
@@ -855,6 +864,7 @@ size_t TExpressionProfiler::Profile(
         }
 
         if (ysonType->GetMetatype() == ELogicalMetatype::List &&
+            ysonType->GetElement()->GetMetatype() == ELogicalMetatype::Simple &&
             ysonType->GetElement()->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int64)
         {
             if (auto ysonPath = functionExpr->Arguments[1]->As<TLiteralExpression>()) {
@@ -893,7 +903,7 @@ size_t TExpressionProfiler::Profile(
             {.ExecutionBackend = ExecutionBackend_},
             Id_),
         functionExpr->GetWireType(),
-        function->IsNullable(nullableArgs));
+        functionExpr->GetWireType() == EValueType::Null || function->IsNullable(nullableArgs));
 
     if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
         if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
@@ -1145,6 +1155,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::CaseExpr));
     id.AddInteger(static_cast<ui8>(caseExpr->GetWireType()));
+    id.AddBoolean(UseCanonicalNullRelations_);
     id.AddBoolean(static_cast<bool>(caseExpr->OptionalOperand));
     if (caseExpr->OptionalOperand) {
         id.AddInteger(static_cast<ui8>(caseExpr->OptionalOperand->GetWireType()));
@@ -1200,6 +1211,8 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*defaultExprId].UseCount;
 
         nullable |= fragments->Items[*defaultExprId].Nullable;
+    } else {
+        nullable = true;
     }
 
     auto argIds = std::vector<size_t>();
@@ -1219,6 +1232,7 @@ size_t TExpressionProfiler::Profile(
             std::move(whenThenExpressionIds),
             defaultExprId,
             caseExpr->GetWireType(),
+            nullable,
             ComparerManager_,
             UseCanonicalNullRelations_),
         caseExpr->GetWireType(),
@@ -2246,6 +2260,7 @@ void TQueryProfiler::Profile(
                 for (const auto& item : orderClause->OrderItems) {
                     orderExprIds.push_back(
                         TExpressionProfiler::Profile(item.Expression, sourceSchema, &orderExprFragments));
+                    Fold(orderExprIds.back());
                     Fold(item.Descending);
                     isDesc.push_back(item.Descending);
                     orderColumnTypes.push_back(item.Expression->GetWireType());
@@ -2356,6 +2371,7 @@ void TQueryProfiler::Profile(
         for (int index = 0; index < orderItemCount; ++index) {
             const auto& item = orderClause->OrderItems[index];
             orderExprIds[index] = TExpressionProfiler::Profile(item.Expression, schema, &orderExprFragments);
+            Fold(orderExprIds[index]);
             Fold(item.Descending);
             isDesc[index] = item.Descending;
             orderColumnTypes[index] = item.Expression->GetWireType();
@@ -2737,6 +2753,7 @@ void TQueryProfiler::Profile(
                     arrayExpressions[index],
                     schema,
                     &arrayAndPredicateFragments);
+                Fold(arrayIds[index]);
             }
 
             auto fragmentInfos = arrayAndPredicateFragments.ToFragmentInfos("joinedArrays");
@@ -2804,6 +2821,7 @@ void TQueryProfiler::Profile(
             const auto& joinClause = query->JoinClauses[joinIndex];
 
             int equationCount = joinClause->SelfEquations.size();
+            Fold(equationCount);
 
             std::vector<size_t> selfKeys(equationCount);
             std::vector<EValueType> lookupKeyTypes(equationCount);
@@ -2812,6 +2830,7 @@ void TQueryProfiler::Profile(
                     joinClause->SelfEquations[index],
                     schema,
                     &equationFragments);
+                Fold(selfKeys[index]);
                 lookupKeyTypes[index] = joinClause->SelfEquations[index]->GetWireType();
             }
 

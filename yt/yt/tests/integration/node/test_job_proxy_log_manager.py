@@ -140,8 +140,8 @@ class TestJobProxyLogging(YTEnvSetup):
     def test_separate_directory(self):
         job_count = 3
 
-        run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
-        job_ids = wait_breakpoint(job_count=job_count)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
+        job_ids = wait_breakpoint(op, job_count=job_count)
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
@@ -205,7 +205,7 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         job_count = 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
-        job_ids = wait_breakpoint(job_count=job_count)
+        job_ids = wait_breakpoint(op, job_count=job_count)
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
@@ -223,7 +223,7 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         job_count = 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
-        job_ids = wait_breakpoint(job_count=job_count)
+        job_ids = wait_breakpoint(op, job_count=job_count)
         assert len(job_ids) == job_count
         release_breakpoint()
 
@@ -240,7 +240,7 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
     @authors("epsilond1", "pogorelov")
     def test_dynamic_config(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id_1 = wait_breakpoint()[0]
+        job_id_1 = wait_breakpoint(op)[0]
         release_breakpoint(job_id=job_id_1)
         op.track()
 
@@ -259,7 +259,7 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
         })
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id_2 = wait_breakpoint()[0]
+        job_id_2 = wait_breakpoint(op)[0]
         verify_job_proxy_logs_exist(get_locations(), job_id_2)
         release_breakpoint(job_id=job_id_2)
         op.track()
@@ -349,7 +349,7 @@ class TestDumpJobProxyLog(YTEnvSetup):
         create("file", path)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         dump_job_proxy_log(job_id, op.id, path)
         release_breakpoint()
         op.track()
@@ -362,7 +362,7 @@ class TestDumpJobProxyLog(YTEnvSetup):
         create("file", path)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         release_breakpoint()
         op.track()
 
@@ -382,7 +382,7 @@ class TestDumpJobProxyLog(YTEnvSetup):
         create("file", path)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         release_breakpoint()
         op.track()
 
@@ -446,7 +446,7 @@ class TestJobProxyLogManagerLocationFailure(TestJobProxyLogManagerBase):
         job_count = 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
-        job_ids = wait_breakpoint(job_count=job_count)
+        job_ids = wait_breakpoint(op, job_count=job_count)
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
@@ -467,7 +467,7 @@ class TestJobProxyLogManagerLocationFailure(TestJobProxyLogManagerBase):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, track=False)
 
         with pytest.raises(Exception):
-            wait_breakpoint(timeout=datetime.timedelta(seconds=10))
+            wait_breakpoint(op, timeout=datetime.timedelta(seconds=10))
 
         op.abort()
 
@@ -482,7 +482,7 @@ class TestJobProxyLogManagerLocationFailure(TestJobProxyLogManagerBase):
             pass
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         release_breakpoint(job_id=job_id)
         op.track()
 
@@ -502,7 +502,7 @@ class TestJobProxyLogManagerLocationFailure(TestJobProxyLogManagerBase):
         wait(location_alert_cleared)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         release_breakpoint()
         op.track()
 

@@ -4,6 +4,7 @@
 #include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_pipe.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/task_counters.h>
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
+#include <yql/essentials/providers/common/codec/yql_codec_buf.h>
 #include <yql/essentials/providers/common/provider/yql_provider.h>
 #include <contrib/ydb/library/yql/providers/dq/api/protos/dqs.pb.h>
 #include <contrib/ydb/library/yql/providers/dq/api/protos/task_command_executor.pb.h>
@@ -211,6 +212,73 @@ public:
         t.MutableRusage()->SetStime(delta.Stime.MicroSeconds());
         t.MutableRusage()->SetMajorPageFaults(delta.MajorPageFaults);
         Rusage = currentRusage;
+    }
+
+    template<typename T>
+    void FlushProgressCounter(T& t, const TString& name, i64 total, i64& reported) {
+        const i64 delta = total - reported;
+        if (delta <= 0) {
+            return;
+        }
+        reported = total;
+
+        auto* metric = t.AddMetric();
+        metric->SetName(name);
+        metric->SetSum(delta);
+        metric->SetMin(delta);
+        metric->SetMax(delta);
+        metric->SetAvg(delta);
+        metric->SetCount(1);
+    }
+
+    i64 SumOutputChannelBytes() const {
+        i64 outputBytes = 0;
+        for (const auto& [dstStageId, channels] : Runner->GetStats()->OutputChannels) {
+            for (const auto& [channelId, channel] : channels) {
+                outputBytes += static_cast<i64>(channel->GetPopStats().Bytes);
+            }
+        }
+        return outputBytes;
+    }
+
+    void EnsureProgressCounterNames() {
+        if (!IngressBytesCounterName.empty()) {
+            return;
+        }
+        const std::map<TString, TString> labels = {
+            {"Task", ToString(Runner->GetTaskId())},
+            {"Stage", ToString(StageId)}
+        };
+        IngressBytesCounterName = TCounters::GetCounterName("TaskRunner", labels, "IngressBytes");
+        EgressBytesCounterName = TCounters::GetCounterName("TaskRunner", labels, "EgressBytes");
+        InputBytesCounterName = TCounters::GetCounterName("TaskRunner", labels, "InputBytes");
+        OutputBytesCounterName = TCounters::GetCounterName("TaskRunner", labels, "OutputBytes");
+    }
+
+    template<typename T>
+    void FlushProgressStats(T& t, i64 inputBytes, i64 outputBytes) {
+        if (!Runner) {
+            return;
+        }
+
+        EnsureProgressCounterNames();
+
+        if (JobStats) {
+            FlushProgressCounter(t, IngressBytesCounterName, JobStats->GetStat(NCommon::InputBytes), ReportedIngressBytes);
+            FlushProgressCounter(t, EgressBytesCounterName, JobStats->GetStat(NCommon::OutputBytes), ReportedEgressBytes);
+        }
+
+        FlushProgressCounter(t, InputBytesCounterName, inputBytes, ReportedInputBytes);
+        FlushProgressCounter(t, OutputBytesCounterName, outputBytes, ReportedOutputBytes);
+    }
+
+    template<typename T>
+    void FlushOutputBytesProgress(T& t) {
+        if (!Runner) {
+            return;
+        }
+        EnsureProgressCounterNames();
+        FlushProgressCounter(t, OutputBytesCounterName, SumOutputChannelBytes(), ReportedOutputBytes);
     }
 
     void Run()
@@ -466,6 +534,8 @@ public:
                 bool isOOB = batch.IsOOB();
                 *response.MutableData() = std::move(batch.Proto);
 
+                FlushOutputBytesProgress(response);
+
                 TTaskCounters deltaStat;
                 deltaStat.TakeDeltaCounters(QueryStat, PrevStat);
                 deltaStat.FlushCounters(response);
@@ -497,19 +567,27 @@ public:
                     NDqProto::TRunResponse response;
                     auto status = Runner->Run();
                     response.SetResult(static_cast<ui32>(status));
-                    if (status == NDq::ERunStatus::Finished) {
-                        UpdateStats(response);
-                    }
+
+                    i64 inputBytes = 0;
                     for (auto id : InputChannels) {
+                        const auto& channel = Runner->GetInputChannel(id);
                         auto* space = response.AddChannelFreeSpace();
                         space->SetId(id);
-                        space->SetSpace(Runner->GetInputChannel(id)->GetFreeSpace());
+                        space->SetSpace(channel->GetFreeSpace());
+                        inputBytes += static_cast<i64>(channel->GetPushStats().Bytes);
                     }
+
+                    const i64 outputBytes = SumOutputChannelBytes();
 
                     for (auto id : Sources) {
                         auto* space = response.AddSourceFreeSpace();
                         space->SetId(id);
                         space->SetSpace(Runner->GetSource(id)->GetFreeSpace());
+                    }
+
+                    FlushProgressStats(response, inputBytes, outputBytes);
+                    if (status == NDq::ERunStatus::Finished) {
+                        UpdateStats(response);
                     }
                     response.Save(&output);
                 } catch (const NKikimr::TMemoryLimitExceededException& ex) {
@@ -816,6 +894,14 @@ private:
     ui32 StageId = 0;
     TTaskCounters QueryStat;
     TTaskCounters PrevStat;
+    TString IngressBytesCounterName;
+    TString EgressBytesCounterName;
+    TString InputBytesCounterName;
+    TString OutputBytesCounterName;
+    i64 ReportedIngressBytes = 0;
+    i64 ReportedEgressBytes = 0;
+    i64 ReportedInputBytes = 0;
+    i64 ReportedOutputBytes = 0;
     TDqConfiguration::TPtr DqConfiguration = MakeIntrusive<TDqConfiguration>();
     NDqProto::EDataTransportVersion DataTransportVersion = NDqProto::EDataTransportVersion::DATA_TRANSPORT_VERSION_UNSPECIFIED;
     NKikimr::NMiniKQL::EValuePackerVersion PackerVersion = NKikimr::NMiniKQL::EValuePackerVersion::V0;

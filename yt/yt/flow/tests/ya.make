@@ -43,6 +43,7 @@ RECURSE(
     state_joiner
     static_table
     static_table_v2
+    stream_lags
     swift_map_batching
     swift_map_batching/pipeline
     table_injector
@@ -50,6 +51,7 @@ RECURSE(
     test_distributed_throttler/pipeline
     test_resource_control_channel
     test_resource_control_channel/pipeline
+    test_telemetry/common
     transform_ordered_source
     transform_ordered_source/pipeline
     word_count_sync

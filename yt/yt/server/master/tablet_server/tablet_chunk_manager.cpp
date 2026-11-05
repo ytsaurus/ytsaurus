@@ -900,6 +900,34 @@ public:
             }
         }
 
+        {
+            auto prolongationCookie = TChunkProlongationCookie(tablet->GetId());
+            for (const auto& protoRemovedChunk : request->prolonged_chunks_to_remove()) {
+                auto chunkId = FromProto<TChunkId>(protoRemovedChunk);
+                chunkManager->ExpireProlongedChunk(chunkId, prolongationCookie);
+                auto erasedCount = tablet->ProlongedChunks().erase(chunkId);
+
+                YT_TLOG_ALERT_IF(erasedCount == 0,
+                    "Expired prolonged chunk already missing from tablet state on master")
+                    .With("TabletId", tablet->GetId())
+                    .With("ChunkId", chunkId);
+            }
+
+            auto prolongationInstant = GetCurrentMutationContext()->GetTimestamp();
+            for (const auto& protoProlongedChunk : request->prolonged_chunks_to_add()) {
+                auto chunkId = FromProto<TChunkId>(protoProlongedChunk);
+                auto [_, inserted] = tablet->ProlongedChunks().insert(chunkId);
+
+                if (inserted) {
+                    chunkManager->ProlongChunk(chunkId, prolongationCookie, prolongationInstant);
+                } else {
+                    YT_TLOG_DEBUG("Prolonged chunk already present in tablet state on master")
+                        .With("TabletId", tablet->GetId())
+                        .With("ChunkId", chunkId);
+                }
+            }
+        }
+
         // Chunk views are also possible.
         std::vector<TChunkTreeRawPtr> chunksOrViewsToDetach;
         i64 detachedRowCount = 0;
@@ -1062,7 +1090,7 @@ public:
                 .Run(
                     bundle ? bundle->GetName() : "",
                     updateReason,
-                    ssize(chunksToAttach));
+                    ssize(chunksToAttach) + ssize(hunkChunksToAttach));
         }
 
         return NLogging::TLoggingTagList()
@@ -1088,9 +1116,9 @@ public:
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to attach dead chunk to hunk tablet; ignored")
-                    .With("ChunkId", chunk->GetId())
-                    .With("HunkStorageId", tablet->GetId())
-                    .With("TableId", tablet->GetOwner()->GetId());
+                    .With("ChunkId", chunkId)
+                    .With("TabletId", tablet->GetId())
+                    .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;
             }
 
@@ -1106,7 +1134,7 @@ public:
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to detach dead chunk from hunk tablet; ignored")
-                    .With("ChunkId", chunk->GetId())
+                    .With("ChunkId", chunkId)
                     .With("TabletId", tablet->GetId())
                     .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;
@@ -1120,10 +1148,10 @@ public:
         std::vector<TChunk*> chunksToMarkSealable;
         for (const auto& chunkToMarkSealable : request->stores_to_mark_sealable()) {
             auto chunkId = FromProto<TChunkId>(chunkToMarkSealable.store_id());
-            auto* chunk = chunkManager->GetChunk(chunkId);
+            auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to mark dead chunk as sealable; ignored")
-                    .With("ChunkId", chunk->GetId())
+                    .With("ChunkId", chunkId)
                     .With("TabletId", tablet->GetId())
                     .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;

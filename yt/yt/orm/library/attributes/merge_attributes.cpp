@@ -137,7 +137,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     std::vector<TAttributeValue> attributeValues,
     EYsonFormat format,
     EMergeAttributesMode mergeAttributesMode,
-    std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
+    const std::function<void(bool, std::vector<NYPath::TYPath>)>& mismatchCallback)
 {
     std::vector<TAttributeValue> result;
     std::vector<TAttributeValue> nonWildcardAttributes;

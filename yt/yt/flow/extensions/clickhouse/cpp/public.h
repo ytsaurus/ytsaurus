@@ -23,8 +23,6 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicShardedClickHouseBatchingSinkParameters);
 DECLARE_REFCOUNTED_STRUCT(TAtLeastOnceClickHouseSinkParameters);
 DECLARE_REFCOUNTED_STRUCT(TDynamicAtLeastOnceClickHouseSinkParameters);
 
-DECLARE_REFCOUNTED_STRUCT(TAtMostOnceClickHouseSinkParameters);
-DECLARE_REFCOUNTED_STRUCT(TDynamicAtMostOnceClickHouseSinkParameters);
 
 DECLARE_REFCOUNTED_STRUCT(TClickHouseSinkControllerParameters);
 DECLARE_REFCOUNTED_STRUCT(TDynamicClickHouseSinkControllerParameters);
@@ -34,7 +32,6 @@ DECLARE_REFCOUNTED_CLASS(TClickHouseBatchingSinkBase);
 DECLARE_REFCOUNTED_CLASS(TClickHouseBatchingSink);
 DECLARE_REFCOUNTED_CLASS(TShardedClickHouseBatchingSink);
 DECLARE_REFCOUNTED_CLASS(TAtLeastOnceClickHouseSink);
-DECLARE_REFCOUNTED_CLASS(TAtMostOnceClickHouseSink);
 DECLARE_REFCOUNTED_CLASS(TClickHouseSinkController);
 
 ////////////////////////////////////////////////////////////////////////////////

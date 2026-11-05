@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_core_version.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
 
 #include <yt/yt/flow/library/cpp/misc/debug_build_warning.h>
 #include <yt/yt/flow/library/cpp/misc/node_address_provider.h>
@@ -31,6 +32,8 @@
 #include <util/generic/algorithm.h>
 
 #include <util/string/split.h>
+
+#include <util/system/env.h>
 
 #include <cmath>
 
@@ -417,7 +420,11 @@ private:
         try {
             auto connection = NApi::NRpcProxy::CreateConnection(
                 NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(ClusterName_));
-            auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+            auto client = GetJobProxyClient(
+                connection->CreateClient(NApi::GetClientOptionsFromEnvStatic()),
+                ClusterName_,
+                GetEnv("YT_FLOW_JOB_PROXY_CLUSTER"),
+                GetEnv("YT_JOB_PROXY_SOCKET_PATH"));
 
             NApi::TGetJobOptions options;
             options.Attributes = THashSet<std::string>{"address"};

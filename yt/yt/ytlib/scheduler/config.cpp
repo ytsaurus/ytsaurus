@@ -922,6 +922,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
+    registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
+        .Default(true);
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 
@@ -1315,6 +1318,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("enable_input_table_index", &TThis::EnableInputTableIndex)
         .Default();
     registrar.Parameter("environment", &TThis::Environment)
+        .Default();
+    // Filled in by the controller agent from the docker image config;
+    // not meant to be set by users.
+    registrar.Parameter("docker_image_environment", &TThis::DockerImageEnvironment)
         .Default();
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default(1)
@@ -2530,6 +2537,10 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
 
+            if (taskName == "source" || taskName == "sink") {
+                THROW_ERROR_EXCEPTION("Task name %Qv is reserved", taskName);
+            }
+
             taskSpec->TaskTitle = taskName;
 
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
@@ -2602,7 +2613,8 @@ void TJobResourcesConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.BaseClassParameter("cpu", &TJobResourcesConfig::Cpu)
         .Default()
-        .GreaterThanOrEqual(0);
+        .GreaterThanOrEqual(0)
+        .LessThan(static_cast<double>(std::numeric_limits<TCpuResource>::max()));
     registrar.BaseClassParameter("network", &TJobResourcesConfig::Network)
         .Default()
         .GreaterThanOrEqual(0);

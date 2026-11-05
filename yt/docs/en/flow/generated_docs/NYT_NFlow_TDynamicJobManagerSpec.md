@@ -96,7 +96,7 @@ Window within which the exponentially decaying counter of connection losses betw
 || `faulty_address_attempts` | **Type**: `unsigned long`
 **Default value**: `5`
 See the description of the `faulty_address_window` parameter. ||
-|| `partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningSpec)`>`
+|| `partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningCoordinatorSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningCoordinatorSpec)`>`
 **Default value**: `{}`
 Pipeline partitioning settings. ||
 || `worker_group_override` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
@@ -105,5 +105,8 @@ Pipeline partitioning settings. ||
 || `partition_history_limit` | **Type**: `long`
 **Default value**: `4096`
 Most partition histories the balancer keeps across job restarts, see `balancer_metrics_source`. The histories live in one persisted document with a size limit, so when the limit is reached the lightest history gives way to a heavier one and lighter ones are not saved. A pipeline stop saves no histories at all. ||
+|| `watermark_history_thinning_factor` | **Type**: `int`
+**Default value**: `4`
+Thinning factor K of the watermark histories the controller keeps to compute `ready_time_lag` for event-time and system-time timers. A history element spans at most 1/K of its age, so the lag may be over-reported by at most 1/K of its value and is never under-reported; a larger K keeps more elements. A change applies to new samples only: existing elements are never split. ||
 |#
 

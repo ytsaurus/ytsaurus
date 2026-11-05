@@ -112,6 +112,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicConsistentReplicaPlacementConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaChunkReplicasConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaChunkReplicasStoreConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicChunkProlongatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TDomesticMediumConfig)
 DECLARE_REFCOUNTED_STRUCT(TS3MediumConfig)
 
@@ -206,6 +207,8 @@ constexpr int ChunkLocationShardCount = 256;
 // deprecated TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.
 TStringBuf SerializeChunkFormatAsTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+
+using TChunkProlongationCookie = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 

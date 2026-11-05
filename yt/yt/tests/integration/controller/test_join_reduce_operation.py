@@ -1462,7 +1462,7 @@ echo {v = 2} >&7
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         op.interrupt_job(jobs[0])
         release_breakpoint()
         op.track()
@@ -1542,7 +1542,7 @@ echo {v = 2} >&7
                 },
             )
 
-            jobs = wait_breakpoint()
+            jobs = wait_breakpoint(op)
             op.interrupt_job(jobs[0])
             release_breakpoint()
             op.track()

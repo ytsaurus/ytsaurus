@@ -8,6 +8,8 @@ Run with:
     ya make -t yt/yt/tools/pod_size_actualization/optimization/tests
 """
 
+from dataclasses import replace
+
 import pytest
 
 from yt.yt.tools.pod_size_actualization.optimization import (
@@ -101,3 +103,17 @@ def test_cross_dc_bundles_are_counted_in_all_zones():
             0
         ]
     )
+
+
+def test_seneca_loads_are_optimized_in_separate_groups():
+    from yt.yt.tools.pod_size_actualization.optimization.data import build_bundle_groups
+
+    vla = replace(node(cpu=1.0), cluster="seneca-vla")
+    klg = replace(node(cpu=8.0), cluster="seneca-klg")
+    groups = build_bundle_groups([vla, klg])
+
+    assert len(groups) == 2
+    by_group = {group.cluster_group: group for group in groups}
+    assert set(by_group) == {"seneca-vla", "seneca-klg"}
+    assert by_group["seneca-vla"].cpu_req_int == vla.cpu_req_int()
+    assert by_group["seneca-klg"].cpu_req_int == klg.cpu_req_int()

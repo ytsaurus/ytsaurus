@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/ytree/serialize.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,3 +130,18 @@ struct THash<NYT::NFlow::TKey>
 #define KEY_INL_H_
 #include "key-inl.h"
 #undef KEY_INL_H_
+
+namespace NYT::NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TAssociativeContainerKeyHelper<NFlow::TKey>
+{
+    static std::string Serialize(const NFlow::TKey& key);
+    static NFlow::TKey Deserialize(TStringBuf key);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYTree

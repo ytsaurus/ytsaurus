@@ -81,7 +81,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     - `--proxy` — имя кластера;
     - `--pool` — вычислительный пул {{product-name}};
     - `--spyt-version` — директория для служебных данных Spark;
-    - `--worker-cores` — количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone);
+    - `--worker-cores` — количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone);
     - `--worker-num` — количество воркеров;
     - `--worker-memory` — количество памяти у каждого воркера;
     - `--spark-cluster-version` — [версия](../../../../user-guide/data-processing/spyt/version.md) кластера (опционально).
@@ -100,7 +100,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     - `spark-submit-yt` — обертка над [spark-submit](https://spark.apache.org/docs/latest/submitting-applications.html), позволяет определить адрес мастера Spark из Vanilla-операции. Поиск производится по аргументам: `proxy`, `id`, `discovery-path`;
     - `--proxy` — имя кластера;
     - `--discovery-path` — директория для служебных данных Spark;
-    - `--deploy-mode` (`cluster` или `client`) — [режим](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode--cluster-mode) запуска кластера;
+    - `--deploy-mode` (`cluster` или `client`) — [режим](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode) запуска кластера;
     - `--spyt-version` — версия SPYT (опционально);
     - адрес файла с кодом в {{product-name}}.
 

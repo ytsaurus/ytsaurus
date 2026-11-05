@@ -29,6 +29,15 @@ from yt.yt.tools.pod_size_actualization.optimization.scripts.shared import (
 SENECAS = ("seneca-sas", "seneca-vla", "seneca-klg")
 
 
+@pytest.fixture(autouse=True)
+def grouped_clusters_for_algorithm_tests(monkeypatch):
+    # Exercise shared-group algorithms with an explicit test configuration.
+    # Production now optimizes each Seneca independently.
+    groups = {name: clusters for name, clusters in cfg.CLUSTER_GROUPS.items() if name not in SENECAS}
+    groups["senecas"] = list(SENECAS)
+    monkeypatch.setattr(cfg, "CLUSTER_GROUPS", groups)
+
+
 def bi(name, cluster, instance_type="node", node_type="medium", count=4, cpu=10.0, memory=50.0, network=100.0):
     """A BundleInstances with everything but the interesting fields defaulted.
 

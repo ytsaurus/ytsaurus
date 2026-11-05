@@ -368,6 +368,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     {
         if (!IsValidWriteTargetToAllocate(
             node,
+            medium,
             &collector,
             enableRackAwareness,
             enableDataCenterAwareness,
@@ -514,6 +515,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 template <typename TGenericChunk>
 bool TChunkPlacement::IsValidWriteTargetToAllocate(
     TNode* node,
+    const TDomesticMedium* medium,
     TTargetCollector<TGenericChunk>* collector,
     bool enableRackAwareness,
     bool enableDataCenterAwareness,
@@ -521,7 +523,7 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
     bool enableHostAwareness)
 {
     // Check node first.
-    if (!IsValidWriteTargetCore(node)) {
+    if (!IsValidWriteTargetCore(node, medium)) {
         return false;
     }
 
@@ -579,7 +581,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     auto maxReplicasPerActiveDataCenter = DoGetMaxReplicasPerDataCenter(
         mediumIndex,
         chunk,
-        std::ssize(AliveStorageDataCenters_) + std::ssize(TemporarilyUnavailableStorageDataCenters_),
+        std::ssize(PerMediumAliveStorageDataCenters_[mediumIndex]) + std::ssize(TemporarilyUnavailableStorageDataCenters_),
         replicationFactorOverride);
     return std::min(maxReplicasPerRack, maxReplicasPerActiveDataCenter);
 }
@@ -595,7 +597,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
         return Max<int>();
     }
 
-    if (!IsDataCenterFeasible(dataCenter) &&
+    if (!IsDataCenterFeasible(dataCenter, mediumIndex) &&
         !IsDataCenterTemporarilyUnavailable(dataCenter))
     {
         return 0;
@@ -604,7 +606,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
     return DoGetMaxReplicasPerDataCenter(
         mediumIndex,
         chunk,
-        std::ssize(AliveStorageDataCenters_),
+        std::ssize(PerMediumAliveStorageDataCenters_[mediumIndex]),
         replicationFactorOverride);
 }
 
@@ -632,6 +634,13 @@ int TChunkPlacement::DoGetMaxReplicasPerDataCenter(
         return replicaCount;
     }
 
+    auto aliveStorageDataCenterCount = std::ssize(PerMediumAliveStorageDataCenters_[mediumIndex]);
+    if (aliveStorageDataCenterCount == 0) {
+        // Dividing by zero is bad, so case of zero alive data centers is handled separately.
+        // Actually, in this case replica allocation is impossible, so we can return any possible value.
+        return replicaCount;
+    }
+
     auto maxReplicasPerDataCenter = DivCeil<int>(replicaCount, dataCenterCount);
 
     // Typically it's impossible to store chunk in such a way that after data center loss it is still
@@ -641,7 +650,8 @@ int TChunkPlacement::DoGetMaxReplicasPerDataCenter(
     // is lost, at least one data center will store at least 5 of its replicas which is too much to repair
     // chunk from the rest parts.
     if (BannedStorageDataCenters_.empty() &&
-        TemporarilyUnavailableStorageDataCenters_.empty())
+        TemporarilyUnavailableStorageDataCenters_.empty() &&
+        GetBannedStorageDataCenterNames(mediumIndex).empty())
     {
         auto maxReplicasPerFailureDomain = chunk->GetMaxReplicasPerFailureDomain(
             mediumIndex,

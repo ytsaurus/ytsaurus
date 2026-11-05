@@ -95,24 +95,5 @@ TEST(TValidateTargetEngineTest, FailoverMatrix)
         std::exception);
 }
 
-TEST(TClickHouseFailureActionTest, ConfigurationFailureIsNeverAcknowledged)
-{
-    const TClickHouseRequestOptions requestOptions{
-        .AsyncInsert = false,
-        .MaxInsertAttempts = 1,
-    };
-    TClickHouseAttemptState attemptState;
-
-    EXPECT_EQ(
-        GetClickHouseFailureAction(
-            EWriteGuarantee::AtMostOnce,
-            /*insertStarted*/ false,
-            EClickHouseErrorKind::Unclassified,
-            requestOptions,
-            &attemptState),
-        EClickHouseFailureAction::Retry);
-    EXPECT_EQ(attemptState.UnclassifiedInsertAttempts, 0);
-}
-
 } // namespace
 } // namespace NYT::NFlow

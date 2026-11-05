@@ -98,7 +98,7 @@ std::vector<i64> SampleMutationsSequenceNumbers(
         return result;
     }
 
-    result.reserve((endSequenceNumber - startSequenceNumber) / rate);
+    result.reserve((endSequenceNumber - startSequenceNumber) / rate + 1);
     for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
         result.push_back(sequenceNumber);
     }
@@ -118,7 +118,7 @@ TFuture<void> ReportMutationStateHashesToLeader(
     const auto& Logger = logger;
 
     if (sequenceNumbersToStateHashes.empty()) {
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     auto sortedSequenceNumbersToStateHashes = sequenceNumbersToStateHashes;
@@ -143,17 +143,17 @@ TFuture<void> ReportMutationStateHashesToLeader(
     request->SetTimeout(timeout);
     return request->Invoke()
         .Apply(BIND([=] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
-        if (rspOrError.IsOK()) {
-            YT_TLOG_DEBUG("Mutations state hashes reported")
-                .With("StartSequenceNumber", startSequenceNumber)
-                .With("EndSequenceNumber", endSequenceNumber);
-        } else {
-            YT_TLOG_DEBUG("Error reporting mutations state hashes")
-                .With("StartSequenceNumber", startSequenceNumber)
-                .With("EndSequenceNumber", endSequenceNumber)
-                .With(rspOrError);
-        }
-    }));
+            if (rspOrError.IsOK()) {
+                YT_TLOG_DEBUG("Mutations state hashes reported")
+                    .With("StartSequenceNumber", startSequenceNumber)
+                    .With("EndSequenceNumber", endSequenceNumber);
+            } else {
+                YT_TLOG_DEBUG("Error reporting mutations state hashes")
+                    .With("StartSequenceNumber", startSequenceNumber)
+                    .With("EndSequenceNumber", endSequenceNumber)
+                    .With(rspOrError);
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

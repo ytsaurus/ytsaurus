@@ -12,8 +12,10 @@ IF (NOT OPENSOURCE)
         dq
         dqrun
         dqrun_light
+        experimental
         qt_release_helper
         qt_stress
+        qt_e2e
         query_replay
         query_replay_admin
         s3_backup

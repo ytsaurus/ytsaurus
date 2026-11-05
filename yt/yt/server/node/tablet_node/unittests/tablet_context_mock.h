@@ -56,7 +56,7 @@ private:
     const IStoreContextPtr StoreContext_ = New<TStoreContextMock>();
 
     const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ =
-        NQueryClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
+        NQueryClient::CreateRowComparerProvider(TSlruCacheConfig::CreateWithCapacity(/*capacity*/ 16));
 
     const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ =
         New<TMockBackendChunkReadersHolder>();

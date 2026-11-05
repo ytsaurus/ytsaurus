@@ -127,7 +127,7 @@ https://www.youtube.com/live/XPth7B-rivg?t=4853s
 - **Докладчик:** Максим Бабенко
 - **Язык:** английский
 
-### 2019: Map-Reduce-операция длиною в год
+### 2019: Map-Reduce-операция длиною в год { #2019-year-long-map-reduce-operation }
 - **Мероприятие:** HighLoad++ 2019
 - **Материалы:** [YouTube](https://www.youtube.com/watch?v=l9AEVamDuWA), [Habr](https://habr.com/ru/company/yandex/blog/530304/), [slides](https://drive.google.com/file/d/133yc42WDUB2Vs6dyWsUyQ8YfWy2RYuxi/view)
 - **Докладчик:** Максим Ахмедов

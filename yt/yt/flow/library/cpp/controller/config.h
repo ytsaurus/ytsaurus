@@ -64,11 +64,6 @@ DEFINE_REFCOUNTED_TYPE(TLeaseManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! The scheduling cadence while the pipeline has no spec: such iterations are no-ops that only
-//! refresh the leader lease row, and at the full cadence their commits starve the longer set-spec
-//! commit of conflict-free windows on that row.
-inline constexpr TDuration NoSpecIterationBackoff = TDuration::Seconds(1);
-
 //! How many scheduling cadences a dyntable leader lease must outlast, checked at config load.
 //! Nothing refreshes the leader row between two fenced commits, so a ttl that barely covers one
 //! cadence demotes the leader as soon as a single iteration runs long.
@@ -208,6 +203,9 @@ struct TControllerServiceConfig
     int SetSpecRetryCount{};
     TDuration SetSpecRetryPeriod;
 
+    //! Allows pipeline specs that select the "paged" timer store backend.
+    bool EnablePagedTimerStore{};
+
     TLoadThroughputThrottlerSpecPtr TablesThrottler;
 
     REGISTER_YSON_STRUCT(TControllerServiceConfig);
@@ -228,6 +226,8 @@ struct TControllerConfig
 
     TDuration WarmUpTime;
     TDuration SchedulerPeriod;
+    // Minimum scheduling cadence while the pipeline has no spec.
+    TDuration NoSpecIterationBackoff;
     TDuration CachePeriod;
     TDuration FeedbackPeriod;
     TDuration MetricsPeriod;

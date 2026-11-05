@@ -638,7 +638,7 @@ print("x={0}\ty={1}".format(x, y))
             track=False,
         )
 
-        some_job = wait_breakpoint()[0]
+        some_job = wait_breakpoint(op)[0]
         release_breakpoint(job_id=some_job)
 
         def get_completed_reduce_job_count():
@@ -1001,7 +1001,7 @@ print("x={0}\ty={1}".format(x, y))
             track=False,
         )
 
-        first_reduce_job = wait_breakpoint()[0]
+        first_reduce_job = wait_breakpoint(op)[0]
 
         self._ban_nodes_with_intermediate_chunks()
 
@@ -3327,7 +3327,7 @@ for l in sys.stdin:
             track=False,
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         abandon_job(job_id)
 
         release_breakpoint()
@@ -3493,7 +3493,7 @@ while True:
             track=False,
         )
 
-        first_reduce_job = wait_breakpoint()[0]
+        first_reduce_job = wait_breakpoint(op)[0]
 
         assert self._ban_nodes_with_intermediate_chunks() != []
         self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
@@ -3552,7 +3552,7 @@ while True:
             track=False,
         )
 
-        first_reduce_job = wait_breakpoint()[0]
+        first_reduce_job = wait_breakpoint(op)[0]
 
         assert self._ban_nodes_with_intermediate_chunks() != []
         self._abort_single_job_if_running_after_node_ban(op, first_reduce_job)
@@ -3648,7 +3648,7 @@ while True:
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         removed_chunk_count = self._remove_intermediate_chunks(0.5)
         assert removed_chunk_count > 10
@@ -4290,7 +4290,7 @@ cat input
 
         # Store the initial intermediate chunks on producer_node before moving
         # subsequent scheduling to the other nodes.
-        events.wait_breakpoint("original_combiner", job_count=2)
+        wait_breakpoint(op, "original_combiner", job_count=2)
         op.suspend()
         events.release_breakpoint("original_combiner")
         wait(lambda: get(op.get_path() + "/@progress/reduce_combiner/completed/total", default=0) == 2)
@@ -4317,11 +4317,13 @@ cat input
             originals = get_original_jobs_at_breakpoint(jobs, "sorted_reduce")
             return bool(originals) and len(originals) == get(op.get_path() + "/@progress/sorted_reduce/total")
 
-        reduce_jobs = events.wait_breakpoint(
+        reduce_jobs = wait_breakpoint(
+            op,
             "sorted_reduce",
             check_fn=all_original_sorted_reduce_jobs_started,
         )
-        events.wait_breakpoint(
+        wait_breakpoint(
+            op,
             "partition_reduce",
             check_fn=lambda jobs: bool(get_original_jobs_at_breakpoint(jobs, "partition_reduce")),
         )
@@ -4363,7 +4365,7 @@ cat input
         op.resume()
 
         if replay_before_completion:
-            replay_jobs = events.wait_breakpoint("replay", job_count=2)
+            replay_jobs = wait_breakpoint(op, "replay", job_count=2)
             for job_id in original_sorted_reduce_jobs:
                 events.release_breakpoint("sorted_reduce", job_id=job_id)
             wait(lambda: get_sorted_reduce_task()["completed"])
@@ -4393,7 +4395,8 @@ cat input
                     if info["job_type"] == "sorted_reduce" and info["speculative"]:
                         abort_job(job_id)
                 intermediate_generation_jobs = get_intermediate_generation_jobs()
-                events.wait_breakpoint(
+                wait_breakpoint(
+                    op,
                     "sorted_reduce",
                     check_fn=lambda jobs: intermediate_generation_jobs.issubset(jobs),
                 )
@@ -5118,7 +5121,8 @@ for line in sys.stdin:
     @pytest.mark.parametrize("enable_final_partitions_merging", [False, True])
     def test_many_empty_partitions_on_multiple_levels(self, enable_final_partitions_merging):
         create("table", "//tmp/t_in")
-        rows = [{"x": i} for i in range(100)]
+        # 10 rows of 9 bytes make 1 + 90 = 91 final partitions: a 3-level tree with max_partition_factor 5.
+        rows = [{"x": i} for i in range(10)]
         write_table("<append=%true>//tmp/t_in", rows)
         op = map_reduce(
             in_="//tmp/t_in",
@@ -5127,11 +5131,11 @@ for line in sys.stdin:
             reducer_command="cat",
             spec={
                 "partition_data_weight": 1,
-                "max_partition_factor": 20,
+                "max_partition_factor": 5,
                 "enable_final_partitions_merging": enable_final_partitions_merging,
                 # COMPAT(apollo1321)
                 "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
-            } | ({"partition_data_weight_for_merging": 80} if enable_final_partitions_merging else {}),
+            } | ({"partition_data_weight_for_merging": 20} if enable_final_partitions_merging else {}),
         )
         tasks = get_operation(op.id, attributes=["progress"])["progress"]["tasks"]
         assert len(tasks) == 4
@@ -5450,17 +5454,19 @@ for line in sys.stdin:
 
         assert read_table("//tmp/t_out") == sorted(rows, key=lambda row : row["x"])
 
-        wait(lambda: list_jobs(op.id)["jobs"])
+        checked_jobs = []
 
-        jobs = list_jobs(op.id)["jobs"]
-        assert len(jobs) > 0
-        for job in jobs:
-            if job["type"] in ("sorted_merge", "sorted_reduce", "partition"):
-                continue
-            wait(lambda: op.get_job_statistics(job["id"]).get("data"))
-            statistics = op.get_job_statistics(job["id"])
+        def fetch_jobs():
+            nonlocal checked_jobs
+            jobs = list_jobs(op.id, attributes=["type", "statistics"])["jobs"]
+            checked_jobs = [job for job in jobs if job["type"] not in ("sorted_merge", "sorted_reduce", "partition")]
+            return jobs and all("data" in job.get("statistics", {}) for job in checked_jobs)
+
+        wait(fetch_jobs)
+        for job in checked_jobs:
+            statistics = job["statistics"]
             assert statistics["data"]["input"]["chunk_count"]["sum"] == 1 or \
-                statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job
+                statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job, job["id"]
 
 
 ##################################################################

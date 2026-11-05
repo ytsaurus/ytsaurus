@@ -354,6 +354,11 @@ public:
         return Occupant_->GetLeaseManager();
     }
 
+    const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() override
+    {
+        return Bootstrap_->GetNodeMemoryUsageTracker();
+    }
+
     const ITabletManagerPtr& GetTabletManager() override
     {
         return TabletManager_;
