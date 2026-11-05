@@ -140,9 +140,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::LMap(TExprBase node, TE
 
     auto lmap = node.Cast<TLMapType>();
 
-    if (!IsYtProviderInput(lmap.Input(), true)) {
-        return node;
-    }
+    const bool useMapOrFill = IsYtProviderInput(lmap.Input(), true);
 
     const auto inItemType = GetSequenceItemType(lmap.Input(), true, ctx);
     if (!inItemType) {
@@ -159,10 +157,12 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::LMap(TExprBase node, TE
     TSyncMap syncList;
     const ERuntimeClusterSelectionMode selectionMode =
         State_->Configuration->RuntimeClusterSelection.Get().GetOrElse(DEFAULT_RUNTIME_CLUSTER_SELECTION);
-    auto cluster = DeriveClusterFromInput(lmap.Input(), selectionMode);
+    auto cluster = useMapOrFill ? DeriveClusterFromInput(lmap.Input(), selectionMode) : GetRuntimeCluster(node.Ref(), State_);
     if (!cluster || !IsYtCompleteIsolatedLambda(lmap.Lambda().Ref(), syncList, *cluster, false, selectionMode)) {
         return node;
     }
+
+
 
     auto cleanup = CleanupWorld(lmap.Lambda(), ctx);
     if (!cleanup) {
@@ -177,7 +177,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::LMap(TExprBase node, TE
     const bool useFlow = State_->Configuration->UseFlow.Get().GetOrElse(DEFAULT_USE_FLOW);
 
     auto settingsBuilder = Build<TCoNameValueTupleList>(ctx, lmap.Pos());
-    if (std::is_same<TLMapType, TCoOrderedLMap>::value) {
+    if (std::is_same<TLMapType, TCoOrderedLMap>::value && useMapOrFill) {
         settingsBuilder
             .Add()
                 .Name()
@@ -195,18 +195,24 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::LMap(TExprBase node, TE
             .Build();
     }
 
-    auto map = Build<TYtMap>(ctx, lmap.Pos())
-        .World(ApplySyncListToWorld(NPrivate::GetWorld(lmap.Input(), {}, ctx).Ptr(), syncList, ctx))
-        .DataSink(MakeDataSink(lmap.Pos(), *cluster, ctx))
-        .Input(NPrivate::ConvertInputTable(lmap.Input(), ctx))
-        .Output()
-            .Add(outTables)
-        .Build()
-        .Settings(settingsBuilder.Done())
-        .Mapper(MakeJobLambda<false>(TCoLambda(mapper), useFlow, ctx))
-        .Done();
+    const auto operation = useMapOrFill ?
+        Build<TYtMap>(ctx, lmap.Pos())
+            .World(ApplySyncListToWorld(NPrivate::GetWorld(lmap.Input(), {}, ctx).Ptr(), syncList, ctx))
+            .DataSink(MakeDataSink(lmap.Pos(), *cluster, ctx))
+            .Input(NPrivate::ConvertInputTable(lmap.Input(), ctx))
+            .Output().Add(std::move(outTables)).Build()
+            .Settings(settingsBuilder.Done())
+            .Mapper(MakeJobLambda<false>(TCoLambda(mapper), useFlow, ctx))
+        .Done().template Cast<TYtOutputOpBase>():
+        Build<TYtFill>(ctx, lmap.Pos())
+            .World(ApplySyncListToWorld(ctx.NewWorld(lmap.Pos()), syncList, ctx))
+            .DataSink(MakeDataSink(lmap.Pos(), *cluster, ctx))
+            .Output().Add(std::move(outTables)).Build()
+            .Settings(settingsBuilder.Done())
+            .Content(MakeJobLambdaNoArg(TExprBase(ctx.ReplaceNode(cleanup.Cast().Body().Ptr(), cleanup.Cast().Args().Arg(0).Ref(), lmap.Input().Ptr())), ctx))
+        .Done().template Cast<TYtOutputOpBase>();
 
-    return NPrivate::WrapOp(map, ctx);
+    return NPrivate::WrapOp(operation, ctx);
 }
 
 template TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::LMap<TCoLMap>(TExprBase node, TExprContext& ctx) const;
