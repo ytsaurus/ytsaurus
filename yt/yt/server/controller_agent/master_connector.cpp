@@ -555,14 +555,6 @@ private:
         return batchReq;
     }
 
-    TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTagSentinel)
-    {
-        TChunkServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
-        return proxy.ExecuteBatch();
-    }
-
     void RefreshTransactions()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1064,41 +1056,36 @@ private:
 
         // Attach
         for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
-            auto batchReq = StartChunkBatchRequest(cellTag);
-            GenerateMutationId(batchReq);
-            SetSuppressUpstreamSync(&batchReq->Header(), true);
-            // COMPAT(shakurov): prefer proto ext (above).
-            batchReq->set_suppress_upstream_sync(true);
+            TChunkServiceProxy proxy(Bootstrap_
+                ->GetClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
 
-            std::vector<int> tableIndexToRspIndex;
-            for (const auto* tableInfo : tableInfos) {
+            for (auto* tableInfo : tableInfos) {
                 size_t beginIndex = 0;
                 const auto& childIds = tableInfo->ChildIds;
                 while (beginIndex < childIds.size()) {
                     auto lastIndex = std::min(beginIndex + Config_->MaxChildrenPerAttachRequest, childIds.size());
                     bool isFinal = (lastIndex == childIds.size());
-                    if (isFinal) {
-                        tableIndexToRspIndex.push_back(batchReq->attach_chunk_trees_subrequests_size());
-                    }
-                    auto* req = batchReq->add_attach_chunk_trees_subrequests();
+
+                    auto req = proxy.AttachChunkTrees();
+                    GenerateMutationId(req);
+                    SetSuppressUpstreamSync(&req->Header(), true);
+
                     ToProto(req->mutable_parent_id(), tableInfo->UploadChunkListId);
                     for (auto index = beginIndex; index < lastIndex; ++index) {
                         ToProto(req->add_child_ids(), childIds[index]);
                     }
                     req->set_request_statistics(isFinal);
+
+                    auto rspOrError = WaitFor(req->Invoke());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+                    if (isFinal) {
+                        tableInfo->Statistics = rspOrError.Value()->statistics();
+                    }
+
                     beginIndex = lastIndex;
                 }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            const auto& rsps = batchRsp->attach_chunk_trees_subresponses();
-            for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
-                auto* tableInfo = tableInfos[tableIndex];
-                const auto& rsp = rsps.Get(tableIndexToRspIndex[tableIndex]);
-                tableInfo->Statistics = rsp.statistics();
             }
         }
 
