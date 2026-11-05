@@ -2037,6 +2037,11 @@ void TJob::DoFail(TError error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    if (std::exchange(FailRequested_, true)) {
+        YT_TLOG_DEBUG("Repeating job failure request; ignored");
+        return;
+    }
+
     if (JobPhase_.load() != EJobPhase::Running) {
         error = TError("Failing job that is not running").With(std::move(error));
 
