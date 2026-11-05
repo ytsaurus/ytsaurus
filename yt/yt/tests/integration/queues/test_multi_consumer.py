@@ -44,10 +44,22 @@ class TestMultiConsumerController(TestQueueAgentBase):
         instances = ls("//sys/queue_agents/instances")
         return QueueAgentOrchid(agent_id=instances[0])
 
+    @pytest.mark.parametrize("hash_expression, without_hash_column", [
+        (None, False),
+        (None, True),
+        ("farm_hash(queue_consumer_name, queue_path)", False),
+        ("farm_hash(queue_cluster, queue_path) % 3", False),
+        ("farm_hash(queue_consumer_name, partition_index) % 4", False),
+    ])
     @authors("panesher")
-    def test_select_consumer_names_pagination(self):
+    def test_select_consumer_names_pagination(self, hash_expression, without_hash_column):
         path = self.create_consumer_path("multi_consumer_pagination")
-        self._create_consumer(path, multi_consumer=True, queue_agent_stage="production")
+        self._create_consumer(
+            path,
+            multi_consumer=True,
+            hash_expression=hash_expression,
+            without_hash_column=without_hash_column,
+            queue_agent_stage="production")
 
         self._wait_for_component_passes()
 
@@ -113,13 +125,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert sorted(orchid.get_queue_consumer_names()) == sorted(names)
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == sorted(
             [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
             key=lambda r: r["name"],
-        )
+        ))
 
         # Check controller deletes from multi_consumer_names table (stale row for unknown name)
         insert_rows(
@@ -129,13 +141,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert sorted(orchid.get_queue_consumer_names()) == sorted(names)
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == sorted(
             [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
             key=lambda r: r["name"],
-        )
+        ))
 
         assert orchid.get_status() == get(f"{path}/@queue_consumer_status")
         named_consumer_status = orchid.get_named_consumer_status("my_1")
@@ -167,7 +179,7 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert orchid.get_queue_consumer_names() == []
-        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
+        wait(lambda: select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [])
 
     @authors("panesher")
     def test_delete_consumer_names_without_table(self):
