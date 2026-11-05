@@ -1,4 +1,4 @@
-#include <yt/yt/orm/library/query/computed_fields_filter.h>
+#include <yt/yt/orm/library/query/filter_splitter.h>
 
 #include <yt/yt/orm/client/misc/error.h>
 
@@ -20,13 +20,13 @@ auto Detector(size_t bound)
     };
 }
 
-void ParseAndCheck(TExpressionPtr expression, const std::string& source, size_t bound, bool isComputed)
+void ParseAndCheck(TExpressionPtr expression, const std::string& source, size_t bound, bool matchesPredicate)
 {
     auto parsedExpr = ParseSource(source, NQueryClient::EParseMode::Expression);
     auto* correctExpr = std::get<TExpressionPtr>(parsedExpr->AstHead.Ast);
 
     ASSERT_EQ(FormatExpression({expression}), FormatExpression({correctExpr}));
-    ASSERT_EQ(ContainsComputedFields(expression, Detector(bound)), isComputed);
+    ASSERT_EQ(CheckExpressionByPredicate(expression, Detector(bound)), matchesPredicate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,8 +50,35 @@ TEST(TFilterSplitterTest, JustWorks)
             splitTree[i],
             subTrees[i],
             /*bound*/ 1,
-            /*isComputed*/ i % 2 == 0);
+            /*matchesPredicate*/ i % 2 == 0);
     }
+}
+
+TEST(TFilterSplitterTest, AllReferencesMatchPredicate)
+{
+    auto filter = ParseSource("[f] OR [k]", NQueryClient::EParseMode::Expression);
+    auto* filterExpr = std::get<TExpressionPtr>(filter->AstHead.Ast);
+
+    auto [unmatched, matched] = SplitFilterByPredicate(&filter->AstHead, Detector(1), filterExpr);
+
+    EXPECT_EQ(unmatched, nullptr);
+    ASSERT_NE(matched, nullptr);
+    EXPECT_EQ(FormatExpression({matched}), FormatExpression({filterExpr}));
+}
+
+TEST(TFilterSplitterTest, SplitMixedReferences)
+{
+    auto filter = ParseSource(
+        "NOT (NOT (([q] < [value]) AND [ui64]) OR [other] AND [i64] OR NOT (([q] OR [i64]) AND NOT [f]))",
+        NQueryClient::EParseMode::Expression);
+    auto* filterExpr = std::get<TExpressionPtr>(filter->AstHead.Ast);
+
+    auto [unmatched, matched] = SplitFilterByPredicate(&filter->AstHead, Detector(1), filterExpr);
+
+    ASSERT_NE(unmatched, nullptr);
+    ASSERT_NE(matched, nullptr);
+    ParseAndCheck(unmatched, "[ui64] AND NOT ([other] AND [i64])", /*bound*/ 1, /*matchesPredicate*/ false);
+    ParseAndCheck(matched, "NOT [f] AND (([q] < [value]) AND ([q] OR [i64]))", /*bound*/ 1, /*matchesPredicate*/ true);
 }
 
 TEST(TFilterSplitterTest, NestedNot)
@@ -84,7 +111,7 @@ TEST(TFilterSplitterTest, Complex)
         "[c] OR [nc]",
         "NOT [c]"
     };
-    std::vector<bool> isComputed = {true, false, false, true, true};
+    std::vector<bool> matchesPredicate = {true, false, false, true, true};
 
     ASSERT_TRUE(splitTree.size() == subTrees.size());
 
@@ -93,7 +120,7 @@ TEST(TFilterSplitterTest, Complex)
             splitTree[i],
             subTrees[i],
             /*bound*/ 1,
-            isComputed[i]);
+            matchesPredicate[i]);
     }
 }
 
@@ -118,7 +145,7 @@ TEST(TFilterSplitterTest, Function)
             splitTree[i],
             subTrees[i],
             /*bound*/ 1,
-            /*isComputed*/ i % 2);
+            /*matchesPredicate*/ i % 2);
     }
 }
 

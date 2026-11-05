@@ -3,10 +3,10 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(
-    computed_fields_filter.cpp
     continuation.cpp
     enforce_aggregate.cpp
     filter_introspection.cpp
+    filter_splitter.cpp
     helpers.cpp
     implication_checker.cpp
     misc.cpp

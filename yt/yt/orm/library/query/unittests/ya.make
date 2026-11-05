@@ -5,11 +5,11 @@ SIZE(MEDIUM)
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(
-    computed_fields_filter_ut.cpp
     enforce_aggregate_ut.cpp
     expression_evaluator_ut.cpp
     filter_introspection_ut.cpp
     filter_matcher_ut.cpp
+    filter_splitter_ut.cpp
     implication_checker_ut.cpp
     query_optimizer_ut.cpp
     query_rewriter_ut.cpp
