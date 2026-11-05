@@ -340,6 +340,7 @@ private:
         int UsedIdleSlotCount;
 
         NClusterNode::TCpu IdlePolicyRequestedCpu;
+        double IdleCpuLimit;
 
         std::vector<TNumaNodeState> NumaNodeStates;
 
