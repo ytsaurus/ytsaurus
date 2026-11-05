@@ -1120,17 +1120,8 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[argId].UseCount;
     }
 
-    bool nullable = true;
-
     if (defaultExprId) {
         ++fragments->Items[*defaultExprId].UseCount;
-
-        nullable = false;
-        nullable |= fragments->Items[*defaultExprId].Nullable;
-
-        for (TRow row : transformExpr->Values) {
-            nullable |= row[argIds.size()].Type == EValueType::Null;
-        }
     }
 
     int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(
@@ -1141,7 +1132,7 @@ size_t TExpressionProfiler::Profile(
     fragments->Items.emplace_back(
         MakeCodegenTransformExpr(std::move(argIds), defaultExprId, index, hashtableIndex, transformExpr->GetWireType(), ComparerManager_),
         transformExpr->GetWireType(),
-        nullable);
+        /*nullable*/ true);
     return fragments->Items.size() - 1;
 }
 
