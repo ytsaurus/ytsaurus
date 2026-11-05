@@ -3,6 +3,7 @@
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
+#include <yt/yql/providers/yt/gateway/file/yql_yt_file_comp_nodes.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
 #include <yt/yql/providers/yt/lib/ut_common/yql_ut_common.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
@@ -158,7 +159,8 @@ bool RunDqProgram(
 
     auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
         NYql::GetCommonDqFactory(),
-        NKikimr::NMiniKQL::GetYqlFactory()
+        NKikimr::NMiniKQL::GetYqlFactory(),
+        NFile::GetYtFileFactory(yqlNativeServices)
     });
     auto dqTaskTransformFactory = NYql::CreateCompositeTaskTransformFactory({
         NYql::CreateCommonDqTaskTransformFactory()
@@ -213,6 +215,9 @@ bool RunDqProgram(
         return false;
     }
 
+    if (errorsMessage) {
+        program->PrintErrorsTo(*errorsOutput);
+    }
     return true;
 }
 }
@@ -424,6 +429,49 @@ Y_UNIT_TEST(CollectTaskRunnerStatisticsByTask) {
 }
 
 Y_UNIT_TEST_SUITE(YqlDqExecTests) {
+
+Y_UNIT_TEST(CboStatisticsSurviveReadProjectionAndStageConstruction) {
+    const TString code = R"(
+USE plato;
+PRAGMA CostBasedOptimizer = 'native';
+PRAGMA dq.EnableDqReplicate = 'true';
+
+SELECT a.value, b.value, c.value
+FROM Input AS a
+JOIN Input AS b ON a.key = b.key
+JOIN Input AS c ON b.subkey = c.subkey;
+    )";
+
+    TTestTablesMapping testTables;
+    TString issues;
+    UNIT_ASSERT_C(RunDqProgram(code, 100, testTables, &issues), issues);
+    UNIT_ASSERT_C(!issues.Contains("couldn't load statistics"), issues);
+}
+
+Y_UNIT_TEST(CboStatisticsSurviveAggregateAndUnionStages) {
+    const TString code = R"(
+USE plato;
+PRAGMA CostBasedOptimizer = 'native';
+PRAGMA dq.EnableDqReplicate = 'true';
+
+$totals = (
+    SELECT key, SUM(LENGTH(value)) AS total FROM Input GROUP BY key
+    UNION ALL
+    SELECT subkey AS key, SUM(LENGTH(value)) AS total FROM Input GROUP BY subkey
+);
+
+SELECT a.key, a.total, b.total, c.value
+FROM $totals AS a
+JOIN $totals AS b ON a.key = b.key
+JOIN Input AS c ON b.key = c.key
+WHERE a.total > 0;
+    )";
+
+    TTestTablesMapping testTables;
+    TString issues;
+    UNIT_ASSERT_C(RunDqProgram(code, 100, testTables, &issues), issues);
+    UNIT_ASSERT_C(!issues.Contains("couldn't load statistics"), issues);
+}
 
 // Reading from a YT table creates DQ source stages. The number of stages
 // serves as a lower bound for the number of tasks (at least one task per
