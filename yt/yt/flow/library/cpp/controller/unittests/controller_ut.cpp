@@ -2,6 +2,7 @@
 #include <yt/yt/flow/library/cpp/controller/controller.h>
 #include <yt/yt/flow/library/cpp/controller/controller_service.h>
 #include <yt/yt/flow/library/cpp/controller/flow_executor.h>
+#include <yt/yt/flow/library/cpp/controller/flow_executor_runtime.h>
 #include <yt/yt/flow/library/cpp/controller/state_manager.h>
 #include <yt/yt/flow/library/cpp/controller/worker_tracker_service.h>
 
@@ -215,10 +216,33 @@ struct TPersistedStateManagerLocalState
 
     void CheckDynamicImportantVersions(const TVersion& expectedVersion)
     {
+        // Like the real manager, read only the version of the raw row.
+        auto actualVersion = DynamicSpecNode ? ReadRawVersion(DynamicSpecNode) : DynamicSpec->GetVersion();
+
         THROW_ERROR_EXCEPTION_UNLESS(
-            expectedVersion == DynamicSpec->GetVersion(),
+            expectedVersion == actualVersion,
             NFlow::EErrorCode::SpecVersionMismatch,
             "Versions mismatch");
+    }
+
+    //! Resolves the state from the rows that the real persisted state manager would have written.
+    TObservedPipelineState ObservePersistedPipelineState() const
+    {
+        auto importantVersions = MakePipelineImportantVersions(FlowView->State, Spec);
+        importantVersions->FlowCoreTargetVersion = FlowCoreTarget->GetVersion();
+        const THashMap<std::string, TYsonString> rows{
+            {"important_versions", ConvertToYsonString(importantVersions)},
+            {"pipeline_state_replica", ConvertToYsonString(Replica ? Replica : FlowView->State->ExecutionSpec->PipelineState)},
+            {"flow_view", ConvertToYsonString(FlowView->State)},
+        };
+        return ResolvePipelineState([&] (const std::vector<std::string>& keys) {
+            std::vector<std::optional<TYsonString>> values;
+            for (const auto& key : keys) {
+                values.push_back(GetOrCrash(rows, key));
+            }
+
+            return values;
+        });
     }
 
     TSpinLock Lock;
@@ -229,6 +253,12 @@ struct TPersistedStateManagerLocalState
     TVersionedPipelineSpecPtr Spec = New<TVersionedPipelineSpec>();
     TVersionedDynamicPipelineSpecPtr DynamicSpec = New<TVersionedDynamicPipelineSpec>();
     TVersionedFlowCoreTargetPtr FlowCoreTarget = New<TVersionedFlowCoreTarget>();
+    //! Persisted replica; null means the one written with the current FlowView state.
+    TVersionedPipelineStatePtr Replica;
+    //! Raw canonical spec row that overrides #Spec until the next spec persist.
+    INodePtr SpecNode;
+    //! Raw canonical dynamic spec row that overrides #DynamicSpec until the next dynamic spec persist.
+    INodePtr DynamicSpecNode;
     bool ObserveSinkTopologyRetry = false;
     bool SinkTopologyPersistenceFailureInjected = false;
     std::optional<TPartitionLayoutSummary> LastPersistedPartitionLayout;
@@ -242,6 +272,9 @@ class TControllerTest
 {
 public:
     static constexpr ui64 InitialClockUnixTime = 1'000'000;
+
+    //! Mints versions below the controller clock, so the controller can bump them.
+    const IVersionProviderPtr TestStateVersionProvider = New<TFakeVersionProvider>(InitialClockUnixTime - 1);
 
     void Prepare()
     {
@@ -262,6 +295,10 @@ public:
                     auto guard = Guard(state->Lock);
                     TPersistedStateManagerLocalState::TPartitionLayoutSummary summary;
                     for (const auto& [_, partition] : flowState->ExecutionSpec->Layout->Partitions) {
+                        if (partition->ComputationId != TComputationId("computation")) {
+                            continue;
+                        }
+
                         if (partition->State == EPartitionState::Executing) {
                             ++summary.Executing;
                         } else if (partition->State == EPartitionState::Interrupting) {
@@ -304,11 +341,19 @@ public:
                     auto guard = Guard(state->Lock);
                     if (spec && expectedVersions) {
                         state->CheckImportantVersions(*expectedVersions);
-                        state->Spec = CloneYsonStruct(*spec);
                     }
                     if (dynamicSpec && expectedDynamicSpecVersion) {
                         state->CheckDynamicImportantVersions(*expectedDynamicSpecVersion);
+                    }
+
+                    if (spec && expectedVersions) {
+                        state->Spec = CloneYsonStruct(*spec);
+                        state->SpecNode.Reset();
+                    }
+
+                    if (dynamicSpec && expectedDynamicSpecVersion) {
                         state->DynamicSpec = CloneYsonStruct(*dynamicSpec);
+                        state->DynamicSpecNode.Reset();
                     }
                 });
         EXPECT_CALL(*PersistedStateManager, RecoverSpec())
@@ -322,6 +367,24 @@ public:
                 [state = PersistedStateManagerLocalState] () {
                     auto guard = Guard(state->Lock);
                     return CloneYsonStruct(state->DynamicSpec);
+                });
+        EXPECT_CALL(*PersistedStateManager, RecoverSpecNode())
+            .WillRepeatedly(
+                [state = PersistedStateManagerLocalState] () {
+                    auto guard = Guard(state->Lock);
+                    return state->SpecNode ? state->SpecNode : ConvertToNode(state->Spec);
+                });
+        EXPECT_CALL(*PersistedStateManager, RecoverDynamicSpecNode())
+            .WillRepeatedly(
+                [state = PersistedStateManagerLocalState] () {
+                    auto guard = Guard(state->Lock);
+                    return state->DynamicSpecNode ? state->DynamicSpecNode : ConvertToNode(state->DynamicSpec);
+                });
+        EXPECT_CALL(*PersistedStateManager, RecoverPersistedPipelineState())
+            .WillRepeatedly(
+                [state = PersistedStateManagerLocalState] () {
+                    auto guard = Guard(state->Lock);
+                    return state->ObservePersistedPipelineState();
                 });
 
         EXPECT_CALL(*PersistedStateManager, AdvanceInputMessagesWatermark(_))
@@ -456,7 +519,7 @@ public:
             /*httpClient*/ nullptr,
             /*ignoreSingletonsDynamicConfig*/ false,
             /*clockClusterTag*/ NObjectClient::InvalidCellTag,
-            CreateSyncStatusProfiler());
+            RootStatusProfiler);
 
         LocalServer = NRpc::CreateLocalServer();
 
@@ -484,6 +547,70 @@ public:
         ControllerThreadPool->Shutdown();
     }
 
+    //! Pass #RootStatusProfiler to see the controller errors, as production does.
+    IFlowExecutorPtr CreateTestFlowExecutor(IStatusProfilerPtr statusProfiler = CreateSyncStatusProfiler())
+    {
+        return CreateFlowExecutor(
+            Controller,
+            PersistedStateManager,
+            YTConnector,
+            New<TControllerServiceConfig>(),
+            /*orchidRoot*/ nullptr,
+            std::move(statusProfiler),
+            GetSyncInvoker());
+    }
+
+    //! Starts leading with a persisted FlowState that cannot be recovered, so the FlowView keeper stays uninitialized.
+    void StartLeadingWithoutFlowView()
+    {
+        EXPECT_CALL(*PersistedStateManager, RecoverFlowState())
+            .WillRepeatedly([] () -> TFlowStatePtr {
+                THROW_ERROR_EXCEPTION("Injected unrecoverable FlowState");
+            });
+        StartLeading();
+    }
+
+    void SetPersistedPipelineState(EPipelineState state)
+    {
+        auto guard = Guard(PersistedStateManagerLocalState->Lock);
+        PersistedStateManagerLocalState->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(state, TestStateVersionProvider);
+    }
+
+    //! Sets the canonical spec and the one embedded in the persisted FlowState.
+    void SeedPersistedSpec(TStringBuf specYson)
+    {
+        const auto& state = PersistedStateManagerLocalState;
+        auto guard = Guard(state->Lock);
+        state->Spec->TrySetValue(ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson)), TestStateVersionProvider);
+        state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    }
+
+    //! Sets the canonical dynamic spec and the one embedded in the persisted FlowState.
+    void SeedPersistedDynamicSpec(TStringBuf dynamicSpecYson)
+    {
+        const auto& state = PersistedStateManagerLocalState;
+        auto guard = Guard(state->Lock);
+        state->DynamicSpec->TrySetValue(ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(dynamicSpecYson)), TestStateVersionProvider);
+        state->FlowView->State->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(state->DynamicSpec);
+    }
+
+    EPipelineState GetPersistedPipelineState() const
+    {
+        auto guard = Guard(PersistedStateManagerLocalState->Lock);
+        return PersistedStateManagerLocalState->FlowView->State->ExecutionSpec->PipelineState->GetValue();
+    }
+
+    //! Polls |predicate| from a fiber until it holds or |timeout| expires; returns its last value.
+    static bool WaitForCondition(const std::function<bool()>& predicate, TDuration timeout = TDuration::Seconds(30))
+    {
+        const auto deadline = TInstant::Now() + timeout;
+        while (!predicate() && TInstant::Now() < deadline) {
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+        }
+
+        return predicate();
+    }
+
 public:
     TControllerConfigPtr ControllerConfig;
     TMockPersistedStateManagerPtr PersistedStateManager;
@@ -494,6 +621,7 @@ public:
     TControlActionQueuePtr ControlActionQueue;
     NConcurrency::IFairShareThreadPoolPtr ControllerThreadPool;
 
+    const IStatusProfilerPtr RootStatusProfiler = CreateSyncStatusProfiler();
     IControllerPtr Controller;
     TCallback<void()> StartLeading;
     TCallback<void()> StopLeading;
@@ -503,6 +631,20 @@ public:
     NRpc::IServerPtr LocalServer;
     std::unique_ptr<TControllerServiceProxy> ControllerServiceProxy;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Adds a source computation producing |streamId|, so that the spec passes validation.
+void AddStreamProducer(const TPipelineSpecPtr& spec, const TStreamId& streamId)
+{
+    auto producer = New<TComputationSpec>();
+    producer->ComputationClassName = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+    producer->OutputStreamIds = {streamId};
+    producer->SourceStreams["source"] = New<TSourceSpec>();
+    producer->SourceStreams["source"]->SourceClassName = "NYT::NFlow::TRandomSource";
+    producer->Postprocess();
+    spec->Computations["producer"] = producer;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -525,9 +667,10 @@ TEST_F(TControllerTest, FailedPersistenceRetriesSinkTopologyRecreation)
     spec->Computations["computation"] = computationSpec;
     for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
         spec->Streams[streamId] = New<TStreamSpec>();
-        spec->Streams[streamId]->ClassName = "FakeClassName";
         spec->Streams[streamId]->Schema = schema;
     }
+
+    AddStreamProducer(spec, "input_stream");
 
     auto dynamicSpec = New<TDynamicPipelineSpec>();
     dynamicSpec->TargetState = EPipelineState::Working;
@@ -619,9 +762,10 @@ TEST_F(TControllerTest, KeyCountLatestStatusSurvivesPersistenceRetry)
     spec->Computations["computation"] = computation;
     for (const auto& streamId : {TStreamId("input"), TStreamId("output")}) {
         spec->Streams[streamId] = New<TStreamSpec>();
-        spec->Streams[streamId]->ClassName = "FakeClassName";
         spec->Streams[streamId]->Schema = schema;
     }
+
+    AddStreamProducer(spec, "input");
     auto dynamic = New<TDynamicPipelineSpec>();
     dynamic->TargetState = EPipelineState::Working;
     dynamic->JobManager->AsyncBalancing = false;
@@ -1048,15 +1192,15 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
         auto executorPersistedStateManager = New<StrictMock<TMockPersistedStateManager>>();
         auto state = PersistedStateManagerLocalState;
 
-        EXPECT_CALL(*executorPersistedStateManager, RecoverSpec())
+        EXPECT_CALL(*executorPersistedStateManager, RecoverSpecNode())
             .WillRepeatedly([state] {
                 auto guard = Guard(state->Lock);
-                return CloneYsonStruct(state->Spec);
+                return ConvertToNode(state->Spec);
             });
-        EXPECT_CALL(*executorPersistedStateManager, RecoverDynamicSpec())
+        EXPECT_CALL(*executorPersistedStateManager, RecoverDynamicSpecNode())
             .WillRepeatedly([state] {
                 auto guard = Guard(state->Lock);
-                return CloneYsonStruct(state->DynamicSpec);
+                return ConvertToNode(state->DynamicSpec);
             });
 
         auto recoverFlowCoreTargetCallCount = std::make_shared<std::atomic<int>>(0);
@@ -1162,6 +1306,916 @@ TEST_F(TControllerTest, SetSpecOnDesyncedFlowView)
         }
 
         StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSetPipelineSpecsArg MakeSetPipelineSpecsArg(std::optional<TStringBuf> binaryVersion, std::optional<i64> controllerWaitTimeout)
+{
+    TSetPipelineSpecsArg argument;
+    if (binaryVersion) {
+        argument.Spec = ConvertToNode(TYsonStringBuf(Format("{binary_version=%Qv;}", *binaryVersion)));
+    }
+
+    if (controllerWaitTimeout) {
+        auto dynamicSpec = Format("{controller_connector={controller_wait_timeout=%v;};}", *controllerWaitTimeout);
+        argument.DynamicSpec = ConvertToNode(TYsonStringBuf(dynamicSpec));
+    }
+
+    return argument;
+}
+
+TYsonString ExecuteCommand(const IFlowExecutorPtr& executor, const std::string& command, TStringBuf argument)
+{
+    return executor->Execute(command, TYsonString(TYsonStringBuf(argument)), "root");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPipelineStateGateCase
+{
+    std::string Name;
+    std::optional<TStringBuf> ImportantVersions;
+    std::optional<TStringBuf> Replica;
+    std::optional<TStringBuf> FlowView;
+
+    //! Unset if the state cannot be resolved.
+    std::optional<EPipelineState> State;
+    bool StaticUpdateAllowed = false;
+    bool StaticUpdateAllowedWithForce = false;
+    bool DynamicOnlyUpdateAllowed = false;
+    bool FlowCoreTargetUpdateAllowed = false;
+    bool ReadsFlowView = true;
+    //! FlowState does not match the important state version, which the single writer never persists.
+    bool StateVersionMismatch = false;
+};
+
+// Checks which state the persisted-path gates and get-pipeline-state see and what the gates allow
+// for given persisted rows of one snapshot. Without a FlowView, spec sync is not checked.
+TEST(TPipelineStateGateContractTest, PipelineStateGateContract)
+{
+    constexpr TStringBuf ImportantVersions = "{pipeline_spec_versions=10;pipeline_state_versions=5;flow_core_target_version=0;}";
+    const std::vector<TPipelineStateGateCase> cases = {
+        {
+            .Name = "FreshReplica",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "{version=5;value=stopped;}",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};pipeline_spec={version=10;};};}",
+            .State = EPipelineState::Stopped,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+            .ReadsFlowView = false,
+        },
+        {
+            .Name = "AppliedSpecLagsCanonical",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "{version=5;value=stopped;}",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};pipeline_spec={version=9;};};}",
+            .State = EPipelineState::Stopped,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+            .ReadsFlowView = false,
+        },
+        {
+            .Name = "ReplicaStaleAfterRollback",
+            .ImportantVersions = "{pipeline_spec_versions=10;pipeline_state_versions=7;flow_core_target_version=0;}",
+            .Replica = "{version=5;value=stopped;}",
+            .FlowView = "{execution_spec={pipeline_state={version=7;value=working;};};}",
+            .State = EPipelineState::Working,
+            .DynamicOnlyUpdateAllowed = true,
+        },
+        {
+            .Name = "MissingReplica",
+            .ImportantVersions = "{pipeline_spec_versions=10;pipeline_state_versions=3;flow_core_target_version=0;}",
+            .FlowView = "{execution_spec={pipeline_state={version=3;value=paused;};};}",
+            .State = EPipelineState::Paused,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+        },
+        {
+            .Name = "GarbageReplica",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "garbage",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};};}",
+            .State = EPipelineState::Stopped,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+        },
+        {
+            .Name = "ReplicaInPreviousFormat",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "{pipeline_state={version=5;value=working;};pipeline_spec_version=10;dynamic_pipeline_spec_version=20;}",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};};}",
+            .State = EPipelineState::Stopped,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+        },
+        {
+            .Name = "ReplicaNewerThanImportantVersions",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "{version=7;value=working;}",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};};}",
+            .State = EPipelineState::Stopped,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+        },
+        {
+            .Name = "StaleFlowView",
+            .ImportantVersions = "{pipeline_spec_versions=10;pipeline_state_versions=7;flow_core_target_version=0;}",
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=stopped;};};}",
+            .StateVersionMismatch = true,
+        },
+        {
+            .Name = "FlowViewNewerThanImportantVersions",
+            .ImportantVersions = ImportantVersions,
+            .FlowView = "{execution_spec={pipeline_state={version=7;value=working;};};}",
+            .StateVersionMismatch = true,
+        },
+        {
+            .Name = "NothingPersisted",
+            .State = EPipelineState::Unknown,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+        },
+        {
+            .Name = "SpecPersistedButNeverApplied",
+            .ImportantVersions = "{pipeline_spec_versions=10;pipeline_state_versions=0;flow_core_target_version=0;}",
+            .State = EPipelineState::Unknown,
+            .StaticUpdateAllowed = true,
+            .StaticUpdateAllowedWithForce = true,
+            .DynamicOnlyUpdateAllowed = true,
+            .FlowCoreTargetUpdateAllowed = true,
+        },
+        {
+            .Name = "Completed",
+            .ImportantVersions = ImportantVersions,
+            .Replica = "{version=5;value=completed;}",
+            .State = EPipelineState::Completed,
+            .DynamicOnlyUpdateAllowed = true,
+            .ReadsFlowView = false,
+        },
+        {
+            .Name = "UnreadableFlowViewState",
+            .ImportantVersions = ImportantVersions,
+            .FlowView = "{execution_spec={pipeline_state={version=5;value=garbage;};};}",
+        },
+        {
+            .Name = "UnreadableImportantVersions",
+            .ImportantVersions = "garbage",
+            .Replica = "{version=5;value=stopped;}",
+        },
+    };
+
+    auto isAllowed = [] (auto&& check) {
+        try {
+            check();
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    };
+
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        const THashMap<std::string, std::optional<TStringBuf>> rows{
+            {"important_versions", testCase.ImportantVersions},
+            {"pipeline_state_replica", testCase.Replica},
+            {"flow_view", testCase.FlowView},
+        };
+        int flowViewReads = 0;
+        auto observe = [&] {
+            return ResolvePipelineState([&] (const std::vector<std::string>& keys) {
+                std::vector<std::optional<TYsonString>> values;
+                for (const auto& key : keys) {
+                    flowViewReads += key == "flow_view";
+                    const auto& value = GetOrCrash(rows, key);
+                    values.push_back(value ? std::make_optional(TYsonString(TYsonStringBuf(*value))) : std::nullopt);
+                }
+
+                return values;
+            });
+        };
+
+        if (testCase.StateVersionMismatch) {
+            EXPECT_THROW_WITH_SUBSTRING(observe(), "differs from the important pipeline state version");
+            EXPECT_EQ(flowViewReads, 1);
+            continue;
+        }
+
+        if (!testCase.State) {
+            EXPECT_ANY_THROW(observe());
+            continue;
+        }
+
+        auto observed = observe();
+        EXPECT_EQ(flowViewReads, testCase.ReadsFlowView ? 1 : 0);
+        EXPECT_EQ(observed.State, *testCase.State);
+        // get-pipeline-state reports the resolved state as is.
+        EXPECT_TRUE(observed.Synced);
+        EXPECT_EQ(
+            isAllowed([&] {
+                ValidatePipelineSafeForSpecUpdate(observed, /*staticSpecChanged*/ true, /*force*/ false);
+            }),
+            testCase.StaticUpdateAllowed);
+        EXPECT_EQ(
+            isAllowed([&] {
+                ValidatePipelineSafeForSpecUpdate(observed, /*staticSpecChanged*/ true, /*force*/ true);
+            }),
+            testCase.StaticUpdateAllowedWithForce);
+        EXPECT_EQ(
+            isAllowed([&] {
+                ValidatePipelineSafeForSpecUpdate(observed, /*staticSpecChanged*/ false, /*force*/ false);
+            }),
+            testCase.DynamicOnlyUpdateAllowed);
+        EXPECT_EQ(
+            isAllowed([&] {
+                ValidatePipelineSafeForFlowCoreTargetUpdate(observed, /*allowOnPause*/ false);
+            }),
+            testCase.FlowCoreTargetUpdateAllowed);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Parses but fails ValidatePipelineSpec.
+constexpr TStringBuf InvalidPipelineSpecValue = "{streams={input={class_name=UnregisteredClassName;schema=[{name=value;type=string;};];};};}";
+
+struct TEmbeddedSpecRepairCase
+{
+    std::string Name;
+    EPipelineState PipelineState = EPipelineState::Stopped;
+    std::string EmbeddedSpec;
+    std::string EmbeddedDynamicSpec;
+    std::string CanonicalSpec;
+    std::string CanonicalDynamicSpec;
+
+    bool Throws = false;
+    bool SpecReplaced = false;
+    bool DynamicSpecReplaced = false;
+};
+
+// Only embedded specs that fail to parse are replaced; validation errors are reported by the controller.
+TEST(TRepairEmbeddedPipelineSpecsTest, RepairEmbeddedPipelineSpecsContract)
+{
+    const std::string validSpec = "{version=5;value={binary_version=embedded;};}";
+    const std::string unparsableSpec = "{version=5;value={computations=legacy_invalid;};}";
+    const std::string invalidSpec = Format("{version=5;value=%v;}", InvalidPipelineSpecValue);
+    const std::string validDynamicSpec = "{version=5;value={};}";
+    const std::string unparsableDynamicSpec = "{version=5;value={computations=legacy_invalid;};}";
+    const std::string canonicalSpec = "{version=7;value={binary_version=canonical;};}";
+    const std::string canonicalDynamicSpec = "{version=7;value={controller_connector={controller_wait_timeout=1234;};};}";
+
+    const std::vector<TEmbeddedSpecRepairCase> cases = {
+        {
+            .Name = "Valid",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = validSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+        },
+        {
+            .Name = "NothingAppliedYet",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = Format("{version=0;value=%v;}", InvalidPipelineSpecValue),
+            .EmbeddedDynamicSpec = "{version=0;value={};}",
+        },
+        {
+            .Name = "UnparsableSpecOnStopped",
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .SpecReplaced = true,
+        },
+        {
+            .Name = "UnparsableSpecOnPaused",
+            .PipelineState = EPipelineState::Paused,
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .SpecReplaced = true,
+        },
+        {
+            .Name = "UnparsableSpecOnWorking",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .Throws = true,
+        },
+        {
+            .Name = "InvalidSpecOnStopped",
+            .EmbeddedSpec = invalidSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+        },
+        {
+            .Name = "InvalidSpecOnWorking",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = invalidSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+        },
+        {
+            .Name = "InvalidCanonicalSpec",
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .CanonicalSpec = Format("{version=7;value=%v;}", InvalidPipelineSpecValue),
+            .SpecReplaced = true,
+        },
+        {
+            .Name = "UnparsableCanonicalSpec",
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .CanonicalSpec = "{version=7;value={computations=legacy_invalid;};}",
+            .Throws = true,
+        },
+        {
+            .Name = "CanonicalSpecNotNewerThanUnparsable",
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = validDynamicSpec,
+            .CanonicalSpec = "{version=5;value={binary_version=canonical;};}",
+            .Throws = true,
+        },
+        {
+            .Name = "UnparsableDynamicSpecOnWorking",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = validSpec,
+            .EmbeddedDynamicSpec = unparsableDynamicSpec,
+            .DynamicSpecReplaced = true,
+        },
+        {
+            .Name = "UnparsableSpecsOnStopped",
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = unparsableDynamicSpec,
+            .SpecReplaced = true,
+            .DynamicSpecReplaced = true,
+        },
+        {
+            // The dynamic spec is not replaced alone when the static one cannot be.
+            .Name = "UnparsableSpecsOnWorking",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = unparsableSpec,
+            .EmbeddedDynamicSpec = unparsableDynamicSpec,
+            .Throws = true,
+        },
+        {
+            .Name = "InvalidSpecAndUnparsableDynamicSpecOnWorking",
+            .PipelineState = EPipelineState::Working,
+            .EmbeddedSpec = invalidSpec,
+            .EmbeddedDynamicSpec = unparsableDynamicSpec,
+            .DynamicSpecReplaced = true,
+        },
+    };
+
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        auto toNode = [] (TStringBuf yson) {
+            return ConvertToNode(TYsonStringBuf(yson));
+        };
+        constexpr TStringBuf FlowStateFormat = "{execution_spec={pipeline_state={version=1;value=%lv;};pipeline_spec=%v;dynamic_pipeline_spec=%v;};}";
+        auto flowStateNode = toNode(Format(FlowStateFormat, testCase.PipelineState, testCase.EmbeddedSpec, testCase.EmbeddedDynamicSpec));
+        const auto originalNode = CloneNode(flowStateNode);
+        auto canonicalSpecNode = toNode(testCase.CanonicalSpec.empty() ? canonicalSpec : testCase.CanonicalSpec);
+        auto canonicalDynamicSpecNode = toNode(testCase.CanonicalDynamicSpec.empty() ? canonicalDynamicSpec : testCase.CanonicalDynamicSpec);
+
+        auto repair = [&] {
+            RepairEmbeddedPipelineSpecs(flowStateNode, canonicalSpecNode, canonicalDynamicSpecNode);
+        };
+
+        if (testCase.Throws) {
+            EXPECT_THROW_WITH_SUBSTRING(repair(), "Cannot recover the pipeline specs embedded in FlowState");
+            EXPECT_TRUE(AreNodesEqual(flowStateNode, originalNode));
+            continue;
+        }
+
+        repair();
+        EXPECT_NO_THROW(ConvertTo<TFlowStatePtr>(flowStateNode));
+        auto expectSpec = [&] (TStringBuf path, const INodePtr& canonical, bool replaced) {
+            SCOPED_TRACE(path);
+            auto actual = GetNodeByYPath(flowStateNode, TYPath(path));
+            auto original = GetNodeByYPath(originalNode, TYPath(path));
+            if (!replaced) {
+                EXPECT_TRUE(AreNodesEqual(actual, original));
+                return;
+            }
+
+            EXPECT_TRUE(AreNodesEqual(actual->AsMap()->GetChildOrThrow("value"), canonical->AsMap()->GetChildOrThrow("value")));
+            auto actualVersion = ConvertTo<TVersion>(actual->AsMap()->GetChildOrThrow("version"));
+            EXPECT_EQ(actualVersion, ConvertTo<TVersion>(original->AsMap()->GetChildOrThrow("version")));
+            EXPECT_LT(actualVersion, ConvertTo<TVersion>(canonical->AsMap()->GetChildOrThrow("version")));
+        };
+        expectSpec("/execution_spec/pipeline_spec", canonicalSpecNode, testCase.SpecReplaced);
+        expectSpec("/execution_spec/dynamic_pipeline_spec", canonicalDynamicSpecNode, testCase.DynamicSpecReplaced);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, PipelineStateCommandsWithoutFlowView)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    const auto& state = PersistedStateManagerLocalState;
+    SeedPersistedSpec("{binary_version=legacy;}");
+    state->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("legacy_target")), TestStateVersionProvider);
+    SetPersistedPipelineState(EPipelineState::Stopped);
+    // The canonical spec row cannot be parsed by this controller.
+    auto legacySpecRow = Format("{version=%v;value={computations=legacy_invalid;};}", state->Spec->GetVersion());
+    state->SpecNode = ConvertToNode(TYsonStringBuf(legacySpecRow));
+    const auto legacySpecVersion = state->Spec->GetVersion();
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        auto nativeState = WaitFor(ControllerServiceProxy->GetPipelineState()->Invoke()).ValueOrThrow();
+        EXPECT_EQ(static_cast<EPipelineState>(nativeState->state()), EPipelineState::Stopped);
+        auto flowExecuteState = ConvertToNode(ExecuteCommand(executor, "get-pipeline-state", "{}"));
+        EXPECT_EQ(
+            ConvertTo<EPipelineState>(flowExecuteState->AsMap()->GetChildOrThrow("pipeline_state")),
+            EPipelineState::Stopped);
+
+        // Commands outside the recovery allow-list still need the FlowView.
+        EXPECT_THROW_WITH_ERROR_CODE(
+            ExecuteCommand(executor, "get-flow-view", "{}"),
+            NFlow::EErrorCode::FlowViewKeeperIsNotInitialized);
+
+        ExecuteCommand(executor, "set-flow-core-target", "{flow_core_target=\"\";}");
+        {
+            auto guard = Guard(state->Lock);
+            EXPECT_EQ(state->FlowCoreTarget->GetValue(), TFlowCoreTarget());
+        }
+
+        auto specsResult = executor->SetPipelineSpecs(MakeSetPipelineSpecsArg("repaired", 1234));
+        {
+            auto guard = Guard(state->Lock);
+            EXPECT_GT(state->Spec->GetVersion(), legacySpecVersion);
+            EXPECT_EQ(state->Spec->GetVersion(), specsResult.SpecVersion);
+            EXPECT_EQ(state->Spec->GetValue()->BinaryVersion, "repaired");
+            EXPECT_EQ(state->DynamicSpec->GetVersion(), specsResult.DynamicSpecVersion);
+        }
+
+        WaitFor(ControllerServiceProxy->StartPipeline()->Invoke()).ThrowOnError();
+        {
+            auto guard = Guard(state->Lock);
+            EXPECT_EQ(state->DynamicSpec->GetValue()->TargetState, EPipelineState::Completed);
+        }
+
+        EXPECT_FALSE(Controller->GetFlowViewKeeper()->TryGetFlowView());
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, SetTargetPipelineStateWithoutFlowView)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    SeedPersistedSpec("{binary_version=legacy;}");
+    SetPersistedPipelineState(EPipelineState::Stopped);
+
+    Prepare();
+
+    const auto& state = PersistedStateManagerLocalState;
+    auto getTargetState = [&] {
+        auto guard = Guard(state->Lock);
+        return std::pair(state->DynamicSpec->GetValue()->TargetState, state->DynamicSpec->GetVersion());
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        ExecuteCommand(executor, "set-target-pipeline-state", "{target_pipeline_state=completed;}");
+        EXPECT_EQ(getTargetState().first, EPipelineState::Completed);
+
+        // Completed is final: the persisted state rejects any target change.
+        SetPersistedPipelineState(EPipelineState::Completed);
+        auto targetState = getTargetState();
+        EXPECT_THROW_WITH_SUBSTRING(
+            ExecuteCommand(executor, "set-target-pipeline-state", "{target_pipeline_state=stopped;}"),
+            "Completed is a final state");
+        EXPECT_EQ(getTargetState(), targetState);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, SetPipelineSpecsRejectsUnparsableRequestedSpec)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    SeedPersistedSpec("{binary_version=legacy;}");
+    SetPersistedPipelineState(EPipelineState::Stopped);
+
+    Prepare();
+
+    const auto& state = PersistedStateManagerLocalState;
+    auto getVersions = [&] {
+        auto guard = Guard(state->Lock);
+        return std::pair(state->Spec->GetVersion(), state->DynamicSpec->GetVersion());
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        // The persisted rows parse, so the request is rejected as is and nothing is persisted.
+        auto versions = getVersions();
+        TSetPipelineSpecsArg argument;
+        argument.Spec = ConvertToNode(TYsonStringBuf("{computations=legacy_invalid;}"));
+        argument.DynamicSpec = ConvertToNode(TYsonStringBuf("{controller_connector=legacy_invalid;}"));
+        EXPECT_ANY_THROW(executor->SetPipelineSpecs(argument));
+        EXPECT_EQ(getVersions(), versions);
+        auto guard = Guard(state->Lock);
+        EXPECT_EQ(state->Spec->GetValue()->BinaryVersion, "legacy");
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, BrokenSpecsCanBeViewedWithoutFlowView)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    SeedPersistedSpec("{binary_version=legacy;}");
+    SeedPersistedDynamicSpec("{target_state=stopped;}");
+    SetPersistedPipelineState(EPipelineState::Stopped);
+
+    Prepare();
+
+    // describe-pipeline resolves the flow tables bundle.
+    EXPECT_CALL(*YTConnector, GetFlowTablesBundle())
+        .WillRepeatedly(Return(MakeFuture(TFlowTablesBundleInfo{})));
+
+    const auto& state = PersistedStateManagerLocalState;
+    auto toNode = [] (TStringBuf yson) {
+        return ConvertToNode(TYsonStringBuf(yson));
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor(RootStatusProfiler);
+
+        auto getNativeSpecs = [&] {
+            auto specRsp = WaitFor(ControllerServiceProxy->GetSpec()->Invoke()).ValueOrThrow();
+            auto dynamicSpecRsp = WaitFor(ControllerServiceProxy->GetDynamicSpec()->Invoke()).ValueOrThrow();
+            return std::tuple(
+                toNode(specRsp->spec()),
+                TVersion(specRsp->version()),
+                toNode(dynamicSpecRsp->spec()),
+                TVersion(dynamicSpecRsp->version()));
+        };
+
+        {
+            SCOPED_TRACE("Parsable specs are returned typed");
+            auto [spec, specVersion, dynamicSpec, dynamicSpecVersion] = getNativeSpecs();
+            auto guard = Guard(state->Lock);
+            EXPECT_TRUE(AreNodesEqual(spec, ConvertToNode(state->Spec->GetValue())));
+            EXPECT_EQ(specVersion, state->Spec->GetVersion());
+            EXPECT_TRUE(AreNodesEqual(dynamicSpec, ConvertToNode(state->DynamicSpec->GetValue())));
+            EXPECT_EQ(dynamicSpecVersion, state->DynamicSpec->GetVersion());
+        }
+
+        // The canonical rows cannot be parsed by this controller.
+        const auto rawSpec = toNode("{computations=legacy_invalid;}");
+        const auto rawDynamicSpec = toNode("{controller_connector=legacy_invalid;}");
+        const auto rawVersion = TVersion(12345);
+        {
+            auto guard = Guard(state->Lock);
+            auto makeRow = [&] (const INodePtr& value) {
+                // clang-format off
+                return BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("version").Value(rawVersion)
+                        .Item("value").Value(value)
+                    .EndMap();
+                // clang-format on
+            };
+            state->SpecNode = makeRow(rawSpec);
+            state->DynamicSpecNode = makeRow(rawDynamicSpec);
+        }
+
+        {
+            SCOPED_TRACE("Unparsable specs are returned raw");
+            auto [spec, specVersion, dynamicSpec, dynamicSpecVersion] = getNativeSpecs();
+            EXPECT_TRUE(AreNodesEqual(spec, rawSpec));
+            EXPECT_EQ(specVersion, rawVersion);
+            EXPECT_TRUE(AreNodesEqual(dynamicSpec, rawDynamicSpec));
+            EXPECT_EQ(dynamicSpecVersion, rawVersion);
+        }
+
+        auto flowExecuteSpec = ConvertToNode(ExecuteCommand(executor, "get-pipeline-spec", "{path=\"/computations\";}"));
+        EXPECT_TRUE(AreNodesEqual(flowExecuteSpec->AsMap()->GetChildOrThrow("spec"), rawSpec->AsMap()->GetChildOrThrow("computations")));
+        auto flowExecuteDynamicSpec = ConvertToNode(ExecuteCommand(executor, "get-pipeline-dynamic-spec", "{}"));
+        EXPECT_TRUE(AreNodesEqual(flowExecuteDynamicSpec->AsMap()->GetChildOrThrow("spec"), rawDynamicSpec));
+
+        // The status-only description carries the recovery error; the full one needs the FlowView.
+        EXPECT_TRUE(WaitForCondition([&] {
+            auto description = ConvertToYsonString(ExecuteCommand(executor, "describe-pipeline", "{status_only=%true;}"), EYsonFormat::Text);
+            return description.ToString().Contains("Injected unrecoverable FlowState");
+        }));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            ExecuteCommand(executor, "describe-pipeline", "{}"),
+            NFlow::EErrorCode::FlowViewKeeperIsNotInitialized);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, PipelineStateCommandsWithoutFlowViewRejectUnsafeStates)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    Prepare();
+
+    const auto& state = PersistedStateManagerLocalState;
+    auto getVersions = [&] {
+        auto guard = Guard(state->Lock);
+        return std::tuple(state->Spec->GetVersion(), state->DynamicSpec->GetVersion(), state->FlowCoreTarget->GetVersion());
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        auto expectRejected = [&] (int attempt) {
+            auto versions = getVersions();
+            EXPECT_THROW_WITH_SUBSTRING(
+                executor->SetPipelineSpecs(MakeSetPipelineSpecsArg(Format("v%v", attempt), attempt)),
+                "Cannot modify pipeline spec");
+            TSetFlowCoreTargetArg flowCoreTargetArgument;
+            flowCoreTargetArgument.FlowCoreTarget = TFlowCoreTarget(Format("target%v", attempt));
+            EXPECT_THROW_WITH_SUBSTRING(
+                executor->SetFlowCoreTarget(flowCoreTargetArgument),
+                "Cannot update FlowCoreTarget");
+            EXPECT_EQ(getVersions(), versions);
+        };
+
+        int attempt = 0;
+        const std::vector<EPipelineState> unsafeStates = {
+            EPipelineState::Working,
+            EPipelineState::Draining,
+            EPipelineState::Pausing,
+            EPipelineState::Completed,
+            EPipelineState::Paused,
+        };
+        for (auto pipelineState : unsafeStates) {
+            SCOPED_TRACE(Format("%v", pipelineState));
+            SetPersistedPipelineState(pipelineState);
+            expectRejected(++attempt);
+        }
+
+        {
+            SCOPED_TRACE("Replica is older than FlowState after a controller rollback");
+            SetPersistedPipelineState(EPipelineState::Stopped);
+            {
+                auto guard = Guard(state->Lock);
+                state->Replica = CloneYsonStruct(state->FlowView->State->ExecutionSpec->PipelineState);
+            }
+
+            SetPersistedPipelineState(EPipelineState::Working);
+            expectRejected(++attempt);
+            auto guard = Guard(state->Lock);
+            state->Replica.Reset();
+        }
+
+        // A dynamic-only update is allowed in any state.
+        auto dynamicSpecVersion = std::get<1>(getVersions());
+        auto result = executor->SetPipelineSpecs(MakeSetPipelineSpecsArg(std::nullopt, 4321));
+        EXPECT_GT(result.DynamicSpecVersion, dynamicSpecVersion);
+        auto guard = Guard(state->Lock);
+        EXPECT_EQ(state->DynamicSpec->GetVersion(), result.DynamicSpecVersion);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, DynamicOnlySpecUpdateReplacesUnparsableDynamicSpec)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    const auto& state = PersistedStateManagerLocalState;
+    SeedPersistedSpec("{binary_version=legacy;}");
+    SetPersistedPipelineState(EPipelineState::Working);
+    // The canonical dynamic spec row cannot be parsed, and its version differs from the typed one.
+    auto legacyDynamicSpec = New<TVersionedDynamicPipelineSpec>();
+    legacyDynamicSpec->TrySetValue(
+        ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf("{controller_connector={controller_wait_timeout=1;};}")),
+        TestStateVersionProvider);
+    const auto legacyDynamicSpecVersion = legacyDynamicSpec->GetVersion();
+    ASSERT_NE(legacyDynamicSpecVersion, state->DynamicSpec->GetVersion());
+    auto legacyDynamicSpecRow = Format("{version=%v;value={controller_connector=legacy_invalid;};}", legacyDynamicSpecVersion);
+    state->DynamicSpecNode = ConvertToNode(TYsonStringBuf(legacyDynamicSpecRow));
+    const auto specVersion = state->Spec->GetVersion();
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        auto result = executor->SetPipelineSpecs(MakeSetPipelineSpecsArg(std::nullopt, 4321));
+
+        auto guard = Guard(state->Lock);
+        EXPECT_FALSE(state->DynamicSpecNode);
+        EXPECT_GT(result.DynamicSpecVersion, legacyDynamicSpecVersion);
+        EXPECT_EQ(state->DynamicSpec->GetVersion(), result.DynamicSpecVersion);
+        EXPECT_EQ(state->DynamicSpec->GetValue()->ControllerConnector->ControllerWaitTimeout, TDuration::MilliSeconds(4321));
+        EXPECT_EQ(state->Spec->GetVersion(), specVersion);
+        EXPECT_EQ(state->Spec->GetValue()->BinaryVersion, "legacy");
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, SpecUpdateGateIsTransactional)
+{
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    SetPersistedPipelineState(EPipelineState::Stopped);
+
+    Prepare();
+
+    // The pipeline starts right after the first update attempt has observed it stopped.
+    auto observeCount = std::make_shared<std::atomic<int>>(0);
+    EXPECT_CALL(*PersistedStateManager, RecoverPersistedPipelineState())
+        .WillRepeatedly(
+            [state = PersistedStateManagerLocalState, observeCount, versionProvider = TestStateVersionProvider] () {
+                auto guard = Guard(state->Lock);
+                auto observed = state->ObservePersistedPipelineState();
+                if (observeCount->fetch_add(1) == 0) {
+                    state->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, versionProvider);
+                }
+
+                return observed;
+            });
+
+    const auto& state = PersistedStateManagerLocalState;
+    const auto specVersion = state->Spec->GetVersion();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingWithoutFlowView();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateTestFlowExecutor()->SetPipelineSpecs(MakeSetPipelineSpecsArg("new", std::nullopt)),
+            "Cannot modify pipeline spec while pipeline is \"working\"");
+        EXPECT_EQ(observeCount->load(), 2);
+        auto guard = Guard(state->Lock);
+        EXPECT_EQ(state->Spec->GetVersion(), specVersion);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, DynamicOnlySpecUpdateOnWorkingPipeline)
+{
+    // No scheduler iteration runs, so the recovered FlowView stays Working.
+    ControllerConfig->WarmUpTime = TDuration::Hours(1);
+
+    SetPersistedPipelineState(EPipelineState::Working);
+
+    Prepare();
+
+    const auto& state = PersistedStateManagerLocalState;
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+        auto executor = CreateTestFlowExecutor();
+
+        const auto dynamicSpecVersion = state->DynamicSpec->GetVersion();
+        // A request that also changes the static spec is rejected as a whole.
+        EXPECT_THROW_WITH_SUBSTRING(
+            executor->SetPipelineSpecs(MakeSetPipelineSpecsArg("new", 1234)),
+            "Cannot modify pipeline spec while pipeline is \"working\"");
+        {
+            auto guard = Guard(state->Lock);
+            EXPECT_EQ(state->DynamicSpec->GetVersion(), dynamicSpecVersion);
+        }
+
+        auto result = executor->SetPipelineSpecs(MakeSetPipelineSpecsArg(std::nullopt, 1234));
+        EXPECT_GT(result.DynamicSpecVersion, dynamicSpecVersion);
+        auto guard = Guard(state->Lock);
+        EXPECT_EQ(state->DynamicSpec->GetVersion(), result.DynamicSpecVersion);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, ValidationOnlySpecErrorPausesPipeline)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    // A newer controller rejects a spec that an older one accepted and ran.
+    SeedPersistedSpec(InvalidPipelineSpecValue);
+    SeedPersistedDynamicSpec("{target_state=completed;}");
+    SetPersistedPipelineState(EPipelineState::Working);
+
+    Prepare();
+
+    auto hasSpecValidationError = [&] {
+        return RootStatusProfiler->GetStatus().Errors.contains("/spec_validation");
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+
+        ASSERT_TRUE(WaitForCondition([&] {
+            return GetPersistedPipelineState() == EPipelineState::Paused;
+        }));
+        EXPECT_TRUE(hasSpecValidationError());
+
+        // Starting does not resume the pipeline while the spec is invalid.
+        WaitFor(ControllerServiceProxy->StartPipeline()->Invoke()).ThrowOnError();
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
+        EXPECT_EQ(GetPersistedPipelineState(), EPipelineState::Paused);
+        EXPECT_TRUE(hasSpecValidationError());
+
+        TSetPipelineSpecsArg argument;
+        argument.Spec = ConvertToNode(TYsonStringBuf("{}"));
+        argument.AllowSpecUpdateOnPause = true;
+        CreateTestFlowExecutor()->SetPipelineSpecs(argument);
+
+        EXPECT_TRUE(WaitForCondition([&] {
+            return GetPersistedPipelineState() == EPipelineState::Working;
+        }));
+        EXPECT_FALSE(hasSpecValidationError());
+    });
+}
+
+TEST_F(TControllerTest, ValidationOnlyDynamicSpecErrorIsFixedByDynamicOnlyUpdate)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    // Parses, but references an undeclared throttler.
+    SeedPersistedSpec("{}");
+    SeedPersistedDynamicSpec("{target_state=completed;computations={computation={input_rows_throttler_id=missing;};};}");
+    SetPersistedPipelineState(EPipelineState::Working);
+
+    Prepare();
+
+    auto hasSpecValidationError = [&] {
+        return RootStatusProfiler->GetStatus().Errors.contains("/spec_validation");
+    };
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        auto stopLeading = Finally([&] {
+            StopLeading();
+        });
+
+        ASSERT_TRUE(WaitForCondition([&] {
+            return GetPersistedPipelineState() == EPipelineState::Paused;
+        }));
+        EXPECT_TRUE(hasSpecValidationError());
+
+        // A dynamic-only update needs no force on a paused pipeline.
+        TSetPipelineSpecsArg argument;
+        argument.DynamicSpec = ConvertToNode(TYsonStringBuf("{target_state=completed;}"));
+        CreateTestFlowExecutor()->SetPipelineSpecs(argument);
+
+        EXPECT_TRUE(WaitForCondition([&] {
+            return GetPersistedPipelineState() == EPipelineState::Working;
+        }));
+        EXPECT_FALSE(hasSpecValidationError());
     });
 }
 
@@ -1413,9 +2467,10 @@ TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
     spec->Computations["computation"] = computationSpec;
     for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
         spec->Streams[streamId] = New<TStreamSpec>();
-        spec->Streams[streamId]->ClassName = "FakeClassName";
         spec->Streams[streamId]->Schema = schema;
     }
+
+    AddStreamProducer(spec, "input_stream");
 
     auto dynamicSpec = New<TDynamicPipelineSpec>();
     dynamicSpec->TargetState = EPipelineState::Working;
