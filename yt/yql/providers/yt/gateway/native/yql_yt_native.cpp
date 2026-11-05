@@ -4204,10 +4204,10 @@ private:
     TFuture<void> DoAlter(TYtAlter, const TExecContext<TRunOptions>::TPtr& execCtx) {
         YQL_ENSURE(execCtx->InputTables_.size() == 1);
         YQL_ENSURE(execCtx->OutTables_.size() == 1);
-        auto future = execCtx->Session_->Queue_->Async([execCtx]() {
+        auto future = execCtx->Session_->Async([execCtx]() {
             YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
             const auto entry = execCtx->GetEntry();
-            execCtx->QueryCacheItem.Destroy();
+            execCtx->QueryCacheItem.reset();
             auto& out = execCtx->OutTables_.front();
             entry->DeleteAtFinalize(out.Path);
             entry->CreateDefaultTmpFolder();
@@ -4217,7 +4217,7 @@ private:
 
         return future.Apply([execCtx](const TFuture<void>& f) {
             f.GetValue();
-            return execCtx->Session_->Queue_->Async([execCtx]() {
+            return execCtx->Session_->Async([execCtx]() {
                 YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
                 const auto entry = execCtx->GetEntry();
                 auto& out = execCtx->OutTables_.front();
