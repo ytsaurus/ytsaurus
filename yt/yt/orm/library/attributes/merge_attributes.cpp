@@ -45,7 +45,7 @@ TYsonString MergeValueLists(std::vector<TAttributeValue> attributeValues, EYsonF
     for (int index = 0; index < listSize; ++index) {
         std::vector<TAttributeValue> valuesAtIndex;
         for (const auto& [attributeIndex, attributeValue] : Enumerate(attributeValues)) {
-            auto list = lists[attributeIndex];
+            const auto& list = lists[attributeIndex];
             valuesAtIndex.push_back({
                 .Path = attributeValue.Path,
                 .Value = ConvertToYsonString(list->FindChild(index))
