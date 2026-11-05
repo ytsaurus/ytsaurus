@@ -38,7 +38,8 @@ public:
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
         NNode::TLockedChunkGuard lockedChunkGuard,
-        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+        TWriteSessionStartCountersPtr startCounters);
 
     i64 GetMemoryUsage() const override;
     i64 GetTotalSize() const override;
