@@ -847,22 +847,12 @@ public:
             yson.OnEndList();
         }
 
-        TString progress;
-
-        {
-            auto guard = ReaderGuard(ProgressSpinLock_);
-
-            auto& activeQuery = GetActiveQuery(queryId);
-            progress = activeQuery.ProgressMerger.ToYsonString();
-        }
-
         YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished successfully";
 
         return {
             .YsonResult = result.Empty() ? std::nullopt : std::make_optional(result.Str()),
             .Plan = MaybeToOptional(program->GetQueryPlan()),
             .Statistics = MaybeToOptional(program->GetStatistics()),
-            .Progress = progress,
             .TaskInfo = MaybeToOptional(program->GetTasksInfo()),
             .Ast = MaybeToOptional(program->GetQueryAst()),
         };
@@ -971,6 +961,18 @@ public:
                     auto guard = WriterGuard(ProgressSpinLock_);
 
                     auto& activeQuery = GetActiveQuery(queryId);
+                    // The final response must carry progress even when execution fails;
+                    // otherwise the query tracker retains the last polled snapshot.
+                    if (result.YsonError) {
+                        activeQuery.ProgressMerger.AbortAllUnfinishedNodes();
+                    }
+                    result.Progress = activeQuery.ProgressMerger.ToYsonString();
+                    if (!result.Plan) {
+                        result.Plan = activeQuery.Plan;
+                    }
+                    if (!result.Ast) {
+                        result.Ast = activeQuery.Ast;
+                    }
                     activeQuery.Finished = true;
 
                     YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished";
@@ -995,7 +997,7 @@ public:
 
     TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) noexcept override
     {
-        auto guard = ReaderGuard(ProgressSpinLock_);
+        auto guard = WriterGuard(ProgressSpinLock_);
         if (auto* activeQuery = GetActiveQueryPtr(queryId)) {
             TQueryResult result;
             if (activeQuery->ProgressMerger.HasChangesSinceLastFlush()) {
