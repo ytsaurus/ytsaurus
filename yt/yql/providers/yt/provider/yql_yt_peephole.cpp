@@ -1,3 +1,4 @@
+#include "yql_yt_helpers.h"
 #include "yql_yt_provider_impl.h"
 
 #include <yql/essentials/ast/yql_expr.h>
@@ -104,7 +105,7 @@ private:
         YQL_ENSURE(!HasSetting(wideWrite.Settings().Ref(), "table"));
 
         TMaybeNode<TCoSecureParam> secParams;
-        if (State_->ResolveClusterToken(cluster)) {
+        if (YtUnspecifiedCluster != cluster && State_->ResolveClusterToken(cluster)) {
             secParams = Build<TCoSecureParam>(ctx, node.Pos()).Name().Build(TString("cluster:default_").append(cluster)).Done();
         }
 
