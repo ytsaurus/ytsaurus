@@ -8,6 +8,8 @@ import time
 
 
 class TestSqlUdf(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def setup_method(self, method):
         super().setup_method(method)
 

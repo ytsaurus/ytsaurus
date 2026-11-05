@@ -22,7 +22,7 @@ import pytest
 
 
 class TestInputFetching(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 10
+    NUM_TEST_PARTITIONS = 14
 
     @authors("max42", "evgenstf")
     @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])
@@ -1348,6 +1348,8 @@ class TestInputFetching(ClickHouseTestBase):
 
 
 class TestReadInOrder(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 6
+
     @staticmethod
     def make_query(clique, query, **kwargs):
         kwargs["full_response"] = True
@@ -2338,6 +2340,8 @@ class TestReadInOrder(ClickHouseTestBase):
 
 
 class TestInferReadRange(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def _get_config_patch(self):
         return {
             "yt": {
@@ -2699,6 +2703,8 @@ class TestInferReadRange(ClickHouseTestBase):
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def _create_table(self):
         create(
             "table",

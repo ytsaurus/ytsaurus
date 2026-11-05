@@ -11,6 +11,8 @@ import time
 
 
 class TestClickHouseDdl(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("buyval01")
     def test_sql_object_ddl_permissions(self):
         create_user("manager")

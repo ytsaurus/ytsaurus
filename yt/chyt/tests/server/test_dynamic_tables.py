@@ -15,7 +15,7 @@ import time
 
 
 class TestClickHouseDynamicTables(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     def _get_config_patch(self):
         return {
@@ -501,7 +501,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
 
 class TestClickHouseDynamicTablesFetchFromTablets(TestClickHouseDynamicTables):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     def _get_config_patch(self):
         config_patch = super(TestClickHouseDynamicTablesFetchFromTablets, self)._get_config_patch()

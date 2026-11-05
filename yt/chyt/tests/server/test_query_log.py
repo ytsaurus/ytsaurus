@@ -10,8 +10,12 @@ import yt.yson as yson
 from pathlib import Path
 import time
 
+import pytest
+
 
 class TestQueryLog(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     @staticmethod
     def _get_query_log_patch(root_dir=None, max_rows_to_keep=None, log_queries=True):
         return {
@@ -64,6 +68,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
 
     @authors("dakovalkov")
+    @pytest.mark.timeout(60)
     def test_change_log_version(self):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
