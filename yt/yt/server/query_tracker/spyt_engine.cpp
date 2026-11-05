@@ -4,17 +4,27 @@
 #include "handler_base.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/client/arrow/schema.h>
+
 #include <yt/yt/client/formats/parser.h>
+
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
+#include <yt/yt/library/formats/arrow_helpers.h>
+#include <yt/yt/library/formats/arrow_metadata_constants.h>
 #include <yt/yt/library/formats/arrow_parser.h>
+
 #include <yt/yt/library/arrow_adapter/public.h>
 
 #include <yt/yt/core/crypto/crypto.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -32,6 +42,8 @@
 
 #include <library/cpp/yt/string/stream.h>
 #include <library/cpp/yt/string/string.h>
+
+#include <library/cpp/iterator/functools.h>
 
 #include <pyspark/sql/connect/proto/base.grpc.pb.h>
 
@@ -64,6 +76,41 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace spark::connect;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TTableSchemaPtr CreateSpytResultSchema(const TArrowSchemaPtr& arrowSchema, const TLogger& Logger)
+{
+    auto schema = CreateYTTableSchemaFromArrowSchema(arrowSchema);
+    auto columns = schema->Columns();
+    for (const auto& [index, field] : NFuncTools::Enumerate(arrowSchema->fields())) {
+        if (GetArrowMetadataYTType(field) != YTTypeMetadataValueYson) {
+            continue;
+        }
+
+        auto typeId = field->type()->id();
+        if (typeId != arrow20::Type::BINARY && typeId != arrow20::Type::LARGE_BINARY) {
+            YT_TLOG_WARNING("Unexpected Arrow type for YSON metadata; keeping inferred column type")
+                .With("FieldName", field->name())
+                .With("ArrowType", field->type()->ToString());
+            continue;
+        }
+
+        auto type = SimpleLogicalType(ESimpleLogicalValueType::Any);
+        columns[index].SetLogicalType(field->nullable() ? OptionalLogicalType(type) : type);
+    }
+
+    return New<TTableSchema>(
+        std::move(columns),
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
+        schema->GetSchemaModification(),
+        schema->DeletedColumns());
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1002,7 +1049,7 @@ private:
 
         auto result = queryResultOrError.Value();
 
-        auto tableSchema = CreateYTTableSchemaFromArrowSchema(result.ArrowSchema);
+        auto tableSchema = CreateSpytResultSchema(result.ArrowSchema, Logger);
 
         TBuildingValueConsumer valueConsumer(tableSchema, Logger, true);
         auto parser = CreateParserForArrow(&valueConsumer);
