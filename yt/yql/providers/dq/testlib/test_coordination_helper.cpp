@@ -160,12 +160,14 @@ NActors::TActorId TTestCoordinationHelper::GetWrapper(
     NActors::TActorSystem* actorSystem,
     const TString& cluster,
     const TString& user,
-    const TString& token)
+    const TString& token,
+    const TString& jobProxySocketPath)
 {
     Y_UNUSED(actorSystem);
     Y_UNUSED(cluster);
     Y_UNUSED(user);
     Y_UNUSED(token);
+    Y_UNUSED(jobProxySocketPath);
     return NActors::TActorId();
 }
 

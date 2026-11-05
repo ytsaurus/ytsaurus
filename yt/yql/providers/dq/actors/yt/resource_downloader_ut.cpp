@@ -26,7 +26,7 @@ namespace NYql {
 
             NActors::TActorId GetWrapper(
                 NActors::TActorSystem*, const TString&,
-                const TString&, const TString&) override {
+                const TString&, const TString&, const TString& = {}) override {
                 return Wrapper;
             }
 

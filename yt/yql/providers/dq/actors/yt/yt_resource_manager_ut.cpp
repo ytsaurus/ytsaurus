@@ -96,7 +96,7 @@ public:
     NActors::TActorId GetWrapper(NActors::TActorSystem*) override { return CoordActor_; }
     // YtWrapper: used by Bootstrap() and all YT API sends
     NActors::TActorId GetWrapper(NActors::TActorSystem*, const TString&,
-                                 const TString&, const TString&) override { return YtActor_; }
+                                 const TString&, const TString&, const TString& = {}) override { return YtActor_; }
     NActors::TActorId GetWrapper() override { return CoordActor_; }
 
     void StartRegistrator(NActors::TActorSystem*) override {}
@@ -361,6 +361,51 @@ ui64 TriggerDropAndGetRemoveRequestId(
 } // anonymous namespace
 
 Y_UNIT_TEST_SUITE(OnListOperationsTest) {
+
+    Y_UNIT_TEST(StartsLocalProxyForEitherUsageFlag) {
+        for (const bool tables : {false, true}) {
+            for (const bool resources : {false, true}) {
+                TTestActorRuntimeBase runtime;
+                runtime.Initialize();
+                SetupLogging(runtime);
+                const auto ytActor = runtime.AllocateEdgeActor();
+                const auto coordActor = runtime.AllocateEdgeActor();
+                auto opts = MakeTestOptions();
+                opts.YtBackend.SetMinNodeId(700);
+                opts.YtBackend.SetMaxNodeId(702);
+                opts.YtBackend.SetMaxJobs(2);
+                opts.YtBackend.SetJobsPerOperation(2);
+                opts.YtBackend.SetUseLocalJobProxyForTableReads(tables);
+                opts.YtBackend.SetUseLocalJobProxyForResourceDownloads(resources);
+                auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
+                const auto rmActor = runtime.Register(CreateResourceManager(opts, coord));
+                runtime.EnableScheduleForActor(rmActor);
+                BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {});
+                runtime.Send(new IEventHandle(rmActor, coordActor, new TEvListNodeResponse(
+                    0, NYT::TErrorOr<TString>(NYT::NodeToYsonString(NYT::TNode::CreateList())))));
+                ui64 requestId = 0;
+                for (const auto& event : runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId())) {
+                    if (event->GetTypeRewrite() == TEvCreateNode::EventType) {
+                        const auto id = event->Get<TEvCreateNode>()->RequestId;
+                        if (id != static_cast<ui64>(-1)) {
+                            requestId = id;
+                        }
+                    }
+                }
+                UNIT_ASSERT_UNEQUAL(requestId, 0);
+                runtime.Send(new IEventHandle(rmActor, ytActor, new TEvCreateNodeResponse(requestId,
+                    NYT::TErrorOr<NYT::NCypressClient::TNodeId>(
+                        NYT::NCypressClient::TNodeId::FromString("11111111-22222222-33333333-44444444")))));
+                auto start = runtime.GrabEdgeEvent<TEvStartOperation>(ytActor, TDuration::Seconds(5));
+                UNIT_ASSERT(start);
+                const auto spec = NYT::NodeFromYsonString(std::get<1>(*start->Get()));
+                UNIT_ASSERT_VALUES_EQUAL(spec["tasks"].AsMap().size(), 2);
+                for (const auto& [name, task] : spec["tasks"].AsMap()) {
+                    UNIT_ASSERT_VALUES_EQUAL(task["enable_rpc_proxy_in_job_proxy"].AsBool(), tables || resources);
+                }
+            }
+        }
+    }
 
     Y_UNIT_TEST(RunningAndPendingOwnersConsumeFullCapacity) {
         TTestActorRuntimeBase runtime;
