@@ -3,6 +3,8 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
+#include <yt/yt/library/query/engine/folding_profiler.h>
+
 #include <yt/yt/library/query/engine_api/top_collector.h>
 
 #include <util/random/shuffle.h>
@@ -249,6 +251,40 @@ TEST(TFingerprintTest, NestedDataSubqueries)
     EXPECT_EQ(fingerprint, "SELECT first(try_get_int64(("
         "SELECT sum(i + ?) + ? AS x FROM (b AS i) GROUP BY [common prefix: 0, aggregates: [sum]] ?"
         "), ?)) + ? AS nested GROUP BY [common prefix: 0, disjoint: False, aggregates: [first]] ?");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFingerprintTest, TransformNullableOutcomeSharesFoldingSetId)
+{
+    StrictMock<TPrepareCallbacksMock> prepareMock;
+    EXPECT_CALL(prepareMock, GetInitialSplit("//table"))
+        .Times(2)
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::Int64},
+        }))));
+
+    auto profileProjection = [&] (const char* query) {
+        auto prepared = ParseAndPreparePlanFragment(&prepareMock, query);
+        const auto& projection = prepared->Query->ProjectClause->Projections.at(0);
+        auto schema = prepared->Query->GetReadSchema();
+
+        llvm::FoldingSetNodeID id;
+        TCGVariables variables;
+        Profile(
+            projection.Expression,
+            schema,
+            &id,
+            &variables);
+        return id;
+    };
+
+    auto nullableId = profileProjection(
+        "SELECT transform(a, (1, 2), (10, null), 0) as x FROM [//table]");
+    auto nonNullableId = profileProjection(
+        "SELECT transform(a, (1, 2), (10, 20), 0) as x FROM [//table]");
+
+    EXPECT_EQ(nullableId, nonNullableId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -108,6 +108,23 @@ TLogicalTypePtr TTypingCtx::GetLogicalType(TTypeId typeId)
     return TypeNames_[typeId].second;
 }
 
+struct TImplicitCoercionRule
+{
+    ESimpleLogicalValueType TargetType;
+    EValueType SourceWireType;
+};
+
+constexpr TImplicitCoercionRule ImplicitCoercionRules[] = {
+    {ESimpleLogicalValueType::Int64, EValueType::Int64},
+
+    {ESimpleLogicalValueType::Uint64, EValueType::Uint64},
+    {ESimpleLogicalValueType::Uint64, EValueType::Int64},
+
+    {ESimpleLogicalValueType::Double, EValueType::Double},
+    {ESimpleLogicalValueType::Double, EValueType::Int64},
+    {ESimpleLogicalValueType::Double, EValueType::Uint64},
+};
+
 bool TTypingCtx::HasImplicitCast(TTypeId sourceType, TTypeId targetType)
 {
     if (targetType == GetTypeId(EValueType::Any)) {
@@ -130,24 +147,12 @@ bool TTypingCtx::HasImplicitCast(TTypeId sourceType, TTypeId targetType)
 
     const auto sourceWireType = NTableClient::GetWireType(sourceLogicalType);
 
-    switch (targetSimpleType) {
-        case ESimpleLogicalValueType::Int64:
-            return sourceWireType == EValueType::Int64;
-
-        case ESimpleLogicalValueType::Uint64:
-            return sourceWireType == EValueType::Uint64 ||
-                sourceWireType == EValueType::Int64;
-
-        case ESimpleLogicalValueType::Double:
-            return sourceWireType == EValueType::Double ||
-                sourceWireType == EValueType::Int64 ||
-                sourceWireType == EValueType::Uint64;
-
-        default:
-            break;
+    for (const auto& rule : ImplicitCoercionRules) {
+        if (rule.TargetType == targetSimpleType && rule.SourceWireType == sourceWireType) {
+            return true;
+        }
     }
 
-    // T->Optional<T> is a trivial cast
     if (targetLogicalType->GetMetatype() == ELogicalMetatype::Optional &&
         GetTypeId(targetLogicalType->GetElement()) == sourceType)
     {
@@ -281,17 +286,28 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
     auto matchSignature = [&] (int signatureIndex) {
         const auto& signature = signatures[signatureIndex];
 
-        auto matchConstraint = [&] (int constraintId, TTypeId argumentType) {
+        auto matchConstraint = [&] (int constraintId, TTypeId argumentType) -> std::optional<TTypeId> {
             if (constraintId >= std::ssize(signature.Constraints)) {
                 // No constraint.
-                return true;
+                return argumentType;
             }
 
-            auto it = std::find(
-                signature.Constraints[constraintId].begin(),
-                signature.Constraints[constraintId].end(),
-                argumentType);
-            return it != signature.Constraints[constraintId].end();
+            const auto& constraints = signature.Constraints[constraintId];
+
+            auto it = std::find(constraints.begin(), constraints.end(), argumentType);
+            if (it != constraints.end()) {
+                return argumentType;
+            }
+
+            auto argumentWireType = GetWireType(argumentType);
+            auto memberIt = std::find_if(constraints.begin(), constraints.end(), [&] (TTypeId constraintType) {
+                return GetWireType(constraintType) == argumentWireType;
+            });
+            if (memberIt != constraints.end()) {
+                return *memberIt;
+            }
+
+            return std::nullopt;
         };
 
         int nonParametricCoercionCount = 0;
@@ -307,8 +323,8 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
                 if (std::ssize(parametricAssignments) < -formalTypeId) {
                     parametricAssignments.resize(-formalTypeId);
                 }
-                if (matchConstraint(-(formalTypeId + 1), argumentType)) {
-                    parametricAssignments[-(formalTypeId + 1)].push_back(argumentType);
+                if (auto pinnedType = matchConstraint(-(formalTypeId + 1), argumentType)) {
+                    parametricAssignments[-(formalTypeId + 1)].push_back(*pinnedType);
                 }
                 continue;
             }

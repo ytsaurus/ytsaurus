@@ -3272,6 +3272,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64),
+        TColumnSchema("i3", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
         TColumnSchema("u1", EValueType::Uint64),
         TColumnSchema("u2", EValueType::Uint64),
         TColumnSchema("d1", EValueType::Double),
@@ -3669,6 +3670,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=-1",
             "farm_hash(i1, i1)",
+            MakeUint64(0x940af1fb538b6bd5ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1;i3=-1",
+            "farm_hash(i1, i3)",
             MakeUint64(0x940af1fb538b6bd5ULL)),
         std::tuple<const char*, const char*, TUnversionedValue>(
             R"(s1="a\0b")",
