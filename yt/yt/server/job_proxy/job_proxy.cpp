@@ -111,6 +111,7 @@
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -689,6 +690,10 @@ void TJobProxy::DoRun()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping public RPC server")
             .With(error);
+    }
+
+    if (auto delay = Config_->JobTestingOptions->DelayBeforeReportResult) {
+        TDelayedExecutor::WaitForDuration(*delay);
     }
 
     FillJobResult(&result);

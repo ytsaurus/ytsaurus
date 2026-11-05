@@ -950,7 +950,8 @@ class TestSandboxDiskUsage(YTEnvSetup):
     }
 
     @authors("abodrov")
-    def test_error_message(self):
+    @pytest.mark.parametrize("delay_before_report_result", [0, 5000])
+    def test_error_message(self, delay_before_report_result):
         update_nodes_dynamic_config({
             "exec_node": {
                 "slot_manager": {
@@ -959,19 +960,27 @@ class TestSandboxDiskUsage(YTEnvSetup):
             },
         })
 
-        with raises_yt_error("Disk usage overdraft occurred"):
-            run_test_vanilla(
-                track=True,
-                command=" ; ".join([
-                    "dd if=/dev/zero of=local_file  bs=2M  count=1; sleep 5",
-                ]),
-                task_patch={
-                    "disk_request": {
-                        "disk_space": 1000 ** 2,
-                    },
+        op = run_test_vanilla(
+            command=with_breakpoint("dd if=/dev/zero of=local_file bs=2M count=1; BREAKPOINT"),
+            task_patch={
+                "disk_request": {
+                    "disk_space": 1000 ** 2,
                 },
-                spec={"max_failed_job_count": 1},
-            )
+            },
+            spec={
+                "max_failed_job_count": 1,
+                "job_testing_options": {
+                    "delay_before_report_result": delay_before_report_result,
+                },
+            },
+        )
+        wait(lambda: op.get_job_count("failed") > 0 or op.get_job_count("aborted") > 0)
+        assert op.get_job_count("aborted") == 0
+
+        with raises_yt_error("Disk usage overdraft occurred"):
+            op.track()
+
+        assert op.get_job_count("failed") == 1
 
 ##################################################################
 

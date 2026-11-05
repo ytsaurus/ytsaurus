@@ -346,6 +346,8 @@ private:
     std::optional<NJobAgent::TJobProfile> JobProxyPeakMemoryProfile_;
     NControllerAgent::TCoreInfos CoreInfos_;
 
+    bool FailRequested_ = false;
+
     bool InterruptionRequested_ = false;
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
     TInstant InterruptionDeadline_;
