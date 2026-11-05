@@ -1449,6 +1449,7 @@ private:
         const TAsyncSemaphorePtr& semaphore,
         ETabletStoresUpdateReason updateReason)
     {
+        std::vector<TGlobalStoresUpdateThrottler::TRequest> requests;
         {
             auto taskGuard = Guard(TaskSpinLock_);
 
@@ -1457,16 +1458,18 @@ private:
                 return {};
             }
 
+            requests.reserve(scheduleLimit);
             for (int index = 0; index < scheduleLimit; ++index) {
                 auto& task = tasks->at(index);
-                GlobalStoresUpdateThrottler_->AddRequest(
-                    task->Slot->GetTabletCellBundleName(),
-                    ssize(task->Info->StoreIds),
-                    CellTagFromId(task->Info->TabletId));
+                requests.push_back({
+                    .BundleName = task->Slot->GetTabletCellBundleName(),
+                    .CellTag = CellTagFromId(task->Info->TabletId),
+                    .StoreCount = static_cast<int>(ssize(task->Info->StoreIds)),
+                });
             }
         }
 
-        return GlobalStoresUpdateThrottler_->Throttle(updateReason);
+        return GlobalStoresUpdateThrottler_->Throttle(requests, updateReason);
     }
 
     void ScheduleMoreTasks(
