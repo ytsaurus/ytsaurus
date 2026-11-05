@@ -11,7 +11,6 @@ IF (SANITIZER_TYPE OR NOT OPENSOURCE)
 ENDIF()
 
 IF (SANITIZER_TYPE OR WITH_VALGRIND)
-    TIMEOUT(1800)
     SIZE(LARGE)
     INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
 ELSE()
@@ -44,9 +43,5 @@ PEERDIR(
 )
 
 NO_CHECK_IMPORTS()
-
-IF (SANITIZER_TYPE == "memory")
-    TAG(ya:not_autocheck) # YQL-15385
-ENDIF()
 
 END()
