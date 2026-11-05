@@ -99,12 +99,12 @@ public:
     void Process(
         const IInputContextPtr& input,
         const IOutputCollectorPtr& /*output*/,
-        const IRuntimeContextPtr& context) override
+        const IRuntimeContextPtr& /*context*/) override
     {
         if (input->GetMessages().empty()) {
             return;
         }
-        AppendLine(Parameters_->MarkerPath + ".attempts", ToString(context->GetEpochUniqueSeqNo()));
+        AppendLine(Parameters_->MarkerPath + ".attempts", PartitionId_);
         if (CreateMarker(Parameters_->MarkerPath, PartitionId_ + "\n") && Parameters_->ThrowOnce) {
             WaitForMarker(Parameters_->MarkerPath + ".throw");
             THROW_ERROR_EXCEPTION("Injected process function graph failure before commit");

@@ -11,6 +11,13 @@ namespace NYT::NFlow::NProcessFunctionGraphTest {
 void PrepareSpec(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dynamicSpec)
 {
     TSimpleSpecBuilder streamBuilder;
+    if (spec->Computations.contains("manual_join_source")) {
+        streamBuilder.RegisterStream<TKeyMessage>("left_keys");
+        streamBuilder.RegisterStream<TFinalMessage>("result");
+        streamBuilder(spec, dynamicSpec);
+        return;
+    }
+
     streamBuilder.RegisterStream<TKeyMessage>("left");
     streamBuilder.RegisterStream<TKeyMessage>("right");
     // Streams between graph nodes are registered like any other stream.

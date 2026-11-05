@@ -347,6 +347,10 @@ TComputationId TTestStateEnvironment::GetComputationId() const
 void TTestStateEnvironment::Sync()
 {
     StateManager_->Sync(/*transaction*/ nullptr);
+
+    for (const auto& [name, joiner] : *ExternalJoiners_) {
+        joiner->Reset();
+    }
 }
 
 void TTestStateEnvironment::PreloadKeyStates(const IInputContextPtr& inputContext)
@@ -367,25 +371,30 @@ void TTestStateEnvironment::PreloadEpoch(const IInputContextPtr& input)
 
 void TTestStateEnvironment::CommitEpoch(const std::function<void(const IRetryableTransactionPtr&)>& enrollSync)
 {
-    StateManager_->Sync(/*transaction*/ nullptr);
+    auto sync = [&] (const IRetryableTransactionPtr& transaction) {
+        if (enrollSync) {
+            enrollSync(transaction);
+        }
+
+        Sync();
+    };
 
     if (EpochCommits_.empty()) {
         // No external store; still exercise the sync enrollment.
-        if (enrollSync) {
-            enrollSync(CreateRetryableTransaction());
-        }
+        sync(enrollSync ? CreateRetryableTransaction() : nullptr);
         return;
     }
 
     // Each store commits on its own client, so enroll the sync writes into the first store only —
     // enrolling into every store would double-commit them.
-    bool syncEnrolled = false;
+    bool epochSynced = false;
     for (const auto& commit : EpochCommits_) {
         auto transaction = CreateRetryableTransaction();
-        if (enrollSync && !syncEnrolled) {
-            enrollSync(transaction);
-            syncEnrolled = true;
+        if (!epochSynced) {
+            sync(transaction);
+            epochSynced = true;
         }
+
         commit(transaction);
     }
 }

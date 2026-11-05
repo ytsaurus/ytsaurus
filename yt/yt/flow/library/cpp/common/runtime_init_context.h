@@ -111,6 +111,11 @@ public:
 protected:
     virtual IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const = 0;
     virtual IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const = 0;
+
+    //! Resolves |name| in |context| for init-context wrappers.
+    static IExternalStateJoinerPtr ForwardExternalStateJoiner(
+        const IRuntimeInitContextPtr& context,
+        const std::string& name);
 };
 
 DEFINE_REFCOUNTED_TYPE(IRuntimeInitContext)

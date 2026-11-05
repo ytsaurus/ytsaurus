@@ -194,15 +194,27 @@ void ValidateProcessFunctionGraphHost(const TComputationSpec& computation)
     if (!computation.ExternalStateManagers.empty()) {
         unsupportedFields.push_back("external_state_managers");
     }
-    if (!computation.ExternalStateJoiners.empty()) {
-        unsupportedFields.push_back("external_state_joiners");
-    }
     if (!computation.StateJoiners.empty()) {
         unsupportedFields.push_back("state_joiners");
     }
     THROW_ERROR_EXCEPTION_UNLESS(unsupportedFields.empty(),
         "Process function graph computation cannot set %v",
         unsupportedFields);
+
+    for (const auto& name : GetSortedIds(computation.ExternalStateJoiners)) {
+        const auto& joiner = GetOrCrash(computation.ExternalStateJoiners, name);
+
+        // clang-format off: Preserve the YT error-macro layout.
+        THROW_ERROR_EXCEPTION_UNLESS(joiner, "External state joiner %Qv has no spec",
+            name);
+
+        THROW_ERROR_EXCEPTION_IF(joiner->AutoPreload, "External state joiner %Qv in a process function graph "
+            "requires \"auto_preload\" = false; "
+            "preload its keys explicitly in the node after parsing its inputs",
+            name);
+        // clang-format on
+    }
+
     // Internal messages inherit event timestamps from their parents, so an assigner would apply only to exported copies.
     THROW_ERROR_EXCEPTION_IF(
         computation.WatermarkStrategy &&
