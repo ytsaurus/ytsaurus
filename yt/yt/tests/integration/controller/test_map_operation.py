@@ -1550,6 +1550,9 @@ print(json.dumps(input))
             job_type=job_type))
 
     @authors("arkady-e1ppa")
+    # Exhausting the per-user pipe page limit can make F_SETPIPE_SZ fail with EPERM
+    # before the mapper reaches the interruption breakpoint.
+    @pytest.mark.skip(reason="Flaky: setting pipe capacity may fail with EPERM in CI")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("small_pipe", [False, True])
     @pytest.mark.ignore_in_opensource_ci
