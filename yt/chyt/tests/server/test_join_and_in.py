@@ -9,7 +9,7 @@ import pytest
 
 
 class TestJoinAndIn(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     @authors("max42")
     def test_global_join(self):

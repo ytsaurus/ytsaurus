@@ -933,6 +933,8 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
 
 
 class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, ClickHouseQueueAgentTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     def _create_queue_source(self, partition_count=1):
         remove("//tmp/source")
         self._create_queue(

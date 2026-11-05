@@ -7,6 +7,8 @@ import yt.yson as yson
 
 
 class TestTableFunctions(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("dakovalkov")
     def test_yt_list_dir(self):
         create("map_node", "//tmp/dir")

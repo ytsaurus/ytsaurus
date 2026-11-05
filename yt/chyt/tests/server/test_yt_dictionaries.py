@@ -16,6 +16,8 @@ import pytest
 
 
 class TestYtDictionaries(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("max42")
     def test_int_key_flat(self):
         create(

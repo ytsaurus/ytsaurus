@@ -8,6 +8,8 @@ import json
 
 
 class TestYsonFunctions(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     def setup_method(self, method):
         super().setup_method(method)
         create(
