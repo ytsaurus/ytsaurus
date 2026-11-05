@@ -1616,7 +1616,7 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
                         },
                     },
                     "job_common": {
-                        "job_prepare_time_limit": 5000,
+                        "job_prepare_time_limit": 30000,
                     },
                 },
             },
@@ -1627,7 +1627,7 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
 
         from_barrier = self.write_log_barrier(self.get_node_address())
 
-        with raises_yt_error("Failed to prepare job within timeout"):
+        with raises_yt_error("Failed to prepare job within timeout") as errors:
             vanilla(
                 spec={
                     "tasks": {
@@ -1639,6 +1639,11 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
                     },
                 },
             )
+
+        timeout_error = errors[0].find_matching_error(
+            predicate=lambda error: error.message == "Failed to prepare job within timeout",
+        )
+        assert timeout_error.attributes["job_phase"] == "preparing_artifacts"
 
         raw_events = self.wait_for_raw_events(
             count=2,
