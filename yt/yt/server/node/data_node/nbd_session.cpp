@@ -35,7 +35,8 @@ TNbdSession::TNbdSession(
     TSessionOptions options,
     TStoreLocationPtr storeLocation,
     NConcurrency::TLease lease,
-    TLockedChunkGuard lockedChunkGuard)
+    TLockedChunkGuard lockedChunkGuard,
+    TWriteSessionStartCountersPtr startCounters)
     : Config_(std::move(config))
     , Bootstrap_(std::move(bootstrap))
     , Id_(sessionId)
@@ -47,6 +48,7 @@ TNbdSession::TNbdSession(
     , Lease_(std::move(lease))
     , LockedChunkGuard_(std::move(lockedChunkGuard))
     , StartTime_(TInstant::Now())
+    , StartCounters_(std::move(startCounters))
 {
     YT_VERIFY(Options_.NbdChunkFsType);
     YT_VERIFY(Options_.NbdChunkSize);
@@ -189,7 +191,10 @@ TFuture<void> TNbdSession::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Create();
+    return Create().Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+        StartCounters_->Update(error);
+        return error;
+    }));
 }
 
 void TNbdSession::Cancel(const TError& error)
