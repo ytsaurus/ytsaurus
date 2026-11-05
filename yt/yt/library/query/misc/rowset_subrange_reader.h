@@ -5,13 +5,15 @@
 
 namespace NYT::NQueryClient {
 
-using namespace NTableClient;
+////////////////////////////////////////////////////////////////////////////////
+
+extern std::pair<NTableClient::TKeyBoundRef, NTableClient::TKeyBoundRef> UniversalRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulUnversionedReaderPtr CreateRowsetSubrangeReader(
-    TFuture<TSharedRange<TUnversionedRow>> asyncRows,
-    std::pair<TKeyBoundRef, TKeyBoundRef> readRange);
+NTableClient::ISchemafulUnversionedReaderPtr CreateRowsetSubrangeReader(
+    TFuture<TSharedRange<NTableClient::TUnversionedRow>> asyncRows,
+    std::pair<NTableClient::TKeyBoundRef, NTableClient::TKeyBoundRef> readRange = UniversalRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

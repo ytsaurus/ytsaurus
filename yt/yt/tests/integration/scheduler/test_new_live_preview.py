@@ -3,13 +3,11 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, exists, concatenate, create_user, create_test_tables, ls, make_ace, add_member,
     read_table, write_table, map, map_reduce, reduce, sort,
-    sync_create_cells, sync_mount_table)
+    sync_create_cells, sync_mount_table, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
 import yt.yson as yson
-
-from yt.common import YtError
 
 import pytest
 
@@ -17,7 +15,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNewLivePreview(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -46,7 +43,7 @@ class TestNewLivePreview(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -93,7 +90,7 @@ class TestNewLivePreview(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -106,7 +103,7 @@ class TestNewLivePreview(YTEnvSetup):
             authenticated_user="u1",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             read_table(
                 op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
                 authenticated_user="u2",
@@ -219,7 +216,7 @@ class TestNewLivePreview(YTEnvSetup):
                 authenticated_user=authenticated_user,
             )
 
-            wait_breakpoint(job_count=2, breakpoint_name=str(index))
+            wait_breakpoint(op, job_count=2, breakpoint_name=str(index))
 
             async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
             live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
@@ -311,7 +308,7 @@ class TestNewLivePreview(YTEnvSetup):
             assert False, f"Unknown operation {operation}"
 
         complete_jobs = 2
-        jobs = wait_breakpoint(job_count=complete_jobs)
+        jobs = wait_breakpoint(op, job_count=complete_jobs)
         for job_id in jobs[:complete_jobs]:
             release_breakpoint(job_id=job_id)
 
@@ -356,7 +353,7 @@ class TestNewLivePreview(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -371,7 +368,6 @@ class TestNewLivePreview(YTEnvSetup):
         op.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestNewLivePreviewMulticell(TestNewLivePreview):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

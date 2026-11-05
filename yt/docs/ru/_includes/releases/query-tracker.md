@@ -1,26 +1,32 @@
 ## Query tracker
 
 
-Is released as a docker image.
+Поставляется в виде docker-образа.
 
 
 
 
-**Releases:**
+**Релизы:**
 
 {% cut "**0.1.2**" %}
 
-**Release date:** 2026-01-27
+**Дата релиза:** 2026-01-27
 
 
-**Features**
-- [experimental] Allow handling YQL queries in separate processes
-
-**Fixes**
-- Fixed lang version list in UI
+**Страница релиза:** [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.2)
 
 
-**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later, UI [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1) and later.
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:stable-0.1.2](https://github.com/orgs/ytsaurus/packages/container/query-tracker/659176566?tag=stable-0.1.2)
+
+
+**Возможности**
+- [экспериментально] Добавлена возможность обработки YQL-запросов в отдельных процессах
+
+**Исправления**
+- Исправлен список версий языка в UI
+
+
+**NB!** Доступно только с версией прокси [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) и новее, UI [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1) и новее.
 
 
 {% endcut %}
@@ -28,94 +34,118 @@ Is released as a docker image.
 
 {% cut "**0.1.1**" %}
 
-**Release date:** 2025-12-18
+**Дата релиза:** 2025-12-18
 
 
-This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
+**Страница релиза:** [0.1.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.1)
 
-**Features**
-- Support YQL language versioning
-- Support Spark Connect (SPYT Connect)
-- New possibilities for processing partitioned tables in YQL 
 
-**Fixes**
-- Fix running big queries by compressing 'progress' column
-- Fix possible network socket stall (between QT and YQL agent) on YQL query abortion.
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.1.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/617510568?tag=0.1.1)
 
-**Known bugs**
-- Incorrect lang versions in UI
 
-**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later
+Это альфа-релиз, обновитесь до [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) или новее
+
+**Возможности**
+- Поддержка версионирования языка YQL
+- Поддержка Spark Connect (SPYT Connect)
+- Новые возможности обработки партиционированных таблиц в YQL
+
+**Исправления**
+- Исправлено выполнение больших запросов за счёт сжатия колонки 'progress'
+- Исправлена возможная блокировка сетевого сокета (между QT и YQL-агентом) при прерывании YQL-запроса
+
+**Известные баги**
+- Некорректные версии языка в UI
+
+**NB!** Доступно только с версией прокси [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) и новее
 
 {% endcut %}
 
 
 {% cut "**0.0.11**" %}
 
-**Release date:** 2025-09-08
+**Дата релиза:** 2025-09-08
 
 
-**Features**
-- Added "sort_order" flag for list_queries API
-- Added the "assigned_engine" meta for YQL queries.
-- Made YQL queries timeout configurable
-- Supported YQL language versions in QT cli\sdk.
-https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
-- Supported returning AST of YQL queries in get_query cli\sdk 
+**Страница релиза:** [0.0.11](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.11)
 
-**Improvements**
-- Improved mechanics of additional secrets in YQL queries
 
-**Fixes**
-- Fixed read YQL results with yson fields by reference.
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.11](https://github.com/orgs/ytsaurus/packages/container/query-tracker/509269551?tag=0.0.11)
 
-**NB!** Most new features available only with proxy version 24.2\25.1 and later
+
+**Возможности**
+- Добавлен флаг "sort_order" для API list_queries
+- Добавлена мета "assigned_engine" для YQL-запросов
+- Таймаут YQL-запросов стал настраиваемым
+- Поддержка версий языка YQL в cli\sdk QT.
+https://ytsaurus.tech/docs/ru/yql/changelog/#general-description-of-yql-versions
+- Поддержка возврата AST YQL-запросов в get_query cli\sdk
+
+**Улучшения**
+- Улучшена механика дополнительных секретов в YQL-запросах
+
+**Исправления**
+- Исправлено чтение результатов YQL с yson-полями по ссылке
+
+**NB!** Большинство новых возможностей доступно только с версией прокси 24.2\25.1 и новее
 
 {% endcut %}
 
 
 {% cut "**0.0.10**" %}
 
-**Release date:** 2025-06-23
+**Дата релиза:** 2025-06-23
 
 
-**Features:**
-- Added clickhouse UDF.
-- Added the "assigned_tracker" meta for queries that are in the "finished" state.
+**Страница релиза:** [0.0.10](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.10)
 
-**Internal:**
-- Switched the internal YQL results format. It should not be visible to users.
+
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.10](https://github.com/orgs/ytsaurus/packages/container/query-tracker/448865204?tag=0.0.10)
+
+
+**Возможности:**
+- Добавлена clickhouse UDF
+- Добавлена мета "assigned_tracker" для запросов в состоянии "finished"
+
+**Внутренние изменения:**
+- Изменён внутренний формат результатов YQL. Это не должно быть заметно пользователям.
 
 {% endcut %}
 
 
 {% cut "**0.0.9**" %}
 
-**Release date:** 2025-04-08
+**Дата релиза:** 2025-04-08
 
 
-**Features**
-- Added possibility to ban QT\YQLA
-- Added QT\YQLA custom metrics
-- Added YQLA dynamic configuration
-- Added possibility to specify extra credentials for YQL queries
-- Added possibility to configure YQL default cluster per query
-- Added full result table in YQL queries results (available from 25.1 proxies)
-- Supported unicode symbols in SPYT queries
-- Supported results truncation in SPYT queries
+**Страница релиза:** [0.0.9](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.9)
 
-**Improvements**
-- Optimized QT API calls
-- Limited max simultaneous queries per YQLA
-- Configured QT dyntables compaction
 
-**Fixes**
-- Fixed YQL queries abortion
-- Fixed completing of queries with results over 16MB
-- Fixed query completion after responsible qt crash
-- Fixed yqla deadlock
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.9](https://github.com/orgs/ytsaurus/packages/container/query-tracker/393209556?tag=0.0.9)
 
-**NB!** This release is only compatible with proxy version 24.1.0, operator version 0.23.1 and later
+
+**Возможности**
+- Добавлена возможность бана QT\YQLA
+- Добавлены пользовательские метрики QT\YQLA
+- Добавлена динамическая конфигурация YQLA
+- Добавлена возможность указания дополнительных учётных данных для YQL-запросов
+- Добавлена возможность настройки кластера YQL по умолчанию для каждого запроса
+- Добавлена полная таблица результатов в результатах YQL-запросов (доступно с прокси 25.1)
+- Поддержка символов Unicode в SPYT-запросах
+- Поддержка обрезания результатов в SPYT-запросах
+
+**Улучшения**
+- Оптимизированы вызовы QT API
+- Ограничено максимальное количество одновременных запросов на YQLA
+- Настроена компактификация dyntables QT
+
+**Исправления**
+- Исправлено прерывание YQL-запросов
+- Исправлено завершение запросов с результатами более 16MB
+- Исправлено завершение запроса после падения ответственного qt
+- Исправлен дедлок yqla
+
+**NB!** Этот релиз совместим только с версией прокси 24.1.0, версией оператора 0.23.1 и новее
 https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F24.1.0
 https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
@@ -124,36 +154,48 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
 {% cut "**0.0.8**" %}
 
-**Release date:** 2024-08-26
+**Дата релиза:** 2024-08-26
 
 
-- Optimized Query Tracker API performance by adding system tables indexes. Issue: #653
-- Added support of SystemPython udfs in YQL queries. Issue: #265
-- Fixed broken logs compression in YQL agent. Issue: #623
-- Optimized simultaneous YQL queries performance
-- Fixed memory leak in YQL Agent
-- **Important fix.** Fixed YQL queries results corruption in DQ. Issue: #707
-- Added DQ support in dual stack networks. Issue: #744
+**Страница релиза:** [0.0.8](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.8)
+
+
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.8](https://github.com/orgs/ytsaurus/packages/container/query-tracker/264406046?tag=0.0.8)
+
+
+- Оптимизирована производительность Query Tracker API за счёт добавления индексов системных таблиц. Issue: #653
+- Добавлена поддержка SystemPython udfs в YQL-запросах. Issue: #265
+- Исправлено сжатие сломанных логов в YQL-агенте. Issue: #623
+- Оптимизирована производительность одновременных YQL-запросов
+- Исправлена утечка памяти в YQL Agent
+- **Важное исправление.** Исправлено повреждение результатов YQL-запросов в DQ. Issue: #707
+- Добавлена поддержка DQ в dual stack сетях. Issue: #744
 
 {% endcut %}
 
 
 {% cut "**0.0.7**" %}
 
-**Release date:** 2024-08-01
+**Дата релиза:** 2024-08-01
 
 
-- **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
-- Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs 
-- Fixed multiple deadlocks in yql-agent
-- Added support for SPYT discovery groups
-- Added support for SPYT queries parameters
-- Added everyone-share ACO which can be used to share queries by link.
-- Added support of multiple ACOs per query, feature will be available in fresh UI, SDK releases
-- Changed interaction between Query Tracker and Proxies
+**Страница релиза:** [0.0.7](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.7)
 
-**NB!** This release is only compatible with proxy version 23.2.1, operator version 0.10.0 and later
+
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.7](https://github.com/orgs/ytsaurus/packages/container/query-tracker/252093623?tag=0.0.7)
+
+
+- **Важное исправление.** Исправлено повреждение результатов YQL-запросов. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
+- Исправлен запуск YQL DQ
+- Исправлен баг, вызывавший ошибки UTF-8 в логах yql-agent
+- Исправлены множественные дедлоки в yql-agent
+- Добавлена поддержка SPYT discovery groups
+- Добавлена поддержка параметров SPYT-запросов
+- Добавлен ACO everyone-share, который можно использовать для обмена запросами по ссылке
+- Добавлена поддержка нескольких ACO на запрос, возможность будет доступна в свежих релизах UI, SDK
+- Изменено взаимодействие между Query Tracker и прокси
+
+**NB!** Этот релиз совместим только с версией прокси 23.2.1, версией оператора 0.10.0 и новее
 https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.1
 https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.10.0
 
@@ -163,22 +205,28 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.10.0
 
 {% cut "**0.0.6**" %}
 
-**Release date:** 2024-04-11
+**Дата релиза:** 2024-04-11
 
 
-- Fixed authorization in complex cluster-free YQL queries
-- Fixed a bug that caused queries with large queries to never complete
-- Fixed a bag caused possibility of SQL injection in query tracker
-- Reduced the size of query_tracker docker images
+**Страница релиза:** [0.0.6](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.6)
 
-**Related issues:**
-- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
 
-In case of an error when starting query
+**Docker-образ:** [ghcr.io/ytsaurus/query-tracker:0.0.6](https://github.com/orgs/ytsaurus/packages/container/query-tracker/223408391?tag=0.0.6)
+
+
+- Исправлена авторизация в сложных cluster-free YQL-запросах
+- Исправлен баг, из-за которого запросы с большими запросами никогда не завершались
+- Исправлен баг, вызывавший возможность SQL-инъекции в query tracker
+- Уменьшен размер docker-образов query_tracker
+
+**Связанные issues:**
+- [Проблемы с QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+
+В случае ошибки при запуске запроса
 ```
 Access control object "nobody" does not exist
 ```
-You need to run commands by admin
+Необходимо выполнить команды от администратора
 ```
 yt create access_control_object_namespace --attr '{name=queries}'
 yt create access_control_object --attr '{namespace=queries;name=nobody}'
@@ -188,36 +236,38 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 
 {% endcut %}
 
-
 {% cut "**0.0.5**" %}
 
-**Release date:** 2024-03-19
+**Дата релиза:** 2024-03-19
 
 
-- Added access control to queries
-- Added support for the in‑memory DQ engine that accelerates small YQL queries
-- Added execution mode setting to query tracker. This allows to run queries in validate and explain modes
-- Fixed a bug that caused queries to be lost in query_tracker
-- Fixed a bug related to yson parsing in YQL queries
-- Reduced the load on the state dyntables by QT
-- Improved authentication in YQL queries.
-- Added authentication in SPYT queries
-- Added reuse of spyt sessions. Speeds up the sequential launch of SPYT queries from a single user
-- Changed the build type of QT images from cmake to ya make
+**Страница релиза:** [0.0.5](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.5)
+
+
+- Добавлен контроль доступа к запросам
+- Добавлена поддержка in‑memory DQ engine, который ускоряет выполнение небольших YQL‑запросов
+- Добавлена настройка режима выполнения в query tracker. Это позволяет запускать запросы в режимах validate и explain
+- Исправлена ошибка, из‑за которой запросы терялись в query_tracker
+- Исправлена ошибка, связанная с разбором yson в YQL‑запросах
+- Снижена нагрузка на динамические таблицы состояния со стороны QT
+- Улучшена аутентификация в YQL‑запросах
+- Добавлена аутентификация в SPYT‑запросах
+- Добавлено повторное использование spyt‑сессий. Ускоряет последовательный запуск SPYT‑запросов от одного пользователя
+- Изменён тип сборки образов QT с cmake на ya make
 
 **NB:**
-- Compatible only with operator version [0.6.0](https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.6.0) and later
-- Compatible only with proxies version [23.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.0) and later
-- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker#access-control) section containing information about the new query access control.
+- Совместимо только с версией оператора [0.6.0](https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.6.0) и новее
+- Совместимо только с версией прокси [23.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.0) и новее
+- Перед обновлением ознакомьтесь с разделом [документации](https://ytsaurus.tech/docs/ru/user-guide/query-tracker#access-control), содержащим информацию о новом контроле доступа к запросам
 
-**New related issues:**
-- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+**Новые связанные проблемы:**
+- [Проблемы с ACO в QT](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
 
-In case of an error when starting query
+При возникновении ошибки при запуске запроса
 ```
 Access control object "nobody" does not exist
 ```
-You need to run commands by admin
+Необходимо выполнить команды от имени администратора
 ```
 yt create access_control_object_namespace --attr '{name=queries}'
 yt create access_control_object --attr '{namespace=queries;name=nobody}'
@@ -230,15 +280,18 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 
 {% cut "**0.0.4**" %}
 
-**Release date:** 2023-12-03
+**Дата релиза:** 2023-12-03
 
 
-- Applied YQL defaults from the documentation
-- Fixed a bag in YQL queries that don't use YT tables
-- Fixed a bag in YQL queries that use aggregate functions
-- Supported common UDF functions in YQL
+**Страница релиза:** [0.0.4](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.4)
 
-NB: This release is compatible only with the operator 0.5.0 and newer versions.
+
+- Применены значения YQL по умолчанию из документации
+- Исправлена ошибка в YQL‑запросах, не использующих таблицы YT
+- Исправлена ошибка в YQL‑запросах, использующих агрегатные функции
+- Добавлена поддержка распространённых UDF‑функций в YQL
+
+NB: Этот релиз совместим только с оператором 0.5.0 и более новыми версиями.
 https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 
 
@@ -248,11 +301,14 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 
 {% cut "**0.0.3**" %}
 
-**Release date:** 2023-11-14
+**Дата релиза:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
-- System query_tracker tables have been moved to sys bundle
+**Страница релиза:** [0.0.3](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.3)
+
+
+- Исправлена ошибка, из‑за которой транзакция пользователя истекала до завершения yql‑запроса в сетях только с IPv4.
+- Системные таблицы query_tracker перенесены в sys bundle
 
 
 {% endcut %}
@@ -260,17 +316,19 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 
 {% cut "**0.0.1**" %}
 
-**Release date:** 2023-10-19
+**Дата релиза:** 2023-10-19
 
 
-- Added authentication, now all requests are run on behalf of the user that initiated them.
-- Added support for v3 types in YQL queries.
-- Added the ability to set the default cluster to execute YQL queries on.
-- Changed the format of presenting YQL query errors.
-- Fixed a bug that caused errors during the execution of queries that did not return any result.
-- Fixed a bug that caused errors during the execution of queries that extracted data from dynamic tables.
-- Fixed a bug that caused memory usage errors. YqlAgent no longer crashes for no reason under the load.
+**Страница релиза:** [0.0.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.1)
+
+
+- Добавлена аутентификация, теперь все запросы выполняются от имени пользователя, который их инициировал.
+- Добавлена поддержка типов v3 в YQL‑запросах.
+- Добавлена возможность задавать кластер по умолчанию для выполнения YQL‑запросов.
+- Изменён формат представления ошибок YQL‑запросов.
+- Исправлена ошибка, которая приводила к сбоям при выполнении запросов, не возвращающих результат.
+- Исправлена ошибка, которая приводила к сбоям при выполнении запросов, извлекающих данные из динамических таблиц.
+- Исправлена ошибка, которая приводила к ошибкам использования памяти. YqlAgent больше не падает без причины под нагрузкой.
 
 
 {% endcut %}
-

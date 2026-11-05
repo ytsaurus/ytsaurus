@@ -8,6 +8,7 @@
 #include "chaos_cell_type_handler.h"
 #include "chaos_cell_bundle.h"
 #include "chaos_cell_bundle_type_handler.h"
+#include "chaos_manager_cell_directory_synchronizer.h"
 #include "chaos_replicated_table_node.h"
 #include "chaos_replicated_table_node_type_handler.h"
 #include "private.h"
@@ -24,8 +25,12 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
@@ -40,6 +45,7 @@ using namespace NCellServer;
 using namespace NTransactionServer;
 using namespace NCypressServer;
 using namespace NCellarClient;
+using namespace NHiveClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -53,6 +59,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto static& Logger = ChaosServerLogger;
+constexpr auto DefaultCellDirectorySynchronizerErrorDelay = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +72,10 @@ public:
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ChaosManager)
         , AlienClusterRegistry_(New<TAlienClusterRegistry>())
         , AlienCellSynchronizer_(CreateAlienCellSynchronizer(bootstrap))
+        , ChaosManagerCellDirectorySynchronizer_(CreateChaosManagerCellDirectorySynchronizer(
+            Bootstrap_->GetClusterConnection()->GetCellDirectory(),
+            Logger(),
+            DefaultCellDirectorySynchronizerErrorDelay))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
@@ -103,7 +114,9 @@ public:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeCellCreated(BIND_NO_PROPAGATE(&TChaosManager::OnCellCreated, MakeWeak(this)));
+        cellManager->SubscribeCellReconfigured(BIND_NO_PROPAGATE(&TChaosManager::OnCellReconfigured, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TChaosManager::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqCreateReplicationCard>({
@@ -248,7 +261,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, NYTree::EPermission::Use);
 
-        node->ChaosCellBundle().Assign(cellBundle);
+        node->SetChaosCellBundle(cellBundle);
     }
 
 private:
@@ -256,6 +269,8 @@ private:
 
     const TAlienClusterRegistryPtr AlienClusterRegistry_;
     const IAlienCellSynchronizerPtr AlienCellSynchronizer_;
+    const IChaosManagerCellDirectorySynchronizerPtr ChaosManagerCellDirectorySynchronizer_;
+
     THashSet<std::string> EnabledMetadataClusters_;
 
     //! Contains native trunk nodes for which IsQueue() is true.
@@ -292,9 +307,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a queue twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -304,9 +319,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown queue")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -316,9 +331,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a consumer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a consumer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -328,9 +343,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown consumer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -340,9 +355,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a producer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a producer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -352,9 +367,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown producer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown producer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -392,8 +407,18 @@ private:
                 alienClusterIndexes.insert(alienClusterIndex);
             }
         }
+
         for (auto alienClusterIndex : alienClusterIndexes) {
             cell->SetAlienConfigVersion(alienClusterIndex, 0);
+        }
+
+        ScheduleCellDirectoryUpdate(cell->GetDescriptor());
+    }
+
+    void OnCellReconfigured(TCellBase* cellBase)
+    {
+        if (cellBase->GetType() == EObjectType::ChaosCell && IsObjectAlive(cellBase)) {
+            ScheduleCellDirectoryUpdate(cellBase->GetDescriptor());
         }
     }
 
@@ -408,6 +433,34 @@ private:
         cellBase->GossipStatus().Local().Decommissioned = true;
     }
 
+    void OnAfterCellManagerSnapshotLoaded()
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& chaosCells = cellManager->Cells(ECellarType::Chaos);
+
+        std::vector<TCellDescriptor> knownCellDescriptors;
+        knownCellDescriptors.reserve(chaosCells.size());
+        for (const auto* cell : chaosCells) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+
+            knownCellDescriptors.push_back(cell->GetDescriptor());
+        }
+
+        ScheduleCellDirectoryUpdate(std::move(knownCellDescriptors));
+    }
+
+    void ScheduleCellDirectoryUpdate(TCellDescriptor cellDescriptor) const
+    {
+        ChaosManagerCellDirectorySynchronizer_->AddCellDescriptor(std::move(cellDescriptor));
+    }
+
+    void ScheduleCellDirectoryUpdate(std::vector<TCellDescriptor> cellDescriptors) const
+    {
+        ChaosManagerCellDirectorySynchronizer_->AddCellDescriptors(std::move(cellDescriptors));
+    }
+
     void HydraUpdateAlienCellPeers(NProto::TReqUpdateAlienCellPeers* request)
     {
         auto constellations = FromProto<std::vector<TAlienCellConstellation>>(request->constellations());
@@ -416,6 +469,8 @@ private:
         if (fullSync) {
             EnabledMetadataClusters_.clear();
         }
+
+        std::vector<TCellDescriptor> updatedCellDescriptors;
 
         for (const auto& [alienClusterIndex, alienCells, lostAlienCellIds, enableMetadataCells] : constellations) {
             const auto& clusterName = AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex);
@@ -436,32 +491,32 @@ private:
 
                 for (const auto& alienPeer : alienCell.AlienPeers) {
                     if (alienPeer.PeerId < 0 || alienPeer.PeerId >= std::ssize(cell->Peers())) {
-                        YT_LOG_ALERT("Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
-                            cell->GetId(),
-                            alienPeer.PeerId,
-                            clusterName);
+                        YT_TLOG_ALERT("Trying to update alien peer with invalid peer id")
+                            .With("ChaosCellId", cell->GetId())
+                            .With("PeerId", alienPeer.PeerId)
+                            .With("AlienCluster", clusterName);
                         continue;
                     }
 
                     if (!cell->IsAlienPeer(alienPeer.PeerId)) {
-                        YT_LOG_ALERT("Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
-                            cell->GetId(),
-                            alienPeer.PeerId,
-                            clusterName);
+                        YT_TLOG_ALERT("Trying to update local peer as alien, ignored")
+                            .With("ChaosCellId", cell->GetId())
+                            .With("PeerId", alienPeer.PeerId)
+                            .With("AlienCluster", clusterName);
                         continue;
                     }
 
                     cell->UpdateAlienPeer(alienPeer.PeerId, alienPeer.NodeDescriptor);
 
-                    YT_LOG_DEBUG("Updated alien peer config (ChaosCellId: %v, "
-                        "AlienCluster: %v, AlienConfigVersion: %v, PeerAddress: %v)",
-                        cell->GetId(),
-                        clusterName,
-                        alienCell.ConfigVersion,
-                        alienPeer.NodeDescriptor.GetDefaultAddress());
+                    YT_TLOG_DEBUG("Updated alien peer config")
+                        .With("ChaosCellId", cell->GetId())
+                        .With("AlienCluster", clusterName)
+                        .With("AlienConfigVersion", alienCell.ConfigVersion)
+                        .With("PeerAddress", alienPeer.NodeDescriptor.GetDefaultAddress());
                 }
 
                 cell->SetAlienConfigVersion(alienClusterIndex, alienCell.ConfigVersion);
+                updatedCellDescriptors.push_back(cell->GetDescriptor());
             }
 
             if (fullSync) {
@@ -479,11 +534,12 @@ private:
                         }
                     }
 
-                    YT_LOG_DEBUG("Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
-                        cellId,
-                        clusterName);
+                    YT_TLOG_DEBUG("Updated alien peer config for lost peers")
+                        .With("ChaosCellId", cellId)
+                        .With("AlienCluster", clusterName);
 
                     cell->SetAlienConfigVersion(alienClusterIndex, 0);
+                    updatedCellDescriptors.push_back(cell->GetDescriptor());
                 }
             }
         }
@@ -492,6 +548,8 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(*request);
         }
+
+        ScheduleCellDirectoryUpdate(std::move(updatedCellDescriptors));
     }
 
     void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)
@@ -499,8 +557,8 @@ private:
         auto indexToName = FromProto<std::vector<std::string>>(request->clusters());
         AlienClusterRegistry_->Reset(std::move(indexToName));
 
-        YT_LOG_DEBUG("Alien cluster registry is reset (ActualClusters: %v)",
-            AlienClusterRegistry_->GetIndexToName());
+        YT_TLOG_DEBUG("Alien cluster registry is reset")
+            .With("ActualClusters", AlienClusterRegistry_->GetIndexToName());
     }
 
     void HydraPrepareCreateReplicationCard(
@@ -531,9 +589,9 @@ private:
             if (auto* node = cypressManager->FindNode(trunkTable, transaction)) {
                 auto* tableNode = node->As<TChaosReplicatedTableNode>();
                 tableNode->SetReplicationCardId(replicationCardId);
-                YT_LOG_DEBUG("Replication card assigned to chaos replicated table (TableId: %v, ReplicationCardId: %v)",
-                    TVersionedNodeId(tableId, GetObjectId(transaction)),
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card assigned to chaos replicated table")
+                    .With("TableId", TVersionedNodeId(tableId, GetObjectId(transaction)))
+                    .With("ReplicationCardId", replicationCardId);
             }
         };
 
@@ -576,7 +634,6 @@ private:
 
         Load(context, *AlienClusterRegistry_);
 
-        // COMPAT(ponasenko-rs)
         Load(context, EnabledMetadataClusters_);
 
         Load(context, Queues_);
@@ -590,6 +647,7 @@ private:
 
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
+        ChaosManagerCellDirectorySynchronizer_->Reconfigure(config->CellDirectorySynchronizerErrorDelay);
     }
 
     void Clear() override
@@ -640,6 +698,7 @@ private:
     {
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
+        ChaosManagerCellDirectorySynchronizer_->Reconfigure(config->CellDirectorySynchronizerErrorDelay);
     }
 };
 

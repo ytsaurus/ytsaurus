@@ -701,14 +701,19 @@ TDqPhyStage RebuildStageInputsAsWide(const TDqPhyStage& stage, TExprContext& ctx
                     builder.Add<TCoAtom>().Build(ToString(idx));
                 }
 
-                newInputs.push_back(Build<TDqCnHashShuffle>(ctx, conn.Pos())
+                auto newShuffle = Build<TDqCnHashShuffle>(ctx, conn.Pos())
                     .Output<TDqOutput>()
                         .InitFrom(conn.Output())
                         .Stage(newStage)
                     .Build()
                     .KeyColumns(builder.Build().Value())
-                    .UseSpilling(shuffle.UseSpilling())
-                    .Done().Ptr());
+                    .UseSpilling(shuffle.UseSpilling());
+
+                if (shuffle.HashFunc().IsValid()) {
+                    newShuffle.HashFunc(shuffle.HashFunc().Cast());
+                }
+
+                newInputs.push_back(newShuffle.Done().Ptr());
             } else if (conn.Maybe<TDqCnMerge>()) {
                 auto merge = conn.Maybe<TDqCnMerge>().Cast();
                 auto builder = Build<TDqSortColumnList>(ctx, merge.SortColumns().Pos());
@@ -905,12 +910,13 @@ bool CanRebuildForWideBlockChannelOutput(bool forceBlocks, const TDqOutput& outp
 
 TDqPhyStage RebuildStageOutputAsWideBlock(const TDqPhyStage& stage, TExprContext& ctx)
 {
+    const TCoLambda program(ctx.DeepCopyLambda(stage.Program().Ref()));
     return Build<TDqPhyStage>(ctx, stage.Pos())
         .InitFrom(stage)
         .Program()
-            .Args(stage.Program().Args())
+            .Args(program.Args())
             .Body<TCoWideToBlocks>()
-                .Input(stage.Program().Body())
+                .Input(program.Body())
             .Build()
         .Build()
         .Done();

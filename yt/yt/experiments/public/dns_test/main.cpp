@@ -86,7 +86,7 @@ protected:
 
         auto resolver = CreateAresDnsResolver(config);
 
-        std::vector<TString> hostnames;
+        std::vector<std::string> hostnames;
         std::vector<TFuture<TNetworkAddress>> futures;
 
         auto t0 = TInstant::Now();
@@ -100,6 +100,7 @@ protected:
         }
 
         if (args.empty()) {
+            // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
             TString hostname;
             while (Cin.ReadLine(hostname)) {
                 hostnames.push_back(hostname);

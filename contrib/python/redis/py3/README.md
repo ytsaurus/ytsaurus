@@ -4,7 +4,7 @@ The Python interface to the Redis key-value store.
 
 [![CI](https://github.com/redis/redis-py/workflows/CI/badge.svg?branch=master)](https://github.com/redis/redis-py/actions?query=workflow%3ACI+branch%3Amaster)
 [![docs](https://readthedocs.org/projects/redis/badge/?version=stable&style=flat)](https://redis.readthedocs.io/en/stable/)
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/redis/redis-py/blob/master/LICENSE)
 [![pypi](https://badge.fury.io/py/redis.svg)](https://pypi.org/project/redis/)
 [![pre-release](https://img.shields.io/github/v/release/redis/redis-py?include_prereleases&label=latest-prerelease)](https://github.com/redis/redis-py/releases)
 [![codecov](https://codecov.io/gh/redis/redis-py/branch/master/graph/badge.svg?token=yenl5fzxxr)](https://codecov.io/gh/redis/redis-py)
@@ -15,7 +15,6 @@ The Python interface to the Redis key-value store.
 
 **Note:** redis-py 5.0 is the last version of redis-py that supports Python 3.7, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 5.1 supports Python 3.8+.<br>
 **Note:** redis-py 6.1.0 is the last version of redis-py that supports Python 3.8, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 6.2.0 supports Python 3.9+.
-**Note:** redis-py 7.0.1 is the last version of redis-py that supports Python 3.9, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 7.1.0 supports Python 3.10+.
 
 ---------------------------------------------
 
@@ -61,7 +60,7 @@ Looking for a high-level library to handle object mapping? See [redis-om-python]
 
 ## Supported Redis Versions
 
-The most recent version of this library supports Redis version [7.2](https://github.com/redis/redis/blob/7.2/00-RELEASENOTES), [7.4](https://github.com/redis/redis/blob/7.4/00-RELEASENOTES), [8.0](https://github.com/redis/redis/blob/8.0/00-RELEASENOTES) and [8.2](https://github.com/redis/redis/blob/8.2/00-RELEASENOTES).
+The most recent version of this library supports Redis version [7.2](https://github.com/redis/redis/blob/7.2/00-RELEASENOTES), [7.4](https://github.com/redis/redis/blob/7.4/00-RELEASENOTES), [8.0](https://github.com/redis/redis/blob/8.0/00-RELEASENOTES), [8.2](https://github.com/redis/redis/blob/8.2/00-RELEASENOTES), [8.4](https://github.com/redis/redis/blob/8.4/00-RELEASENOTES) and [8.6](https://github.com/redis/redis/blob/8.6/00-RELEASENOTES).
 
 The table below highlights version compatibility of the most-recent library versions and redis versions.
 
@@ -221,4 +220,4 @@ Special thanks to:
     system.
 -   Paul Hubbard for initial packaging support.
 
-[![Redis](./docs/_static/logo-redis.svg)](https://redis.io)
+[![Redis](https://github.com/redis/redis-py/blob/master/docs/_static/logo-redis.svg)](https://redis.io)

@@ -1,0 +1,14 @@
+#include "sink.h"
+
+#include <yt/yt/flow/library/cpp/common/registry.h>
+
+namespace NYT::NFlow::NSortedDynamicTable {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_FLOW_DEFINE_SINK(TSyncSink);
+YT_FLOW_DEFINE_SINK(TAsyncSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NSortedDynamicTable

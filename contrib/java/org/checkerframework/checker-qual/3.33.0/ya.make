@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(3.33.0)
+
+LICENSE(MIT)
+
+JAR_RESOURCE(4628887406)
+
+SRC_RESOURCE(4628887415)
+
+ORIGINAL_SOURCE(https://github.com/typetools/checker-framework.git)
+
+END()

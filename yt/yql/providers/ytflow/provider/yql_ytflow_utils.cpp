@@ -1,0 +1,429 @@
+#include "yql_ytflow_utils.h"
+
+#include <yql/essentials/core/expr_nodes/yql_expr_nodes.h>
+#include <yql/essentials/core/expr_nodes_gen/yql_expr_nodes_gen.h>
+#include <yql/essentials/core/yql_expr_csee.h>
+#include <yql/essentials/core/yql_expr_type_annotation.h>
+
+#include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
+#include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
+#include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_optimization.h>
+#include <yt/yql/providers/ytflow/integration/proto/yt.pb.h>
+
+#include <util/generic/algorithm.h>
+#include <util/generic/hash_set.h>
+#include <util/generic/strbuf.h>
+#include <util/generic/vector.h>
+
+#include <util/string/builder.h>
+#include <util/string/cast.h>
+#include <util/string/join.h>
+
+#include <google/protobuf/any.pb.h>
+
+
+namespace NYql {
+
+using namespace NNodes;
+
+
+namespace {
+
+TMaybe<TVector<TYtflowConsumer>> GetConsumersUnorderedImpl(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap,
+    bool strict
+) {
+    const auto operationParentsIt = parentsMap.find(operation.Raw());
+    YQL_ENSURE(operationParentsIt != parentsMap.end(),
+        "Unknown parent of " << operation.Ref().Content());
+
+    for (const auto* parent : operationParentsIt->second) {
+        if (!TYtflowOutput::Match(parent) && !TCoLeft::Match(parent)) {
+            YQL_ENSURE(!strict,
+                "Unexpected consumer " << parent->Content() << " of " << operation.Ref().Content());
+            return Nothing();
+        }
+    }
+
+    TVector<TYtflowConsumer> consumers;
+    for (const auto* parent : operationParentsIt->second) {
+        if (TCoLeft::Match(parent)) {
+            continue;
+        }
+
+        const auto parents = parentsMap.find(parent);
+        YQL_ENSURE(parents != parentsMap.end(), "Unknown parent of " << parent->Content());
+
+        const auto output = TYtflowOutput(parent);
+        for (const auto* consumer : parents->second) {
+            if (TYtflowPersistentSink::Match(consumer)) {
+                consumers.emplace_back(consumer, output);
+                continue;
+            }
+
+            YQL_ENSURE(consumer->IsList(),
+                "Unexpected consumer " << consumer->Content() << " of " << operation.Ref().Content());
+
+            const auto operationsIt = parentsMap.find(consumer);
+            YQL_ENSURE(operationsIt != parentsMap.end(), "Unknown parent of " << consumer->Content());
+            for (const auto* consumerOperation : operationsIt->second) {
+                YQL_ENSURE(TYtflowOpBase::Match(consumerOperation),
+                    "Unexpected consumer " << consumerOperation->Content() << " of " << operation.Ref().Content());
+                consumers.emplace_back(consumerOperation, output);
+            }
+        }
+    }
+
+    return consumers;
+}
+
+} // anonymous namespace
+
+IDataProvider* GetDataProvider(
+    const TExprNode& node,
+    const TTypeAnnotationContext& typeCtx
+) {
+    if (node.ChildrenSize() > 1) {
+        if (auto maybeDataSource = TMaybeNode<TCoDataSource>(node.Child(1))) {
+            auto dataSourceName = maybeDataSource.Cast().Category();
+            if (auto dataSource = typeCtx.DataSourceMap.FindPtr(dataSourceName)) {
+                return dataSource->Get();
+            }
+        } else if (auto maybeDataSink = TMaybeNode<TCoDataSink>(node.Child(1))) {
+            auto dataSinkName = maybeDataSink.Cast().Category();
+            if (auto dataSink = typeCtx.DataSinkMap.FindPtr(dataSinkName)) {
+                return dataSink->Get();
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+std::pair<TString, IYtflowIntegration*> GetYtflowIntegrationWithProviderName(
+    const TExprNode& node,
+    const TTypeAnnotationContext& typeCtx
+) {
+    auto* dataProvider = GetDataProvider(node, typeCtx);
+    if (dataProvider) {
+        return {TString(dataProvider->GetName()), dataProvider->GetYtflowIntegration()};
+    }
+
+    return {"", nullptr};
+}
+
+IYtflowIntegration* GetYtflowIntegration(
+    const TExprNode& node,
+    const TTypeAnnotationContext& typeCtx
+) {
+    return GetYtflowIntegrationWithProviderName(node, typeCtx).second;
+}
+
+IYtflowOptimization* GetYtflowOptimization(
+    const TExprNode& node,
+    const TTypeAnnotationContext& typeCtx
+) {
+    auto* dataProvider = GetDataProvider(node, typeCtx);
+    if (dataProvider) {
+        return dataProvider->GetYtflowOptimization();
+    }
+
+    return nullptr;
+}
+
+bool EnsureSpecificCallable(
+    const TExprNode& node,
+    const THashSet<TStringBuf>& callableNames,
+    TExprContext& ctx
+) {
+    if (!EnsureCallable(node, ctx)) {
+        return false;
+    }
+
+    if (!node.IsCallable(callableNames)) {
+        ctx.AddError(TIssue(
+            ctx.GetPosition(node.Pos()),
+            TStringBuilder()
+                << "Expected callables: " << JoinSeq(", ", callableNames)
+                << ", but got: " << node.Content()));
+
+        return false;
+    }
+
+    return true;
+}
+
+bool EnsureSpecificDataSource(
+    const TExprNode& node,
+    const THashSet<TStringBuf>& expectedCategories,
+    TExprContext& ctx
+) {
+    if (!EnsureDataSource(node, ctx)) {
+        return false;
+    }
+
+    auto category = TCoDataSource(&node).Category().Value();
+
+    if (!expectedCategories.contains(category)) {
+        ctx.AddError(TIssue(
+            ctx.GetPosition(node.Pos()),
+            TStringBuilder()
+                << "Expected datasource category: " << JoinSeq(", ", expectedCategories)
+                << ", but got: " << category));
+
+        return false;
+    }
+
+    return true;
+}
+
+bool EnsureSpecificDataSink(
+    const TExprNode& node,
+    const THashSet<TStringBuf>& expectedCategories,
+    TExprContext& ctx
+) {
+    if (!EnsureDataSink(node, ctx)) {
+        return false;
+    }
+
+    auto category = TCoDataSink(&node).Category().Value();
+
+    if (!expectedCategories.contains(category)) {
+        ctx.AddError(TIssue(
+            ctx.GetPosition(node.Pos()),
+            TStringBuilder()
+                << "Expected datasink category: " << JoinSeq(", ", expectedCategories)
+                << ", but got: " << category));
+
+        return false;
+    }
+
+    return true;
+}
+
+bool EnsureYtflowOutputItemType(
+    TPositionHandle position,
+    const TTypeAnnotationNode& type,
+    TExprContext& ctx
+) {
+    if (type.GetKind() == ETypeAnnotationKind::Variant) {
+        const auto* underlyingType = type.Cast<TVariantExprType>()->GetUnderlyingType();
+        if (!EnsureTupleType(position, *underlyingType, ctx)) {
+            return false;
+        }
+
+        for (const auto* itemType : underlyingType->Cast<TTupleExprType>()->GetItems()) {
+            if (!EnsureStructType(position, *itemType, ctx)) {
+                return false;
+            }
+        }
+    } else if (type.GetKind() != ETypeAnnotationKind::Struct) {
+        ctx.AddError(TIssue(ctx.GetPosition(position),
+            TStringBuilder() << "Expected struct or variant type, but got: " << type));
+        return false;
+    }
+
+    return true;
+}
+
+bool EnsureListOfStructs(
+    TPositionHandle position,
+    const TTypeAnnotationNode& type,
+    TExprContext& ctx
+) {
+    if (!EnsureListType(position, type, ctx)) {
+        return false;
+    }
+
+    return EnsureStructType(position, *type.Cast<TListExprType>()->GetItemType(), ctx);
+}
+
+bool IsYtPersistentSink(
+    const TExprNode& node,
+    TExprContext& ctx,
+    const TTypeAnnotationContext& typeCtx
+) {
+    ::google::protobuf::Any settings;
+    return TryGetYtSinkSettings(node, ctx, typeCtx, settings) &&
+        (settings.Is<NYtflow::NProto::TYtQueueSinkMessage>() ||
+            settings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>());
+}
+
+bool TryGetYtSinkSettings(
+    const TExprNode& node,
+    TExprContext& ctx,
+    const TTypeAnnotationContext& typeCtx,
+    ::google::protobuf::Any& sinkSettings
+) {
+    auto maybePersistentSink = TMaybeNode<TYtflowPersistentSink>(&node);
+    if (!maybePersistentSink) {
+        return false;
+    }
+
+    auto maybeWriteWrap = maybePersistentSink.Write().Maybe<TYtflowWriteWrap>();
+    if (!maybeWriteWrap) {
+        return false;
+    }
+
+    auto input = maybeWriteWrap.Cast().Input();
+
+    auto* ytflowIntegration = GetYtflowIntegration(input.Ref(), typeCtx);
+    YQL_ENSURE(ytflowIntegration);
+
+    ytflowIntegration->FillSinkSettings(input.Ref(), sinkSettings, ctx);
+
+    return sinkSettings.Is<NYtflow::NProto::TYtQueueSinkMessage>() ||
+        sinkSettings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>();
+}
+
+bool IsYtflowProviderInput(const TExprNode& node) {
+    return TYtflowReadWrap::Match(&node) || TYtflowOutput::Match(&node);
+}
+
+bool IsSingleOutput(const TYtflowMapBase& map)
+{
+    return map.Lambda().Ref().GetTypeAnn()->Cast<TStreamExprType>()
+        ->GetItemType()->GetKind() == ETypeAnnotationKind::Struct;
+}
+
+TExprNode::TPtr RemoveSettings(const TExprNode& settings, const THashSet<TStringBuf>& names, TExprContext& ctx) {
+    TExprNode::TListType children;
+    for (auto setting : settings.Children()) {
+        if (setting->ChildrenSize() != 0 && names.contains(setting->Head().Content())) {
+            continue;
+        }
+        children.push_back(setting);
+    }
+
+    return ctx.NewList(settings.Pos(), std::move(children));
+}
+
+TMaybe<TVector<TYtflowConsumer>> GetConsumersUnordered(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap)
+{
+    return GetConsumersUnorderedImpl(operation, parentsMap, /*strict*/ false);
+}
+
+TVector<TYtflowConsumer> GetConsumersUnorderedStrict(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap)
+{
+    auto consumers = GetConsumersUnorderedImpl(operation, parentsMap, /*strict*/ true);
+    YQL_ENSURE(consumers);
+    return std::move(*consumers);
+}
+
+TMaybe<TVector<TYtflowConsumer>> GetConsumersOrdered(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap
+) {
+    auto consumers = GetConsumersUnordered(operation, parentsMap);
+    if (consumers) {
+        Sort(*consumers, [](const TYtflowConsumer& left, const TYtflowConsumer& right) {
+            return CompareNodes(*left.first, *right.first) < 0;
+        });
+    }
+
+    return consumers;
+}
+
+TVector<TYtflowConsumer> GetConsumersOrderedStrict(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap)
+{
+    auto consumers = GetConsumersUnorderedStrict(operation, parentsMap);
+    Sort(consumers, [] (const TYtflowConsumer& left, const TYtflowConsumer& right) {
+        return CompareNodes(*left.first, *right.first) < 0;
+    });
+    return consumers;
+}
+
+TVector<TCoLeft> GetLeftNodesFromParents(
+    const TYtflowOpBase& operation,
+    const TParentsMap& parentsMap)
+{
+    const auto parentsIt = parentsMap.find(operation.Raw());
+    YQL_ENSURE(parentsIt != parentsMap.end(), "Unknown parent of " << operation.Ref().Content());
+
+    TVector<TCoLeft> leftNodes;
+    for (const auto* parent : parentsIt->second) {
+        if (TCoLeft::Match(parent)) {
+            leftNodes.push_back(TCoLeft(parent));
+        }
+    }
+
+    return leftNodes;
+}
+
+TExprNode::TPtr BuildOperationSource(
+    const TExprNode::TPtr& input,
+    TSyncMap& syncList,
+    TExprContext& ctx,
+    const TTypeAnnotationContext& typeCtx
+) {
+    TExprNode::TPtr source;
+    TExprNode::TPtr world;
+
+    if (auto maybeReadWrap = TMaybeNode<TYtflowReadWrap>(input)) {
+        auto providerInput = maybeReadWrap.Cast().Input();
+
+        auto* ytflowIntegration = GetYtflowIntegration(providerInput.Ref(), typeCtx);
+        YQL_ENSURE(ytflowIntegration);
+
+        source = Build<TYtflowPersistentSource>(ctx, maybeReadWrap.Cast().Pos())
+            .Input(maybeReadWrap.Cast())
+            .Done().Ptr();
+
+        world = ytflowIntegration->GetReadWorld(providerInput.Ref(), ctx);
+    } else {
+        auto output = TYtflowOutput(input);
+        source = output.Ptr();
+        world = output.Operation().World().Ptr();
+    }
+
+    syncList.emplace(world, syncList.size());
+
+    return source;
+}
+
+const TStructExprType* FilterMembers(
+    const TStructExprType* structType,
+    const TVector<TStringBuf>& members,
+    TExprContext& ctx
+) {
+    const auto& items = structType->GetItems();
+    TVector<const TItemExprType*> extractedItems;
+
+    for (const auto& member : members) {
+        auto maybeIndex = structType->FindItem(member);
+        YQL_ENSURE(maybeIndex);
+        extractedItems.push_back(items[*maybeIndex]);
+    }
+
+    return ctx.MakeType<TStructExprType>(std::move(extractedItems));
+}
+
+TVector<TString> ParseTupleOfAtoms(const TExprNode& node) {
+    TVector<TString> values;
+    values.reserve(node.ChildrenSize());
+
+    for (const auto& child : node.Children()) {
+        values.push_back(TString(child->Content()));
+    }
+
+    return values;
+}
+
+bool IsTrivialLambda(const TExprNode& node) {
+    YQL_ENSURE(node.IsLambda());
+
+    if (node.Head().ChildrenSize() != 1) {
+        return false;
+    }
+
+    return &node.Head().Head() == &node.Tail();
+}
+
+} // namespace NYql

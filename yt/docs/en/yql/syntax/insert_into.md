@@ -30,7 +30,7 @@ Search for the table by name in the database set by the [USE](use.md) operator.
   FROM source_table;
   ```
 
-## Using modifiers
+## Using modifiers {#using-modifiers} {#hints}
 
 Write operation can be performed with one or more modifiers. The modifier is specified after the `WITH` keyword after the table name: `INSERT INTO ... WITH SOME_HINT`. For example, to clear existing data from the table before executing a write operation, just add the `WITH TRUNCATE` modifier:
 

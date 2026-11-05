@@ -77,7 +77,7 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishRestore);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MountConfigAttributesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, MountConfigAttributesLock_);
     mutable TImmutableMountConfigAttributeDictionaryPtr ImmutableMountConfigAttributes_;
     TMutableMountConfigAttributeDictionaryPtr MutableMountConfigAttributes_;
 

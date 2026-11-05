@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/threading/public.h>
 
+#include <library/cpp/yt/containers/enum_indexed_array.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #ifdef _linux_
@@ -44,6 +46,8 @@ struct TIOEngineConfigBase
     i64 MaxBytesPerRead;
     i64 MaxBytesPerWrite;
 
+    int DirectIOBlockSize;
+
     // For tests only.
     std::optional<i64> SimulatedMaxBytesPerWrite;
     std::optional<i64> SimulatedMaxBytesPerRead;
@@ -55,6 +59,7 @@ struct TIOEngineConfigBase
     std::optional<TDuration> SicknessExpirationTimeout;
 
     EDirectIOPolicy UseDirectIOForReads;
+    EDirectIOPolicy UseDirectIOForWrites;
 
     i64 TotalRequestLimit;
     i64 WriteRequestLimit;
@@ -73,7 +78,7 @@ public:
     void Increment();
     void Decrement();
 
-    static TInflightCounter Create(NProfiling::TProfiler& profiler, const TString& name);
+    static TInflightCounter Create(NProfiling::TProfiler& profiler, const std::string& name);
 
 private:
     struct TState
@@ -95,11 +100,16 @@ struct TIOEngineSensors final
 
     struct TRequestSensors
     {
-        // Single request time.
-        NProfiling::TEventTimer Timer;
+        // Time spent waiting for request execution.
+        // Registered for read/write sensors only.
+        NProfiling::TEventTimer WaitTimer;
 
-        // Single request time using huge pages.
-        NProfiling::TEventTimer HugePageTimer;
+        // Single I/O operation execution time.
+        NProfiling::TEventTimer ExecTimer;
+
+        // Single request wait plus execution time.
+        // Registered for read/write sensors only.
+        NProfiling::TEventTimer TotalTimer;
 
         // Cumulative execution time of all requests.
         NProfiling::TTimeCounter TotalTimeCounter;
@@ -109,28 +119,27 @@ struct TIOEngineSensors final
 
         // Currently executing requests count.
         TInflightCounter InflightCounter;
-
-        // Currently executing requests count with huge pages.
-        TInflightCounter HugePageInflightCounter;
     };
 
-    NProfiling::TCounter WrittenBytesCounter;
-    NProfiling::TCounter ReadBytesCounter;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TCounter> WrittenBytesCounter;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TCounter> ReadBytesCounter;
 
     NProfiling::TCounter KernelWrittenBytesCounter;
     NProfiling::TCounter KernelReadBytesCounter;
 
-    TRequestSensors ReadSensors;
-    TRequestSensors WriteSensors;
-    TRequestSensors SyncSensors;
-    TRequestSensors DataSyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> ReadSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> WriteSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> SyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> DataSyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightReadRequestSensors;
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightWriteRequestSensors;
     TRequestSensors IOSubmitSensors;
 
     std::atomic<i64> TotalReadBytesCounter = 0;
     std::atomic<i64> TotalWrittenBytesCounter = 0;
 
-    void RegisterWrittenBytes(i64 count);
-    void RegisterReadBytes(i64 count);
+    void RegisterWrittenBytes(i64 count, EWorkloadCategory category);
+    void RegisterReadBytes(i64 count, EWorkloadCategory category);
 
     void UpdateKernelStatistics();
 };
@@ -143,7 +152,6 @@ class TRequestStatsGuard
 {
 public:
     explicit TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors);
-    TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors, bool usingHugePages);
     TRequestStatsGuard(TRequestStatsGuard&& other) = default;
 
     ~TRequestStatsGuard();
@@ -153,7 +161,6 @@ public:
 private:
     TIOEngineSensors::TRequestSensors Sensors_;
     NProfiling::TWallTimer Timer_;
-    bool UsingHugePages_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +194,7 @@ public:
     i64 GetTotalWrittenBytes() const override;
 
     EDirectIOPolicy UseDirectIOForReads() const override;
+    EDirectIOPolicy UseDirectIOForWrites() const override;
 
     bool IsInFlightRequestLimitExceeded() const override;
     bool IsInFlightReadRequestLimitExceeded() const override;
@@ -207,7 +215,7 @@ protected:
     using TConfig = TIOEngineConfigBase;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    const TString LocationId_;
+    const std::string LocationId_;
     const IHugePageManagerPtr HugePageManager_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
@@ -215,7 +223,7 @@ protected:
 
     TIOEngineBase(
         TConfigPtr config,
-        TString locationId,
+        std::string locationId,
         IHugePageManagerPtr hugePageManager,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger);
@@ -223,20 +231,30 @@ protected:
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request);
 
     TFlushDirectoryResponse DoFlushDirectory(const TFlushDirectoryRequest& request);
-    TCloseResponse DoClose(const TCloseRequest& request);
+    TCloseResponse DoClose(const TCloseRequest& request, EWorkloadCategory category);
     void DoAllocate(const TAllocateRequest& request);
     static int GetLockOp(ELockFileMode mode);
     void DoLock(const TLockRequest& request);
     void DoResize(const TResizeRequest& request);
-    void AddWriteWaitTimeSample(TDuration duration);
-    void AddReadWaitTimeSample(TDuration duration);
+    void AddWriteWaitTimeSample(TDuration duration, EWorkloadCategory category);
+    void AddReadWaitTimeSample(TDuration duration, EWorkloadCategory category);
+
+    //! Rounds \p size up to a multiple of \p directIoBlockSize.
     TSharedMutableRef AllocateWriteBlob(
         i64 size,
         i64 directIoBlockSize);
+
+    //! Returns \p buffers as-is if they already satisfy the direct IO alignment
+    //! requirements; otherwise copies them into a single blob zero-padded up to
+    //! a multiple of \p directIoBlockSize.
+    std::vector<TSharedRef> PrepareDirectIOWriteBuffers(
+        const std::vector<TSharedRef>& buffers,
+        i64 directIoBlockSize);
+
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
-    TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType);
+    TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType, EWorkloadCategory category);
 
 private:
     const TConfigPtr StaticConfig_;
@@ -247,10 +265,10 @@ private:
     const IPrioritizedInvokerPtr AuxInvoker_;
     const IPrioritizedInvokerPtr FsyncInvoker_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadWaitLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ReadWaitLock_);
     std::optional<TInstant> SickReadWaitStart_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriteWaitLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, WriteWaitLock_);
     std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = false;
@@ -277,7 +295,7 @@ class TRequestCounterGuard
 {
 public:
     TRequestCounterGuard();
-    TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
+    TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType, EWorkloadCategory category);
     TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
     TRequestCounterGuard(TRequestCounterGuard&& other) noexcept;
     ~TRequestCounterGuard();
@@ -290,6 +308,7 @@ public:
 private:
     TIntrusivePtr<TIOEngineBase> Engine_;
     EIOEngineRequestType RequestType_;
+    EWorkloadCategory Category_ = EWorkloadCategory::Idle;
 
     void MoveFrom(TRequestCounterGuard&& other);
 };

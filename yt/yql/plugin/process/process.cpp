@@ -3,6 +3,7 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -42,6 +43,23 @@ TQueryResult ToQueryResult(const TYqlResponse& yqlResponse)
     SetQueryResultField(result.YsonError, yqlResponse, &TYqlResponse::has_error, &TYqlResponse::error);
     SetQueryResultField(result.TaskInfo, yqlResponse, &TYqlResponse::has_task_info, &TYqlResponse::task_info);
     SetQueryResultField(result.Ast, yqlResponse, &TYqlResponse::has_ast, &TYqlResponse::ast);
+
+    return result;
+}
+
+template <class TResponse>
+TClustersResult ToClustersResult(const TResponse& response)
+{
+    TClustersResult result;
+    for (const auto& cluster : response->clusters()) {
+        result.Clusters.emplace_back(cluster.cluster_name(), cluster.cluster_address());
+    }
+    if (response->has_default_cluster()) {
+        result.DefaultCluster = response->default_cluster();
+    }
+    if (response->has_error()) {
+        result.YsonError = response->error();
+    }
 
     return result;
 }
@@ -88,31 +106,43 @@ TClustersResult TYqlExecutorProcess::GetUsedClusters(
 
     auto response = WaitFor(getUsedClustersReq->Invoke());
     if (!response.IsOK()) {
-        YT_LOG_ERROR(response, "Failed to get cluster result from subprocess (QueryId: %v, SlotIndex: %v)", queryId, SlotIndex_);
+        YT_TLOG_ERROR("Failed to get cluster result from subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
         return ToErrorResponse<TClustersResult>("Failed to get used clusters result from subprocess", response);
     }
 
-    auto responseValue = response.Value();
-    TClustersResult result;
-    for (const auto& cluster: responseValue->clusters()) {
-        result.Clusters.emplace_back(cluster.cluster_name(), cluster.cluster_address());
+    return ToClustersResult(response.Value());
+}
+
+TClustersResult TYqlExecutorProcess::GetClustersInfo(TQueryId queryId)
+{
+    auto request = PluginProxy_.GetClustersInfo();
+    ToProto(request->mutable_query_id(), queryId);
+
+    auto response = WaitFor(request->Invoke());
+    if (!response.IsOK()) {
+        YT_TLOG_ERROR("Failed to get clusters info from subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
+        return ToErrorResponse<TClustersResult>("Failed to get clusters info from subprocess", response);
     }
 
-    if (responseValue->has_error()) {
-      result.YsonError = responseValue->error();
-    }
-
-    return result;
+    return ToClustersResult(response.Value());
 }
 
 TQueryResult TYqlExecutorProcess::Run(
     TQueryId queryId,
     TString user,
+    TString queryIdentityToken,
     TYsonString credentials,
     TString queryText,
     TYsonString settings,
     std::vector<TQueryFile> files,
-    int executeMode)
+    int executeMode,
+    NYqlClient::EQueryType queryType)
 {
     {
         auto guard = Guard(ActiveQueryIdLock_);
@@ -123,6 +153,7 @@ TQueryResult TYqlExecutorProcess::Run(
 
     ToProto(runQueryReq->mutable_query_id(), queryId);
     runQueryReq->set_user(user);
+    runQueryReq->set_query_identity_token(queryIdentityToken);
     runQueryReq->set_credentials(credentials.ToString());
     runQueryReq->set_query_text(queryText);
     runQueryReq->set_settings(settings.ToString());
@@ -135,27 +166,36 @@ TQueryResult TYqlExecutorProcess::Run(
     }
 
     runQueryReq->set_mode(executeMode);
+    runQueryReq->set_query_type(ToProto(queryType));
 
     auto response = WaitFor(runQueryReq->Invoke());
     if (!response.IsOK()) {
-        YT_LOG_ERROR(response, "Failed to run query in subprocess (QueryId: %v, SlotIndex %v)", queryId, SlotIndex_);
+        YT_TLOG_ERROR("Failed to run query in subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
         return ToErrorResponse<TQueryResult>("Failed to run query in subprocess", response);
     }
 
     return ToQueryResult(response.Value()->response());
 }
 
-TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId)
+TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/)
 {
-    YT_LOG_INFO("Getting query progress (SlotIndex: %v, QueryId: %v)", SlotIndex_, queryId);
+    YT_TLOG_INFO("Getting query progress")
+        .With("SlotIndex", SlotIndex_)
+        .With("QueryId", queryId);
 
     auto getProgressReq = PluginProxy_.GetQueryProgress();
     ToProto(getProgressReq->mutable_query_id(), queryId);
     auto response = WaitFor(getProgressReq->Invoke());
 
     if (!response.IsOK()) {
-        YT_LOG_ERROR("Failed to get query progress from subprocess (QueryId: %v, SlotIndex %v)", queryId, SlotIndex_);
-        return ToErrorResponse<TQueryResult>("Failed to get query result from subprocess", response);
+        YT_TLOG_ERROR("Failed to get query progress from subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
+        return ToErrorResponse<TQueryResult>("Failed to get query progress from subprocess", response);
     }
 
     return ToQueryResult(response.Value()->response());
@@ -163,13 +203,18 @@ TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId)
 
 TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId)
 {
-    YT_LOG_INFO("Aborting query (SlotIndex: %v, QueryId: %v)", SlotIndex_, queryId);
+    YT_TLOG_INFO("Aborting query")
+        .With("SlotIndex", SlotIndex_)
+        .With("QueryId", queryId);
     auto abortQueryReq = PluginProxy_.AbortQuery();
     ToProto(abortQueryReq->mutable_query_id(), queryId);
 
     auto response = WaitFor(abortQueryReq->Invoke());
     if (!response.IsOK()) {
-        YT_LOG_ERROR(response, "Failed to abort query (QueryId: %v, SlotIndex: %v)", queryId, SlotIndex_);
+        YT_TLOG_ERROR("Failed to abort query")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
         return ToErrorResponse<TAbortResult>("Failed to abort query", response);
     }
 
@@ -183,6 +228,7 @@ TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId)
 TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     TQueryId queryId,
     TString user,
+    TString queryIdentityToken,
     TString queryText,
     TYsonString settings,
     TYsonString credentials)
@@ -191,13 +237,15 @@ TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
 
     ToProto(getDeclaredParametersInfoReq->mutable_query_id(), queryId);
     getDeclaredParametersInfoReq->set_user(user);
+    getDeclaredParametersInfoReq->set_query_identity_token(queryIdentityToken);
     getDeclaredParametersInfoReq->set_query_text(queryText);
     getDeclaredParametersInfoReq->set_settings(settings.ToString());
     getDeclaredParametersInfoReq->set_credentials(credentials.ToString());
 
     auto response = WaitFor(getDeclaredParametersInfoReq->Invoke());
     if (!response.IsOK()) {
-        YT_LOG_ERROR(response, "Failed to get declared parameters info");
+        YT_TLOG_ERROR("Failed to get declared parameters info")
+            .With(response);
         THROW_ERROR response;
     }
 
@@ -210,8 +258,8 @@ template<typename T, typename R>
 T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const
 {
     TError error = TError(errorMessage)
-        << response
-        << TErrorAttribute("slot_index", SlotIndex_);
+        .With(response)
+        .With("slot_index", SlotIndex_);
 
     return T{
         .YsonError = ConvertToYsonString<TError>(error).ToString()
@@ -228,9 +276,49 @@ int TYqlExecutorProcess::DynamicConfigVersion() const
     return DynamicConfigVersion_;
 }
 
-void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*config*/)
+void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr /*config*/)
 {
     // do nothing
+}
+
+void TYqlExecutorProcess::OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/)
+{
+    // Not implemented
+}
+
+void TYqlExecutorProcess::RegisterQuery(TQueryId queryId, TYsonString settings)
+{
+    auto registerQueryReq = PluginProxy_.RegisterQuery();
+
+    ToProto(registerQueryReq->mutable_query_id(), queryId);
+    registerQueryReq->set_settings(settings.ToString());
+
+    auto response = WaitFor(registerQueryReq->Invoke());
+    if (!response.IsOK()) {
+        YT_TLOG_ERROR("Failed to register query")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
+
+        THROW_ERROR response;
+    }
+}
+
+void TYqlExecutorProcess::UnregisterQuery(TQueryId queryId)
+{
+    auto unregisterQueryReq = PluginProxy_.UnregisterQuery();
+
+    ToProto(unregisterQueryReq->mutable_query_id(), queryId);
+
+    auto response = WaitFor(unregisterQueryReq->Invoke());
+    if (!response.IsOK()) {
+        YT_TLOG_ERROR("Failed to unregister query")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
+
+        THROW_ERROR response;
+    }
 }
 
 void TYqlExecutorProcess::Start()
@@ -254,13 +342,16 @@ void TYqlExecutorProcess::SubscribeOnFinish(TCallback<void (const TErrorOr<void>
 bool TYqlExecutorProcess::WaitReady()
 {
     // Here we are waiting for rpc server inside started subprocess to be ready to accept calls.
-    YT_LOG_DEBUG("Waiting for process to be ready (SlotIndex: %v)", SlotIndex_);
+    YT_TLOG_DEBUG("Waiting for process to be ready")
+        .With("SlotIndex", SlotIndex_);
     return DoWithRetry<std::exception>(
         BIND(&TYqlExecutorProcess::CheckReady, MakeStrong(this)),
         StartPluginRetryPolicy_,
         false,
         [this](const std::exception& exception) {
-            YT_LOG_WARNING(exception, "Failed to start yql plugin, retrying (SlotIndex: %v)", SlotIndex_);
+            YT_TLOG_WARNING("Failed to start yql plugin, retrying")
+                .With("SlotIndex", SlotIndex_)
+                .With(exception);
         });
 }
 

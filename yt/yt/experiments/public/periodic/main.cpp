@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    TString mode(argv[1]);
+    std::string mode(argv[1]);
     if (mode == "sleep") {
         RunViaSleep();
     }

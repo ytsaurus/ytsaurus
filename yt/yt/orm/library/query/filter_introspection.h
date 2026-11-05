@@ -36,7 +36,7 @@ struct TOptionalLiteralValueWrapper
     std::optional<T> TryMoveAs()
     {
         if (Value) {
-            if (auto* typedValue = std::get_if<T>(&Value.value())) {
+            if (auto* typedValue = std::get_if<T>(&*Value)) {
                 return std::move(*typedValue);
             }
         }
@@ -57,6 +57,10 @@ struct TOptionalLiteralValueWrapper
  */
 TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
     const std::string& filterQuery,
+    const NYPath::TYPath& attributePath);
+
+TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
+    const NQueryClient::NAst::TExpressionPtr filterExpression,
     const NYPath::TYPath& attributePath);
 
 //! Introspects #filterExpression, trying to find non-trivial reference to #referenceName,

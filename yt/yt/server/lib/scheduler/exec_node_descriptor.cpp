@@ -56,29 +56,6 @@ const std::string& TExecNodeDescriptor::GetDefaultAddress() const
     return NNodeTrackerClient::GetDefaultAddress(Addresses);
 }
 
-void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Id);
-    std::string oldAddress;
-    if (context.GetVersion() < ToUnderlying(NControllerAgent::ESnapshotVersion::RemoveAddressFromJob)) {
-        Persist(context, oldAddress);
-    }
-    Persist(context, IOWeight);
-    Persist(context, Online);
-    Persist(context, ResourceLimits);
-    Persist(context, DiskResources);
-    Persist(context, Tags);
-
-    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::AddAddressesToJob)) {
-        Persist(context, Addresses);
-    }
-    if (context.GetVersion() < ToUnderlying(NControllerAgent::ESnapshotVersion::RemoveAddressFromJob)) {
-        Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, std::move(oldAddress));
-    }
-}
-
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
     protoDescriptor->set_node_id(ToProto(descriptor.Id));

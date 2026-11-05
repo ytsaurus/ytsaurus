@@ -55,7 +55,7 @@ TFuture<void> TSynchronizerBase::GetFirstSuccessfulSyncFuture()
     return FirstSuccessfulSyncPromise_.ToFuture();
 }
 
-TFuture<void> TSynchronizerBase::DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately)
+TFuture<void> TSynchronizerBase::DoStart(TGuard<TSpinLock>&& guard, bool syncImmediately)
 {
     YT_VERIFY(!Stopped_);
 
@@ -91,7 +91,8 @@ void TSynchronizerBase::OnSync()
         FirstSuccessfulSyncPromise_.TrySet();
     } catch (const std::exception& ex) {
         TError error(ex);
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Error synchronizing")
+            .With(error);
         promise.Set(std::move(error));
     }
 }

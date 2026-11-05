@@ -36,6 +36,7 @@
 #include "rdkafka_proto.h"
 #include "rdkafka_offset.h"
 #include "rdkafka_error.h"
+#include "rdkafka_share_acknowledgement.h"
 
 /* Current number of rd_kafka_op_t */
 rd_atomic32_t rd_kafka_op_cnt;
@@ -122,7 +123,25 @@ const char *rd_kafka_op2str(rd_kafka_op_type_t type) {
                 "REPLY:RD_KAFKA_OP_SET_TELEMETRY_BROKER",
             [RD_KAFKA_OP_TERMINATE_TELEMETRY] =
                 "REPLY:RD_KAFKA_OP_TERMINATE_TELEMETRY",
-            [RD_KAFKA_OP_ELECTLEADERS] = "REPLY:ELECTLEADERS",
+            [RD_KAFKA_OP_ELECTLEADERS]       = "REPLY:ELECTLEADERS",
+            [RD_KAFKA_OP_SHARE_FETCH]        = "REPLY:SHARE_FETCH",
+            [RD_KAFKA_OP_SHARE_FETCH_FANOUT] = "REPLY:SHARE_FETCH_FANOUT",
+            [RD_KAFKA_OP_SHARE_SESSION_PARTITION_ADD] =
+                "REPLY:SHARE_SESSION_PARTITION_ADD",
+            [RD_KAFKA_OP_SHARE_SESSION_PARTITION_REMOVE] =
+                "REPLY:SHARE_SESSION_PARTITION_REMOVE",
+            [RD_KAFKA_OP_SHARE_FETCH_RESPONSE] = "REPLY:SHARE_FETCH_RESPONSE",
+            [RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_EXECUTE] =
+                "REPLY:SHARE_ACK_COMMIT_CB_EXECUTE",
+            [RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_REGISTER] =
+                "REPLY:SHARE_ACK_COMMIT_CB_REGISTER",
+            [RD_KAFKA_OP_SHARE_COMMIT_ASYNC_FANOUT] =
+                "REPLY:SHARE_COMMIT_ASYNC_FANOUT",
+            [RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT] =
+                "REPLY:SHARE_COMMIT_SYNC_FANOUT",
+            [RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT_REPLY] =
+                "REPLY:SHARE_COMMIT_SYNC_FANOUT_REPLY",
+            [RD_KAFKA_OP_SHARE_SESSION_CLEAR] = "REPLY:SHARE_SESSION_CLEAR",
         };
 
         if (type & RD_KAFKA_OP_REPLY)
@@ -228,7 +247,7 @@ rd_kafka_op_t *rd_kafka_op_new0(const char *source, rd_kafka_op_type_t type) {
             [RD_KAFKA_OP_PARTITION_JOIN]   = _RD_KAFKA_OP_EMPTY,
             [RD_KAFKA_OP_PARTITION_LEAVE]  = _RD_KAFKA_OP_EMPTY,
             [RD_KAFKA_OP_REBALANCE]        = sizeof(rko->rko_u.rebalance),
-            [RD_KAFKA_OP_TERMINATE]        = _RD_KAFKA_OP_EMPTY,
+            [RD_KAFKA_OP_TERMINATE]        = sizeof(rko->rko_u.terminated),
             [RD_KAFKA_OP_COORD_QUERY]      = _RD_KAFKA_OP_EMPTY,
             [RD_KAFKA_OP_SUBSCRIBE]        = sizeof(rko->rko_u.subscribe),
             [RD_KAFKA_OP_ASSIGN]           = sizeof(rko->rko_u.assign),
@@ -287,6 +306,24 @@ rd_kafka_op_t *rd_kafka_op_new0(const char *source, rd_kafka_op_type_t type) {
                 sizeof(rko->rko_u.telemetry_broker),
             [RD_KAFKA_OP_TERMINATE_TELEMETRY] = _RD_KAFKA_OP_EMPTY,
             [RD_KAFKA_OP_ELECTLEADERS] = sizeof(rko->rko_u.admin_request),
+            [RD_KAFKA_OP_SHARE_FETCH]  = sizeof(rko->rko_u.share_fetch),
+            [RD_KAFKA_OP_SHARE_FETCH_FANOUT] =
+                sizeof(rko->rko_u.share_fetch_fanout),
+            [RD_KAFKA_OP_SHARE_SESSION_PARTITION_ADD]    = _RD_KAFKA_OP_EMPTY,
+            [RD_KAFKA_OP_SHARE_SESSION_PARTITION_REMOVE] = _RD_KAFKA_OP_EMPTY,
+            [RD_KAFKA_OP_SHARE_FETCH_RESPONSE] =
+                sizeof(rko->rko_u.share_fetch_response),
+            [RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_EXECUTE] =
+                sizeof(rko->rko_u.share_ack_commit_cb_execute),
+            [RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_REGISTER] =
+                sizeof(rko->rko_u.share_ack_commit_cb_register),
+            [RD_KAFKA_OP_SHARE_COMMIT_ASYNC_FANOUT] =
+                sizeof(rko->rko_u.share_commit_async_fanout),
+            [RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT] =
+                sizeof(rko->rko_u.share_commit_sync_fanout),
+            [RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT_REPLY] =
+                sizeof(rko->rko_u.share_commit_sync_fanout_reply),
+            [RD_KAFKA_OP_SHARE_SESSION_CLEAR] = _RD_KAFKA_OP_EMPTY,
         };
         size_t tsize = op2size[type & ~RD_KAFKA_OP_FLAGMASK];
 
@@ -468,6 +505,7 @@ void rd_kafka_op_destroy(rd_kafka_op_t *rko) {
         case RD_KAFKA_OP_MOCK:
                 RD_IF_FREE(rko->rko_u.mock.name, rd_free);
                 RD_IF_FREE(rko->rko_u.mock.str, rd_free);
+                RD_IF_FREE(rko->rko_u.mock.errs, rd_free);
                 if (rko->rko_u.mock.metrics) {
                         int64_t i;
                         for (i = 0; i < rko->rko_u.mock.hi; i++)
@@ -505,6 +543,62 @@ void rd_kafka_op_destroy(rd_kafka_op_t *rko) {
         case RD_KAFKA_OP_SET_TELEMETRY_BROKER:
                 RD_IF_FREE(rko->rko_u.telemetry_broker.rkb,
                            rd_kafka_broker_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_FETCH: {
+                RD_IF_FREE(rko->rko_u.share_fetch.target_broker,
+                           rd_kafka_broker_destroy);
+                RD_IF_FREE(rko->rko_u.share_fetch.ack_details, rd_list_destroy);
+                break;
+        }
+
+        case RD_KAFKA_OP_TERMINATE:
+                RD_IF_FREE(rko->rko_u.terminated.ack_batches, rd_list_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_FETCH_FANOUT:
+                RD_IF_FREE(rko->rko_u.share_fetch_fanout.ack_batches,
+                           rd_list_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_COMMIT_ASYNC_FANOUT:
+                RD_IF_FREE(rko->rko_u.share_commit_async_fanout.ack_batches,
+                           rd_list_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT:
+                RD_IF_FREE(rko->rko_u.share_commit_sync_fanout.ack_batches,
+                           rd_list_destroy);
+                RD_IF_FREE(rko->rko_u.share_commit_sync_fanout.results,
+                           rd_kafka_topic_partition_list_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT_REPLY:
+                RD_IF_FREE(rko->rko_u.share_commit_sync_fanout_reply.results,
+                           rd_kafka_topic_partition_list_destroy);
+                break;
+
+        case RD_KAFKA_OP_SHARE_FETCH_RESPONSE: {
+                if (rko->rko_u.share_fetch_response.message_rkos) {
+                        /* Messages not handed to app, destroy them. */
+                        rd_kafka_op_t *msg_rko;
+                        int mi;
+                        RD_LIST_FOREACH(
+                            msg_rko,
+                            rko->rko_u.share_fetch_response.message_rkos, mi) {
+                                rd_kafka_op_destroy(msg_rko);
+                        }
+                        rd_list_destroy(
+                            rko->rko_u.share_fetch_response.message_rkos);
+                }
+                RD_IF_FREE(rko->rko_u.share_fetch_response.inflight_acks,
+                           rd_list_destroy);
+                break;
+        }
+
+        case RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_EXECUTE:
+                RD_IF_FREE(rko->rko_u.share_ack_commit_cb_execute.partitions,
+                           rd_kafka_share_partition_offsets_list_destroy);
                 break;
 
         default:
@@ -564,6 +658,10 @@ void rd_kafka_q_op_err(rd_kafka_q_t *rkq,
  *
  * @sa rd_kafka_q_op_err()
  */
+/**
+ * TODO KIP-932: GA: Improve handling of this particular function
+ *  as we dont need most information available here.
+ */
 void rd_kafka_consumer_err(rd_kafka_q_t *rkq,
                            int32_t broker_id,
                            rd_kafka_resp_err_t err,
@@ -597,6 +695,67 @@ void rd_kafka_consumer_err(rd_kafka_q_t *rkq,
 
 
         rd_kafka_q_enq(rkq, rko);
+}
+
+
+/**
+ * @brief Enqueue multiple RD_KAFKA_OP_CONSUMER_ERR ops on \p rkq for
+ *        a range of offsets, used for share consumer MessageSet-level errors.
+ *
+ * @param broker_id Is the relevant broker id, or RD_KAFKA_NODEID_UA (-1)
+ *                  if not applicable.
+ * @param err Error code.
+ * @param version Queue version barrier, or 0 if not applicable.
+ * @param rktp Toppar reference (required for share consumers).
+ * @param start_offset First offset in the error range (inclusive).
+ * @param end_offset Last offset in the error range (inclusive).
+ * @param ack_type Acknowledgement type for share consumer
+ *                 (REJECT for permanent errors, RELEASE for retryable).
+ *
+ * Creates one error op per offset in the range [start_offset, end_offset].
+ * Each op has ack_type pre-set for share consumer acknowledgement tracking.
+ *
+ * @sa rd_kafka_consumer_err()
+ */
+void rd_kafka_share_msgset_err_ops(
+    rd_kafka_q_t *rkq,
+    int32_t broker_id,
+    rd_kafka_resp_err_t err,
+    int32_t version,
+    rd_kafka_toppar_t *rktp,
+    int64_t start_offset,
+    int64_t end_offset,
+    rd_kafka_share_internal_acknowledgement_type ack_type,
+    const char *fmt,
+    ...) {
+        va_list ap;
+        char buf[2048];
+        int64_t offset;
+
+        /* Format error message once for all offsets */
+        va_start(ap, fmt);
+        rd_vsnprintf(buf, sizeof(buf), fmt, ap);
+        va_end(ap);
+
+        /* Create one error op per offset in the range */
+        for (offset = start_offset; offset <= end_offset; offset++) {
+                rd_kafka_op_t *rko;
+
+                rko              = rd_kafka_op_new(RD_KAFKA_OP_CONSUMER_ERR);
+                rko->rko_version = version;
+                rko->rko_err     = err;
+                rko->rko_u.err.offset            = offset;
+                rko->rko_u.err.errstr            = rd_strdup(buf);
+                rko->rko_u.err.rkm.rkm_broker_id = broker_id;
+
+                /* Set acknowledgement type for share consumer */
+                rko->rko_u.err.rkm.rkm_u.consumer.ack_type = ack_type;
+
+                if (rktp)
+                        rko->rko_rktp = rd_kafka_toppar_keep(rktp);
+
+                rd_kafka_q_enq(rkq, rko);
+        }
 }
 
 
@@ -994,4 +1153,67 @@ void rd_kafka_fetch_op_app_prepare(rd_kafka_t *rk, rd_kafka_op_t *rko) {
         pos.leader_epoch = rko->rko_u.fetch.rkm.rkm_u.consumer.leader_epoch;
 
         rd_kafka_update_app_pos(rk, rktp, pos, RD_DO_LOCK);
+}
+
+/**
+ * @brief Get offset from an op (FETCH or CONSUMER_ERR).
+ *
+ * @param rko The op to get offset from.
+ * @returns The offset, or RD_KAFKA_OFFSET_INVALID if not applicable.
+ */
+int64_t rd_kafka_op_get_offset(const rd_kafka_op_t *rko) {
+        if (!rko)
+                return RD_KAFKA_OFFSET_INVALID;
+        if (rko->rko_type == RD_KAFKA_OP_FETCH)
+                return rko->rko_u.fetch.rkm.rkm_rkmessage.offset;
+        if (rko->rko_type == RD_KAFKA_OP_CONSUMER_ERR)
+                return rko->rko_u.err.offset;
+        return RD_KAFKA_OFFSET_INVALID;
+}
+
+/**
+ * @brief Process a share fetch response op and deliver messages.
+ *
+ * @param rko The share fetch response op
+ * @param rkshare The share consumer handle
+ * @param rkmessages Output array for messages
+ * @param cnt Current count of messages in array
+ *
+ * @returns Updated count of messages in array
+ */
+unsigned int
+rd_kafka_op_process_share_fetch_response(rd_kafka_op_t *rko,
+                                         rd_kafka_share_t *rkshare,
+                                         rd_kafka_message_t **rkmessages,
+                                         unsigned int cnt) {
+        /*
+         *TODO KIP-932: send messages from the fetcher.c directly.
+         */
+        rd_kafka_op_t *msg_rko;
+        int i;
+        int total_msgs =
+            rd_list_cnt(rko->rko_u.share_fetch_response.message_rkos);
+
+        /* Build acknowledgement mapping from inflight_acks */
+        rd_kafka_share_build_inflight_acks_map(rkshare, rko);
+
+        /* Process all messages from the list. */
+        for (i = 0; i < total_msgs; i++) {
+                msg_rko = rd_list_elem(
+                    rko->rko_u.share_fetch_response.message_rkos, i);
+
+                /* Return message to application */
+                /**
+                 * TODO KIP-932: We need to expose the error string maybe
+                 * as rd_kafka_error_t in the message op.
+                 */
+                rkmessages[cnt++] = rd_kafka_message_get(msg_rko);
+        }
+
+        /* Messages handed to app; clear list so op destructor
+         * knows not to free the message ops individually. */
+        rd_list_destroy(rko->rko_u.share_fetch_response.message_rkos);
+        rko->rko_u.share_fetch_response.message_rkos = NULL;
+
+        return cnt;
 }

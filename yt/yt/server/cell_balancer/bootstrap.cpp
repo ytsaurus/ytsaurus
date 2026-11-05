@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
@@ -27,6 +25,8 @@
 #include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -156,8 +156,10 @@ public:
     {
         DoInitialize();
 
-        YT_LOG_DEBUG("Iteration started (DryRun: %v)",
-            dryRun);
+        YT_TLOG_DEBUG("Iteration started")
+            .With("DryRun", dryRun);
+
+        DynamicConfigManager_->Start();
 
         WaitFor(
             BIND(&IBundleController::ExecuteIteration, BundleController_, dryRun)
@@ -165,7 +167,7 @@ public:
                 .Run())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Iteration finished");
+        YT_TLOG_DEBUG("Iteration finished");
     }
 
 private:
@@ -219,7 +221,7 @@ private:
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 
-        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
+        BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -235,6 +237,9 @@ private:
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
         NodeTracker_ = CreateNodeTracker();
+        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(
+            &INodeTracker::OnStopLeading,
+            NodeTracker_));
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
         NMonitoring::Initialize(
@@ -278,10 +283,12 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Start();
 
         RegisterInstance();
@@ -322,7 +329,8 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }

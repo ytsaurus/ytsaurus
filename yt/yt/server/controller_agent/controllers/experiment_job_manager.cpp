@@ -38,7 +38,7 @@ TLayerJobExperiment::TLayerJobExperiment()
 { }
 
 TLayerJobExperiment::TLayerJobExperiment(
-    TString defaultBaseLayerPath,
+    NYPath::TYPath defaultBaseLayerPath,
     TUserFile baseLayer,
     bool enableBypassArtifactCache,
     const NLogging::TLogger& logger)
@@ -78,9 +78,9 @@ void TLayerJobExperiment::PatchUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
-    YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, Layer: %v)",
-        joblet->JobId,
-        BaseLayer_.Path);
+    YT_TLOG_DEBUG("Switching the job to the probing layer")
+        .With("JobId", joblet->JobId)
+        .With("Layer", BaseLayer_.Path);
 
     for (auto& layerSpec : *jobSpec->mutable_root_volume_layers()) {
         if (layerSpec.data_source().path() == DefaultBaseLayerPath_) {
@@ -100,7 +100,7 @@ TError TLayerJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec)
         "A job with experimental base layer has failed; "
         "this probably means that your job requires a specific environment "
         "that must be put into user delta layer, or into explicitly-specified base layer")
-        << TErrorAttribute("base_layer_path", operationSpec->JobExperiment->BaseLayerPath);
+        .With("base_layer_path", operationSpec->JobExperiment->BaseLayerPath);
 }
 
 void TLayerJobExperiment::RegisterMetadata(auto&& registrar)
@@ -145,13 +145,12 @@ void TMtnJobExperiment::PatchUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
-    YT_LOG_DEBUG("Switching the job to the probing network project "
-        "(JobId: %v, NetworkProject: %v, NetworkProjectId: %v, EnableNat64: %v, DisableNetwork: %v)",
-        joblet->JobId,
-        NetworkProjectName_,
-        NetworkProject_.Id,
-        NetworkProject_.EnableNat64,
-        NetworkProject_.DisableNetwork);
+    YT_TLOG_DEBUG("Switching the job to the probing network project")
+        .With("JobId", joblet->JobId)
+        .With("NetworkProject", NetworkProjectName_)
+        .With("NetworkProjectId", NetworkProject_.Id)
+        .With("EnableNat64", NetworkProject_.EnableNat64)
+        .With("DisableNetwork", NetworkProject_.DisableNetwork);
 
     ToProto(jobSpec->mutable_network_project(), NetworkProject_);
 }
@@ -167,7 +166,7 @@ TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) c
         "A job with experimental network settings has failed; "
         "this probably means that your job requires a custom network project "
         "that must be specified explicitly")
-        << TErrorAttribute("network_project", operationSpec->JobExperiment->NetworkProject);
+        .With("network_project", operationSpec->JobExperiment->NetworkProject);
 }
 
 void TMtnJobExperiment::RegisterMetadata(auto&& registrar)
@@ -363,9 +362,9 @@ void TExperimentJobManager::PatchUserJobSpec(
     if (IsEnabled() &&
         (joblet->CompetitionType == EJobCompetitionType::Experiment || ShouldSwitchSettings()))
     {
-        YT_LOG_DEBUG("Switching the job to the experimental setup (JobId: %v, JobIsExperimental: %v)",
-            joblet->JobId,
-            ExperimentStatus_ != EJobExperimentStatus::TreatmentSucceeded);
+        YT_TLOG_DEBUG("Switching the job to the experimental setup")
+            .With("JobId", joblet->JobId)
+            .With("JobIsExperimental", ExperimentStatus_ != EJobExperimentStatus::TreatmentSucceeded);
         JobExperiment_->PatchUserJobSpec(jobSpec, joblet);
     }
 }
@@ -381,13 +380,13 @@ void TExperimentJobManager::GenerateAlertIfNeeded(
         GetFailedTreatmentJobCount() > 0)
     {
         auto error = JobExperiment_->GetAlert(OperationSpec_)
-            << TErrorAttribute("task_name", taskName)
-            << TErrorAttribute("failed_treatment_job_count", GetFailedTreatmentJobCount())
-            << TErrorAttribute("succeeded_treatment_job_count", GetSucceededTreatmentJobCount())
-            << TErrorAttribute("failed_treatment_job", GetFailedTreatmentJob())
-            << TErrorAttribute("failed_control_job_count", GetFailedControlJobCount());
+            .With("task_name", taskName)
+            .With("failed_treatment_job_count", GetFailedTreatmentJobCount())
+            .With("succeeded_treatment_job_count", GetSucceededTreatmentJobCount())
+            .With("failed_treatment_job", GetFailedTreatmentJob())
+            .With("failed_control_job_count", GetFailedControlJobCount());
         if (GetFailedControlJob()) {
-            error = error << TErrorAttribute("failed_control_job", GetFailedControlJob());
+            error = error.With("failed_control_job", GetFailedControlJob());
         }
 
         taskHost->SetOperationAlert(JobExperiment_->GetAlertType(), error);

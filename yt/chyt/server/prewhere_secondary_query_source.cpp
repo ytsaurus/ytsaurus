@@ -66,12 +66,11 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     auto prewhereReadPlan = ExtractPrewhereOnlyReadPlan(readPlan);
 
     auto Logger = queryContext->Logger;
-    YT_LOG_DEBUG(
-        "Started executing PREWHERE data slice filtering (PrewhereColumnCount: %v, TotalColumnCount: %v)",
-        prewhereReadPlan->GetReadColumnCount(),
-        readPlan->GetReadColumnCount());
+    YT_TLOG_DEBUG("Started executing PREWHERE data slice filtering")
+        .With("PrewhereColumnCount", prewhereReadPlan->GetReadColumnCount())
+        .With("TotalColumnCount", readPlan->GetReadColumnCount());
 
-    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User, std::move(granuleFilter));
+    auto chunkReadOptions = CreateChunkReadOptions(TString(queryContext->User), std::move(granuleFilter));
     auto reader = CreateSourceReader(
         storageContext,
         subquerySpec,
@@ -88,7 +87,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         traceContext,
         queryContext->Host,
         storageContext->Settings,
-        Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
+        Logger.WithTag("ReadSessionId", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback));
 
@@ -117,7 +116,7 @@ public:
         IGranuleFilterPtr granuleFilter,
         TCallback<void(const TStatistics&)> statisticsCallback)
     : DB::ISource(
-        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Composite),
+        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Conversion),
         /*enable_auto_progress*/ false)
     , StorageContext_(storageContext)
     , QueryContext_(storageContext->QueryContext)
@@ -199,7 +198,8 @@ private:
             filteredDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
         }
         double droppedRate  = 1.0 - static_cast<double>(filteredDataWeight) / static_cast<double>(totalDataWeight);
-        YT_LOG_DEBUG("PREWHERE filtration finished (DroppedRate: %v)", droppedRate);
+        YT_TLOG_DEBUG("PREWHERE filtration finished")
+            .With("DroppedRate", droppedRate);
 
         InnerSource_ = CreateSecondaryQuerySource(
             StorageContext_,

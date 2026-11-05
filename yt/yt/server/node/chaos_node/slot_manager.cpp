@@ -67,7 +67,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Slot scan started");
+        YT_TLOG_DEBUG("Slot scan started");
 
         BeginSlotScan_.Fire();
 
@@ -96,7 +96,7 @@ private:
 
         EndSlotScan_.Fire();
 
-        YT_LOG_DEBUG("Slot scan completed");
+        YT_TLOG_DEBUG("Slot scan completed");
     }
 
     const std::vector<ICellarOccupantPtr>& Occupants() const

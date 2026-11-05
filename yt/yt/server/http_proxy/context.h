@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
@@ -34,6 +36,7 @@ public:
         TApiPtr api,
         NHttp::IRequestPtr request,
         NHttp::IResponseWriterPtr response);
+    ~TContext();
 
     bool TryParseRequest();
     bool TryParseCommandName();
@@ -89,9 +92,10 @@ private:
     TDuration ProfiledCpuTime_;
     TDuration ResultCpuTime_;
 
-    TString Parameters_;
+    std::string Parameters_;
 
     std::optional<TSemaphoreGuard> SemaphoreGuard_;
+    TMemoryUsageTrackerGuard HeavyRequestMemoryGuard_;
 
     NDriver::TDriverRequest DriverRequest_;
     std::optional<NDriver::TCommandDescriptor> Descriptor_;
@@ -104,7 +108,7 @@ private:
     std::optional<NHttp::TContentEncoding> InputContentEncoding_;
 
     std::optional<NFormats::TFormat> OutputFormat_;
-    std::optional<TString> ContentType_;
+    std::optional<std::string> ContentType_;
     std::optional<NHttp::TContentEncoding> OutputContentEncoding_;
 
     std::optional<NFormats::TFormat> ErrorFormat_;
@@ -128,9 +132,9 @@ private:
 
     template <class TJsonProducer>
     void DispatchJson(const TJsonProducer& producer);
-    void DispatchUnauthorized(const TString& scope, const TString& message);
+    void DispatchUnauthorized(const std::string& scope, const std::string& message);
     void DispatchUnavailable(const TError& error);
-    void DispatchNotFound(const TString& message);
+    void DispatchNotFound(const std::string& message);
 
     void ReplyError(const TError& error);
 
@@ -144,8 +148,11 @@ private:
     void ProcessDelayBeforeCommandTestingOption();
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
 
+    void ReserveHeavyRequestMemory();
+    void ReleaseHeavyRequestMemory();
+
     IInvokerPtr GetCompressionInvoker() const;
-    void ProfileCumulativeCpu(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const TString& commandName);
+    void ProfileCumulativeCpu(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const std::string& commandName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

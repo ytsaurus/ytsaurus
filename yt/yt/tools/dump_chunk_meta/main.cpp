@@ -30,7 +30,7 @@ public:
     }
 
 private:
-    TString ChunkMetaFileName_;
+    std::string ChunkMetaFileName_;
 
     template <class T>
     void PrintExtension(const TRefCountedChunkMetaPtr& chunkMeta)

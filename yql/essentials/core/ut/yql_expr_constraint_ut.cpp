@@ -6,10 +6,12 @@
 #include <yql/essentials/core/type_ann/type_ann_expr.h>
 #include <yql/essentials/core/yql_graph_transformer.h>
 #include <yql/essentials/core/yql_expr_optimize.h>
+#include <yql/essentials/core/yql_expr_constraint_streaming.h>
 #include <yql/essentials/core/services/yql_transform_pipeline.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 
+#include <library/cpp/iterator/zip.h>
 #include <library/cpp/testing/unittest/registar.h>
 #include <util/string/cast.h>
 
@@ -17,15 +19,21 @@ namespace NYql {
 
 Y_UNIT_TEST_SUITE(TYqlExprConstraints) {
 
-TExprNode::TPtr ParseAndAnnotate(const TStringBuf program, TExprContext& exprCtx) {
+struct TParseAndAnnotateSettings {
+    bool EnableMatchRecognize = false;
+    TStringBuf ExpectedError;
+};
+
+TExprNode::TPtr ParseAndAnnotate(const TStringBuf program, TExprContext& exprCtx, const TParseAndAnnotateSettings& settings = {}) {
     TAstParseResult astRes = ParseAst(program);
-    UNIT_ASSERT(astRes.IsOk());
+    UNIT_ASSERT_C(astRes.IsOk(), astRes.Issues.ToString());
     TExprNode::TPtr exprRoot;
-    UNIT_ASSERT(CompileExpr(*astRes.Root, exprRoot, exprCtx, nullptr, nullptr));
+    UNIT_ASSERT_C(CompileExpr(*astRes.Root, exprRoot, exprCtx, nullptr, nullptr), exprCtx.IssueManager.GetIssues().ToString());
 
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
     auto typeAnnotationContext = MakeIntrusive<TTypeAnnotationContext>();
     typeAnnotationContext->RandomProvider = CreateDeterministicRandomProvider(1);
+    typeAnnotationContext->MatchRecognize = settings.EnableMatchRecognize;
 
     auto writerFactory = []() { return CreateYsonResultWriter(NYson::EYsonFormat::Binary); };
     auto resultProviderConfig = MakeIntrusive<TResultProviderConfig>(*typeAnnotationContext,
@@ -44,11 +52,29 @@ TExprNode::TPtr ParseAndAnnotate(const TStringBuf program, TExprContext& exprCtx
                            .Build();
 
     const auto status = SyncTransform(*transformer, exprRoot, exprCtx);
-    if (status == IGraphTransformer::TStatus::Error) {
-        Cerr << exprCtx.IssueManager.GetIssues().ToString() << Endl;
+
+    if (settings.ExpectedError) {
+        const auto issuesStr = exprCtx.IssueManager.GetIssues().ToString();
+        UNIT_ASSERT_VALUES_EQUAL_C(status, IGraphTransformer::TStatus::Error, issuesStr);
+        UNIT_ASSERT_STRING_CONTAINS(issuesStr, settings.ExpectedError);
+    } else {
+        UNIT_ASSERT_VALUES_EQUAL_C(status, IGraphTransformer::TStatus::Ok, exprCtx.IssueManager.GetIssues().ToString());
     }
-    UNIT_ASSERT(status == IGraphTransformer::TStatus::Ok);
+
     return exprRoot;
+}
+
+template <class TConstraint>
+void CheckConstraint(const TExprNode& nodeToCheck, const TStringBuf constrStr) {
+    UNIT_ASSERT(nodeToCheck.GetState() == TExprNode::EState::ConstrComplete);
+    const auto constr = nodeToCheck.GetConstraint<TConstraint>();
+    if (constrStr.empty()) {
+        UNIT_ASSERT_C(!constr, "Unexpected constraint " << constr->GetName() << " for " << nodeToCheck.Content());
+    } else {
+        UNIT_ASSERT_C(constr, "Missing constraint " << constrStr << " for " << nodeToCheck.Content());
+        UNIT_ASSERT_C(constr->IsApplicableToType(*nodeToCheck.GetTypeAnn()), "Constraint " << constr->GetName() << " is not applicable to " << nodeToCheck.Content());
+        UNIT_ASSERT_VALUES_EQUAL(ToString(*constr), constrStr);
+    }
 }
 
 template <class TConstraint>
@@ -60,144 +86,25 @@ void CheckConstraint(const TExprNode::TPtr& exprRoot, const TStringBuf nodeName,
         }
         return !nodeToCheck;
     });
-    UNIT_ASSERT(nodeToCheck);
-    UNIT_ASSERT(nodeToCheck->GetState() == TExprNode::EState::ConstrComplete);
-    const auto constr = nodeToCheck->GetConstraint<TConstraint>();
-    if (constrStr.empty()) {
-        UNIT_ASSERT_C(!constr, "Unexpected constraint " << constr->GetName() << " for " << nodeToCheck->Content());
-    } else {
-        UNIT_ASSERT_C(constr, "Missing constraint " << constrStr << " for " << nodeToCheck->Content());
-        UNIT_ASSERT_C(constr->IsApplicableToType(*nodeToCheck->GetTypeAnn()), "Constraint " << constr->GetName() << " is not applicable to " << nodeToCheck->Content());
-        UNIT_ASSERT_VALUES_EQUAL(ToString(*constr), constrStr);
+    UNIT_ASSERT_C(nodeToCheck, "Node " << nodeName << " not found, ast:\n"
+                                       << exprRoot->Dump());
+    CheckConstraint<TConstraint>(*nodeToCheck, constrStr);
+}
+
+template <class TConstraint>
+void CheckConstraints(const TExprNode::TPtr& exprRoot, const TStringBuf nodeName, std::initializer_list<TStringBuf> constrStrs) {
+    TVector<TExprNode*> nodesToCheck;
+    VisitExpr(exprRoot, [nodeName, &nodesToCheck](const TExprNode::TPtr& node) {
+        if (node->IsCallable(nodeName)) {
+            nodesToCheck.push_back(node.Get());
+        }
+        return true;
+    });
+    UNIT_ASSERT_VALUES_EQUAL_C(nodesToCheck.size(), constrStrs.size(), "Node " << nodeName << " count mismatch, ast:\n"
+                                                                               << exprRoot->Dump());
+    for (const auto [nodeToCheck, constrStr] : Zip(nodesToCheck, constrStrs)) {
+        CheckConstraint<TConstraint>(*nodeToCheck, constrStr);
     }
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysAddUniqueDistinct) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"3")))
-            ))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) (Member item '"a"))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((a))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((a))");
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysAddUniqueDistinctForAlreadyUniqueDistinct) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"5")))
-            ))
-            (let list (AssumeUnique list '('b)))
-            (let list (AssumeDistinct list '('b)))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) (Member item '"a"))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((a)(b))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((a)(b))");
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysAddUniqueDistinctForAlreadyUniqueDistinctYetAnother) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Int32 '"0")) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"5")))
-            ))
-            (let list (AssumeUnique list '('a 'b)))
-            (let list (AssumeDistinct list '('a 'b)))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) (Member item '"a"))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((a))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((a))");
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysForTupleAddUniqueDistinct) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"3")))
-            ))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) '((Member item '"a") (Member item '"b")))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((a,b))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((a,b))");
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysForTupleAddUniqueDistinctForAlreadyUniqueDistinct) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"5")))
-            ))
-            (let list (AssumeUnique list '('b)))
-            (let list (AssumeDistinct list '('b)))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) '((Member item '"a") (Member item '"b")))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((b))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((b))");
-}
-
-Y_UNIT_TEST(PruneAdjacentKeysForTupleAddUniqueDistinctForAlreadyUniqueDistinctYetAnother) {
-    const auto s = R"((
-            (let res (DataSink 'result))
-            (let list (AsList
-                (AsStruct '('"a" (Nothing (OptionalType (DataType 'Int32)))) '('"b" (Int32 '"3")))
-                (AsStruct '('"a" (Int32 '"0")) '('"b" (Int32 '"4")))
-                (AsStruct '('"a" (Int32 '"1")) '('"b" (Int32 '"5")))
-            ))
-            (let list (AssumeUnique list '('a 'b)))
-            (let list (AssumeDistinct list '('a 'b)))
-            (let pruned (PruneAdjacentKeys list (lambda '(item) '((Member item '"a") (Member item '"b")))))
-            (let world (Write! world res (Key) pruned '()))
-            (let world (Commit! world res))
-            (return world)
-        ))";
-
-    TExprContext exprCtx;
-    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
-    CheckConstraint<TUniqueConstraintNode>(exprRoot, "PruneAdjacentKeys", "Unique((a,b))");
-    CheckConstraint<TDistinctConstraintNode>(exprRoot, "PruneAdjacentKeys", "Distinct((a,b))");
 }
 
 Y_UNIT_TEST(Sort) {
@@ -455,6 +362,25 @@ Y_UNIT_TEST(SortDesc) {
     CheckConstraint<TSortedConstraintNode>(exprRoot, "Sort", "Sorted(key[asc];subkey[desc])");
 }
 
+Y_UNIT_TEST(StreamingConstraintFailsOnSort) {
+    const TStringBuf s = R"((
+            (let res (DataSink 'result))
+            (let list (AsList
+                (AsStruct '('key (String '4)) '('subkey (String 'c)) '('value (String 'v)))
+                (AsStruct '('key (String '1)) '('subkey (String 'd)) '('value (String 'v)))
+                (AsStruct '('key (String '3)) '('subkey (String 'b)) '('value (String 'v)))
+            ))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+            (let sorted (Sort streamingList (Bool 'True) (lambda '(item) (Member item 'key))))
+            (let world (Write! world res (Key) sorted '()))
+            (let world (Commit! world res))
+            (return world)
+        ))";
+
+    TExprContext exprCtx;
+    ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Sorting of streaming input is not supported"});
+}
+
 Y_UNIT_TEST(SortedOverWideMap) {
     const auto s = R"((
             (let res (DataSink 'result))
@@ -586,6 +512,26 @@ Y_UNIT_TEST(ExtractSortedTuple) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TSortedConstraintNode>(exprRoot, "OrderedFlatMap", "Sorted(a,x/0[asc];b,x/1[asc])");
     CheckConstraint<TSortedConstraintNode>(exprRoot, "ExtractMembers", "Sorted(x[asc])");
+}
+
+Y_UNIT_TEST(ExtractMembersStreaming) {
+    const TStringBuf s = R"((
+            (let res (DataSink 'result))
+            (let list (AsList
+                (AsStruct '('a (String '4)) '('b (String 'c)) '('c (String 'x)))
+                (AsStruct '('a (String '1)) '('b (String 'd)) '('c (String 'y)))
+                (AsStruct '('a (String '3)) '('b (String 'b)) '('c (String 'z)))
+            ))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"a\"]}"))
+            (let extract (ExtractMembers streamingList '('a)))
+            (let world (Write! world res (Key) extract '()))
+            (let world (Commit! world res))
+            (return world)
+        ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "ExtractMembers", "Streaming(a)");
 }
 
 Y_UNIT_TEST(TopSort) {
@@ -2162,6 +2108,7 @@ Y_UNIT_TEST(MapJoinInnerOne) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2190,6 +2137,7 @@ Y_UNIT_TEST(MapJoinInnerOne) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "Unique((key,subkey)(v)(value))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "Distinct((key,subkey)(v)(value))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming(key)");
 }
 
 Y_UNIT_TEST(MapJoinInnerMany) {
@@ -2204,6 +2152,7 @@ Y_UNIT_TEST(MapJoinInnerMany) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2232,6 +2181,7 @@ Y_UNIT_TEST(MapJoinInnerMany) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming(key)");
 }
 
 Y_UNIT_TEST(MapJoinLeftOne) {
@@ -2246,6 +2196,7 @@ Y_UNIT_TEST(MapJoinLeftOne) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2274,6 +2225,7 @@ Y_UNIT_TEST(MapJoinLeftOne) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "Unique((key,subkey)(v)(value))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "Distinct((key,subkey)(value))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming(key)");
 }
 
 Y_UNIT_TEST(MapJoinLeftMany) {
@@ -2288,6 +2240,7 @@ Y_UNIT_TEST(MapJoinLeftMany) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2316,6 +2269,7 @@ Y_UNIT_TEST(MapJoinLeftMany) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming(key)");
 }
 
 Y_UNIT_TEST(MapJoinLeftSemi) {
@@ -2330,6 +2284,7 @@ Y_UNIT_TEST(MapJoinLeftSemi) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2358,6 +2313,7 @@ Y_UNIT_TEST(MapJoinLeftSemi) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "Unique((key,subkey)(value))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "Distinct((key,subkey)(value))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming(key)");
 }
 
 Y_UNIT_TEST(MapJoinLeftOnly) {
@@ -2372,6 +2328,7 @@ Y_UNIT_TEST(MapJoinLeftOnly) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2386,7 +2343,7 @@ Y_UNIT_TEST(MapJoinLeftOnly) {
 
     (let dict (ToDict list2 (lambda '(item) '((Member item 'key2) (Member item 'subkey2))) (lambda '(item) '()) '('One 'Hashed)))
 
-    (let join (MapJoinCore (ToFlow list1) dict 'LeftOnly '('key1 'subkey1) '('key2 'subkey2) '('key1 'key 'value1 'value) '() '() '()))
+    (let join (MapJoinCore (ToFlow list1) dict 'LeftOnly '('key1 'subkey1) '('key2 'subkey2) '('value1 'value) '() '() '()))
     (let list (Collect join))
 
     (let res (DataSink 'result))
@@ -2400,6 +2357,7 @@ Y_UNIT_TEST(MapJoinLeftOnly) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "Collect", "Unique((value))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "Collect", "Distinct((value))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Collect", "Streaming");
 }
 
 Y_UNIT_TEST(EquiJoinWithRenames) {
@@ -2414,6 +2372,7 @@ Y_UNIT_TEST(EquiJoinWithRenames) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2425,6 +2384,7 @@ Y_UNIT_TEST(EquiJoinWithRenames) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '('Inner 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) '(
         '('rename 'a.key1 'key_1)
@@ -2449,6 +2409,7 @@ Y_UNIT_TEST(EquiJoinWithRenames) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique(({key_1,key_2},{subkey_1,subkey_2})({value_1,value_2}))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct(({key_1,key_2},{subkey_1,subkey_2})({value_1,value_2}))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming");
 }
 
 Y_UNIT_TEST(EquiJoinWithPartialRenames) {
@@ -2463,6 +2424,7 @@ Y_UNIT_TEST(EquiJoinWithPartialRenames) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2495,6 +2457,7 @@ Y_UNIT_TEST(EquiJoinWithPartialRenames) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.subkey1,{key_1,key_2})(value))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.subkey1,{key_1,key_2}))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming");
 }
 
 Y_UNIT_TEST(EquiJoinInnerInner) {
@@ -2509,6 +2472,7 @@ Y_UNIT_TEST(EquiJoinInnerInner) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2520,6 +2484,7 @@ Y_UNIT_TEST(EquiJoinInnerInner) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -2531,6 +2496,7 @@ Y_UNIT_TEST(EquiJoinInnerInner) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Inner 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2546,6 +2512,7 @@ Y_UNIT_TEST(EquiJoinInnerInner) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerLeft) {
@@ -2560,6 +2527,7 @@ Y_UNIT_TEST(EquiJoinInnerLeft) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2582,6 +2550,7 @@ Y_UNIT_TEST(EquiJoinInnerLeft) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Left 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2597,6 +2566,7 @@ Y_UNIT_TEST(EquiJoinInnerLeft) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerRight) {
@@ -2622,6 +2592,7 @@ Y_UNIT_TEST(EquiJoinInnerRight) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -2633,6 +2604,7 @@ Y_UNIT_TEST(EquiJoinInnerRight) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Right 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2648,6 +2620,7 @@ Y_UNIT_TEST(EquiJoinInnerRight) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(b.key2)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerFull) {
@@ -2684,6 +2657,7 @@ Y_UNIT_TEST(EquiJoinInnerFull) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Full 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2699,6 +2673,7 @@ Y_UNIT_TEST(EquiJoinInnerFull) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(c.key3)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerExclusion) {
@@ -2735,6 +2710,7 @@ Y_UNIT_TEST(EquiJoinInnerExclusion) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Exclusion 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2750,6 +2726,7 @@ Y_UNIT_TEST(EquiJoinInnerExclusion) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(c.key3)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerLeftOnly) {
@@ -2764,6 +2741,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftOnly) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2786,6 +2764,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftOnly) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('LeftOnly 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('a 'key1 'a 'subkey1) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2801,6 +2780,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftOnly) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerLeftSemi) {
@@ -2815,6 +2795,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftSemi) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2826,6 +2807,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftSemi) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -2837,6 +2819,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftSemi) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('LeftSemi 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('a 'key1 'a 'subkey1) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2852,6 +2835,7 @@ Y_UNIT_TEST(EquiJoinInnerLeftSemi) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerRightOnly) {
@@ -2877,6 +2861,7 @@ Y_UNIT_TEST(EquiJoinInnerRightOnly) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -2888,6 +2873,7 @@ Y_UNIT_TEST(EquiJoinInnerRightOnly) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('RightOnly 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2903,6 +2889,7 @@ Y_UNIT_TEST(EquiJoinInnerRightOnly) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(b.key2)");
 }
 
 Y_UNIT_TEST(EquiJoinInnerRightSemi) {
@@ -2917,6 +2904,7 @@ Y_UNIT_TEST(EquiJoinInnerRightSemi) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2928,6 +2916,7 @@ Y_UNIT_TEST(EquiJoinInnerRightSemi) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -2939,6 +2928,7 @@ Y_UNIT_TEST(EquiJoinInnerRightSemi) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('RightSemi 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '()))
     (let lazy (LazyList join))
@@ -2954,6 +2944,7 @@ Y_UNIT_TEST(EquiJoinInnerRightSemi) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming");
 }
 
 Y_UNIT_TEST(EquiJoinLeftInner) {
@@ -2968,6 +2959,7 @@ Y_UNIT_TEST(EquiJoinLeftInner) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -2979,6 +2971,7 @@ Y_UNIT_TEST(EquiJoinLeftInner) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3004,6 +2997,7 @@ Y_UNIT_TEST(EquiJoinLeftInner) {
     TExprContext exprCtx;
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftLeft) {
@@ -3018,6 +3012,7 @@ Y_UNIT_TEST(EquiJoinLeftLeft) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -3055,6 +3050,7 @@ Y_UNIT_TEST(EquiJoinLeftLeft) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftRight) {
@@ -3080,6 +3076,7 @@ Y_UNIT_TEST(EquiJoinLeftRight) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3106,6 +3103,7 @@ Y_UNIT_TEST(EquiJoinLeftRight) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(b.key2)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftFull) {
@@ -3222,6 +3220,7 @@ Y_UNIT_TEST(EquiJoinLeftLeftOnly) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -3259,6 +3258,7 @@ Y_UNIT_TEST(EquiJoinLeftLeftOnly) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftLeftSemi) {
@@ -3273,6 +3273,7 @@ Y_UNIT_TEST(EquiJoinLeftLeftSemi) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -3284,6 +3285,7 @@ Y_UNIT_TEST(EquiJoinLeftLeftSemi) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3310,6 +3312,7 @@ Y_UNIT_TEST(EquiJoinLeftLeftSemi) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((a.key1,a.subkey1)(a.value1)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((a.key1,a.subkey1)(a.value1))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(a.key1)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftRightOnly) {
@@ -3335,6 +3338,7 @@ Y_UNIT_TEST(EquiJoinLeftRightOnly) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3361,6 +3365,7 @@ Y_UNIT_TEST(EquiJoinLeftRightOnly) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming(b.key2)");
 }
 
 Y_UNIT_TEST(EquiJoinLeftRightSemi) {
@@ -3375,6 +3380,7 @@ Y_UNIT_TEST(EquiJoinLeftRightSemi) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -3386,6 +3392,7 @@ Y_UNIT_TEST(EquiJoinLeftRightSemi) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3412,6 +3419,7 @@ Y_UNIT_TEST(EquiJoinLeftRightSemi) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "Unique((b.key2,b.subkey2)(b.value2)(c.key3,c.subkey3)(c.value3))");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "Distinct((b.key2,b.subkey2)(b.value2))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "Streaming");
 }
 
 Y_UNIT_TEST(EquiJoinFlatten) {
@@ -3426,6 +3434,7 @@ Y_UNIT_TEST(EquiJoinFlatten) {
 
     (let list1 (AssumeUnique list1 '('key1 'subkey1) '('value1)))
     (let list1 (AssumeDistinct list1 '('key1 'subkey1) '('value1)))
+    (let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key1\"]}"))
 
     (let list2 (AsList
     (AsStruct '('key2 (Int32 '9)) '('subkey2 (Uint8 '0)) '('value2 (String 'Z)))
@@ -3437,6 +3446,7 @@ Y_UNIT_TEST(EquiJoinFlatten) {
 
     (let list2 (AssumeUnique list2 '('key2 'subkey2) '('value2)))
     (let list2 (AssumeDistinct list2 '('key2 'subkey2) '('value2)))
+    (let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key2\"]}"))
 
     (let list3 (AsList
     (AsStruct '('key3 (Int32 '1)) '('subkey3 (Uint8 '0)) '('value3 (String 'G)))
@@ -3448,6 +3458,7 @@ Y_UNIT_TEST(EquiJoinFlatten) {
 
     (let list3 (AssumeUnique list3 '('key3 'subkey3) '('value3)))
     (let list3 (AssumeDistinct list3 '('key3 'subkey3) '('value3)))
+    (let list3 (AssumeConstraints list3 '"{\"Streaming\" = [\"key3\"]}"))
 
     (let join (EquiJoin '(list1 'a) '(list2 'b) '(list3 'c) '('Inner '('Inner 'a 'b '('a 'key1 'a 'subkey1) '('b 'key2 'b 'subkey2) '()) 'c '('b 'key2 'b 'subkey2) '('c 'key3 'c 'subkey3) '()) '('('flatten))))
     (let lazy (LazyList join))
@@ -3463,6 +3474,7 @@ Y_UNIT_TEST(EquiJoinFlatten) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "LazyList", "");
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "LazyList", "");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "LazyList", "");
 }
 
 Y_UNIT_TEST(HOP) {
@@ -3479,7 +3491,8 @@ Y_UNIT_TEST(HOP) {
     (let interval (Interval '1000000))
     (let map (lambda '(item) (AsStruct)))
     (let reduce (lambda '(lhs rhs) (AsStruct)))
-    (let hopping (MultiHoppingCore (Iterator row) keySelector sortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" '"_yql_time"))
+    (let streamingRow (AssumeConstraints (Iterator row) '"{\"Streaming\" = [\"time\"]}"))
+    (let hopping (MultiHoppingCore streamingRow keySelector sortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" '"_yql_time"))
     (return (ForwardList (FlatMap hopping (lambda '(row) (Just (AsStruct '('_yql_time (Member row '_yql_time)) '('"data" (Unpickle (NullType) (Member row '"data"))) '('group0 (Unpickle (ListType (DataType 'Int32)) (Member row 'group0)))))))))
 )))))
 
@@ -3492,23 +3505,30 @@ Y_UNIT_TEST(HOP) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "MultiHoppingCore", "Distinct((data,group0))");
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "MultiHoppingCore", "Unique((data,group0))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming");
 }
 
 Y_UNIT_TEST(HoppingWindow) {
     const TStringBuf s = R"((
 (let list (AsList
-    (AsStruct '('"time" (String '"2024-01-01T00:00:01Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
-    (AsStruct '('"time" (String '"2024-01-01T00:00:02Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
-    (AsStruct '('"time" (String '"2024-01-01T00:00:03Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
+    (AsStruct '('"time" (Just (String '"2024-01-01T00:00:01Z"))) '('"user" (Int32 '"1")) '('"data" (Null)))
+    (AsStruct '('"time" (Just (String '"2024-01-01T00:00:02Z"))) '('"user" (Int32 '"1")) '('"data" (Null)))
+    (AsStruct '('"time" (Just (String '"2024-01-01T00:00:03Z"))) '('"user" (Int32 '"1")) '('"data" (Null)))
 ))
 (let input (FlatMap list (lambda '(row) (Just (AsStruct '('"data" (Member row '"data")) '('group0 (AsList (Member row '"user"))) '('"time" (Member row '"time")) '('"user" (Member row '"user")))))))
 (let keySelector (lambda '(row) '((StablePickle (Member row '"data")) (StablePickle (Member row 'group0)))))
 (let sortKeySelector (lambda '(row) (SafeCast (Member row '"time") (OptionalType (DataType 'Timestamp)))))
+(let projectedSortKeySelector (lambda '(row) (IfPresent
+    (Member row '"time")
+    (lambda '(item) (SafeCast item (OptionalType (DataType 'Timestamp))))
+    (Nothing (OptionalType (DataType 'Timestamp)))
+)))
 (let result (PartitionsByKeys input keySelector (Bool 'true) sortKeySelector (lambda '(row) (block '(
     (let interval (Interval '1000000))
     (let map (lambda '(item) (AsStruct)))
     (let reduce (lambda '(lhs rhs) (AsStruct)))
-    (let hopping (MultiHoppingCore (Iterator row) keySelector sortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" 'group0))
+    (let streamingRow (AssumeConstraints (Iterator row) '"{\"Streaming\" = [\"time\"]}"))
+    (let hopping (MultiHoppingCore streamingRow keySelector projectedSortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" 'group0))
     (return (ForwardList (FlatMap hopping (lambda '(row) (Just (AsStruct '('_yql_time (Member row '_yql_time)) '('"data" (Unpickle (NullType) (Member row '"data"))) '('group0 (Unpickle (ListType (DataType 'Int32)) (Member row 'group0)))))))))
 )))))
 
@@ -3521,6 +3541,222 @@ Y_UNIT_TEST(HoppingWindow) {
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TDistinctConstraintNode>(exprRoot, "MultiHoppingCore", "Distinct((data,group0))");
     CheckConstraint<TUniqueConstraintNode>(exprRoot, "MultiHoppingCore", "Unique((data,group0))");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming(group0)");
+}
+
+Y_UNIT_TEST(HoppingWindowCascade) {
+    const TStringBuf s = R"((
+        (let source (AsList
+            (AsStruct '('"time" (String '"2024-01-01T00:00:01Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
+            (AsStruct '('"time" (String '"2024-01-01T00:00:02Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
+            (AsStruct '('"time" (String '"2024-01-01T00:00:03Z")) '('"user" (Int32 '"1")) '('"data" (Null)))
+        ))
+        (let streaming (AssumeConstraints source '"{\"Streaming\" = #}"))
+        (let timeSelector (lambda '(row) (SafeCast (Member row '"time") (OptionalType (DataType 'Timestamp)))))
+        (let watermarked (WatermarkGenerator streaming timeSelector '()))
+
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+
+        (let firstKeySelector (lambda '(row) '((StablePickle (Member row '"data")) (StablePickle (AsList (Member row '"user"))))))
+        (let firstHop (MultiHoppingCore (Iterator watermarked) firstKeySelector timeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group0 time)
+                '('"data" (Nth key '"0"))
+                '('"user" (Nth key '"1"))
+            ))
+            '"0" 'group0
+        ))
+        (let firstRenamed (Map (ForwardList firstHop) (lambda '(row) (AsStruct
+            '('"time" (Member row 'group0))
+            '('"data" (Member row '"data"))
+            '('"user" (Member row '"user"))
+        ))))
+
+        (let secondKeySelector (lambda '(row) '((Member row '"data") (Member row '"user"))))
+        (let secondHop (MultiHoppingCore (Iterator firstRenamed) secondKeySelector timeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group1 time)
+                '('"data" (Nth key '"0"))
+                '('"user" (Nth key '"1"))
+            ))
+            '"0" 'group1
+        ))
+        (let secondRenamed (Map (ForwardList secondHop) (lambda '(row) (AsStruct
+            '('"time" (Member row 'group1))
+            '('"data" (Member row '"data"))
+            '('"user" (Member row '"user"))
+        ))))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) secondRenamed '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(time)");
+    CheckConstraints<TStreamingConstraintNode>(
+        exprRoot,
+        "MultiHoppingCore",
+        {"Streaming(group1)", "Streaming(group0)"});
+    CheckConstraints<TStreamingConstraintNode>(
+        exprRoot,
+        "Map",
+        {"Streaming(time)", "Streaming(time)"});
+}
+
+Y_UNIT_TEST(HoppingWindowAfterTimestampCastProjection) {
+    const TStringBuf s = R"((
+        (let data (AsList
+            (AsStruct '('ts (String '2024-01-01T00:00:01Z)) '('value (String 'x)))
+            (AsStruct '('ts (String '2024-01-01T00:00:02Z)) '('value (String 'y)))
+        ))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let timeSelector (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))))
+        (let watermarked (WatermarkGenerator streaming timeSelector '()))
+        (let projected (Map watermarked (lambda '(row) (AsStruct
+            '('event_time (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp))))
+            '('value (Member row 'value))
+        ))))
+
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+        (let keySelector (lambda '(row) (Uint32 '0)))
+        (let eventTimeSelector (lambda '(row) (Member row 'event_time)))
+        (let hopping (MultiHoppingCore (Iterator projected) keySelector eventTimeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group0 time)
+                '('value (String 'out))
+            ))
+            '"0" 'group0
+        ))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (ForwardList hopping) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(ts)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", "Streaming(event_time)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming(group0)");
+}
+
+Y_UNIT_TEST(HoppingWindowAllowsMatchingDirectCastExtractor) {
+    const TStringBuf s = R"((
+        (let data (AsList
+            (AsStruct '('ts (String '2024-01-01T00:00:01Z)) '('value (String 'x)))
+            (AsStruct '('ts (String '2024-01-01T00:00:02Z)) '('value (String 'y)))
+        ))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let timeSelector (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))))
+        (let watermarked (WatermarkGenerator streaming timeSelector '()))
+
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+        (let keySelector (lambda '(row) (Uint32 '0)))
+        (let hopping (MultiHoppingCore (Iterator watermarked) keySelector timeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group0 time)
+                '('value (String 'out))
+            ))
+            '"0" 'group0
+        ))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (ForwardList hopping) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming(group0)");
+}
+
+Y_UNIT_TEST(HoppingWindowRejectsExpandedStructCastExtractor) {
+    const TStringBuf s = R"((
+        (let data (AsList
+            (AsStruct '('ts (String '2024-01-01T00:00:01Z)) '('value (String 'x)))
+            (AsStruct '('ts (String '2024-01-01T00:00:02Z)) '('value (String 'y)))
+        ))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let timeSelector (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))))
+        (let watermarked (WatermarkGenerator streaming timeSelector '()))
+        (let projected (Map watermarked (lambda '(row) (AsStruct
+            '('event_time (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp))))
+            '('value (Member row 'value))
+        ))))
+
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+        (let keySelector (lambda '(row) (Uint32 '0)))
+        (let eventTimeSelector (lambda '(row) (Member
+            (AsStruct '('event_time (SafeCast (Member row 'value) (OptionalType (DataType 'Timestamp)))))
+            'event_time
+        )))
+        (let hopping (MultiHoppingCore (Iterator projected) keySelector eventTimeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group0 time)
+                '('value (String 'out))
+            ))
+            '"0" 'group0
+        ))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (ForwardList hopping) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    ParseAndAnnotate(s, exprCtx, {.ExpectedError = "HoppingWindow time expression must reference the assigned event-time path directly or through a simple timestamp cast"});
+}
+
+Y_UNIT_TEST(HoppingWindowAfterTimestampCastOptionalProjection) {
+    const TStringBuf s = R"((
+        (let data (AsList
+            (AsStruct '('pass (Just (Uint64 '1))) '('ts (String '2024-01-01T00:00:01Z)) '('value (String 'x)))
+            (AsStruct '('pass (Just (Uint64 '1))) '('ts (String '2024-01-01T00:00:02Z)) '('value (String 'y)))
+        ))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let timeSelector (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))))
+        (let watermarked (WatermarkGenerator streaming timeSelector '()))
+        (let extracted (ExtractMembers watermarked '('pass 'ts)))
+        (let projected (FlatMap extracted (lambda '(row) (block '(
+            (let ts (Member row 'ts))
+            (return (OptionalIf (Coalesce (> (Member row 'pass) (Uint64 '0)) (Bool 'false)) (AsStruct
+                '('event_time (SafeCast ts (OptionalType (DataType 'Timestamp))))
+            )))
+        )))))
+
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+        (let keySelector (lambda '(row) (Uint32 '0)))
+        (let eventTimeSelector (lambda '(row) (Member row 'event_time)))
+        (let hopping (MultiHoppingCore (Iterator projected) keySelector eventTimeSelector interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct
+                '('group0 time)
+                '('value (String 'out))
+            ))
+            '"0" 'group0
+        ))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (ForwardList hopping) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(ts)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(event_time)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming(group0)");
 }
 
 Y_UNIT_TEST(EmptyHoppingWindow) {
@@ -3535,7 +3771,8 @@ Y_UNIT_TEST(EmptyHoppingWindow) {
     (let interval (Interval '1000000))
     (let map (lambda '(item) (AsStruct)))
     (let reduce (lambda '(lhs rhs) (AsStruct)))
-    (let hopping (MultiHoppingCore (Iterator row) keySelector sortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" '"_yql_time"))
+    (let streamingRow (AssumeConstraints (Iterator row) '"{\"Streaming\" = [\"time\"]}"))
+    (let hopping (MultiHoppingCore streamingRow keySelector sortKeySelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('_yql_time time) '('"data" (Nth key '"0")) '('group0 (Nth key '"1")))) '"0" '"_yql_time"))
     (return (ForwardList (FlatMap hopping (lambda '(row) (Just (AsStruct '('_yql_time (Member row '_yql_time)) '('"data" (Unpickle (NullType) (Member row '"data"))) '('group0 (Unpickle (ListType (DataType 'Int32)) (Member row 'group0)))))))))
 )))))
 (let res (DataSink 'result))
@@ -3546,6 +3783,332 @@ Y_UNIT_TEST(EmptyHoppingWindow) {
     TExprContext exprCtx;
     const auto exprRoot = ParseAndAnnotate(s, exprCtx);
     CheckConstraint<TEmptyConstraintNode>(exprRoot, "MultiHoppingCore", "Empty");
+}
+
+Y_UNIT_TEST(HoppingWindowNegative) {
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('ts (Timestamp '1)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let keySelector (lambda '(row) '((Member row 'ts))))
+            (let timeSelector (lambda '(row) (Member row 'ts)))
+            (let interval (Interval '1000000))
+            (let map (lambda '(item) (AsStruct)))
+            (let reduce (lambda '(lhs rhs) (AsStruct)))
+            (let hopping (MultiHoppingCore (Iterator streaming) keySelector timeSelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('group0 time))) '"0" 'group0))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) (ForwardList hopping) '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "HoppingWindow requires watermarks"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('ts (Timestamp '1)) '('other (Timestamp '2)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (Member row 'ts)) '()))
+            (let keySelector (lambda '(row) '((Member row 'ts))))
+            (let timeSelector (lambda '(row) (Member row 'other)))
+            (let interval (Interval '1000000))
+            (let map (lambda '(item) (AsStruct)))
+            (let reduce (lambda '(lhs rhs) (AsStruct)))
+            (let hopping (MultiHoppingCore (Iterator watermarked) keySelector timeSelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('group0 time))) '"0" 'group0))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) (ForwardList hopping) '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "HoppingWindow time extractor does not match assigned event time"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('ts (String '2024-01-01T00:00:01Z)) '('value (String '2024-01-01T00:00:02Z)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))) '()))
+            (let keySelector (lambda '(row) '((Member row 'ts))))
+            (let timeSelector (lambda '(row) (SafeCast (Member row 'value) (OptionalType (DataType 'Timestamp)))))
+            (let interval (Interval '1000000))
+            (let map (lambda '(item) (AsStruct)))
+            (let reduce (lambda '(lhs rhs) (AsStruct)))
+            (let hopping (MultiHoppingCore (Iterator watermarked) keySelector timeSelector interval interval interval 'true map reduce map map reduce (lambda '(key state time) (AsStruct '('group0 time))) '"0" 'group0))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) (ForwardList hopping) '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "HoppingWindow time extractor does not match assigned event time"});
+    }
+}
+
+Y_UNIT_TEST(IfPresentEmptyBranches) {
+    for (const bool emptyInput : {false, true}) {
+        for (const bool emptyThen : {false, true}) {
+            for (const bool emptyElse : {false, true}) {
+                const TStringBuf nothing = "(Nothing (OptionalType (DataType 'Timestamp)))";
+                const TStringBuf eventTime = "(Member row 'ts)";
+                const TString s = TStringBuilder() << R"((
+                    (let data (AsList (AsStruct '('ts (Just (Timestamp '1))) '('condition (Just (Int32 '1))))))
+                    (let streaming (AssumeConstraints data '"{\"Streaming\" = [\"ts\"]}"))
+                    (let projected (Map streaming (lambda '(row) (AsStruct '('event_time (IfPresent )"
+                                                   << (emptyInput ? "(Nothing (OptionalType (DataType 'Int32)))" : "(Member row 'condition)")
+                                                   << " (lambda '(value) " << (emptyThen ? nothing : eventTime) << ") "
+                                                   << (emptyElse ? nothing : eventTime) << R"())))))
+                    (let res (DataSink 'result))
+                    (let world (Write! world res (Key) projected '()))
+                    (return (Commit! world res))
+                ))";
+
+                TExprContext exprCtx;
+                const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+                const bool emptyResult = emptyElse && (emptyInput || emptyThen);
+                CheckConstraint<TEmptyConstraintNode>(exprRoot, "IfPresent", emptyResult ? "Empty" : "");
+                CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", emptyResult ? "Streaming" : "Streaming(event_time)");
+            }
+        }
+    }
+}
+
+void CheckEventTimeProbeReset(bool directPath) {
+    TExprContext ctx;
+    const TPositionHandle pos;
+    const auto timestamp = ctx.MakeType<TDataExprType>(NUdf::EDataSlot::Timestamp);
+    auto arg = ctx.NewArgument(pos, "row");
+    arg->SetTypeAnn(ctx.MakeType<TStructExprType>(TVector<const TItemExprType*>{ctx.MakeType<TItemExprType>("ts", timestamp)}));
+    arg->SetState(TExprNode::EState::ConstrComplete);
+    auto args = ctx.NewArguments(pos, {arg});
+    args->SetTypeAnn(ctx.MakeType<TUnitExprType>());
+    args->SetState(TExprNode::EState::ConstrComplete);
+    auto body = directPath
+                    ? ctx.NewCallable(pos, "Member", {arg, ctx.NewAtom(pos, "ts")})
+                    : ctx.NewCallable(pos, "Timestamp", {ctx.NewAtom(pos, "1")});
+    body->SetTypeAnn(timestamp);
+    body->SetState(TExprNode::EState::ConstrComplete);
+    auto lambda = ctx.NewLambda(pos, std::move(args), std::move(body));
+    lambda->SetTypeAnn(timestamp);
+    lambda->SetState(TExprNode::EState::ConstrComplete);
+    arg->SetDependencyScope(lambda.Get(), lambda.Get());
+
+    UNIT_ASSERT_VALUES_EQUAL(UpdateLambdaEventTimeLineage(lambda, ctx), IGraphTransformer::TStatus::Repeat);
+    const auto sharedLambda = lambda;
+    const auto probe = sharedLambda->Head().Head().GetConstraint<TPartOfStreamingConstraintNode>();
+    UNIT_ASSERT(probe);
+
+    TMaybe<TPartOfConstraintBase::TPathType> eventTime = TPartOfConstraintBase::TPathType{"stale"};
+    UNIT_ASSERT_VALUES_EQUAL(TryExtractEventTime(lambda, lambda->Tail(), ctx, eventTime), IGraphTransformer::TStatus::Repeat);
+    UNIT_ASSERT(lambda != sharedLambda);
+    UNIT_ASSERT(lambda->Head().Head().GetAllConstraints().empty());
+    UNIT_ASSERT_VALUES_EQUAL(sharedLambda->Head().Head().GetConstraint<TPartOfStreamingConstraintNode>(), probe);
+    if (!directPath) {
+        UNIT_ASSERT(!eventTime);
+    }
+
+    lambda->SetState(TExprNode::EState::ConstrComplete);
+    UNIT_ASSERT_VALUES_EQUAL(TryExtractEventTime(lambda, lambda->Tail(), ctx, eventTime), IGraphTransformer::TStatus::Ok);
+    if (directPath) {
+        UNIT_ASSERT(eventTime);
+        UNIT_ASSERT(*eventTime == TPartOfConstraintBase::TPathType{"ts"});
+    } else {
+        UNIT_ASSERT(!eventTime);
+    }
+}
+
+Y_UNIT_TEST(TryExtractEventTimeDirectPathResetsProbe) {
+    CheckEventTimeProbeReset(true);
+}
+
+Y_UNIT_TEST(TryExtractEventTimeNoPathResetsProbe) {
+    CheckEventTimeProbeReset(false);
+}
+
+Y_UNIT_TEST(WatermarkGeneratorSharedExtractorWithHoppingTraits) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('t (Timestamp '1)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let extractor (lambda '(row) (Member row 't)))
+        (let watermarked (WatermarkGenerator streaming extractor '()))
+        (let traits (HoppingTraits (ListItemType (TypeOf watermarked)) extractor
+            (Interval '1000) (Interval '2000) (Interval '500) 'true 'v1))
+        (let aggr (Aggregate watermarked '('group0) '() '('('hopping '('group0 traits)))))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) aggr '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(t)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming(group0)");
+}
+
+Y_UNIT_TEST(WatermarkGeneratorReplicatedBranches) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('t (Timestamp '1)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let extractor (lambda '(row) (Member row 't)))
+        (let first (WatermarkGenerator streaming extractor '()))
+        (let second (WatermarkGenerator (Filter streaming (lambda '(row) (== (Member row 't) (Timestamp '1)))) extractor '()))
+        (let traits (HoppingTraits (ListItemType (TypeOf first)) extractor
+            (Interval '1000) (Interval '2000) (Interval '500) 'true 'v1))
+        (let aggr (Aggregate first '('group0) '() '('('hopping '('group0 traits)))))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) aggr '()))
+        (let world (Write! world res (Key) second '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraints<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", {"Streaming(t)", "Streaming(t)"});
+}
+
+Y_UNIT_TEST(WatermarkGeneratorConditionalLineage) {
+    for (const TStringBuf query : {
+             "(IfPresent (Member row 'a) (lambda '(item) (Just item)) (Member row 'b))",
+             "(IfPresent (Member row 'b) (lambda '(item) (Just item)) (Member row 'a))",
+             "(Coalesce (Member row 'a) (Member row 'b))",
+             "(Coalesce (Member row 'b) (Member row 'a))",
+             "(IfPresent (Member row 'a) (lambda '(item) (Just (Timestamp '3))) (Member row 'b))",
+             "(IfPresent (Member row 'a) (lambda '(item) (Just item)) (Just (Timestamp '3)))",
+         }) {
+        const TString s = TStringBuilder() << R"((
+            (let data (AsList (AsStruct '('a (Just (Timestamp '1))) '('b (Just (Timestamp '2))))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) )"
+                                           << query << R"() '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Event time expression must be materialized into a Timestamp column before assigning a watermark"});
+    }
+}
+
+Y_UNIT_TEST(WatermarkGenerator) {
+    struct TTestCase {
+        std::string_view Query;
+        std::string_view Constraint;
+    };
+
+    for (const auto [query, constraint] : std::vector<TTestCase>{
+             {.Query = "(Member row 'ts)", .Constraint = "Streaming(ts)"},
+             {.Query = "(SafeCast (Member row 'raw_ts) (OptionalType (DataType 'Timestamp)))", .Constraint = "Streaming(raw_ts)"},
+             {.Query = "(FlatMap (Member row 'raw_opt_ts) (lambda '(item) (SafeCast item (OptionalType (DataType 'Timestamp)))))", .Constraint = "Streaming(raw_opt_ts)"},
+             {.Query = "(IfPresent (Member row 'raw_opt_ts) (lambda '(item) (SafeCast item (OptionalType (DataType 'Timestamp)))) (Nothing (OptionalType (DataType 'Timestamp))))", .Constraint = "Streaming(raw_opt_ts)"},
+             {.Query = "(IfPresent (Member row 'raw_opt_ts) (lambda '(item) (Nothing (OptionalType (DataType 'Timestamp)))) (SafeCast (Member row 'raw_ts) (OptionalType (DataType 'Timestamp))))", .Constraint = "Streaming(raw_ts)"},
+             {.Query = "(IfPresent (Member row 'raw_opt_ts) (lambda '(item) (SafeCast item (OptionalType (DataType 'Timestamp)))) (SafeCast (Member row 'raw_opt_ts) (OptionalType (DataType 'Timestamp))))", .Constraint = "Streaming(raw_opt_ts)"},
+             {.Query = "(Coalesce (SafeCast (Member row 'raw_opt_ts) (OptionalType (DataType 'Timestamp))) (Nothing (OptionalType (DataType 'Timestamp))))", .Constraint = "Streaming(raw_opt_ts)"},
+             {.Query = "(- (Member row 'ts) (Interval '1000000))", .Constraint = "Streaming(ts)"},
+             {.Query = R"((- (SafeCast (Member row '"t") (OptionalType (DataType 'Timestamp))) (Interval '"7000000")))", .Constraint = "Streaming(t)"},
+         }) {
+        const TString s = TStringBuilder() << R"((
+            (let data (AsList (AsStruct '('raw_ts (String '2024-01-01T00:00:01Z)) '('raw_opt_ts (Just (String '2024-01-01T00:00:01Z))) '('ts (Timestamp '1)) '('"t" (String '2024-01-01T00:00:01Z)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) )"
+                                           << query << R"() '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", constraint);
+    };
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('a (Timestamp '1)) '('b (Timestamp '2)) '('flag (Bool 'true)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let materialized (Map streaming (lambda '(row) (AsStruct '('event_time (If (Member row 'flag) (Member row 'a) (Member row 'b)))))))
+            (let watermarked (WatermarkGenerator materialized (lambda '(row) (Member row 'event_time)) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(event_time)");
+    }
+}
+
+Y_UNIT_TEST(WatermarkGeneratorNegative) {
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('key (String '1)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = [\"missing\"]}"))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) streaming '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Streaming(missing) is not applicable"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('ts (Timestamp '1)))))
+            (let watermarked (WatermarkGenerator data (lambda '(row) (Member row 'ts)) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Watermark generator requires streaming input"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('a (Timestamp '1)) '('b (Timestamp '2)) '('flag (Bool 'true)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (If (Member row 'flag) (Member row 'a) (Member row 'b))) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Event time expression must be materialized into a Timestamp column before assigning a watermark"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('a (String '2024-01-01T00:00:01Z)) '('b (String '2024-01-01T00:00:02Z)) '('flag (Bool 'true)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (If (Member row 'flag) (Member row 'a) (Member row 'b)) (OptionalType (DataType 'Timestamp)))) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) watermarked '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Event time expression must be materialized into a Timestamp column before assigning a watermark"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data (AsList (AsStruct '('ts (Timestamp '1)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (Member row 'ts)) '()))
+            (let repeated (WatermarkGenerator watermarked (lambda '(row) (Member row 'ts)) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) repeated '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Event time is already assigned for streaming input"});
+    }
 }
 
 Y_UNIT_TEST(StablePickleOfComplexUnique) {
@@ -3713,6 +4276,963 @@ Y_UNIT_TEST(VisitWithoutRowUsageInAllBranches) {
     CheckConstraint<TEmptyConstraintNode>(exprRoot, "FlatMap", "");
     CheckConstraint<TVarIndexConstraintNode>(exprRoot, "Visit", "");
 }
+
+Y_UNIT_TEST(StreamingConstraintPassing) {
+    const TStringBuf s = R"((
+        (let list (AsList (AsStruct '('key (Just (String '4))) '('subkey (String 'c)) '('value (String 'v)) '('"_yql_sys" (String 's)) '('"pref_col" (String 'p)))))
+        (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+
+        (let unordered (Unordered streamingList))
+        (let unorderedSubquery (UnorderedSubquery unordered))
+        (let assumeUnique (AssumeUnique unorderedSubquery '('key)))
+        (let assumeChopped (AssumeChopped assumeUnique '('key)))
+        (let removePrefix (RemovePrefixMembers assumeChopped '('"pref_")))
+        (let filter (Filter removePrefix (lambda '(item) (Exists (Member item 'key)))))
+        (let orderedFilter (OrderedFilter filter (lambda '(item) (Exists (Member item 'key)))))
+        (let pruneKeys (PruneKeys orderedFilter (lambda '(item) (Member item 'key))))
+        (let skipNullMembers (SkipNullMembers pruneKeys '('key)))
+        (let filterNullMembers (FilterNullMembers skipNullMembers '('key)))
+
+        (let tupleList (AsList '((Just (String '4)) (String 'c) (String 'v))))
+        (let streamingTupleList (AssumeConstraints tupleList '"{\"Streaming\" = [\"0\"]}"))
+        (let skipNullElements (SkipNullElements streamingTupleList '('0)))
+        (let filterNullElements (FilterNullElements skipNullElements '('0)))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) filterNullMembers '()))
+        (let world (Write! world res (Key) filterNullElements '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Unordered", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "UnorderedSubquery", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "AssumeUnique", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "AssumeChopped", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "RemovePrefixMembers", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Filter", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "OrderedFilter", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "PruneKeys", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "SkipNullMembers", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FilterNullMembers", "Streaming(key)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "SkipNullElements", "Streaming(0)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FilterNullElements", "Streaming(0)");
+}
+
+Y_UNIT_TEST(StreamingConstraintPassingThroughMap) {
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let mapResult (Map streamingList (lambda '(item) (AddMember item 'extra (String 'x)))))
+            (let flatMapResult (FlatMap streamingList (lambda '(item) (Just (AddMember item 'extra (String 'x))))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) mapResult '()))
+            (let world (Write! world res (Key) flatMapResult '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", "Streaming(key)");
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = #}"))
+            (let mapResult (Map streamingList (lambda '(item) (AsStruct '('value (Member item 'key))))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) mapResult '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", "Streaming");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('ts (Timestamp '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"ts\"]}"))
+            (let mapResult (Map streamingList (lambda '(item) (AsStruct
+                '('ts (SafeCast (Member item 'ts) (OptionalType (DataType 'Datetime))))
+            ))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) mapResult '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", "Streaming");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let flatMapResult (FlatMap regular (lambda '(item) (AssumeConstraints (AsList item) '"{\"Streaming\" = [\"key\"]}"))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) flatMapResult '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let chained (Chain1Map streamingList
+                (lambda '(item) (Uint64 '1))
+                (lambda '(item state) (Inc state))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) chained '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Chain1Map", "Streaming");
+    }
+}
+
+Y_UNIT_TEST(StreamingConstraintExtend) {
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let extended (Extend regular streamingList))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) extended '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Extend", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let extended (OrderedExtend regular streamingList))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) extended '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "OrderedExtend", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let extended (OrderedExtend streamingList regular))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) extended '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "OrderedExtend", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let data1 (AsList (AsStruct '('key (String '1)))))
+            (let data2 (AsList (AsStruct '('key (String '2)))))
+            (let streaming1 (AssumeConstraints data1 '"{\"Streaming\" = [\"key\"]}"))
+            (let streaming2 (AssumeConstraints data2 '"{\"Streaming\" = [\"key\"]}"))
+            (let extended (Extend streaming1 streaming2))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) extended '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Extend", "Streaming(key)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let regular (AsList (AsStruct '('key (String '1)) '('value (String 'x)))))
+            (let streamingList (AssumeConstraints regular '"{\"Streaming\" = [\"key\"]}"))
+            (let structType (StructType '('key (DataType 'String)) '('value (DataType 'String))))
+            (let vt (VariantType (TupleType structType structType)))
+            (let mapped (FlatMap streamingList (lambda '(item)
+                (Extend
+                    (AsList (Variant item '0 vt))
+                    (AsList (Variant (AsStruct '('key (String 'constant)) '('value (Member item 'value))) '1 vt))
+                )
+            )))
+            (let result (Map mapped (lambda '(item) (VariantItem item))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) result '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TMultiConstraintNode>(exprRoot, "FlatMap", "Multi(0:{Streaming(key)},1:{Streaming})");
+    }
+}
+
+Y_UNIT_TEST(StreamingConstraintFailsOnWindowFunctions) {
+    const TStringBuf calcOverWindow = R"((
+        (let optDate (OptionalType (DataType 'Date)))
+        (let data (AsList (AsStruct '('"a" (Just (Date '"17494"))) '('"b" (Int32 '1)))))
+        (let streamingData (AssumeConstraints data '"{\"Streaming\" = [\"a\"]}"))
+
+        (let rowType (StructType '('"a" optDate) '('"b" (DataType 'Int32))))
+        (let sortTraits (SortTraits (ListType rowType) (Bool 'true) (lambda '(row) (Member row '"a"))))
+        (let countTraits (WindowTraits rowType
+            (lambda '(row) (Uint64 '1))
+            (lambda '(row state) (Inc state))
+            (lambda '(row state) (Void))
+            (lambda '(state) state)
+            (Uint64 '0)
+        ))
+
+        (let result (CalcOverWindow streamingData '('"b") sortTraits '((WinOnRows '('('begin (Void)) '('end (Int32 '0)) '('sortSpec sortTraits)) '('Count0 countTraits)))))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) result '()))
+        (return (Commit! world res))
+    ))";
+
+    const TStringBuf calcOverSessionWindow = R"((
+        (let optDate (OptionalType (DataType 'Date)))
+        (let data (AsList (AsStruct '('"a" (Just (Date '"17494"))) '('"b" (Int32 '1)))))
+        (let streamingData (AssumeConstraints data '"{\"Streaming\" = [\"a\"]}"))
+
+        (let rowType (StructType '('"a" optDate) '('"b" (DataType 'Int32))))
+        (let sortTraits (SortTraits (ListType rowType) (Bool 'true) (lambda '(row) (Member row '"a"))))
+        (let countTraits (WindowTraits rowType
+            (lambda '(row) (Uint64 '1))
+            (lambda '(row state) (Inc state))
+            (lambda '(row state) (Void))
+            (lambda '(state) state)
+            (Uint64 '0)
+        ))
+
+        (let result (CalcOverSessionWindow streamingData '('"b") sortTraits '((WinOnRows '('('begin (Void)) '('end (Int32 '0)) '('sortSpec sortTraits)) '('Count0 countTraits))) (Void) '()))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) result '()))
+        (return (Commit! world res))
+    ))";
+
+    const TStringBuf calcOverWindowGroup = R"((
+        (let optDate (OptionalType (DataType 'Date)))
+        (let data (AsList (AsStruct '('"a" (Just (Date '"17494"))) '('"b" (Int32 '1)))))
+        (let streamingData (AssumeConstraints data '"{\"Streaming\" = [\"a\"]}"))
+
+        (let rowType (StructType '('"a" optDate) '('"b" (DataType 'Int32))))
+        (let sortTraits (SortTraits (ListType rowType) (Bool 'true) (lambda '(row) (Member row '"a"))))
+        (let countTraits (WindowTraits rowType
+            (lambda '(row) (Uint64 '1))
+            (lambda '(row state) (Inc state))
+            (lambda '(row state) (Void))
+            (lambda '(state) state)
+            (Uint64 '0)
+        ))
+
+        (let result (CalcOverWindowGroup streamingData '('('('"b") sortTraits '((WinOnRows '('('begin (Void)) '('end (Int32 '0)) '('sortSpec sortTraits)) '('Count0 countTraits)))))))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) result '()))
+        (return (Commit! world res))
+    ))";
+
+    constexpr TStringBuf expectedError = "Window function over streaming input is not supported";
+    TExprContext exprCtx;
+    ParseAndAnnotate(calcOverWindow, exprCtx, {.ExpectedError = expectedError});
+    ParseAndAnnotate(calcOverSessionWindow, exprCtx, {.ExpectedError = expectedError});
+    ParseAndAnnotate(calcOverWindowGroup, exprCtx, {.ExpectedError = expectedError});
+}
+
+Y_UNIT_TEST(StreamingConstraintFailsOnEquiJoin) {
+    auto testEquiJoin = [](TStringBuf joinType, bool streamingLeft, bool streamingRight, TStringBuf expectedError) {
+        auto text = TStringBuilder() << R"((
+            (let list1 (AsList (AsStruct '('key (String '1)))))
+            )" << (streamingLeft ? R"((let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"key\"]}")))" : "")
+                                     << R"((let list2 (AsList (AsStruct '('key (String '2))))))"
+                                     << (streamingRight ? R"((let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"key\"]}")))" : "")
+                                     << R"((let join (EquiJoin '(list1 'a) '(list2 'b) '()" << joinType << R"( 'a 'b '('a 'key) '('b 'key) '()) '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) (LazyList join) '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(text, exprCtx, {.ExpectedError = expectedError});
+    };
+
+    TExprContext exprCtx;
+    testEquiJoin("'Right", /*sl=*/true, /*sr=*/false, "Streaming left input is not supported for RIGHT join");
+    testEquiJoin("'RightOnly", /*sl=*/true, /*sr=*/false, "Streaming left input is not supported for RIGHT ONLY join");
+    testEquiJoin("'Left", /*sl=*/false, /*sr=*/true, "Streaming right input is not supported for LEFT join");
+    testEquiJoin("'LeftOnly", /*sl=*/false, /*sr=*/true, "Streaming right input is not supported for LEFT ONLY join");
+    testEquiJoin("'Full", /*sl=*/true, /*sr=*/false, "Streaming inputs are not supported for FULL OUTER join");
+    testEquiJoin("'Full", /*sl=*/false, /*sr=*/true, "Streaming inputs are not supported for FULL OUTER join");
+    testEquiJoin("'Exclusion", /*sl=*/true, /*sr=*/false, "Streaming inputs are not supported for EXCLUSION join");
+    testEquiJoin("'Exclusion", /*sl=*/false, /*sr=*/true, "Streaming inputs are not supported for EXCLUSION join");
+}
+
+Y_UNIT_TEST(MatchRecognize) {
+    const TStringBuf s = R"((
+        (let list (AsList (AsStruct '('"dt" (Timestamp '1000)))))
+        (let streamingData (AssumeConstraints list '"{\"Streaming\" = [\"dt\"]}"))
+
+        (let rowType (StructType '('"dt" (DataType 'Timestamp))))
+        (let rowTypeMarked (StructType '('"dt" (DataType 'Timestamp)) '('"_yql_OutOfOrder" (DataType 'Bool))))
+
+        (let measures (MatchRecognizeMeasuresCallables rowType '() '() '()))
+        (let defines (MatchRecognizeDefines rowType '() '()))
+        (let params (MatchRecognizeParams measures 'RowsPerMatch_OneRow '('"AfterMatchSkip_NextRow" '"") (MatchRecognizePattern) defines))
+        (let mr (MatchRecognize streamingData (lambda '(row) '()) '() (Void) params))
+
+        (let flowData (ToFlow streamingData))
+        (let timeOrder (TimeOrderRecover flowData
+            (lambda '(row) (Member row '"dt"))
+            (Interval '"-10000")
+            (Interval '"10000")
+            (Uint32 '1000)))
+        (let measuresCore (MatchRecognizeMeasuresCallables rowTypeMarked '() '() '()))
+        (let definesCore (MatchRecognizeDefines rowTypeMarked '() '()))
+        (let paramsCore (MatchRecognizeParams measuresCore 'RowsPerMatch_OneRow '('"AfterMatchSkip_NextRow" '"") (MatchRecognizePattern) definesCore))
+        (let mrCore (MatchRecognizeCore timeOrder (lambda '(row) '()) '() paramsCore '('('"Streaming" '"1"))))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) mr '()))
+        (let world (Write! world res (Key) (ForwardList mrCore) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx, {.EnableMatchRecognize = true});
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MatchRecognize", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "TimeOrderRecover", "Streaming(dt)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MatchRecognizeCore", "Streaming");
+}
+
+Y_UNIT_TEST(StreamingConstraintAggregate) {
+    for (const bool streamingInput : {false, true}) {
+        for (const bool empty : {false, true}) {
+            const TString s = TStringBuilder() << R"((
+                (let rowType (StructType '('key (DataType 'String))))
+                (let list )" << (empty ? "(List (ListType rowType))" : "(AsList (AsStruct '('key (String '1))))")
+                                               << ")"
+                                               << (streamingInput ? R"((let list (AssumeConstraints list '"{\"Streaming\" = #}")))" : "")
+                                               << "(let aggr (Aggregate list '('key) '() " << "'()" << R"())
+                (let res (DataSink 'result))
+                (let world (Write! world res (Key) aggr '()))
+                (return (Commit! world res))
+            ))";
+
+            TExprContext exprCtx;
+            const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+            CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", streamingInput ? "Streaming" : "");
+            CheckConstraint<TEmptyConstraintNode>(exprRoot, "Aggregate", empty ? "Empty" : "");
+            CheckConstraint<TUniqueConstraintNode>(exprRoot, "Aggregate", "Unique((key))");
+            CheckConstraint<TDistinctConstraintNode>(exprRoot, "Aggregate", "Distinct((key))");
+        }
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let list (AsList (AsStruct '('key (String '1)) '('time (Timestamp '1000)))))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+            (let aggr (Aggregate streamingList '('key) '() '()))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let list (AsList (AsStruct '('key (String '1)) '('time (Timestamp '1000)))))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+            (let hoppingTraits (HoppingTraits (ListItemType (TypeOf streamingList))
+                (lambda '(row) (Member row 'time))
+                (Interval '1000)
+                (Interval '2000)
+                (Interval '500)
+                'true
+                'v1))
+            (let aggr (Aggregate streamingList '('key) '() '('('"hopping" hoppingTraits))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let list (AsList (AsStruct '('key (String '1)) '('time (Timestamp '1000)))))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = #}"))
+            (let hoppingTraits (HoppingTraits (ListItemType (TypeOf streamingList))
+                (lambda '(row) (Member row 'time))
+                (Interval '1000)
+                (Interval '2000)
+                (Interval '500)
+                'true
+                'v1))
+            (let aggr (Aggregate streamingList '('key) '() '('('"hopping" hoppingTraits))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let list (AsList (AsStruct '('event_time (Timestamp '1000)) '('ts (String 'x)))))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streamingList (lambda '(row) (Member row 'event_time)) '()))
+            (let hoppingTraits (HoppingTraits (ListItemType (TypeOf watermarked))
+                (lambda '(row) (Member row 'event_time))
+                (Interval '1000)
+                (Interval '2000)
+                (Interval '500)
+                'true
+                'v1))
+            (let aggr (Aggregate watermarked '('group0) '() '('('"hopping" '('group0 hoppingTraits)))))
+            (let projected (FlatMap aggr (lambda '(row) (Just (AsStruct '('event_time (Member row 'group0)))))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) projected '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming(group0)");
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(event_time)");
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let list (AsList (AsStruct '('payload (AsStruct '('event_time (Timestamp '1000)))) '('value (String 'x)))))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = #}"))
+            (let timeExtractor (lambda '(row) (Member (Member row 'payload) 'event_time)))
+            (let watermarked (WatermarkGenerator streamingList timeExtractor '()))
+            (let hoppingTraits (HoppingTraits (ListItemType (TypeOf watermarked))
+                timeExtractor
+                (Interval '1000)
+                (Interval '2000)
+                (Interval '500)
+                'true
+                'v1))
+            (let aggr (Aggregate watermarked '('group0) '() '('('"hopping" '('group0 hoppingTraits)))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(payload;event_time)");
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming(group0)");
+    }
+}
+
+Y_UNIT_TEST(StreamingConstraintShuffleByKeys) {
+    {
+        const TStringBuf s = R"((
+            (let res (DataSink 'result))
+            (let list (AsList
+                (AsStruct '('key (Just (String '4))) '('subkey (Just (String 'c))) '('value (Just (String 'x))))
+                (AsStruct '('key (Just (String '1))) '('subkey (Just (String 'b))) '('value (Just (String 'y))))
+            ))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+            (let extractor (lambda '(item) '((Member item 'key) (Member item 'subkey))))
+            (let aggr (PartitionsByKeys streamingList extractor (Void) (Void)
+                (lambda '(stream) (Condense1 stream (lambda '(row) row)
+                    (lambda '(row state) (IsKeySwitch row state extractor extractor))
+                    (lambda '(row state) row)
+                ))
+            ))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        ParseAndAnnotate(s, exprCtx, {.ExpectedError = "Reducing by keys of streaming input is not supported"});
+    }
+
+    {
+        const TStringBuf s = R"((
+            (let res (DataSink 'result))
+            (let list (AsList
+                (AsStruct '('key (Just (String '4))) '('subkey (Just (String 'c))) '('value (Just (String 'x))))
+                (AsStruct '('key (Just (String '1))) '('subkey (Just (String 'b))) '('value (Just (String 'y))))
+            ))
+            (let streamingList (AssumeConstraints list '"{\"Streaming\" = [\"key\"]}"))
+            (let aggr (ShuffleByKeys streamingList
+                (lambda '(item) '((Member item 'key) (Member item 'subkey)))
+                (lambda '(stream) (Take stream (Uint64 '100)))
+            ))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, "ShuffleByKeys", "Streaming(key)");
+    }
+}
+
+Y_UNIT_TEST(DirectStreamingConstraintWithSwitch) {
+    const auto s = R"((
+(let res (DataSink 'result))
+
+(let list1 (AsList
+    (AsStruct '('key (String '4)) '('subkey (String 'c)) '('value (String 'v)) '('event_time (Timestamp '4)))
+    (AsStruct '('key (String '1)) '('subkey (String 'd)) '('value (String 'v)) '('event_time (Timestamp '1)))
+    (AsStruct '('key (String '3)) '('subkey (String 'b)) '('value (String 'v)) '('event_time (Timestamp '3)))
+))
+(let list1 (AssumeConstraints list1 '"{\"Streaming\" = [\"event_time\"]}"))
+
+(let list2 (AsList
+    (AsStruct '('key (String '2)) '('subkey (String 'c)) '('value (String 'v)) '('event_time (Timestamp '2)))
+    (AsStruct '('key (String '5)) '('subkey (String 'd)) '('value (String 'v)) '('event_time (Timestamp '5)))
+    (AsStruct '('key (String '4)) '('subkey (String 'b)) '('value (String 'v)) '('event_time (Timestamp '4)))
+))
+(let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"event_time\"]}"))
+
+(let data (Mux '(list1 list2)))
+
+(let data (Switch (Iterator data) '0 '('0) (lambda '(s) (FlatMap s (lambda '(item) (Just item)))) '('1) (lambda '(s) s)))
+
+(let stripped (RemovePrefixMembers data '('event_)))
+(let result (Nth (Demux data) '1))
+
+(let world (Write! world res (Key) (Collect stripped) '()))
+(let world (Write! world res (Key) (Collect result) '()))
+(let world (Commit! world res))
+(return world)
+))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Mux", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Switch", "Streaming");
+    CheckConstraint<TMultiConstraintNode>(exprRoot, "Switch", "Multi(0:{Streaming(event_time)},1:{Streaming(event_time)})");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(event_time)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "RemovePrefixMembers", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Demux", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Nth", "Streaming(event_time)");
+}
+
+Y_UNIT_TEST(DetailedStreamingConstraintWithNonVariantSwitch) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('ts (Timestamp '1)) '('value (String 'x)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = [\"ts\"]}"))
+        (let switched (Switch (Iterator streaming) '0 '('0) (lambda '(items) items)))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (Collect switched) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Switch", "Streaming(ts)");
+}
+
+Y_UNIT_TEST(StreamingConstraintSimplificationForTuple) {
+    TExprContext ctx;
+    const auto* itemType = ctx.MakeType<TDataExprType>(EDataSlot::Timestamp);
+    TVector<const TTypeAnnotationNode*> tupleItems = {
+        ctx.MakeType<TListExprType>(itemType),
+        ctx.MakeType<TListExprType>(itemType),
+    };
+    const auto* tupleType = ctx.MakeType<TTupleExprType>(tupleItems);
+    const auto* detailed = ctx.MakeConstraint<TStreamingConstraintNode>(TPartOfConstraintBase::TPathType{"event_time"});
+
+    const auto* simplified = detailed->GetSimplifiedForType(*tupleType, ctx);
+    UNIT_ASSERT(!simplified->GetEventTime().Defined());
+    UNIT_ASSERT(simplified->IsApplicableToType(*tupleType));
+}
+
+Y_UNIT_TEST(MultiItemStreamingConstraintWithSwitch) {
+    const auto s = R"((
+(let res (DataSink 'result))
+
+(let list1 (AsList
+    (AsStruct '('key (String '4)) '('subkey (String 'c)) '('value (String 'v)) '('event_time (Timestamp '4)))
+    (AsStruct '('key (String '1)) '('subkey (String 'd)) '('value (String 'v)) '('event_time (Timestamp '1)))
+    (AsStruct '('key (String '3)) '('subkey (String 'b)) '('value (String 'v)) '('event_time (Timestamp '3)))
+))
+
+(let list2 (AsList
+    (AsStruct '('key (String '2)) '('subkey (String 'c)) '('value (String 'v)) '('event_time (Timestamp '2)))
+    (AsStruct '('key (String '5)) '('subkey (String 'd)) '('value (String 'v)) '('event_time (Timestamp '5)))
+    (AsStruct '('key (String '4)) '('subkey (String 'b)) '('value (String 'v)) '('event_time (Timestamp '4)))
+))
+(let list2 (AssumeConstraints list2 '"{\"Streaming\" = [\"event_time\"]}"))
+
+(let data (Mux '(list1 list2)))
+
+(let data (Switch (Iterator data) '0 '('0) (lambda '(s) (FlatMap s (lambda '(item) (Just item)))) '('1) (lambda '(s) s)))
+
+(let result (Nth (Demux data) '0))
+
+(let world (Write! world res (Key) (Collect result) '()))
+(let world (Commit! world res))
+(return world)
+))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Mux", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Switch", "Streaming");
+    CheckConstraint<TMultiConstraintNode>(exprRoot, "Switch", "Multi(0:{Streaming},1:{Streaming(event_time)})");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Demux", "Streaming");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Nth", "Streaming");
+}
+
+Y_UNIT_TEST(EmptyVariantSwitchPreservesStreaming) {
+    const TStringBuf s = R"((
+        (let res (DataSink 'result))
+        (let list (AsList (AsStruct '('key (String '1)) '('event_time (Timestamp '1)))))
+        (let streaming (AssumeConstraints list '"{\"Streaming\" = [\"event_time\"]}"))
+        (let data (Mux '(streaming streaming)))
+        (let switched (Switch (Iterator data)
+            '0 '('0) (lambda '(items) (FlatMap items (lambda '(item) (Nothing (OptionalType (TypeOf item))))))
+            '('1) (lambda '(items) (FlatMap items (lambda '(item) (Nothing (OptionalType (TypeOf item))))))))
+        (let result (Nth (Demux switched) '0))
+        (let world (Write! world res (Key) (Collect result) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TEmptyConstraintNode>(exprRoot, "Switch", "Empty");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Switch", "Streaming");
+}
+
+Y_UNIT_TEST(StreamingConstraintEventTimeProjection) {
+    struct TTestCase {
+        std::string_view Query;
+        std::string_view Callable;
+        std::string_view Constraint;
+    };
+
+    for (const auto [query, callable, constraint] : std::vector<TTestCase>{
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('renamed_ts (Member row 'ts)) '('value (Member row 'value))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming(renamed_ts)",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('value (Member row 'value))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('ts1 (Member row 'ts)) '('ts2 (Member row 'ts))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('ts (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp))))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming(ts)",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('ts (ToString (Member row 'ts)))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming",
+             },
+             {
+                 .Query = "(let projected watermarked)",
+                 .Callable = "WatermarkGenerator",
+                 .Constraint = "Streaming(ts)",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('ts (Member row 'ts)) '('value (Member row 'value))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming(ts)",
+             },
+             {
+                 .Query = "(let projected (FlatMap watermarked (lambda '(row) (Just row))))",
+                 .Callable = "FlatMap",
+                 .Constraint = "Streaming(ts)",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AddMember (AsStruct '('added_ts (Member row 'ts)) '('value (Member row 'value))) 'extra (String 'y)))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming(added_ts)",
+             },
+             {
+                 .Query = "(let projected (Map watermarked (lambda '(row) (AsStruct '('value (Member row 'value)) '('ts (Member row 'ts))))))",
+                 .Callable = "Map",
+                 .Constraint = "Streaming(ts)",
+             },
+             {
+                 .Query = R"(
+                    (let expanded (ExpandMap (ToFlow watermarked) (lambda '(row) (Member row 'ts) (Member row 'value))))
+                    (let reordered (WideMap expanded (lambda '(ts value) value ts)))
+                    (let narrowed (NarrowMap reordered (lambda '(value ts) (AsStruct '('value value) '('renamed_ts ts)))))
+                    (let projected (Collect narrowed))
+                 )",
+                 .Callable = "NarrowMap",
+                 .Constraint = "Streaming(renamed_ts)",
+             },
+             {
+                 .Query = R"(
+                    (let expanded (ExpandMap (ToFlow watermarked) (lambda '(row) (Member row 'ts) (Member row 'value))))
+                    (let reordered (WideMap expanded (lambda '(ts value) value ts)))
+                    (let narrowed (NarrowMap reordered (lambda '(value ts) (AsStruct '('value value)))))
+                    (let projected (Collect narrowed))
+                 )",
+                 .Callable = "NarrowMap",
+                 .Constraint = "Streaming",
+             },
+         }) {
+        const TString s = TStringBuilder() << R"((
+            (let data (AsList (AsStruct '('ts (Timestamp '1)) '('value (String 'x)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (Member row 'ts)) '()))
+            )" << query << R"(
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) projected '()))
+            (return (Commit! world res))
+        ))";
+
+        TExprContext exprCtx;
+        const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+        CheckConstraint<TStreamingConstraintNode>(exprRoot, callable, constraint);
+    };
+}
+
+void CheckStreamingEventTimeAliases(
+    const TExprNode::TPtr& exprRoot,
+    TStringBuf callable,
+    std::initializer_list<std::string_view> aliases) {
+    const TStreamingConstraintNode* streaming = nullptr;
+    VisitExpr(exprRoot, [&](const TExprNode::TPtr& node) {
+        if (node->IsCallable(callable)) {
+            streaming = node->GetConstraint<TStreamingConstraintNode>();
+            UNIT_ASSERT(!node->GetConstraint<TPartOfStreamingConstraintNode>());
+        }
+        return !streaming;
+    });
+    UNIT_ASSERT(streaming);
+    UNIT_ASSERT_VALUES_EQUAL(streaming->GetEventTimePaths().size(), aliases.size());
+    for (const auto alias : aliases) {
+        UNIT_ASSERT_C(streaming->IsEventTimePath(TPartOfConstraintBase::TPathType{alias}), "Missing event-time alias: " << alias);
+    }
+}
+
+TString MakeEventTimeAliasAggregateProgram(TStringBuf alias) {
+    return TStringBuilder() << R"((
+        (let data (AsList (AsStruct '('t (String '2024-01-01T00:00:01Z)) '('other (String '2024-01-01T00:00:02Z)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))) '()))
+        (let projected (Map watermarked (lambda '(row) (AsStruct
+            '('t (Member row 't))
+            '('event_time )" << alias
+                            << R"()
+        ))))
+        (let traits (HoppingTraits (ListItemType (TypeOf projected))
+            (lambda '(row) (SafeCast (Member row 'event_time) (OptionalType (DataType 'Timestamp))))
+            (Interval '1000) (Interval '2000) (Interval '500) 'true 'v1))
+        (let aggr (Aggregate projected '('group0) '() '('('hopping '('group0 traits)))))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) aggr '()))
+        (return (Commit! world res))
+    ))";
+}
+
+Y_UNIT_TEST(AggregateHoppingAllowsEventTimeAlias) {
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(MakeEventTimeAliasAggregateProgram(
+                                               "(SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))"), exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Map", "Streaming(t|event_time)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "Aggregate", "Streaming(group0)");
+    CheckStreamingEventTimeAliases(exprRoot, "Map", {"t", "event_time"});
+}
+
+Y_UNIT_TEST(AggregateHoppingRejectsUnrelatedAlias) {
+    for (const TStringBuf alias : {
+             "(SafeCast (Member row 'other) (OptionalType (DataType 'Timestamp)))",
+             "(+ (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp))) (Interval '1000))",
+         }) {
+        TExprContext exprCtx;
+        ParseAndAnnotate(MakeEventTimeAliasAggregateProgram(alias), exprCtx,
+                         {.ExpectedError = "HoppingWindow time extractor does not match assigned event time (expected: t, got: event_time)"});
+    }
+}
+
+Y_UNIT_TEST(HoppingWindowAliasAfterTwoProjections) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('t (String '2024-01-01T00:00:01Z)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))) '()))
+        (let aliases (Map watermarked (lambda '(row) (AsStruct
+            '('t (Member row 't))
+            '('event_time (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp))))
+        ))))
+        (let projected (Map aliases (lambda '(row) (AsStruct '('renamed_time (Member row 'event_time))))))
+        (let interval (Interval '1000000))
+        (let map (lambda '(item) (AsStruct)))
+        (let reduce (lambda '(lhs rhs) (AsStruct)))
+        (let hopping (MultiHoppingCore (Iterator projected) (lambda '(row) (Uint32 '0))
+            (lambda '(row) (Member row 'renamed_time)) interval interval interval 'true map reduce map map reduce
+            (lambda '(key state time) (AsStruct '('group0 time))) '"0" 'group0))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (ForwardList hopping) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraints<TStreamingConstraintNode>(exprRoot, "Map", {"Streaming(renamed_time)", "Streaming(t|event_time)"});
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "MultiHoppingCore", "Streaming(group0)");
+}
+
+Y_UNIT_TEST(StreamingEventTimeAliasesWideProjection) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('t (String '2024-01-01T00:00:01Z)) '('value (String 'x)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))) '()))
+        (let expanded (ExpandMap (ToFlow watermarked) (lambda '(row) (Member row 't) (Member row 'value))))
+        (let aliases (WideMap expanded (lambda '(t value) t (SafeCast t (OptionalType (DataType 'Timestamp))) value)))
+        (let narrowed (NarrowMap aliases (lambda '(t event_time value) (AsStruct '('event_time event_time) '('value value)))))
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) (Collect narrowed) '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WideMap", "Streaming(0|1)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "NarrowMap", "Streaming(event_time)");
+    CheckStreamingEventTimeAliases(exprRoot, "WideMap", {"0", "1"});
+}
+
+Y_UNIT_TEST(StreamingEventTimeAliasesAfterExtractMembers) {
+    for (const TStringBuf projection : {
+             "(let projected (ExtractMembers aliases '('event_time)))",
+             "(let projected (FlatMap watermarked (lambda '(row) (ExtractMembers (Just (AsStruct '('t (Member row 't)) '('event_time (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))))) '('event_time)))))",
+         }) {
+        const TString program = TStringBuilder() << R"((
+            (let data (AsList (AsStruct '('t (String '2024-01-01T00:00:01Z)))))
+            (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+            (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))) '()))
+            (let aliases (FlatMap watermarked (lambda '(row) (Just (AsStruct
+                '('t (Member row 't))
+                '('event_time (SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))))))))
+            )" << projection << R"(
+            (let traits (HoppingTraits (ListItemType (TypeOf projected))
+                (lambda '(row) (Member row 'event_time))
+                (Interval '1000) (Interval '2000) (Interval '500) 'true 'v1))
+            (let aggr (Aggregate projected '('group0) '() '('('hopping '('group0 traits)))))
+            (let res (DataSink 'result))
+            (let world (Write! world res (Key) aggr '()))
+            (return (Commit! world res))
+        ))";
+        TExprContext ctx;
+        const auto root = ParseAndAnnotate(program, ctx);
+        CheckConstraint<TStreamingConstraintNode>(root, "Aggregate", "Streaming(group0)");
+        // Inside the lambda ExtractMembers has an Optional result and carries
+        // transient lineage, not a sequence-level Streaming constraint.
+        CheckConstraint<TStreamingConstraintNode>(root, projection.Contains("FlatMap") ? "FlatMap" : "ExtractMembers", "Streaming(event_time)");
+    }
+}
+
+Y_UNIT_TEST(StreamingEventTimeAliasesProjectionSerialization) {
+    TExprContext ctx;
+    const auto root = ParseAndAnnotate(MakeEventTimeAliasAggregateProgram(
+                                           "(SafeCast (Member row 't) (OptionalType (DataType 'Timestamp)))"), ctx);
+    bool found = false;
+    VisitExpr(root, [&](const TExprNode::TPtr& node) {
+        if (node->IsCallable("Map")) {
+            found = true;
+            const auto serialized = node->GetConstraintSet().ToYson();
+            TExprContext otherCtx;
+            const auto restored = otherCtx.MakeConstraintSet(serialized);
+            const auto streaming = restored.GetConstraint<TStreamingConstraintNode>();
+            UNIT_ASSERT(streaming);
+            UNIT_ASSERT(streaming->IsEventTimePath(TPartOfConstraintBase::TPathType{"t"}));
+            UNIT_ASSERT(streaming->IsEventTimePath(TPartOfConstraintBase::TPathType{"event_time"}));
+        }
+        return true;
+    });
+    UNIT_ASSERT(found);
+}
+
+Y_UNIT_TEST(StreamingConstraintEventTimeWideCastProjection) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('ts (String '2024-01-01T00:00:01Z)) '('value (String 'x)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 'ts) (OptionalType (DataType 'Timestamp)))) '()))
+        (let expanded (ExpandMap (ToFlow watermarked) (lambda '(row) (Member row 'ts) (Member row 'value))))
+        (let filteredWide (WideFilter expanded (lambda '(ts value) (== value value))))
+        (let projectedWide (WideMap filteredWide (lambda '(ts value) (SafeCast ts (OptionalType (DataType 'Timestamp))) value)))
+        (let narrowed (NarrowMap projectedWide (lambda '(event_time value) (AsStruct '('event_time event_time) '('value value)))))
+        (let projected (Collect narrowed))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) projected '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(ts)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WideFilter", "Streaming(0)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WideMap", "Streaming(0)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "NarrowMap", "Streaming(event_time)");
+}
+
+Y_UNIT_TEST(StreamingConstraintEventTimeFlatMapPreservesRawTime) {
+    const TStringBuf s = R"((
+        (let data (AsList (AsStruct '('time (Uint64 '1)) '('level (String 'error)))))
+        (let streaming (AssumeConstraints data '"{\"Streaming\" = #}"))
+        (let watermarked (WatermarkGenerator streaming (lambda '(row) (SafeCast (Member row 'time) (OptionalType (DataType 'Timestamp)))) '()))
+        (let filtered (FlatMap watermarked (lambda '(row) (OptionalIf (== (Member row 'level) (String 'error)) row))))
+        (let projected (Collect filtered))
+
+        (let res (DataSink 'result))
+        (let world (Write! world res (Key) projected '()))
+        (return (Commit! world res))
+    ))";
+
+    TExprContext exprCtx;
+    const auto exprRoot = ParseAndAnnotate(s, exprCtx);
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "WatermarkGenerator", "Streaming(time)");
+    CheckConstraint<TStreamingConstraintNode>(exprRoot, "FlatMap", "Streaming(time)");
+}
+
 } // Y_UNIT_TEST_SUITE(TYqlExprConstraints)
 
 } // namespace NYql

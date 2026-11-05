@@ -1,8 +1,8 @@
 {
-    cluster=arnold;
+    cluster=kolmogorov;
     pool="yt-integration-tests";
     pool_trees=[
-        "yt_integration_tests";
+        "physical";
     ];
     cypress_root="//home/yt-integration-tests";
     operation_spec={
@@ -38,6 +38,6 @@
     };
     run_as_root=%true;
     enable_network=%true;
-    blob_ttl=302400000000000;
-    output_ttl=604800000000000;
+    blob_ttl=172800000000000;
+    output_ttl=302400000000000;
 }

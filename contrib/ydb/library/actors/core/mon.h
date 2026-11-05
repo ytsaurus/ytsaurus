@@ -5,6 +5,10 @@
 #include <library/cpp/monlib/service/monservice.h>
 #include <library/cpp/monlib/service/pages/mon_page.h>
 
+#include <functional>
+#include <memory>
+#include <optional>
+
 namespace NActorsProto {
     class TRemoteHttpInfo;
 } // NActorsProto
@@ -38,8 +42,18 @@ namespace NActors {
             {
             }
 
+            TEvHttpInfo(const NMonitoring::IMonHttpRequest& request, const TString& userToken, const TString& database)
+                : Request(request)
+                , UserToken(userToken)
+                , Database(database)
+                , SubRequestId(0)
+            {
+            }
+
             const NMonitoring::IMonHttpRequest& Request;
             TString UserToken; // built and serialized
+            TString Database; // raw extracted from request; empty if not specified
+            std::optional<std::shared_ptr<const std::function<TString(TStringBuf)>>> PathNormalizer;
             // SubRequestId != 0 means that we assemble reply from multiple parts and SubRequestId contains this part id
             int SubRequestId;
         };
@@ -59,6 +73,7 @@ namespace NActors {
 
             virtual void Output(IOutputStream& out) const = 0;
             virtual EContentType GetContentType() const = 0;
+            virtual TString GetNonce() const { return {}; }
         };
 
         // Ready to output HTML in TString
@@ -78,9 +93,14 @@ namespace NActors {
                 return ContentType;
             }
 
+            TString GetNonce() const override {
+                return Nonce;
+            }
+
             const TString Answer;
             const int SubRequestId;
             const EContentType ContentType;
+            TString Nonce;
         };
 
         struct TEvRemoteHttpInfo: public NActors::TEventBase<TEvRemoteHttpInfo, RemoteHttpInfo> {
@@ -97,7 +117,10 @@ namespace NActors {
 
             TString PathInfo() const;
             TCgiParameters Cgi() const;
+            TString GetUserToken() const;
             HTTP_METHOD GetMethod() const;
+            TString GetHeader(TStringBuf name) const;
+            TString GetCookie(TStringBuf name) const;
 
             TString ToStringHeader() const override {
                 return "TEvRemoteHttpInfo";
@@ -128,26 +151,20 @@ namespace NActors {
             }
 
             TString Html;
+            TString Nonce;
 
             TString ToStringHeader() const override {
                 return "TEvRemoteHttpInfoRes";
             }
 
-            bool SerializeToArcadiaStream(TChunkSerializer *serializer) const override {
-                return serializer->WriteString(&Html);
-            }
-
-            ui32 CalculateSerializedSize() const override {
-                return Html.size();
-            }
+            bool SerializeToArcadiaStream(TChunkSerializer *serializer) const override;
+            ui32 CalculateSerializedSize() const override;
 
             bool IsSerializable() const override {
                 return true;
             }
 
-            static TEvRemoteHttpInfoRes* Load(const TEventSerializedData* bufs) {
-                return new TEvRemoteHttpInfoRes(bufs->GetString());
-            }
+            static TEvRemoteHttpInfoRes* Load(const TEventSerializedData* bufs);
         };
 
         struct TEvRemoteJsonInfoRes: public NActors::TEventBase<TEvRemoteJsonInfoRes, RemoteJsonInfoRes> {
@@ -216,6 +233,8 @@ namespace NActors {
 
 
         TString BuildActorsLink(const TString& path, const TCgiParameters& currentParams, const std::initializer_list<std::pair<TString, TString>> newParams);
+
+        TString GenerateCspNonce();
 
     }
 

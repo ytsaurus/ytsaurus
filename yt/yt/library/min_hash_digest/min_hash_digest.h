@@ -33,7 +33,7 @@ template <class TTimestampComparator>
 using TMinHashItems = std::vector<TTimestampedHash<TTimestampComparator>>;
 
 template <class TTimestampComparator>
-struct TMinHash
+class TMinHash
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(int, Capacity);
@@ -43,7 +43,7 @@ public:
     TMinHash() = default;
     TMinHash(int capacity, TMinHashItems<TTimestampComparator> items);
 
-    i64 GetWeight() const;
+    i64 ComputeWeight() const;
     i64 GetSerializedSize() const;
 
     void Write(char*& ptr) const;
@@ -72,7 +72,7 @@ private:
     TMinHashItems<TTimestampComparator> ItemsBuffer_;
 
 private:
-    void EnsureCompacted();
+    void CompactBuffer();
 };
 
 using TWriteMinHashAccumulator = TMinHashAccumulator<std::less<ui32>>;
@@ -106,6 +106,8 @@ public:
 
     TSharedRef BuildSerialized() const;
 
+    i64 ComputeWeight() const;
+
     ui32 CalculateWriteDeleteSimilarityTimestamp(const TMinHashSimilarityConfigPtr& similarityConfig) const;
 
     ui32 CalculateWritesSimilarityTimestamp(
@@ -127,8 +129,6 @@ private:
         const TMinHashSimilarityConfigPtr& similarityConfig,
         std::vector<ui32>&& intersectionTimestamps,
         int comparisonSize) const;
-
-    i64 GetWeight() const;
 
     void TrackMemory();
 };

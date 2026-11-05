@@ -1,5 +1,6 @@
 RECURSE(
     admin
+    architecture
     benchmarks
     chyt
     cpp

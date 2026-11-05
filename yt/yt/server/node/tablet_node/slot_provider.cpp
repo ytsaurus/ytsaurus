@@ -8,6 +8,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NCellarAgent;
+using namespace NCellarNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +23,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    ICellarOccupierPtr CreateCellarOccupier(int index) override
+    ICellarOccupierPtr CreateCellarOccupier(int index, const TCreateCellSlotInfo& /*createInfo*/) override
     {
         return CreateTabletSlot(index, Config_, Bootstrap_);
     }

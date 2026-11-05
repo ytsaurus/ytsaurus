@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "segment_readers.h"
 #endif
-#undef SEGMENT_READERS_INL_H_
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -385,7 +384,7 @@ void TLookupTimestampExtractor::InitSegment(const TTimestampMeta* meta, const ch
     RowOffset_ = meta->ChunkRowCount - meta->RowCount;
     SegmentRowLimit_ = meta->ChunkRowCount;
 
-    BaseTimestamp_ = meta->BaseTimestamp;
+    BaseTimestamp_ = TTimestamp(meta->BaseTimestamp);
     ExpectedDeletesPerRow_ = meta->ExpectedDeletesPerRow;
     ExpectedWritesPerRow_ = meta->ExpectedWritesPerRow;
 
@@ -439,7 +438,7 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetWriteTimestamps(
     auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
     auto startTimestamps = timestamps;
     for (auto it = begin; it != end; ++it) {
-        *timestamps++ = BaseTimestamp_ + TimestampsDict_[WriteTimestampIds_[it]];
+        *timestamps++ = TTimestamp(BaseTimestamp_.Underlying() + TimestampsDict_[WriteTimestampIds_[it]]);
     }
 
     return TRange(startTimestamps, timestamps);
@@ -454,7 +453,7 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetDeleteTimestamps(
     auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
     auto startTimestamps = timestamps;
     for (auto it = begin; it != end; ++it) {
-        *timestamps++ = BaseTimestamp_ + TimestampsDict_[DeleteTimestampIds_[it]];
+        *timestamps++ = TTimestamp(BaseTimestamp_.Underlying() + TimestampsDict_[DeleteTimestampIds_[it]]);
     }
 
     return TRange(startTimestamps, timestamps);

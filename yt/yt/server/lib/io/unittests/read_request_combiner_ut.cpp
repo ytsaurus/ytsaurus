@@ -60,7 +60,7 @@ protected:
         std::sort(TestHandles.begin(), TestHandles.end());
         std::sort(TestHandlesDirect.begin(), TestHandlesDirect.end());
 
-        NFs::Remove(FileName);
+        NFs::Remove(TString(FileName));
     }
 
     std::tuple<IReadRequestCombinerPtr, std::vector<TCombinedRequest>>
@@ -103,7 +103,7 @@ protected:
     std::vector<TIOEngineHandlePtr> TestHandles;
     std::vector<TIOEngineHandlePtr> TestHandlesDirect;
 
-    TString FileName;
+    std::string FileName;
 };
 
 using TReadRequestCombinerTest = TReadRequestCombinerTestBase<false>;

@@ -58,15 +58,14 @@ struct IObjectController
     virtual bool IsLeading() const = 0;
 };
 
-template <typename TRow, typename TSnapshot>
+template <typename TSnapshot>
 class TErrorController
     : public IObjectController
 {
 public:
-    TErrorController(
-        TRow row,
-        std::optional<NQueueClient::TReplicatedTableMappingTableRow> replicatedTableMappingRow,
-        TError error);
+    using TSnapshotPtr = TIntrusivePtr<TSnapshot>;
+
+    explicit TErrorController(TSnapshotPtr snapshot);
 
     void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
@@ -85,10 +84,7 @@ public:
     bool IsLeading() const override;
 
 private:
-    const TRow Row_;
-    const std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    const TError Error_;
-    const TIntrusivePtr<TSnapshot> Snapshot_;
+    const TSnapshotPtr Snapshot_;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectController)

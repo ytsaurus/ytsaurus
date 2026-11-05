@@ -81,6 +81,11 @@ struct THunkPayloadHeader
     TChecksum Checksum;
 };
 
+//! NB: Hunk data size statistics on master rely on this via ComputeHunkDataSize function.
+static_assert(sizeof(THunkPayloadHeader) == 8, "sizeof(THunkPayloadHeader) == 8");
+
+i64 ComputeHunkDataSize(const NProto::THunkChunkRef& ref);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef GetAndValidateHunkPayload(
@@ -459,6 +464,9 @@ struct IHunkChunkPayloadWriter
     //! Returns the chunk data statistics.
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
 
+    //! Returns the total data weight of all hunks written via #WriteHunk.
+    virtual i64 GetDataWeight() const = 0;
+
     //! Called when chunk store writer closes.
     virtual void OnParentReaderFinished(NChunkClient::TChunkId compressionDictionaryId) = 0;
 
@@ -482,6 +490,17 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
 size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
     TRange<TUnversionedRow> rows,
     const TTableSchemaPtr& schema);
+
+//! Single-row counterparts of #ComputeSchemafulRowsDataWeightAfterHunkDecoding.
+//! Unlike plain #GetDataWeight, this accounts for the actual (decoded) length of hunk values
+//! that were replaced with a compact ref (e.g. #ReplaceHunks) instead of the ref's own length.
+i64 GetDataWeightAfterHunkDecoding(TUnversionedRow row, const TTableSchemaPtr& schema);
+i64 GetDataWeightAfterHunkDecoding(TVersionedRow row, const TTableSchemaPtr& schema);
+
+//! Unlike plain #GetDataWeight, this excludes the hunk encoding overhead (e.g. hunk refs),
+//! so that chunk writers can report the correct data weight of the chunk.
+i64 GetDataWeightWithoutHunkEncoding(const TUnversionedValue& value);
+i64 GetDataWeightWithoutHunkEncoding(TVersionedRow row);
 
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value);
 

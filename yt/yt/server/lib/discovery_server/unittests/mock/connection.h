@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/yt/ytlib/discovery_client/public.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/options.h>
@@ -175,6 +175,13 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    NRpc::IChannelPtr WrapAsCypressChannelOrThrow(
+        const NRpc::IChannelPtr& /*localChannel*/,
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NRpc::IChannelPtr& GetCypressProxyChannel() override
     {
         YT_UNIMPLEMENTED();
@@ -240,6 +247,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IChaosLeaseCachePtr& GetChaosLeaseCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
     {
         YT_UNIMPLEMENTED();
@@ -259,6 +270,11 @@ public:
     }
 
     const NSecurityClient::TPermissionCachePtr& GetPermissionCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NSecurityClient::TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -315,7 +331,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const std::string& GetLoggingTag() const override
+    const NLogging::TLoggingTagList& GetLoggingTags() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -415,6 +431,16 @@ public:
     }
 
     const NRpc::IChannelPtr& GetBundleControllerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NRpc::IChannelPtr GetStickyOffshoreDataGatewayChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() override
     {
         YT_UNIMPLEMENTED();
     }

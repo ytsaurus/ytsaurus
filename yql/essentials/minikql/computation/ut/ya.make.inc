@@ -9,10 +9,14 @@ ELSE()
     SIZE(MEDIUM)
 ENDIF()
 
+ENABLE(TIDY_ALLOW_GENERATED)
+SET(TIDY_HEADER_FILTER "${ARCADIA_ROOT}/yql/essentials/minikql/computation/")
+
 SRCDIR(yql/essentials/minikql/computation)
 
 SRCS(
     mkql_block_trimmer_ut.cpp
+    mkql_bridge_ut.cpp
     mkql_computation_node_holders_ut.cpp
     mkql_computation_node_pack_ut.cpp
     mkql_computation_node_list_ut.cpp
@@ -35,4 +39,4 @@ PEERDIR(
     yql/essentials/public/udf/service/exception_policy
 )
 
-YQL_LAST_ABI_VERSION()
+YQL_CURRENT_ABI_VERSION()

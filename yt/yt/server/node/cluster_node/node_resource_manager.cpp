@@ -49,7 +49,7 @@ constinit const auto Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatMemoryUsage(i64 memoryUsage)
+std::string FormatMemoryUsage(i64 memoryUsage)
 {
     TStringBuf prefix = "";
     if (memoryUsage < 0) {
@@ -138,7 +138,7 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
@@ -381,9 +381,9 @@ TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStri
 {
     #define XX(name, Name) if (lhs.Name < rhs.Name) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", lhs.Name) \
-                << TErrorAttribute("expected_ge_to", rhs.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", lhs.Name) \
+                .With("expected_ge_to", rhs.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -396,9 +396,9 @@ TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringB
 {
     #define XX(name, Name) if (lhs.Name != rhs.Name) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", lhs.Name) \
-                << TErrorAttribute("expected_e_to", rhs.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", lhs.Name) \
+                .With("expected_e_to", rhs.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -411,8 +411,8 @@ TError VerifyNonNegative(const TJobResources& resources, TStringBuf failMessage)
 {
     #define XX(name, Name) if (resources.Name < static_cast<decltype(resources.Name)>(0L)) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", resources.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", resources.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -480,6 +480,21 @@ void TNodeResourceManager::OnInstanceLimitsUpdated(const NContainers::TInstanceL
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Limits_.Store(limits);
+}
+
+TFuture<void> TNodeResourceManager::SyncUpdateLimits()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!UpdateExecutor_->IsStarted()) {
+        return MakeFuture(TError("Node resource update executor is not started"));
+    }
+
+    YT_TLOG_DEBUG("Requested out of band node limits update");
+
+    auto event = UpdateExecutor_->GetExecutedEvent();
+    UpdateExecutor_->ScheduleOutOfBand();
+    return event;
 }
 
 IYPathServicePtr TNodeResourceManager::GetOrchidService()
@@ -619,7 +634,7 @@ void TNodeResourceManager::UpdateLimits()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_DEBUG("Updating node resource limits");
+    YT_TLOG_DEBUG("Updating node resource limits");
 
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
@@ -641,20 +656,22 @@ void TNodeResourceManager::UpdateMemoryLimits()
     if (totalMemory >= freeMemoryWatermark) {
         totalMemory -= freeMemoryWatermark;
     } else {
-        YT_LOG_WARNING(
-            "Free memory watermark more than total memory (FreeMemoryWatermark: %v, TotalMemory: %v)",
-            freeMemoryWatermark,
-            totalMemory);
+        YT_TLOG_WARNING("Free memory watermark more than total memory")
+            .With("FreeMemoryWatermark", freeMemoryWatermark)
+            .With("TotalMemory", totalMemory);
     }
 
+    bool jobResourceAvailabilityIncreased = false;
+
     if (auto oldMemoryLimit = memoryUsageTracker->GetTotalLimit(); totalMemory != oldMemoryLimit) {
-        YT_LOG_INFO(
-            "Setting new memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v, FreeMemoryWatermark: %v)",
-            oldMemoryLimit,
-            totalMemory,
-            freeMemoryWatermark);
+        YT_TLOG_INFO("Setting new memory limit")
+            .With("OldMemoryLimit", oldMemoryLimit)
+            .With("NewMemoryLimit", totalMemory)
+            .With("FreeMemoryWatermark", freeMemoryWatermark);
 
         memoryUsageTracker->SetTotalLimit(totalMemory);
+
+        jobResourceAvailabilityIncreased = totalMemory > oldMemoryLimit;
     }
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -667,13 +684,21 @@ void TNodeResourceManager::UpdateMemoryLimits()
         auto newLimit = *limit->Value;
 
         if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {
-            YT_LOG_INFO(
-                "Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
-                category,
-                oldLimit,
-                newLimit);
+            YT_TLOG_INFO("Updating memory category limit")
+                .With("Category", category)
+                .With("OldLimit", oldLimit)
+                .With("NewLimit", newLimit);
             memoryUsageTracker->SetCategoryLimit(category, newLimit);
+
+            if (category == EMemoryCategory::UserJobs && newLimit > oldLimit) {
+                jobResourceAvailabilityIncreased = true;
+            }
         }
+    }
+
+    if (jobResourceAvailabilityIncreased) {
+        YT_TLOG_DEBUG("Job memory availability increased, notifying job resource manager");
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
     }
 
     auto externalMemory = std::max(
@@ -711,7 +736,16 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
+    auto oldJobsCpuLimit = JobsCpuLimit_.load();
     JobsCpuLimit_.store(newJobsCpuLimit);
+
+    if (newJobsCpuLimit > oldJobsCpuLimit) {
+        YT_TLOG_DEBUG("Jobs CPU limit increased, notifying job resource manager")
+            .With("OldJobsCpuLimit", oldJobsCpuLimit)
+            .With("NewJobsCpuLimit", newJobsCpuLimit);
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
+    }
+
     JobsCpuLimitUpdated_.Fire();
 }
 

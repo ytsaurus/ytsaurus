@@ -7,12 +7,14 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.request.CreateNode;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.StartTransaction;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
@@ -59,6 +61,45 @@ public class QueuesAPITest extends YTsaurusClientTestBase {
         ).join();
 
         Assert.assertEquals(3, rowset.getRows().size());
+    }
+
+    @Test
+    public void testUnregisterQueueConsumer() {
+        YTsaurusClient yt = ytFixture.getYt();
+
+        YPath queuePath = ytFixture.getTestDirectory().child("queue");
+        YPath consumerPath = ytFixture.getTestDirectory().child("consumer");
+
+        createAndFillQueue(yt, queuePath);
+        createConsumer(yt, consumerPath);
+
+        yt.registerQueueConsumer(
+                RegisterQueueConsumer.builder()
+                        .setQueuePath(queuePath)
+                        .setConsumerPath(consumerPath)
+                        .build()
+        ).join();
+
+        Assert.assertEquals(1, yt.listQueueConsumerRegistrations(
+                ListQueueConsumerRegistrations.builder()
+                        .setQueuePath(queuePath)
+                        .setConsumerPath(consumerPath)
+                        .build()
+        ).join().getQueueConsumerRegistrations().size());
+
+        yt.unregisterQueueConsumer(
+                UnregisterQueueConsumer.builder()
+                        .setQueuePath(queuePath)
+                        .setConsumerPath(consumerPath)
+                        .build()
+        ).join();
+
+        Assert.assertTrue(yt.listQueueConsumerRegistrations(
+                ListQueueConsumerRegistrations.builder()
+                        .setQueuePath(queuePath)
+                        .setConsumerPath(consumerPath)
+                        .build()
+        ).join().getQueueConsumerRegistrations().isEmpty());
     }
 
     @Test

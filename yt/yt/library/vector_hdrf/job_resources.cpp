@@ -292,7 +292,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
-        resources.GetMemory() / 1_MB,
+        resources.GetMemory() / 1_MBs,
         resources.GetNetwork());
 }
 

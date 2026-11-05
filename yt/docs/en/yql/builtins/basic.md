@@ -361,6 +361,11 @@ Builds a `Callable` object by the specified function name and optional `externa
 * `Udf(Foo::Bar, "1e9+7" as RunConfig")(1, 'extended' As Precision)`: Calling the `Foo::Bar` user-defined function with the specified `RunConfig` and named parameters.
 * `Udf(Foo::Bar, $parent as Depends)`: Calling the `Foo::Bar` user-defined function indicating the dependency of the calculation on a given node (starting with version [2025.03](../changelog/2025.03.md)).
 
+Additional settings may be passed as named arguments whose values are strings or numeric literals:
+
+* `Cpu`: A positive factor describing the CPU consumed by the UDF. The default is "1". A larger value requires greater parallelism. For example: "4.5".
+* `ExtraMem`: Additional memory in bytes. The default is "0". Specify either a non-negative integer number of bytes or a string with a `K`, `M`, or `G` suffix, such as "512K", "2048M", or "1G".
+
 #### Signatures
 
 ```yql
@@ -388,8 +393,16 @@ $config = @@{
 SELECT Udf(Protobuf::TryParse, $config As TypeConfig)("")
 ```
 
+```yql
+SELECT Udf(Foo::Bar, 4.5 AS Cpu, 100000000 AS ExtraMem)(1);
+```
 
-## CurrentUtc... {#current-utc}
+```yql
+SELECT Udf(Foo::Bar, "4.5" AS Cpu, "100M" AS ExtraMem)(1);
+```
+
+
+## CurrentUtc... {#current-utc} {#currentutcdate}
 
 `CurrentUtcDate()`, `CurrentUtcDatetime()` and `CurrentUtcTimestamp()`: Getting the current date and/or time in UTC. The result data type is specified at the end of the function name.
 
@@ -537,7 +550,7 @@ SELECT MIN_OF(1, 2, 3);
 ```
 
 
-## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict and AsSetStrict {#as-container}
+## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict and AsSetStrict {#as-container} {#aslist} {#asstruct} {#astuple}
 
 Creates containers of the appropriate types. [Operator writing](#containerliteral) of container literals is also available.
 
@@ -937,7 +950,7 @@ TableRow()->Struct
 SELECT TableRow() FROM my_table;
 ```
 
-## FileContent and FilePath {#file-content-path}
+## FileContent and FilePath {#file-content-path} {#filecontent}
 
 You can attach arbitrary named files to your query both in the {% if audience == "internal" %}[console]({{yql.link}}/docs/yt/interfaces/cli){% else %}console{% endif %} and {% if audience == "internal" %}[web]({{yql.link}}/docs/yt/interfaces/web){% else %}web{% endif %} interfaces. With these functions, you can use the name of the attached file to get its contents or the path in the sandbox, and then use it as you like in the query.
 
@@ -1211,6 +1224,38 @@ LinearDestroy(T, [Linear<U1>...])->T
 Added in version [2025.05](../changelog/2025.05.md).
 This function returns its first parameter, consuming 0 or more [linear](../types/linear.md) type values listed after the first parameter.
 
+## AsErased, PeekErased {#type_erasure}
+
+#### Signature {#type-erasure-signature}
+
+```yql
+AsErased(T)->Resource<_Erased>
+PeekErased(Resource<_Erased>, type U)->Optional<U>
+```
+
+Available starting with version [2026.02](../changelog/2026.02.md). In Query Tracker, select language version 2026.02 or later to use these functions. `AsErased` erases a value's type by converting any input type to a fixed type. A [linear](../types/linear.md) type cannot be passed to it, but `DynamicLinear` can be used. `PeekErased` returns the original value when its type exactly matches the requested type; otherwise, it returns an empty `Optional`.
+
+Type erasure can be used to build recursive data and functions:
+
+```yql
+$erased = TypeOf(AsErased(NULL));
+$nodeType = Struct<value: String, left: Optional<$erased>, right: Optional<$erased>>;
+
+$makeNode = ($value, $left, $right) -> {
+    RETURN CAST(<|
+        value: $value,
+        left: IF($left IS NOT NULL, AsErased($left)),
+        right: IF($right IS NOT NULL, AsErased($right))
+    |> AS $nodeType);
+};
+```
+
+```yql
+$e = AsErased(1);
+SELECT PeekErased($e, Int32),  -- 1
+       PeekErased($e, String); -- NULL
+```
+
 ## Block
 
 #### Signature
@@ -1472,6 +1517,18 @@ Just(T)->T?
 ```yql
 SELECT
   Just("my_string"); --  String?
+```
+
+## AsOptional {#asoptional}
+
+Available starting with version [2026.01](../changelog/2026.01.md). Allows the supplied value to contain `NULL`. If the type is already optional, a PostgreSQL type, or `NULL`, the value is returned unchanged. Unlike [Just](#optional-ops), it does not add another nesting level to an already optional value.
+
+```yql
+SELECT
+  AsOptional(42),       -- Just(42)
+  AsOptional(NULL),     -- NULL
+  AsOptional(Just(42)), -- Just(42)
+  AsOptional(1p);       -- 1p
 ```
 
 ## Unwrap {#unwrap}

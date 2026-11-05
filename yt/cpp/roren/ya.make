@@ -8,7 +8,6 @@ IF (NOT OPENSOURCE)
         benchmarks
         bigrt
         bigrt/ut
-        flow
         doc
         interface
         interface/ut
@@ -19,10 +18,5 @@ IF (NOT OPENSOURCE)
         transforms/ut
         yt/test_medium
         yt/ut
-    )
-
-    RECURSE_FOR_TESTS(
-        flow/extensions/bigrt/test_medium
-        flow/extensions/logbroker/test_medium
     )
 ENDIF()

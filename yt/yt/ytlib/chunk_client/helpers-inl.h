@@ -37,8 +37,8 @@ std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecks
 {
     if (rpc->block_checksums_size() != 0 && std::ssize(rpc->Attachments()) != rpc->block_checksums_size()) {
         THROW_ERROR_EXCEPTION("Number of RPC attachments does not match the number of checksums")
-            << TErrorAttribute("attachment_count", rpc->Attachments().size())
-            << TErrorAttribute("checksum_count", rpc->block_checksums_size());
+            .With("attachment_count", rpc->Attachments().size())
+            .With("checksum_count", rpc->block_checksums_size());
     }
 
     std::vector<TBlock> blocks;
@@ -55,8 +55,8 @@ std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecks
             auto error = blocks.back().CheckChecksum();
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Invalid block checksum in RPC attachment")
-                    << TErrorAttribute("block_index", i)
-                    << error;
+                    .With("block_index", i)
+                    .With(error);
             }
         }
     }
@@ -88,10 +88,13 @@ std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& mess
 {
     using NYT::FromProto;
     if (!message.partition_tags().empty()) {
-        YT_VERIFY(!message.has_partition_tag());
+        YT_VERIFY(
+            !message.has_partition_tag() ||
+            (message.partition_tags_size() == 1 &&
+                message.partition_tags(0) == message.partition_tag()));
         return TPartitionTags(FromProto<TPartitionTags::TUnderlying>(message.partition_tags()));
     }
-    // COMPAT(namorniradnug)
+    // COMPAT(apollo1321): Remove after the 26.2 branch is created.
     if (message.has_partition_tag()) {
         return TPartitionTags{message.partition_tag()};
     }

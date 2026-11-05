@@ -13,15 +13,17 @@ namespace NYT::NLsm::NTesting {
 NTableClient::TUnversionedOwningRow BuildNativeKey(TKey key);
 
 template <class T>
-T ReadYsonSerializableWithComments(const TString& filename)
+T ReadYsonSerializableWithComments(const std::string& filename)
 {
-    TString configString;
+    std::string configString;
 
-    TIFStream stream(filename);
+    // TODO(babenko): drop TString cast once TIFStream accepts std::string.
+    TIFStream stream{TString(filename)};
+    // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
     TString line;
 
     while (stream.ReadLine(line)) {
-        auto hashPos  = line.find_first_of('#');
+        auto hashPos = line.find_first_of('#');
         if (hashPos != TString::npos) {
             line = line.substr(0, hashPos);
         }

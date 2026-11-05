@@ -18,18 +18,33 @@ class TType;
 
 namespace NYql::NYtflow::NCodec {
 
-class IOutputCodec {
+class IRowOutputCodec {
 public:
     virtual NYT::NTableClient::TUnversionedRow Convert(
         NYql::NUdf::TUnboxedValue unboxedValue) = 0;
 
 public:
-    virtual ~IOutputCodec() = default;
+    virtual ~IRowOutputCodec() = default;
 };
 
-THolder<IOutputCodec> CreateOutputCodec(
+class IValueOutputCodec {
+public:
+    virtual NYT::NTableClient::TUnversionedValue Convert(
+        NYql::NUdf::TUnboxedValue unboxedValue) = 0;
+
+public:
+    virtual ~IValueOutputCodec() = default;
+};
+
+THolder<IRowOutputCodec> CreateRowOutputCodec(
     const NKikimr::NMiniKQL::TType* type,
     NYT::NTableClient::TTableSchemaPtr ytSchema,
+    NYT::NTableClient::TRowBufferPtr rowBuffer,
+    const TConvertOptions& convertOptions = {});
+
+THolder<IValueOutputCodec> CreateValueOutputCodec(
+    const NKikimr::NMiniKQL::TType* type,
+    NYT::NTableClient::TLogicalTypePtr ytType,
     NYT::NTableClient::TRowBufferPtr rowBuffer,
     const TConvertOptions& convertOptions = {});
 

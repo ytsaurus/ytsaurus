@@ -84,7 +84,7 @@ struct ISimpleHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
+    virtual void Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
 
     //! Returns |true| if Hydra is entering read only move.
     /*!
@@ -97,6 +97,12 @@ struct ISimpleHydraManager
      *  \note Thread affinity: AutomatonThread
      */
     virtual NLogging::ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const = 0;
+
+    //! Returns log level at which unknown automaton parts on snapshot load are reported.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NLogging::ELogLevel GetUnknownAutomatonPartsLogLevel() const = 0;
 
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
@@ -236,6 +242,8 @@ struct IHydraManager
     virtual bool IsDiscombobulated() const = 0;
 
     virtual i64 GetSequenceNumber() const = 0;
+
+    virtual TError GetLastRestartError() const = 0;
 
     //! Raised during periodic leader lease checks.
     //! A subscriber must start an appropriate check and return a future

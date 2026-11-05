@@ -7,8 +7,8 @@
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -26,7 +26,7 @@ public:
 
     TResourceTreeElement(
         TResourceTree* resourceTree,
-        const TString& id,
+        const std::string& id,
         EResourceTreeElementKind elementKind);
 
     TJobResources GetResourceUsage();
@@ -48,18 +48,18 @@ public:
     inline bool GetAlive() const;
     inline void SetNonAlive();
 
-    NThreading::TWriterGuard<NThreading::TPaddedReaderWriterSpinLock> AcquireWriteLock();
+    TWriterGuard<TPaddedReaderWriterSpinLock> AcquireWriteLock();
 
-    inline const TString& GetId();
+    inline const std::string& GetId();
 
     void MarkInitialized();
 
 private:
     TResourceTree* ResourceTree_;
-    const TString Id_;
+    const std::string Id_;
     const EResourceTreeElementKind Kind_;
 
-    NThreading::TPaddedReaderWriterSpinLock ResourceUsageLock_;
+    YT_DECLARE_SPIN_LOCK(TPaddedReaderWriterSpinLock, ResourceUsageLock_);
     std::optional<TJobResources> SpecifiedResourceLimits_;
     TJobResources SpecifiedResourceLimitsOvercommitTolerance_;
     TJobResources ResourceUsage_;
@@ -82,11 +82,13 @@ private:
     EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        bool skipSpecifiedResourceLimitsCheck,
         TJobResources* availableResourceLimitsOutput);
 
     EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        bool skipSpecifiedResourceLimitsCheck,
         const std::optional<TJobResources>& additionalLocalResourceLimits,
         TJobResources* availableResourceLimitsOutput);
 
@@ -106,7 +108,9 @@ private:
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
-    bool CommitLocalPreemptedResourceUsageUnsafe(const TJobResources& resourceUsageDelta);
+    bool CommitLocalPreemptedResourceUsageUnsafe(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     bool IncreaseLocalResourceUsage(const TJobResources& delta);
 

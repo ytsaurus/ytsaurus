@@ -50,11 +50,33 @@ _PyCode_GetTLBCArray(PyCodeObject *co)
 #else
 #define Py_TAG_BITS     ((uintptr_t)1)
 #define Py_TAG_DEFERRED (1)
+#define Py_INT_TAG      3
 #endif
 
 
 static const _PyStackRef PyStackRef_NULL = { .bits = Py_TAG_DEFERRED};
 #define PyStackRef_IsNull(stackref) ((stackref).bits == PyStackRef_NULL.bits)
+
+static inline bool
+PyStackRef_IsTaggedInt(_PyStackRef i)
+{
+    return (i.bits & Py_INT_TAG) == Py_INT_TAG;
+}
+
+static inline bool
+PyStackRef_IsNullOrInt(_PyStackRef stackref)
+{
+    return PyStackRef_IsNull(stackref) || PyStackRef_IsTaggedInt(stackref);
+}
+
+#define _Py_VISIT_STACKREF(ref)                                         \
+    do {                                                                \
+        if (!PyStackRef_IsNullOrInt(ref)) {                             \
+            int vret = _PyGC_VisitStackRef(&(ref), visit, arg);         \
+            if (vret)                                                   \
+                return vret;                                            \
+        }                                                               \
+    } while (0)
 
 static inline PyObject *
 PyStackRef_AsPyObjectBorrow(_PyStackRef stackref)
@@ -63,8 +85,29 @@ PyStackRef_AsPyObjectBorrow(_PyStackRef stackref)
     return cleared;
 }
 
+#define Py_TAG_REFCNT 1
+#define BITS_TO_PTR(ref) ((PyObject *)((ref).bits))
+
+#define PyStackRef_RefcountOnObject(ref) (((ref).bits & Py_TAG_REFCNT) == 0)
+
+#define PyStackRef_CLOSE(REF)                            \
+    do {                                                 \
+        _PyStackRef _close_tmp = (REF);                  \
+        if (PyStackRef_RefcountOnObject(_close_tmp)) {   \
+            Py_DECREF(BITS_TO_PTR(_close_tmp));          \
+        }                                                \
+    } while (0)
+
+#define PyStackRef_CLEAR(REF)                            \
+    do {                                                 \
+        _PyStackRef* _clear_ptr = &(REF);                \
+        _PyStackRef _clear_old = (*_clear_ptr);          \
+        *_clear_ptr = PyStackRef_NULL;                   \
+        PyStackRef_CLOSE(_clear_old);                    \
+    } while (0)
+
 static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {
-    assert(!PyStackRef_IsNull(f->f_executable));
+    assert(!PyStackRef_IsNullOrInt(f->f_executable));
     PyObject *executable = PyStackRef_AsPyObjectBorrow(f->f_executable);
     assert(PyCode_Check(executable));
     return (PyCodeObject *)executable;

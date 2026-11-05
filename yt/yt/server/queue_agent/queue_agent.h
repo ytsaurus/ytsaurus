@@ -3,19 +3,29 @@
 #include "object.h"
 #include "pass_profiler.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/core/rpc/bus/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NQueueAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TConsumerInfo
+{
+    NQueueClient::TConsumerReference Ref;
+    NQueueClient::TConsumerTableRowConstPtr Row;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,10 +33,13 @@ struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
     NProfiling::TGauge Consumers;
+    NProfiling::TGauge MultiConsumers;
+    NProfiling::TGauge MultiConsumerNames;
     NProfiling::TGauge Partitions;
     NProfiling::TGauge TrimmedQueues;
     NProfiling::TGauge ErroneousQueues;
     NProfiling::TGauge ErroneousConsumers;
+    NProfiling::TGauge ErroneousMultiConsumers;
 
     explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
@@ -40,11 +53,11 @@ public:
         TQueueAgentConfigPtr config,
         NApi::NNative::IConnectionPtr nativeConnection,
         NHiveClient::TClientDirectoryPtr clientDirectory,
+        std::string queueAgentUser,
         IInvokerPtr controlInvoker,
         NQueueClient::TDynamicStatePtr dynamicState,
-        NCypressElection::ICypressElectionManagerPtr electionManager,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        TString agentId);
+        std::string agentId);
 
     void Start();
 
@@ -72,13 +85,13 @@ private:
     const TQueueAgentClientDirectoryPtr QAClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const NQueueClient::TDynamicStatePtr DynamicState_;
-    const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
     const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
     const TPassProfiler PassProfiler_;
 
-    const TString AgentId_;
+    const std::string AgentId_;
+    const NRpc::IChannelFactoryPtr BaseQueueAgentChannelFactory_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
 
@@ -91,7 +104,7 @@ private:
     };
     using TObjectMap = THashMap<NQueueClient::TGenericObjectReference, TObject>;
 
-    mutable NThreading::TReaderWriterSpinLock ObjectLock_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ObjectLock_);
     //! Objects available in this queue agent.
     //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedArray<EObjectKind, TObjectMap> Objects_;
@@ -101,7 +114,7 @@ private:
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
     //! Mapping of objects to their corresponding queue agent host.
-    THashMap<NQueueClient::TGenericObjectReference, TString> ObjectToHost_;
+    THashMap<NQueueClient::TGenericObjectReference, std::string> ObjectToHost_;
 
     //! Current pass error if any.
     TError PassError_;
@@ -110,20 +123,38 @@ private:
     //! Index of the current poll iteration.
     i64 PassIndex_ = -1;
 
-    NRpc::IChannelFactoryPtr QueueAgentChannelFactory_;
+    TAtomicIntrusivePtr<NRpc::IChannelFactory> QueueAgentChannelFactory_;
 
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> OwnedObjectServiceNodes_;
 
     IQueueExportManagerPtr QueueExportManager_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const std::string& host, TStringBuf remoteRoot) const;
 
     NYTree::INodePtr GetControllerInfoNode() const;
 
     //! One iteration of state polling and object store updating.
     void Pass();
     void GuardedPass(const NLogging::TLogger& Logger);
+
+    bool UpdateConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const TConsumerInfo& info,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateMultiConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TConsumerTableRowConstPtr& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateQueueController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TQueueTableRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

@@ -1,20 +1,10 @@
 import yt.logger as logger
 
-try:
-    from yt.packages.six import iteritems
-except ImportError:
-    from six import iteritems
-
 from yt.wrapper.dynamic_table_commands import mount_table, unmount_table, reshard_table
 from yt.wrapper.cypress_commands import exists, create, set, get
 from yt.yson import YsonUint64
 
 from yt.wrapper.common import update_inplace
-
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
 
 from yt.wrapper import YtClient
 import yt.wrapper.config
@@ -62,7 +52,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
     if log_tailer_version is not None:
         attributes["log_tailer_version"] = log_tailer_version
 
-    for attribute, value in iteritems(attributes):
+    for attribute, value in attributes.items():
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
@@ -74,7 +64,7 @@ def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None)
         "tablet_balancer_config/desired_tablet_size": 10 * 1024**3,
         "tablet_balancer_config/max_tablet_size": 20 * 1024**3,
     }
-    for attribute, value in iteritems(attributes):
+    for attribute, value in attributes.items():
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
@@ -84,7 +74,7 @@ def reshard_log_tailer_table(table_kind, table_path, tablet_count=None, sync=Tru
     tablet_count = tablet_count or 100
     if table_kind == "ordered_normally":
         logger.debug("Resharding %s", table_path)
-        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, tablet_count)]
+        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in range(1, tablet_count)]
         reshard_table(table_path, pivot_keys=pivot_keys, sync=sync, client=client)
 
 

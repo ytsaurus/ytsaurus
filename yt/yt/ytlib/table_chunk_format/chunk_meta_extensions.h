@@ -10,8 +10,8 @@ namespace NYT::NTableClient {
 
 struct TBoundaryKeysExtension
 {
-    TString Min;
-    TString Max;
+    TProtobufString Min;
+    TProtobufString Max;
 
     bool operator==(const TBoundaryKeysExtension& other) const = default;
 };
@@ -25,14 +25,14 @@ struct TColumnMetaExtension
 
 struct TKeyColumnsExtension
 {
-    std::vector<TString> Names;
+    std::vector<std::string> Names;
 
     bool operator==(const TKeyColumnsExtension& other) const = default;
 };
 
 struct TSamplesExtension
 {
-    std::vector<TString> Entries;
+    std::vector<std::string> Entries;
     std::vector<i32> Weights;
 
     bool operator==(const TSamplesExtension& other) const = default;

@@ -30,7 +30,6 @@ target_link_libraries(restricted-boost-tuple INTERFACE
   contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-core
-  restricted-boost-static_assert
   restricted-boost-type_traits
 )
 

@@ -15,11 +15,12 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/profiling/public.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkClient {
 
@@ -147,7 +148,7 @@ private:
     struct TWindowSlot
     {
         // Created lazily in GetBlockPromise.
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BlockPromiseLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, BlockPromiseLock);
         TPromise<TBlock> BlockPromise;
 
         //! Number of not finished blocks. Used for firing OnReaderFinished signal.
@@ -155,7 +156,7 @@ private:
 
         TMemoryUsageGuardPtr MemoryUsageGuard;
 
-        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
+        std::atomic_flag FetchStarted;
     };
 
     std::unique_ptr<TWindowSlot[]> Window_;

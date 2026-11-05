@@ -10,7 +10,7 @@ From the point of view of the [{{product-name}} scheduler](../../../../user-guid
 
 ## Administering a clique { #administration }
 
-Cliques are administered by *users*, not {{product-name}} administrators. Specifically, any {{product-name}} user can start their own clique (or even several cliques) at any time. For more information, see [How to start a private clique](../../../../user-guide/data-processing/chyt/cliques/start.md).
+Cliques are administered by *users*, not {{product-name}} administrators. Specifically, any {{product-name}} user can start their own clique (or even several cliques) at any time. For more information, see [Create, start, and stop a clique](../../../../user-guide/data-processing/chyt/how-to-guides/create-start.md).
 
 ## Reliable isolation { #isolation }
 

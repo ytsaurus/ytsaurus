@@ -14,20 +14,20 @@ public:
     THuggingfaceClient(
         const std::optional<std::string>& token,
         NConcurrency::IPollerPtr poller,
-        const std::optional<TString>& urlOverride = std::nullopt); // For tests only.
+        const std::optional<std::string>& urlOverride = std::nullopt); // For tests only.
 
-    std::vector<TString> GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split);
+    std::vector<std::string> GetParquetFileUrls(const std::string& dataset, const std::string& subset, const std::string& split);
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr DownloadFile(const std::string& url);
 
 private:
     static constexpr int MaxRedirectCount = 10;
 
-    const TString Url_;
+    const std::string Url_;
     const std::optional<std::string> Token_;
     const NHttp::IClientPtr Client_;
 
-    std::vector<TString> ParseParquetFileUrls(TStringBuf data);
+    std::vector<std::string> ParseParquetFileUrls(TStringBuf data);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

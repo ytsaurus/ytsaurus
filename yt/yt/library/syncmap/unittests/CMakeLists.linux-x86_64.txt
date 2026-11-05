@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-yt-library-syncmap-unittests)
+add_executable(unittester-library-syncmap)
 
 
-target_compile_options(yt-yt-library-syncmap-unittests PRIVATE
+target_compile_options(unittester-library-syncmap PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,7 +27,7 @@ target_compile_options(yt-yt-library-syncmap-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-syncmap-unittests PUBLIC
+target_link_libraries(unittester-library-syncmap PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -39,12 +39,12 @@ target_link_libraries(yt-yt-library-syncmap-unittests PUBLIC
   yt-library-syncmap
 )
 
-target_allocator(yt-yt-library-syncmap-unittests
+target_allocator(unittester-library-syncmap
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-library-syncmap-unittests PRIVATE
+target_link_options(unittester-library-syncmap PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -55,21 +55,21 @@ target_link_options(yt-yt-library-syncmap-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-library-syncmap-unittests PRIVATE
+target_sources(unittester-library-syncmap PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/syncmap/unittests/map_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-syncmap-unittests
+  unittester-library-syncmap
   COMMAND
-  yt-yt-library-syncmap-unittests
+  unittester-library-syncmap
 )
 
 set_property(
   TEST
-  yt-yt-library-syncmap-unittests
+  unittester-library-syncmap
   PROPERTY
   LABELS
   SMALL
@@ -77,16 +77,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-syncmap-unittests
+  unittester-library-syncmap
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-syncmap-unittests)
+vcs_info(unittester-library-syncmap)
 
 set_property(
   TEST
-  yt-yt-library-syncmap-unittests
+  unittester-library-syncmap
   PROPERTY
   PROCESSORS
   1

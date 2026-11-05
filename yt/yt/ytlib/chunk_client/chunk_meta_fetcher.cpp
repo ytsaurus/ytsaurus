@@ -50,9 +50,9 @@ void TChunkMetaFetcher::ProcessDynamicStore(int /*chunkIndex*/)
 
 TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    YT_LOG_DEBUG("Fetching chunk metas from node (NodeId: %v, ChunkIndexes: %v)",
-        nodeId,
-        chunkIndexes);
+    YT_TLOG_DEBUG("Fetching chunk metas from node")
+        .With("NodeId", nodeId)
+        .With("ChunkIndexes", chunkIndexes);
 
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -95,16 +95,14 @@ void TChunkMetaFetcher::OnResponse(
     std::vector<int> requestedChunkIndexes,
     TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>&& rspOrError)
 {
-    YT_LOG_DEBUG(
-        "Node response received (NodeId: %v, ChunkIndexes: %v)",
-        nodeId,
-        requestedChunkIndexes);
+    YT_TLOG_DEBUG("Node response received")
+        .With("NodeId", nodeId)
+        .With("ChunkIndexes", requestedChunkIndexes);
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO(
-            "Failed to get chunk slices meta from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-            nodeId);
+        YT_TLOG_INFO("Failed to get chunk slices meta from node")
+            .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+            .With("NodeId", nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);
         return;

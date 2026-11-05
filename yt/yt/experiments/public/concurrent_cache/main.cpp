@@ -44,12 +44,15 @@ struct TElement final
 
     TElement()
     {
-        YT_LOG_TRACE_IF(EnableLogging, "TElement() %v", this);
+        YT_TLOG_TRACE_IF(EnableLogging, "Constructed element")
+            .With("Element", this);
     }
 
     ~TElement()
     {
-        YT_LOG_TRACE_IF(EnableLogging, "~TElement(%v) %v", TStringBuf(Data, Size), this);
+        YT_TLOG_TRACE_IF(EnableLogging, "Destroyed element")
+            .With("Value", TStringBuf(Data, Size))
+            .With("Element", this);
     }
 };
 

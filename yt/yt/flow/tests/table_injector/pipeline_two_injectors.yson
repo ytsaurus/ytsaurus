@@ -1,0 +1,109 @@
+{
+    "spec" = {
+        "computations" = {
+            "SlowInjector" = {
+                "computation_class_name" = "TTableReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["slow_injector"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//tmp/t_slow_input";
+                            "consumer_path" = "<cluster=primary>//tmp/t_input_consumer";
+                            "update_info_period" = 1000;
+                        };
+                    };
+                };
+            };
+            "FastInjector" = {
+                "computation_class_name" = "TTableReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["slow_injector"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//tmp/t_fast_input";
+                            "consumer_path" = "<cluster=primary>//tmp/t_input_consumer";
+                            "update_info_period" = 1000;
+                        };
+                    };
+                };
+            };
+            "Output" = {
+                "computation_class_name" = "TTableWriter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["slow_injector"; "fast_injector"];
+                "output_stream_ids" = ["output"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["output"];
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//tmp/t_output";
+                            "producer_path" = "<cluster=primary>//tmp/t_output_producer";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "slow_injector" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+            "fast_injector" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+            "output" = {
+                "schema" = [
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "SlowInjector" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 5;
+                    "select_limit" = 100;
+                };
+            };
+            "FastInjector" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 3;
+                    "select_limit" = 1000;
+                };
+            };
+            "Output" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 1000;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+        };
+        "job_tracker" = {
+            "buffer_state_manager" = {
+                "input_buffer_limit" = 5000;
+                "output_buffer_limit" = 10000;
+                "segment_size" = 100;
+                "initial_window" = 1;
+                "slow_start_threshold" = 10000;
+                "buffer_management_strategy" = "fair_share";
+            };
+        };
+    };
+}

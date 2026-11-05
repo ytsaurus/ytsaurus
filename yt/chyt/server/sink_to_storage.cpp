@@ -44,31 +44,34 @@ public:
     TSinkToStorageBase(
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
-        const TCompositeSettingsPtr& compositeSettings,
+        const TConversionSettingsPtr& conversionSettings,
         std::function<void()> onFinished,
         const TLogger& logger,
         TCallback<void(const TStatistics&)> statisticsCallback = {})
-        : DB::SinkToStorage(ToHeaderBlock(*schema, compositeSettings))
+        : DB::SinkToStorage(ToHeaderBlock(*schema, conversionSettings))
         , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))
         , DataTypes_(std::move(dataTypes))
         , ColumnIndexToId_(GetColumnIndexToId(NameTable_, Schema_->GetColumnNames()))
-        , CompositeSettings_(std::move(compositeSettings))
+        , ConversionSettings_(std::move(conversionSettings))
         , OnFinished_(std::move(onFinished))
         , StatisticsCallback_(std::move(statisticsCallback))
     { }
 
     void consume(DB::Chunk& chunk) override
     {
-        YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", chunk.getNumRows(), chunk.getNumColumns(), chunk.bytes());
+        YT_TLOG_TRACE("Writing block")
+            .With("RowCount", chunk.getNumRows())
+            .With("ColumnCount", chunk.getNumColumns())
+            .With("ByteCount", chunk.bytes());
         Statistics_.AddSample("/sink_to_storage/chunk_rows"_SP, chunk.getNumRows());
         Statistics_.AddSample("/sink_to_storage/chunk_bytes"_SP, chunk.bytes());
         Statistics_.AddSample("/sink_to_storage/chunk_columns"_SP, chunk.getNumColumns());
 
         // TODO(buyval01): refactor ToRowRange to work with chunks to avoid cloning.
         TWallTimer convertationTimer;
-        auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, CompositeSettings_);
+        auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, ConversionSettings_);
         convertationTimer.Stop();
         auto convertationTime = convertationTimer.GetElapsedTime();
 
@@ -112,7 +115,7 @@ private:
     std::vector<DB::DataTypePtr> DataTypes_;
     std::vector<int> ColumnIndexToId_;
     DB::Block HeaderBlock_;
-    TCompositeSettingsPtr CompositeSettings_;
+    TConversionSettingsPtr ConversionSettings_;
     std::function<void()> OnFinished_;
     TCallback<void(const TStatistics&)> StatisticsCallback_;
 };
@@ -128,7 +131,7 @@ public:
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
         TTableWriterConfigPtr config,
-        TCompositeSettingsPtr compositeSettings,
+        TConversionSettingsPtr conversionSettings,
         NNative::IClientPtr client,
         TTransactionId writeTransactionId,
         std::function<void()> onFinished,
@@ -137,7 +140,7 @@ public:
         : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
-            std::move(compositeSettings),
+            std::move(conversionSettings),
             std::move(onFinished),
             logger,
             std::move(statisticsCallback))
@@ -184,6 +187,7 @@ public:
 
 private:
     IUnversionedWriterPtr Writer_;
+    bool WriterClosed_ = false;
 
     void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
@@ -195,10 +199,16 @@ private:
 
     void CloseWriter()
     {
-        YT_LOG_INFO("Closing writer");
+        if (WriterClosed_) {
+            YT_TLOG_DEBUG("Writer already closed, skipping");
+            return;
+        }
+
+        YT_TLOG_INFO("Closing writer");
+        WriterClosed_ = true;
         WaitFor(Writer_->Close())
             .ThrowOnError();
-        YT_LOG_INFO("Writer closed");
+        YT_TLOG_INFO("Writer closed");
     }
 };
 
@@ -213,7 +223,7 @@ public:
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
         TDynamicTableSettingsPtr dynamicTableSettings,
-        TCompositeSettingsPtr compositeSettings,
+        TConversionSettingsPtr conversionSettings,
         NNative::IClientPtr client,
         std::function<void()> onFinished,
         const TLogger& logger,
@@ -221,7 +231,7 @@ public:
         : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
-            std::move(compositeSettings),
+            std::move(conversionSettings),
             std::move(onFinished),
             logger,
             std::move(statisticsCallback))
@@ -264,17 +274,18 @@ private:
                     break;
                 }
 
-                YT_LOG_DEBUG(error, "Error writing row range, backing off (RetryIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
-                    retryIndex,
-                    from,
-                    to);
+                YT_TLOG_DEBUG("Error writing row range, backing off")
+                    .With("RetryIndex", retryIndex)
+                    .With("LowerRowIndex", from)
+                    .With("UpperRowIndex", to)
+                    .With(error);
 
                 errors.emplace_back(std::move(error));
             }
 
             if (!isWritten) {
                 THROW_ERROR_EXCEPTION("Cannot write rows to dynamic table %Qv: all retries failed", Path_.GetPath())
-                    << errors;
+                    .With(errors);
             }
         }
     }
@@ -290,15 +301,16 @@ private:
                 transactionStartOptions));
 
         if (!transactionOrError.IsOK()) {
-            YT_LOG_WARNING(transactionOrError, "Error starting transaction");
+            YT_TLOG_WARNING("Error starting transaction")
+                .With(transactionOrError);
             return transactionOrError;
         }
         const auto& transaction = transactionOrError.Value();
 
-        YT_LOG_DEBUG("Writing rows to table (Path: %v, RowCount: %v, TransactionId: %v)",
-            Path_.GetPath(),
-            rows.size(),
-            transaction->GetId());
+        YT_TLOG_DEBUG("Writing rows to table")
+            .With("Path", Path_.GetPath())
+            .With("RowCount", rows.size())
+            .With("TransactionId", transaction->GetId());
 
         transaction->WriteRows(
             Path_.GetPath(),
@@ -308,13 +320,14 @@ private:
         auto commitResultOrError = WaitFor(transaction->Commit());
 
         if (commitResultOrError.IsOK()) {
-            YT_LOG_DEBUG("Rows committed (RowCount: %v, TransactionId: %v)",
-                rows.size(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Rows committed")
+                .With("RowCount", rows.size())
+                .With("TransactionId", transaction->GetId());
         } else {
-            YT_LOG_INFO(commitResultOrError, "Error committing rows (RowCount: %v, TransactionId: %v)",
-                rows.size(),
-                transaction->GetId());
+            YT_TLOG_INFO("Error committing rows")
+                .With("RowCount", rows.size())
+                .With("TransactionId", transaction->GetId())
+                .With(commitResultOrError);
         }
 
         return commitResultOrError;
@@ -328,19 +341,19 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
     TTableSchemaPtr schema,
     std::vector<DB::DataTypePtr> dataTypes,
     TTableWriterConfigPtr config,
-    TCompositeSettingsPtr compositeSettings,
+    TConversionSettingsPtr conversionSettings,
     NNative::IClientPtr client,
     NTransactionClient::TTransactionId writeTransactionId,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToStaticTable>(
         std::move(path),
         std::move(schema),
         std::move(dataTypes),
         std::move(config),
-        std::move(compositeSettings),
+        std::move(conversionSettings),
         std::move(client),
         writeTransactionId,
         std::move(onFinished),
@@ -355,18 +368,18 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TTableSchemaPtr schema,
     std::vector<DB::DataTypePtr> dataTypes,
     TDynamicTableSettingsPtr dynamicTableSettings,
-    TCompositeSettingsPtr compositeSettings,
+    TConversionSettingsPtr conversionSettings,
     NNative::IClientPtr client,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
         std::move(schema),
         std::move(dataTypes),
         std::move(dynamicTableSettings),
-        std::move(compositeSettings),
+        std::move(conversionSettings),
         std::move(client),
         std::move(onFinished),
         logger,

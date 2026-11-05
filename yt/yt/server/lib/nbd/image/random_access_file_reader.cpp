@@ -1,0 +1,477 @@
+#include "random_access_file_reader.h"
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+namespace NYT::NNbd::NImage {
+
+using namespace NApi;
+using namespace NApi::NNative;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NFileClient;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRandomAccessFileReaderTag { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRandomAccessFileReader
+    : public IRandomAccessFileReader
+{
+public:
+    TRandomAccessFileReader(
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
+        std::string path,
+        TChunkReaderHostPtr readerHost,
+        IInvokerPtr invoker,
+        TLogger logger)
+        : ChunkSpecs_(std::move(chunkSpecs))
+        , Path_(std::move(path))
+        , ChunkReaderHost_(std::move(readerHost))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger.WithTag("Path", Path_)))
+    { }
+
+    void Initialize() override
+    {
+        InitializeChunks();
+    }
+
+    TFuture<TSharedRef> Read(
+        i64 offset,
+        i64 length,
+        const TReadOptions& options) override
+    {
+        ReadBytes_ += length;
+
+        YT_TLOG_DEBUG("Start read from file")
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
+
+        if (length == 0) {
+            YT_TLOG_DEBUG("Finish read from file")
+                .With("Offset", offset)
+                .With("Length", length)
+                .WithFormat("Cookie", "%x", options.Cookie);
+            return MakeFuture<TSharedRef>({});
+        }
+
+        auto readFuture = ReadFromChunks(
+            Chunks_,
+            offset,
+            length,
+            options);
+        return readFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
+            std::vector<TSharedRef> refs;
+            for (const auto& blockReadResults : chunkReadResults) {
+                refs.insert(refs.end(), blockReadResults.begin(), blockReadResults.end());
+            }
+
+            // Merge refs into single ref.
+            auto mergedRefs = MergeRefsToRef<TRandomAccessFileReaderTag>(refs);
+            YT_TLOG_DEBUG("Finish read from file")
+                .With("Offset", offset)
+                .With("ExpectedLength", length)
+                .With("ResultLength", mergedRefs.Size())
+                .WithFormat("Cookie", "%x", options.Cookie);
+            return mergedRefs;
+        }).AsyncVia(Invoker_));
+    }
+
+    i64 GetSize() const override
+    {
+        return Size_;
+    }
+
+    TReadersStatistics GetStatistics() const override
+    {
+        return TReadersStatistics{
+            .ReadBytes = ReadBytes_.exchange(0),
+            .DataBytesReadFromCache = ReadBlockBytesFromCache_.exchange(0),
+            .DataBytesReadFromDisk = ReadBlockBytesFromDisk_.exchange(0),
+            .MetaBytesReadFromDisk = ReadBlockMetaBytesFromDisk_.exchange(0)
+        };
+    }
+
+    const std::string& GetPath() const override
+    {
+        return Path_;
+    }
+
+private:
+    struct TBlock
+    {
+        i64 Size = 0;
+        i64 Offset = 0;
+    };
+
+    struct TChunk
+    {
+        i64 Index = 0;
+        i64 Size = 0;
+        i64 Offset = 0;
+        IChunkReaderPtr Reader;
+        IChunkReader::TReadBlocksOptions ReadBlocksOptions;
+        IChunkReader::TGetMetaOptions GetMetaOptions;
+        NChunkClient::NProto::TChunkSpec Spec;
+
+        mutable TFuture<std::vector<TBlock>> BlocksExtFuture;
+    };
+
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
+    const std::string Path_;
+    const TChunkReaderHostPtr ChunkReaderHost_;
+    const IInvokerPtr Invoker_;
+    const TLogger Logger;
+    std::vector<TChunk> Chunks_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ChunkLock);
+
+    i64 Size_ = 0;
+
+    mutable std::atomic<i64> ReadBytes_;
+    mutable std::atomic<i64> ReadBlockBytesFromCache_;
+    mutable std::atomic<i64> ReadBlockBytesFromDisk_;
+    mutable std::atomic<i64> ReadBlockMetaBytesFromDisk_;
+
+    TFuture<std::vector<std::vector<TSharedRef>>> ReadFromChunks(
+        const std::vector<TChunk>& chunks,
+        i64 offset,
+        i64 length,
+        const TReadOptions& options)
+    {
+        if (offset + length > Size_) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid read offset %v with length %v",
+                offset,
+                length);
+        }
+
+        std::vector<TFuture<std::vector<TSharedRef>>> readFutures;
+        for (const auto& chunk : chunks) {
+            YT_VERIFY(chunk.Size > 0);
+
+            if (length <= 0) {
+                break;
+            }
+
+            auto chunkBegin = chunk.Offset;
+            auto chunkEnd = chunkBegin + chunk.Size;
+
+            if (offset >= chunkEnd || offset + length <= chunkBegin) {
+                continue;
+            }
+
+            i64 beginWithinChunk = std::max(offset - chunk.Offset, 0l);
+            i64 endWithinChunk = std::min(beginWithinChunk + length, chunk.Size);
+            i64 sizeWithinChunk = endWithinChunk - beginWithinChunk;
+
+            YT_VERIFY(0 <= beginWithinChunk);
+            YT_VERIFY(beginWithinChunk < endWithinChunk);
+            YT_VERIFY(endWithinChunk <= chunk.Size);
+            YT_VERIFY(sizeWithinChunk <= chunk.Size);
+            YT_VERIFY(sizeWithinChunk <= length);
+
+            auto readFuture = ReadFromChunk(
+                chunk,
+                beginWithinChunk,
+                sizeWithinChunk,
+                options);
+            readFutures.push_back(std::move(readFuture));
+
+            length -= sizeWithinChunk;
+            offset += sizeWithinChunk;
+        }
+
+        return AllSucceeded(readFutures);
+    }
+
+    TFuture<std::vector<TBlock>> GetBlockExt(const TChunk& chunk)
+    {
+        auto guard = Guard(ChunkLock);
+
+        if (chunk.BlocksExtFuture) {
+            // Blocks ext is already being requested.
+            return chunk.BlocksExtFuture;
+        }
+
+        YT_TLOG_INFO("Start fetching chunk meta blocks extension")
+            .With("Chunk", chunk.Index);
+
+        std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
+        auto index = chunk.Index;
+        auto offset = chunk.Offset;
+
+        auto future = chunk.Reader->GetMeta(
+            chunk.GetMetaOptions,
+            /*partitionTags*/ {},
+            extensionTags)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+                auto blockOffset = offset;
+                auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(meta->extensions());
+
+                std::vector<TBlock> blocks;
+                blocks.reserve(blocksExt.blocks_size());
+
+                for (const auto& blockInfo : blocksExt.blocks()) {
+                    blocks.push_back({blockInfo.size(), blockOffset});
+                    blockOffset += blockInfo.size();
+                }
+
+                YT_TLOG_INFO("Finish fetching chunk meta blocks extension")
+                    .With("Chunk", index)
+                    .With("BlockInfoCount", blocksExt.blocks_size());
+                return blocks;
+            }));
+
+        chunk.BlocksExtFuture = future;
+        return future;
+    }
+
+    TFuture<std::vector<TSharedRef>> ReadFromChunk(
+        const TChunk& chunk,
+        i64 offset,
+        i64 length,
+        const TReadOptions& options)
+    {
+        YT_TLOG_DEBUG("Read from chunk")
+            .With("Chunk", chunk.Index)
+            .With("ChunkSize", chunk.Size)
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
+
+        if (offset + length > chunk.Size) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid read offset %v with length %v",
+                offset,
+                length);
+        }
+
+        struct TBlocksFetchResult
+        {
+            std::vector<NChunkClient::TBlock> Blocks;
+            std::vector<int> Indexes;
+            std::vector<TBlock> BlocksExt;
+        };
+
+        auto readBlocksOptions = chunk.ReadBlocksOptions;
+        readBlocksOptions.ClientOptions.Cookie = options.Cookie;
+        auto blocksFuture = GetBlockExt(chunk);
+        auto readFuture = blocksFuture.Apply(BIND([
+            offset,
+            length,
+            reader = chunk.Reader,
+            options = std::move(readBlocksOptions)
+        ] (const std::vector<TBlock>& blocksExt) {
+            std::vector<int> blockIndexes;
+            i64 blockOffsetWithinChunk = 0;
+
+            for (int blockIndex = 0; blockIndex < std::ssize(blocksExt); ++blockIndex) {
+                auto blockSize = blocksExt[blockIndex].Size;
+
+                i64 blockBegin = blockOffsetWithinChunk;
+                i64 blockEnd = blockBegin + blockSize;
+                blockOffsetWithinChunk += blockSize;
+
+                if (offset >= blockEnd || offset + length <= blockBegin) {
+                    continue;
+                }
+
+                blockIndexes.push_back(blockIndex);
+            }
+
+            return reader->ReadBlocks(options, blockIndexes)
+                .AsUnique().Apply(BIND([
+                    indexes = std::move(blockIndexes),
+                    blocksExt = blocksExt
+                ] (std::vector<NChunkClient::TBlock>&& blocks) mutable {
+                    return TBlocksFetchResult{
+                        .Blocks = std::move(blocks),
+                        .Indexes = std::move(indexes),
+                        .BlocksExt = std::move(blocksExt),
+                    };
+                }));
+        })
+        .AsyncVia(Invoker_));
+
+        return readFuture.AsUnique().Apply(BIND([
+            index = chunk.Index,
+            chunkOffset = chunk.Offset,
+            chunkSize = chunk.Size,
+            offset,
+            length,
+            cookie = options.Cookie,
+            statistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics,
+            this,
+            this_ = MakeStrong(this)
+        ] (TBlocksFetchResult&& blocksFetchResult) mutable {
+            const auto& blocks = blocksFetchResult.Blocks;
+            const auto& blockIndexes = blocksFetchResult.Indexes;
+            auto readOffset = offset;
+
+            YT_VERIFY(blocks.size() == blockIndexes.size());
+
+            // Update read block counters.
+            i64 readBlockBytesFromCache = statistics->DataBytesReadFromCache.exchange(0);
+            ReadBlockBytesFromCache_ += readBlockBytesFromCache;
+
+            i64 readBlockBytesFromDisk = statistics->DataBytesReadFromDisk.exchange(0);
+            ReadBlockBytesFromDisk_ += readBlockBytesFromDisk;
+
+            i64 readBlockMetaBytesFromDisk = statistics->MetaBytesReadFromDisk.exchange(0);
+            ReadBlockMetaBytesFromDisk_ += readBlockMetaBytesFromDisk;
+
+            std::vector<TSharedRef> refs;
+            for (int i = 0; i < std::ssize(blockIndexes); ++i) {
+                auto blockIndex = blockIndexes[i];
+                const auto& block = blocksFetchResult.BlocksExt[blockIndex];
+
+                YT_VERIFY(std::ssize(blocks[i].Data) == block.Size);
+                YT_VERIFY(chunkOffset <= block.Offset);
+                YT_VERIFY(block.Offset + block.Size <= chunkOffset + chunkSize);
+
+                i64 blockOffset = block.Offset - chunkOffset;
+                YT_VERIFY(0 <= blockOffset);
+
+                i64 blockSize = block.Size;
+                YT_VERIFY(0 < blockSize);
+
+                i64 beginWithinBlock = std::max(readOffset - blockOffset, 0l);
+                i64 endWithinBlock = std::min(beginWithinBlock + length, blockSize);
+                i64 sizeWithinBlock = endWithinBlock - beginWithinBlock;
+
+                YT_VERIFY(0 <= beginWithinBlock);
+                YT_VERIFY(beginWithinBlock < endWithinBlock);
+                YT_VERIFY(endWithinBlock <= std::ssize(blocks[i].Data));
+                YT_VERIFY(sizeWithinBlock <= blockSize);
+                YT_VERIFY(sizeWithinBlock <= length);
+
+                YT_TLOG_DEBUG("Read from block")
+                    .With("Chunk", index)
+                    .With("Block", blockIndex)
+                    .With("Begin", beginWithinBlock)
+                    .With("End", endWithinBlock)
+                    .With("Size", sizeWithinBlock)
+                    .WithFormat("Cookie", "%x", cookie);
+
+                auto ref = blocks[i].Data.Slice(
+                    beginWithinBlock,
+                    endWithinBlock);
+                refs.push_back(std::move(ref));
+
+                length -= sizeWithinBlock;
+                readOffset += sizeWithinBlock;
+            }
+
+            return refs;
+        })
+        .AsyncVia(Invoker_));
+    }
+
+    void InitializeChunks()
+    {
+        YT_TLOG_INFO("Initializing chunks")
+            .With("Count", ChunkSpecs_.size());
+
+        auto readerConfig = New<TReplicationReaderConfig>();
+        readerConfig->UseBlockCache = true;
+        readerConfig->UseAsyncBlockCache = true;
+
+        auto readerOptions = New<TRemoteReaderOptions>();
+
+        i64 offset = 0;
+        std::vector<TFuture<void>> blocksExtFutures;
+        blocksExtFutures.reserve(ChunkSpecs_.size());
+        for (auto& chunkSpec : ChunkSpecs_) {
+            int chunkIndex = std::ssize(Chunks_);
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+            auto compressionCodec = FromProto<NCompression::ECodec>(miscExt.compression_codec());
+            if (compressionCodec != NCompression::ECodec::None) {
+                THROW_ERROR_EXCEPTION(
+                    "Compression codec %Qlv for filesystem image %v is not supported",
+                    compressionCodec,
+                    Path_);
+            }
+
+            YT_TLOG_INFO("Creating chunk reader")
+                .With("ChunkId", chunkId);
+
+            Chunks_.push_back({
+                .Index = chunkIndex,
+                .Size = miscExt.uncompressed_data_size(),
+                .Offset = offset,
+                .Reader = CreateReplicationReader(
+                    readerConfig,
+                    readerOptions,
+                    ChunkReaderHost_,
+                    chunkId,
+                    TChunkReplicaList{}),
+                .ReadBlocksOptions = {
+                    .ClientOptions = {
+                        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
+                    },
+                    .SessionInvoker = Invoker_,
+                },
+                .GetMetaOptions = {
+                    .SessionInvoker = Invoker_,
+                },
+                .Spec = std::move(chunkSpec),
+            });
+
+            blocksExtFutures.push_back(
+                GetBlockExt(Chunks_.back()).AsVoid());
+
+            offset += miscExt.uncompressed_data_size();
+            Size_ += miscExt.uncompressed_data_size();
+        }
+
+        WaitFor(AllSucceeded(std::move(blocksExtFutures)))
+            .ThrowOnError();
+
+        YT_TLOG_INFO("Initialized chunks")
+            .With("Count", Chunks_.size());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
+    std::string path,
+    TChunkReaderHostPtr readerHost,
+    IInvokerPtr invoker,
+    TLogger logger)
+{
+    return New<TRandomAccessFileReader>(
+        std::move(chunkSpecs),
+        std::move(path),
+        std::move(readerHost),
+        std::move(invoker),
+        std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NImage

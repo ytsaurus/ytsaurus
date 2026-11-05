@@ -1,0 +1,59 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NExample::TTextReadFunction";
+                "processing_function_parameters" = {
+                    "min_word_length" = 4;
+                };
+                "output_stream_ids" = ["words"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+            };
+            "counter" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TWordCountFunction";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["words"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {"path" = "//path/to/word_counts";};
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+            "counter" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 5;
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

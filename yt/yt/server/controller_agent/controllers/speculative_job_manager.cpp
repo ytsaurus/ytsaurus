@@ -89,6 +89,7 @@ std::optional<EAbortReason> TSpeculativeJobManager::ShouldAbortCompletingJob(con
 
     auto competition = GetCompetition(joblet);
     if (competition->Status == ECompetitionStatus::HasCompletedJob) {
+        // Abort reason names the competition outcome, not the aborted job role.
         return joblet->CompetitionType == EJobCompetitionType::Speculative
             ? EAbortReason::SpeculativeRunLost
             : EAbortReason::SpeculativeRunWon;

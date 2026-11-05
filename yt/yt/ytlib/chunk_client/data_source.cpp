@@ -80,11 +80,11 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSourcePtr& dataSou
     }
 
     if (dataSource->GetTimestamp() != NullTimestamp) {
-        protoDataSource->set_timestamp(dataSource->GetTimestamp());
+        protoDataSource->set_timestamp(ToProto(dataSource->GetTimestamp()));
     }
 
     if (dataSource->GetRetentionTimestamp() != NullTimestamp) {
-        protoDataSource->set_retention_timestamp(dataSource->GetRetentionTimestamp());
+        protoDataSource->set_retention_timestamp(ToProto(dataSource->GetRetentionTimestamp()));
     }
 
     protoDataSource->set_foreign(dataSource->GetForeign());
@@ -152,11 +152,11 @@ void FromProto(
     }
 
     if (protoDataSource.has_timestamp()) {
-        dataSource->SetTimestamp(protoDataSource.timestamp());
+        dataSource->SetTimestamp(FromProto<NTransactionClient::TTimestamp>(protoDataSource.timestamp()));
     }
 
     if (protoDataSource.has_retention_timestamp()) {
-        dataSource->SetRetentionTimestamp(protoDataSource.retention_timestamp());
+        dataSource->SetRetentionTimestamp(FromProto<NTransactionClient::TTimestamp>(protoDataSource.retention_timestamp()));
     }
 
     dataSource->SetForeign(protoDataSource.foreign());
@@ -228,7 +228,7 @@ TDataSourcePtr MakeUnversionedDataSource(
         /*virtualKeyPrefixLength*/ 0,
         columns,
         omittedInaccessibleColumns,
-        /*timestamp*/ NullTimestamp,
+        NullTimestamp,
         /*retentionTimestamp*/ NullTimestamp,
         columnRenameDescriptors);
 }
@@ -243,7 +243,7 @@ TDataSourcePtr MakeFileDataSource(const std::optional<TYPath>& path)
         /*virtualPrefixLength*/ 0,
         /*columns*/ std::nullopt,
         /*omittedInaccessibleColumns*/ std::vector<std::string>{},
-        /*timestamp*/ NullTimestamp,
+        NullTimestamp,
         /*retentionTimestamp*/ NullTimestamp,
         /*columnRenameDescriptors*/ TColumnRenameDescriptors{});
 }

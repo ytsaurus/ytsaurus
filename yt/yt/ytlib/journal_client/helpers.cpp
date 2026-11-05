@@ -1,6 +1,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/yt/client/journal_client/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -42,42 +44,18 @@ void ValidateJournalAttributes(
     int readQuorum,
     int writeQuorum)
 {
-    if (readQuorum < 1) {
-        THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be less than 1");
-    }
-    if (writeQuorum < 1) {
-        THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be less than 1");
-    }
     if (codecId == NErasure::ECodec::None) {
-        ValidateReplicationFactor(replicationFactor);
-        if (readQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (writeQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (readQuorum + writeQuorum <= replicationFactor) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum <= replication_factor");
-        }
+        NJournalClient::ValidateReplicatedJournalAttributes(
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
     } else {
-        auto* codec = NErasure::GetCodec(codecId);
-        if (!codec->IsBytewise()) {
-            THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure journals",
-                codecId);
-        }
-        if (replicationFactor != 1) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals");
-        }
-        if (readQuorum > codec->GetTotalPartCount()) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than total part count");
-        }
-        if (writeQuorum > codec->GetTotalPartCount()) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be greater than total part count");
-        }
-        int quorumThreshold = 2 * codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount() - 1;
-        if (readQuorum + writeQuorum <= quorumThreshold) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum <= 2 * total_parts - guraranteed_repairable_parts - 1");
-        }
+        NJournalClient::ValidateErasureJournalAttributes(
+            codecId,
+            NErasure::GetCodecOrThrow(codecId)->GetParams(),
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
     }
 }
 
@@ -148,8 +126,9 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     NErasure::ICodec* codec,
     const std::vector<TSharedRef>& rows)
 {
-    int dataPartCount = codec->GetDataPartCount();
-    int totalPartCount = codec->GetTotalPartCount();
+    const auto& codecParams = codec->GetParams();
+    int dataPartCount = codecParams.DataPartCount;
+    int totalPartCount = codecParams.TotalPartCount;
 
     auto getRowPaddingSize = [&] (const TSharedRef& row) {
         return GetPaddingSize(sizeof(TErasureRowHeader) + row.Size(), dataPartCount);
@@ -225,7 +204,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
     const NLogging::TLogger& logger)
 {
     auto Logger = logger;
-    int dataPartCount = codec->GetDataPartCount();
+    int dataPartCount = codec->GetParams().DataPartCount;
 
     YT_VERIFY(dataPartCount == std::ssize(encodedRowLists));
 
@@ -248,9 +227,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 
     for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         const auto* header = reinterpret_cast<const TErasureRowHeader*>(encodedRowLists[0][rowIndex].Begin());
-        YT_LOG_FATAL_UNLESS(
-            header->PaddingSize >= 0,
-            "Journal decoding failed");
+        YT_TLOG_FATAL_UNLESS(header->PaddingSize >= 0, "Journal decoding failed");
 
         i64 bytesRemaining =
             std::ssize(encodedRowLists[0][rowIndex]) * dataPartCount -
@@ -360,7 +337,7 @@ public:
         , RequestTimeout_(requestTimeout)
         , ReadQuorum_(readQuorum)
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(JournalClientLogger().WithTag("ChunkId: %v", ChunkId_))
+        , Logger(JournalClientLogger().WithTag("ChunkId", ChunkId_))
     { }
 
 protected:
@@ -421,9 +398,9 @@ private:
 
     void DoRun()
     {
-        YT_LOG_DEBUG("Aborting journal chunk session quorum (Replicas: %v, ReadQuorum: %v)",
-            Replicas_,
-            ReadQuorum_);
+        YT_TLOG_DEBUG("Aborting journal chunk session quorum")
+            .With("Replicas", Replicas_)
+            .With("ReadQuorum", ReadQuorum_);
 
         if (std::ssize(Replicas_) < ReadQuorum_) {
             auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
@@ -470,11 +447,12 @@ private:
                 SuccessPartIndexes_.set(replica.ReplicaIndex);
             }
 
-            YT_LOG_DEBUG("Journal chunk session aborted successfully (Replica: %v)",
-                replica);
+            YT_TLOG_DEBUG("Journal chunk session aborted successfully")
+                .With("Replica", replica);
         } else {
-            YT_LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to abort journal chunk session")
+                .With("Replica", replica)
+                .With(rspOrError);
             InnerErrors_.push_back(rspOrError);
         }
 
@@ -490,9 +468,9 @@ private:
 
     void OnQuorumSessionDelayReached()
     {
-        YT_LOG_DEBUG("Quorum session delay reached (QuorumSessionDelay: %v, AbortedReplicaCount: %v)",
-            QuorumSessionDelay_,
-            AbortedReplicas_.size());
+        YT_TLOG_DEBUG("Quorum session delay reached")
+            .With("QuorumSessionDelay", QuorumSessionDelay_)
+            .With("AbortedReplicaCount", AbortedReplicas_.size());
 
         QuorumSessionDelayReached_ = true;
         CheckCompleted();
@@ -505,12 +483,12 @@ private:
                 return;
             }
             if (Promise_.TrySet(AbortedReplicas_)) {
-                YT_LOG_DEBUG("Journal chunk session quorum aborted successfully");
+                YT_TLOG_DEBUG("Journal chunk session quorum aborted successfully");
             }
         } else if (ResponseCounter_ == std::ssize(Replicas_)) {
             auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
                 ChunkId_)
-                << InnerErrors_;
+                .With(InnerErrors_);
             Promise_.TrySet(combinedError);
         }
     }
@@ -549,7 +527,8 @@ public:
         i64 replicaLagLimit,
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration requestTimeout,
-        INodeChannelFactoryPtr channelFactory)
+        INodeChannelFactoryPtr channelFactory,
+        TWorkloadDescriptor workloadDescriptor)
         : TQuorumSessionBase(
             chunkId,
             std::move(replicas),
@@ -559,6 +538,7 @@ public:
         , Overlayed_(overlayed)
         , CodecId_(codecId)
         , ReplicaLagLimit_(replicaLagLimit)
+        , WorkloadDescriptor_(std::move(workloadDescriptor))
     { }
 
     TFuture<TChunkQuorumInfo> Run()
@@ -573,6 +553,7 @@ private:
     const bool Overlayed_;
     const NErasure::ECodec CodecId_;
     const i64 ReplicaLagLimit_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     struct TChunkMetaResult
     {
@@ -610,10 +591,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Computing quorum info for journal chunk (Replicas: %v, ReadQuorum: %v, Codec: %v)",
-            Replicas_,
-            ReadQuorum_,
-            CodecId_);
+        YT_TLOG_DEBUG("Computing quorum info for journal chunk")
+            .With("Replicas", Replicas_)
+            .With("ReadQuorum", ReadQuorum_)
+            .With("Codec", CodecId_);
 
         std::vector<TFuture<void>> futures;
         for (const auto& replica : Replicas_) {
@@ -627,7 +608,7 @@ private:
             // Request chunk meta.
             {
                 auto req = proxy.GetChunkMeta();
-                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+                SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
                 req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
@@ -640,7 +621,7 @@ private:
             // Request header block.
             if (Overlayed_) {
                 auto req = proxy.GetBlockRange();
-                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+                SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->set_first_block_index(0);
                 req->set_block_count(1);
@@ -661,10 +642,11 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk meta (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to get journal chunk meta")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Failed to get chunk meta for replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
@@ -679,12 +661,12 @@ private:
             locationUuid,
         });
 
-        YT_LOG_DEBUG("Received chunk meta for journal chunk (Replica: %v, LocationUuid: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            replica,
-            locationUuid,
-            miscExt.row_count(),
-            miscExt.uncompressed_data_size(),
-            miscExt.compressed_data_size());
+        YT_TLOG_DEBUG("Received chunk meta for journal chunk")
+            .With("Replica", replica)
+            .With("LocationUuid", locationUuid)
+            .With("RowCount", miscExt.row_count())
+            .With("UncompressedDataSize", miscExt.uncompressed_data_size())
+            .With("CompressedDataSize", miscExt.compressed_data_size());
     }
 
     void OnGetHeaderBlockResponse(
@@ -696,42 +678,46 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to get journal chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             HeaderBlockInnerErrors_.push_back(TError("Failed to get journal chunk header block for replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
         const auto& rsp = rspOrError.Value();
 
         if (rsp->Attachments().size() < 1) {
-            YT_LOG_DEBUG(rspOrError, "Journal replica did not return chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_DEBUG("Journal replica did not return chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             HeaderBlockInnerErrors_.push_back(TError("Journal replica %v did not return chunk header block", replica));
             return;
         }
 
         NJournalClient::NProto::TOverlayedJournalChunkHeader header;
         if (!TryDeserializeProto(&header, rsp->Attachments()[0])) {
-            YT_LOG_WARNING(rspOrError, "Error parsing journal chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Error parsing journal chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Error parsing journal chunk header block received from replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
         if (!header.has_first_row_index()) {
-            YT_LOG_WARNING(rspOrError, "Received journal chunk header block without first row index (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Received journal chunk header block without first row index")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Received journal chunk header block without first row index from replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
-        YT_LOG_DEBUG("Received header block for journal chunk (Replica: %v, FirstOverlayedRowIndex: %v)",
-            replica,
-            header.first_row_index());
+        YT_TLOG_DEBUG("Received header block for journal chunk")
+            .With("Replica", replica)
+            .With("FirstOverlayedRowIndex", header.first_row_index());
 
         Header_.emplace(std::move(header));
     }
@@ -760,7 +746,7 @@ private:
                 ChunkId_,
                 ChunkMetaResults_.size(),
                 ReadQuorum_)
-                << ChunkMetaInnerErrors_);
+                .With(ChunkMetaInnerErrors_));
             return;
         }
 
@@ -772,7 +758,7 @@ private:
             if (!Header_) {
                 Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
                     ChunkId_)
-                    << HeaderBlockInnerErrors_);
+                    .With(HeaderBlockInnerErrors_));
                 return;
             }
             result.FirstOverlayedRowIndex = Header_->first_row_index();
@@ -788,14 +774,13 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (PhysicalRowCount: %v, LogicalRowCount: %v, "
-            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RowCountConfirmedReplicaCount: %v)",
-            miscExt.row_count(),
-            result.RowCount,
-            result.FirstOverlayedRowIndex,
-            result.UncompressedDataSize,
-            result.CompressedDataSize,
-            result.RowCountConfirmedReplicaCount);
+        YT_TLOG_DEBUG("Quorum info for journal chunk computed successfully")
+            .With("PhysicalRowCount", miscExt.row_count())
+            .With("LogicalRowCount", result.RowCount)
+            .With("FirstOverlayedRowIndex", result.FirstOverlayedRowIndex)
+            .With("UncompressedDataSize", result.UncompressedDataSize)
+            .With("CompressedDataSize", result.CompressedDataSize)
+            .With("RowCountConfirmedReplicaCount", result.RowCountConfirmedReplicaCount);
 
         Promise_.Set(result);
     }
@@ -811,8 +796,8 @@ private:
         // Number of replicas required to read a record.
         int readReplicaCount = [&] {
             if (IsErasureChunkId(ChunkId_)) {
-                auto* codec = NErasure::GetCodec(CodecId_);
-                return codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
+                const auto& codecParams = NErasure::GetCodecOrThrow(CodecId_)->GetParams();
+                return codecParams.TotalPartCount - codecParams.GuaranteedRepairablePartCount;
             } else {
                 return 1;
             }
@@ -830,14 +815,12 @@ private:
         i64 longestReplicaRowCount = GetLogicalChunkRowCount(longestReplica.MiscExt.row_count(), Overlayed_);
         i64 shortestReplicaRowCount = GetLogicalChunkRowCount(shortestReplica.MiscExt.row_count(), Overlayed_);
         if (longestReplicaRowCount - shortestReplicaRowCount > ReplicaLagLimit_) {
-            YT_LOG_ALERT("Replica lag limit violated "
-                "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, "
-                "LongestReplicaAddress: %v, LongestReplicaRowCount: %v, ReplicaLagLimit: %v)",
-                shortestReplica.Address,
-                shortestReplicaRowCount,
-                longestReplica.Address,
-                longestReplicaRowCount,
-                ReplicaLagLimit_);
+            YT_TLOG_ALERT("Replica lag limit violated")
+                .With("ShortestReplicaAddress", shortestReplica.Address)
+                .With("ShortestReplicaRowCount", shortestReplicaRowCount)
+                .With("LongestReplicaAddress", longestReplica.Address)
+                .With("LongestReplicaRowCount", longestReplicaRowCount)
+                .With("ReplicaLagLimit", ReplicaLagLimit_);
         }
     }
 };
@@ -850,7 +833,8 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration requestTimeout,
-    INodeChannelFactoryPtr channelFactory)
+    INodeChannelFactoryPtr channelFactory,
+    TWorkloadDescriptor workloadDescriptor)
 {
     return
         New<TComputeQuorumInfoSession>(
@@ -861,7 +845,8 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
             replicaLagLimit,
             std::move(replicas),
             requestTimeout,
-            std::move(channelFactory))
+            std::move(channelFactory),
+            std::move(workloadDescriptor))
         ->Run();
 }
 

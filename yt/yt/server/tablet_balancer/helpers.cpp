@@ -1,11 +1,15 @@
 #include "helpers.h"
+
+#include "config.h"
+#include "private.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 
-#include <yt/yt/server/tablet_balancer/config.h>
+#include <yt/yt/ytlib/api/internal_proxy/internal_api_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -24,6 +28,8 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/rpc/helpers.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NTabletBalancer {
@@ -39,9 +45,35 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = TabletBalancerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void PrepareInternalApiRequests(
+    const NNative::IClientPtr& client,
+    THashMap<TCellTag, TCellTagRequest>* batchRequests)
+{
+    auto channel = client->GetNativeConnection()->GetCypressProxyChannel();
+    THROW_ERROR_EXCEPTION_UNLESS(channel, "Cypress proxy is not configured for the Internal API");
+
+    const auto& options = client->GetOptions();
+    channel = NRpc::CreateAuthenticatedChannel(std::move(channel), options.GetAuthenticationIdentity());
+    if (const auto& wrapper = options.ChannelWrapper) {
+        channel = wrapper(std::move(channel));
+    }
+    NInternalProxy::TInternalApiServiceProxy proxy(std::move(channel));
+
+    for (auto& [cellTag, batchRequest] : *batchRequests) {
+        auto request = proxy.GetTableBalancingAttributes();
+        request->Swap(batchRequest.Request.Get());
+        request->set_cell_tag(ToProto(cellTag));
+        batchRequest.Request = std::move(request);
+    }
+}
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
@@ -147,8 +179,13 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
     const IMulticellThrottlerPtr& throttler,
+    bool useInternalApi,
     std::function<void(const TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto)
 {
+    if (tableIds.empty()) {
+        return {};
+    }
+
     THashMap<TCellTag, TCellTagRequest> batchRequests;
     for (auto tableId : tableIds) {
         auto cellTag = GetOrCrash(tableIdToCellTag, tableId);
@@ -163,6 +200,10 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
         if (tableIdsToFetchPivotKeys.contains(tableId)) {
             ToProto(it->second.Request->add_table_ids_to_fetch_pivot_keys(), tableId);
         }
+    }
+
+    if (useInternalApi) {
+        PrepareInternalApiRequests(client, &batchRequests);
     }
 
     ExecuteRequestsToCellTags(&batchRequests, throttler);
@@ -181,7 +222,7 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
     const THashSet<TTableId>& tableIds,
     const NYPath::TYPath& tablePath)
 {
-    std::vector<TString> quotedTableIds;
+    std::vector<std::string> quotedTableIds;
     for (auto tableId : tableIds) {
         quotedTableIds.push_back("\"" + ToString(tableId) + "\"");
     }
@@ -199,13 +240,48 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
 
     TTablePerformanceCountersMap tableToPerformanceCounters;
     for (const auto& row : selectResult.Rowset->GetRows()) {
-        auto tableId = TGuid::FromString(FromUnversionedValue<TString>(
+        auto tableId = TGuid::FromString(FromUnversionedValue<std::string>(
             row[tableSchema->GetColumnIndexOrThrow("table_id")]));
-        auto tabletId = TGuid::FromString(FromUnversionedValue<TString>(
+        auto tabletId = TGuid::FromString(FromUnversionedValue<std::string>(
             row[tableSchema->GetColumnIndexOrThrow("tablet_id")]));
         tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
     }
     return {tableToPerformanceCounters, tableSchema};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AreReplicaClustersHealthy(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    int unhealthyBundleLimit)
+{
+    for (const auto& [cluster, bundles] : unhealthyBundles) {
+        if (std::ssize(bundles) >= unhealthyBundleLimit) {
+            YT_TLOG_WARNING("Considering replica cluster unhealthy because too many bundles are unhealthy")
+                .With("Cluster", cluster)
+                .With("UnhealthyBundles", bundles)
+                .With("Limit", unhealthyBundleLimit);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsBundleHealthyOnReplicaClusters(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    const std::string& bundleName)
+{
+    for (const auto& [cluster, bundles] : unhealthyBundles) {
+        if (std::find(bundles.begin(), bundles.end(), bundleName) != bundles.end()) {
+            YT_TLOG_WARNING("Tablet cell bundle on another cluster is unhealthy")
+                .With("Cluster", cluster)
+                .With("BundleName", bundleName);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

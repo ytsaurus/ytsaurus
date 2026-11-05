@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-library-tracing-unittests)
+add_executable(unittester-library-tracing)
 
 
-target_compile_options(yt-yt-library-tracing-unittests PRIVATE
+target_compile_options(unittester-library-tracing PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,7 +25,7 @@ target_compile_options(yt-yt-library-tracing-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
+target_link_libraries(unittester-library-tracing PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -35,11 +35,11 @@ target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
   library-tracing-jaeger
 )
 
-target_allocator(yt-yt-library-tracing-unittests
+target_allocator(unittester-library-tracing
   system_allocator
 )
 
-target_link_options(yt-yt-library-tracing-unittests PRIVATE
+target_link_options(unittester-library-tracing PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -47,21 +47,21 @@ target_link_options(yt-yt-library-tracing-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-library-tracing-unittests PRIVATE
+target_sources(unittester-library-tracing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   COMMAND
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
 )
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   LABELS
   SMALL
@@ -69,16 +69,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-tracing-unittests)
+vcs_info(unittester-library-tracing)
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   PROCESSORS
   1

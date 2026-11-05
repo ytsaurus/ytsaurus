@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,9 @@ NProto::TCellStatistics  operator +  (const NProto::TCellStatistics& lhs, const 
 namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const TCellStatistics& statistics, TStringBuf /*spec*/);
+
+//! Same fields as #FormatValue but as discrete logging tags.
+NLogging::TLoggingTagList MakeCellStatisticsTags(const TCellStatistics& statistics);
 
 } // namespace NProto
 

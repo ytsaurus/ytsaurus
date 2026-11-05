@@ -37,7 +37,7 @@ class TLazyDict
 public:
     using THashMapType = THashMap<Py::Object, TLazyDictValue, TPyObjectHasher>;
 
-    TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
+    TLazyDict(bool alwaysCreateAttributes, const std::optional<std::string>& encoding);
 
     PyObject* GetItem(const Py::Object& key);
     void SetItem(const Py::Object& key, const TSharedRef& value);
@@ -63,7 +63,7 @@ private:
     PyObjectPtr Tuple1_;
 
     bool AlwaysCreateAttributes_;
-    std::optional<TString> Encoding_;
+    std::optional<std::string> Encoding_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

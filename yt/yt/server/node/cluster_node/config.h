@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 #include <yt/yt/server/lib/chaos_node/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -388,8 +390,8 @@ struct TClusterNodeBootstrapConfig
 
     int AuxPollerThreadCount;
 
-    std::optional<TString> Rack;
-    std::optional<TString> DataCenter;
+    std::optional<std::string> Rack;
+    std::optional<std::string> DataCenter;
 
     THeapProfilerConfigPtr HeapProfiler;
 
@@ -426,10 +428,13 @@ struct TClusterNodeDynamicConfig
     static constexpr bool EnableHazard = true;
 
     //! Dynamic config annotation.
-    TString ConfigAnnotation;
+    std::string ConfigAnnotation;
 
     //! Node resource limits.
     TResourceLimitsDynamicConfigPtr ResourceLimits;
+
+    //! Hot swap manager configuration.
+    NDiskManager::THotswapManagerDynamicConfigPtr HotswapManager;
 
     //! Data node configuration part.
     NDataNode::TDataNodeDynamicConfigPtr DataNode;
@@ -470,7 +475,7 @@ struct TClusterNodeDynamicConfig
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
-    NBus::TBusServerDynamicConfigPtr BusServer;
+    NBus::NTcp::TBusServerDynamicConfigPtr BusServer;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
@@ -486,7 +491,7 @@ struct TClusterNodeDynamicConfig
     //! Chaos replication card cache config overrides.
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
 
-    NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     //! Configuration for huge page manager.
     NIO::THugePageManagerDynamicConfigPtr HugePageManager;
@@ -502,6 +507,12 @@ struct TClusterNodeDynamicConfig
     double MemoryLimitExceededForCategoryThreshold;
 
     TNodeMemoryTrackerConfigPtr NodeMemoryTracker;
+
+    std::optional<int> AuxPollerThreadCount;
+
+    NProfiling::TSolomonExporterDynamicConfigPtr SolomonExporter;
+
+    std::optional<int> ConnectionThreadPoolSize;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 

@@ -30,7 +30,7 @@ public:
         NTableClient::TTableSchemaPtr schema,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TOperationId operationId,
-        TString name,
+        std::string name,
         NYTree::TYPath path);
 
 private:
@@ -38,7 +38,7 @@ private:
     const NTableClient::TTableSchemaPtr Schema_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TOperationId OperationId_;
-    const TString Name_;
+    const std::string Name_;
     const NYTree::TYPath Path_;
 
     NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;

@@ -49,7 +49,7 @@ delete //home/dev/autorestart_nodes_copy timestamp;host;rack <id=0>123;<id=1>"ho
 
 Пример работы с транзакциями:
 
-```c++
+```cpp
 if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
     auto path = tokens[1];
     TPrepareRows prepareRows(tokens);
@@ -63,6 +63,17 @@ if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
 
     Cout << "Committed" << Endl;
 }
+```
+
+### UserTag { #usertag }
+
+При работе через RPC-прокси с помощью C++ клиента есть возможность указать дополнительный пользовательский тег `user_tag` - тогда идентификатор графика для пользователя будет аннотироваться не `<username>`, а `<username>:<user_tag>`. Это может быть полезно для сервисов, у которых много своих клиентов, но поход в YT делается от имени одного пользователя. Такая дополнительная разметка позволяет связать нагрузку на {{product-name}} с запросами, порождаемыми действиями внешнего пользователея.
+
+```c++
+
+auto connection = NYT::NApi::NRpcProxy::CreateConnection(rpcProxyConnectionConfig);
+auto options = TClientOptions::FromUser(user, userTag);
+auto client = connection->CreateClient(options);
 ```
 
 ## Java { #java }

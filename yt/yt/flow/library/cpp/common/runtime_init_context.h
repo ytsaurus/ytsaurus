@@ -1,0 +1,124 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/flow/library/cpp/common/external_state_manager.h>
+#include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/state.h>
+#include <yt/yt/flow/library/cpp/common/state_client.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/public.h>
+
+#include <yt/yt/core/http/public.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Init-time context handed to IProcessFunction::Init. Creates the function's state key
+//! clients and exposes its static parameters.
+struct IRuntimeInitContext
+    : public TRefCounted
+{
+public:
+    template <class TStateHolder>
+    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient(TStringBuf name) const;
+
+    template <class TStateHolder>
+    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient() const;
+
+    template <class TStateHolder>
+    void InitClient(TMutableStateKeyClient<TStateHolder>& client) const;
+
+    template <class TStateHolder>
+    void InitClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const;
+
+    //! Read-only join over another computation's internal state, declared in
+    //! ``TComputationSpec::StateJoiners[GetPrefix()]``. ``TStateHolder`` must match the target
+    //! computation's state type.
+    template <class TStateHolder>
+    TFuture<TJoinedStateKeyClient<TStateHolder>> CreateJoinedStateKeyClient() const;
+
+    template <class TStateHolder>
+    void InitClient(TJoinedStateKeyClient<TStateHolder>& client) const;
+
+    template <class TStateHolder>
+    void InitClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
+
+    //! Looks up an external state manager declared in
+    //! ``TComputationSpec::ExternalStateManagers[GetPrefix()]`` and wraps it in a typed key
+    //! client. Throws if the prefix is not declared, or if the registered state class does
+    //! not match ``TStateHolder``.
+    template <class TStateHolder>
+    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client) const;
+
+    template <class TStateHolder>
+    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client) const;
+
+    template <class TStateHolder>
+    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const;
+
+    template <class TStateHolder>
+    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
+
+    //! The static ``function_parameters`` as the YSON struct |T| the function registered (defaults
+    //! applied if absent). |T| must match the registered static-parameters type (throws otherwise).
+    template <class T>
+    TIntrusivePtr<T> GetParameters() const;
+
+    //! Raw ``function_parameters`` map from the static computation spec (never null; an empty
+    //! map when the block is absent). Prefer the typed GetParameters<T>() helper.
+    virtual NYTree::IMapNodePtr GetParametersNode() const = 0;
+
+    //! The static ``function_parameters`` block parsed into the registered YSON struct (defaults
+    //! applied), parsed once at job init. The test environment serves the struct supplied via
+    //! SetStaticParameters instead; null when none was set (possible only there).
+    virtual NYTree::TYsonStructPtr GetParametersObject() const = 0;
+
+    //! Returns a resource the hosting computation declared in its
+    //! ``required_resource_ids`` (worker side). Throws if the resource is not found there.
+    //! String literals convert implicitly (TResourceId is a semi-strong typedef).
+    virtual IResourcePtr GetStaticResource(const TResourceId& resourceId) const = 0;
+
+    //! The computation profiler, tagged with |computation_id| and stable across hosting modes.
+    virtual NProfiling::TProfiler GetProfiler() const = 0;
+
+    //! The hosting process' shared plain-HTTP client, running on its HTTP poller
+    //! (the worker's in process, the companion's out of process). Throws where no
+    //! client was configured.
+    virtual NHttp::IClientPtr GetHttpClient() const = 0;
+    virtual NHttp::IClientPtr GetHttpsClient() const = 0;
+
+    //! Id of the computation this function instance serves; fixed for the instance's lifetime.
+    virtual TComputationId GetComputationId() const = 0;
+
+    //! Id of the partition this function instance serves; fixed for the instance's lifetime.
+    //! Throws out of process, where the hosting partition is not known.
+    virtual TPartitionId GetPartitionId() const = 0;
+
+    virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
+    virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
+
+    virtual IInitContextPtr AsPartition() const = 0;
+    virtual IInitContextPtr AsKey(TKey key) const = 0;
+
+    virtual IRuntimeInitContextPtr WithPrefix(TStringBuf prefix) const = 0;
+    virtual const std::string& GetPrefix() const = 0;
+
+protected:
+    virtual IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const = 0;
+    virtual IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IRuntimeInitContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow
+
+#define RUNTIME_INIT_CONTEXT_INL_H_
+#include "runtime_init_context-inl.h"
+#undef RUNTIME_INIT_CONTEXT_INL_H_

@@ -34,6 +34,82 @@ class TTableSchemaTest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TTableSchemaTest, ReplicationLogColumnCountForEmptySchema)
+{
+    auto schema = TTableSchema();
+    ASSERT_FALSE(schema.IsSorted());
+    EXPECT_EQ(schema.ToReplicationLog()->GetColumnCount(), schema.GetReplicationLogColumnCount());
+}
+
+TEST_F(TTableSchemaTest, ReplicationLogColumnCountForOrderedSchema)
+{
+    for (int columnCount : {0, 1, 4, 32}) {
+        SCOPED_TRACE(::testing::Message() << "ColumnCount: " << columnCount);
+
+        auto columns = std::vector<TColumnSchema>();
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            columns.emplace_back("value" + std::to_string(columnIndex), EValueType::String);
+        }
+
+        auto schema = TTableSchema(std::move(columns));
+        ASSERT_FALSE(schema.IsSorted());
+        EXPECT_EQ(schema.ToReplicationLog()->GetColumnCount(), schema.GetReplicationLogColumnCount());
+    }
+}
+
+TEST_F(TTableSchemaTest, ReplicationLogColumnCountForSortedSchema)
+{
+    for (int keyColumnCount : {1, 3}) {
+        for (int valueColumnCount : {0, 1, 4, 32}) {
+            SCOPED_TRACE(::testing::Message()
+                << "KeyColumnCount: " << keyColumnCount
+                << ", ValueColumnCount: " << valueColumnCount);
+
+            auto columns = std::vector<TColumnSchema>();
+            for (int columnIndex = 0; columnIndex < keyColumnCount; ++columnIndex) {
+                columns.emplace_back(
+                    "key" + std::to_string(columnIndex),
+                    EValueType::Int64,
+                    ESortOrder::Ascending);
+            }
+
+            for (int columnIndex = 0; columnIndex < valueColumnCount; ++columnIndex) {
+                columns.emplace_back("value" + std::to_string(columnIndex), EValueType::String);
+            }
+
+            auto schema = TTableSchema(std::move(columns));
+            ASSERT_TRUE(schema.IsSorted());
+            EXPECT_EQ(schema.ToReplicationLog()->GetColumnCount(), schema.GetReplicationLogColumnCount());
+        }
+    }
+}
+
+TEST_F(TTableSchemaTest, ReplicationLogColumnCountWithColumnAttributes)
+{
+    for (bool sorted : {false, true}) {
+        SCOPED_TRACE(::testing::Message() << "Sorted: " << sorted);
+
+        auto columns = std::vector{
+            TColumnSchema("key", EValueType::Int64),
+            TColumnSchema("renamed_value", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))))
+                .SetStableName(TColumnStableName("original_value")),
+            TColumnSchema("hunk_value", EValueType::String)
+                .SetMaxInlineHunkSize(128),
+        };
+        if (sorted) {
+            columns.front().SetSortOrder(ESortOrder::Descending);
+        }
+
+        auto schema = TTableSchema(
+            std::move(columns),
+            /*strict*/ true,
+            /*uniqueKeys*/ sorted,
+            ETableSchemaModification::None,
+            {TDeletedColumn(TColumnStableName("deleted_value"))});
+        EXPECT_EQ(schema.ToReplicationLog()->GetColumnCount(), schema.GetReplicationLogColumnCount());
+    }
+}
+
 TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
 {
     std::vector<std::vector<TColumnSchema>> invalidUpdates{

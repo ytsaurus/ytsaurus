@@ -17,19 +17,14 @@ public class ReadSerializationContext<T> extends SerializationContext<T> {
         this(TableAttachmentReader.wireProtocol(deserializer));
     }
 
-    ReadSerializationContext(ERowsetFormat rowsetFormat, TableAttachmentReader<T> attachmentReader) {
-        this.rowsetFormat = rowsetFormat;
-        this.attachmentReader = attachmentReader;
-    }
-
-    private ReadSerializationContext(Format format, TableAttachmentReader<T> attachmentReader) {
+    ReadSerializationContext(Format format, TableAttachmentReader<T> attachmentReader) {
         this.format = format;
         this.rowsetFormat = ERowsetFormat.RF_FORMAT;
         this.attachmentReader = attachmentReader;
     }
 
     public static ReadSerializationContext<ByteBuffer> binaryArrow() {
-        return new ReadSerializationContext<>(ERowsetFormat.RF_ARROW, TableAttachmentReader.byteBuffer());
+        return new ReadSerializationContext<>(Format.arrow(), TableAttachmentReader.byteBuffer());
     }
 
     public static ReadSerializationContext<YTreeNode> ysonBinary() {

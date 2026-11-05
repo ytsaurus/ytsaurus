@@ -377,6 +377,8 @@ public class ColumnSchema implements YTreeConvertible {
             case List:
             case Dict:
             case Struct:
+            case Tuple:
+            case Variant:
                 return new OldType(ColumnValueType.COMPOSITE, true);
             case Tagged:
                 return toWireType(type.asTaggedType().getItem());

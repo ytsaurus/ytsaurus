@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
 
 #include <yt/yt/server/lib/discovery_server/helpers.h>
 

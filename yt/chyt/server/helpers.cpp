@@ -84,6 +84,18 @@ TGuid ToGuid(DB::UUID uuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetAscendingKeyPrefixLength(const TTableSchema& schema)
+{
+    int count = 0;
+    for (const auto& column : schema.Columns()) {
+        if (column.SortOrder() != ESortOrder::Ascending) {
+            break;
+        }
+        ++count;
+    }
+    return count;
+}
+
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,
@@ -99,11 +111,12 @@ void RegisterNewUser(
     user->setName(userName);
     user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ "YT");
     for (const auto& databaseName : userDefinedDatabaseNames) {
-        user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ databaseName);
+        user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), databaseName);
     }
     user->access.grant(DB::AccessType::SHOW, /*database*/ "system");
     user->access.grant(DB::AccessType::SELECT, /*database*/ "system");
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
+    user->access.grant(DB::AccessType::SHOW_DICTIONARIES);
 
     if (!allowGlobalDictionaryAccess) {
         user->access.revoke(DB::AccessType::dictGet);
@@ -384,7 +397,9 @@ TQuerySettingsPtr ParseCustomSettings(
         }
 
         auto field = change.value;
-        YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
+        YT_TLOG_TRACE("Parsing custom setting")
+            .With("YPath", ypath)
+            .With("FieldValue", field.dump());
         auto modifiedNode = FindNodeByYPath(node, ypath);
 
         INodePtr patchNode;
@@ -400,20 +415,21 @@ TQuerySettingsPtr ParseCustomSettings(
             patchNode = ConvertToNode(unversionedValue);
         }
 
-        YT_LOG_TRACE("Patch node (Node: %v)", ConvertToYsonString(patchNode, EYsonFormat::Text));
-        SetNodeByYPath(node, ypath, patchNode);
+        YT_TLOG_TRACE("Patch node")
+            .With("Node", ConvertToYsonString(patchNode, EYsonFormat::Text));
+        SetNodeByYPath(node, ypath, patchNode, /*force*/ true);
     }
 
-    YT_LOG_TRACE("Resulting node (Node: %v)", ConvertToYsonString(node, EYsonFormat::Text));
+    YT_TLOG_TRACE("Resulting node")
+        .With("Node", ConvertToYsonString(node, EYsonFormat::Text));
 
     auto result = New<TQuerySettings>();
     result->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     result->Load(node);
 
-    YT_LOG_DEBUG(
-        "Custom settings parsed (Settings: %v, Unrecognized: %v)",
-        ConvertToYsonString(result, EYsonFormat::Text),
-        ConvertToYsonString(result->GetRecursiveUnrecognized(), EYsonFormat::Text));
+    YT_TLOG_DEBUG("Custom settings parsed")
+        .With("Settings", ConvertToYsonString(result, EYsonFormat::Text))
+        .With("Unrecognized", ConvertToYsonString(result->GetRecursiveUnrecognized(), EYsonFormat::Text));
 
     return result;
 }
@@ -469,7 +485,7 @@ int GetQueryProcessingStageRank(DB::QueryProcessingStage::Enum stage)
             return 3;
 
         default:
-            THROW_ERROR_EXCEPTION("Unexpected query processing stage (Stage: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected query processing stage %Qv",
                 toString(stage));
     }
 }
@@ -618,7 +634,7 @@ namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const NameSet& nameSet)
+std::string ToString(const NameSet& nameSet)
 {
     return NYT::Format("%v", std::vector<TString>(nameSet.begin(), nameSet.end()));
 }
@@ -649,12 +665,12 @@ void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson:
         .EndMap();
 }
 
-TString ToString(const Field& field)
+std::string ToString(const Field& field)
 {
     return EscapeC(TString(field.dump()));
 }
 
-TString ToString(const Block& block)
+std::string ToString(const Block& block)
 {
     NYT::TStringBuilder content;
     const auto& columns = block.getColumns();

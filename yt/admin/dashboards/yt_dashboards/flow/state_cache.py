@@ -7,7 +7,7 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import create_dashboard
+from .common import build_median_over_hosts, create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
@@ -15,10 +15,13 @@ from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.taggable import NotEquals
 
 
-def build_job_cache():
+def build_job_cache(backend="monitoring"):
     # due to state cache nature, insert rate equals to sum of extract_hit and extract_miss
     extract_hit = MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.extract_hit.rate"))
     insert = MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.insert.rate"))
+
+    def median_over_hosts(sensor_name):
+        return build_median_over_hosts(sensor_name, ["computation_id", "name"], backend)
 
     extract_hit_bytes = MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.extract_hit_bytes.rate"))
     insert_bytes = MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.insert_bytes.rate"))
@@ -55,18 +58,14 @@ def build_job_cache():
         .row()
             .cell(
                 "Cache time to compress per computation",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.time_to_compress.max"))
-                    .all("host")
-                    .query_transformation('group_lines("median", ["computation_id", "name"], {query})')
+                median_over_hosts("yt.flow.worker.computation.job_state_cache.time_to_compress.max")
                     .alias("{{computation_id}} - {{name}}")
                     .unit("UNIT_SECONDS")
                     .stack(False)
                     .precision(1))
             .cell(
                 "Cache time to expire per computation",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.job_state_cache.time_to_expire.max"))
-                    .all("host")
-                    .query_transformation('group_lines("median", ["computation_id", "name"], {query})')
+                median_over_hosts("yt.flow.worker.computation.job_state_cache.time_to_expire.max")
                     .alias("{{computation_id}} - {{name}}")
                     .unit("UNIT_SECONDS")
                     .stack(False)
@@ -76,7 +75,10 @@ def build_job_cache():
     )
 
 
-def build_global_cache():
+def build_global_cache(backend="monitoring"):
+    def median_over_hosts(sensor_name):
+        return build_median_over_hosts(sensor_name, ["cache"], backend)
+
     return (Rowset()
         .all("cache")
         .aggr("host")
@@ -146,9 +148,7 @@ def build_global_cache():
         .row()
             .cell(
                 "Global cache item time to expire",
-                MonitoringExpr(FlowWorker("yt.flow.worker.state_cache.time_to_expire.max"))
-                    .all("host")
-                    .query_transformation('group_lines("median", ["cache"], {query})')
+                median_over_hosts("yt.flow.worker.state_cache.time_to_expire.max")
                     .alias("{{cache}}")
                     .unit("UNIT_SECONDS")
                     .stack(False)
@@ -161,9 +161,9 @@ def build_global_cache():
     )
 
 
-def build_flow_state_cache():
+def build_flow_state_cache(backend="monitoring"):
     def fill(d):
-        d.add(build_job_cache())
-        d.add(build_global_cache())
+        d.add(build_job_cache(backend))
+        d.add(build_global_cache(backend))
 
-    return create_dashboard("state-cache", fill)
+    return create_dashboard("state-cache", fill, backend=backend)

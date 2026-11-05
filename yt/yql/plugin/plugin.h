@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yql/plugin/bridge/interface.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -21,7 +21,8 @@ namespace NYT::NYqlPlugin {
 
 using TQueryId = TGuid;
 
-struct TYqlPluginOptions
+//! Applicable for native and process plugins.
+struct TYqlNativePluginOptions
 {
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
@@ -31,24 +32,30 @@ struct TYqlPluginOptions
     NYson::TYsonString SolomonGatewayConfig;
     NYson::TYsonString DqManagerConfig;
     NYson::TYsonString FileStorageConfig;
+    NYson::TYsonString TvmConfig;
+    NYson::TYsonString YtAccessProviderConfig;
+    NYson::TYsonString YtTokenResolverConfig;
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
+
+    NYson::TYsonString InitialDynamicConfig;
 
     TString YTTokenPath;
 
     THolder<TLogBackend> LogBackend;
 
-    std::optional<TString> YqlPluginSharedLibrary;
-
-    std::string MaxYqlLangVersion;
-
     bool StartDqManager;
+    bool EnableClique = false;
 };
 
-struct TYqlPluginDynamicConfig
+//! Applicable only for qtworker plugin.
+struct TYqlQTWorkerPluginOptions
+    : public TYqlNativePluginOptions
 {
-    NYson::TYsonString GatewaysConfig;
-    NYson::TYsonString MaxSupportedYqlVersion;
+    THolder<TLogBackend> QtWorkerLogBackend;
+    int QtWorkerInspectorPort = 32391;
+    TString GatewaysConfigPath;
+    bool EnableGetUsedClusters = true;
 };
 
 struct TQueryResult
@@ -60,6 +67,8 @@ struct TQueryResult
     std::optional<TString> TaskInfo;
     std::optional<TString> Ast;
 
+    std::optional<ui32> Revision;
+
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
 };
@@ -67,9 +76,16 @@ struct TQueryResult
 struct TClustersResult
 {
     std::vector<std::pair<TString, TString>> Clusters;
+    std::optional<TString> DefaultCluster;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
+};
+
+enum EQueryFileContentType
+{
+    RawInlineData,
+    Url,
 };
 
 struct TQueryFile
@@ -92,9 +108,6 @@ struct TGetDeclaredParametersInfoResult
 
 
 //! This interface encapsulates YT <-> YQL integration.
-//! There are two major implementation: one of them is based
-//! on YQL code and another wraps the pure C bridge interface, which
-//! is implemented by a dynamic library.
 /*!
 *  \note Thread affinity: any
 */
@@ -108,45 +121,72 @@ struct IYqlPlugin
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) = 0;
 
+    //! Returns all clusters configured for the query, and the query's default cluster.
+    virtual TClustersResult GetClustersInfo(TQueryId queryId) = 0;
+
     virtual TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) = 0;
+        int executeMode,
+        NYqlClient::EQueryType queryType) = 0;
 
-    virtual TQueryResult GetProgress(TQueryId queryId) = 0;
+    virtual TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 
-    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
+    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) = 0;
+
+    virtual void OnUdfMetaChanged(TUdfMetaPtr udfMeta) = 0;
 
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) = 0;
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
+    //! Returns false if the plugin cannot execute queries right now,
+    //! e.g. there are no healthy workers to offload queries to.
+    virtual bool IsReady() const;
+
+    virtual void RegisterQuery(TQueryId queryId, NYson::TYsonString settings) = 0;
+    virtual void UnregisterQuery(TQueryId queryId) = 0;
+
     virtual ~IYqlPlugin() = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYqlPluginOptions ConvertToOptions(
+TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
+    TYqlPluginDynamicConfigPtr initialDynamicConfig,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion,
-    bool startDqManager = false);
+    bool startDqManager = false,
+    bool enableClique = false,
+    bool useTokenResolver = false,
+    const std::string& tokenServiceSocketPath = {});
+
+TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
+    TYqlNativePluginOptions nativeOptions,
+    THolder<TLogBackend> qtWorkerLogBackend,
+    int qtWorkerInspectorPort,
+    TString gatewaysConfigPath,
+    bool enableGetUsedClusters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions& options) noexcept;
+inline constexpr TStringBuf DefaultFlavor = "default";
+
+TString DetectFlavorFromSettings(const NYson::TYsonString& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

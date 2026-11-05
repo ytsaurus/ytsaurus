@@ -8,7 +8,7 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NObjectServer {
 
@@ -47,7 +47,7 @@ private:
 
     using TInternedSet = THashSet<TInternedYsonStringData*, THash, TEqual>;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TInternedSet InternedValues_;
 
     void UnregisterInternedYsonStringData(TInternedSet::iterator iterator)

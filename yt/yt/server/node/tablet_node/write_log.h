@@ -1,6 +1,5 @@
 #include "public.h"
 
-#include "serialize.h"
 #include "write_commands.h"
 
 #include <yt/yt/core/misc/persistent_queue.h>

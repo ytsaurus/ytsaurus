@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Uber Technologies, Inc.
+ * Copyright 2020-2021 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 #ifndef H3VERTEX_H
 #define H3VERTEX_H
 
-#include "h3Index.h"
 #include "faceijk.h"
+#include "h3Index.h"
 
 /** @struct PentagonDirectionFaces
  *  @brief  The faces in each axial direction of a given pentagon base cell
@@ -38,7 +38,7 @@ typedef struct {
 /** Max number of faces a base cell's descendants may appear on */
 #define MAX_BASE_CELL_FACES 5
 
-int vertexRotations(H3Index cell);
 int vertexNumForDirection(const H3Index origin, const Direction direction);
+Direction directionForVertexNum(const H3Index origin, const int vertexNum);
 
 #endif

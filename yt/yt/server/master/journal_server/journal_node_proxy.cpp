@@ -9,7 +9,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
-
+#include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -84,7 +85,9 @@ public:
             }
 
             const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-            return chunkReplicaFetcher->GetChunkReplicasAsync(std::move(chunksToFetchReplicas))
+            return chunkReplicaFetcher->GetChunkReplicasAsync(
+                std::move(chunksToFetchReplicas),
+                /*includeUnapproved*/ true)
                 .Apply(BIND([
                     chunks = std::move(chunks),
                     chunkReplicaFetcher,
@@ -119,7 +122,7 @@ public:
             TEphemeralObjectPtr<TChunk> chunkPtr(firstUnsealedChunk);
 
             const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-            return chunkReplicaFetcher->GetChunkReplicasAsync(chunkPtr.Clone())
+            return chunkReplicaFetcher->GetChunkReplicasAsync(chunkPtr.Clone(), /*includeUnapproved*/ true)
                 .Apply(BIND([
                     chunkPtr = std::move(chunkPtr),
                     chunkManager,
@@ -185,7 +188,8 @@ private:
             chunkDescriptor.ReplicaLagLimit,
             chunkDescriptor.ReplicaDescriptors,
             JournalRpcTimeout_,
-            Bootstrap_->GetNodeChannelFactory()))
+            Bootstrap_->GetNodeChannelFactory(),
+            TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery)))
                 .ValueOrThrow();
         if (info.FirstOverlayedRowIndex) {
             return std::make_optional(*info.FirstOverlayedRowIndex + info.RowCount);
@@ -319,7 +323,8 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("Statistics: %v", request->statistics());
+        context->AnnotateRequest()
+            .With("Statistics", request->statistics());
 
         auto* journal = GetThisImpl();
         YT_VERIFY(journal->IsTrunk());
@@ -338,7 +343,7 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto* journal = GetThisImpl();
         const auto& journalManager = Bootstrap_->GetJournalManager();
@@ -355,7 +360,8 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo("RowCount: %v", request->row_count());
+        context->AnnotateRequest()
+            .With("RowCount", request->row_count());
 
         auto* journal = LockThisImpl();
         const auto& journalManager = Bootstrap_->GetJournalManager();

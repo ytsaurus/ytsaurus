@@ -105,6 +105,8 @@ def hide_fields(
 
 
 def hide_secure_vault(params: typing.Dict[str, str]) -> typing.Dict[str, str]:
+    """Returns safe copy of params
+    """
     params = deepcopy(params)
 
     hide_fields(params, fields=("secure_vault",), prefixes=SECRET_PREFIXES)
@@ -130,7 +132,7 @@ def hide_auth_headers(headers: typing.Dict[str, str]) -> typing.Dict[str, str]:
 
 def hide_auth_headers_in_request_info(request_info):
     copied_request_info = None
-    for key in ("headers", "request_header", "response_headers"):
+    for key in ("headers", "request_header", "request_headers", "response_headers"):
         if key not in request_info:
             continue
         if copied_request_info is None:
@@ -374,10 +376,24 @@ def get_platform():
         return None
 
 
+def _get_ai_agents() -> typing.List[str]:
+    agents = []
+    if "STEFANIA_PYTHON" in os.environ:
+        agents.append("STEFANIA")
+    if "CODEX_SESSION_ID" in os.environ or "CODEX_THREAD_ID" in os.environ:
+        agents.append("CODEX")
+    elif "CLAUDECODE" in os.environ:
+        agents.append("CLAUDE")
+    return agents
+
+
 def get_user_agent():
     user_agent = "Python wrapper " + get_version()
     if "_ARGCOMPLETE" in os.environ:
-        user_agent += " [argcomplete mode]"
+        user_agent += " (argcomplete mode)"
+    ai_agents = _get_ai_agents()
+    if ai_agents:
+        user_agent += " (AI coding agent {})".format(", ".join(ai_agents))
     return user_agent
 
 

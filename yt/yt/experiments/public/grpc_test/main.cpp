@@ -21,7 +21,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestMain");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TestMain");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,9 +60,11 @@ public:
 
 DEFINE_RPC_SERVICE_METHOD(TTestService, TestCall)
 {
-    context->SetRequestInfo("a: %v", request->a());
+    context->AnnotateRequest()
+        .With("a", request->a());
     response->set_b(request->a() + 42);
-    context->SetResponseInfo("b: %v", response->b());
+    context->AnnotateResponse()
+        .With("b", response->b());
     context->Reply();
 }
 
@@ -71,7 +73,7 @@ DEFINE_RPC_SERVICE_METHOD(TTestService, TestFailedCall)
     context->Reply(TError("Error"));
 }
 
-void RunServer(const TString& address)
+void RunServer(const std::string& address)
 {
     auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
     serverAddressConfig->Address = address;
@@ -90,7 +92,7 @@ void RunServer(const TString& address)
     WaitFor(rpcServer->Stop()).ThrowOnError();
 }
 
-void RunClient(const TString& address, int numIter)
+void RunClient(const std::string& address, int numIter)
 {
     Cout << "Running " << numIter << " iterations of test" << Endl;
 
@@ -135,12 +137,12 @@ int main(int argc, const char *argv[])
         TOpts opts;
         opts.AddHelpOption();
 
-        TString mode;
+        std::string mode;
         opts.AddLongOption("mode", "")
             .RequiredArgument("MODE")
             .StoreResult(&mode);
 
-        TString address = "localhost:8888";
+        std::string address = "localhost:8888";
         opts.AddLongOption("address", "")
             .RequiredArgument("ADDRESS")
             .StoreResult(&address);

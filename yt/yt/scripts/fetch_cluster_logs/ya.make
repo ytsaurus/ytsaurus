@@ -5,9 +5,7 @@ PY_SRCS(
 )
 
 PEERDIR(
-    contrib/python/kubernetes
-    contrib/python/python-dateutil
-    yt/python/yt/wrapper
+    yt/python/client_with_admin
 )
 
 END()

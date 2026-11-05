@@ -149,6 +149,26 @@ class TestScanString(TestCase):
         self.assertRaises(OverflowError, json.decoder.scanstring, "xxx",
                           maxsize + 1)
 
+    def test_end_out_of_bounds_is_jsondecodeerror(self):
+        # Regression: C scanstring used to raise a plain ValueError for
+        # out-of-range end indices, while py_scanstring raises
+        # JSONDecodeError. User code with `except JSONDecodeError:` missed
+        # the C path. Both backends now raise JSONDecodeError with the
+        # "Unterminated string starting at" message at pos = end - 1.
+        for s, end in (
+            (u'"abc"', 100),
+            (u'abc', 100),
+            (u'', 100),
+            (u'abc', -1),
+            (u'', -1),
+        ):
+            with self.assertRaises(json.JSONDecodeError) as cm:
+                json.decoder.scanstring(s, end, None, True)
+            self.assertEqual(cm.exception.pos, end - 1,
+                             'scanstring(%r, %r) pos=%r, expected %r' %
+                             (s, end, cm.exception.pos, end - 1))
+            self.assertIn('Unterminated string', str(cm.exception))
+
     def test_surrogates(self):
         scanstring = json.decoder.scanstring
 
@@ -198,3 +218,75 @@ class TestScanString(TestCase):
                           scanstring, u'"z\\ud83x"', 1, None, True)
         self.assertRaises(ValueError,
                           scanstring, u'"z\\ud834\\udd2x"', 1, None, True)
+
+    def test_escape_error_parity(self):
+        # Regression: the C scanstring bounds check was `end >= len` / the
+        # surrogate-pair bounds check was `end + 6 < len`. Both were
+        # off-by-one, causing C to raise "Invalid \\uXXXX escape sequence"
+        # where pure-Python correctly raised "Unterminated string starting
+        # at" when a \\uXXXX escape used the last bytes of the buffer. The
+        # error-position offset also differed: C reported the position of
+        # the 'u' while Python reported the position of the leading '\'.
+        # This test asserts exact parity (exception class, position, and
+        # message prefix) across a matrix of edge cases.
+        if simplejson.decoder.c_scanstring is None:
+            return
+
+        def get_exc(scanstring, s):
+            try:
+                scanstring(s, 0, None, True)
+            except json.JSONDecodeError as e:
+                return (e.pos, str(e).split(':')[0])
+            return None
+
+        # Each case: (input, expected_pos, expected_message_prefix)
+        # expected_pos == -2 means (-1, 'Unterminated string starting at');
+        # otherwise the positional 'Invalid \\uXXXX escape sequence' error.
+        UNTERMINATED = (-1, 'Unterminated string starting at')
+        def INVALID(pos):
+            return (pos, 'Invalid \\uXXXX escape sequence')
+
+        cases = [
+            # Not enough room for 4 hex digits after \u.
+            (u'\\u', INVALID(0)),
+            (u'\\u0', INVALID(0)),
+            (u'\\u01', INVALID(0)),
+            (u'\\u012', INVALID(0)),
+            # 4 non-hex chars after \u — C used to raise at the 'u'.
+            (u'\\uXXXX', INVALID(0)),
+            # Exactly 4 hex digits at buffer end — C used to mis-report
+            # 'Invalid \\uXXXX escape' instead of 'Unterminated string'.
+            (u'\\u0123', UNTERMINATED),
+            # Lone high surrogate with no room for a second escape.
+            (u'\\ud834', UNTERMINATED),
+            # High surrogate followed by a truncated second escape.
+            (u'\\ud834\\u', INVALID(6)),
+            (u'\\ud834\\ux', INVALID(6)),
+            (u'\\ud834\\udd2', INVALID(6)),
+            (u'\\ud834\\udd2x', INVALID(6)),
+            # High surrogate followed by a valid low surrogate that ends
+            # exactly at the buffer edge — must combine before the outer
+            # loop reports an unterminated string.
+            (u'\\ud834\\udd1e', UNTERMINATED),
+            (u'prefix\\ud834\\udd1e', UNTERMINATED),
+        ]
+        for s, expected in cases:
+            py = get_exc(simplejson.decoder.py_scanstring, s)
+            c = get_exc(simplejson.decoder.c_scanstring, s)
+            self.assertEqual(py, expected,
+                             'py_scanstring(%r) expected %r, got %r' %
+                             (s, expected, py))
+            self.assertEqual(c, expected,
+                             'c_scanstring(%r) expected %r, got %r' %
+                             (s, expected, c))
+
+        # Success paths: valid escape or surrogate pair ending at the
+        # closing quote must still parse correctly.
+        for scanstring in (simplejson.decoder.py_scanstring,
+                           simplejson.decoder.c_scanstring):
+            self.assertEqual(
+                scanstring(u'\\u0123"', 0, None, True),
+                (u'\u0123', 7))
+            self.assertEqual(
+                scanstring(u'\\ud834\\udd1e"', 0, None, True),
+                (u'\U0001d11e', 13))

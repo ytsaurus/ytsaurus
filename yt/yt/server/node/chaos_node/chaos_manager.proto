@@ -9,6 +9,7 @@ message TShortcut
 {
     required NYT.NProto.TGuid chaos_object_id = 1; // NChaosClient::TChaosObjectId
     required uint64 era = 2; // TReplicationEra
+    optional uint64 era_start_timestamp = 3; // NTransactionClient::TTimestamp
 }
 
 message TReqGrantShortcuts
@@ -34,6 +35,7 @@ message TRspRevokeShortcuts
 {
     required NYT.NProto.TGuid coordinator_cell_id = 1;
     repeated TShortcut shortcuts = 2;
+    optional uint64 max_commit_timestamp = 3; // NTransactionClient::TTimestamp
 }
 
 message TReqPropagateCurrentTimestamp
@@ -75,6 +77,13 @@ message TReqRemoveExpiredReplicaHistory
     repeated TExpiredReplicaHistory expired_replica_histories = 1;
 }
 
+message TSecondaryIndexPendingTransition
+{
+    required int32 state = 1;
+    required NYT.NProto.TGuid index_replication_card_id = 2;
+    optional int32 new_correspondence = 3;
+}
+
 message TReqMigrateReplicationCards
 {
     message TMigrationCard
@@ -84,6 +93,7 @@ message TReqMigrateReplicationCards
         required NYT.NChaosClient.NProto.TReplicationCard replication_card = 3;
         optional int32 replication_card_collocation_size = 4;
         optional string replication_card_collocation_options = 5;
+        optional TSecondaryIndexPendingTransition secondary_index_pending_transition = 6;
     }
 
     required NYT.NProto.TGuid emigrated_from_cell_id = 1;

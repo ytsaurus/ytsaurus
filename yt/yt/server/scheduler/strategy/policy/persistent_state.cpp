@@ -1,6 +1,7 @@
 #include "persistent_state.h"
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
@@ -74,6 +75,17 @@ void TPersistentState::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduling_segments_state", &TThis::SchedulingSegmentsState)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(bystrovserg): Drop this together with ConvertClassicToGpuPersistentState after the full
+// migration of GPU trees to the GPU policy.
+bool IsClassicPersistentState(const INodePtr& node)
+{
+    return node &&
+        node->GetType() == ENodeType::Map &&
+        static_cast<bool>(node->AsMap()->FindChild("scheduling_segments_state"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

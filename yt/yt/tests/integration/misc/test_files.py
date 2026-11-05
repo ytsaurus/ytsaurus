@@ -7,9 +7,7 @@ from yt_commands import (
     read_file, write_file, get_singular_chunk_id, set_node_banned,
     raises_yt_error)
 
-from yt.common import YtError
-
-import pytest
+import pytest  # noqa: F401
 
 import hashlib
 from io import TextIOBase
@@ -17,7 +15,6 @@ from io import TextIOBase
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFiles(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -25,9 +22,9 @@ class TestFiles(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_invalid_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             read_file("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             write_file("//tmp", b"")
 
     @authors("ignat")
@@ -66,13 +63,13 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file", length=length) == content[:length]
         assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid length to read from file"):
             assert read_file("//tmp/file", length=-1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             assert read_file("//tmp", length=0)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             assert read_file("//tmp", length=1)
 
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
@@ -140,15 +137,15 @@ class TestFiles(YTEnvSetup):
 
         get("//tmp/f/@replication_factor")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("//tmp/f/@replication_factor")
-        with pytest.raises(YtError):
+        with raises_yt_error("Replication factor .* is out of range"):
             set("//tmp/f/@replication_factor", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse"):
             set("//tmp/f/@replication_factor", {})
 
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/f/@replication_factor", 2, tx=tx)
 
     @authors("psushin", "ignat")
@@ -213,13 +210,13 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/f2")
         create("table", "//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* (.*) must be the same as type of .* (.*)"):
             concatenate(["//tmp/f1", "//tmp/f2"], "//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* (.*) must be the same as type of .* (.*)"):
             concatenate(["//tmp/f1", "//tmp/t"], "//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             concatenate(["//tmp", "//tmp/t"], "//tmp/t")
 
     @authors("prime")
@@ -232,7 +229,7 @@ class TestFiles(YTEnvSetup):
         write_file("<compression_codec=none>//tmp/f", b"a")
         assert get("//tmp/f/@compression_codec") == "none"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"compression_codec\" are not compatible"):
             write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("ignat", "kiselyovp")
@@ -263,10 +260,10 @@ class TestFiles(YTEnvSetup):
         concatenate(["//tmp/fcache", "//tmp/fcache3"], "//tmp/fcache4")
         assert not exists("//tmp/fcache4/@md5")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Non-empty file .* has no computed MD5 hash thus cannot append data and update the hash simultaneously"):
             write_file("<append=%true>//tmp/fcache4", b"data", compute_md5=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//tmp/fcache/@md5", "test")
 
         write_file("//tmp/fcache5", b"", compute_md5=True)
@@ -276,14 +273,13 @@ class TestFiles(YTEnvSetup):
     def test_data_weight_for_files_absent(self):
         create("file", "//tmp/file_without_data_weight")
         assert not exists("//tmp/file_without_data_weight/@data_weight")
-        with raises_yt_error("Attribute \"data_weight\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/file_without_data_weight/@data_weight")
 
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFilesMulticell(TestFiles):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -294,7 +290,6 @@ class TestFilesMulticell(TestFiles):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestFilesPortal(TestFilesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -305,7 +300,6 @@ class TestFilesPortal(TestFilesMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestFilesRpcProxy(TestFiles):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -313,7 +307,6 @@ class TestFilesRpcProxy(TestFiles):
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestFilesSequoia(TestFiles):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -332,7 +325,6 @@ class TestFilesSequoia(TestFiles):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFileErrorsRpcProxy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -352,7 +344,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
                 raise ValueError()
 
             if self._position == len(self._data):
-                raise RuntimeError("surprise")
+                raise RuntimeError("Testing error")
 
             result = self._data[self._position:self._position + size]
             self._position = min(self._position + size, len(self._data))
@@ -365,7 +357,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         write_file("//tmp/file", b"abacaba")
 
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Testing error"):
             write_file(
                 "<append=true>//tmp/file",
                 None,
@@ -385,11 +377,11 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         set_node_banned(nodes[0], True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             write_file("<append=true>//tmp/file", b"dabacaba")
 
         set_node_banned(nodes[1], True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attachments stream read timed out"):
             read_file("//tmp/file")
 
         set_node_banned(nodes[0], False)
@@ -400,7 +392,6 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestBigFilesRpcProxy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -425,7 +416,6 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         assert contents == data
 
 
-@pytest.mark.enabled_multidaemon
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_DRIVER_CONFIG = {

@@ -14,8 +14,10 @@
 #include "journal_dispatcher.h"
 #include "location_manager.h"
 #include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
 #include "medium_directory_manager.h"
 #include "medium_updater.h"
+#include "network_statistics.h"
 #include "orchid.h"
 #include "p2p.h"
 #include "private.h"
@@ -28,7 +30,9 @@
 
 #include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/session_service.h>
+
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -39,6 +43,8 @@
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/poller.h>
 
@@ -59,6 +65,7 @@ using namespace NQueryClient;
 using namespace NDiskManager;
 using namespace NYTree;
 using namespace NServer;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +102,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing data node");
+        YT_TLOG_INFO("Initializing data node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
@@ -157,6 +164,12 @@ public:
                 EDataNodeThrottlerKind::TabletStoreFlushIn,
                 EDataNodeThrottlerKind::JobIn,
                 EDataNodeThrottlerKind::ReincarnationIn,
+                // NB: User workload buckets are always created so that they can be enabled
+                // via dynamic config without a node restart.
+                EDataNodeThrottlerKind::UserBatchIn,
+                EDataNodeThrottlerKind::UserInteractiveIn,
+                EDataNodeThrottlerKind::UserRealtimeIn,
+                EDataNodeThrottlerKind::UserDynamicStoreReadIn,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->CreateInThrottler(FormatEnum(kind));
             }
@@ -175,9 +188,15 @@ public:
                 EDataNodeThrottlerKind::JobOut,
                 EDataNodeThrottlerKind::TabletStoreFlushOut,
                 EDataNodeThrottlerKind::ReincarnationOut,
+                EDataNodeThrottlerKind::UserBatchOut,
+                EDataNodeThrottlerKind::UserInteractiveOut,
+                EDataNodeThrottlerKind::UserRealtimeOut,
+                EDataNodeThrottlerKind::UserDynamicStoreReadOut,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(kind));
             }
+
+            UpdateUserWorkloadThrottlersEnabled(GetDynamicConfigManager()->GetConfig());
         } else {
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
                 if (DataNodeCompatThrottlers.contains(kind)) {
@@ -204,6 +223,10 @@ public:
                 EDataNodeThrottlerKind::TabletSnapshotIn,
                 EDataNodeThrottlerKind::TabletStoreFlushIn,
                 EDataNodeThrottlerKind::JobIn,
+                EDataNodeThrottlerKind::UserBatchIn,
+                EDataNodeThrottlerKind::UserInteractiveIn,
+                EDataNodeThrottlerKind::UserRealtimeIn,
+                EDataNodeThrottlerKind::UserDynamicStoreReadIn,
             };
             static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
                 EDataNodeThrottlerKind::ReplicationOut,
@@ -218,6 +241,10 @@ public:
                 EDataNodeThrottlerKind::TabletReplicationOut,
                 EDataNodeThrottlerKind::JobOut,
                 EDataNodeThrottlerKind::TabletStoreFlushOut,
+                EDataNodeThrottlerKind::UserBatchOut,
+                EDataNodeThrottlerKind::UserInteractiveOut,
+                EDataNodeThrottlerKind::UserRealtimeOut,
+                EDataNodeThrottlerKind::UserDynamicStoreReadOut,
             };
 
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
@@ -278,7 +305,7 @@ public:
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
-            DataNodeLogger().WithTag("IOMeter"));
+            DataNodeLogger().WithTag("Meter", "IO"));
         JobController_->Initialize();
 
         auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
@@ -294,6 +321,19 @@ public:
             RestartManager_);
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
+
+        MediumAwareBlockCacheManager_ = CreateMediumAwareBlockCacheManager(
+            GetConfig()->DataNode->MediumAwareBlockCacheManager,
+            ChunkStore_->GetLocationCountPerMedium(),
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::BlockCache),
+            BIND([mediumDirectoryManager = MediumDirectoryManager_] (int mediumIndex) -> std::optional<std::string> {
+                auto medium = mediumDirectoryManager->GetMediumDirectory()->FindByIndex(mediumIndex);
+                return medium
+                    ? std::make_optional(medium->Name())
+                    : std::nullopt;
+            }),
+            DataNodeProfiler().WithPrefix("/block_cache/per_medium"));
+        ChunkStore_->SetMediumAwareBlockCacheManager(MediumAwareBlockCacheManager_);
 
         if (hotswapManager) {
             SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));
@@ -361,7 +401,7 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
         OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
         OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
 
@@ -420,6 +460,19 @@ public:
         return MediumUpdater_;
     }
 
+    const IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return MediumAwareBlockCacheManager_;
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int mediumIndex) const override
+    {
+        if (auto blockCache = MediumAwareBlockCacheManager_->GetBlockCacheForMedium(mediumIndex)) {
+            return blockCache;
+        }
+        return GetBlockCache();
+    }
+
     const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
@@ -437,10 +490,22 @@ public:
             {EWorkloadCategory::SystemTabletSnapshot,        EDataNodeThrottlerKind::TabletSnapshotIn},
             {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushIn}
         };
-        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
-        return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetDefaultInThrottler()
-            : Throttlers_[it->second];
+        if (auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category); it != WorkloadCategoryToThrottlerKind.end()) {
+            return Throttlers_[it->second];
+        }
+
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> UserWorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::UserBatch,            EDataNodeThrottlerKind::UserBatchIn},
+            {EWorkloadCategory::UserInteractive,      EDataNodeThrottlerKind::UserInteractiveIn},
+            {EWorkloadCategory::UserRealtime,         EDataNodeThrottlerKind::UserRealtimeIn},
+            {EWorkloadCategory::UserDynamicStoreRead, EDataNodeThrottlerKind::UserDynamicStoreReadIn},
+        };
+        auto it = UserWorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        if (it != UserWorkloadCategoryToThrottlerKind.end() && UserWorkloadThrottlerEnabled_[it->second].load(std::memory_order::relaxed)) {
+            return Throttlers_[it->second];
+        }
+
+        return GetDefaultInThrottler();
     }
 
     const IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
@@ -456,10 +521,22 @@ public:
             {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut},
             {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushOut}
         };
-        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
-        return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetDefaultOutThrottler()
-            : Throttlers_[it->second];
+        if (auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category); it != WorkloadCategoryToThrottlerKind.end()) {
+            return Throttlers_[it->second];
+        }
+
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> UserWorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::UserBatch,            EDataNodeThrottlerKind::UserBatchOut},
+            {EWorkloadCategory::UserInteractive,      EDataNodeThrottlerKind::UserInteractiveOut},
+            {EWorkloadCategory::UserRealtime,         EDataNodeThrottlerKind::UserRealtimeOut},
+            {EWorkloadCategory::UserDynamicStoreRead, EDataNodeThrottlerKind::UserDynamicStoreReadOut},
+        };
+        auto it = UserWorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        if (it != UserWorkloadCategoryToThrottlerKind.end() && UserWorkloadThrottlerEnabled_[it->second].load(std::memory_order::relaxed)) {
+            return Throttlers_[it->second];
+        }
+
+        return GetDefaultOutThrottler();
     }
 
     const IJournalDispatcherPtr& GetJournalDispatcher() const override
@@ -522,6 +599,39 @@ public:
         MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
     }
 
+    TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount() + pendingOutBytes;
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetOutThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
+    TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetInThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount();
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetInThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementWriteThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -544,11 +654,14 @@ private:
 
     TEnumIndexedArray<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedArray<EDataNodeThrottlerKind, std::atomic<bool>> UserWorkloadThrottlerEnabled_;
 
     IJournalDispatcherPtr JournalDispatcher_;
 
     IThreadPoolPtr StorageLookupThreadPool_;
     IThreadPoolPtr MasterJobThreadPool_;
+
+    IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
 
     TActionQueuePtr P2PActionQueue_;
     TP2PBlockCachePtr P2PBlockCache_;
@@ -571,6 +684,37 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void UpdateUserWorkloadThrottlersEnabled(const TClusterNodeDynamicConfigPtr& dynamicConfig)
+    {
+        auto isConfigured = [] (const THashMap<std::string, TFairThrottlerBucketConfigPtr>& bucketConfigs, EDataNodeThrottlerKind kind) {
+            auto it = bucketConfigs.find(FormatEnum(kind));
+            // NB: Bucket creation inserts null configs into the map, see #CreateInThrottler.
+            return it != bucketConfigs.end() && static_cast<bool>(it->second);
+        };
+
+        for (auto kind : {
+            EDataNodeThrottlerKind::UserBatchIn,
+            EDataNodeThrottlerKind::UserInteractiveIn,
+            EDataNodeThrottlerKind::UserRealtimeIn,
+            EDataNodeThrottlerKind::UserDynamicStoreReadIn,
+        }) {
+            UserWorkloadThrottlerEnabled_[kind].store(
+                isConfigured(dynamicConfig->InThrottlers, kind) || isConfigured(GetConfig()->InThrottlers, kind),
+                std::memory_order::relaxed);
+        }
+
+        for (auto kind : {
+            EDataNodeThrottlerKind::UserBatchOut,
+            EDataNodeThrottlerKind::UserInteractiveOut,
+            EDataNodeThrottlerKind::UserRealtimeOut,
+            EDataNodeThrottlerKind::UserDynamicStoreReadOut,
+        }) {
+            UserWorkloadThrottlerEnabled_[kind].store(
+                isConfigured(dynamicConfig->OutThrottlers, kind) || isConfigured(GetConfig()->OutThrottlers, kind),
+                std::memory_order::relaxed);
+        }
+    }
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -589,6 +733,8 @@ private:
                 auto patchedThrottlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(throttlerConfig);
                 LegacyRawThrottlers_[kind]->Reconfigure(std::move(patchedThrottlerConfig));
             }
+        } else {
+            UpdateUserWorkloadThrottlersEnabled(newConfig);
         }
 
         StorageLookupThreadPool_->SetThreadCount(
@@ -596,6 +742,8 @@ private:
         MasterJobThreadPool_->SetThreadCount(newConfig->DataNode->MasterJobThreadCount);
 
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+
+        MediumAwareBlockCacheManager_->Reconfigure(newConfig->DataNode->MediumAwareBlockCacheManager);
 
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);

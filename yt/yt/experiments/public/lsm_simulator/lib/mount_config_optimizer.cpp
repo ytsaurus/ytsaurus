@@ -62,7 +62,7 @@ TTableMountConfigPtr TMountConfigOptimizer::GetPatchedConfig(
 
     // Both doubles and i64s are stored here. i64s are typically < 2**40
     // so they should be stored precisely.
-    THashMap<TString, double> effectiveValues;
+    THashMap<std::string, double> effectiveValues;
 
     for (int index = 0; index < ssize(values); ++index) {
         const auto& name = ParameterNames_[index];

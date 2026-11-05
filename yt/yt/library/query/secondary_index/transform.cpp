@@ -144,7 +144,17 @@ void TransformWithIndexStatement(
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
+        TransformWithIndexStatement(&(*fromSubquery)->Ast, cache, holder);
+        return;
+    }
+
+    if (auto* unionAll = std::get_if<NAst::TUnionAllClause>(&query->FromClause)) {
+        THROW_ERROR_EXCEPTION_IF(query->WithIndex,
+            "WITH INDEX clause is not supported with UNION ALL at the moment");
+
+        for (auto* subquery : unionAll->Subqueries) {
+            TransformWithIndexStatement(&subquery->Ast, cache, holder);
+        }
         return;
     }
 
@@ -155,18 +165,10 @@ void TransformWithIndexStatement(
     auto& index = *(query->WithIndex);
     auto& table = std::get<TTableDescriptor>(query->FromClause);
 
-    auto errorOrIndexTableInfo = WaitForFast(cache->GetTableInfo(index.Path));
+    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
+        .ValueOrThrow();
     auto tableInfo = WaitForFast(cache->GetTableInfo(table.Path))
         .ValueOrThrow();
-
-    if (!errorOrIndexTableInfo.IsOK() &&
-        errorOrIndexTableInfo.FindMatching(NYTree::EErrorCode::ResolveError) &&
-        tableInfo->IsReplicated())
-    {
-        return;
-    }
-
-    auto indexTableInfo = errorOrIndexTableInfo.ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
@@ -176,7 +178,7 @@ void TransformWithIndexStatement(
     const auto& indices = tableInfo->Indices;
 
     auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
-        return index.TableId == indexTableInfo->TableId;
+        return index.IndexObjectId == indexTableInfo->TableId;
     });
 
     auto correspondence = ETableToIndexCorrespondence::Unknown;
@@ -192,9 +194,9 @@ void TransformWithIndexStatement(
         correspondence = indexIt->Correspondence;
         if (correspondence == ETableToIndexCorrespondence::Invalid) {
             THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence",
-                indexIt->TableId,
+                indexIt->IndexObjectId,
                 correspondence)
-                << TErrorAttribute("index_table_path", indexTableInfo->Path);
+                .With("index_table_path", indexTableInfo->Path);
         }
 
         ValidateIndexSchema(

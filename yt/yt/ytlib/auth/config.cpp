@@ -42,7 +42,7 @@ void TNativeAuthenticationManagerDynamicConfig::Register(TRegistrar registrar)
 void TTvmBridgeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("self_tvm_id", &TThis::SelfTvmId)
-        .Default(0);
+        .Optional();
     registrar.Parameter("refresh_period", &TThis::RefreshPeriod)
         .Default(TDuration::Hours(1));
     registrar.Parameter("ensure_tickets_backoff", &TThis::EnsureTicketsBackoff)

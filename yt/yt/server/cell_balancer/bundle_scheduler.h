@@ -17,8 +17,6 @@ NBundleControllerClient::TCpuLimitsPtr GetBundleEffectiveCpuLimits(
     const TBundleInfoPtr& bundleInfo,
     const TSchedulerInputState& input);
 
-std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
-
 void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations);
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator, TSchedulerMutations* mutations);
 

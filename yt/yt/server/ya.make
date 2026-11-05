@@ -25,4 +25,5 @@ RECURSE(
     cypress_proxy
     tcp_proxy
     replicated_table_tracker
+    offshore_data_gateway
 )

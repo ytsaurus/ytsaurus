@@ -21,6 +21,7 @@ import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
+import tech.ytsaurus.client.request.AttachTransaction;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
@@ -119,6 +120,7 @@ import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
@@ -347,6 +349,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     }
 
     @Override
+    public CompletableFuture<Void> unregisterQueueConsumer(UnregisterQueueConsumer req) {
+        return (CompletableFuture<Void>) callMethod("unregisterQueueConsumer");
+    }
+
+    @Override
     public CompletableFuture<ListQueueConsumerRegistrationsResult> listQueueConsumerRegistrations(
             ListQueueConsumerRegistrations req
     ) {
@@ -391,6 +398,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
 
     @Override
     public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<ApiServiceTransaction> attachTransaction(AttachTransaction req) {
         return null;
     }
 

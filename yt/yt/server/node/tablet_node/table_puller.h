@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////

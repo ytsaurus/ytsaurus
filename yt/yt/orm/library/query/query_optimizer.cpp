@@ -269,7 +269,6 @@ public:
         , ColumnsMapping_(columnsMapping)
     { }
 
-
     bool OnReference(TReferenceExpressionPtr expression) override
     {
         return NYT::Visit(Query_->FromClause,
@@ -282,6 +281,9 @@ public:
             },
             [&] (const TExpressionList& /*expression*/) -> bool {
                 THROW_ERROR_EXCEPTION("Unexpected expression");
+            },
+            [&] (const TUnionAllClause& /*unionAll*/) -> bool {
+                THROW_ERROR_EXCEPTION("Subqueries are not supported yet");
             });
     }
 
@@ -382,12 +384,20 @@ private:
             if (!OptimizationChecker_.IsOptimizationAllowed(*Query_->GroupExprs)) {
                 return false;
             }
+            for (const auto* expr : *Query_->GroupExprs) {
+                if (const auto* aliasExpr = expr->As<TAliasExpression>()) {
+                    TReference reference(aliasExpr->Name);
+                    if (!ColumnsMapping_.try_emplace(reference, reference).second) {
+                        return false;
+                    }
+                }
+            }
         }
         if (Query_->SelectExprs) {
+            if (!OptimizationChecker_.IsOptimizationAllowed(Query_->SelectExprs)) {
+                return false;
+            }
             for (const auto& expr : *Query_->SelectExprs) {
-                if (!OptimizationChecker_.IsOptimizationAllowed(Query_->SelectExprs)) {
-                    return false;
-                }
                 if (const auto* typeExpr = expr->As<TAliasExpression>()) {
                     // Add virtual references to aliases in select expressions.
                     TReference reference(typeExpr->Name);
@@ -442,8 +452,9 @@ public:
     std::optional<int> OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
-            YT_VERIFY(binaryExpr->Lhs.size() == 1);
-            YT_VERIFY(binaryExpr->Rhs.size() == 1);
+            if (!HasScalarOperands(*binaryExpr)) {
+                return std::nullopt;
+            }
             auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
             auto prefixRangesRight = Visit(binaryExpr->Rhs[0]);
             if (!prefixRangesLeft || !prefixRangesRight) {
@@ -645,7 +656,7 @@ bool TryHintPushDownGroupBy(NQueryClient::NAst::TQuery* query)
         }
     }
 
-    join->Table.Hint->PushDownGroupBy = true;
+    join->Table.Hint.PushDownGroupBy = true;
     return true;
 }
 

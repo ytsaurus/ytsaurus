@@ -762,6 +762,22 @@ TEST_F(TParseAndPrepareExpressionTest, CompareTuple)
     ProfileForBothExecutionBackends(expr, schema, nullptr, &variables);
 }
 
+TEST_F(TParseAndPrepareExpressionTest, CompareCompositeWithScalar)
+{
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("composite_column", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+
+    EXPECT_THROW_THAT(
+        ParseAndPrepareExpression(
+            "composite_column = 'value'",
+            *schema,
+            GetBuiltinTypeInferrers(),
+            /*references*/ nullptr,
+            TPreparePlanFragmentOptions{.BuilderVersion = DefaultExpressionBuilderVersion}),
+        HasSubstr("Type mismatch in expression"));
+}
+
 TEST_P(TParseAndPrepareExpressionTest, Simple)
 {
     auto schema = GetSampleTableSchema();
@@ -2002,7 +2018,8 @@ TEST_F(TExpressionTest, Aliasing)
 TUnversionedValue YsonToUnversionedValue(TStringBuf str)
 {
     NYson::TTokenizer tokenizer(str);
-    const auto& token = SkipAttributes(&tokenizer);
+    tokenizer.SkipAttributes();
+    const auto& token = tokenizer.CurrentToken();
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
             return MakeUnversionedInt64Value(token.GetInt64Value());
@@ -2159,9 +2176,9 @@ protected:
     { }
 };
 
-TString UnversionedValueToString(TUnversionedValue value)
+std::string UnversionedValueToString(TUnversionedValue value)
 {
-    TString result;
+    std::string result;
     TFixedGrowthStringOutput outStream(&result, 300);
     NYson::TUncheckedYsonTokenWriter writer(&outStream);
 
@@ -2187,6 +2204,8 @@ TString UnversionedValueToString(TUnversionedValue value)
         default:
             YT_ABORT();
     }
+
+    writer.Finish();
 
     return result;
 }
@@ -2767,7 +2786,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
             IntType,
             IntType,
             "xor_aggregate",
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         {EValueType::Int64},
         EValueType::Int64,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -2842,7 +2861,7 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
             /* stateType */ stringType,
             /* resultType */ stringType,
             /* name */ "concat_all",
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         /* argumentTypes */ {EValueType::String},
         /* stateType */ EValueType::String,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -2928,7 +2947,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
             type,
             type,
             aggregateName,
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         {wireType},
         wireType,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -3058,7 +3077,7 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
             stateType,
             resultType,
             aggregateName,
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         ToWireTypes(argumentTypes),
         GetWireType(stateType),
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -3261,6 +3280,12 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("any", EValueType::Any),
         TColumnSchema("b", EValueType::Boolean),
         TColumnSchema("l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))),
+        TColumnSchema("composite", OptionalLogicalType(
+            StructLogicalType(
+                {
+                    TStructField{"nested", "nested", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                },
+                /*removedFieldStableNames*/ {}))),
     });
 
     auto expr = ParseAndPrepareExpression(exprString, *schema);
@@ -3362,6 +3387,54 @@ INSTANTIATE_TEST_SUITE_P(
             "i1 + i2",
             MakeInt64(33 + 22)),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=17; i2=5",
+            "i1 % i2",
+            MakeInt64(2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-17; i2=5",
+            "i1 % i2",
+            MakeInt64(-2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=17; i2=-5",
+            "i1 % i2",
+            MakeInt64(2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-17; i2=-5",
+            "i1 % i2",
+            MakeInt64(-2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-9223372036854775808; i2=1",
+            "i1 % i2",
+            MakeInt64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u; u2=2u",
+            "u1 % u2",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=0u; u2=18446744073709551615u",
+            "u1 % u2",
+            MakeUint64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#; i2=0",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=#; u2=0u",
+            "u1 % u2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=0; i2=#",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=0u; u2=#",
+            "u1 % u2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#; i2=#",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33",
             "-i1",
             MakeInt64(-33)),
@@ -3397,6 +3470,18 @@ INSTANTIATE_TEST_SUITE_P(
             "i1=-9223372036854775808",
             "uint64(i1)",
             MakeUint64(9223372036854775808ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "uint64(i1)",
+            MakeUint64(18446744073709551615ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=1u",
+            "uint64(u1)",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#",
+            "uint64(i1)",
+            MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "u1=17271244077285990991u",
             "u1=17271244077285990991",
@@ -3473,6 +3558,10 @@ INSTANTIATE_TEST_SUITE_P(
             "l=[12;-2;3]",
             "l",
             MakeComposite("[12;-2;3]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "composite={nested=\"value\"}",
+            "composite.nested",
+            MakeString("value")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "l=[12;-2;3]",
             "to_any(l)",
@@ -3560,7 +3649,35 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "is_finite(d1)",
-            MakeNull())));
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(i1, u1, b, s1)",
+            MakeUint64(0x5f90424776524127ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(s1, b, u1, i1)",
+            MakeUint64(0xfd2435eda17206d9ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u",
+            "farm_hash(u1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1, i1)",
+            MakeUint64(0x940af1fb538b6bd5ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="a\0b")",
+            "farm_hash(s1)",
+            MakeUint64(0x0706e84ffa9edd01ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="")",
+            "farm_hash(s1)",
+            MakeUint64(0xfcc22541f5657d35ULL))));
 
 class TEvaluateLikeExpressionTest
     : public ::testing::Test
@@ -3758,9 +3875,12 @@ TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
 
     TUnversionedValue result{};
 
-    EXPECT_THROW_THAT(
-        EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
-        HasSubstr("Division by zero"));
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer, webAssembly),
+            HasSubstr("Division by zero"));
+    }
 }
 
 TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
@@ -3792,9 +3912,32 @@ TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
 
     TUnversionedValue result{};
 
-    EXPECT_THROW_THAT(
-        EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
-        HasSubstr("Division by zero"));
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer, webAssembly),
+            HasSubstr("Division by zero"));
+    }
+}
+
+TEST_F(TExpressionErrorTest, Int64_ModuloIntMinByMinusOne)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64),
+    });
+
+    auto expr = ParseAndPrepareExpression("i1 % i2", *schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result{};
+
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer, webAssembly),
+            HasSubstr("Division of INT_MIN by -1"));
+    }
 }
 
 TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)

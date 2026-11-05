@@ -17,7 +17,7 @@ Make sure that the `sys` account has enough free space to store this data.
 
 In the cluster specification, in the `primaryMasters` section, you need to specify the image for `hydraPersistenceUploader`:
 
-{% note info %}
+{% note warning %}
 
 Applying these changes will trigger a full cluster update with downtime, similar to a regular master update.
 

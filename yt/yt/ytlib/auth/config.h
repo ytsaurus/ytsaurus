@@ -57,7 +57,7 @@ struct TTvmBridgeConfig
     : public NYTree::TYsonStruct
 {
     //! Source TVM id.
-    TTvmId SelfTvmId;
+    std::optional<TTvmId> SelfTvmId;
 
     //! Period to refresh the TVM tokens.
     TDuration RefreshPeriod;

@@ -14,6 +14,7 @@ struct TCellPeerConfig
     std::optional<std::string> Address;
     std::optional<std::string> AlienCluster;
     bool Voting;
+    int Weight;
 
     REGISTER_YSON_STRUCT(TCellPeerConfig);
 
@@ -35,9 +36,14 @@ struct TCellConfig
     //! Some could be Null to indicate that the peer is temporarily missing.
     std::vector<TCellPeerConfigPtr> Peers;
 
+    //! Number of peers required to form a quorum.
+    //! If null, defaults to the simple majority of voting peers.
+    std::optional<int> QuorumPeerCount;
+
     void ValidateAllPeersPresent();
 
     int CountVotingPeers() const;
+    int CountVotingWeight() const;
 
     int FindPeerId(const std::string& address) const;
     int GetPeerIdOrThrow(const std::string& address) const;

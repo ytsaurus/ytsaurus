@@ -210,6 +210,47 @@ TEST_F(TAstFormatTest, Query)
         ParseAndFormat("* from t1 left join t2 using x"));
 }
 
+TEST_F(TAstFormatTest, JoinPredicateOr)
+{
+    TestQuery("* from t1 join t2 on t1.a = t2.b and (t2.c > 0 or is_null(t2.c))");
+    TestQuery("* from t1 left join t2 on t1.a = t2.b and ((t2.StartDate <= 1 and t2.EndDate >= 2) or is_null(t2.b)) join t3 using a");
+    TestQuery("* from t1 join t2 using a and (b > 0 or is_null(b))");
+    TestQuery("* from t1 left join t2 using a and (b > 0 or c > 0) where a > 0");
+    TestQuery("* from t1 array join a as x and (x > 0 or is_null(x))");
+    TestQuery("* from t1 left array join a as x and (x > 0 or is_null(x))");
+    TestQuery("* from (select * from t1 join t2 on t1.a = t2.b and (t2.c > 0 or is_null(t2.c))) as q");
+}
+
+TEST_F(TAstFormatTest, Subquery)
+{
+    TestQuery("* from (select * from t)");
+    TestQuery("q.x from (select a + 1 as x from t) as q");
+    TestQuery("* from (select * from (select * from t) as inner_query) as outer_query");
+}
+
+TEST(TAstTest, SubqueryEquality)
+{
+    auto areEqual = [] (TStringBuf lhs, TStringBuf rhs) {
+        auto parsedLhs = ParseSource(lhs, EParseMode::Query);
+        auto parsedRhs = ParseSource(rhs, EParseMode::Query);
+        return
+            std::get<TQuery>(parsedLhs->AstHead.Ast) ==
+            std::get<TQuery>(parsedRhs->AstHead.Ast);
+    };
+
+    EXPECT_TRUE(areEqual("* from (select * from t) as q", "* from (select * from t) as q"));
+    EXPECT_FALSE(areEqual("* from (select * from t) as q", "* from (select * from s) as q"));
+    EXPECT_FALSE(areEqual("* from (select * from t) as q", "* from (select * from t) as r"));
+    EXPECT_FALSE(areEqual("* from (select * from t) as q", "* from (select * from t)"));
+    EXPECT_FALSE(areEqual("* from (select a from t) as q", "* from (select b from t) as q"));
+    EXPECT_FALSE(areEqual("* from (select * from t where a > 0)", "* from (select * from t where a > 1)"));
+    EXPECT_FALSE(areEqual("* from (select * from t)", "* from t"));
+    EXPECT_FALSE(areEqual("* from t", "* from (select * from t)"));
+    EXPECT_FALSE(areEqual(
+        "* from (select * from (select * from t))",
+        "* from (select * from (select * from s))"));
+}
+
 TEST_F(TAstFormatTest, Concise)
 {
     TestConcise("* from t where a = \"0123456789abcdef\"", "* FROM t WHERE (a)=(\"0123456789abcdef\")");

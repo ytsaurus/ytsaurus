@@ -8,7 +8,7 @@ import os.path
 
 INIT_CLUSTER_CONFIG_FILENAME = "init_cluster_config.yson"
 RUN_CONFIG_FILENAME = "run_config.yson"
-STRAWBERRY_ROOT = "//sys/clickhouse/strawberry"
+STRAWBERRY_ROOT = "//sys/strawberry"
 SPECLET_FILENAME = "speclet.yson"
 
 
@@ -164,7 +164,7 @@ def create_controller_one_shot_run_config(proxy, work_dir):
         yson.dump(
             {
                 "proxy": proxy,
-                "strawberry_root": STRAWBERRY_ROOT,
+                "strawberry_root": STRAWBERRY_ROOT + "/chyt",
                 "controller": {
                     "local_binaries_dir": work_dir,
                     "log_rotation_mode": "disabled",

@@ -57,7 +57,7 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
         std::move(readerFactories),
         std::move(multiReaderMemoryManager))
 {
-    YT_LOG_DEBUG("Multi chunk reader is sequential");
+    YT_TLOG_DEBUG("Multi chunk reader is sequential");
     NextReaders_.reserve(ReaderFactories_.size());
     for (int i = 0; i < std::ssize(ReaderFactories_); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());

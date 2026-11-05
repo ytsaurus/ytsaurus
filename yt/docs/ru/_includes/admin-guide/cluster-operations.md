@@ -455,3 +455,8 @@ $ yt get //sys/controller_agents/instances/<controller_agent>/orchid/controller_
 ```
 
 {% endcut %}
+
+#### Клиентский конфиг
+
+{% include [Клиентский конфиг](client_config.md) %}
+

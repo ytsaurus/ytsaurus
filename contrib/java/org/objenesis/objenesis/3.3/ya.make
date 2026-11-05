@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(3.3)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(3686146889)
+
+SRC_RESOURCE(3686146890)
+
+ORIGINAL_SOURCE(https://github.com/easymock/objenesis)
+
+END()

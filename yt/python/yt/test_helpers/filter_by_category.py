@@ -3,8 +3,6 @@ from __future__ import print_function
 import os
 import sys
 
-from collections import Counter
-
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -70,17 +68,19 @@ def get_test_category(process_count):
 
 
 def pytest_collection_modifyitems(items, config):
-    test_category = os.getenv("YT_TEST_FILTER", None)
-    counts_by_process_count = Counter()
-    counts_by_category = Counter()
+    for item in items:
+        if item.cls is not None and hasattr(item.cls, "get_param") and item.cls.get_param("USE_SEQUOIA", 0):
+            item.add_marker("ignore_in_opensource_ci")
 
+    test_category = os.getenv("YT_TEST_FILTER", None)
     if test_category is not None:
         filtered_items = []
         deselected_items = []
         for item in items:
+            if item.cls is None or not hasattr(item.cls, "get_param"):
+                filtered_items.append(item)
+                continue
             process_count = get_total_process_count(item.cls)
-            counts_by_process_count[process_count] += 1
-            counts_by_category[get_test_category(process_count)] += 1
             if test_category == get_test_category(process_count):
                 filtered_items.append(item)
             else:
@@ -88,6 +88,3 @@ def pytest_collection_modifyitems(items, config):
 
         config.hook.pytest_deselected(items=deselected_items)
         items[:] = filtered_items
-
-    # eprint("counts_by_process_count: {}".format(sorted(counts_by_process_count.items())))
-    # eprint("counts_by_category: {}".format(sorted(counts_by_category.items())))

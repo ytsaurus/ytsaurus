@@ -44,13 +44,12 @@ cmake_policy(SET CMP0104 OLD)
 
 include(cmake/global_flags.cmake)
 include(cmake/global_vars.cmake)
-include(cmake/FindIDN.cmake)
-include(cmake/antlr.cmake)
 include(cmake/archive.cmake)
 include(cmake/bison.cmake)
 include(cmake/common.cmake)
 include(cmake/fbs.cmake)
 include(cmake/llvm-tools.cmake)
+include(cmake/masm.cmake)
 include(cmake/protobuf.cmake)
 include(cmake/shared_libs.cmake)
 
@@ -63,5 +62,7 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "
   include(CMakeLists.linux-aarch64.txt)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
   include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
 endif()
 

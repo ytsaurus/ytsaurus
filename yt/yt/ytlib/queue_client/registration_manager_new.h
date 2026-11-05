@@ -16,4 +16,4 @@ TQueueConsumerRegistrationManagerBasePtr CreateQueueConsumerRegistrationManagerN
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NQueueClient::NDetail
+} // namespace NYT::NQueueClient::NDetail

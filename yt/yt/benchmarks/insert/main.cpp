@@ -231,7 +231,7 @@ private:
     std::vector<double> Quantiles_ = {0.75, 0.95, 0.99, 0.995, 0.999, 1.0};
     std::vector<std::tuple<ui64, TShot>> Timings_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MeasurementsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, MeasurementsLock_);
     std::list<std::tuple<ui64, TShot>> Measurements_;
     std::atomic<ui64> LastTick_;
     size_t BytesWritten_ = 0;
@@ -277,7 +277,7 @@ class TCollectorThread
 {
 public:
     TCollectorThread(
-        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         TMpscStack<TShot>& queue,
         TBuckets& writeBuckets)
         : TSchedulerThread(
@@ -323,7 +323,7 @@ class TStatPrinterThread
 public:
     TStatPrinterThread(TBuckets& writeBuckets, const TDuration& printInterval, const IGaugePrinter* gaugePrinter)
         : TSchedulerThread(
-            New<NThreading::TEventCount>(),
+            New<TEventCount>(),
             "ResultPrinter",
             {})
         , PrintInterval_(printInterval)
@@ -533,7 +533,7 @@ private:
 
     IThreadPoolPtr WorkerPool_;
 
-    TIntrusivePtr<NThreading::TEventCount> ShootResultEventCount_ = New<NThreading::TEventCount>();
+    TIntrusivePtr<TEventCount> ShootResultEventCount_ = New<TEventCount>();
     TMpscStack<TShot> ShootResultQueue_;
 
     TBuckets WriteBuckets_;

@@ -2,9 +2,11 @@ package tech.ytsaurus.core.tables;
 
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -47,6 +49,37 @@ public class ColumnSchemaTest {
     @ParameterizedTest
     public void testPrecomputeTypes(ColumnValueType unsupportedType) {
         assertThrows(IllegalStateException.class, () -> new ColumnSchema("name", unsupportedType));
+    }
+
+    @Test
+    public void testTupleOldTypeIsAnyButWireTypeIsComposite() {
+        TiType tupleType = TiType.tuple(TiType.int64(), TiType.string());
+        ColumnSchema col = new ColumnSchema("col", tupleType);
+        assertEquals(ColumnValueType.ANY, col.getType());
+        assertEquals(ColumnValueType.COMPOSITE, col.getWireType());
+    }
+
+    @Test
+    public void testVariantOldTypeIsAnyButWireTypeIsComposite() {
+        TiType variantType = TiType.variantOverTuple(TiType.int64(), TiType.string());
+        ColumnSchema col = new ColumnSchema("col", variantType);
+        assertEquals(ColumnValueType.ANY, col.getType());
+        assertEquals(ColumnValueType.COMPOSITE, col.getWireType());
+    }
+
+    @Test
+    public void testVariantOverStructWireTypeIsComposite() {
+        TiType variantType = TiType.variantOverStructBuilder()
+                .add("a", TiType.int64())
+                .add("b", TiType.string())
+                .build();
+        assertEquals(ColumnValueType.COMPOSITE, new ColumnSchema("col", variantType).getWireType());
+    }
+
+    @Test
+    public void testOptionalTupleWireTypeIsComposite() {
+        TiType optionalTuple = TiType.optional(TiType.tuple(TiType.uint64(), TiType.string()));
+        assertEquals(ColumnValueType.COMPOSITE, new ColumnSchema("col", optionalTuple).getWireType());
     }
 
 }

@@ -25,7 +25,7 @@ In addition to disk space, data also uses the chunk quota of the account where i
 
 ## Example specification
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   mode = "sorted";

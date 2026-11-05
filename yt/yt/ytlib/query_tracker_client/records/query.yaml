@@ -66,7 +66,7 @@ types:
         lock: client
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
         lock: client
@@ -262,7 +262,7 @@ types:
         column_name: is_tutorial
         column_type: Boolean
 
-      - cpp_name: TTL
+      - cpp_name: Ttl
         cpp_type: std::optional<ui64>
         column_name: $ttl
         column_type: Uint64
@@ -313,7 +313,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -363,7 +363,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -408,7 +408,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -447,7 +447,7 @@ types:
         column_type: Any
 
       - cpp_name: Rowset
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: rowset
         column_type: String
 
@@ -461,7 +461,7 @@ types:
         column_name: full_result
         column_type: Any
 
-      - cpp_name: TTL
+      - cpp_name: Ttl
         cpp_type: std::optional<ui64>
         column_name: $ttl
         column_type: Uint64
@@ -556,3 +556,64 @@ types:
         column_name: unique_queries
         column_type: Int64
         aggregate: sum
+
+  - type_name: TQueryProgress
+    fields:
+      # Key.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: PartName
+        cpp_type: std::string
+        column_name: part_name
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Revision
+        cpp_type: ui32
+        column_name: revision
+        column_type: Uint32
+
+      - cpp_name: PartValue
+        cpp_type: std::string
+        column_name: part_value
+        column_type: String
+
+      - cpp_name: Ttl
+        cpp_type: std::optional<ui64>
+        column_name: $ttl
+        column_type: Uint64
+
+  - type_name: TQueryByUserAndMutationId
+    fields:
+      # Key.
+
+      - cpp_name: User
+        cpp_type: std::string
+        column_name: user
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: MutationId
+        cpp_type: TGuid
+        column_name: mutation_id
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+
+      - cpp_name: Ttl
+        cpp_type: std::optional<ui64>
+        column_name: $ttl
+        column_type: Uint64

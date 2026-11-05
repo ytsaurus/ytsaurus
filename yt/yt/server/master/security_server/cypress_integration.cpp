@@ -81,8 +81,8 @@ private:
                 break;
             }
             if (!account->GetParent() && account != securityManager->GetRootAccount() && IsObjectAlive(account)) {
-                YT_LOG_ALERT("Unattended account (Id: %v)",
-                    account->GetId());
+                YT_TLOG_ALERT("Unattended account")
+                    .With("Id", account->GetId());
             }
             names.push_back(account->GetName());
         }
@@ -99,8 +99,10 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(key, false /*activeLifeStageOnly*/);
-        if (!account) {
+        auto* account = securityManager->FindAccountByName(key, /*activeLifeStageOnly*/ false);
+
+        // Shouldn't be necessary but makes code more robust.
+        if (!IsObjectAlive(account)) {
             return nullptr;
         }
 
@@ -203,7 +205,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountResourceUsageLeaseId = TAccountResourceUsageLeaseId::FromString(key);
         auto* accountResourceUsageLease = securityManager->FindAccountResourceUsageLease(accountResourceUsageLeaseId);
-        if (!accountResourceUsageLease) {
+        if (!IsObjectAlive(accountResourceUsageLease)) {
             return nullptr;
         }
 

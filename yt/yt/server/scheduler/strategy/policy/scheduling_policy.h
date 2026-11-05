@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/core/actions/future.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +46,25 @@ struct TPoolTreeSnapshotState
 {
     const EPolicyKind PolicyKind;
 
+    virtual TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const = 0;
+
+    virtual void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const = 0;
+
+    virtual void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const = 0;
+
 protected:
     explicit TPoolTreeSnapshotState(EPolicyKind policyKind);
 };
@@ -71,10 +92,12 @@ struct ISchedulingPolicy
     //! Thread affinity: Control.
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+    //! Returns descriptors of nodes that have sent a scheduling heartbeat.
+    virtual std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const = 0;
 
     //! Scheduling.
     //! Thread affinity: Any.
-    virtual void ProcessSchedulingHeartbeat(
+    virtual TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) = 0;
@@ -85,7 +108,7 @@ struct ISchedulingPolicy
     virtual void UnregisterOperation(const TPoolTreeOperationElement* element) = 0;
 
     //! Thread affinity: Control.
-    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element) = 0;
+    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const = 0;
 
     //! Thread affinity: Control.
@@ -95,34 +118,41 @@ struct ISchedulingPolicy
     //! Thread affinity: Control.
     virtual void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const = 0;
+        std::vector<TAllocationPtr> allocations) = 0;
 
+    //! Processes a batch of allocation updates that all belong to this tree. The returned future is set to
+    //! a result per update, index-aligned with |allocationUpdates|. The classic policy applies the batch
+    //! synchronously and returns an already-set future; the GPU policy dispatches it to the control invoker
+    //! and returns a pending future. Batches are applied in dispatch order, but the caller does not drain
+    //! one before submitting the next: under the GPU policy several batches can be in flight at once
+    //! (see TStrategy::ProcessAllocationUpdates).
     //! Thread affinity: Any.
-    virtual TProcessAllocationUpdateResult ProcessAllocationUpdate(
+    virtual TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) = 0;
+        const std::vector<TAllocationUpdate>& allocationUpdates) = 0;
 
     //! Diagnostics.
     //! Thread affinity: Any.
-    virtual void BuildSchedulingAttributesStringForNode(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        NNodeTrackerClient::TNodeId nodeId) const = 0;
+    virtual void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         NNodeTrackerClient::TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
-    virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
-    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+        NYTree::TFluentMap fluent) const = 0;
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        TInstant now) const = 0;
 
     //! Thread affinity: Any.
-    virtual void BuildElementLoggingStringAttributes(
+    virtual NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        const TPoolTreeElement* element) const = 0;
 
     //! Thread affinity: Control.
-    virtual void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const = 0;
+    virtual void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const = 0;
 
     //! Thread affinity: Profiler thread.
     virtual void ProfileOperation(
@@ -170,28 +200,5 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(yaishenka): YT-27597 Implement this methods in GPU policy and refactor it.
-struct TSchedulingPolicyStaticCaller
-{
-    static TError CheckOperationIsStuck(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        TInstant now,
-        TInstant activationTime,
-        const TOperationStuckCheckOptionsPtr& options);
-
-    static void BuildOperationProgress(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        IStrategyHost* const strategyHost,
-        NYTree::TFluentMap fluent);
-
-    static void BuildElementYson(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        const TFieldFilter& filter,
-        NYTree::TFluentMap fluent);
-};
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy

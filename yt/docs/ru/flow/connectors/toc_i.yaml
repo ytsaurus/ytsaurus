@@ -1,0 +1,11 @@
+items:
+  - name: Обзор
+    href: about.md
+  - name: Queue (ordered dynamic table)
+    href: queue.md
+  - name: Static table
+    href: static-table.md
+  - name: Sorted Dynamic Table
+    href: sorted-dynamic-table.md
+  - name: Сервис-лог
+    href: servicelog.md

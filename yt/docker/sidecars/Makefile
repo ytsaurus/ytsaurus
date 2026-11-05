@@ -1,9 +1,10 @@
 COMMIT_SHA_FETCH := $(shell git rev-parse HEAD)
 
 DOCKER_REGISTRY = ghcr.io
-DOCKER_REPOSITORY = ytsaurus/sidecars
+DOCKER_ORGANIZATION = ytsaurus
+DOCKER_REPOSITORY = sidecars-nightly
 
-IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_REPOSITORY)
+IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_ORGANIZATION)/$(DOCKER_REPOSITORY)
 
 COMMIT_SHA = $(COMMIT_SHA_FETCH)
 TODAY = $(shell date -u +%Y-%m-%d)
@@ -31,8 +32,10 @@ docker-push:
 .PHONY: docker-build
 docker-build: build-hydra build-timbertruck
 	docker build \
-		--tag=$(IMAGE_REPO):latest \
 		--tag=$(IMAGE_REPO):$(IMAGE_TAG) .
 
 .PHONY: docker-release
 docker-release: docker-build docker-push
+
+.PHONY: release-all
+release-all: docker-release

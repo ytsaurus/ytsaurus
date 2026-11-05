@@ -75,6 +75,25 @@ public:
     // It's just much more convenient to store dynamic attributes list snapshot together with the tree snapshot.
     TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
 
+    TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const override;
+
+    void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const override;
+
+    void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const override;
+
 private:
     // NB(eshcherbin): Enabled operations' states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
     TOperationStateMap OperationIdToState_;

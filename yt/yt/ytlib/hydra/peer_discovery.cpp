@@ -38,7 +38,7 @@ public:
                     "Read-only mode is active");
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::GlobalDiscoveryError,
                     "Cell is in a discombobulated state")
-                    << error;
+                    .With(error);
             }
         }
     }

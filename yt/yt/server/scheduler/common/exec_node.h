@@ -16,15 +16,17 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/misc/property.h>
+
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NScheduler {
 
@@ -147,6 +149,7 @@ public:
 
     //! Constructs a descriptor containing the current snapshot of node's state.
     TExecNodeDescriptorPtr BuildExecDescriptor() const;
+    TExecNodeDescriptorPtr BuildExecDescriptorWithOffloadedDtor(IInvokerPtr backgroundInvoker) const;
 
     //! Set the node's IO weight.
     void SetIOWeights(const THashMap<std::string, double>& mediumToWeight);

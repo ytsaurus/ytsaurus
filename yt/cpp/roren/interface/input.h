@@ -1,12 +1,12 @@
 #pragma once
 
 #include "fwd.h"
-
 #include "coder.h"
 #include "row.h"
 #include "type_tag.h"
-#include "private/raw_data_flow.h"
-#include "private/statically_buffered_stream.h"
+
+#include <yt/cpp/roren/interface/private/raw_data_flow.h>
+#include <yt/cpp/roren/interface/private/statically_buffered_stream.h>
 
 #include <util/generic/maybe.h>
 

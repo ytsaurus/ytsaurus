@@ -144,3 +144,8 @@ types:
         cpp_type: NYson::TYsonString
         column_name: scheduling_attributes_per_pool_tree
         column_type: Any
+
+      - cpp_name: CumulativeSpecPatch
+        cpp_type: NYson::TYsonString
+        column_name: cumulative_spec_patch
+        column_type: Any

@@ -13,8 +13,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const static TString S3TutorialAccessKeyId = "AKIAIOSFODNN7EXAMPLE";
-const static TString S3TutorialSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+const static std::string S3TutorialAccessKeyId = "AKIAIOSFODNN7EXAMPLE";
+const static std::string S3TutorialSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 const static ICredentialsProviderPtr S3CredentialProvider = CreateStaticCredentialProvider(S3TutorialAccessKeyId, S3TutorialSecretAccessKey);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +45,7 @@ TEST(TRequestPreparerTest, Test1)
 TEST(TRequestPreparerTest, Test2)
 {
     auto time = TInstant::ParseIso8601("20130524T000000Z");
-    auto payload = TSharedRef::FromString("Welcome to Amazon S3.");
+    auto payload = TSharedRef::FromString(std::string("Welcome to Amazon S3."));
     THttpRequest request{
         .Method = NHttp::EMethod::Put,
         .Protocol = "http",

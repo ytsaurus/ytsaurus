@@ -1,4 +1,4 @@
-#include "private.h"
+#include "first_batch_tracking_base.h"
 #include "profiling_reader.h"
 
 #include <yt/yt/client/table_client/row_batch.h>
@@ -15,7 +15,7 @@ class TProfilingMultiChunkReader
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TInstant start)
+    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TCpuInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
@@ -118,7 +118,7 @@ private:
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
     ISchemalessMultiChunkReaderPtr underlying,
-    TInstant start)
+    TCpuInstant start)
 {
     return New<TProfilingMultiChunkReader>(std::move(underlying), start);
 }

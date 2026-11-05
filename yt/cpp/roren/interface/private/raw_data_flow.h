@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../fwd.h"
-
 #include "fwd.h"
+
+#include <yt/cpp/roren/interface/fwd.h>
 
 #include <util/generic/hash.h>
 #include <util/stream/fwd.h>

@@ -24,6 +24,7 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -31,12 +32,13 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -82,10 +84,10 @@ public:
             BIND(&TStrategy::OnFairShareLogging, MakeWeak(this)),
             Config_->FairShareLogPeriod);
 
-        AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
+        AccumulatedResourceDistributionLoggingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareLoggingInvoker(),
-            BIND(&TStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
-            Config_->AccumulatedUsageLogPeriod);
+            BIND(&TStrategy::OnLogAccumulatedResourceDistribution, MakeWeak(this)),
+            Config_->AccumulatedResourceDistributionLogPeriod);
 
         GroupedNeededResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::Strategy),
@@ -138,7 +140,7 @@ public:
         FairShareProfilingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         FairShareLoggingExecutor_->Start();
-        AccumulatedUsageLoggingExecutor_->Start();
+        AccumulatedResourceDistributionLoggingExecutor_->Start();
         GroupedNeededResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
@@ -154,7 +156,7 @@ public:
         YT_UNUSED_FUTURE(FairShareProfilingExecutor_->Stop());
         YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
-        YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
+        YT_UNUSED_FUTURE(AccumulatedResourceDistributionLoggingExecutor_->Stop());
         YT_UNUSED_FUTURE(GroupedNeededResourcesUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
@@ -188,7 +190,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_INFO("Starting min needed allocation resources update");
+        YT_TLOG_INFO("Starting min needed allocation resources update");
 
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
             auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
@@ -197,7 +199,7 @@ public:
             }
         }
 
-        YT_LOG_INFO("Min needed allocation resources successfully updated");
+        YT_TLOG_INFO("Min needed allocation resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -205,7 +207,7 @@ public:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    void OnLogAccumulatedUsage()
+    void OnLogAccumulatedResourceDistribution()
     {
         YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
@@ -216,7 +218,7 @@ public:
             return;
         }
         for (const auto& tree : snapshot->Trees()) {
-            tree->LogAccumulatedUsage();
+            tree->LogAccumulatedResourceDistribution();
         }
     }
 
@@ -304,7 +306,9 @@ public:
 
         EraseOrCrash(state->TreeIdToPoolNameMap(), treeId);
 
-        YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+        YT_TLOG_INFO("Operation removed from a tree")
+            .With("OperationId", operationId)
+            .With("TreeId", treeId);
     }
 
     void DoUnregisterOperationFromTree(const TStrategyOperationStatePtr& operationState, const std::string& treeId)
@@ -335,7 +339,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
-            YT_LOG_INFO("Pool trees and pools are not changed, skipping update");
+            YT_TLOG_INFO("Pool trees and pools are not changed, skipping update");
             return;
         }
 
@@ -356,7 +360,7 @@ public:
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
-                << ex;
+                .With(ex);
             THROW_ERROR(error);
         }
 
@@ -367,12 +371,12 @@ public:
             // No context switches allowed during pool trees update.
             TForbidContextSwitchGuard contextSwitchGuard;
 
-            YT_LOG_INFO("Updating pool trees");
+            YT_TLOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
-                    << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
-                    << TErrorAttribute("actual_type", poolTreesNode->GetType());
+                    .With("expected_type", NYTree::ENodeType::Map)
+                    .With("actual_type", poolTreesNode->GetType());
             }
 
             auto poolsMap = poolTreesNode->AsMap();
@@ -386,10 +390,10 @@ public:
             THashMap<std::string, TSchedulingTagFilter> treeIdToFilter;
             CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treeIdsWithChangedFilter, &treeIdToFilter);
 
-            YT_LOG_INFO("Pool trees collected to update (TreeIdsToAdd: %v, TreeIdsToRemove: %v, TreeIdsWithChangedFilter: %v)",
-                treeIdsToAdd,
-                treeIdsToRemove,
-                treeIdsWithChangedFilter);
+            YT_TLOG_INFO("Pool trees collected to update")
+                .With("TreeIdsToAdd", treeIdsToAdd)
+                .With("TreeIdsToRemove", treeIdsToRemove)
+                .With("TreeIdsWithChangedFilter", treeIdsWithChangedFilter);
 
             // Populate trees map. New trees are not added to global map yet.
             auto idToTree = ConstructUpdatedTreeMap(
@@ -406,7 +410,7 @@ public:
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
                 errors.push_back(TError("Default tree is missing"));
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             }
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
@@ -415,7 +419,7 @@ public:
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             }
 
             // Update configs and pools structure of all trees.
@@ -441,7 +445,7 @@ public:
             // Setting alerts.
             if (!errors.empty()) {
                 error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             } else {
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
                     Host_->LogEventFluently(&SchedulerEventLogger(), ELogEventType::PoolsInfo)
@@ -452,7 +456,7 @@ public:
                                 .Item(treeId).Do(BIND(&IPoolTree::BuildStaticPoolsInformation, tree));
                         });
                 }
-                YT_LOG_INFO("Pool trees updated");
+                YT_TLOG_INFO("Pool trees updated");
             }
         }
 
@@ -471,7 +475,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -486,7 +490,7 @@ public:
         TError result;
         if (!errors.empty()) {
             result = TError("Error updating mapping from user to default parent pool")
-                << std::move(errors);
+                .With(std::move(errors));
         } else {
             for (const auto& [_, tree] : IdToTree_) {
                 tree->ActualizeEphemeralPoolParents(userToDefaultPoolMap);
@@ -534,7 +538,7 @@ public:
             TError operationError("Operation scheduling is stuck");
 
             for (const auto& [treeId, _] : operationState->TreeIdToPoolNameMap()) {
-                auto error = GetTree(treeId)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
+                auto error = GetTree(treeId)->CheckIsOperationStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
                     hasTreeWithProgress = true;
                     break;
@@ -568,7 +572,7 @@ public:
         FairShareProfilingExecutor_->SetPeriod(Config_->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
-        AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
+        AccumulatedResourceDistributionLoggingExecutor_->SetPeriod(Config_->AccumulatedResourceDistributionLogPeriod);
         GroupedNeededResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
@@ -577,7 +581,7 @@ public:
         EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
         if (!EphemeralPoolNameRegex_->ok()) {
             THROW_ERROR_EXCEPTION("Bad ephemeral pool name regular expression provided in scheduler config")
-                << TErrorAttribute("regex", Config_->EphemeralPoolNameRegex);
+                .With("regex", Config_->EphemeralPoolNameRegex);
         }
     }
 
@@ -608,7 +612,7 @@ public:
             .Item("accumulated_resource_distribution_per_tree").Value(accumulatedResourceDistributionPerTree)
             .Item("accumulated_resource_usage_per_tree").DoMapFor(
                 accumulatedResourceDistributionPerTree,
-                [] (TFluentMap fluent, const std::pair<TString, TAccumulatedResourceDistribution>& pair) {
+                [] (TFluentMap fluent, const std::pair<std::string, TAccumulatedResourceDistribution>& pair) {
                     const auto& [treeId, distribution] = pair;
                     fluent.Item(treeId).Value(distribution.Usage());
                 });
@@ -652,7 +656,7 @@ public:
             auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Id);
             auto tree = GetTree(poolTreeDescription.Id);
-            std::optional<TString> poolFromSpec;
+            std::optional<std::string> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
                 treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
@@ -680,29 +684,30 @@ public:
                 continue;
             }
             if (!spec->SchedulingTagFilter.IsEmpty()) {
-                YT_LOG_DEBUG("Ignoring offloading since operation has scheduling tag filter (SchedulingTagFilter: %v, OperationId: %v)",
-                    spec->SchedulingTagFilter.GetFormula(),
-                    operationId);
+                YT_TLOG_DEBUG("Ignoring offloading since operation has scheduling tag filter")
+                    .With("SchedulingTagFilter", spec->SchedulingTagFilter.GetFormula())
+                    .With("OperationId", operationId);
                 continue;
             }
             if (!spec->AllowOffloading) {
-                YT_LOG_DEBUG("Ignoring offloading since it is disabled in operation spec (OperationId: %v)", operationId);
+                YT_TLOG_DEBUG("Ignoring offloading since it is disabled in operation spec")
+                    .With("OperationId", operationId);
                 continue;
             }
 
             for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
                 if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
-                    YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
-                        offloadingPoolTreeName,
-                        offloadingPoolSettings->Pool,
-                        operationId);
+                    YT_TLOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used")
+                        .With("OffloadingTreeId", offloadingPoolTreeName)
+                        .With("OffloadingPool", offloadingPoolSettings->Pool)
+                        .With("OperationId", operationId);
                 } else {
                     auto tree = FindTree(offloadingPoolTreeName);
                     if (!tree) {
-                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
-                            offloadingPoolTreeName,
-                            offloadingPoolSettings->Pool,
-                            operationId);
+                        YT_TLOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist")
+                            .With("OffloadingTreeId", offloadingPoolTreeName)
+                            .With("OffloadingPool", offloadingPoolSettings->Pool)
+                            .With("OperationId", operationId);
                     } else {
                         auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
@@ -726,7 +731,7 @@ public:
         YT_VERIFY(origin);
 
         for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
-            std::optional<TString> newPoolName = update->Pool;
+            std::optional<std::string> newPoolName = update->Pool;
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 newPoolName = treeUpdateIt->second->Pool;
@@ -804,7 +809,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
         dynamicOrchidService->AddChild("pool_trees", New<TPoolTreeService>(this));
         return dynamicOrchidService;
     }
@@ -884,7 +889,7 @@ public:
         return ValidateOperationPoolsCanBeUsed(operation, operation->GetRuntimeParameters());
     }
 
-    THashMap<TString, TError> GetPoolLimitViolations(
+    THashMap<std::string, TError> GetPoolLimitViolations(
         const IOperation* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -892,7 +897,7 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        THashMap<TString, TError> result;
+        THashMap<std::string, TError> result;
 
         for (const auto& [treeId, pool] : pools) {
             auto tree = GetTree(treeId);
@@ -926,7 +931,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_INFO("Starting fair share update");
+        YT_TLOG_INFO("Starting fair share update");
 
         std::vector<std::pair<std::string, IPoolTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
@@ -991,12 +996,12 @@ public:
                 TreeSetTopologyVersion_);
             TreeSetSnapshot_.Store(treeSetSnapshot);
 
-            YT_LOG_DEBUG("Stored updated pool tree snapshots");
+            YT_TLOG_DEBUG("Stored updated pool tree snapshots");
         }
 
         if (!errors.empty()) {
             auto error = TError("Found pool configuration issues during fair share update")
-                << std::move(errors);
+                .With(std::move(errors));
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, error);
         } else {
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
@@ -1005,7 +1010,7 @@ public:
         // TODO(eshcherbin): Decouple storing persistent state from fair share update?
         Host_->InvokeStoringStrategyState(BuildPersistentState());
 
-        YT_LOG_INFO("Fair share successfully updated");
+        YT_TLOG_INFO("Fair share successfully updated");
     }
 
     void OnFairShareEssentialLoggingAt(TInstant now) override
@@ -1038,9 +1043,9 @@ public:
         }
     }
 
-    THashMap<TString, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
+    THashMap<std::string, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
     {
-        THashMap<TString, TAccumulatedResourceDistribution> result;
+        THashMap<std::string, TAccumulatedResourceDistribution> result;
 
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
@@ -1060,9 +1065,8 @@ public:
         YT_VERIFY(allocationsToPostpone->empty());
         YT_VERIFY(allocationsToAbort->empty());
 
-        YT_LOG_DEBUG(
-            "Processing allocation updates in strategy (UpdateCount: %v)",
-            allocationUpdates.size());
+        YT_TLOG_DEBUG("Processing allocation updates in strategy")
+            .With("UpdateCount", allocationUpdates.size());
 
         THashMap<std::string, std::vector<TAllocationUpdate>> allocationUpdatesPerTree;
         for (const auto& allocationUpdate : allocationUpdates) {
@@ -1076,27 +1080,68 @@ public:
             return;
         }
 
-        for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
-            auto it = idToTree.find(treeId);
-            if (it == idToTree.end()) {
-                for (const auto& allocationUpdates : treeAllocationUpdates) {
-                    if (allocationUpdates.Finished) {
-                        // Allocation is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG(
-                            "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                            allocationUpdates.OperationId,
-                            allocationUpdates.AllocationId);
-                    } else {
-                        // Allocation is orphaned (does not belong to any tree), aborting it.
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdates.AllocationId, EAbortReason::NonexistentPoolTree);
+        THashMap<std::string, TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>>> treeIdToUpdateFuture;
+        treeIdToUpdateFuture.reserve(allocationUpdatesPerTree.size());
+
+        {
+            // Process every per-tree batch before this fiber can be suspended: per-allocation update
+            // ordering relies on batches being applied (classic policy, synchronously here) or enqueued to
+            // the control invoker (GPU policy) in drain order. A context switch here would let a later
+            // batch overtake this one.
+            TForbidContextSwitchGuard contextSwitchGuard;
+
+            for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
+                auto it = idToTree.find(treeId);
+                if (it == idToTree.end()) {
+                    for (const auto& allocationUpdate : treeAllocationUpdates) {
+                        if (allocationUpdate.Finished) {
+                            // Allocation is finished but tree does not exist, nothing to do.
+                            YT_TLOG_DEBUG("Dropping allocation update since pool tree is missing")
+                                .With("OperationId", allocationUpdate.OperationId)
+                                .With("AllocationId", allocationUpdate.AllocationId);
+                        } else {
+                            // Allocation is orphaned (does not belong to any tree), aborting it.
+                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
+                        }
                     }
+
+                    continue;
                 }
 
-                continue;
+                const auto& tree = it->second;
+                EmplaceOrCrash(treeIdToUpdateFuture, treeId, tree->ProcessAllocationUpdates(treeAllocationUpdates));
             }
+        }
 
-            const auto& tree = it->second;
-            tree->ProcessAllocationUpdates(treeAllocationUpdates, allocationsToPostpone, allocationsToAbort);
+        for (const auto& [treeId, future] : treeIdToUpdateFuture) {
+            const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
+            auto updateResults = WaitForFast(future)
+                .ValueOrThrow();
+            YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
+
+            for (int index = 0; index < std::ssize(treeAllocationUpdates); ++index) {
+                const auto& allocationUpdate = treeAllocationUpdates[index];
+                const auto& updateResult = updateResults[index];
+
+                if (updateResult.NeedToAbort) {
+                    YT_TLOG_DEBUG("Aborting allocation update")
+                        .With("OperationId", allocationUpdate.OperationId)
+                        .With("AllocationId", allocationUpdate.AllocationId)
+                        .With("UpdateStatus", updateResult.Status)
+                        .With("AbortReason", updateResult.AbortReason);
+                    YT_VERIFY(updateResult.AbortReason.has_value());
+                    EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
+                }
+
+                if (updateResult.NeedToPostpone) {
+                    YT_TLOG_DEBUG("Postpone allocation update since operation is disabled or missing in snapshot")
+                        .With("OperationId", allocationUpdate.OperationId)
+                        .With("AllocationId", allocationUpdate.AllocationId)
+                        .With("UpdateStatus", updateResult.Status)
+                        .With("NeedToAbort", updateResult.NeedToAbort);
+                    allocationsToPostpone->insert(allocationUpdate.AllocationId);
+                }
+            }
         }
     }
 
@@ -1115,10 +1160,9 @@ public:
             if (tree && tree->HasOperation(operationId)) {
                 tree->RegisterAllocationsFromRevivedOperation(operationId, std::move(allocations));
             } else {
-                YT_LOG_INFO(
-                    "Allocations are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
-                    operationId,
-                    treeId);
+                YT_TLOG_INFO("Allocations are not registered in tree since operation is missing")
+                    .With("OperationId", operationId)
+                    .With("TreeId", treeId);
             }
         }
     }
@@ -1163,7 +1207,8 @@ public:
                 // then its id can be missing in the map.
                 auto it = NodeIdToDescriptor_.find(nodeId);
                 if (it == NodeIdToDescriptor_.end()) {
-                    YT_LOG_WARNING("Node is not registered at strategy (Address: %v)", nodeAddress);
+                    YT_TLOG_WARNING("Node is not registered at strategy")
+                        .With("Address", nodeAddress);
 
                     return;
                 }
@@ -1179,7 +1224,9 @@ public:
                 EraseOrCrash(NodeAddresses_, nodeAddress);
                 NodeIdToDescriptor_.erase(it);
 
-                YT_LOG_INFO("Node was unregistered from strategy (Address: %v, TreeId: %v)", nodeAddress, treeId);
+                YT_TLOG_INFO("Node was unregistered from strategy")
+                    .With("Address", nodeAddress)
+                    .With("TreeId", treeId);
             }));
     }
 
@@ -1232,13 +1279,13 @@ public:
             std::vector<TError> alerts;
             for (const auto& [treeId, alert] : treeAlerts) {
                 alerts.push_back(alert
-                    << TErrorAttribute("tree_id", treeId));
+                    .With("tree_id", treeId));
             }
 
             Host_->SetSchedulerAlert(
                 alertType,
                 TError(TRuntimeFormat(alertMessage))
-                    << std::move(alerts));
+                    .With(std::move(alerts)));
         }
     }
 
@@ -1314,24 +1361,19 @@ public:
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
 
-            YT_LOG_DEBUG(
-                "Considering candidate single tree for operation "
-                "(Pending: %v, Empty: %v, ZeroGuarantee: %v, "
-                "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
-                "EstimatedGuaranteeShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v, TotalResourceLimits: %v, "
-                "TreeId: %v, OperationId: %v)",
-                pending,
-                empty,
-                zeroGuarantee,
-                newDemandShare,
-                currentDemandShare,
-                modelDemandShare,
-                estimatedGuaranteeShare,
-                reserveShare,
-                currentReserveRatio,
-                FormatResources(totalResourceLimits),
-                treeId,
-                operationId);
+            YT_TLOG_DEBUG("Considering candidate single tree for operation")
+                .With("Pending", pending)
+                .With("Empty", empty)
+                .With("ZeroGuarantee", zeroGuarantee)
+                .WithFormat("NewDemandShare", "%.6g", newDemandShare)
+                .WithFormat("CurrentDemandShare", "%.6g", currentDemandShare)
+                .WithFormat("ModelDemandShare", "%.6g", modelDemandShare)
+                .WithFormat("EstimatedGuaranteeShare", "%.6g", estimatedGuaranteeShare)
+                .WithFormat("ReserveShare", "%.6g", reserveShare)
+                .With("CurrentReserveRatio", currentReserveRatio)
+                .With("TotalResourceLimits", FormatResources(totalResourceLimits))
+                .With("TreeId", treeId)
+                .With("OperationId", operationId);
 
             singleTreeOptions.push_back(TSingleTreeOption{
                 .TreeId = treeId,
@@ -1357,12 +1399,12 @@ public:
                         .EndMap();
                 });
             return TError("Found no best single non-empty tree for operation")
-                << TErrorAttribute("tree_options", serializedTreeOptions);
+                .With("tree_options", serializedTreeOptions);
         }
 
-        YT_LOG_DEBUG("Best tree selected for operation (BestTree: %v, OperationId: %v)",
-            bestTree.TreeId,
-            operationId);
+        YT_TLOG_DEBUG("Best tree selected for operation")
+            .With("BestTree", bestTree.TreeId)
+            .With("OperationId", operationId);
 
         return bestTree.TreeId;
     }
@@ -1380,7 +1422,7 @@ public:
 
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            auto error = tree->OnOperationMaterialized(operationId);
+            auto error = tree->OnOperationMaterialized(operationId, revivedFromSnapshot);
             if (!error.IsOK()) {
                 return error;
             }
@@ -1402,11 +1444,9 @@ public:
             }
 
             if (!treeIdsToUnregister.empty()) {
-                YT_LOG_DEBUG(
-                    "Unregistering operation from trees due to job resource limits restrictions violations "
-                    "(OperationId: %v, Trees: %v)",
-                    operationId,
-                    treeIdsToUnregister);
+                YT_TLOG_DEBUG("Unregistering operation from trees due to job resource limits restrictions violations")
+                    .With("OperationId", operationId)
+                    .With("Trees", treeIdsToUnregister);
 
                 unregisterFromTrees(std::move(treeIdsToUnregister));
             }
@@ -1463,7 +1503,7 @@ public:
 
         if (size(jobResourceLimitsRestrictionsErrors) == size(state->TreeIdToPoolNameMap())) {
             return TError("Job resource demand restriction violated in all pool trees")
-                << GetIths<1>(jobResourceLimitsRestrictionsErrors);
+                .With(GetIths<1>(jobResourceLimitsRestrictionsErrors));
         } else if (!jobResourceLimitsRestrictionsErrors.empty()) {
             *treeIdsToUnregister = GetIths<0>(jobResourceLimitsRestrictionsErrors);
         }
@@ -1479,13 +1519,13 @@ public:
             auto tree = GetTree(treeId);
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
                 multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qv tree's configuration", treeId)
-                    << std::move(error));
+                    .With(std::move(error)));
             }
         }
 
         if (!multiTreeSchedulingErrors.empty() && size(state->TreeIdToPoolNameMap()) > 1) {
             return TError("Scheduling in several trees is forbidden by some trees' configuration")
-                << std::move(multiTreeSchedulingErrors);
+                .With(std::move(multiTreeSchedulingErrors));
         }
 
         return {};
@@ -1564,7 +1604,7 @@ private:
     TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
-    TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
+    TPeriodicExecutorPtr AccumulatedResourceDistributionLoggingExecutor_;
     TPeriodicExecutorPtr GroupedNeededResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
@@ -1584,7 +1624,7 @@ private:
     TAtomicIntrusivePtr<TPoolTreeSetSnapshot> TreeSetSnapshot_;
 
     // Topology describes set of trees and their node filters.
-    using TTreeSetTopology = std::vector<std::pair<TString, TSchedulingTagFilter>>;
+    using TTreeSetTopology = std::vector<std::pair<std::string, TSchedulingTagFilter>>;
     TTreeSetTopology TreeSetTopology_;
     int TreeSetTopologyVersion_ = 0;
 
@@ -1693,8 +1733,8 @@ private:
             for (const auto& desc : result) {
                 if (desc.Id == *spec->ProbingPoolTree) {
                     THROW_ERROR_EXCEPTION("Probing pool tree must not be in regular or tentative pool tree lists")
-                        << TErrorAttribute("pool_tree", desc.Id)
-                        << TErrorAttribute("is_tentative", desc.Tentative);
+                        .With("pool_tree", desc.Id)
+                        .With("is_tentative", desc.Tentative);
                 }
             }
 
@@ -1734,11 +1774,11 @@ private:
 
         if (treeIndex == InvalidTreeIndex) {
             if (hasMultipleMatchingTrees) {
-                YT_LOG_INFO("Node belongs to multiple fair-share trees (Address: %v)",
-                    nodeAddress);
+                YT_TLOG_INFO("Node belongs to multiple fair-share trees")
+                    .With("Address", nodeAddress);
             } else {
-                YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
-                    nodeAddress);
+                YT_TLOG_INFO("Node does not belong to any fair-share tree")
+                    .With("Address", nodeAddress);
             }
         }
         return treeIndex;
@@ -1844,7 +1884,7 @@ private:
 
         fluent
             .Item("scheduling_info_per_pool_tree")
-                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TPoolName>& value) {
+                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<std::string, TPoolName>& value) {
                     const auto& treeId = value.first;
                     auto tree = GetTree(treeId);
 
@@ -1931,9 +1971,7 @@ private:
         THashSet<std::string>* treeIdsWithChangedFilter,
         THashMap<std::string, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key_ : poolsMap->GetKeys()) {
-            // TODO(babenko): migrate to std::string
-            auto key = TString(key_);
+        for (const auto& key : poolsMap->GetKeys()) {
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treeIdsToAdd->insert(key);
                 try {
@@ -1982,9 +2020,11 @@ private:
                 treeConfig = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
-                    << ex;
+                    .With(ex);
                 errors->push_back(error);
-                YT_LOG_WARNING(error);
+                YT_TLOG_WARNING("Error parsing tree configuration")
+                    .With("TreeId", treeId)
+                    .With(ex);
                 continue;
             }
 
@@ -2021,9 +2061,9 @@ private:
             if (treeIds.size() > 1) {
                 errors->emplace_back(
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
-                        << TErrorAttribute("node_id", nodeId)
-                        << TErrorAttribute("matched_trees", treeIds)
-                        << TErrorAttribute("node_address", GetOrCrash(NodeIdToDescriptor_, nodeId).Address));
+                        .With("node_id", nodeId)
+                        .With("matched_trees", treeIds)
+                        .With("node_address", GetOrCrash(NodeIdToDescriptor_, nodeId).Address));
                 return false;
             }
         }
@@ -2047,7 +2087,7 @@ private:
                 treeConfigChanged = tree->UpdateConfig(config);
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)
-                    << ex;
+                    .With(ex);
                 errors->push_back(error);
                 continue;
             }
@@ -2112,9 +2152,9 @@ private:
             }
 
             if (!treeIdsToErase.empty()) {
-                YT_LOG_INFO("Removing operation from deleted trees (OperationId: %v, TreeIds: %v)",
-                    operationId,
-                    treeIdsToErase);
+                YT_TLOG_INFO("Removing operation from deleted trees")
+                    .With("OperationId", operationId)
+                    .With("TreeIds", treeIdsToErase);
 
                 state->GetHost()->EraseTrees(treeIdsToErase);
                 operationsToFlush->push_back(operationId);
@@ -2166,13 +2206,14 @@ private:
             treeId = treeIds[0];
         } else {
             THROW_ERROR_EXCEPTION("Node belongs to more than one pool tree")
-                    << TErrorAttribute("matched_pool_trees", treeIds);
+                .With("node_address", nodeAddress)
+                .With("matched_pool_trees", treeIds);
         }
 
         auto it = NodeIdToDescriptor_.find(nodeId);
         if (it == NodeIdToDescriptor_.end()) {
             THROW_ERROR_EXCEPTION_IF(NodeAddresses_.contains(nodeAddress),
-                "Duplicate node address found (Address: %v, NewNodeId: %v)",
+                "Duplicate node address %Qv found for new node id %v",
                 nodeAddress,
                 nodeId);
 
@@ -2191,11 +2232,11 @@ private:
                 RegisterNodeInTree(tree, nodeId, nodeAddress);
             }
 
-            YT_LOG_INFO("Node was registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
+            YT_TLOG_INFO("Node was registered at strategy")
+                .With("NodeId", nodeId)
+                .With("Address", nodeAddress)
+                .With("Tags", tags)
+                .With("TreeId", treeId);
         } else {
             auto& currentDescriptor = it->second;
             if (treeId != currentDescriptor.TreeId) {
@@ -2205,11 +2246,11 @@ private:
             currentDescriptor.Tags = tags;
             currentDescriptor.Address = nodeAddress;
 
-            YT_LOG_INFO("Node was updated at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
+            YT_TLOG_INFO("Node was updated at scheduler")
+                .With("NodeId", nodeId)
+                .With("Address", nodeAddress)
+                .With("Tags", tags)
+                .With("TreeId", treeId);
         }
 
         ProcessNodesWithoutPoolTreeAlert();
@@ -2272,11 +2313,11 @@ private:
         auto& currentDescriptor = it->second;
         YT_VERIFY(newTreeId != currentDescriptor.TreeId);
 
-        YT_LOG_INFO("Node has changed pool tree (NodeId: %v, Address: %v, OldTreeId: %v, NewTreeId: %v)",
-            nodeId,
-            currentDescriptor.Address,
-            currentDescriptor.TreeId,
-            newTreeId);
+        YT_TLOG_INFO("Node has changed pool tree")
+            .With("NodeId", nodeId)
+            .With("Address", currentDescriptor.Address)
+            .With("OldTreeId", currentDescriptor.TreeId)
+            .With("NewTreeId", newTreeId);
 
         if (auto oldTreeId = currentDescriptor.TreeId) {
             const auto& oldTree = GetOrCrash(IdToTree_, *oldTreeId);
@@ -2315,9 +2356,9 @@ private:
         Host_->SetSchedulerAlert(
             ESchedulerAlertType::NodesWithoutPoolTree,
             TError("Found nodes that do not match any pool tree")
-                << TErrorAttribute("node_addresses", nodeAddresses)
-                << TErrorAttribute("truncated", truncated)
-                << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
+                .With("node_addresses", nodeAddresses)
+                .With("truncated", truncated)
+                .With("node_count", NodeIdsWithoutTree_.size()));
     }
 
     void BuildTreeOrchid(
@@ -2357,7 +2398,7 @@ private:
 
         for (const auto& tree : snapshot->Trees()) {
             TMeteringMap newStatisticsPerTree;
-            THashMap<TString, TString> customMeteringTags;
+            THashMap<std::string, std::string> customMeteringTags;
             tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
 
             for (auto& [key, value] : newStatisticsPerTree) {
@@ -2397,7 +2438,8 @@ private:
             WaitFor(Host_->UpdateLastMeteringLogTime(now))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update last metering log time");
+            YT_TLOG_WARNING("Failed to update last metering log time")
+                .With(ex);
         }
     }
 
@@ -2406,8 +2448,8 @@ private:
         YT_VERIFY(!Initialized_);
         YT_VERIFY(persistentStrategyState);
 
-        YT_LOG_INFO("Initializing persistent strategy state %v",
-            ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
+        YT_TLOG_INFO("Initializing persistent strategy state")
+            .With("PersistentStrategyState", ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
 
         for (const auto& [treeId, tree] : IdToTree_) {
             auto stateIt = persistentStrategyState->TreeStates.find(treeId);
@@ -2418,10 +2460,9 @@ private:
         }
 
         for (const auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
-            YT_LOG_INFO_UNLESS(IdToTree_.contains(treeId),
-                "Unknown pool tree, skipping its persistent state (TreeId: %v, PersistentState: %v)",
-                treeId,
-                ConvertToYsonString(treeState, EYsonFormat::Text));
+            YT_TLOG_INFO_UNLESS(IdToTree_.contains(treeId), "Unknown pool tree, skipping its persistent state")
+                .With("TreeId", treeId)
+                .With("PersistentState", ConvertToYsonString(treeState, EYsonFormat::Text));
         }
 
         Initialized_ = true;
@@ -2479,7 +2520,6 @@ private:
         {
             YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            // TODO(babenko): switch to std::string
             const auto it = Strategy_->IdToTree_.find(treeId);
             if (it == std::cend(Strategy_->IdToTree_)) {
                 return nullptr;
@@ -2520,22 +2560,21 @@ private:
             return Tree_ ? Tree_->GetSchedulingHeartbeatComplexity() : 0;
         }
 
-        void BuildSchedulingAttributesString(
-            TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        NLogging::TLoggingTagList BuildSchedulingAttributeTags(
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const override
         {
-            if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForNode(NodeId_, delimitedBuilder);
-            }
+            return Tree_
+                ? Tree_->BuildSchedulingAttributeTagsForNode(schedulingHeartbeatContext, NodeId_)
+                : NLogging::TLoggingTagList();
         }
 
-        void BuildSchedulingAttributesStringForOngoingAllocations(
+        NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
             const std::vector<TAllocationPtr>& allocations,
-            TInstant now,
-            TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+            TInstant now) const override
         {
-            if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForOngoingAllocations(allocations, now, delimitedBuilder);
-            }
+            return Tree_
+                ? Tree_->BuildSchedulingAttributeTagsForOngoingAllocations(allocations, now)
+                : NLogging::TLoggingTagList();
         }
 
         TMatchingTreeCookie GetMatchingTreeCookie() const override

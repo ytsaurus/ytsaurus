@@ -1,5 +1,7 @@
 #include "chunk_index.h"
 
+#include "chunk_column_mapping.h"
+
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -105,8 +107,8 @@ THashTableChunkIndexFormatDetail::THashTableChunkIndexFormatDetail(
 
     if (SectorDataSize < EntryByteSize_) {
         THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified format parameters")
-            << TErrorAttribute("entry_byte_size", EntryByteSize_)
-            << TErrorAttribute("sector_data_size", SectorDataSize);
+            .With("entry_byte_size", EntryByteSize_)
+            .With("sector_data_size", SectorDataSize);
     }
 
     SlotCountInSector_ = SectorDataSize / EntryByteSize_;

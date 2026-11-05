@@ -41,7 +41,7 @@ TChunkReaderBase::TChunkReaderBase(
     , ChunkReadOptions_(chunkReadOptions)
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
     , FinishGuard_(TraceContext_)
-    , Logger(TableClientLogger().WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
+    , Logger(TableClientLogger().WithTag("ChunkId", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManagerHolder) {
         MemoryManagerHolder_ = memoryManagerHolder;
@@ -52,14 +52,14 @@ TChunkReaderBase::TChunkReaderBase(
     MemoryManagerHolder_->Get()->AddReadSessionInfo(ChunkReadOptions_.ReadSessionId);
 
     if (ChunkReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
+        Logger.AddTag("ReadSessionId", ChunkReadOptions_.ReadSessionId);
     }
 }
 
 TChunkReaderBase::~TChunkReaderBase()
 {
-    YT_LOG_DEBUG("Chunk reader timing statistics (TimingStatistics: %v)",
-        TTimingReaderBase::GetTimingStatistics());
+    YT_TLOG_DEBUG("Chunk reader timing statistics")
+        .With("TimingStatistics", TTimingReaderBase::GetTimingStatistics());
 }
 
 TFuture<void> TChunkReaderBase::DoOpen(
@@ -172,9 +172,9 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TDataBlockMetaExt& blockMeta, con
     const auto& lastBlock = *(--blockMetaEntries.end());
 
     if (*lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
-        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
-            lowerLimit,
-            lastBlock.chunk_row_count());
+        YT_TLOG_DEBUG("Lower limit oversteps chunk boundaries")
+            .With("LowerLimit", lowerLimit)
+            .With("RowCount", lastBlock.chunk_row_count());
 
         return blockMeta.data_blocks_size();
     }
@@ -222,10 +222,10 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
         });
 
     if (it == blockLastKeys.end()) {
-        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, SortOrders: %v)",
-            lowerLimit,
-            blockLastKeys[blockLastKeys.size() - 1],
-            sortOrders);
+        YT_TLOG_DEBUG("Lower limit oversteps chunk boundaries")
+            .With("LowerLimit", lowerLimit)
+            .With("MaxKey", blockLastKeys[blockLastKeys.size() - 1])
+            .With("SortOrders", sortOrders);
         return blockLastKeys.size();
     }
 

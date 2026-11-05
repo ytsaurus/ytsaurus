@@ -149,7 +149,7 @@ class _TestProxyFormatConfigBase(metaclass=ABCMeta):
                 yield
         else:
             def manager():
-                return raises_yt_error(yt_error_codes.FormatDisabled)
+                return raises_yt_error(code=yt_error_codes.FormatDisabled)
         return manager
 
     def _run_operation(self, op_type, spec, user, use_start_op=True, content=[]):

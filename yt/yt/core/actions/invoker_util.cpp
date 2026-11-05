@@ -9,9 +9,12 @@
 #include <yt/yt/core/concurrency/system_invokers.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
+
+#include <library/cpp/yt/misc/immortal.h>
 
 #include <stack>
 
@@ -97,9 +100,10 @@ private:
     };
 };
 
-IInvokerPtr GetSyncInvoker()
+const IInvokerPtr& GetSyncInvoker()
 {
-    return LeakyRefCountedSingleton<TSyncInvoker>();
+    static const TImmortal<IInvokerPtr> Invoker(LeakyRefCountedSingleton<TSyncInvoker>());
+    return *Invoker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,14 +142,52 @@ public:
     { }
 };
 
-IInvokerPtr GetNullInvoker()
+const IInvokerPtr& GetNullInvoker()
 {
-    return LeakyRefCountedSingleton<TNullInvoker>();
+    static const TImmortal<IInvokerPtr> Invoker(LeakyRefCountedSingleton<TNullInvoker>());
+    return *Invoker;
 }
 
-IInvokerPtr GetFinalizerInvoker()
+const IInvokerPtr& GetFinalizerInvoker()
 {
     return NConcurrency::GetFinalizerInvoker();
+}
+
+TClosure MakeGuardedCallback(
+    TClosure onSuccess,
+    TClosure onCancel)
+{
+    class TGuard final
+    {
+    public:
+        TGuard(TClosure onSuccess, TClosure onCancel)
+            : OnSuccess_(std::move(onSuccess))
+            , OnCancel_(std::move(onCancel))
+        { }
+
+        void Run()
+        {
+            YT_VERIFY(!std::exchange(Run_, true));
+            OnSuccess_();
+        }
+
+        ~TGuard()
+        {
+            if (!Run_) {
+                OnCancel_();
+            }
+        }
+
+    private:
+        const TClosure OnSuccess_;
+        const TClosure OnCancel_;
+
+        bool Run_ = false;
+    };
+
+    return BIND_NO_PROPAGATE(
+        &TGuard::Run,
+        New<TGuard>(std::move(onSuccess), std::move(onCancel)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

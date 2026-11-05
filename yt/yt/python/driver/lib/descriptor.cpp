@@ -4,7 +4,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TCommandDescriptor::TypeName_;
+std::string TCommandDescriptor::TypeName_;
 
 TCommandDescriptor::TCommandDescriptor(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TCommandDescriptor>::PythonClass(self, args, kwargs)
@@ -40,7 +40,7 @@ Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/
     return Py::Boolean(Descriptor_.Heavy);
 }
 
-void TCommandDescriptor::InitType(const TString& moduleName)
+void TCommandDescriptor::InitType(const std::string& moduleName)
 {
     static std::once_flag flag;
     std::call_once(flag, [&] {

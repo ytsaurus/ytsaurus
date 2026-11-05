@@ -17,7 +17,6 @@ def set_or_remove(path, value):
         set(path, value)
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressRequestLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_CELLS = 1
@@ -204,7 +203,6 @@ class TestCypressRequestLimits(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressRequestLimitsRpcProxy(TestCypressRequestLimits):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

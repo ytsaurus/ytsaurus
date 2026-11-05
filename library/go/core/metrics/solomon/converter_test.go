@@ -5,12 +5,23 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 
 	"go.ytsaurus.tech/library/go/ptr"
 )
 
 func TestPrometheusMetrics(t *testing.T) {
+	gauge := NewGauge("subregister1_mygauge", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	counter := NewCounter("subregisters_count", 2, WithTags(map[string]string{}))
+	hist := NewHistogram(
+		"subregister1_subregister2_myhistogram",
+		[]float64{1, 2, 3},
+		[]int64{1, 2, 1},
+		2,
+		WithTags(map[string]string{"ololo": "trololo", "shimba": "boomba"}),
+	)
+	group1 := NewCounter("metrics_group", 2, WithTags(map[string]string{}))
+	group2 := NewCounter("metrics_group", 3, WithTags(map[string]string{}))
+
 	testCases := []struct {
 		name      string
 		metrics   []*dto.MetricFamily
@@ -84,39 +95,11 @@ func TestPrometheusMetrics(t *testing.T) {
 			},
 			expect: &Metrics{
 				metrics: []Metric{
-					&Gauge{
-						name:       "subregister1_mygauge",
-						metricType: typeGauge,
-						tags:       map[string]string{"ololo": "trololo"},
-						value:      *atomic.NewFloat64(42),
-					},
-					&Counter{
-						name:       "subregisters_count",
-						metricType: typeCounter,
-						tags:       map[string]string{},
-						value:      *atomic.NewInt64(2),
-					},
-					&Histogram{
-						name:         "subregister1_subregister2_myhistogram",
-						metricType:   typeHistogram,
-						tags:         map[string]string{"ololo": "trololo", "shimba": "boomba"},
-						bucketBounds: []float64{1, 2, 3},
-						bucketValues: []int64{1, 2, 1},
-						infValue:     *atomic.NewInt64(2),
-					},
-					// group of metrics
-					&Counter{
-						name:       "metrics_group",
-						metricType: typeCounter,
-						tags:       map[string]string{},
-						value:      *atomic.NewInt64(2),
-					},
-					&Counter{
-						name:       "metrics_group",
-						metricType: typeCounter,
-						tags:       map[string]string{},
-						value:      *atomic.NewInt64(3),
-					},
+					&gauge,
+					&counter,
+					&hist,
+					&group1,
+					&group2,
 				},
 			},
 			expectErr: nil,
@@ -166,31 +149,16 @@ func TestPrometheusSummaryMetric(t *testing.T) {
 
 	mName := "subregister1_subregister2_mysummary"
 	mTags := map[string]string{"ololo": "trololo", "shimba": "boomba"}
-	bBounds := []float64{1, 2, 3}
-	bValues := []int64{1, 2, 1}
+
+	hist := NewHistogram(mName, []float64{1, 2, 3}, []int64{1, 2, 1}, 4, WithTags(mTags))
+	counter := NewCounter(mName+"_count", 8, WithTags(mTags))
+	gauge := NewGauge(mName+"_sum", 4.2, WithTags(mTags))
 
 	expect := &Metrics{
 		metrics: []Metric{
-			&Histogram{
-				name:         mName,
-				metricType:   typeHistogram,
-				tags:         mTags,
-				bucketBounds: bBounds,
-				bucketValues: bValues,
-				infValue:     *atomic.NewInt64(4),
-			},
-			&Counter{
-				name:       mName + "_count",
-				metricType: typeCounter,
-				tags:       mTags,
-				value:      *atomic.NewInt64(8),
-			},
-			&Gauge{
-				name:       mName + "_sum",
-				metricType: typeGauge,
-				tags:       mTags,
-				value:      *atomic.NewFloat64(4.2),
-			},
+			&hist,
+			&counter,
+			&gauge,
 		},
 	}
 

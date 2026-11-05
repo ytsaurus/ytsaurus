@@ -154,10 +154,13 @@ public:
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {
-            TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
-                config->BlackboxTicketAuthenticator,
-                blackboxService,
-                TvmService_);
+            TicketAuthenticator_ = CreateCachingTicketAuthenticator(
+                config->CachingTicketAuthenticator,
+                CreateBlackboxTicketAuthenticator(
+                    config->BlackboxTicketAuthenticator,
+                    blackboxService,
+                    TvmService_),
+                AuthProfiler().WithPrefix("/blackbox_ticket_authenticator/cache"));
             rpcAuthenticators.push_back(
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
@@ -242,6 +245,13 @@ public:
     const ICypressUserManagerPtr& GetCypressUserManager() const override
     {
         return CypressUserManager_;
+    }
+
+    void Reconfigure(const TAuthenticationManagerDynamicConfigPtr& config) override
+    {
+        if (TicketAuthenticator_) {
+            TicketAuthenticator_->Reconfigure(config->TvmService->UserTicketAuthentication);
+        }
     }
 
 private:

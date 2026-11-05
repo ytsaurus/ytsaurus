@@ -4,9 +4,13 @@
 #include "private.h"
 #include "serialize.h"
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 
 namespace NYT::NTabletNode {
+
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,10 +43,20 @@ void TTransactionWriteRecord::Save(TSaveContext& context) const
 void TTransactionWriteRecord::Load(TLoadContext& context)
 {
     using NYT::Load;
+
+    struct TWriteBufferTag
+    { };
+
     Load(context, TabletId);
 
     Load(context, WriteCommands.Data_);
-    WriteCommands.RowBuffer_ = New<NTableClient::TRowBuffer>();
+    WriteCommands.RowBuffer_ = New<TRowBuffer>(
+        TWriteBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        context.NodeMemoryUsageTracker
+            ? context.NodeMemoryUsageTracker->WithCategory(EMemoryCategory::TabletDynamic)
+            : nullptr,
+        /*allowMemoryOvercommit*/ true);
     auto reader = CreateWireProtocolReader(WriteCommands.Data_, WriteCommands.RowBuffer_);
     WriteCommands.Commands_ = ParseWriteCommands(
         context.CurrentTabletWriteManagerSchemaData,
@@ -58,7 +72,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
 i64 TTransactionWriteRecord::GetByteSize() const
 {
     // Capacity would be more accurate, but it lacks consistency.
-    return WriteCommands.Data_.Size() + WriteCommands.Commands().size() * sizeof(TWireWriteCommands);
+    return WriteCommands.Data_.Size() + WriteCommands.Commands().size() * sizeof(TWireWriteCommand);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

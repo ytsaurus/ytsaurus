@@ -3,9 +3,10 @@ package lib
 import "go.ytsaurus.tech/yt/go/yt"
 
 type CheckACLRequest struct {
-	Cluster string   `json:"cluster"`
-	Subject string   `json:"subject"`
-	Paths   []string `json:"paths"`
+	Cluster    string        `json:"cluster"`
+	Subject    string        `json:"subject"`
+	Permission yt.Permission `json:"permission,omitempty"`
+	Paths      []string      `json:"paths"`
 }
 
 type ClickHouseDictRequest struct {

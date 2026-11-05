@@ -17,6 +17,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "17")
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yql:essentials:providers:common:proto"))

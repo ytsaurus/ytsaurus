@@ -58,7 +58,7 @@ public:
         return statistics;
     }
 
-    NTableClient::TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         return {};
     }

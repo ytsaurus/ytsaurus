@@ -6,7 +6,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const TString& message, const TError& error);
+Py::Exception CreateYtError(const std::string& message, const TError& error);
 
 #define CATCH_AND_CREATE_YT_ERROR(message) \
     catch (const NYT::TErrorException& errorEx) { \

@@ -34,10 +34,15 @@ target_link_libraries(cpp-yt-logging PUBLIC
   cpp-yt-assert
   cpp-yt-memory
   cpp-yt-misc
+  cpp-yt-mpl
+  cpp-yt-system
   cpp-yt-yson_string
 )
 
 target_sources(cpp-yt-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/tag.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/tagged_payload.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/structured_payload.cpp
 )
 

@@ -1,8 +1,9 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboards.jobs_monitor import BYTES_LABEL
 
 from .common import cpu_usage
 
@@ -78,6 +79,33 @@ an additional factor of 1 to write amplification). Normal values are around 2-5.
                 "Max overlapping store count (per table)",
                 MultiSensor(osc("table_path"), osc("table_tag")).top(False))
         .row()
+            .cell(
+                "Compaction/partitioning data weight (per node)",
+                NodeTablet("yt.tablet_node.store_compactor.out_data_weight.rate")
+                    .aggr("activity", "eden", "reason", "table_path", "table_tag"))
+            .cell("", EmptyCell())
+        .row()
+            .aggr("eden", MonitoringTag("host"))
+            .all("table_path", "reason")
+            .stack()
+            .cell(
+                "Compaction data weight (per table, with reasons)",
+                NodeTablet("yt.tablet_node.store_compactor.out_data_weight.rate")
+                    .value("activity", "compaction"))
+            .cell(
+                "Partitioning data weight (per table, with reasons)",
+                NodeTablet("yt.tablet_node.store_compactor.out_data_weight.rate")
+                    .value("activity", "partitioning"))
+        .row()
             .cell("StoreCompact thread pool CPU usage", cpu_usage("StoreCompact"))
             .cell("Compression thread pool CPU usage", cpu_usage("Compression"))
+        .row()
+            .cell(
+                "Tablet background memory",
+                TabNode("yt.cluster_node.memory_usage.used")
+                    .value("category", "tablet_background")
+                    .host_container_legend_format()
+                    .unit("UNIT_BYTES_SI"),
+                yaxis_label=BYTES_LABEL)
+            .cell("", EmptyCell())
         ).owner

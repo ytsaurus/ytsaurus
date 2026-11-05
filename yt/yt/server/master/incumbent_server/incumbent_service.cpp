@@ -36,7 +36,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NIncumbentClient::NProto, Heartbeat)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         ValidatePeer(EPeerKind::LeaderOrFollower);
 

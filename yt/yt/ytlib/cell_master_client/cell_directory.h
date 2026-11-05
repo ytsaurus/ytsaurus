@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NCellMasterClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,17 +60,17 @@ struct ICellDirectory
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId) = 0;
 
-    // NB: naked master cell channels don't have neither retries nor default
-    // timeouts.
-    virtual NRpc::IChannelPtr FindNakedMasterChannel(
+    virtual NRpc::IChannelPtr FindNonRetryingMasterChannel(
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
-    virtual NRpc::IChannelPtr GetNakedMasterChannelOrThrow(
+    virtual NRpc::IChannelPtr GetNonRetryingMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
 
     //! Throws when passed EMasterCellRole::Unknown. Returns empty list if no cells have the specified role.
     virtual NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;

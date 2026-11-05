@@ -1,7 +1,7 @@
 #include "connection.h"
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 namespace NYT::NDiscoveryServer {
 

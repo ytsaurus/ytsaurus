@@ -15,7 +15,7 @@ namespace NYT::NAuth {
 //! and user login is just taken from the headers without further validation.
 //!
 //! If authenticationManager->IsValidationEnabled() is false, requests just pass without any authentication.
-NRpc::IAuthenticatorPtr CreateNativeAuthenticator(std::function<bool(TTvmId)> sourceValidator);
+NRpc::IAuthenticatorPtr CreateNativeAuthenticator(std::function<TError(TTvmId)> sourceValidator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,7 @@
 
 ```libdivide.h```  is a header-only C/C++ library for optimizing integer division. Integer division is one of the slowest instructions on most CPUs e.g. on current x64 CPUs a 64-bit integer division has a latency of up to 90 clock cycles whereas a multiplication has a latency of only 3 clock cycles. libdivide allows you to replace expensive integer division instructions by a sequence of shift, add and multiply instructions that will calculate the integer division much faster.
 
-On current CPUs you can get a **speedup of up to 10x** for 64-bit integer division and a speedup of up to to 5x for 32-bit integer division when using libdivide. libdivide also supports [SSE2](https://en.wikipedia.org/wiki/SSE2), [AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions) and [AVX512](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions) vector division which provides an even larger speedup. You can test how much speedup you can achieve on your CPU using the [benchmark](#benchmark-program) program.
+On current CPUs you can get a **speedup of up to 10x** for 64-bit integer division and a speedup of up to 5x for 32-bit integer division when using libdivide. libdivide also supports [SSE2](https://en.wikipedia.org/wiki/SSE2), [AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions), [AVX512](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions), NEON, and SVE vector division, which can provide an even larger speedup. You can test how much speedup you can achieve on your CPU using the [benchmark](#benchmark-program) program.
 
 libdivide is compatible with 8-bit microcontrollers, such as the AVR series: [the CI build includes a AtMega2560 target](test/avr/readme.md). Since low end hardware such as this often do not include a hardware divider, libdivide is particularly useful. In addition to the runtime [C](doc/C-API.md) & [C++](doc/CPP-API.md) APIs, a set of [predefined macros](constant_fast_div.h) and [templates](constant_fast_div.hpp) is included to speed up division by 16-bit constants: division by a 16-bit constant is [not optimized by avr-gcc on 8-bit systems](https://stackoverflow.com/questions/47994933/why-doesnt-gcc-or-clang-on-arm-use-division-by-invariant-integers-using-multip). 
 
@@ -106,9 +106,9 @@ Caveats of branchfree divider:
 ## Vector division
 
 libdivide supports [SSE2](https://en.wikipedia.org/wiki/SSE2),
-[AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions) and
-[AVX512](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)
-vector division on x86 and x64 CPUs. In the example below we divide the packed 32-bit integers inside an AVX512 vector using libdivide. libdivide supports 32-bit and 64-bit vector division for both signed and unsigned integers.
+[AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions),
+[AVX512](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions),
+NEON, and SVE vector division. In the example below we divide the packed 32-bit integers inside an AVX512 vector using libdivide. libdivide supports 16-bit, 32-bit, and 64-bit vector division for both signed and unsigned integers.
 
 ```C++
 #include "libdivide.h"
@@ -129,6 +129,8 @@ Note that you need to define one of macros below to enable vector division:
 * ```LIBDIVIDE_AVX2```
 * ```LIBDIVIDE_AVX512```
 * ```LIBDIVIDE_NEON```
+* ```LIBDIVIDE_SVE```
+* ```LIBDIVIDE_SVE2```
 
 ## Performance Tips
 
@@ -138,9 +140,9 @@ Note that you need to define one of macros below to enable vector division:
   choose the one that performs best. The branchfree divider is more likely to get auto
   vectorized by the compiler (if you compile with e.g. ```-march=native```). But don't forget
   that the unsigned branchfree divider cannot be 1.
-* Vector division is much faster for 32-bit than for 64-bit. This is because there are
-  currently no vector multiplication instructions on x86 to efficiently calculate
-  64-bit * 64-bit to 128-bit. 
+* On x86, vector division is much faster for 32-bit than for 64-bit. This is because
+  there are currently no vector multiplication instructions on x86 to efficiently
+  calculate 64-bit * 64-bit to 128-bit.
 
 ## Build instructions
 
@@ -150,6 +152,16 @@ libdivide has one test program and two benchmark programs which can be built usi
 cmake .
 make -j
 sudo make install
+```
+
+## Test instructions
+
+To run the test suite:
+
+```bash
+cmake -B build
+cmake --build build -j
+ctest --test-dir build
 ```
 
 ## Tester program

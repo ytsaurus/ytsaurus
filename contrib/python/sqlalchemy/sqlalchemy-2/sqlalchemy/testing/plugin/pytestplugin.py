@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import collections
 from functools import update_wrapper
+from functools import wraps
 import inspect
 import itertools
 import operator
@@ -654,13 +655,10 @@ def _pytest_fn_decorator(target):
             __target_fn="__target_fn", __orig_fn="__orig_fn", name=fn.__name__
         )
         metadata.update(format_argspec_plus(spec, grouped=False))
-        code = (
-            """\
+        code = """\
 def %(name)s%(grouped_args)s:
     return %(__target_fn)s(%(__orig_fn)s, %(apply_kw)s)
-"""
-            % metadata
-        )
+""" % metadata
         decorated = _exec_code_in_env(
             code, {"__target_fn": target, "__orig_fn": fn}, fn.__name__
         )
@@ -682,6 +680,28 @@ def %(name)s%(grouped_args)s:
 
 
 class PytestFixtureFunctions(plugin_base.FixtureFunctions):
+
+    def fixture_classmethod(self, fn):
+        """a conditional `@classmethod` decorator that we use only on py3.10
+        on forward, for compatibility with pytest 9.1+."""
+
+        if pytest.version_tuple >= (9, 1):
+            return classmethod(fn)
+        else:
+            if inspect.isgeneratorfunction(fn):
+
+                @wraps(fn)
+                def wrap(self, *args, **kw):
+                    yield from fn(self.__class__, *args, **kw)
+
+            else:
+
+                @wraps(fn)
+                def wrap(self, *args, **kw):
+                    return fn(self.__class__, *args, **kw)
+
+            return wrap
+
     def skip_test_exception(self, *arg, **kw):
         return pytest.skip.Exception(*arg, **kw)
 
@@ -865,9 +885,16 @@ class PytestFixtureFunctions(plugin_base.FixtureFunctions):
         # now apply wrappers to the function, including fixture itself
 
         def wrap(fn):
+            is_classmethod = isinstance(fn, classmethod)
+            if is_classmethod:
+                fn = fn.__func__
+
             if config.any_async:
                 fn = asyncio._maybe_async_wrapper(fn)
             # other wrappers may be added here
+
+            if is_classmethod:
+                fn = classmethod(fn)
 
             # now apply FixtureFunctionMarker
             fn = fixture(fn)

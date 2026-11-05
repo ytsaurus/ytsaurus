@@ -89,15 +89,15 @@ DEFINE_ENUM(EResourceType,
     (ReincarnationSlots)
 );
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const NProto::TNodeResources& usage,
     const NProto::TNodeResources& limits);
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const NProto::TNodeResources& usage,
     const NProto::TNodeResources& limits,
     const NProto::TDiskResources& diskResources);
-TString FormatResources(const NProto::TNodeResources& resources);
-TString ToString(
+std::string FormatResources(const NProto::TNodeResources& resources);
+std::string ToString(
     const NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 

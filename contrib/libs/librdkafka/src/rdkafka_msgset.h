@@ -78,6 +78,13 @@ rd_kafka_msgset_parse(rd_kafka_buf_t *rkbuf,
                       rd_kafka_aborted_txns_t *aborted_txns,
                       const struct rd_kafka_toppar_ver *tver);
 
+rd_kafka_resp_err_t
+rd_kafka_share_msgset_parse(rd_kafka_buf_t *rkbuf,
+                            rd_kafka_toppar_t *rktp,
+                            rd_kafka_aborted_txns_t *aborted_txns,
+                            const struct rd_kafka_toppar_ver *tver,
+                            rd_kafka_q_t *response_message_q);
+
 #if WITH_ZLIB
 rd_kafka_resp_err_t rd_kafka_gzip_compress(rd_kafka_broker_t *rkb,
                                            int comp_level,

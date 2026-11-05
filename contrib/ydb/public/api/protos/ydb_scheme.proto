@@ -57,6 +57,7 @@ message Entry {
         RTMR_VOLUME = 5;
         BLOCK_STORE_VOLUME = 6;
         COORDINATION_NODE = 7;
+        SOLOMON_VOLUME = 8;
         COLUMN_STORE = 12;
         COLUMN_TABLE = 13;
         SEQUENCE = 15;
@@ -69,6 +70,7 @@ message Entry {
         BACKUP_COLLECTION = 22;
         TRANSFER = 23;
         SYS_VIEW = 24;
+        SECRET = 25;
         STREAMING_QUERY = 26;
     }
 
@@ -88,6 +90,9 @@ message Entry {
 
     // Virtual timestamp when the object was created
     VirtualTimestamp created_at = 9;
+
+    // When true, permissions are not inherited from parent objects
+    bool interrupt_permission_inheritance = 10;
 }
 
 message ListDirectoryResult {

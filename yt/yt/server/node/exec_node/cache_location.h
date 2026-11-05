@@ -4,6 +4,8 @@
 #include "private.h"
 #include "public.h"
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/public.h>
 
@@ -59,9 +61,9 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        TString id,
+        std::string id,
         NDataNode::TCacheLocationConfigPtr config,
-        const NClusterNode::IBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TArtifactCachePtr artifactCache);
 
     const NDataNode::TCacheLocationConfigPtr& GetStaticConfig() const;
@@ -75,21 +77,38 @@ public:
 
     const std::string& GetMediumName() const;
 
+    void InitializePendingDownloadsTracker();
+    TPendingDownloadsTrackerPtr GetPendingDownloadsTracker() const;
+    i64 GetAvailableSpaceForDownloads() const;
+
+    void RemoveChunkFiles(NChunkClient::TChunkId chunkId, bool force) override;
+
+    using TTrackedChunkRemovalCookie = TFinallyGuard<TExtendedCallback<void()>>;
+    TTrackedChunkRemovalCookie PrepareTrackedChunkRemoval();
+    void RemoveChunkFilesTracked(const TTrackedChunkRemovalCookie& cookie, NChunkClient::TChunkId chunkId, bool force);
+    TFuture<void> GetTrackedChunkRemovalBarrierFuture();
+
 private:
     const NDataNode::TCacheLocationConfigPtr StaticConfig_;
+
     const NConcurrency::IReconfigurableThroughputThrottlerPtr InThrottler_;
     const TArtifactCachePtr ArtifactCache_;
+    const TPendingDownloadsTrackerPtr PendingDownloadsTracker_;
 
     const std::string MediumName_;
 
-    const NClusterNode::IBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
+
+    const NProfiling::TCounter EnospcRate_;
+
+    NConcurrency::TAsyncBarrier TrackedChunkRemovalBarrier_;
 
     TFuture<void> RemoveChunks();
 
-    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
+    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const std::string& metaSuffix);
     std::optional<NNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
 
     NNode::TBriefChunkLocationConfig GetBriefConfig() const;
 };

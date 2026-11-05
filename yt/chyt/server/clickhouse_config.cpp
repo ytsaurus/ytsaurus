@@ -201,10 +201,7 @@ void TClickHouseConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("max_temporary_data_on_disk_size", &TThis::MaxTemporaryDataOnDiskSize)
-        // NB: By default we want to disable disk usage for temporary data.
-        // There is no way to disable it completely,
-        // so just set a limit to 1 byte (0 means "unlimited").
-        .Default(1);
+        .Default(128_MB);
 
     registrar.Parameter("settings", &TThis::Settings)
         .DefaultCtor([] {
@@ -218,7 +215,6 @@ void TClickHouseConfig::Register(TRegistrar registrar)
             // broken around our 2.04 branch (it imposes busy loop in polling thread).
             map["use_hedged_requests"] = NYTree::ConvertToNode(0);
             map["distributed_product_mode"] = NYTree::ConvertToNode("allow");
-            map["calculate_text_stack_trace"] = NYTree::ConvertToNode(false);
             map["query_cache_system_table_handling"] = NYTree::ConvertToNode("ignore");
             map["query_cache_nondeterministic_function_handling"] = NYTree::ConvertToNode("ignore");
             return map;

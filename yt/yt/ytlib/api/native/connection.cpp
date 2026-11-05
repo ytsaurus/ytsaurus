@@ -2,7 +2,6 @@
 
 #include "client.h"
 #include "config.h"
-#include "helpers.h"
 #include "private.h"
 #include "sync_replica_cache.h"
 #include "table_replica_synchronicity_cache.h"
@@ -19,6 +18,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/native_chaos_lease_cache.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
@@ -54,9 +54,9 @@
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
-#include <yt/yt/ytlib/discovery_client/request_session.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/request_session.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
@@ -74,7 +74,10 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/query_pool_permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.h>
@@ -123,7 +126,9 @@
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
+
+#include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NApi::NNative {
 
@@ -160,7 +165,7 @@ using std::placeholders::_1;
 
 namespace {
 
-TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
+std::string MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
 {
     if (config->ClusterName) {
         return Format("Native(Name=%v)", *config->ClusterName);
@@ -221,12 +226,12 @@ public:
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
         , Options_(options)
-        , LoggingTag_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
-            CellTagFromId(StaticConfig_->PrimaryMaster->CellId),
-            TGuid::Create(),
-            StaticConfig_->ConnectionName))
+        , LoggingTags_(NLogging::TLoggingTagList()
+            .With("PrimaryCellTag", CellTagFromId(StaticConfig_->PrimaryMaster->CellId))
+            .With("ConnectionId", TGuid::Create())
+            .With("ConnectionName", StaticConfig_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(StaticConfig_))
-        , Logger(ApiLogger().WithRawTag(LoggingTag_))
+        , Logger(ApiLogger().WithTags(LoggingTags_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
@@ -263,7 +268,7 @@ public:
         }
 
         if (config->EnableDynamicCacheStickyGroupSize) {
-            YT_LOG_INFO("Dynamic cache sticky group size enabled");
+            YT_TLOG_INFO("Dynamic cache sticky group size enabled");
             StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
                 config->StickyGroupSizeCacheExpirationTimeout,
                 GetInvoker());
@@ -313,6 +318,11 @@ public:
             GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             GetNetworks());
 
+        OffshoreDataGatewayChannelManager_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannelManager(
+            config->OffshoreDataGateway,
+            ChannelFactory_,
+            this);
+
         InitializeQueueAgentChannels();
 
         if (Options_.CreateQueueConsumerRegistrationManager) {
@@ -329,6 +339,11 @@ public:
             config->PermissionCache,
             this,
             Profiler_.WithPrefix("/permission_cache"));
+
+        QueryPoolPermissionCache_ = New<TQueryPoolPermissionCache>(
+            config->PermissionCache,
+            this,
+            Profiler_.WithPrefix("/query_pool_permission_cache"));
 
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
@@ -359,15 +374,19 @@ public:
             GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
-        ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
-            StaticConfig_->ChaosCellDirectorySynchronizer,
-            CellDirectory_,
-            this,
-            GetCellDirectorySynchronizerSourceOfTruthCellIds(),
-            Logger);
+        if (Options_.CreateChaosCellDirectorySynchronizer) {
+            ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
+                StaticConfig_->ChaosCellDirectorySynchronizer,
+                CellDirectory_,
+                this,
+                GetCellDirectorySynchronizerSourceOfTruthCellIds(),
+                Logger);
 
-        if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
-            ChaosCellDirectorySynchronizer_->Start();
+            if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
+                ChaosCellDirectorySynchronizer_->Start();
+            }
+        } else {
+            ChaosCellDirectorySynchronizer_ = CreateDummyChaosCellDirectorySynchronizer();
         }
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
@@ -424,6 +443,13 @@ public:
                 Logger);
         }
 
+        if (const auto& chaosLeaseCacheConfig = StaticConfig_->ChaosLeaseCache) {
+            ChaosLeaseCache_ = CreateNativeChaosLeaseCache(
+                chaosLeaseCacheConfig,
+                this,
+                Logger);
+        }
+
         SequoiaConnection_ = CreateSequoiaConnection(
             config->SequoiaConnection,
             MakeWeak(this));
@@ -445,6 +471,7 @@ public:
                 : GetNullMemoryUsageTracker());
 
         SetupTvmIdSynchronization();
+        SetupSequoiaConnectionSynchronization();
     }
 
     void InitializeDiscoveryServerAddressPool() override
@@ -465,9 +492,9 @@ public:
         return GetPrimaryMasterCellTag();
     }
 
-    const std::string& GetLoggingTag() const override
+    const NLogging::TLoggingTagList& GetLoggingTags() const override
     {
-        return LoggingTag_;
+        return LoggingTags_;
     }
 
     const std::string& GetClusterId() const override
@@ -503,6 +530,14 @@ public:
         return ReplicationCardCache_;
     }
 
+    const IChaosLeaseCachePtr& GetChaosLeaseCache() override
+    {
+        if (!ChaosLeaseCache_) {
+            THROW_ERROR_EXCEPTION("Chaos lease cache is not configured");
+        }
+        return ChaosLeaseCache_;
+    }
+
     const ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider_;
@@ -521,6 +556,11 @@ public:
     const TPermissionCachePtr& GetPermissionCache() override
     {
         return PermissionCache_;
+    }
+
+    const TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() override
+    {
+        return QueryPoolPermissionCache_;
     }
 
     const TUserAttributeCachePtr& GetUserAttributeCache() override
@@ -572,6 +612,7 @@ public:
     {
         TableMountCache_->Clear();
         PermissionCache_->Clear();
+        QueryPoolPermissionCache_->Clear();
         UserAttributeCache_->Clear();
     }
 
@@ -652,19 +693,17 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return CreateCypressChannelOrThrow(CypressProxyChannel_, kind, cellTag);
+    }
 
-        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
-            ? GetPrimaryMasterCellTag()
-            : cellTag;
-
-        auto canUseCypressProxy =
-            effectiveKind == EMasterChannelKind::Leader ||
-            effectiveKind == EMasterChannelKind::Follower;
-
-        return canUseCypressProxy && CypressProxyChannel_
-            ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
-            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    IChannelPtr WrapAsCypressChannelOrThrow(
+        const IChannelPtr& localChannel,
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        YT_VERIFY(localChannel);
+        YT_VERIFY(localChannel->GetEndpointAttributes().Get<bool>("local", false));
+        return CreateCypressChannelOrThrow(localChannel, kind, cellTag);
     }
 
     EMasterChannelKind GetEffectiveMasterChannelKind(EMasterChannelKind kind) const
@@ -702,6 +741,16 @@ public:
     const IChannelPtr& GetTabletBalancerChannel() override
     {
         return TabletBalancerChannel_;
+    }
+
+    IChannelPtr GetStickyOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannelManager_->GetStickyChannel();
+    }
+
+    const IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannelManager_->GetNonStickyChannel();
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -966,6 +1015,9 @@ public:
         if (ReplicationCardCache_) {
             ReplicationCardCache_->Clear();
         }
+        if (ChaosLeaseCache_) {
+            ChaosLeaseCache_->Clear();
+        }
     }
 
     bool IsTerminated() const override
@@ -977,9 +1029,9 @@ public:
         const std::vector<TCellId>& srcCellIds,
         TCellId dstCellId) override
     {
-        YT_LOG_DEBUG("Started synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
-            srcCellIds,
-            dstCellId);
+        YT_TLOG_DEBUG("Started synchronizing Hive cell with others")
+            .With("SrcCellIds", srcCellIds)
+            .With("DstCellId", dstCellId);
 
         auto channel = CellDirectory_->GetChannelByCellIdOrThrow(dstCellId);
         THiveServiceProxy proxy(std::move(channel));
@@ -995,9 +1047,9 @@ public:
                     "Error synchronizing Hive cell %v with %v",
                     dstCellId,
                     srcCellIds);
-                YT_LOG_DEBUG("Finished synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
-                    srcCellIds,
-                    dstCellId);
+                YT_TLOG_DEBUG("Finished synchronizing Hive cell with others")
+                    .With("SrcCellIds", srcCellIds)
+                    .With("DstCellId", dstCellId);
             }));
     }
 
@@ -1021,6 +1073,9 @@ public:
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
+        }
+        if (ChaosLeaseCache_ && dynamicConfig->ChaosLeaseCache) {
+            ChaosLeaseCache_->Reconfigure(StaticConfig_->ChaosLeaseCache->ApplyDynamic(dynamicConfig->ChaosLeaseCache));
         }
 
         SequoiaConnection_->Reconfigure(dynamicConfig->SequoiaConnection);
@@ -1051,7 +1106,7 @@ private:
 
     TConnectionOptions Options_;
 
-    const std::string LoggingTag_;
+    const NLogging::TLoggingTagList LoggingTags_;
     const std::string ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
@@ -1078,17 +1133,21 @@ private:
     IChannelPtr BundleControllerChannel_;
     IChannelPtr TabletBalancerChannel_;
 
-    THashMap<TString, IChannelPtr> QueueAgentChannels_;
+    NOffshoreDataGateway::IOffshoreDataGatewayChannelManagerPtr OffshoreDataGatewayChannelManager_;
+
+    THashMap<std::string, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
     IReplicationCardCachePtr ReplicationCardCache_;
+    IChaosLeaseCachePtr ChaosLeaseCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
     IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
+    TQueryPoolPermissionCachePtr QueryPoolPermissionCache_;
     TUserAttributeCachePtr UserAttributeCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
@@ -1128,6 +1187,25 @@ private:
     NSequoiaClient::ISequoiaConnectionPtr SequoiaConnection_;
 
     std::atomic<bool> Terminated_ = false;
+
+    IChannelPtr CreateCypressChannelOrThrow(
+        const IChannelPtr& cypressProxyChannel,
+        EMasterChannelKind kind,
+        TCellTag cellTag)
+    {
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
+            ? GetPrimaryMasterCellTag()
+            : cellTag;
+
+        auto canUseCypressProxy =
+            effectiveKind == EMasterChannelKind::Leader ||
+            effectiveKind == EMasterChannelKind::Follower;
+
+        return canUseCypressProxy && cypressProxyChannel
+            ? New<TTargetMasterPeerInjectingChannel>(cypressProxyChannel, effectiveCellTag, effectiveKind)
+            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    }
 
     void ConfigureMasterCells()
     {
@@ -1229,6 +1307,9 @@ private:
         // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
         // TODO(apachee): Fix this for multi proxies.
         clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        // Alien cluster connections should always use RPC calls to the masters of the alien cluster.
+        clusterDirectoryOptions.CreateChaosCellDirectorySynchronizer = true;
 
         ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
 
@@ -1385,12 +1466,16 @@ private:
                 try {
                     config = ConvertTo<NNative::TConnectionDynamicConfigPtr>(nativeConnectionConfig);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Cannot update cluster TVM ids because of invalid connection config (Name: %v)", name);
+                    YT_TLOG_ERROR("Cannot update cluster TVM ids because of invalid connection config")
+                        .With("Name", name)
+                        .With(ex);
                     return;
                 }
 
                 if (config->TvmId) {
-                    YT_LOG_INFO("Adding cluster service ticket to TVM client (Name: %v, TvmId: %v)", name, *config->TvmId);
+                    YT_TLOG_INFO("Adding cluster service ticket to TVM client")
+                        .With("Name", name)
+                        .With("TvmId", *config->TvmId);
                     tvmService->AddDestinationServiceIds({*config->TvmId});
                 }
             }));
@@ -1490,6 +1575,44 @@ private:
     void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
     {
         SignatureGenerator_.Store(signatureGenerator);
+    }
+
+    void SetupSequoiaConnectionSynchronization()
+    {
+        ClusterDirectory_->SubscribeOnClusterUpdated(
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (const std::string& clusterName, INodePtr /*config*/) {
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->MaybeReconfigureSequoiaConnection(clusterName);
+                }
+            }));
+        ClusterDirectory_->SubscribeOnClusterUnregistered(
+            BIND_NO_PROPAGATE(&TConnection::MaybeReconfigureSequoiaConnection, MakeWeak(this)));
+    }
+
+    void MaybeReconfigureSequoiaConnection(const std::string& updatedClusterName)
+    {
+        // Sequoia transaction uses cell directory in 2 different places:
+        // 1) Ground client uses cell directory associated with Ground cluster
+        //    connection to send rows to tablet cells;
+        // 2) transaction manager takes Ground cluster connection from (local
+        //    connection's) cluster directory and uses cell directory associated
+        //    with it to send transaction abort to tablet cells.
+        // (1) uses mount cache which is responsible for populating cell
+        // directory. In contrast, (2) just tries to find tablet cell channel
+        // and does nothing if there is no such channel. (2) usually can find
+        // the channel because (2) happens strictly after (1). So current
+        // behavior heavily relies on the fact that (1) and (2) use the same cell
+        // directory. Since ground client caches remote connection on creation
+        // it has to be manually reconfigured on cluster directory change.
+        // Otherwise, (1) and (2) end up using different cell directories, which
+        // leads to failures of sending of transaction abort requests to tablet
+        // cells.
+
+        if (auto sequoiaConnectionConfig = Config_.Acquire()->SequoiaConnection) {
+            if (sequoiaConnectionConfig->GroundClusterName == updatedClusterName) {
+                SequoiaConnection_->Reconfigure(sequoiaConnectionConfig);
+            }
+        }
     }
 };
 
@@ -1596,8 +1719,8 @@ IConnectionPtr FindRemoteConnection(
 }
 
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
-    const IConnectionPtr& connection,
-    const std::string& clusterName,
+    IConnectionPtr connection,
+    std::string clusterName,
     EInsistentGetRemoteConnectionMode mode)
 {
     // Fast path.
@@ -1609,17 +1732,114 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     TFuture<void> waitDone = [&] {
         switch (mode)  {
             case EInsistentGetRemoteConnectionMode::Sync:
-                return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+                return connection->GetClusterDirectorySynchronizer()->TrySync(/*force*/ true)
+                    .Apply(BIND_NO_PROPAGATE([clusterName] (const TErrorOr<TClusterDirectoryUpdateResult>& result) {
+                        if (!result.IsOK()) {
+                            return TError(result);
+                        }
+                        const auto& clusterToErrorMapping = result.Value().ClusterToErrorMapping;
+                        auto it = clusterToErrorMapping.find(clusterName);
+                        if (it != clusterToErrorMapping.end() && !it->second.IsOK()) {
+                            return it->second;
+                        }
+                        return TError();
+                    }));
             case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
-                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulClusterSyncFuture(clusterName);
         }
-        // NB: we don't put YT_ABORT in `default:` case, because we want compiler to check that all enum values are handled.
-        YT_ABORT();
+
+        auto Logger = ApiLogger();
+        TError error = TError("Unknown insistent get remote connection mode %v", mode);
+        YT_TLOG_ALERT("Unknown insistent get remote connection mode")
+            .With("Mode", mode);
+        return MakeFuture(error);
     }();
 
-    return waitDone.Apply(BIND([=] {
-        return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-    }));
+    return waitDone.Apply(BIND([
+            connection = std::move(connection),
+            clusterName = std::move(clusterName)
+        ] {
+            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+        }));
+}
+
+TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
+    NApi::NNative::IConnectionPtr connection,
+    std::vector<std::string> clusterNames,
+    EInsistentGetRemoteConnectionMode mode)
+{
+    std::vector<IConnectionPtr> result(clusterNames.size());
+    std::vector<std::pair<i64, std::string>> missingConnections;
+
+    // Fast path.
+    {
+        for (const auto& [index, clusterName] : Enumerate(clusterNames)) {
+            if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
+                result[index] = remoteConnection;
+            } else {
+                missingConnections.emplace_back(index, clusterName);
+            }
+        }
+        if (missingConnections.empty()) {
+            return MakeFuture(result);
+        }
+    }
+
+    // Slow path.
+    TFuture<void> waitDone = [&] {
+        switch (mode)  {
+            case EInsistentGetRemoteConnectionMode::Sync: {
+                return connection->GetClusterDirectorySynchronizer()->TrySync(/*force*/ true)
+                    .Apply(BIND_NO_PROPAGATE([clusterNames] (const TErrorOr<TClusterDirectoryUpdateResult>& result) {
+                        if (!result.IsOK()) {
+                            return TError(result);
+                        }
+                        std::vector<TError> errors;
+                        const auto& clusterToErrorMapping = result.Value().ClusterToErrorMapping;
+                        for (const auto& clusterName : clusterNames) {
+                            auto it = clusterToErrorMapping.find(clusterName);
+                            if (it != clusterToErrorMapping.end() && !it->second.IsOK()) {
+                                errors.push_back(it->second);
+                            }
+                        }
+
+                        if (errors.empty()) {
+                            return TError();
+                        }
+
+                        return TError("Failed to get remote connections for some clusters")
+                            .With(std::move(errors));
+                    }));
+            }
+            case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync: {
+                std::vector<TFuture<void>> futures;
+                for (const auto& clusterName : clusterNames) {
+                    futures.push_back(connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulClusterSyncFuture(clusterName));
+                }
+                return AllSucceeded(std::move(futures));
+            }
+        }
+
+        auto Logger = ApiLogger();
+        TError error = TError("Unknown insistent get remote connection mode %v", mode);
+        YT_TLOG_ALERT("Unknown insistent get remote connection mode")
+            .With("Mode", mode);
+        return MakeFuture(error);
+    }();
+
+    return waitDone.Apply(BIND([
+            connection = std::move(connection),
+            clusterNames = std::move(clusterNames),
+            result = std::move(result),
+            missingConnections = std::move(missingConnections)
+        ] () mutable {
+            for (const auto& [index, clusterName] : missingConnections) {
+                YT_VERIFY(!result[index]);
+                result[index] = connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+            }
+
+            return std::move(result);
+        }));
 }
 
 IConnectionPtr FindRemoteConnection(
@@ -1647,40 +1867,6 @@ IConnectionPtr GetRemoteConnectionOrThrow(
         THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return remoteConnection;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
-{
-    const auto& objectCluster = objectPath.GetCluster();
-    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
-    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
-        ? connection
-        : FindRemoteConnection(connection, objectPath.GetCluster()));
-    YT_VERIFY(objectConnection);
-    auto objectTableMountCache = objectConnection->GetTableMountCache();
-    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->MemberOfClosure.contains(SuperusersGroupName);
-        }));
-}
-
-TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->Banned;
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,6 +28,15 @@ public interface TableAttachmentReader<T> {
     @Nullable
     TableSchema getCurrentReadSchema();
 
+    default boolean isEndOfStream() {
+        return false;
+    }
+
+    @Nullable
+    default List<T> endOfStream() {
+        return null;
+    }
+
     /**
      * @deprecated don't use it explicitly
      */

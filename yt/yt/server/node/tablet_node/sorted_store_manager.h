@@ -10,7 +10,7 @@
 
 #include <library/cpp/yt/compact_containers/compact_heap.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_map.h>
 
 namespace NYT::NTabletNode {
 
@@ -119,7 +119,7 @@ public:
     TError CheckOverflow() const override;
 
     void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) override;
-    void ReleaseUnleashedBackingStore(TStoreId backingStoreId) override;
+    void ReleaseUnleashedBackingStore(TStoreId backingStoreId, NHydra::TRevision expectedMountRevision) override;
 
 private:
     struct TBoundaryDescriptor

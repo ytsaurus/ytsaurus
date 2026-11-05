@@ -17,7 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TSimulatorOperationController)
 DECLARE_REFCOUNTED_CLASS(TSimulatorNodeWorker)
 DECLARE_REFCOUNTED_CLASS(TSimulatorNodeShard)
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerSimulatorLogger, "Simulator");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SchedulerSimulatorLogger, "Simulator");
 
 // TODO: move to another place.
 template <typename K, typename V>
@@ -62,7 +62,7 @@ public:
 
 private:
     THashMap<K, V> Map_;
-    NThreading::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 };
 
 // This wrapper can be used in concurrent code to create a constant collection of non-constant objects.

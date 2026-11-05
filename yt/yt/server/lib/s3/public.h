@@ -15,8 +15,8 @@ constexpr i64 MinMultiPartUploadPartSize = 5_MB;
 DECLARE_REFCOUNTED_CLASS(TS3SimpleUploadSession)
 DECLARE_REFCOUNTED_CLASS(TS3MultiPartUploadSession)
 
-DECLARE_REFCOUNTED_CLASS(TS3ReaderConfig)
-DECLARE_REFCOUNTED_CLASS(TS3WriterConfig)
+DECLARE_REFCOUNTED_STRUCT(TS3ReaderConfig)
+DECLARE_REFCOUNTED_STRUCT(TS3WriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

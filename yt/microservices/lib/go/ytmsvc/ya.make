@@ -1,12 +1,18 @@
 GO_LIBRARY()
 
 SRCS(
+    auth.go
+    batched.go
     common.go
     crypto.go
     http.go
 )
 
-GO_TEST_SRCS(crypto_test.go)
+GO_TEST_SRCS(
+    auth_test.go
+    crypto_test.go
+    http_test.go
+)
 
 IF (OPENSOURCE)
     SRCS(
@@ -19,10 +25,13 @@ ELSE()
         common_internal.go
         metrics_internal.go
     )
+
+    GO_TEST_SRCS(auth_internal_test.go)
 ENDIF()
 
 END()
 
 RECURSE(
     gotest
+    ytmock
 )

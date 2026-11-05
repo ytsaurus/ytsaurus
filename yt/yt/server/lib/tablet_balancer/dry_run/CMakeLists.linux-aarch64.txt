@@ -35,6 +35,7 @@ target_link_libraries(tablet-balancer-dry-mode PUBLIC
   yutil
   build-cow-on
   tablet_balancer-dry_run-lib
+  yt-yt-core
   cpp-getopt-small
   cpp-yt-logging
 )

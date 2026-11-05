@@ -1,0 +1,9 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NFlow::NWorker {
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NWorker

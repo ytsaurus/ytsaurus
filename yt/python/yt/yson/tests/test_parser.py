@@ -13,13 +13,6 @@ from yt.yson.yson_types import (YsonEntity, YsonMap, YsonList, YsonInt64,
                                 get_bytes, is_unicode)
 from yt.yson import to_yson_type, YsonError
 
-try:
-    from yt.packages.six import PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import PY3
-    from six.moves import xrange
-
 import copy
 import math
 import pytest
@@ -184,35 +177,21 @@ class YsonParserTestBase(object):
         assert self.loads(s) == to_yson_type({"x": 1, "y": 2}, attributes={"a": "b"})
         assert self.loads(s, encoding=None) == to_yson_type({b"x": 1, b"y": 2}, attributes={b"a": b"b"})
 
-        if not PY3:
-            with pytest.raises(Exception):
-                self.loads(b"{a=1}", encoding="utf-8")
-
     def test_default_encoding(self):
-        if PY3:
-            with pytest.raises(Exception):
-                self.loads('"\xFF"')
-        else:
-            assert self.loads('"\xFF"') == "\xFF"
+        with pytest.raises(Exception):
+            self.loads('"\xFF"')
 
     def test_parse_from_non_binary_stream(self):
-        if PY3:
-            with pytest.raises(TypeError):
-                self.loads(u"1")
-            with pytest.raises(TypeError):
-                self.load(StringIO(u"abcdef"))
-        else:  # COMPAT
-            assert self.loads(u"1") == 1
-            assert self.load(StringIO(u"abcdef")) == u"abcdef"
+        with pytest.raises(TypeError):
+            self.loads(u"1")
+        with pytest.raises(TypeError):
+            self.load(StringIO(u"abcdef"))
 
     def test_always_create_attributes(self):
         obj = self.loads(b"{a=[b;1]}")
         assert isinstance(obj, YsonMap)
         assert isinstance(obj["a"], YsonList)
-        if PY3:
-            assert isinstance(obj["a"][0], YsonUnicode)
-        else:
-            assert isinstance(obj["a"][0], YsonString)
+        assert isinstance(obj["a"][0], YsonUnicode)
         assert isinstance(obj["a"][1], YsonInt64)
 
         obj = self.loads(b"{a=[b;1]}", always_create_attributes=False)
@@ -223,10 +202,7 @@ class YsonParserTestBase(object):
         assert isinstance(obj, dict)
         assert isinstance(obj["a"], list)
         assert isinstance(obj["a"][0], str)
-        if not PY3:
-            assert isinstance(obj["a"][1], long)  # noqa
-        else:
-            assert isinstance(obj["a"][1], int)
+        assert isinstance(obj["a"][1], int)
 
         obj = self.loads(b"{a=[b;<attr=#>1]}", always_create_attributes=False)
         assert not isinstance(obj, YsonMap)
@@ -248,7 +224,6 @@ class YsonParserTestBase(object):
         assert not isinstance(result[2], YsonBoolean)
         assert not isinstance(result[3], YsonDouble)
 
-    @pytest.mark.skipif("not PY3")
     def test_string_proxy(self):
         d = self.loads(b'{a=[b;1]; "\\xFA"=["\\xFB";2]}')
         keys = list(d.keys())
@@ -435,7 +410,7 @@ class TestLazyDict(object):
         result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2};", lazy=True, yson_type="list_fragment"))
         assert len(result) == 3
 
-        for i in xrange(3):
+        for i in range(3):
             assert result[i]["a"] == i
             assert len(result[i]) == 1
             assert not result[i].attributes

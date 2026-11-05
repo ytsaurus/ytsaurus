@@ -15,7 +15,6 @@ ELSE()
 
         yt/python/contrib/python-requests
 
-        contrib/python/six
         contrib/python/zstandard
         library/python/port_manager
     )
@@ -39,6 +38,20 @@ ELSE()
         watcher.py
         local_cypress.py
     )
+
+    IF (OPENSOURCE)
+        PY_SRCS(
+            NAMESPACE yt.environment
+
+            init_operations_archive_config_opensource.py
+        )
+    ELSE()
+        PY_SRCS(
+            NAMESPACE yt.environment
+
+            init_operations_archive_config_yandex.py
+        )
+    ENDIF()
 ENDIF()
 
 END()

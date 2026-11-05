@@ -9,11 +9,11 @@ namespace NYT::NBacktraceIntrospector {
 //! Registers introspector handlers.
 void Register(
     const NHttp::IRequestPathMatcherPtr& handlers,
-    const TString& prefix = {});
+    const std::string& prefix = {});
 
 void Register(
     const NHttp::IServerPtr& server,
-    const TString& prefix = {});
+    const std::string& prefix = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

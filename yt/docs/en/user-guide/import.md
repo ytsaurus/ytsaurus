@@ -2,7 +2,7 @@
 
 Data is imported from external systems to {{product-name}} with SPYT.
 
-This page contains instructions for importing data using the [import.py](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py) script. With this script, you can import data from Hive, Hadoop, S3, and database management systems that support the JDBC protocol. To import data from other systems not supported by `import.py` — such as MongoDB, — you can use SPYT directly, reading from the external system via the corresponding Spark Data Source.
+This page contains instructions for importing data using the [import.py](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py) script. With this script, you can import data from Hive, Hadoop, S3, and database management systems that support the JDBC protocol. To import data from other systems not supported by `import.py` — such as MongoDB — you can use SPYT directly, reading from the external system via the corresponding Spark Data Source.
 
 
 ## Configuring connection via Kerberos
@@ -64,6 +64,12 @@ To read data from a database system that supports JDBC, download the JDBC driver
 
 To import data from a different database, add the JDBC driver for that database to `pom.xml` and run `$ mvn dependency:copy-dependencies`
 
+{% note warning "JDBC driver must be visible to the driver process" %}
+
+The JDBC driver must be available not only to executors (via `--jars`), but also on the **driver process** classpath. In `--deploy-mode client` mode, Spark does not automatically pick up the driver from `--jars` on the driver side, and reads fail with `java.sql.SQLException: No suitable driver`. Place the jar in the `jars/` directory of the installed `pyspark` (`$SPARK_HOME/jars/`), or set `export SPARK_DIST_CLASSPATH=/path/to/driver.jar` before running.
+
+{% endnote %}
+
 ## Importing data { #how-to-import }
 
 To import data, run the `import.py` script:
@@ -80,6 +86,40 @@ The arguments must identify:
 - Path within {{product-name}} where the imported data should be written.
 
 You can find the complete list of arguments at the end of this page, under [Arguments](#script-options). Below are examples showing how to import data from various systems.
+
+### Client and cluster modes { #run-modes }
+
+`import.py` can be run in two modes:
+
+- **Client (default)** — `python import.py ...`: The Spark driver starts locally on the machine where the script runs, while executors run in the {{product-name}} cluster.
+- **Cluster** — `import.py` runs as a Spark application via `spark-submit ... --deploy-mode cluster`, and the driver also starts inside the {{product-name}} cluster. The mode is determined automatically (based on whether the script is started via `spark-submit`); no separate flag is needed:
+
+  ```bash
+  $ spark-submit \
+      --master ytsaurus://<proxy> \
+      --deploy-mode cluster \
+      --jars yt:///path/to/jars/driver.jar \
+      import.py \
+      --jdbc postgresql --jdbc-server pg_host:5432 --jdbc-user user --jdbc-password '<password>' \
+      --input jdbc:database_name.table_name \
+      --output //path/in/yt/table
+  ```
+
+Cluster mode is convenient when submitting from an **external machine** (for example, outside the Kubernetes cluster where {{product-name}} is deployed): the driver goes inside the cluster, and no network connectivity between the driver and executors is required from the external machine.
+
+#### Network configuration inside Kubernetes { #cluster-proxy }
+
+If you submit from an external machine and {{product-name}} is deployed in Kubernetes, only the external proxy is typically available from the outside, while intra-cluster traffic (driver and executors to {{product-name}}) must go through an internal proxy. To enable this, set the `spark.hadoop.yt.clusterProxy` parameter to the address of the proxy accessible from inside the cluster; at the same time, `--master` specifies the external address used for submission:
+
+```bash
+$ spark-submit \
+    --master ytsaurus://<external proxy> \
+    --deploy-mode cluster \
+    --conf spark.hadoop.yt.clusterProxy=<internal proxy in k8s> \
+    import.py ...
+```
+
+In client mode, pass the same parameter via `--extra-conf spark.hadoop.yt.clusterProxy=...`.
 
 ### Hive
 
@@ -147,6 +187,27 @@ $ ./import.py \
     ...
 ```
 
+#### Parallel reading of large tables
+
+By default, `import.py` reads a JDBC source in a single thread (with a single query). For large tables, this is slow and can lead to long-running query errors on the DBMS side (for example, `ORA-01555: snapshot too old` in Oracle). To read a table in parallel, specify a numeric or date partition column and its range:
+
+```bash
+$ ./import.py \
+    --jdbc postgresql \
+    --jdbc-server pg_host:5432 \
+    --jdbc-user user \
+    --jdbc-password '' \
+    --input jdbc:database_name.table_name \
+    --jdbc-partition-column id \
+    --jdbc-lower-bound 1 \
+    --jdbc-upper-bound 1000000 \
+    --jdbc-num-partitions 16 \
+    --output //path/in/yt/table
+```
+
+SPYT splits the read into `--jdbc-num-partitions` ranges of the form `column >= a AND column < b` and reads them in parallel. The `--jdbc-lower-bound`/`--jdbc-upper-bound` bounds only define the split step — they do not filter the data (values outside the bounds land in the edge partitions). The column type must be numeric or date; preferably indexed or a table partitioning key, so that each query reads only its own portion.
+
+Partitioning options are global — they apply **identically to all** tables listed in `--input`. If you import multiple tables in a single run, the partition column and bounds must be suitable for each table; otherwise, run `import.py` separately for each table.
 
 ### S3
 
@@ -184,9 +245,13 @@ To import data from S3:
 | `--jdbc-server` | Database server host:port. |
 | `--jdbc-user` | Username to log in to the database. |
 | `--jdbc-password` | Password to log in to the database. If empty, read from terminal. |
+| `--jdbc-partition-column` | Numeric or date column for parallel reading of the source (Spark `partitionColumn`). Requires `--jdbc-lower-bound`, `--jdbc-upper-bound`, `--jdbc-num-partitions`. |
+| `--jdbc-lower-bound` | Lower bound of the `--jdbc-partition-column` range. |
+| `--jdbc-upper-bound` | Upper bound of the `--jdbc-partition-column` range. |
+| `--jdbc-num-partitions` | Number of parallel partitions (JDBC connections) for reading. |
 | `--jars` | Additional jar libraries. By default, `target/dependency/jar/*.jar` |
-| `--input` | Path of object to import, may be specified multiple times. |
-| `--output` | Path to write to in {{product-name}}. For every `--input` flag, one output must be provided |
+| `--input` | Object to import, may be specified multiple times. |
+| `--output` | Path to write to in {{product-name}}. For every `--input` flag, one output must be provided. |
 
 To configure the SPYT cluster started as part of an import operation, use the following arguments:
 
@@ -197,7 +262,7 @@ To configure the SPYT cluster started as part of an import operation, use the fo
 | `--executor-timeout` | Idle timeout for Spark executors. |
 | `--executor-tmpfs-limit` | Size of tmpfs partition for Spark executors. |
 | `--executor-memory` | Amount of RAM to allocate to each executor. |
-  | `--executor-memory-overhead` | Amount of additional RAM to allocate to executors beyond the primary amount. For example, if the main memory is 4 GB and the additional memory is 2 GB, then the total amount of memory requested from the cluster will be 6 GB. |
+| `--executor-memory-overhead` | Amount of additional RAM to allocate to executors beyond the primary amount. For example, if the main memory is 4 GB and the additional memory is 2 GB, then the total amount of memory requested from the cluster will be 6 GB. |
 
 If you're importing data from S3:
 
@@ -225,5 +290,4 @@ When writing a table to {{product-name}}, the default assumption is that the tab
 
 Importing complex types is only supported partially. The {{product-name}} type system doesn't exactly match its counterparts in other storage systems. When importing data, SPYT will try to keep the type on a best-effort basis. However, the value may get converted to a string when no matching type in {{product-name}} could be inferred. When necessary, use SQL for proper type conversion.
 
-Value ranges for a single type may be different for {{product-name}} and other systems. For example, the {{product-name}} `date` type only stores calendar dates starting with the Unix epoch, January 1, 1970. An attempt to write earlier dates in {{product-name}} will cause a runtime error. It is still possible to store earlier dates in {{product-name}} as strings (or example, applying a `to_char(date_value, 'YYYY-MM-DD')` in PostgreSQL), or as integers (`date_value - '1970-01-01'` in PostgreSQL).
-
+Value ranges for a single type may be different for {{product-name}} and other systems. For example, the {{product-name}} `date` type only stores calendar dates starting with the Unix epoch, January 1, 1970. An attempt to write earlier dates in {{product-name}} will cause a runtime error. It is still possible to store earlier dates in {{product-name}} as strings (for example, applying a `to_char(date_value, 'YYYY-MM-DD')` in PostgreSQL), or as integers (`date_value - '1970-01-01'` in PostgreSQL).

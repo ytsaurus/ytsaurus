@@ -29,9 +29,9 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
@@ -97,7 +97,10 @@ public:
     using TReplicaMap = THashMap<NObjectServer::TWeakObjectPtr<TTableReplica>, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTransactionClient::TTimestamp,
+        RetainedTimestamp,
+        NTransactionClient::MinTimestamp);
 
     // Timestamp used on tablet node to check conflicts with versions from removed stores.
     // More in NTabletNode::TTablet.
@@ -122,6 +125,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 
+    using TProlongedChunks = THashSet<NChunkClient::TChunkId>;
+    DEFINE_BYREF_RW_PROPERTY(TProlongedChunks, ProlongedChunks);
+
 public:
     using TTabletBase::TTabletBase;
 
@@ -144,14 +150,15 @@ public:
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
     TDuration ComputeReplicationLagTime(
         NTransactionClient::TTimestamp latestTimestamp,
-        const TTableReplicaInfo& replicaInfo) const;
+        const TTableReplicaInfo& replicaInfo,
+        NTransactionClient::TTimestamp startReplicationTimestamp) const;
 
     TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const override;
 
     i64 GetTabletMasterMemoryUsage() const override;
 
-    i64 GetHunkUncompressedDataSize() const;
-    i64 GetHunkCompressedDataSize() const;
+    i64 GetHunkDataWeight() const;
+    i64 GetHunkDataSize() const;
 
     void CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next);
 

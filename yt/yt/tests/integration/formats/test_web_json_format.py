@@ -3,11 +3,10 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, insert_rows, select_rows, read_table, write_table, reshard_table,
     sync_create_cells, sync_mount_table,
-    sync_unmount_table, get_supported_features)
+    sync_unmount_table, get_supported_features, raises_yt_error)
 
 from yt_type_helpers import optional_type, variant_tuple_type, list_type, struct_type, make_schema
 
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -389,7 +388,6 @@ def _assert_yql_row_match(actual_row, expected_row, type_registry):
         assert expected_type == actual_type
 
 
-@pytest.mark.enabled_multidaemon
 class TestWebJsonFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -482,7 +480,7 @@ class TestWebJsonFormat(YTEnvSetup):
 
         format_ = get_web_json_format(7, len(column_names))
         query = get_dynamic_table_select_query(column_names, TABLE_PATH)
-        with pytest.raises(YtError):
+        with raises_yt_error("Undefined reference .*"):
             json.loads(select_rows(query, output_format=format_))
 
         sync_unmount_table(TABLE_PATH)
@@ -599,7 +597,6 @@ class TestWebJsonFormat(YTEnvSetup):
         assert output["all_column_names"] == [encoded_column_name.decode("utf-8")]
 
 
-@pytest.mark.enabled_multidaemon
 class TestStructuredWebJsonFormat(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

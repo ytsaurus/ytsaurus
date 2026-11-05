@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/net/connection.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <library/cpp/yt/system/handle_eintr.h>
 
 namespace NYT {
@@ -207,6 +209,76 @@ TEST(TProcessTest, KillFinished)
     p->Kill(SIGKILL);
 }
 
+TEST(TProcessTest, WorkingDirectory)
+{
+    auto p = New<TSimpleProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("test \"$(pwd)\" = /tmp");
+    p->SetWorkingDirectory("/tmp");
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
+}
+
+TEST(TProcessTest, WorkingDirectoryWithSpaces)
+{
+    // Spaces in the path require quoting in the generated shell command.
+    const std::string dir = "/tmp/yt process test";
+    NFS::MakeDirRecursive(dir);
+
+    auto p = New<TSimpleProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("test \"$(pwd)\" = '/tmp/yt process test'");
+    p->SetWorkingDirectory(dir);
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+}
+
+TEST(TProcessTest, WorkingDirectoryWithSingleQuote)
+{
+    // A single quote in the path exercises the '\'' escaping.
+    const std::string dir = "/tmp/yt'test";
+    NFS::MakeDirRecursive(dir);
+
+    auto p = New<TSimpleProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("test \"$(pwd)\" = \"/tmp/yt'test\"");
+    p->SetWorkingDirectory(dir);
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+}
+
+TEST(TProcessTest, ArgumentWithSpaces)
+{
+    // Spaces in an argument require quoting in the generated shell command.
+    auto p = New<TSimpleProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("test \"$1\" = 'hello world'");
+    p->AddArgument("--");          // argv[0] for the -c script
+    p->AddArgument("hello world"); // $1 in the script
+    p->SetWorkingDirectory("/tmp");
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+}
+
+TEST(TProcessTest, ArgumentWithSingleQuote)
+{
+    // A single quote in an argument exercises escaping for the argv entries.
+    auto p = New<TSimpleProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("test \"$1\" = \"it's a test\"");
+    p->AddArgument("--");           // argv[0] for the -c script
+    p->AddArgument("it's a test");  // $1 in the script
+    p->SetWorkingDirectory("/tmp");
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+}
+
 TEST(TProcessTest, KillZombie)
 {
     auto p = New<TSimpleProcess>("/bin/bash");
@@ -230,8 +302,7 @@ TEST(TProcessTest, KillZombie)
 
     p->Kill(SIGKILL);
     auto error = WaitFor(finished);
-    EXPECT_TRUE(error.IsOK())
-        << ToString(error);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
 }
 
 #endif

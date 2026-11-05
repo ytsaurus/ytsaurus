@@ -44,7 +44,6 @@ target_link_libraries(restricted-boost-serialization PUBLIC
   restricted-boost-preprocessor
   restricted-boost-smart_ptr
   restricted-boost-spirit
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-unordered
   restricted-boost-utility

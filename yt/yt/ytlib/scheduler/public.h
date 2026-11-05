@@ -171,11 +171,11 @@ DECLARE_REFCOUNTED_STRUCT(TInputQueryFilterOptions)
 DECLARE_REFCOUNTED_STRUCT(TInputQueryOptions)
 
 using TJobShellOptionsMap = THashMap<
-    TString,
+    std::string,
     TOperationJobShellRuntimeParametersPtr>;
 
 using TJobShellOptionsUpdateMap = THashMap<
-    TString,
+    std::string,
     std::optional<TOperationJobShellRuntimeParametersPtr>>;
 
 struct TDiskQuota;
@@ -187,8 +187,7 @@ class TAccessControlRule;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): switch to std::string
-inline const TString RootPoolName("<Root>");
+inline const std::string RootPoolName("<Root>");
 inline const NYPath::TYPath PoolTreesRootCypressPath("//sys/pool_trees");
 
 ////////////////////////////////////////////////////////////////////////////////

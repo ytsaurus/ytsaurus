@@ -92,16 +92,12 @@ void SetNodeInfoToRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
-
-////////////////////////////////////////////////////////////////////////////////
-
-const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts);
 const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
+void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs);
 
 ////////////////////////////////////////////////////////////////////////////////

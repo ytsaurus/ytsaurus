@@ -117,9 +117,21 @@ UserGreenlet::was_running_in_dead_thread() const noexcept
 OwnedObject
 UserGreenlet::g_switch()
 {
-    assert(this->args() || PyErr_Occurred());
-
     try {
+        if (!this->args() && !PyErr_Occurred()) {
+            // we have nothing to send as the result of switching,
+            // most likely because we've somehow allowed concurrent
+            // uses of switch from multiple threads (which may or may
+            // not be allowed by check_switch_allowed)
+            // ``green_switch`` defends against this by calling
+            // ``check_switch_allowed`` before messing with
+            // ``args()``, but we have at least one internal caller
+            // (``throw_GreenletExit_during_dealloc``) so we keep both
+            // this explicit check and our call to
+            // ``check_switch_allowed``
+            throw PyErrOccurred(mod_globs->PyExc_GreenletError,
+                                "cannot switch with no pending arguments or exception");
+        }
         this->check_switch_allowed();
     }
     catch (const PyErrOccurred&) {
@@ -410,11 +422,13 @@ UserGreenlet::inner_bootstrap(PyGreenlet* origin_greenlet, PyObject* run)
     args <<= this->args();
     assert(!this->args());
 
-    // XXX: We could clear this much earlier, right?
-    // Or would that introduce the possibility of running Python
-    // code when we don't want to?
-    // CAUTION: This may run arbitrary Python code.
     this->_run_callable.CLEAR();
+    // stash the run callable in this->_run_callable to ensure that GC will be
+    // able to find the object later.
+    // This is needed for the case of a permanently suspended greenlet
+    // so that the run callable is not leaked.
+    this->_run_callable.steal(run);
+    run = nullptr;
 
 
     // The first switch we need to manually call the trace
@@ -455,7 +469,7 @@ UserGreenlet::inner_bootstrap(PyGreenlet* origin_greenlet, PyObject* run)
             // CAUTION: Just invoking this, before the function even
             // runs, may cause memory allocations, which may trigger
             // GC, which may run arbitrary Python code.
-            result = OwnedObject::consuming(PyObject_Call(run, args.args().borrow(), args.kwargs().borrow()));
+            result = OwnedObject::consuming(PyObject_Call(this->_run_callable.borrow(), args.args().borrow(), args.kwargs().borrow()));
         }
         catch (...) {
             // Unhandled C++ exception!
@@ -505,7 +519,8 @@ UserGreenlet::inner_bootstrap(PyGreenlet* origin_greenlet, PyObject* run)
     }
     // These lines may run arbitrary code
     args.CLEAR();
-    Py_CLEAR(run);
+    assert(run == nullptr);
+    this->_run_callable.CLEAR();
 
     if (!result
         && mod_globs->PyExc_GreenletExit.PyExceptionMatches()

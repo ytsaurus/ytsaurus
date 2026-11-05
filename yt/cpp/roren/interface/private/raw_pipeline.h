@@ -1,10 +1,10 @@
 #pragma once
 
 #include "fwd.h"
-
 #include "attributes.h"
 #include "tags.h"
-#include "../type_tag.h"
+
+#include <yt/cpp/roren/interface/type_tag.h>
 
 #include <util/generic/hash_set.h>
 

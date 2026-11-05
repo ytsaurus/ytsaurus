@@ -12,6 +12,7 @@
 #include <yql/essentials/minikql/mkql_type_builder.h>
 #include <yql/essentials/minikql/mkql_program_builder.h>
 #include <yql/essentials/minikql/mkql_utils.h>
+#include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 #include <yql/essentials/public/udf/udf_log.h>
 #include <yql/essentials/utils/time_provider.h>
 
@@ -178,8 +179,9 @@ void ResolveUDFs() {
             }
 
             TFunctionTypeInfo funcInfo;
-            auto status = newRegistry->FindFunctionTypeInfo(udf.GetLangVer(), env, typeInfoHelper, nullptr,
-                                                            udf.GetName(), mkqlUserType, udf.GetTypeConfig(), NUdf::IUdfModule::TFlags::TypesOnly, NUdf::TSourcePosition(), nullptr, logProvider.Get(), &funcInfo);
+            auto runtimeSettings = NYql::DeserializeRuntimeSettingsFromProto(udf.GetRuntimeSettings());
+            auto status = newRegistry->FindFunctionTypeInfo(udf.GetLangVer(), *runtimeSettings, env, typeInfoHelper, /*countersProvider=*/nullptr,
+                                                            udf.GetName(), mkqlUserType, udf.GetTypeConfig(), NUdf::IUdfModule::TFlags::TypesOnly, NUdf::TSourcePosition(), /*secureParamsProvider=*/nullptr, logProvider.Get(), &funcInfo);
             if (!status.IsOk()) {
                 udfRes->SetError(TStringBuilder() << "Failed to find UDF function: " << udf.GetName()
                                                   << ", reason: " << status.GetError());
@@ -213,7 +215,7 @@ void ResolveUDFs() {
 void ListModules(const TString& dir) {
     TVector<TString> udfPaths;
     NMiniKQL::FindUdfsInDir(dir, &udfPaths);
-    auto funcRegistry = CreateFunctionRegistry(&NYql::NBacktrace::KikimrBackTrace, IBuiltinFunctionRegistry::TPtr(), false, udfPaths,
+    auto funcRegistry = CreateFunctionRegistry(&NYql::NBacktrace::KikimrBackTrace, IBuiltinFunctionRegistry::TPtr(), /*allowUdfPatch=*/false, udfPaths,
                                                NUdf::IRegistrator::TFlags::TypesOnly);
 
     for (auto& m : funcRegistry->GetAllModuleNames()) {
@@ -277,6 +279,7 @@ int main(int argc, char** argv) {
         TString path;
         TString user;
         TString group;
+        constexpr bool dumpable = false;
         bool printAsProto = true;
         NUdf::ELogLevel logLevel = NUdf::ELogLevel::Info;
 
@@ -330,7 +333,7 @@ int main(int argc, char** argv) {
         if (user && !NYql::IsLinuxKernelBelow4_3()) {
             // since we are going to load untrusted modules
             // we have to switch into another user and drop privileges (capabilities)
-            NYql::BecomeUser(user, group);
+            NYql::BecomeUser(user, group, dumpable);
             NYql::TurnOffBecomeUserAbility();
         }
 
@@ -453,7 +456,11 @@ int main(int argc, char** argv) {
     #endif
                 Allow(openat),
                 Allow(pipe2),
-                Allow(prctl),
+                BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, SYS_prctl, 0, 4),
+                BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, args[0])),
+                BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, PR_SET_DUMPABLE, 0, 1),
+                BPF_STMT(BPF_RET + BPF_K, dumpable ? SECCOMP_RET_ALLOW : SECCOMP_RET_TRAP),
+                BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
                 Allow(pread64),
                 Allow(pwrite64),
                 Allow(read),

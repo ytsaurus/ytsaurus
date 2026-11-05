@@ -1,11 +1,9 @@
 #include "chunk_creation_time_histogram_builder.h"
 
-#include "private.h"
-
 #include "chunk.h"
-#include "chunk_manager.h"
 #include "config.h"
 #include "master_cell_chunk_statistics_collector.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -118,11 +116,9 @@ public:
 
         const auto& delta = request.creation_time_histogram().delta();
         if (delta.size() != std::ssize(Bounds_) + 1) {
-            YT_LOG_ALERT(
-                "Chunk creation time histogram bounds were changed during master cell statistics update "
-                "(DeltaSize: %v, BoundsSize: %v)",
-                delta.size(),
-                Bounds_.size());
+            YT_TLOG_ALERT("Chunk creation time histogram bounds were changed during master cell statistics update")
+                .With("DeltaSize", delta.size())
+                .With("BoundsSize", Bounds_.size());
             return;
         }
 
@@ -151,7 +147,6 @@ public:
         using NYT::Load;
 
         Load(context, Bounds_);
-        // COMPAT(gritukan): EMasterReign::FixChunkCreationTimeHistograms
         YT_VERIFY(!Bounds_.empty());
 
         InitializeHistogram();

@@ -73,10 +73,10 @@ public:
 
 private:
     TP2PConfigPtr Config_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ConfigLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ConfigLock_);
     TP2PConfigPtr DynamicConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TGuid, TP2PSession> ActiveSessions_;
     std::atomic<int> ActiveWaiters_ = 0;
 
@@ -131,11 +131,11 @@ struct TP2PChunk
     std::atomic<NProfiling::TCpuInstant> LastAccessTime;
     std::atomic<bool> Hot = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksLock);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BlocksLock);
     std::vector<TBlockAccessCounter> Blocks;
     i64 Weight = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersLock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PeersLock);
     i64 DistributedSize = 0;
     i64 PeersAllocatedAt = 0;
     TPeerList Peers;
@@ -200,16 +200,16 @@ private:
 
     const TGuid SessionId_ = TGuid::Create();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, NodesLock_);
     std::vector<TNodeId> EligibleNodes_;
 
     std::atomic<i64> CounterIteration_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueueLock_);
     std::vector<TQueuedBlock> BlockQueue_;
     i64 CurrentTick_ = 1;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ChunkLock_);
     THashSet<TP2PChunkPtr> HotChunks_;
 
     NProfiling::TCounter ThrottledBytes_;

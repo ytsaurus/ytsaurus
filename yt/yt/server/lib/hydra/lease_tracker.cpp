@@ -69,7 +69,7 @@ public:
 
         for (int id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
             if (id == Owner_->EpochContext_->CellManager->GetSelfPeerId()) {
-                OnSuccess();
+                OnSuccess(id);
             } else {
                 SendPing(id);
             }
@@ -86,7 +86,7 @@ private:
     const TLeaseTrackerPtr Owner_;
     const NLogging::TLogger Logger;
 
-    int ActiveCount_ = 0;
+    int ActiveWeight_ = 0;
     std::vector<TFuture<void>> AsyncResults_;
     std::vector<TError> PingErrors_;
 
@@ -106,11 +106,11 @@ private:
 
         auto alivePeerIds = epochContext->AlivePeerIds.Load();
 
-        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, Term: %v, EpochId: %v, AlivePeerIds: %v)",
-            followerId,
-            epochContext->Term,
-            epochContext->EpochId,
-            alivePeerIds);
+        YT_TLOG_DEBUG("Sending ping to follower")
+            .With("FollowerId", followerId)
+            .With("Term", epochContext->Term)
+            .With("EpochId", epochContext->EpochId)
+            .With("AlivePeerIds", alivePeerIds);
 
         TInternalHydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
@@ -138,20 +138,21 @@ private:
 
         if (!rspOrError.IsOK()) {
             PingErrors_.push_back(rspOrError);
-            YT_LOG_WARNING(rspOrError, "Error pinging follower (PeerId: %v)",
-                followerId);
+            YT_TLOG_WARNING("Error pinging follower")
+                .With("PeerId", followerId)
+                .With(rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto state = EPeerState(rsp->state());
-        YT_LOG_DEBUG("Follower ping succeeded (PeerId: %v, State: %v)",
-            followerId,
-            state);
+        YT_TLOG_DEBUG("Follower ping succeeded")
+            .With("PeerId", followerId)
+            .With("State", state);
 
         if (voting) {
             if (state == EPeerState::Following || state == EPeerState::FollowerRecovery) {
-                OnSuccess();
+                OnSuccess(followerId);
             } else {
                 PingErrors_.push_back(TError("Follower %v is in %Qlv state",
                     followerId,
@@ -166,16 +167,16 @@ private:
 
         if (!Promise_.IsSet()) {
             auto error = TError("Could not acquire quorum")
-                << PingErrors_;
+                .With(PingErrors_);
             Promise_.Set(error);
         }
     }
 
-    void OnSuccess()
+    void OnSuccess(int peerId)
     {
-        ++ActiveCount_;
-        if (ActiveCount_ == Owner_->EpochContext_->CellManager->GetQuorumPeerCount()) {
-            Promise_.Set();
+        ActiveWeight_ += Owner_->EpochContext_->CellManager->GetPeerWeight(peerId);
+        if (ActiveWeight_ >= Owner_->EpochContext_->CellManager->GetQuorumWeight()) {
+            Promise_.TrySet();
         }
     }
 };
@@ -272,19 +273,20 @@ void TLeaseTracker::OnLeaseCheck()
     auto checkPromise = std::move(NextCheckPromise_);
     NextCheckPromise_ = NewPromise<void>();
 
-    YT_LOG_DEBUG("Starting leader lease check (TrackingEnabled: %v)",
-        trackingEnabled);
+    YT_TLOG_DEBUG("Starting leader lease check")
+        .With("TrackingEnabled", trackingEnabled);
 
     auto checkResult = WaitFor(FireLeaseCheck());
     if (checkResult.IsOK()) {
-        YT_LOG_DEBUG("Leader lease check succeeded (TrackingEnabled: %v)",
-            trackingEnabled);
+        YT_TLOG_DEBUG("Leader lease check succeeded")
+            .With("TrackingEnabled", trackingEnabled);
         if (trackingEnabled) {
             Lease_->Extend(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
         }
     } else {
-        YT_LOG_DEBUG(checkResult, "Leader lease check failed (TrackingEnabled: %v)",
-            trackingEnabled);
+        YT_TLOG_DEBUG("Leader lease check failed")
+            .With("TrackingEnabled", trackingEnabled)
+            .With(checkResult);
         if (trackingEnabled) {
             LeaseLost_.Fire(checkResult);
         }

@@ -6,8 +6,13 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -82,17 +87,21 @@ public:
         // sequencer will be implemented.
         // TODO(aleksandra-zh): do it.
         if (!request->suppress_strongly_ordered_transaction_barrier()) {
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            WaitForFast(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto barrierTags = FromProto<std::vector<std::string>>(request->barrier_tags());
+
+            YT_TLOG_DEBUG("Received barrier tags")
+                .With("TransactionId", FromProto<TTransactionId>(request->id()))
+                .With("BarrierTags", barrierTags);
+
+            WaitForFast(transactionManager->WaitUntilPreparedTransactionsFinished(std::move(barrierTags)))
                 .ThrowOnError();
         }
 
         auto transactionId = FromProto<TTransactionId>(request->id());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        ValidateWritePrerequisites(
-            transactionId,
-            FromProto(request->attributes())->Find<std::string>("title"),
-            prerequisiteTransactionIds);
+        SortUnique(prerequisiteTransactionIds);
+        ValidateWritePrerequisites(prerequisiteTransactionIds);
 
         auto mutation = CreateMutation(hydraManager, *request);
         mutation->SetCurrentTraceContext();
@@ -118,21 +127,22 @@ public:
         // | send StartSequoiaTransaction    |                                 |
         // |                                 | enqueue StartSequoiaTransaction |
         // | receive StartSequoiaTransaction | execute StartSequoiaTransaction |
-        // | send CommitTransaction          |                                 | <- Send next reques without waiting for mutation
+        // | send CommitTransaction          |                                 | <- Send next request without waiting for mutation
         // |                                 | enqueue CommitTransaction       |
         // |                                 | execute CommitTransaction       |
         if (config->EnableAsyncSequoiaTransactionStart) {
             auto failureProbability = config->Testing->SequoiaTransactionStartFailureProbability;
             if (Y_UNLIKELY(failureProbability && RandomNumber<double>() < *failureProbability)) {
-                YT_LOG_DEBUG("Sequoia transaction start failed for testing purposes (TransactionId: %v)",
-                    transactionId);
+                YT_TLOG_DEBUG("Sequoia transaction start failed for testing purposes")
+                    .With("TransactionId", transactionId);
             } else {
                 mutation
                     ->Commit()
-                    .Subscribe(BIND([transactionId] (TErrorOr<TMutationResponse> rsp) {
+                    .Subscribe(BIND([transactionId] (const TErrorOr<TMutationResponse>& rsp) {
                         if (!rsp.IsOK()) {
-                            YT_LOG_ERROR(TError(rsp), "Failed to start Sequoia transaction (TransactionId: %v)",
-                                transactionId);
+                            YT_TLOG_ERROR("Failed to start Sequoia transaction")
+                                .With("TransactionId", transactionId)
+                                .With(TError(rsp));
                         }
                     }));
             }
@@ -155,29 +165,11 @@ private:
     TAtomicObject<TSequoiaTransactionFeatures> SequoiaTransactionFeatures_;
 
     void ValidateWritePrerequisites(
-        TTransactionId sequoiaTransactionId,
-        std::optional<std::string> sequoiaTransactionTitle,
         const std::vector<TTransactionId>& prerequisiteTransactionIds) const
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // Fast path.
-        if (prerequisiteTransactionIds.empty()) {
-            return;
-        }
-
-        if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
-            YT_LOG_ALERT(
-                "Sequoia transaction requires Cypress transaction prerequisites "
-                "but prerequisite validation via leases is disabled "
-                "(SequoiaTransactionId: %v, SequoiaTransactionTitle: %v, PrerequisiteTransactionIds: %v)",
-                sequoiaTransactionId,
-                sequoiaTransactionTitle,
-                prerequisiteTransactionIds);
-            THROW_ERROR_EXCEPTION("Prerequisite transaction validation via leases is disabled");
-            return;
-        }
-
         if (prerequisiteTransactionIds.empty()) {
             return;
         }
@@ -191,7 +183,7 @@ private:
             leaseManager,
             hiveManager,
             multicellManager->GetCellId(),
-            /*synWithAllLeaseTransactionCoordinators*/ true,
+            /*syncWithAllLeaseTransactionCoordinators*/ true,
             BIND([multicellManager] (TCellTag cellTag) {
                 return multicellManager->GetCellId(cellTag);
             }),
@@ -199,16 +191,25 @@ private:
                 return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
             })));
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            resultOrError,
-            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-            "Failed to issue leases for prerequisite transactions");
+        if (!resultOrError.IsOK()) {
+            if (IsRetriableError(resultOrError)) {
+                THROW_ERROR_EXCEPTION(
+                    NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                    "Failed to issue leases for prerequisite transactions")
+                    .With("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    .With(resultOrError);
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Failed to issue leases for prerequisite transactions")
+                    .With("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    .With(resultOrError);
+            }
+        }
     }
 
     void HydraStartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-
         // To set actual user before creating transaction object.
         auto identity = ParseAuthenticationIdentityFromProto(request->identity());
         TAuthenticatedUserGuard userGuard(Bootstrap_->GetSecurityManager(), identity);
@@ -216,6 +217,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        auto barrierTags = FromProto<std::vector<std::string>>(request->barrier_tags());
 
         auto attributes = FromProto(request->attributes());
         std::string title;
@@ -231,14 +233,11 @@ private:
             title = "Sequoia transaction";
         }
 
-        auto enableLeaseIssuing = config->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
-        YT_LOG_DEBUG(
-            "Starting Sequoia transaction "
-            "(TransactionId: %v, Timeout: %v, Title: %v, LeasesToIssue: %v)",
-            transactionId,
-            timeout,
-            title,
-            enableLeaseIssuing ? prerequisiteTransactionIds : std::vector<TTransactionId>{});
+        YT_TLOG_DEBUG("Starting Sequoia transaction")
+            .With("TransactionId", transactionId)
+            .With("Timeout", timeout)
+            .With("Title", title)
+            .With("LeasesToIssue", prerequisiteTransactionIds);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (transactionManager->FindTransaction(transactionId)) {
@@ -252,9 +251,12 @@ private:
                 transactionId,
                 timeout,
                 title,
-                *attributes);
+                *attributes,
+                barrierTags);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to start Sequoia transaction (TransactionId: %v)", transactionId);
+            YT_TLOG_ALERT("Failed to start Sequoia transaction")
+                .With("TransactionId", transactionId)
+                .With(ex);
             throw;
         }
 
@@ -265,9 +267,9 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
-                transactionId,
-                action.Type);
+            YT_TLOG_DEBUG("Transaction action registered")
+                .With("TransactionId", transactionId)
+                .With("ActionType", action.Type);
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));

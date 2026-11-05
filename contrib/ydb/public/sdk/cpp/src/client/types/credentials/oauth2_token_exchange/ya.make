@@ -1,4 +1,5 @@
 LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
     credentials.cpp
@@ -16,6 +17,7 @@ PEERDIR(
     library/cpp/string_utils/base64
     library/cpp/uri
     contrib/ydb/public/sdk/cpp/src/client/types
+    contrib/ydb/public/sdk/cpp/src/client/types/core_facility
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
 )
 

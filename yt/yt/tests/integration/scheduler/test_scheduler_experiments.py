@@ -16,7 +16,6 @@ from yt_scheduler_helpers import scheduler_orchid_operation_path
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-import pytest
 from flaky import flaky
 import datetime
 import math
@@ -24,7 +23,6 @@ import math
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -123,7 +121,7 @@ class TestSchedulerExperiments(YTEnvSetup):
                  command=with_breakpoint("BREAKPOINT"),
                  track=False,
                  spec={"experiment_overrides": ["exp_a1.treatment"]})
-        wait_breakpoint()
+        wait_breakpoint(op)
         info = get_operation(op.id, attributes=["experiment_assignments", "experiment_assignment_names", "spec", "provided_spec"])
         assert info["experiment_assignment_names"] == ["exp_a1.treatment"]
         assert info["experiment_assignments"] == [{
@@ -316,7 +314,6 @@ class TestSchedulerExperiments(YTEnvSetup):
                   spec={"experiment_overrides": ["exp_b2.treatment"]})
 
 
-@pytest.mark.enabled_multidaemon
 class TestExperimentAssignmentError(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -388,7 +385,6 @@ class TestExperimentAssignmentError(YTEnvSetup):
         assert (alert_switched_off - start) >= self.EXPERIMENT_ASSIGNMENT_ALERT_DURATION
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerExperimentsArchivation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -443,7 +439,7 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
             return exists(op.get_path())
 
         wait(lambda: operation_present_in_cypress())
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         cypress_info = get_operation(
             op.id,
@@ -459,7 +455,6 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
         assert cypress_info == archive_info
 
 
-@pytest.mark.enabled_multidaemon
 class TestUserJobAndJobIOExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -737,7 +732,6 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["tasks"]["task_b"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationFilterExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -799,7 +793,6 @@ class TestListOperationFilterExperiments(YTEnvSetup):
         assert {op["id"] for op in res["operations"]} == {op1.id, op2.id, op3.id}
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerOperationOptionsPatch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

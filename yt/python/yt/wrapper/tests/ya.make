@@ -12,7 +12,7 @@ IF (AUTOCHECK OR YT_TEAMCITY)
     TIMEOUT(3600)
 ENDIF()
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 TAG(
     ya:fat
@@ -22,6 +22,7 @@ TAG(
     ya:force_sandbox
     ya:large_tests_on_single_slots
 )
+
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
@@ -59,6 +60,7 @@ PEERDIR(
     contrib/python/allure-pytest
     contrib/python/flaky
     contrib/python/mock
+    contrib/python/pyarrow
     contrib/python/requests-mock
 
     # It is required to test job shell.
@@ -75,8 +77,12 @@ ELSE()
     )
 ENDIF()
 
+# To use fresh `ytserver-all` in tests user `YT_RECIPE_BUILD_FROM_SOURCE` flag.
+# F.e.: `ya make -r -ttt -j 16 $A/yt/python/yt/wrapper/tests/ -F '*test_add_remove_member*' -DYT_RECIPE_BUILD_FROM_SOURCE=yes  -P -s`
+SET(YT_RECIPE_BUILD_FROM_SOURCE NO)
+
 DEPENDS(
-    yt/yt/packages/tests_package
+    yt/packages/latest
 
     # It is used in some tests to run separate cluster.
     # TODO(ignat): improve tests machinery to avoid using yt_local.
@@ -116,6 +122,7 @@ RESOURCE(
     ${CURDIR}/files/accumulate_c.py /yt_python_test/accumulate_c.py
     ${CURDIR}/files/capitalize_b.py /yt_python_test/files/capitalize_b.py
     ${CURDIR}/files/collect.py /yt_python_test/files/collect.py
+    ${CURDIR}/files/driver_fork_detection.py /yt_python_test/files/driver_fork_detection.py
     ${CURDIR}/files/driver_read_request_catch_sigint.py /yt_python_test/files/driver_read_request_catch_sigint.py
     ${CURDIR}/files/empty /yt_python_test/files/empty
     ${CURDIR}/files/getnumber.cpp /yt_python_test/files/getnumber.cpp
@@ -185,6 +192,7 @@ TEST_SRCS(
     test_queue_commands.py
     test_query_commands.py
     test_random_sample.py
+    test_retries.py
     test_run_compression_benchmarks.py
     test_spark.py
     test_spec_builders.py

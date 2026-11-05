@@ -6,15 +6,15 @@
 
 #include <library/cpp/testing/common/network.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HttpResponse(int code, TStringBuf body);
+std::string HttpResponse(int code, TStringBuf body);
 
-TString CollectMessages(const TError& error);
+std::string CollectMessages(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ public:
 
     bool IsStarted() const;
 
-    TString GetHost() const;
+    std::string GetHost() const;
     int GetPort() const;
 
 private:
@@ -54,7 +54,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
         TCallback Callback_;
     };
 

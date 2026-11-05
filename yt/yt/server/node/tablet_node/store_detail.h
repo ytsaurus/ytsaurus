@@ -20,7 +20,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -179,6 +179,7 @@ protected:
 
     void DoBuildOrchidYson(NYTree::TFluentMap fluent) override;
 
+    void OnDynamicMemoryUsageUpdated() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,14 +193,18 @@ public:
 
     TMinHashDigestBlockIndex(int blockIndex);
 
-    bool IsFetched();
-    bool IsFound();
-    int GetBlockIndex();
+    static TMinHashDigestBlockIndex FromChunkMeta(
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+    bool IsFetched() const;
+    bool IsFound() const;
+    int GetBlockIndex() const;
 
 private:
     int BlockIndex_ = NotFetched;
 };
 
+static_assert(std::is_trivially_copyable_v<TMinHashDigestBlockIndex>);
 
 class TChunkStoreBase
     : public TStoreBase
@@ -285,6 +290,7 @@ public:
     TInMemoryChunkDataPtr GetInMemoryChunkData() const override;
 
     TMinHashDigestBlockIndex GetMinHashDigestBlockIndex() const;
+    void SetMinHashDigestBlockIndex(TMinHashDigestBlockIndex blockIndex);
 
     // Fast path.
     NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
@@ -316,7 +322,7 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, WeakCachedVersionedChunkMetaEntryLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, WeakCachedVersionedChunkMetaEntryLock_);
     TWeakPtr<TVersionedChunkMetaCacheEntry> WeakCachedVersionedChunkMetaEntry_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -327,7 +333,8 @@ protected:
 
     TTimestamp OverrideTimestamp_;
 
-    std::atomic<int> MinHashDigestBlockIndex_ = TMinHashDigestBlockIndex::NotFetched;
+    std::atomic<TMinHashDigestBlockIndex> MinHashDigestBlockIndex_{
+        TMinHashDigestBlockIndex::NotFetched};
 
     void OnLocalReaderFailed();
 
@@ -347,7 +354,7 @@ private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;
 
     std::atomic<bool> CachedReadersInvalidationNeeded_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     IDynamicStorePtr BackingStore_;
 
     NChunkClient::IBlockCachePtr DoGetBlockCache();

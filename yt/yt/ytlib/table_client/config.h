@@ -66,10 +66,14 @@ struct TTableReaderOptions
     : public TChunkReaderOptions
     , public NChunkClient::TMultiChunkReaderOptions
 {
+    //! When false, hunk columns are not decoded: the reader yields the raw hunk references (values keep
+    //! the EValueFlags::Hunk flag) instead of the inlined payloads. Lets a caller read hunk refs without
+    //! materializing their payloads.
+    bool DecodeHunks;
+
     REGISTER_YSON_STRUCT(TTableReaderOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)

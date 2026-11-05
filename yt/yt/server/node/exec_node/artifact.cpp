@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/sync_cache.h>
 
 #include <library/cpp/yt/misc/hash.h>
 
@@ -21,18 +20,19 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArtifactKey::TArtifactKey(TChunkId chunkId)
+TArtifactKey::TArtifactKey(
+    EDataSourceType dataSource,
+    std::vector<TChunkSpec> specs)
 {
-    mutable_data_source()->set_type(ToProto(EDataSourceType::File));
+    mutable_data_source()->set_type(ToProto(dataSource));
+    for (auto& spec : specs) {
+        *add_chunk_specs() = std::move(spec);
+    }
+}
 
-    NChunkClient::NProto::TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-
-    TMiscExt miscExt;
-    miscExt.set_compression_codec(ToProto(NCompression::ECodec::None));
-    SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-
-    *add_chunk_specs() = chunkSpec;
+TArtifactKey::TArtifactKey(const NProto::TArtifactKey& key)
+{
+    CopyFrom(key);
 }
 
 TArtifactKey::TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor)
@@ -66,14 +66,47 @@ i64 TArtifactKey::GetCompressedDataSize() const
     return compressedDataSize;
 }
 
-i64 TArtifactKey::GetUncompressedDataSize() const
+std::optional<i64> TArtifactKey::TryGetFileSizeEstimate() const
 {
-    i64 uncompressedDataSize = 0;
-    for (const auto& chunkSpec : chunk_specs()) {
-        uncompressedDataSize += GetChunkUncompressedDataSize(chunkSpec);
+    i64 fileSizeEstimate = 0;
+
+    if (!data_source().has_type()) {
+        return std::nullopt;
+    }
+    auto type = FromProto<EDataSourceType>(data_source().type());
+    switch (type) {
+        case EDataSourceType::File:
+            // TFileChunkWriter does not set data_weight.
+            for (const auto& chunkSpec : chunk_specs()) {
+                auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+                if (!miscExt.has_value() || !miscExt->has_uncompressed_data_size()) {
+                    return std::nullopt;
+                }
+                fileSizeEstimate += miscExt->uncompressed_data_size();
+            }
+            break;
+        case EDataSourceType::UnversionedTable:
+        case EDataSourceType::VersionedTable:
+            for (const auto& chunkSpec : chunk_specs()) {
+                if (chunkSpec.has_data_weight_override()) {
+                    fileSizeEstimate += chunkSpec.data_weight_override();
+                    continue;
+                }
+                auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+                if (!miscExt.has_value() || !miscExt->has_data_weight()) {
+                    return std::nullopt;
+                }
+                fileSizeEstimate += miscExt->data_weight();
+            }
+            break;
     }
 
-    return uncompressedDataSize;
+    return fileSizeEstimate;
+}
+
+i64 TArtifactKey::GetFileSizeEstimateOrCrash() const
+{
+    return GetOrCrash(TryGetFileSizeEstimate());
 }
 
 TArtifactKey::operator size_t() const
@@ -109,6 +142,7 @@ TArtifactKey::operator size_t() const
     }
 
     if (data_source().has_rls_read_spec()) {
+        HashCombine(result, data_source().rls_read_spec().authenticated_user());
         HashCombine(result, data_source().rls_read_spec().has_trivial_deny());
         if (data_source().rls_read_spec().has_predicate()) {
             HashCombine(result, data_source().rls_read_spec().predicate());
@@ -178,8 +212,8 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
         return false;
 
     if (data_source().has_column_filter()) {
-        auto lhsColumns = FromProto<std::vector<TString>>(data_source().column_filter().admitted_names());
-        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
+        auto lhsColumns = FromProto<std::vector<std::string>>(data_source().column_filter().admitted_names());
+        auto rhsColumns = FromProto<std::vector<std::string>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
         }
@@ -192,6 +226,9 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
     if (data_source().has_rls_read_spec()) {
         const auto& rlsReadSpec = data_source().rls_read_spec();
         const auto& otherRlsReadSpec = other.data_source().rls_read_spec();
+        if (rlsReadSpec.authenticated_user() != otherRlsReadSpec.authenticated_user()) {
+            return false;
+        }
         if (rlsReadSpec.has_trivial_deny() != otherRlsReadSpec.has_trivial_deny()) {
             return false;
         }
@@ -267,27 +304,6 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
     }
 
     return true;
-}
-
-TString TArtifactKey::GetRuntimeGuid() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    // It is a global cache with unique artifact ids of a bounded size CacheMaxSize. It is
-    // hoped for that the number of unique TArtifactKey keys will rarely exceed CacheMaxSize.
-    static constexpr size_t CacheMaxSize = 100'000;
-    static TSimpleLruCache<TArtifactKey, TString> Cache(CacheMaxSize);
-    static YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CacheLock);
-
-    // NB. It is all right that guids can be evicted.
-
-    auto guard = Guard(CacheLock);
-    auto* guid = Cache.Find(*this);
-    if (!guid) {
-        guid = Cache.Insert(*this, ToString(TGuid::Create()));
-    }
-
-    return *guid;
 }
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf /*spec*/)

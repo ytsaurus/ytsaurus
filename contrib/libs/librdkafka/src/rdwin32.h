@@ -42,7 +42,7 @@
 #include <winsock2.h> /* for sockets + struct timeval */
 #include <io.h>
 #include <fcntl.h>
-
+#include <windows.h>
 
 /**
  * Types

@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -25,13 +27,25 @@ struct IJournalChunkWriter
     virtual TFuture<void> Close() = 0;
 
     //! Writes #record to nodes. Performs its erasure encoding beforehand if needed.
-    virtual TFuture<void> WriteRecord(TSharedRef record) = 0;
+    //! The returned future is set with the record's index once it reaches the write quorum.
+    virtual TFuture<i64> WriteRecord(TSharedRef record) noexcept = 0;
+
     //! Only for erasure chunk writer.
     //! Writes #recordParts as-is to corresponding nodes without performing erasure encoding.
     //! Size of #recordParts must coinside with number of nodes (i.e. total part count).
-    virtual TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) = 0;
+    virtual TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) noexcept = 0;
 
     virtual bool IsCloseDemanded() const = 0;
+
+    //! The replicas the writer targets, i.e. the ones holding the records it wrote.
+    /*!
+     *  Only valid once #Open has succeeded; the targets do not change afterwards, so this is safe to call
+     *  from any thread and remains valid even after the writer fails.
+     */
+    virtual std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors() const = 0;
+
+    //! Fired (once) when the writer fails; the writer must not be used afterwards.
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed);
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalChunkWriter)

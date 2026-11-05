@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
-#include <yt/yt/server/master/object_server/attribute_set.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -209,7 +207,7 @@ void TImmutableMountConfigAttributeDictionary::SetYson(TKeyView /*key*/, const N
 
 bool TImmutableMountConfigAttributeDictionary::Remove(TKeyView /*key*/)
 {
-    YT_LOG_ALERT("Attempt to remove an item from an immutable mount config attribute dictionary");
+    YT_TLOG_ALERT("Attempt to remove an item from an immutable mount config attribute dictionary");
     return false;
 }
 
@@ -284,26 +282,6 @@ void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
     }
 
     attributes->Set(EInternedAttributeKey::MountConfig.Unintern(), mountConfigNode);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::pair<std::string, TYsonString>> ExtractOldStyleMountConfigAttributes(
-    TAttributeSet* attributes)
-{
-    std::vector<std::pair<std::string, TYsonString>> result;
-
-    for (const auto& [key, value] : attributes->Attributes()) {
-        if (NDetail::IsOldStyleMountConfigAttribute(key)) {
-            result.emplace_back(key, value);
-        }
-    }
-
-    for (const auto& [key, value] : result) {
-        attributes->TryRemove(key);
-    }
-
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

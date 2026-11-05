@@ -52,7 +52,8 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKe
 
     auto pair = Updates_.emplace(key, TUpdateRecord(key, parameters));
     YT_VERIFY(pair.second);
-    YT_LOG_DEBUG("Item added to periodic updates (Key: %v)", key);
+    YT_TLOG_DEBUG("Item added to periodic updates")
+        .With("Key", key);
     return &pair.first->second.UpdateParameters;
 }
 
@@ -62,7 +63,8 @@ void TUpdateExecutor<TKey, TUpdateParameters>::RemoveUpdate(const TKey& key)
     YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     YT_VERIFY(Updates_.erase(key) == 1);
-    YT_LOG_DEBUG("Item removed from periodic updates (Key: %v)", key);
+    YT_TLOG_DEBUG("Item removed from periodic updates")
+        .With("Key", key);
 }
 
 template <class TKey, class TUpdateParameters>
@@ -97,7 +99,8 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
 {
     YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
-    YT_LOG_INFO("Updating items (Count: %v)", Updates_.size());
+    YT_TLOG_INFO("Updating items")
+        .With("Count", Updates_.size());
 
     std::vector<TKey> updatesToRemove;
     std::vector<TFuture<void>> asyncResults;
@@ -106,7 +109,8 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
         if (ShouldRemoveUpdateAction_(&updateRecord.UpdateParameters)) {
             updatesToRemove.push_back(key);
         } else {
-            YT_LOG_DEBUG("Updating item (Key: %v)", key);
+            YT_TLOG_DEBUG("Updating item")
+                .With("Key", key);
             requestKeys.push_back(key);
             asyncResults.push_back(DoExecuteUpdate(&updateRecord));
         }
@@ -124,7 +128,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
         return;
     }
 
-    YT_LOG_INFO("Update completed");
+    YT_TLOG_INFO("Update completed");
 }
 
 template <class TKey, class TUpdateParameters>
@@ -156,11 +160,11 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
         return {};
     }
 
-    return BIND([key, this, updateAction = std::move(updateAction), this_ = MakeStrong(this)] () {
+    return BIND([this, this_ = MakeStrong(this), updateAction = std::move(updateAction)] {
             return updateAction().Apply(
-                BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                     if (!error.IsOK()) {
-                        OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
+                        OnUpdateFailed_(error);
                     }
                 })
                 .AsyncVia(Invoker_));
@@ -177,7 +181,7 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateR
     if (!callback) {
         return updateRecord->LastUpdateFuture;
     }
-    updateRecord->LastUpdateFuture = updateRecord->LastUpdateFuture.Apply(callback);
+    updateRecord->LastUpdateFuture = updateRecord->LastUpdateFuture.Apply(callback).ToUncancelable();
     return updateRecord->LastUpdateFuture;
 }
 

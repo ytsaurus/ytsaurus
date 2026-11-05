@@ -4,7 +4,7 @@
 #include "private.h"
 #include "public.h"
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NApi::NNative {
 

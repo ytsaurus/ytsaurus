@@ -1,0 +1,281 @@
+# Дефолты nots; соответствующие NOTS_CONCURRENCY_* сохраняют приоритет.
+concurrency:
+    installGroups: 4
+    link: 16
+    prebuilder: 4
+    preinstall: 16
+
+pnpm:
+    # pnpm выбирает размер worker pool по числу видимых CPU, которое в CI
+    # может превышать сотню при квоте контейнера в 4 CPU. Ограничиваем каждый
+    # процесс, включая параллельные установки CLI и pnpm из build scripts.
+    # Лимиты для JS pnpm 11 и нативного pnpm 12 задаются окружением, не workspace.
+    environment:
+        PNPM_MAX_WORKERS: '4'
+        RAYON_NUM_THREADS: '4'
+
+    # Передаются также дочерним pnpm через npm_config_* и pnpm_config_*.
+    # Значения берутся из defaults; список общий для CLI и builder.
+    runtimeEnvSettings:
+        - gitChecks
+        - lockfileIncludeTarballUrl
+        - pmOnFail
+        - registry
+        - trustLockfile
+        - updateNotifier
+        - verifyDepsBeforeRun
+        - verifyStoreIntegrity
+
+    # Разрешённые пользовательские настройки. Типы используются builder и CLI при чтении YAML.
+    supportedCustomSettings:
+        catalogs: catalogs
+        overrides: dependency-map
+        packageExtensions: package-extensions
+        patchedDependencies: patch-map
+        peerDependencyRules: peer-rules
+        peersSuffixMaxLength: non-negative-integer
+        supportedArchitectures: supported-architectures
+        allowedDeprecatedVersions: dependency-map
+        ignoredOptionalDependencies: string-list
+        dedupePeers: boolean
+        enableGlobalVirtualStore: boolean
+        forceLegacyDeploy: boolean
+        strictPeerDependencies: boolean
+
+    # Общая политика Tier 0. Builder и CLI читают этот файл из Аркадии в рантайме.
+    # Пользовательские значения игнорируются, кроме параметров из supportedCustomSettings.
+    defaults:
+        allowUnusedPatches: true
+        autoInstallPeers: true
+        dedupePeerDependents: true
+        fetchRetries: 2
+        fetchRetryFactor: 2
+        fetchRetryMintimeout: 30000
+        fetchRetryMaxtimeout: 120000
+        ignorePnpmfile: true
+        ignoreScripts: true
+        injectWorkspacePackages: true
+        sharedWorkspaceLockfile: false
+        modulesDir: node_modules
+        pmOnFail: ignore
+        packageImportMethod: auto
+        preferSymlinkedExecutables: true
+        preferWorkspacePackages: true
+        registry: https://npm.yandex-team.ru
+        registries:
+            https://npm.yandex-team.ru:
+                serverType: npm
+        shellEmulator: false
+        strictPeerDependencies: false
+        updateNotifier: false
+        verifyStoreIntegrity: false
+        gitChecks: false
+        lockfileIncludeTarballUrl: false
+        trustLockfile: true
+        verifyDepsBeforeRun: false
+
+    # storeDir вычисляется при запуске и передаётся аргументом pnpm: ~/.nots для CLI, build-root для builder.
+    # Параметры операции остаются в argv: frozenLockfile, preferFrozenLockfile,
+    # lockfileOnly, offline, preferOffline, prod и filter.
+    # https://pnpm.io/11.x/settings/store#storedir
+    # https://pnpm.io/11.x/cli/install
+    # https://pnpm.io/11.x/filtering
+    # virtualStoreDir не входит в defaults: при GVS pnpm выбирает storeDir/links.
+
+    # Общие тексты для генерируемого workspace.
+    workspaceComments:
+        header: |-
+            ========================================================================
+            ВНИМАНИЕ: ЭТОТ ФАЙЛ АВТОМАТИЧЕСКИ ГЕНЕРИРУЕТСЯ nots.
+            НЕ РЕДАКТИРУЙТЕ ЕГО ВРУЧНУЮ: изменения будут перезаписаны.
+
+            Пользовательские настройки задаются в package.json#pnpm или общем конфиге,
+            подключённом через package.json#nots.commonConfigPath.
+            Параметры платформы задаются в
+            devtools/frontend_build_platform/nots/constants/src/tier0-settings.yaml;
+            переопределять можно только настройки из supportedCustomSettings.
+            Каталоги задаются в общем конфиге, а вычисляемые параметры — самим nots.
+            ========================================================================
+        configurable: |-
+            Можно настроить в package.json#pnpm или общем конфиге через nots.commonConfigPath.
+            Здесь записано итоговое значение после применения настроек nots.
+        catalogs: |-
+            Настраивается в общем конфиге через nots.commonConfigPath.
+            Здесь записан итоговый набор каталогов, собранный nots.
+        managed: |-
+            Задаётся платформой Tier 0; пользовательское переопределение не поддерживается.
+        generated: |-
+            Вычисляется nots при генерации workspace; вручную не настраивается.
+        descriptions:
+            catalogs: |-
+                Именованные наборы версий зависимостей.
+                https://pnpm.io/11.x/catalogs
+                Каталоги из общих конфигов объединяются с используемыми каталогами зависимых модулей.
+
+            overrides: |-
+                Замена зависимостей в дереве пакетов.
+                https://pnpm.io/11.x/settings/dependency-resolution#overrides
+
+            packageExtensions: |-
+                Дополнение и исправление метаданных зависимостей.
+                https://pnpm.io/11.x/settings/dependency-resolution#packageextensions
+
+            patchedDependencies: |-
+                Соответствие пакетов локальным файлам патчей.
+                https://pnpm.io/11.x/cli/patch#patcheddependencies
+
+            peerDependencyRules: |-
+                Исключения для проверки отсутствующих или несовместимых peers.
+                https://pnpm.io/11.x/settings/peer-dependencies#peerdependencyrules
+
+            peersSuffixMaxLength: |-
+                Предел длины peer-суффикса в lockfile; более длинные суффиксы хешируются.
+                https://pnpm.io/11.x/settings/store#peerssuffixmaxlength
+
+            supportedArchitectures: |-
+                Платформы, для которых устанавливаются optional-зависимости, включая отличные от текущей.
+                https://pnpm.io/11.x/settings/dependency-resolution#supportedarchitectures
+
+            allowedDeprecatedVersions: |-
+                Подавление deprecation warnings для выбранных пакетов и диапазонов версий.
+                https://pnpm.io/11.x/settings/dependency-resolution#alloweddeprecatedversions
+
+            ignoredOptionalDependencies: |-
+                Имена и шаблоны optional-зависимостей, которые не нужно устанавливать.
+                https://pnpm.io/11.x/settings/dependency-resolution#ignoredoptionaldependencies
+
+            dedupePeers: |-
+                Упрощение peer-суффиксов; включается пользователем, не глобально (FBP-3465).
+                https://pnpm.io/11.x/settings/peer-dependencies#dedupepeers
+
+            enableGlobalVirtualStore: |-
+                Пользовательское включение global virtual store.
+                https://pnpm.io/11.x/settings/node-modules#enableglobalvirtualstore
+
+            forceLegacyDeploy: |-
+                Точечный возврат к legacy deploy для несовместимых проектов.
+                https://pnpm.io/11.x/cli/deploy#forcelegacydeploy
+
+            strictPeerDependencies: |-
+                Строгая проверка отсутствующих или несовместимых peers.
+                Проверка peers не блокирует установку по умолчанию; пользователь может включить строгость.
+                https://pnpm.io/11.x/settings/peer-dependencies#strictpeerdependencies
+
+            allowUnusedPatches: |-
+                Общий набор патчей может включать отсутствующие у таргета пакеты.
+                https://pnpm.io/11.x/cli/patch#allowunusedpatches
+
+            autoInstallPeers: |-
+                Автоматически устанавливать недостающие обязательные peer-зависимости.
+                https://pnpm.io/11.x/settings/peer-dependencies#autoinstallpeers
+
+            dedupePeerDependents: |-
+                Объединять совместимые экземпляры пакетов после разрешения peer-зависимостей.
+                https://pnpm.io/11.x/settings/peer-dependencies#dedupepeerdependents
+
+            fetchRetries: |-
+                Число повторных попыток загрузки пакета при сетевой ошибке.
+                Временная мера при нестабильности S3 (DEVTOOLSSUPPORT-97777).
+                Удалить после стабилизации: два ретрая с паузами 30 и 60 секунд.
+                https://pnpm.io/11.x/settings/network#fetchretries
+
+            fetchRetryFactor: |-
+                Множитель увеличения паузы между повторными запросами.
+                https://pnpm.io/11.x/settings/network#fetchretryfactor
+
+            fetchRetryMintimeout: |-
+                Начальная пауза перед повторным запросом, в миллисекундах.
+                https://pnpm.io/11.x/settings/network#fetchretrymintimeout
+
+            fetchRetryMaxtimeout: |-
+                Максимальная пауза перед повторным запросом, в миллисекундах.
+                https://pnpm.io/11.x/settings/network#fetchretrymaxtimeout
+
+            ignorePnpmfile: |-
+                Не выполнять пользовательские pnpmfile hooks, меняющие разрешение зависимостей.
+                https://pnpm.io/11.x/pnpmfile#ignorepnpmfile
+
+            ignoreScripts: |-
+                Lifecycle-скрипты pnpm отключены; сборкой пакетов управляют nots/prebuilder.
+                https://pnpm.io/11.x/settings/build#ignorescripts
+
+            injectWorkspacePackages: |-
+                Зависимости между модулями подключаются через inject.
+                https://pnpm.io/11.x/workspaces#injectworkspacepackages
+
+            sharedWorkspaceLockfile: |-
+                У каждого модуля отдельный lockfile; workspace содержит только корневой проект.
+                Зависимости от других модулей устанавливаются через inject из их каталогов.
+                https://pnpm.io/workspaces#sharedworkspacelockfile
+
+            pmOnFail: |-
+                Не переключать версию pnpm автоматически: инструмент выбирается платформой Tier 0.
+                Не скачивать дополнительный pnpm по packageManager из package.json.
+                https://pnpm.io/11.x/cli/with#pmonfail
+
+            verifyDepsBeforeRun: |-
+                run/exec используют уже подготовленный node_modules без повторного install (pnpm 11).
+                https://pnpm.io/11.x/settings/build#verifydepsbeforerun
+
+            modulesDir: |-
+                Каталог, в котором pnpm размещает node_modules.
+                Builder переопределяет путь, когда node_modules размещён отдельно, например в RAM.
+                https://pnpm.io/11.x/settings/node-modules#modulesdir
+
+            packageImportMethod: |-
+                Способ переноса файлов пакетов из store в node_modules.
+                Builder переключается на copy, если store и node_modules на разных файловых системах.
+                https://pnpm.io/11.x/settings/node-modules#packageimportmethod
+
+            preferSymlinkedExecutables: |-
+                Предпочитать ссылки на исполняемые файлы вместо обёрток.
+                https://pnpm.io/11.x/settings/other#prefersymlinkedexecutables
+
+            preferWorkspacePackages: |-
+                Предпочитать подходящую локальную workspace-версию пакета версии из реестра.
+                https://pnpm.io/11.x/workspaces#preferworkspacepackages
+
+            registry: |-
+                Реестр пакетов Tier 0; авторизация задаётся отдельно от этого файла.
+                https://pnpm.io/11.x/settings/dependency-resolution#registries
+
+            registries: |-
+                Тип внутреннего npm-реестра для распознавания канонических URL scoped-пакетов с %2f.
+                Такие URL не должны записываться в lockfile при lockfileIncludeTarballUrl: false.
+                https://pnpm.io/11.x/settings/dependency-resolution#registries
+
+            shellEmulator: |-
+                Выполнять скрипты pnpm через встроенный эмулятор bash-подобного shell.
+                https://pnpm.io/11.x/settings/other#shellemulator
+
+            updateNotifier: |-
+                Версию pnpm поставляет Tier 0, уведомления об обновлении не нужны.
+                https://pnpm.io/11.x/settings/other#updatenotifier
+
+            verifyStoreIntegrity: |-
+                Сохраняем режим установки без повторной проверки содержимого store.
+                https://pnpm.io/11.x/settings/store#verifystoreintegrity
+
+            gitChecks: |-
+                Не проверять Git-состояние при публикации через nots.
+                https://pnpm.io/11.x/cli/publish#--no-git-checks
+
+            lockfileIncludeTarballUrl: |-
+                Не записывать канонические URL реестра: pnpm и builder восстанавливают их по имени и версии.
+                URL нестандартных источников сохраняются в lockfile.
+                https://pnpm.io/11.x/settings/store#lockfileincludetarballurl
+
+            trustLockfile: |-
+                Доверять URL из lockfile без сверки с изменяемыми метаданными реестра (pnpm 11).
+                Удаление ?rbtorrent= из метаданных не должно ломать установку.
+                https://pnpm.io/11.x/settings/dependency-resolution#trustlockfile
+
+            packages: |-
+                Список пакетов workspace, сформированный nots.
+                При раздельной установке модулей остаётся пустым: зависимости подключаются через inject.
+                https://pnpm.io/11.x/settings#packages
+
+            virtualStoreDir: |-
+                Расположение virtual store с установленными пакетами.
+                Builder вычисляет путь при установке; CLI оставляет выбор pnpm, включая путь global virtual store.
+                https://pnpm.io/11.x/settings/node-modules#virtualstoredir

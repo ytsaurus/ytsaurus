@@ -5,6 +5,7 @@
 #endif
 
 #include "hydra_facade.h"
+#include "multicell_manager.h"
 #include "multicell_statistics_collector.h"
 #include "private.h"
 

@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,9 +45,6 @@ public:
     //! Returns |true| if at least one chunk cache location is enabled.
     bool IsEnabled() const;
 
-    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    TArtifactPtr FindArtifact(NChunkClient::TChunkId chunkId);
-
     //! Returns the list of all registered chunks.
     std::vector<TArtifactPtr> GetArtifacts();
 
@@ -59,16 +58,16 @@ public:
      */
     TFuture<TArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
-        bool* fetchedFromCache = nullptr);
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions);
+        const TArtifactDownloadContext& artifactDownloadContext);
 
     //! Remove chunks from cache.
-    TFuture<void> RemoveArtifactsByLocation(const TCacheLocationPtr& location);
+    TFuture<void> RemoveArtifactsByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);

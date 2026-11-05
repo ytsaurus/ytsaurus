@@ -12,6 +12,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/library/numeric
     yt/yt/client
 )
 

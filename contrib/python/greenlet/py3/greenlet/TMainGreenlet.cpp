@@ -66,6 +66,8 @@ MainGreenlet::thread_state() const noexcept
 void
 MainGreenlet::thread_state(ThreadState* t) noexcept
 {
+    // this method is only used during thread tear down, when it is
+    // called with nullptr, signalling the thread is dead.
     assert(!t);
     this->_thread_state = t;
 }
@@ -118,9 +120,10 @@ MainGreenlet::g_switch()
 int
 MainGreenlet::tp_traverse(visitproc visit, void* arg)
 {
-    if (this->_thread_state) {
+    ThreadState* thread_state = this->_thread_state.load();
+    if (thread_state) {
         // we've already traversed main, (self), don't do it again.
-        int result = this->_thread_state->tp_traverse(visit, arg, false);
+        int result = thread_state->tp_traverse(visit, arg, false);
         if (result) {
             return result;
         }

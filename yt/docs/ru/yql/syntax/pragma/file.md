@@ -75,9 +75,9 @@ SELECT $x;
 ```
 
 В случае указания URL библиотека скачивается с него, а не с предварительного приложенного файла, как в следующем примере:
-{% if audience == "internal"%}
+{% if audience == "internal" %}
 ```yql
-PRAGMA library("a.sql","{{ corporate-paste }}/5618566/text");
+PRAGMA library("a.sql","{{corporate-paste}}/5618566/text");
 IMPORT a SYMBOLS $x;
 SELECT $x;
 ```
@@ -86,7 +86,7 @@ SELECT $x;
 
 ```yql
 DECLARE $_ver AS STRING; -- "5618566"
-PRAGMA library("a.sql","{{ corporate-paste }}/{$_ver}/text");
+PRAGMA library("a.sql","{{corporate-paste}}/{$_ver}/text");
 IMPORT a SYMBOLS $x;
 SELECT $x;
 ```

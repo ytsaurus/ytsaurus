@@ -10,10 +10,12 @@ We have tested YTsaurus builds using Ubuntu 18.04 and 20.04. Other Linux distrib
 Below is a list of packages that need to be installed before building YTsaurus. 'How to Build' section contains step by step instructions to obtain these packages.
 
  - cmake 3.22+
+ - clang-20
+ - lld-20
+ - lldb-20
  - clang-18
- - lld-18
- - lldb-18
- - conan 2.4.1
+ - llvm-18
+ - conan 2.28.1
  - git 2.20+
  - python 3.8+
  - pip3
@@ -22,6 +24,9 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  - libidn11-dev
  - protoc
  - unzip
+
+Clang 20 compiles YTsaurus itself, while Clang/LLVM 18 generates LLVM bitcode
+consumed by the LLVM 18 query codegen runtime.
 
 #### How to Build
 
@@ -32,7 +37,8 @@ Below is a list of packages that need to be installed before building YTsaurus. 
     ```
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add
     curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-18 main" | sudo tee -a /etc/apt/sources.list.d/llvm.list >/dev/null
     echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
     sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 
@@ -58,8 +64,8 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  1. Install dependencies.
 
     ```
-    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-18 lld-18 cmake unzip
-    sudo python3 -m pip install PyYAML==6.0.1 conan==2.4.1 dacite
+    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-20 lld-20 clang-18 llvm-18 cmake unzip
+    sudo python3 -m pip install PyYAML==6.0.1 conan==2.28.1 dacite
     ```
  1. Install protoc.
 

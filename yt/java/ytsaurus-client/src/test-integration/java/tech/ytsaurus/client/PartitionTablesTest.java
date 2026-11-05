@@ -1,6 +1,9 @@
 package tech.ytsaurus.client;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -172,6 +175,64 @@ public class PartitionTablesTest extends YTsaurusClientTestBase {
     }
 
     @Test
+    public void testReadTablePartitionInArrowFormat() throws Exception {
+        YPath arrowTablePath = YPath.simple("//tmp/partition-test-arrow-table");
+        var schema = TableSchema.builder().add(new ColumnSchema("value", TiType.string())).build();
+        yt.createNode(CreateNode.builder()
+                .setPath(arrowTablePath)
+                .setType(CypressNodeType.TABLE)
+                .setAttributes(Map.of("schema", schema.toYTree()))
+                .build()).join();
+
+        TableWriter<YTreeMapNode> writer = yt.writeTable(
+                new WriteTable<>(arrowTablePath, YTreeMapNode.class)
+        ).join();
+        writer.write(List.of(
+                YTree.mapBuilder().key("value").value("value_1").buildMap(),
+                YTree.mapBuilder().key("value").value("value_2").buildMap(),
+                YTree.mapBuilder().key("value").value("value_3").buildMap(),
+                YTree.mapBuilder().key("value").value("value_4").buildMap(),
+                YTree.mapBuilder().key("value").value("value_5").buildMap(),
+                YTree.mapBuilder().key("value").value("value_6").buildMap()
+        ), schema);
+        writer.close().join();
+
+        List<MultiTablePartition> partitionsData = yt.partitionTables(
+                PartitionTables.builder()
+                        .setPaths(List.of(arrowTablePath))
+                        .setPartitionMode(PartitionTablesMode.Unordered)
+                        .setDataWeightPerPartition(DataSize.fromBytes(24))
+                        .setEnableCookies(true)
+                        .build()
+        ).join();
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            for (MultiTablePartition partition : partitionsData) {
+                CreateTablePartitionReader<ByteBuffer> request = CreateTablePartitionReader
+                        .binaryArrowBuilder()
+                        .setCookie(partition.getCookie())
+                        .setUnordered(true)
+                        .build();
+
+                try (AsyncReader<ByteBuffer> reader = yt.createTablePartitionReader(request).join()) {
+                    reader.acceptAllAsync(buffer -> append(output, buffer), executor).join();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        byte[] arrow = output.toByteArray();
+        assertArrowStream(arrow);
+        String rawArrow = new String(arrow, StandardCharsets.ISO_8859_1);
+        for (int index = 1; index <= 6; ++index) {
+            Assert.assertTrue(rawArrow.contains("value_" + index));
+        }
+    }
+
+    @Test
     public void testReadTablePartitionWithCustomClass() throws Exception {
         TableSchema schema = TableSchema.builder()
                 .addValue("stringValue", TiType.string())
@@ -291,6 +352,19 @@ public class PartitionTablesTest extends YTsaurusClientTestBase {
         @Override
         public String toString() {
             return String.format("CustomTableRow{stringValue='%s', intValue=%d}", stringValue, intValue);
+        }
+    }
+
+    private static void append(ByteArrayOutputStream output, ByteBuffer buffer) {
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        output.write(bytes, 0, bytes.length);
+    }
+
+    private static void assertArrowStream(byte[] arrow) {
+        Assert.assertTrue("Arrow stream must contain an IPC continuation marker", arrow.length >= 4);
+        for (int index = 0; index < 4; ++index) {
+            Assert.assertEquals((byte) 0xff, arrow[index]);
         }
     }
 }

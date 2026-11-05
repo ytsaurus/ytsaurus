@@ -200,22 +200,18 @@ class numeric_limits<boost::multiprecision::number<boost::multiprecision::cpp_in
    static constexpr bool has_infinity                  = false;
    static constexpr bool has_quiet_NaN                 = false;
    static constexpr bool has_signaling_NaN             = false;
-#if defined(__clang__) && defined(__has_warning)
-# if __has_warning("-Wdeprecated-declarations")
+#ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable : 4996)
+#elif (defined(__clang__) && (__clang_major__ >= 17))
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wdeprecated-declarations"
-# endif
-#elif defined(_MSC_VER)
-# pragma warning(push)
-# pragma warning(disable:4996)
 #endif
    static constexpr float_denorm_style has_denorm      = denorm_absent;
-#if defined(__clang__) && defined(__has_warning)
-# if __has_warning("-Wdeprecated-declarations")
+#ifdef _MSC_VER
+#pragma warning(pop)
+#elif (defined(__clang__) && (__clang_major__ >= 17))
 #  pragma clang diagnostic pop
-# endif
-#elif defined(_MSC_VER)
-# pragma warning(pop)
 #endif
    static constexpr bool               has_denorm_loss = false;
    static BOOST_CXX14_CONSTEXPR_IF_DETECTION number_type                        infinity() { return 0; }

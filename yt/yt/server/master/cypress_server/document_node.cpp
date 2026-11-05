@@ -35,7 +35,7 @@ void TDocumentNode::Load(NCellMaster::TLoadContext& context)
     TCypressNode::Load(context);
 
     using NYT::Load;
-    auto serializedValue = Load<TString>(context);
+    auto serializedValue = Load<std::string>(context);
     Value_ = ConvertToNode(TYsonString(serializedValue));
 }
 

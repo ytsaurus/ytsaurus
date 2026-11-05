@@ -10,8 +10,8 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TableServerLogger, "TableServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TableServerProfiler, "/table_server");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TableServerLogger, "TableServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TableServerProfiler, "/table_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

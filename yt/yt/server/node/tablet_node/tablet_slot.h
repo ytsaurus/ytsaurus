@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_cache_controller.h"
 
 #include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
@@ -42,6 +43,7 @@ struct ITabletAutomatonHost
     virtual NHydra::TCellId GetCellId() = 0;
     virtual const IInvokerPtr& GetAsyncSnapshotInvoker() = 0;
     virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
+    virtual const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletAutomatonHost);
@@ -94,7 +96,8 @@ struct ITabletSlot
         TCellId siblingCellId) = 0;
 
     virtual void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) = 0;
 
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;
     virtual void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) = 0;
@@ -125,6 +128,8 @@ struct ITabletSlot
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 
     virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
+
+    virtual TFuture<TRowCacheControllerContext> GetRowCacheControllerContext() = 0;
 
     virtual bool IsTabletEpochActive() const = 0;
 

@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -17,7 +17,7 @@ TGroup::TGroup(
     const NLogging::TLogger& Logger)
     : Id_(id)
     , OnGroupEmptied_(std::move(onGroupEmptied))
-    , Logger(Logger().WithTag("GroupId: %v", Id_))
+    , Logger(Logger().WithTag("GroupId", Id_))
 { }
 
 TMemberPtr TGroup::AddOrUpdateMember(
@@ -26,9 +26,9 @@ TMemberPtr TGroup::AddOrUpdateMember(
     TDuration leaseTimeout,
     bool respectLimits)
 {
-    YT_LOG_DEBUG("Updating member (MemberId: %v, LeaseTimeout: %v)",
-        memberInfo.Id,
-        leaseTimeout);
+    YT_TLOG_DEBUG("Updating member")
+        .With("MemberId", memberInfo.Id)
+        .With("LeaseTimeout", leaseTimeout);
 
     {
         auto readerGuard = ReaderGuard(MembersLock_);
@@ -50,9 +50,9 @@ TMemberPtr TGroup::AddOrUpdateMember(
                 "Cannot add member %v to group %v: member limit exceeded",
                 memberInfo.Id,
                 Id_)
-                << TErrorAttribute("group", memberInfo.Id)
-                << TErrorAttribute("member_count", std::ssize(Members_))
-                << TErrorAttribute("max_members_per_group", groupManagerInfo.Config->MaxMembersPerGroup);
+                .With("group", memberInfo.Id)
+                .With("member_count", std::ssize(Members_))
+                .With("max_members_per_group", groupManagerInfo.Config->MaxMembersPerGroup);
         }
     }
 
@@ -71,13 +71,15 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
             return;
         }
 
-        YT_LOG_DEBUG("Member lease expired (MemberId: %v)", memberId);
+        YT_TLOG_DEBUG("Member lease expired")
+            .With("MemberId", memberId);
 
         auto guard = WriterGuard(MembersLock_);
 
         auto it = IdToMember_.find(memberId);
         if (it == IdToMember_.end()) {
-            YT_LOG_WARNING("Member is already deleted from group (MemberId: %v)", memberId);
+            YT_TLOG_WARNING("Member is already deleted from group")
+                .With("MemberId", memberId);
             return;
         }
 
@@ -97,9 +99,9 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
     Members_.insert(member);
     IdToMember_.emplace(member->GetId(), member);
 
-    YT_LOG_DEBUG("Member added (MemberId: %v, LeaseTimeout: %v)",
-        memberInfo.Id,
-        leaseTimeout);
+    YT_TLOG_DEBUG("Member added")
+        .With("MemberId", memberInfo.Id)
+        .With("LeaseTimeout", leaseTimeout);
 
     return member;
 }

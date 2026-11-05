@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NConcurrency {
 
@@ -30,13 +30,13 @@ private:
     const TCallback<TFuture<T>()> Provider_;
     const TDuration BatchingDelay_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TPromise<T> ActivePromise_;
     TPromise<T> PendingPromise_;
     bool DeadlineReached_ = false;
 
     void OnDeadlineReached();
-    void DoRun(TGuard<NThreading::TSpinLock>& guard);
+    void DoRun(TGuard<TSpinLock>& guard);
     void OnResult(const TErrorOr<T>& result);
 };
 

@@ -9,8 +9,8 @@
 
 #include <library/cpp/yt/memory/memory_tag.h>
 
-#include <library/cpp/yt/threading/at_fork.h>
-#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+#include <library/cpp/yt/system/at_fork.h>
+#include <library/cpp/yt/system/fork_aware_spin_lock.h>
 
 #include <library/cpp/yt/memory/free_list.h>
 
@@ -888,7 +888,7 @@ public:
     }
 
 protected:
-    NThreading::TForkAwareSpinLock EventLock_;
+    TForkAwareSpinLock EventLock_;
 
     virtual void OnEvent(const TEvent& event) = 0;
 
@@ -1551,7 +1551,7 @@ struct TTotalCounters
     std::array<std::unique_ptr<TTaggedTotalCounterSet<TCounter>>, MaxTaggedCounterSets> TaggedCounterSetHolders;
 
     // Protects TaggedCounterSetHolders from concurrent updates.
-    NThreading::TForkAwareSpinLock TaggedCounterSetsLock;
+    TForkAwareSpinLock TaggedCounterSetsLock;
 
     // Returns null if the set is not yet constructed.
     Y_FORCE_INLINE TTaggedTotalCounterSet<TCounter>* FindTaggedCounterSet(size_t index) const
@@ -1769,7 +1769,7 @@ public:
     {
         pthread_key_create(&ThreadDtorKey_, DestroyThread);
 
-        NThreading::RegisterAtForkHandlers(
+        RegisterAtForkHandlers(
             nullptr,
             nullptr,
             [=, this] { AfterFork(); });
@@ -1986,7 +1986,7 @@ private:
     static constexpr size_t ThreadStatesBatchSize = 1;
     TSystemPool<TThreadState, ThreadStatesBatchSize> ThreadStatePool_;
 
-    NThreading::TForkAwareSpinLock ThreadRegistryLock_;
+    TForkAwareSpinLock ThreadRegistryLock_;
     TIntrusiveLinkedList<TThreadState, TThreadStateToRegistryNode> ThreadRegistry_;
 };
 
@@ -2084,7 +2084,7 @@ private:
 
     std::array<std::array<std::atomic<ui32>, BucketSize>, BucketCount> Fingerprints_= {};
     std::array<std::array<std::atomic<TMemoryTag>, BucketSize>, BucketCount> MemoryTags_ = {};
-    std::array<NThreading::TForkAwareSpinLock, BucketCount> BucketLocks_;
+    std::array<TForkAwareSpinLock, BucketCount> BucketLocks_;
     std::atomic<TMemoryTag> CurrentMemoryTag_ = AllocationProfilingMemoryTagBase;
 
     struct TBacktraceEntry
@@ -2791,7 +2791,7 @@ private:
     ESmallChunkState* ChunkStateZoneStart_;
 #endif
 
-    NThreading::TForkAwareSpinLock ExtentLock_;
+    TForkAwareSpinLock ExtentLock_;
     std::atomic<char*> CurrentPtr_ = nullptr;
     std::atomic<char*> CurrentExtent_ = nullptr;
 
@@ -4128,7 +4128,7 @@ public:
     TBackgroundThreadBase()
         : State_(new TState())
     {
-        NThreading::RegisterAtForkHandlers(
+        RegisterAtForkHandlers(
             [=, this] { BeforeFork(); },
             [=, this] { AfterForkParent(); },
             [=, this] { AfterForkChild(); });

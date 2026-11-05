@@ -202,6 +202,8 @@ struct TDynamicObjectServiceConfig
     //! This throttler is acquired simultaneously with per-user request throttling.
     NConcurrency::TThroughputThrottlerConfigPtr LocalWriteRequestThrottler;
 
+    int MaxVectorizedReadRequestSize;
+
     TDynamicObjectServiceTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);

@@ -46,7 +46,7 @@ class _QuietException(Exception):
         pass
 
 
-class _ExceptionLoggingContext(object):
+class _ExceptionLoggingContext:
     """Used with the ``with`` statement when calling delegate methods to
     log any exceptions with the given logger.  Any exceptions caught are
     converted to _QuietException
@@ -66,11 +66,14 @@ class _ExceptionLoggingContext(object):
     ) -> None:
         if value is not None:
             assert typ is not None
+            # Let HTTPInputError pass through to higher-level handler
+            if isinstance(value, httputil.HTTPInputError):
+                return None
             self.logger.error("Uncaught exception", exc_info=(typ, value, tb))
             raise _QuietException
 
 
-class HTTP1ConnectionParameters(object):
+class HTTP1ConnectionParameters:
     """Parameters for `.HTTP1Connection` and `.HTTP1ServerConnection`."""
 
     def __init__(
@@ -179,7 +182,9 @@ class HTTP1Connection(httputil.HTTPConnection):
         been read. The result is true if the stream is still open.
         """
         if self.params.decompress:
-            delegate = _GzipMessageDelegate(delegate, self.params.chunk_size)
+            delegate = _GzipMessageDelegate(
+                delegate, self.params.chunk_size, self._max_body_size
+            )
         return self._read_message(delegate)
 
     async def _read_message(self, delegate: httputil.HTTPMessageDelegate) -> bool:
@@ -389,7 +394,7 @@ class HTTP1Connection(httputil.HTTPConnection):
         if self.is_client:
             assert isinstance(start_line, httputil.RequestStartLine)
             self._request_start_line = start_line
-            lines.append(utf8("%s %s HTTP/1.1" % (start_line[0], start_line[1])))
+            lines.append(utf8(f"{start_line[0]} {start_line[1]} HTTP/1.1"))
             # Client requests with a non-empty body must have either a
             # Content-Length or a Transfer-Encoding. If Content-Length is not
             # present we'll add our Transfer-Encoding below.
@@ -702,9 +707,16 @@ class HTTP1Connection(httputil.HTTPConnection):
 class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
     """Wraps an `HTTPMessageDelegate` to decode ``Content-Encoding: gzip``."""
 
-    def __init__(self, delegate: httputil.HTTPMessageDelegate, chunk_size: int) -> None:
+    def __init__(
+        self,
+        delegate: httputil.HTTPMessageDelegate,
+        chunk_size: int,
+        max_body_size: int,
+    ) -> None:
         self._delegate = delegate
         self._chunk_size = chunk_size
+        self._max_body_size = max_body_size
+        self._decompressed_body_size = 0
         self._decompressor = None  # type: Optional[GzipDecompressor]
 
     def headers_received(
@@ -729,6 +741,9 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
                     compressed_data, self._chunk_size
                 )
                 if decompressed:
+                    self._decompressed_body_size += len(decompressed)
+                    if self._decompressed_body_size > self._max_body_size:
+                        raise httputil.HTTPInputError("decompressed body too large")
                     ret = self._delegate.data_received(decompressed)
                     if ret is not None:
                         await ret
@@ -761,7 +776,7 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
         return self._delegate.on_connection_close()
 
 
-class HTTP1ServerConnection(object):
+class HTTP1ServerConnection:
     """An HTTP/1.x server."""
 
     def __init__(

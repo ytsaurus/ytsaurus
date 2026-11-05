@@ -1,16 +1,92 @@
 ## Java SDK
 
 
-Is released as packages in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
+Is released as packages in [Maven Central](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
 
 
 
 
 **Releases:**
 
+{% cut "**1.2.17**" %}
+
+**Release date:** 2026-07-30
+
+
+**Release page:** [1.2.17](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.17)
+
+
+**Maven Central:** [1.2.17](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.17)
+
+
+#### Features:
+- Retry `DirectYTsaurusClient` requests according to the `RetryPolicy` configured in `RpcOptions` [ee088b1a3638d4a5fbac3f639dc7c09c6d068d06]
+- Support `diskRequest` in `CommandSpec`, `MapperSpec` and `ReducerSpec` [00ea7fe0dc346a7180c949b801dad6d83f6714f3]
+- Support `UnregisterQueueConsumer` [ce1ba0db13680be6bd9992af8c7a096d44488c42]
+- Support push-based shuffle API: `setUsePushBasedShuffle` and `setSchema` in `StartShuffle` [ad2c6fde1ee188486068fe4a69a379189128c688]
+- Add `pushConfig` option to `StartShuffle` [4f334f912cfc1c685c552835da64640db126ff3e]
+- Support prerequisite transactions on `CommitTransaction` [b066ec2b7323a4e5deb7b4aaf64e96119f9814da]
+- Add `QUEUE_CONSUMER` and `QUEUE_PRODUCER` to `CypressNodeType` [a024c95be7715d9ddaa18cac5928180d49dc41fa]
+
+#### Fixes:
+- Fixed per-request timeout being ignored in `FailoverRpcExecutor`; `RpcOptions.globalTimeout` is now a default that a request can override [b099c481764411645ed1aa75945c70a5e259fa85]
+- Fixed `TableSchema.toBuilder()` mutating the original schema [700962be850e6822345eb7fae54a6c0cf97255d0]
+- Speed up `String` serialization in `YsonBinaryWriter` by avoiding a per-string byte array copy [e19476ee14816744efc6949761490ca9ac0dc14b]
+- Fixed possible native memory leak in `ZlibCodec` [f836bf83ae4eb80d34475c11edd4bdfaa46d3112]
+
+{% endcut %}
+
+
+{% cut "**1.2.16**" %}
+
+**Release date:** 2026-05-25
+
+
+**Release page:** [1.2.16](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.16)
+
+
+**Maven Central:** [1.2.16](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.16)
+
+
+#### Features:
+- Move `YTreeSerializers` to `ytsaurus-client-core` module [55bf34b0a413399870c1c576fb634a04ed87b38b]
+- Add attributes filter to `GetJob` [05667697aa625b51df7055d9f737354d98b5055a]
+- Match `Tuple` and `Variant` to `COMPOSITE` type for typeV3 [9fd9d56162bb039ede5e1722ed2980a8bbcb92f9]
+
+{% endcut %}
+
+
+{% cut "**1.2.15**" %}
+
+**Release date:** 2026-04-29
+
+
+**Release page:** [1.2.15](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.15)
+
+
+**Maven Central:** [1.2.15](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.15)
+
+
+#### Features:
+- Support `AttachTransaction` [30d8fa3bd2fd17ca2277517f2928dec06da15199]
+- Implement `SuppressableAccessTrackingOptions` [45cea080eace9c29a05fe693166abc9250d8f5b1]
+- Support compressed data size parameter in `PartitionTables` method [212229494209279cdea52254cc1af67369ff08f2]
+
+#### Fixes:
+- Fixed NPE in stream writer when `onPayload` arrives before `onStartStream` [7e625a51db05eb717f010ce00b33e135de029268]
+
+{% endcut %}
+
+
 {% cut "**1.2.14**" %}
 
 **Release date:** 2026-03-25
+
+
+**Release page:** [1.2.14](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.14)
+
+
+**Maven Central:** [1.2.14](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.14)
 
 
 #### Features:
@@ -32,6 +108,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2026-02-16
 
 
+**Release page:** [1.2.13](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.13)
+
+
+**Maven Central:** [1.2.13](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.13)
+
+
 #### Features:
 - Support `Short` in `YTreeBuilder`.
 - Add `findByCode` to `YTsaurusErrorCode`.
@@ -49,6 +131,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2025-12-11
 
 
+**Release page:** [1.2.12](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.12)
+
+
+**Maven Central:** [1.2.12](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.12)
+
+
 #### Features
 * Add methods lookupRowsV2, versionedLookupRowsV2 and multiLookupRowsV2 with partial result support.
 * Support 'omit\_inaccessible\_rows' flag in read\_table and read\_table\_partition API calls.
@@ -63,6 +151,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.11**" %}
 
 **Release date:** 2025-10-23
+
+
+**Release page:** [1.2.11](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.11)
+
+
+**Maven Central:** [1.2.11](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.11)
 
 
 #### Features
@@ -87,6 +181,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2025-07-17
 
 
+**Release page:** [1.2.10](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.10)
+
+
+**Maven Central:** [1.2.10](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.10)
+
+
 * Add `range` to `CreateShuffleReader`.
 * Add `writerIndex`, `overwriteExistingWriterData` to `CreateShuffleWriter`.
 * Minor fixes and improvements to error messages.
@@ -97,6 +197,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.9**" %}
 
 **Release date:** 2025-04-08
+
+
+**Release page:** [1.2.9](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.9)
+
+
+**Maven Central:** [1.2.9](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.9)
 
 
 * Add `fullResult` to `QueryResult`.
@@ -117,6 +223,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2025-01-23
 
 
+**Release page:** [1.2.8](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.8)
+
+
+**Maven Central:** [1.2.8](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.8)
+
+
 * Update protobuf to 3.25.5 version.
 * Support for the ability to use a custom `TableRowsSerializer` provided through the `SerializationContext`.
 * Change protobuf type of `YPath` and `RichYPath` parameters: `string` -> `bytes`.
@@ -128,6 +240,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.7**" %}
 
 **Release date:** 2024-11-25
+
+
+**Release page:** [1.2.7](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.7)
+
+
+**Maven Central:** [1.2.7](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.7)
 
 
 * Add the `RequestMiddleware` interface to subscribe on request start.
@@ -145,6 +263,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2024-09-05
 
 
+**Release page:** [1.2.6](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.6)
+
+
+**Maven Central:** [1.2.6](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.6)
+
+
 * `YsonJsonConverter` has been released.
 * Support for `Date32`, `Datetime64`, `Timestamp64`, `Interval64` types.
 * Fixed a bug that caused `writeTable` to fail if the table schema did not match the user-specified schema.
@@ -155,6 +279,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.5**" %}
 
 **Release date:** 2024-08-20
+
+
+**Release page:** [1.2.5](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.5)
+
+
+**Maven Central:** [1.2.5](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.5)
 
 
 * Added MultiYTsaurusClient.
@@ -170,6 +300,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2024-06-18
 
 
+**Release page:** [1.2.4](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.4)
+
+
+**Maven Central:** [1.2.4](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.4)
+
+
 * Support for JPA `@Embedded`/`@Embeddable` annotations.
 * Support for URL schema to detect the usage of TLS.
 * Implemented YT Query Tracker API methods.
@@ -181,6 +317,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.3**" %}
 
 **Release date:** 2024-05-27
+
+
+**Release page:** [1.2.3](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.3)
+
+
+**Maven Central:** [1.2.3](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.3)
 
 
 * Introduced `DiscoveryClient`.
@@ -199,6 +341,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2024-04-11
 
 
+**Release page:** [1.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.2)
+
+
+**Maven Central:** [1.2.2](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.2)
+
+
 * Supported placeholder values in SelectRowsRequest.
 * Supported specifying the proxy network name.
 * Supported set(Input/Output)Format in CommandSpec.
@@ -211,6 +359,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.2.1**" %}
 
 **Release date:** 2024-01-29
+
+
+**Release page:** [1.2.1](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.1)
+
+
+**Maven Central:** [1.2.1](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.1)
 
 
 * Supported serializable mapper/reducer.
@@ -227,6 +381,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 **Release date:** 2023-09-18
 
 
+**Release page:** [1.2.0](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.0)
+
+
+**Maven Central:** [1.2.0](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.0)
+
+
 - Fixed a bug that caused `SyncTableReaderImpl` internal threads would not terminate.
 - In the `WriteTable` request, the `needRetries` option is set to `true` by default.
 - The `WriteTable` request has `builder(Class)` now; using it, you can omit the `SerializationContext` if the class is marked with the `@Entity` annotation, implements the `com.google.protobuf.Message` or `tech.ytsaurus.ysontree.YTreeMapNode` interface (serialization formats will be `skiff`, `protobuf` or `wire` respectively).
@@ -240,6 +400,12 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 {% cut "**1.1.1**" %}
 
 **Release date:** 2023-07-26
+
+
+**Release page:** [1.1.1](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.1.1)
+
+
+**Maven Central:** [1.1.1](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.1.1)
 
 
 - Fixed validation of `@Entity` schemas: reading a subset of table columns, a superset of columns (if the types of the extra columns are `nullable`), writing a subset of columns (if the types of the missing columns are `nullable`).

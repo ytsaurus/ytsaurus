@@ -12,7 +12,9 @@ SRCS(
     cypress_proxy_service_base.cpp
     cypress_transaction_service.cpp
     dynamic_config_manager.cpp
+    embedded_api_service.cpp
     helpers.cpp
+    internal_api_service.cpp
     master_connector.cpp
     master_proxy.cpp
     node_proxy.cpp
@@ -47,6 +49,8 @@ PEERDIR(
     yt/yt/server/lib/misc
     yt/yt/server/lib/object_server
     yt/yt/server/lib/cypress_proxy
+    yt/yt/server/lib/rpc_proxy
+    yt/yt/server/lib/security_server
     yt/yt/server/lib/sequoia
     yt/yt/server/lib/cross_cluster_replicated_state
 )

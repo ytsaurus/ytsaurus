@@ -7,14 +7,108 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions: write-all
+    env:
+      src-root: "./yt/docs"
+      build-root: "./_docs-build"
+      lint-root: "./_docs-lint"
+      revision: "${{ github.sha }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build
-        uses: diplodoc-platform/docs-build-action@v3
+
+      - name: Checkout SPYT examples
+        uses: actions/checkout@v4
         with:
-          revision: "${{ github.sha }}"
-          src-root: "./yt/docs"
+          repository: ytsaurus/ytsaurus-spyt
+          ref: f3cc97cd1aa9acb5c2f98a54f11e0c53d5b90cf2
+          path: yt/spark/spark-over-yt
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install diplodoc
+        run: npm install -g @diplodoc/cli@stable
+        shell: bash
+
+      - name: Check docs sources
+        run: bash .github/scripts/check_docs_sources.sh "$GITHUB_WORKSPACE"
+        shell: bash
+
+      - name: Check PDF generation is disabled
+        run: |
+          pdf_enabled=$(yq -r '.docs-viewer.pdf // false' < ${{ env.src-root }}/.yfm)
+          if [ "$pdf_enabled" = "true" ]; then
+            echo "docs-viewer.pdf is enabled, but this workflow does not build PDF"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Build md2html
+        id: build-md2html
+        run: |
+          set -o pipefail
+          exitcode=0
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --arcadia-root "$GITHUB_WORKSPACE" 2>&1 | tee './build-html.log' || exitcode=$?
+
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Build md2md
+        id: build-md2md
+        run: |
+          set -o pipefail
+          exitcode=0
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
+          rm -rf "${{ env.build-root }}/.ya-make-input"
+
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Save inputs
+        run: |
+          mkdir -p ./inputs
+          echo ${{ env.revision }} > ./inputs/revision
+          echo ${{ github.event.number }} > ./inputs/pr-number
+        shell: bash
+
+      - name: Upload inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: inputs
+          path: inputs/
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-md
+          include-hidden-files: true
+          path: ${{ env.build-root }}
+          retention-days: 1
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-html
+          path: ./build-html.log
+          retention-days: 1
+
+      - name: Exit
+        run: |
+          html_exitcode=${{ steps.build-md2html.outputs.exitcode }}
+          md_exitcode=${{ steps.build-md2md.outputs.exitcode }}
+
+          if [ "$html_exitcode" -eq 0 ] && [ "$md_exitcode" -eq 0 ]; then
+              echo "Build exited successfully."
+          else
+            echo "Build exited with an error. HTML exit code: $html_exitcode, MD exit code: $md_exitcode"
+            exit 1
+          fi
+        shell: bash
+
       - name: Check cli version
         run: npm view @diplodoc/cli version
 

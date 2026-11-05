@@ -1166,23 +1166,27 @@ private:
 std::pair<TTimestamp, TTimestamp> GetPivotTimestamps(TTimestamp currentTimestamp, TRetentionConfigPtr config)
 {
     if (!config) {
-        return {0, 0};
+        return {NullTimestamp, NullTimestamp};
     }
 
     auto minTtl = config->MinDataTtl.Seconds() << NTransactionClient::TimestampCounterWidth;
     auto maxTtl = config->MaxDataTtl.Seconds() << NTransactionClient::TimestampCounterWidth;
 
-    auto allVersionsTimestamp = currentTimestamp > minTtl ? currentTimestamp - minTtl : 0;
+    auto allVersionsTimestamp = currentTimestamp.Underlying() > minTtl
+        ? TTimestamp(currentTimestamp.Underlying() - minTtl)
+        : NullTimestamp;
 
     TTimestamp retentionTimestamp;
     if (config->MinDataVersions > 0) {
-        retentionTimestamp = 0;
+        retentionTimestamp = NullTimestamp;
     } else {
         // Consider config->MaxDataTtl as config->MaxDataTtl + config->MinDataTtl to guarantee stable
         // repeatable read.
         maxTtl += minTtl;
 
-        retentionTimestamp = currentTimestamp > maxTtl ? currentTimestamp - maxTtl : 0;
+        retentionTimestamp = currentTimestamp.Underlying() > maxTtl
+            ? TTimestamp(currentTimestamp.Underlying() - maxTtl)
+            : NullTimestamp;
     }
 
     return {retentionTimestamp, allVersionsTimestamp};
@@ -1292,7 +1296,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                         .ComparisonOperator = watermarkRuntimeDataConfig.ComparisonOperator,
                     };
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to prepare watermark runtime data");
+                    YT_TLOG_ERROR("Failed to prepare watermark runtime data")
+                        .With(ex);
                     watermarkRuntimeData = std::nullopt;
                 }
             }

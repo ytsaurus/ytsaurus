@@ -31,7 +31,11 @@ struct TSequoiaTransactionFeatures
 {
     std::optional<bool> UseSharedWriteLocksForCypressTransactions;
     std::optional<bool> CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
+
+    bool operator==(const TSequoiaTransactionFeatures&) const noexcept = default;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TSequoiaTransactionFeatures& features, TStringBuf /*spec*/);
 
 struct TSequoiaTransactionOptions
 {
@@ -41,6 +45,7 @@ struct TSequoiaTransactionOptions
     bool SequenceTabletCommitSessions = false;
     bool EnableVerboseLogging = false;
     bool SuppressStronglyOrderedTransactionBarrier = false;
+    bool RetrySequoiaRetriableErrors = true;
     TSequoiaTransactionFeatures Features = {};
 };
 

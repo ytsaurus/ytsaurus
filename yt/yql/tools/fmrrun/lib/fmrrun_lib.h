@@ -19,6 +19,8 @@ protected:
     TString FmrCoordinatorServerUrl_;
     bool DisableLocalFmrWorker_ = false;
     TString FmrJobBin_;
+    TString CoordinatorYsonPath_;
+    TString WorkerYsonPath_;
 
 private:
     NFmr::IFmrWorker::TPtr FmrWorker_;

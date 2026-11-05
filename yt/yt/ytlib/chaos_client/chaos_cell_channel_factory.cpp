@@ -38,9 +38,8 @@ public:
                 .Item("cell_tag").Value(cellTag)
             .EndMap()))
         , Logger(ChaosClientLogger()
-            .WithTag("ProviderId: %v, CellTag: %v",
-                TGuid::Create(),
-                cellTag))
+            .WithTag("ProviderId", TGuid::Create())
+            .WithTag("CellTag", cellTag))
     {
         synchronizer->AddCellTag(cellTag);
 
@@ -61,7 +60,7 @@ public:
     {
         auto channel = CellDirectory_->FindChannelByCellTag(CellTag_, PeerKind_);
         if (!channel) {
-            YT_LOG_DEBUG("No chaos cell channel found");
+            YT_TLOG_DEBUG("No chaos cell channel found");
             return MakeFuture<IChannelPtr>(TError(
                 NRpc::EErrorCode::TransientFailure,
                 "No cell with tag %v is known",

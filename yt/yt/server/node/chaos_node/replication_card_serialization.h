@@ -1,5 +1,7 @@
 #include "public.h"
 
+#include <yt/yt/server/node/chaos_node/chaos_manager.pb.h>
+
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt_proto/yt/client/chaos_client/proto/replication_card.pb.h>
@@ -22,6 +24,15 @@ void ToProto(
     NChaosClient::NProto::TReplicationCard* protoReplicationCard,
     const NChaosNode::TReplicationCard& replicationCard,
     const NChaosClient::TReplicationCardFetchOptions& fetchOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NChaosNode::NProto::TSecondaryIndexPendingTransition* serialized,
+    const NChaosNode::TSecondaryIndexPendingTransitionPtr& original);
+void FromProto(
+    NChaosNode::TSecondaryIndexPendingTransitionPtr* original,
+    const NChaosNode::NProto::TSecondaryIndexPendingTransition& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,23 +1,37 @@
 #pragma once
 
-#include "dq_opt.h"
-
 #include <contrib/ydb/library/yql/dq/common/dq_common.h>
-#include <yql/essentials/core/yql_expr_optimize.h>
-#include <yql/essentials/core/cbo/cbo_optimizer_new.h>
+#include <contrib/ydb/library/yql/dq/expr_nodes/dq_expr_nodes.h>
+
+#include <yql/essentials/ast/yql_expr.h>
+#include <yql/essentials/core/expr_nodes/yql_expr_nodes.h>
+#include <yql/essentials/core/expr_nodes_gen/yql_expr_nodes_gen.h>
+#include <yql/essentials/core/yql_cost_function.h>
+
+#include <functional>
 
 namespace NYql {
 
-struct TOptimizerStatistics;
+class IOptimizationContext;
+struct TTypeAnnotationContext;
 struct TRelOptimizerNode;
+struct TOptimizerStatistics;
 
 namespace NDq {
 
-NNodes::TExprBase DqRewriteEquiJoin(const NNodes::TExprBase& node, EHashJoinMode mode, bool useCBO, TExprContext& ctx, TTypeAnnotationContext& typeCtx, const TOptimizerHints& hints = {});
+struct TEquiJoinCallbacks {
+    std::function<EJoinAlgoType(const TVector<TString>&)>   GetAlgoHint       = {};
+    std::function<void(const TVector<TString>&)>            OnAlgoHintApplied = {};
+    std::function<void(const TExprNode*, const TExprNode*)> TransferStats     = {};
+};
 
-NNodes::TExprBase DqRewriteEquiJoin(const NNodes::TExprBase& node, EHashJoinMode mode, bool useCBO, TExprContext& ctx, TTypeAnnotationContext& typeCtx, int& joinCounter, const TOptimizerHints& hints = {});
+NNodes::TMaybeNode<NNodes::TExprBase> DqRewriteEquiJoin(const NNodes::TExprBase& node, EHashJoinMode mode, bool useCBO, TExprContext& ctx, TTypeAnnotationContext& typeCtx, const TEquiJoinCallbacks& callbacks = {});
 
-NNodes::TExprBase DqBuildPhyJoin(const NNodes::TDqJoin& join, bool pushLeftStage, TExprContext& ctx, IOptimizationContext& optCtx, bool useGraceCoreForMap, bool buildCollectStage=true);
+NNodes::TMaybeNode<NNodes::TExprBase> DqRewriteEquiJoin(const NNodes::TExprBase& node, EHashJoinMode mode, bool useCBO, TExprContext& ctx, TTypeAnnotationContext& typeCtx, int& joinCounter, const TEquiJoinCallbacks& callbacks = {});
+
+NNodes::TExprBase DqBuildPhyJoin(const NNodes::TDqJoin& join, bool pushLeftStage, TExprContext& ctx, IOptimizationContext& optCtx, bool useGraceCoreForMap, bool buildCollectStage=true, bool useScalarHashJoinForMap = false);
+
+bool DqCanUseScalarHashJoin(const NNodes::TDqJoin& join, TExprContext& ctx);
 
 NNodes::TExprBase DqBuildJoin(
     const NNodes::TExprBase& node,
@@ -26,6 +40,7 @@ NNodes::TExprBase DqBuildJoin(
     const TParentsMap& parentsMap,
     bool allowStageMultiUsage,
     bool pushLeftStage,
+    TTypeAnnotationContext& typeCtx,
     EHashJoinMode hashJoin = EHashJoinMode::Off,
     bool shuffleMapJoin = true,
     bool useGraceCoreForMap = false,
@@ -33,10 +48,27 @@ NNodes::TExprBase DqBuildJoin(
     bool shuffleElimination = false,
     bool shuffleEliminationWithMap = false,
     bool buildCollectStage=true,
-    bool blockHashJoinBuildSideLeft = false
+    bool blockHashJoinBuildSideLeft = false,
+    bool useScalarHashJoin = false,
+    bool useScalarHashJoinForMap = false
 );
 
-NNodes::TExprBase DqBuildHashJoin(const NNodes::TDqJoin& join, EHashJoinMode mode, TExprContext& ctx, IOptimizationContext& optCtx, bool shuffleElimination, bool shuffleEliminationWithMap, bool useBlockHashJoin = false, bool blockHashJoinBuildSideLeft = false);
+NNodes::TExprBase DqBuildHashJoin(
+    const NNodes::TDqJoin& join,
+    EHashJoinMode mode,
+    TExprContext& ctx,
+    IOptimizationContext& optCtx,
+    TTypeAnnotationContext& typeCtx,
+    bool shuffleElimination,
+    bool shuffleEliminationWithMap,
+    bool useBlockHashJoin = false,
+    bool blockHashJoinBuildSideLeft = false,
+    bool useScalarHashJoin = false);
+
+TVector<NNodes::TCoNameValueTuple> BuildBlockHashJoinSettings(
+    TPositionHandle pos,
+    EJoinAlgoType joinAlgo,
+    TExprContext& ctx);
 
 NNodes::TExprBase DqBuildBlockHashJoin(const NNodes::TDqJoin& join, TExprContext& ctx);
 
@@ -50,7 +82,7 @@ bool DqCollectJoinRelationsWithStats(
     const NNodes::TCoEquiJoin& equiJoin,
     const std::function<void(TVector<std::shared_ptr<TRelOptimizerNode>>&, TStringBuf, const TExprNode::TPtr, const std::shared_ptr<TOptimizerStatistics>&)>& collector);
 
-NNodes::TExprBase DqRewriteStreamEquiJoinWithLookup(const NNodes::TExprBase& node, TExprContext& ctx, TTypeAnnotationContext& typeCtx);
+NNodes::TExprBase DqRewriteStreamEquiJoinWithLookup(const NNodes::TExprBase& node, TExprContext& ctx, TTypeAnnotationContext& typeCtx, std::function<TExprNode::TPtr(const NNodes::TExprBase&, TExprContext&)> lookupFromExtra = {});
 
 } // namespace NDq
 } // namespace NYql

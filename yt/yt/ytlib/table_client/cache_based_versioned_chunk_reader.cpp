@@ -36,6 +36,7 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/compression/codec.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 
@@ -44,6 +45,7 @@ using namespace NChunkClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 using namespace NQueryClient;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,8 +235,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
-            blockId);
+        YT_TLOG_FATAL("Cached block is missing")
+            .With("BlockId", blockId);
     }
 };
 
@@ -509,7 +511,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableUnversionedSchemalessHorizontal: {
-            auto chunkTimestamp = chunkMeta->Misc().min_timestamp();
+            auto chunkTimestamp = FromProto<NTransactionClient::TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
             }

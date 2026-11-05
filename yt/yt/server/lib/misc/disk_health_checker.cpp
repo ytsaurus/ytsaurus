@@ -20,7 +20,7 @@ using namespace NLogging;
 
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
-    const TString& path,
+    const std::string& path,
     IInvokerPtr invoker,
     TLogger logger,
     const TProfiler& profiler)
@@ -36,7 +36,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
         Config_.Acquire()->CheckPeriod))
 {
-    Logger.AddTag("Path: %v", Path_);
+    Logger.AddTag("Path", Path_);
 }
 
 void TDiskHealthChecker::Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig)
@@ -133,25 +133,27 @@ void TDiskHealthChecker::OnCheckCompleted(const TError& error)
     auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
         ? TError("Disk health check timed out at %v", Path_)
         : error;
-    YT_LOG_ERROR(actualError);
+    YT_TLOG_ERROR("Disk health check failed")
+        .With(actualError);
 
     Failed_.Fire(actualError);
 }
 
 void TDiskHealthChecker::DoRunCheck()
 {
-    YT_LOG_DEBUG("Disk health check started");
+    YT_TLOG_DEBUG("Disk health check started");
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
-        TError lockFileError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found");
+        auto lockFileError = TError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found")
+            .With("path", lockFilePath);
         TString fileContents;
         try {
             fileContents = TFileInput(lockFilePath).ReadAll();
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed to extract error from location lock file");
-            lockFileError <<= TError("Failed to extract error from location lock file")
-                << TErrorAttribute("path", lockFilePath)
-                << ex;
+            YT_TLOG_INFO("Failed to extract error from location lock file")
+                .With(ex);
+            lockFileError.Add(TError("Failed to extract error from location lock file")
+                .With(ex));
 
             THROW_ERROR(lockFileError);
         }
@@ -160,14 +162,15 @@ void TDiskHealthChecker::DoRunCheck()
                 auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(fileContents));
                 !error.IsOK())
             {
-                lockFileError = std::move(error);
+                lockFileError.Add(std::move(error));
             }
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed to parse error from location lock file");
+            YT_TLOG_INFO("Failed to parse error from location lock file")
+                .With(ex);
 
-            lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
-                << TErrorAttribute("path", lockFilePath)
-                << ex;
+            lockFileError.Add(TError("Failed to parse error from location lock file")
+                .With(ex)
+                .With("file_contents", fileContents));
         }
 
         THROW_ERROR(lockFileError);
@@ -190,8 +193,9 @@ void TDiskHealthChecker::DoRunCheck()
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
                 file.Write(writeData.data(), testSize);
             } catch (const TSystemError& ex) {
-                if (ex.Status() == ENOSPC) {
-                    YT_LOG_WARNING(ex, "Disk health check ignored");
+                if (NFS::IsOutOfDiskSpaceError(ex)) {
+                    YT_TLOG_WARNING("Disk health check ignored")
+                        .With(ex);
                     return;
                 } else {
                     throw;
@@ -216,10 +220,10 @@ void TDiskHealthChecker::DoRunCheck()
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::DiskHealthCheckFailed, "Disk health check failed at %v", Path_)
-            << ex;
+            .With(ex);
     }
 
-    YT_LOG_DEBUG("Disk health check finished");
+    YT_TLOG_DEBUG("Disk health check finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

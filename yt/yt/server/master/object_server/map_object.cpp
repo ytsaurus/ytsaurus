@@ -173,10 +173,9 @@ void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool val
     }
     auto oldSubtreeSize = mapObject->GetSubtreeSize();
     if (validateMatch && oldSubtreeSize != 0 && oldSubtreeSize != subtreeSize) {
-        YT_LOG_ALERT(
-            "The subtree size loaded from snapshot does not match its recomputed value (SnapshotSubtreeSize: %v, RecomputedSubtreeSize: %v)",
-            oldSubtreeSize,
-            subtreeSize);
+        YT_TLOG_ALERT("The subtree size loaded from snapshot does not match its recomputed value")
+            .With("SnapshotSubtreeSize", oldSubtreeSize)
+            .With("RecomputedSubtreeSize", subtreeSize);
     }
     mapObject->SetSubtreeSize(subtreeSize);
 }

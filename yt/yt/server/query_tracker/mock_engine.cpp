@@ -14,6 +14,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NYson;
+using namespace NQueryTrackerClient::NRecords;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,15 +87,14 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TMockSettingsPtr>(SettingsNode_))
     { }
 
     void Start() override
     {
-        YT_LOG_INFO("Starting mock query");
+        YT_TLOG_INFO("Starting mock query");
         OnQueryStarted();
         if (Query_ == "fail") {
             OnQueryFailed(TError("Mock query failed"));
@@ -140,13 +140,13 @@ public:
 
     void Abort() override
     {
-        YT_LOG_INFO("Aborting mock query");
+        YT_TLOG_INFO("Aborting mock query");
         TDelayedExecutor::Cancel(DelayedCookie_);
     }
 
     void Detach() override
     {
-        YT_LOG_INFO("Detaching mock query");
+        YT_TLOG_INFO("Detaching mock query");
         TDelayedExecutor::Cancel(DelayedCookie_);
     }
 
@@ -164,15 +164,19 @@ public:
         , StateRoot_(std::move(stateRoot))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    bool IsSafeToRestartQuery() const override
     {
-        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker(), NotIndexedQueriesTTL_);
+        return false;
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) override
+    {
+        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
+    }
+
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = config;
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -184,7 +188,6 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
-    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot)

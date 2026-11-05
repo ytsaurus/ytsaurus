@@ -74,7 +74,7 @@ private:
             : Bootstrap_(bootstrap)
             , TabletSlot_(std::move(tabletSlot))
             , Tablet_(tablet)
-            , Logger(TabletNodeLogger().WithTag("TabletId: %v", Tablet_->GetId()))
+            , Logger(TabletNodeLogger().WithTag("TabletId", Tablet_->GetId()))
         { }
 
         void Run()
@@ -90,13 +90,13 @@ private:
                 Tablet_->UnlockScan();
             });
 
-            YT_LOG_DEBUG("Scanning hunk tablet");
+            YT_TLOG_DEBUG("Scanning hunk tablet");
 
             auto scanBackoffInstant = Tablet_->GetScanBackoffInstant();
             if (TInstant::Now() < scanBackoffInstant) {
-                YT_LOG_DEBUG("Scan of tablet is backed off (TabletId: %v, RemainingBackoffTime: %v)",
-                    Tablet_->GetId(),
-                    (scanBackoffInstant - TInstant::Now()).Seconds());
+                YT_TLOG_DEBUG("Scan of tablet is backed off")
+                    .With("TabletId", Tablet_->GetId())
+                    .With("RemainingBackoffTime", (scanBackoffInstant - TInstant::Now()).Seconds());
                 Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
                 return;
             }
@@ -115,10 +115,8 @@ private:
                     Tablet_->SetScanBackoffInstant(TInstant::Now() + Tablet_->MountConfig()->ScanBackoffPeriod);
                 }
 
-                TError wrappedError = TError("Failed to scan hunk tablet")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << error;
-                YT_LOG_ERROR(wrappedError);
+                YT_TLOG_ERROR("Failed to scan hunk tablet")
+                    .With(error);
 
                 Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
             }
@@ -138,8 +136,8 @@ private:
             // or if previous scan iteration has failed (i.g. due to timeouts to master) but has scheduled a transaction.
             if (auto transactionId = Tablet_->GetLockTransactionId()) {
                 THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << OmitBackingOffAttribute;
+                    .With("transaction_id", transactionId)
+                    .With(OmitBackingOffAttribute);
             }
         }
 
@@ -181,38 +179,34 @@ private:
                 const auto& writer = activeStore->GetWriter();
                 auto writerStatistics = writer->GetStatistics();
                 if (writerStatistics.HunkCount >= writerConfig->DesiredHunkCountPerChunk) {
-                    YT_LOG_DEBUG("Rotating active store since there are too many hunks in chunk "
-                        "(StoreId: %v, HunkCount: %v, DesiredHunkCount: %v)",
-                        activeStore->GetId(),
-                        writerStatistics.HunkCount,
-                        writerConfig->DesiredHunkCountPerChunk);
+                    YT_TLOG_DEBUG("Rotating active store since there are too many hunks in chunk")
+                        .With("StoreId", activeStore->GetId())
+                        .With("HunkCount", writerStatistics.HunkCount)
+                        .With("DesiredHunkCount", writerConfig->DesiredHunkCountPerChunk);
 
                     needToRotateActiveStore = true;
                 } else if (writerStatistics.TotalSize >= writerConfig->DesiredChunkSize) {
-                    YT_LOG_DEBUG("Rotating active store since active store is too large "
-                        "(StoreId: %v, StoreSize: %v, DesiredChunkSize: %v)",
-                        activeStore->GetId(),
-                        writerStatistics.TotalSize,
-                        writerConfig->DesiredChunkSize);
+                    YT_TLOG_DEBUG("Rotating active store since active store is too large")
+                        .With("StoreId", activeStore->GetId())
+                        .With("StoreSize", writerStatistics.TotalSize)
+                        .With("DesiredChunkSize", writerConfig->DesiredChunkSize);
 
                     needToRotateActiveStore = true;
                 } else if (activeStore->GetCreationTime() + mountConfig->StoreRotationPeriod < TInstant::Now()) {
-                    YT_LOG_DEBUG("Rotating active store since active store is too old "
-                        "(StoreId: %v, StoreCreationInstant: %v, StoreRotationPeriod: %v)",
-                        activeStore->GetId(),
-                        activeStore->GetCreationTime(),
-                        mountConfig->StoreRotationPeriod);
+                    YT_TLOG_DEBUG("Rotating active store since active store is too old")
+                        .With("StoreId", activeStore->GetId())
+                        .With("StoreCreationInstant", activeStore->GetCreationTime())
+                        .With("StoreRotationPeriod", mountConfig->StoreRotationPeriod);
 
                     needToRotateActiveStore = true;
                 } else if (writer->IsCloseDemanded()) {
-                    YT_LOG_DEBUG("Rotating active store since writer close is demanded "
-                        "(StoreId: %v)",
-                        activeStore->GetId());
+                    YT_TLOG_DEBUG("Rotating active store since writer close is demanded")
+                        .With("StoreId", activeStore->GetId());
 
                     needToRotateActiveStore = true;
                 }
             } else {
-                YT_LOG_DEBUG("Rotating active store since there is no active store");
+                YT_TLOG_DEBUG("Rotating active store since there is no active store");
 
                 needToRotateActiveStore = true;
             }
@@ -222,7 +216,7 @@ private:
             }
 
             if (Tablet_->AllocatedStores().empty()) {
-                YT_LOG_DEBUG("Cannot rotate active store since there are no allocated stores; allocating new store");
+                YT_TLOG_DEBUG("Cannot rotate active store since there are no allocated stores; allocating new store");
 
                 AllocateStores(/*storeCount*/ 1);
             }
@@ -244,8 +238,8 @@ private:
                 }
 
                 if (!store->GetMarkedSealable()) {
-                    YT_LOG_DEBUG("Passive store is not marked as sealable; marking (StoreId: %v)",
-                        store->GetId());
+                    YT_TLOG_DEBUG("Passive store is not marked as sealable; marking")
+                        .With("StoreId", store->GetId());
 
                     storeIdsToMarkSealable.push_back(store->GetId());
                 }
@@ -289,8 +283,8 @@ private:
                     continue;
                 }
 
-                YT_LOG_DEBUG("Removing hunk store (StoreId: %v)",
-                    store->GetId());
+                YT_TLOG_DEBUG("Removing hunk store")
+                    .With("StoreId", store->GetId());
 
                 storeIdsToRemove.push_back(store->GetId());
             }
@@ -314,7 +308,7 @@ private:
 
         NApi::NNative::ITransactionPtr CreateTransaction()
         {
-            YT_LOG_DEBUG("Creating hunk tablet stores update transaction");
+            YT_TLOG_DEBUG("Creating hunk tablet stores update transaction");
 
             auto transactionAttributes = CreateEphemeralAttributes();
             transactionAttributes->Set("title", Format("Updating stores of tablet %v",
@@ -331,8 +325,8 @@ private:
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 
-            YT_LOG_DEBUG("Hunk tablet stores update transaction created (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_DEBUG("Hunk tablet stores update transaction created")
+                .With("TransactionId", transaction->GetId());
 
             return transaction;
         }
@@ -345,8 +339,8 @@ private:
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Will wait for transaction to unlock tablet (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_DEBUG("Will wait for transaction to unlock tablet")
+                .With("TransactionId", transaction->GetId());
 
             auto waitStartInstant = TInstant::Now();
 
@@ -357,18 +351,20 @@ private:
                     TDelayedExecutor::WaitForDuration(TransactionCommitLocalWaitTime);
                 } else if (lockTransactionId) {
                     THROW_ERROR_EXCEPTION("Hunk tablet scanner encountered lock from unexpected transaction")
-                        << TErrorAttribute("expected_transaction_id", transaction->GetId())
-                        << TErrorAttribute("actual_transaction_id", lockTransactionId)
-                        << OmitBackingOffAttribute;
+                        .With("expected_transaction_id", transaction->GetId())
+                        .With("actual_transaction_id", lockTransactionId)
+                        .With(OmitBackingOffAttribute);
                 } else {
-                    YT_LOG_DEBUG("Finished waiting for transaction to unlock tablet");
+                    YT_TLOG_DEBUG("Finished waiting for transaction to unlock tablet");
                     return;
                 }
             }
 
-            auto error = TError("Hunk tablet scanner transaction commit wait failed")
-                << TErrorAttribute("transaction_id", transaction->GetId());
-            YT_LOG_ALERT(error);
+            static constexpr auto Message = "Timed out waiting for transaction to unlock hunk tablet"_sb;
+            YT_TLOG_ALERT(Message)
+                .With("TransactionId", transaction->GetId());
+            auto error = TError(Message)
+                .With("transaction_id", transaction->GetId());
             THROW_ERROR_EXCEPTION(error);
         }
 
@@ -379,7 +375,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError(NTabletClient::EErrorCode::HunkStoreAllocationFailed,
                     "Hunk tablet scanner failed to allocate stores")
-                    << TError(ex);
+                    .With(ex);
                 Tablet_->OnStoreAllocationFailed(error);
                 THROW_ERROR(error);
             }
@@ -391,8 +387,8 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Allocating stores for hunk tablet (StoreCount: %v)",
-                storeCount);
+            YT_TLOG_DEBUG("Allocating stores for hunk tablet")
+                .With("StoreCount", storeCount);
 
             const auto& writerOptions = Tablet_->StoreWriterOptions();
             const auto& resourceLimitsManager = TabletSlot_->GetResourceLimitsManager();

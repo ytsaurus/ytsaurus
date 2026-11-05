@@ -1,8 +1,8 @@
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -78,12 +78,11 @@ protected:
 
     TChunkStripePtr CreateStripe(const std::vector<TInputChunkPtr>& chunks)
     {
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
-            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, Comparator_));
             dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
-            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
-            dataSlice->TransformToNew(RowBuffer_, Comparator_);
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, Comparator_);
             dataSlices.emplace_back(std::move(dataSlice));
         }
         auto stripe = New<TChunkStripe>();
@@ -132,7 +131,7 @@ protected:
 
     bool CheckMapping(TChunkStripePtr from, TChunkStripePtr to)
     {
-        auto mappedFrom = ChunkMapping_->GetMappedStripe(from);
+        auto mappedFrom = ChunkMapping_->GetMappedStripe(from).Stripe;
         return Same(ToChunks(mappedFrom), ToChunks(to));
     }
 };
@@ -180,6 +179,23 @@ TEST_F(TInputChunkMappingTest, RegeneratedIntermediateChunk)
     EXPECT_TRUE(CheckMapping(stripeA1, stripeA1));
     ChunkMapping_->OnStripeRegenerated(42, stripeA2);
     EXPECT_TRUE(CheckMapping(stripeA1, stripeA2));
+}
+
+TEST_F(TInputChunkMappingTest, IsRegenerated)
+{
+    InitChunkMapping(EChunkMappingMode::Sorted);
+
+    auto chunkA = CreateChunk();
+    auto chunkB = CreateChunk();
+
+    auto stripeA = CreateStripe({chunkA});
+    auto stripeB = CreateStripe({chunkB});
+
+    ChunkMapping_->Add(42, stripeA);
+    EXPECT_FALSE(ChunkMapping_->GetMappedStripe(stripeA).IsRegenerated);
+
+    ChunkMapping_->OnStripeRegenerated(42, stripeB);
+    EXPECT_TRUE(ChunkMapping_->GetMappedStripe(stripeA).IsRegenerated);
 }
 
 TEST_F(TInputChunkMappingTest, UnorderedSimple)
@@ -288,7 +304,7 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     stripeAWithLimits->DataSlices()[0]->LowerLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
     stripeAWithLimits->DataSlices()[0]->UpperLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
 
-    auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits);
+    auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits).Stripe;
 
     auto oldLowerLimit = mappedStripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();
     auto newLowerLimit = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();

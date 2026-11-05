@@ -33,22 +33,24 @@ public:
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker,
         const NLogging::TLogger& logger,
-        const NApi::TMasterReadOptions& options = {});
+        const NApi::TMasterReadOptions& masterReadOptions = {},
+        const NApi::TTransactionalOptions& transactionalOptions = {});
 
     TFuture<void> Fetch();
 
 private:
     struct TEntry
     {
+        NYPath::TYPath Path;
         NYPath::TYPath DirName;
-        TString BaseName;
+        std::string BaseName;
         bool FetchAsBatch = false;
         TError Error;
         NCypressClient::EObjectType Type;
         NYTree::IAttributeDictionaryPtr Attributes;
         NHydra::TRevision RefreshRevision = NHydra::NullRevision;
         //! Index in original path order.
-        int Index;
+        int Index = -1;
     };
 
     std::vector<TEntry> Entries_;
@@ -61,7 +63,7 @@ private:
         int DirNodeCount = 0;
         NYPath::TYPath DirName;
         NHydra::TRevision RefreshRevision = NHydra::NullRevision;
-        THashMap<TString, TEntry*> BaseNameToEntry;
+        THashMap<std::string, TEntry*> BaseNameToEntry;
         //! If set to false, directory is too heavy to be fetched as a List request.
         bool FetchAsBatch = true;
     };
@@ -74,6 +76,7 @@ private:
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
     NApi::TMasterReadOptions MasterReadOptions_;
+    NApi::TTransactionalOptions TransactionalOptions_;
 
     NLogging::TLogger Logger;
 

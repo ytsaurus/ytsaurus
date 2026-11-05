@@ -37,7 +37,7 @@ TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, int timestampColumnId)
 {
     const auto& value = logRow[timestampColumnId + 2];
     YT_VERIFY(value.Type == EValueType::Uint64);
-    return value.Data.Uint64;
+    return TTimestamp(value.Data.Uint64);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,10 +110,10 @@ TUnversionedRow BuildSortedLogRow(
     YT_VERIFY(isDelete || row.GetWriteTimestampCount() == 1);
 
     if (isDelete) {
-        rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0].Underlying(), 0));
         rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Delete), 1));
     } else {
-        rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0].Underlying(), 0));
         rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
     }
 
@@ -201,7 +201,7 @@ public:
         NLogging::TLogger logger)
         : IsSorted_(tableSchema->IsSorted())
         , PreserveTabletIndex_(mountConfig->PreserveTabletIndex)
-        , TabletIndexColumnId_(tableSchema->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
+        , TabletIndexColumnId_(tableSchema->GetReplicationLogColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , TimestampColumnId_(
             tableSchema->HasTimestampColumn()
                 ? std::make_optional(tableSchema->GetColumnIndex(TimestampColumnName))
@@ -274,10 +274,10 @@ public:
             return {};
         }
 
-        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %v, RowIndexLo: %v, RowIndexHi: %v)",
-            startReplicationTimestamp,
-            rowIndexLo,
-            rowIndexHi);
+        YT_TLOG_DEBUG("Started computing replication start row index")
+            .With("StartReplicationTimestamp", startReplicationTimestamp)
+            .With("RowIndexLo", rowIndexLo)
+            .With("RowIndexHi", rowIndexHi);
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
@@ -302,15 +302,15 @@ public:
             ++startRowIndex;
         }
 
-        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %v)",
-            startRowIndex,
-            startTimestamp);
+        YT_TLOG_DEBUG("Finished computing replication start row index")
+            .With("StartRowIndex", startRowIndex)
+            .With("StartTimestamp", startTimestamp);
 
         if (startTimestamp == NullTimestamp) {
-            YT_LOG_DEBUG("No replication log rows available (LowerRowIndex: %v, TrimmedRowCount: %v, TotalRowCount: %v)",
-                lowerRowIndex,
-                trimmedRowCount,
-                totalRowCount);
+            YT_TLOG_DEBUG("No replication log rows available")
+                .With("LowerRowIndex", lowerRowIndex)
+                .With("TrimmedRowCount", trimmedRowCount)
+                .With("TotalRowCount", totalRowCount);
             onMissingRow();
             return {};
         }
@@ -358,7 +358,7 @@ private:
         if (isVersioned) {
             auto timestamp = GetLogRowTimestamp(logRow, PhysicalSchemaTimestampColumnId_);
             YT_VERIFY(TimestampColumnId_);
-            mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp, *TimestampColumnId_);
+            mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp.Underlying(), *TimestampColumnId_);
         }
 
         mutableReplicationRow.SetCount(columnCount);
@@ -431,7 +431,8 @@ private:
                 YT_VERIFY(replicationValueIndex == replicationValueCount);
                 mutableReplicationRow.WriteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
-                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
+                YT_TLOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write")
+                    .With("Row", replicationRow);
                 break;
             }
 
@@ -446,7 +447,8 @@ private:
                 }
                 mutableReplicationRow.DeleteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
-                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
+                YT_TLOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete")
+                    .With("Row", replicationRow);
                 break;
             }
 
@@ -512,7 +514,8 @@ private:
                 }
                 YT_VERIFY(replicationValueIndex == replicationValueCount);
                 replicationRow = mutableReplicationRow;
-                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
+                YT_TLOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write")
+                    .With("Row", replicationRow);
                 break;
             }
 
@@ -525,7 +528,8 @@ private:
                 }
                 replicationRow = mutableReplicationRow;
                 *modificationType = ERowModificationType::Delete;
-                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
+                YT_TLOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete")
+                    .With("Row", replicationRow);
                 break;
             }
 
@@ -560,16 +564,16 @@ private:
         while (true) {
             batch = reader->Read(readOptions);
             if (!batch) {
-                YT_LOG_DEBUG("Missing row in replication log (TabletId: %v, RowIndex: %v)",
-                    tabletSnapshot->TabletId,
-                    rowIndex);
+                YT_TLOG_DEBUG("Missing row in replication log")
+                    .With("TabletId", tabletSnapshot->TabletId)
+                    .With("RowIndex", rowIndex);
                 onMissingRow();
                 return {};
             }
 
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for log row from tablet reader (RowIndex: %v)",
-                    rowIndex);
+                YT_TLOG_DEBUG("Waiting for log row from tablet reader")
+                    .With("RowIndex", rowIndex);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -586,9 +590,9 @@ private:
         auto timestamp = GetLogRowTimestamp(readerRows[0], PhysicalSchemaTimestampColumnId_);
         YT_VERIFY(actualRowIndex == rowIndex);
 
-        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
-            rowIndex,
-            timestamp);
+        YT_TLOG_DEBUG("Replication log row timestamp is read")
+            .With("RowIndex", rowIndex)
+            .With("Timestamp", timestamp);
 
         return timestamp;
     }

@@ -6,7 +6,7 @@ from sqlglot.typing import EXPRESSION_METADATA
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
     **{
-        expr_type: {"returns": exp.DataType.Type.BIGINT}
+        expr_type: {"returns": exp.DType.BIGINT}
         for expr_type in {
             exp.BitwiseAnd,
             exp.BitwiseNot,
@@ -29,9 +29,9 @@ EXPRESSION_METADATA = {
     },
     exp.Mod: {"annotator": lambda self, e: self._annotate_by_args(e, "this", "expression")},
     exp.Rand: {
-        "annotator": lambda self, e: self._annotate_by_args(e, "this")
-        if e.this
-        else self._set_type(e, exp.DataType.Type.DOUBLE)
+        "annotator": lambda self, e: (
+            self._annotate_by_args(e, "this") if e.this else self._set_type(e, exp.DType.DOUBLE)
+        )
     },
-    exp.MD5Digest: {"returns": exp.DataType.Type.VARBINARY},
+    exp.MD5Digest: {"returns": exp.DType.VARBINARY},
 }

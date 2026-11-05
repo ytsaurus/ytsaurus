@@ -1,5 +1,9 @@
 PROTO_LIBRARY()
 
+IF (JAVA_PROTO)
+    DEFAULT_JDK_VERSION(11)
+ENDIF()
+
 INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
 
 SRCS(
@@ -18,6 +22,7 @@ SRCS(
 
     rpc/proto/rpc.proto
 
+    yson/proto/list_types.proto
     yson/proto/protobuf_interop.proto
 
     ytree/proto/attributes.proto

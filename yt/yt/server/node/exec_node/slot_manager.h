@@ -161,7 +161,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    void OnPortoExecutorFailed(const TError& error);
+    void OnJobEnvironmentExecutorFailed(TError error);
 
     /*!
      *  \note
@@ -207,6 +207,12 @@ public:
 
     bool IsJobEnvironmentResurrectionEnabled();
 
+    IVolumeManagerPtr GetVolumeManager() const;
+
+    TJobEnvironmentCapabilities GetJobEnvironmentCapabilities() const;
+
+    TJobFSSecretaryPtr CreateJobFSSecretary(NLogging::TLogger logger) const;
+
     void OnContainerDevicesCheckFinished(const TError& error);
 
 private:
@@ -215,8 +221,8 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
 
     const int SlotCount_;
-    const TString NodeTag_;
-    const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
+    const std::string NodeTag_;
+    const IJobEnvironmentHealthCheckerPtr EnvironmentHealthChecker_;
 
     TBackoffStrategy DisableJobsBackoffStrategy_;
 
@@ -224,23 +230,21 @@ private:
 
     std::atomic<bool> JobProxyReady_ = false;
 
-    NThreading::TAtomicObject<TError> TestContainerCreationError_;
+    TAtomicObject<TError> TestContainerCreationError_;
 
     TAtomicIntrusivePtr<IVolumeManager> VolumeManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AliveLocationsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, AliveLocationsLock_);
     std::vector<TSlotLocationPtr> AliveLocations_;
 
     std::vector<TNumaNodeState> NumaNodeStates_;
 
-    // NB: Whenever we want to do something with the job environment,
-    // we should first cache it so that it doesn't expire upon resurrection.
+    // NB: Operations that allow context switches must hold a strong reference to the job environment
+    // so that it doesn't expire upon resurrection.
     IJobEnvironmentPtr JobEnvironment_;
-
-    std::optional<NJobProxy::EJobEnvironmentType> JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
     // Invoker affinity: JobInvoker
@@ -251,7 +255,7 @@ private:
 
     NClusterNode::TCpu IdlePolicyRequestedCpu_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, AlertsLock_);
 
     /*
      * Affinity: AlertsLock_
@@ -322,6 +326,13 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    struct TSlotLocationInfo
+    {
+        std::string Path;
+        bool Enabled;
+        TError DisableError;
+    };
+
     struct TSlotManagerInfo
     {
         int SlotCount;
@@ -333,6 +344,8 @@ private:
         std::vector<TNumaNodeState> NumaNodeStates;
 
         TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts;
+
+        std::vector<TSlotLocationInfo> Locations;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -362,8 +375,8 @@ private:
 
     bool EnableNumaNodeScheduling() const;
 
-    void OnPortoHealthCheckSuccess();
-    void OnPortoHealthCheckFailed(const TError& result);
+    void OnEnvironmentHealthCheckSuccess();
+    void OnEnvironmentHealthCheckFailed(const TError& error);
 
     void ForceInitialize();
     void AsyncInitialize();

@@ -1,9 +1,17 @@
 #include "helpers.h"
 
+#include "config.h"
+
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
+#include <yt/yt/client/api/security_client.h>
+
+#include <yt/yt/core/ypath/token.h>
+
 #include <library/cpp/streams/zstd/zstd.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 #include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
 
@@ -16,6 +24,7 @@ using namespace NConcurrency;
 using namespace NQueryTrackerClient;
 using namespace NQueryTrackerClient::NRecords;
 using namespace NCompression;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,14 +60,14 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.AccessControlObjects = partialRecord.AccessControlObjects.value_or(TYsonString(TString("[]")));
     query.State = partialRecord.State;
     query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
-    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : TString("{}"));
+    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : std::string("{}"));
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
     query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));
     query.IsIndexed = partialRecord.IsIndexed;
 
     IAttributeDictionaryPtr otherAttributes;
-    auto fillIfPresent = [&] (const TString& key, const auto& value) {
+    auto fillIfPresent = [&] (const std::string& key, const auto& value) {
         if (value) {
             if (!otherAttributes) {
                 otherAttributes = CreateEphemeralAttributes();
@@ -98,14 +107,14 @@ THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr&
             return {};
         }
         THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
-            << userSubjectsOrError;
+            .With(userSubjectsOrError);
     }
     return ConvertTo<THashSet<std::string>>(userSubjectsOrError.Value());
 }
 
 void ConvertAcoToOldFormat(TQuery& query)
 {
-    auto accessControlObjectList = ConvertTo<std::optional<std::vector<TString>>>(query.AccessControlObjects);
+    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(query.AccessControlObjects);
 
     if (!accessControlObjectList || accessControlObjectList->empty()) {
         return;
@@ -116,16 +125,53 @@ void ConvertAcoToOldFormat(TQuery& query)
     }
 }
 
+ESecurityAction CheckAccessControl(
+    const std::string& user,
+    const std::optional<TYsonString>& accessControlObjects,
+    const IClientPtr& client,
+    EPermission permission)
+{
+    auto userSubjects = GetUserSubjects(user, client);
+    if (userSubjects.contains(SuperusersGroupName)) {
+        return ESecurityAction::Allow;
+    }
+
+    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(accessControlObjects);
+    if (!accessControlObjectList) {
+        return ESecurityAction::Deny;
+    }
+
+    TCheckPermissionOptions checkPermissionOptions;
+    checkPermissionOptions.ReadFrom = EMasterChannelKind::Cache;
+    checkPermissionOptions.SuccessStalenessBound = TDuration::Minutes(1);
+    for (const auto& accessControlObject : *accessControlObjectList) {
+        auto path = Format(
+            "%v/%v/principal",
+            QueriesAcoNamespacePath,
+            NYPath::ToYPathLiteral(accessControlObject));
+
+        auto securityAction = WaitFor(client->CheckPermission(user, path, permission, checkPermissionOptions))
+            .ValueOrThrow()
+            .Action;
+
+        if (securityAction == ESecurityAction::Allow) {
+            return ESecurityAction::Allow;
+        }
+    }
+
+    return ESecurityAction::Deny;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString DoCompress(const TString& data, int quality = 9)
+std::string DoCompress(const std::string& data, int quality = 9)
 {
-    TString compressed;
-    TStringOutput output(compressed);
+    std::string compressed;
+    TStdStringOutput output(compressed);
     TZstdCompress compressStream(&output, quality);
     compressStream.Write(data.data(), data.size());
     compressStream.Finish();
@@ -139,20 +185,39 @@ TString DoCompress(const TString& data, int quality = 9)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString DefaultCompressedValue = DoCompress(TString("{}"));
+const std::string CompressedEmptyMap = DoCompress("{}");
 
-TString Compress(const TString& data, std::optional<ui64> maxCompressedStringSize, int quality)
+std::string Compress(const std::string& data, std::optional<ui64> maxCompressedStringSize, int quality)
 {
     auto compressedValue = DoCompress(data, quality);
-    return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? DefaultCompressedValue : compressedValue;
+    return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? CompressedEmptyMap : compressedValue;
 }
 
-TString Decompress(const std::string& data)
+std::string Decompress(const std::string& data)
 {
     TMemoryInput input(data.begin(), data.size());
     TZstdDecompress decompressStream(&input);
-    auto res = decompressStream.ReadAll();
-    return res;
+    return decompressStream.ReadAll();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, EQueryEngine engine)
+{
+    switch (engine) {
+        case EQueryEngine::Mock:
+            return config->MockEngine;
+        case EQueryEngine::Ql:
+            return config->QLEngine;
+        case EQueryEngine::Yql:
+            return config->YqlEngine;
+        case EQueryEngine::Chyt:
+            return config->ChytEngine;
+        case EQueryEngine::Spyt:
+            return config->SpytEngine;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

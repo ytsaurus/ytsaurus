@@ -223,8 +223,8 @@ class DistributedReadTablePartitionType(TypedDict):
 
 def guess_table_data_weight_per_partition(
     path: Union[str, YPath],
-    table_data_weight: int = None,
-    table_chunk_count: int = None,
+    table_data_weight: Optional[int] = None,
+    table_chunk_count: Optional[int] = None,
     max_partition_count: Optional[int] = None,
     max_partition_weight: Optional[int] = None,
     client=None,
@@ -297,7 +297,7 @@ def partition_tables(
 def read_table_partition(
     cookie: bytes,
     format: Optional[Union[str, Format]] = None,
-    raw: bool = None,
+    raw: Optional[bool] = None,
     client=None,
 ):
     """Read table partition by cookie.

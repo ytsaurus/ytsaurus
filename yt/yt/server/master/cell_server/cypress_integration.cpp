@@ -18,9 +18,13 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NCellServer {
 
@@ -82,7 +86,6 @@ private:
     std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        // TODO(babenko): switch to std::string
         auto keys = ConvertToStrings(GetValues(cellManager->Areas(), limit), TObjectIdFormatter());
         return {keys.begin(), keys.end()};
     }
@@ -353,7 +356,7 @@ private:
         auto attribute = impl->FindAttribute(CellIdAttributeKey);
         if (!attribute) {
             THROW_ERROR_EXCEPTION("Attribute \"cell_id\" is not specified for a cell Orchid node")
-                << TErrorAttribute("node_id", impl->GetId());
+                .With("node_id", impl->GetId());
         }
         auto cellId = ConvertTo<TCellId>(*attribute);
 
@@ -412,8 +415,8 @@ private:
             THROW_ERROR_EXCEPTION("Cell has no leader");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error getting leader address")
-                << TErrorAttribute("cell_id", cellId)
-                << ex;
+                .With("cell_id", cellId)
+                .With(ex);
         }
     }
 };

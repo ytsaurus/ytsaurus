@@ -1,0 +1,5 @@
+# Build-time codegen toolchain. The grpcio-tools pin fixes the protoc/gencode version;
+# the matching runtime floors live in setup.py's install_requires.
+[build-system]
+requires = ["setuptools>=61", "grpcio-tools==1.70.0"]
+build-backend = "setuptools.build_meta"

@@ -13,24 +13,19 @@
 # limitations under the License.
 
 """Collection level utilities for Mongo."""
+
 from __future__ import annotations
 
 import warnings
 from collections import abc
+from collections.abc import Iterable, Iterator, Mapping, MutableMapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    ContextManager,
     Generic,
-    Iterable,
-    Iterator,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
-    Sequence,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -242,9 +237,9 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         if not name or ".." in name:
             raise InvalidName("collection names cannot be empty")
         if "$" in name and not (name.startswith(("oplog.$main", "$cmd"))):
-            raise InvalidName("collection names must not contain '$': %r" % name)
+            raise InvalidName(f"collection names must not contain '$': {name!r}")
         if name[0] == "." or name[-1] == ".":
-            raise InvalidName("collection names must not start or end with '.': %r" % name)
+            raise InvalidName(f"collection names must not start or end with '.': {name!r}")
         if "\x00" in name:
             raise InvalidName("collection names must not contain the null character")
 
@@ -341,8 +336,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> Collection[_DocumentType]:
-        ...
+    ) -> Collection[_DocumentType]: ...
 
     @overload
     def with_options(
@@ -351,8 +345,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> Collection[_DocumentTypeArg]:
-        ...
+    ) -> Collection[_DocumentTypeArg]: ...
 
     def with_options(
         self,
@@ -398,15 +391,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             write_concern or self.write_concern,
             read_concern or self.read_concern,
         )
-
-    def _write_concern_for_cmd(
-        self, cmd: Mapping[str, Any], session: Optional[ClientSession]
-    ) -> WriteConcern:
-        raw_wc = cmd.get("writeConcern")
-        if raw_wc is not None:
-            return WriteConcern(**raw_wc)
-        else:
-            return self._write_concern_for(session)
 
     # See PYTHON-3084.
     __iter__ = None
@@ -572,11 +556,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         change_stream._initialize_cursor()
         return change_stream
 
-    def _conn_for_writes(
-        self, session: Optional[ClientSession], operation: str
-    ) -> ContextManager[Connection]:
-        return self._database.client._conn_for_writes(session, operation)
-
     def _command(
         self,
         conn: Connection,
@@ -653,7 +632,10 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             if "size" in options:
                 options["size"] = float(options["size"])
             cmd.update(options)
-        with self._conn_for_writes(session, operation=_Op.CREATE) as conn:
+
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> None:
             if qev2_required and conn.max_wire_version < 21:
                 raise ConfigurationError(
                     "Driver support of Queryable Encryption is incompatible with server. "
@@ -669,6 +651,8 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
                 collation=collation,
                 session=session,
             )
+
+        self.database.client._retryable_write(False, inner, session, _Op.CREATE)
 
     def _create(
         self,
@@ -1017,10 +1001,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             else:
                 update_doc["arrayFilters"] = array_filters
         if hint is not None:
-            if not acknowledged and conn.max_wire_version < 8:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.2+ to use hint on unacknowledged update commands."
-                )
             if not isinstance(hint, str):
                 hint = helpers_shared._index_document(hint)
             update_doc["hint"] = hint
@@ -1177,8 +1157,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.client_session.ClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1293,8 +1272,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.client_session.ClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1399,8 +1377,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.client_session.ClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1522,10 +1499,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             else:
                 delete_doc["collation"] = collation
         if hint is not None:
-            if not acknowledged and conn.max_wire_version < 9:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.4+ to use hint on unacknowledged delete commands."
-                )
             if not isinstance(hint, str):
                 hint = helpers_shared._index_document(hint)
             delete_doc["hint"] = hint
@@ -1888,8 +1861,14 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
 
           - The `limit` option can not be used with an exhaust cursor.
 
-          - Exhaust cursors are not supported by mongos and can not be
-            used with a sharded cluster.
+          - When connected to mongos, exhaust cursors require MongoDB 7.1 or
+            newer; an older one raises
+            :class:`~pymongo.errors.InvalidOperation` on the first iteration.
+            On a cluster midway through an upgrade the same call may succeed
+            or raise depending on which mongos it reaches. Behind a load
+            balancer no version check applies; a pre-7.1 mongos there ignores
+            the exhaust request and the cursor falls back to ordinary getMore
+            batches.
 
           - A :class:`~pymongo.cursor.Cursor` instance created with the
             :attr:`~pymongo.cursor.CursorType.EXHAUST` cursor_type requires an
@@ -1898,6 +1877,12 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             completely iterated the underlying :class:`~socket.socket`
             connection will be closed and discarded without being returned to
             the connection pool.
+
+        .. versionchanged:: 4.18
+           :attr:`~pymongo.cursor.CursorType.EXHAUST` is now permitted when
+           connected to mongos 7.1 or newer. Against an older mongos the
+           resulting :class:`~pymongo.errors.InvalidOperation` is now raised on
+           the first iteration of the cursor rather than by this method.
 
         .. versionchanged:: 4.0
            Removed the ``modifiers`` option.
@@ -2237,9 +2222,10 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             command (like maxTimeMS) can be passed as keyword arguments.
         """
         names = []
-        with self._conn_for_writes(session, operation=_Op.CREATE_INDEXES) as conn:
-            supports_quorum = conn.max_wire_version >= 9
 
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> list[str]:
             def gen_indexes() -> Iterator[Mapping[str, Any]]:
                 for index in indexes:
                     if not isinstance(index, IndexModel):
@@ -2252,12 +2238,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
 
             cmd = {"createIndexes": self.name, "indexes": list(gen_indexes())}
             cmd.update(kwargs)
-            if "commitQuorum" in kwargs and not supports_quorum:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.4+ to use the "
-                    "commitQuorum option for createIndexes"
-                )
-
             self._command(
                 conn,
                 cmd,
@@ -2266,7 +2246,9 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
                 write_concern=self._write_concern_for(session),
                 session=session,
             )
-        return names
+            return names
+
+        return self.database.client._retryable_write(False, inner, session, _Op.CREATE_INDEXES)
 
     def create_index(
         self,
@@ -2329,7 +2311,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             :class:`~pymongo.collation.Collation`.
           - `wildcardProjection`: Allows users to include or exclude specific
             field paths from a `wildcard index`_ using the {"$**" : 1} key
-            pattern. Requires MongoDB >= 4.2.
+            pattern.
           - `hidden`: if ``True``, this index will be hidden from the query
             planner and will not be evaluated as part of query plan
             selection. Requires MongoDB >= 4.4.
@@ -2419,7 +2401,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             kwargs["comment"] = comment
         self._drop_index("*", session=session, **kwargs)
 
-    @_csot.apply
     def drop_index(
         self,
         index_or_name: _IndexKeyHint,
@@ -2487,7 +2468,10 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        with self._conn_for_writes(session, operation=_Op.DROP_INDEXES) as conn:
+
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> None:
             self._command(
                 conn,
                 cmd,
@@ -2496,6 +2480,8 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
                 write_concern=self._write_concern_for(session),
                 session=session,
             )
+
+        self.database.client._retryable_write(False, inner, session, _Op.DROP_INDEXES)
 
     def list_indexes(
         self,
@@ -2760,14 +2746,21 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         cmd = {"createSearchIndexes": self.name, "indexes": list(gen_indexes())}
         cmd.update(kwargs)
 
-        with self._conn_for_writes(session, operation=_Op.CREATE_SEARCH_INDEXES) as conn:
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> list[str]:
             resp = self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
             return [index["name"] for index in resp["indexesCreated"]]
+
+        return self.database.client._retryable_write(
+            False, inner, session, _Op.CREATE_SEARCH_INDEXES
+        )
 
     def drop_search_index(
         self,
@@ -2794,14 +2787,20 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        with self._conn_for_writes(session, operation=_Op.DROP_SEARCH_INDEXES) as conn:
+
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> None:
             self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 allowable_errors=["ns not found", 26],
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
+
+        self.database.client._retryable_write(False, inner, session, _Op.DROP_SEARCH_INDEXES)
 
     def update_search_index(
         self,
@@ -2830,14 +2829,20 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        with self._conn_for_writes(session, operation=_Op.UPDATE_SEARCH_INDEX) as conn:
+
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> None:
             self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 allowable_errors=["ns not found", 26],
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
+
+        self.database.client._retryable_write(False, inner, session, _Op.UPDATE_SEARCH_INDEX)
 
     def options(
         self,
@@ -2886,9 +2891,9 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
     @_csot.apply
     def _aggregate(
         self,
-        aggregation_command: Type[_AggregationCommand],
+        aggregation_command: type[_AggregationCommand],
         pipeline: _Pipeline,
-        cursor_class: Type[CommandCursor],  # type: ignore[type-arg]
+        cursor_class: type[CommandCursor],  # type: ignore[type-arg]
         session: Optional[ClientSession],
         let: Optional[Mapping[str, Any]] = None,
         comment: Optional[Any] = None,
@@ -2911,6 +2916,7 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
             session,
             retryable=not cmd._performs_write,
             operation=_Op.AGGREGATE,
+            is_aggregate_write=cmd._performs_write,
         )
 
     def aggregate(
@@ -3116,17 +3122,21 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
         if comment is not None:
             cmd["comment"] = comment
         write_concern = self._write_concern_for_cmd(cmd, session)
+        client = self._database.client
 
-        with self._conn_for_writes(session, operation=_Op.RENAME) as conn:
-            with self._database.client._tmp_session(session) as s:
-                return conn.command(
-                    "admin",
-                    cmd,
-                    write_concern=write_concern,
-                    parse_write_concern_error=True,
-                    session=s,
-                    client=self._database.client,
-                )
+        def inner(
+            session: Optional[ClientSession], conn: Connection, _retryable_write: bool
+        ) -> MutableMapping[str, Any]:
+            return conn.command(
+                "admin",
+                cmd,
+                write_concern=write_concern,
+                parse_write_concern_error=True,
+                session=session,
+                client=client,
+            )
+
+        return client._retryable_write(False, inner, session, _Op.RENAME)
 
     def distinct(
         self,
@@ -3263,14 +3273,6 @@ class Collection(common.BaseObject, Generic[_DocumentType]):
                     )
                 cmd["arrayFilters"] = list(array_filters)
             if hint is not None:
-                if conn.max_wire_version < 8:
-                    raise ConfigurationError(
-                        "Must be connected to MongoDB 4.2+ to use hint on find and modify commands."
-                    )
-                elif not acknowledged and conn.max_wire_version < 9:
-                    raise ConfigurationError(
-                        "Must be connected to MongoDB 4.4+ to use hint on unacknowledged find and modify commands."
-                    )
                 cmd["hint"] = hint
             out = self._command(
                 conn,

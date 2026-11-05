@@ -17,6 +17,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "17")
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yql:essentials:protos"))
@@ -38,6 +46,7 @@ protobuf {
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
         include("yql/essentials/providers/common/proto/gateways_config.proto")
+        include("yql/essentials/providers/common/proto/static_gateways_config.proto")
         include("yql/essentials/providers/common/proto/udf_resolver.proto")
     }
     into(buildProtoDir)

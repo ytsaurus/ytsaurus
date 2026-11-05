@@ -24,6 +24,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
@@ -122,14 +123,14 @@ private:
     const TPeriodicExecutorPtr SlotScanExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    using TBundlesMemoryPoolWeights = THashMap<TString, int>;
+    using TBundlesMemoryPoolWeights = THashMap<std::string, int>;
     TBundlesMemoryPoolWeights BundlesMemoryPoolWeights_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild("dynamic_memory_pool_weights", IYPathService::FromMethod(
                 &TSlotManager::GetDynamicMemoryPoolWeightsOrchid,
                 MakeWeak(this)))
@@ -156,9 +157,9 @@ private:
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
         auto update = [&] (const std::string& bundleName, int weight) {
-            YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
-                bundleName,
-                weight);
+            YT_TLOG_DEBUG("Tablet cell bundle memory pool weight updated")
+                .With("Bundle", bundleName)
+                .With("Weight", weight);
             memoryTracker->SetPoolWeight(bundleName, weight);
         };
 
@@ -187,7 +188,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Slot scan started");
+        YT_TLOG_DEBUG("Slot scan started");
 
         Bootstrap_->GetStructuredLogger()->LogEvent("begin_slot_scan");
 
@@ -220,7 +221,7 @@ private:
 
         Bootstrap_->GetStructuredLogger()->LogEvent("end_slot_scan");
 
-        YT_LOG_DEBUG("Slot scan completed");
+        YT_TLOG_DEBUG("Slot scan completed");
     }
 
     const std::vector<ICellarOccupantPtr>& Occupants() const
@@ -275,7 +276,7 @@ private:
     {
         auto buildMemoryStatistics = BIND(&TSlotManager::BuildMemoryStatisticsYson, Unretained(this));
 
-        auto bundleByTable = [&] (const TString& tablePath) {
+        auto bundleByTable = [&] (const NYPath::TYPath& tablePath) {
             auto it = summary.TablePathToBundleName.find(tablePath);
             YT_ASSERT(it != summary.TablePathToBundleName.end());
             return it != summary.TablePathToBundleName.end()

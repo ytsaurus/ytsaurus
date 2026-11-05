@@ -63,7 +63,7 @@ private:
     void RunParent() override;
     void RunChild() override;
 
-    TFuture<std::vector<TError>> UploadSnapshots();
+    TFuture<std::vector<std::pair<TOperationId, TError>>> UploadSnapshots();
     void UploadSnapshot(const TSnapshotJobPtr& job);
 
     bool ControllersSuspended_ = false;

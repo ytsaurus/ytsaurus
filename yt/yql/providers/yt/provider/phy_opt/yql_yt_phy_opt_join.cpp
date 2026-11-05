@@ -160,7 +160,8 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::EquiJoin(TExprBase node
                     return {};
                 }
 
-                TYtOutTableInfo outTable(outItemType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+                TYtDSink dataSink = MakeDataSink(list.Pos(), inputClusters[i] ? inputClusters[i] : runtimeCluster, ctx);
+                TYtOutTableInfo outTable(outItemType, GetNativeYtTypeCompatibility(dataSink.Cluster().StringValue(), *State_->Configuration));
                 outTable.RowSpec->SetConstraints(list.Ref().GetConstraintSet());
                 outTable.SetUnique(list.Ref().GetConstraint<TDistinctConstraintNode>(), list.Pos(), ctx);
 
@@ -169,7 +170,6 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::EquiJoin(TExprBase node
                     return {};
                 }
 
-                TYtDSink dataSink = MakeDataSink(list.Pos(), inputClusters[i] ? inputClusters[i] : runtimeCluster, ctx);
                 section = newSection = Build<TYtSection>(ctx, list.Pos())
                     .Paths()
                         .Add()
@@ -307,7 +307,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::EquiJoin(TExprBase node
             .Add(sections)
         .Build()
         .Output()
-            .Add(TYtOutTableInfo(outItemType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE)
+            .Add(TYtOutTableInfo(outItemType, GetNativeYtTypeCompatibility(runtimeCluster, *State_->Configuration))
                 .ToExprNode(ctx, node.Pos()).Cast<TYtOutTable>())
         .Build()
         .Settings()
@@ -401,6 +401,12 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::AddPruneKeys(TExprBase 
         }
 
         if (!hasTable) {
+            children.push_back(input.Ptr());
+            continue;
+        }
+
+        if (IsEmpty(section.Ref(), *State_->Types)) {
+            YQL_CLOG(DEBUG, Core) << "Skip PruneKeys for empty YtEquiJoin input";
             children.push_back(input.Ptr());
             continue;
         }
@@ -546,4 +552,4 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::RuntimeEquiJoin(TExprBa
     return ExportYtEquiJoin(equiJoin, *tree, ctx, State_);
 }
 
-}  // namespace NYql
+} // namespace NYql

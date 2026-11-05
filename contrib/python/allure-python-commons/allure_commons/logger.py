@@ -22,8 +22,14 @@ class AllureFileLogger:
         indent = INDENT if os.environ.get("ALLURE_INDENT_OUTPUT") else None
         filename = item.file_pattern.format(prefix=uuid.uuid4())
         data = asdict(item, filter=lambda _, v: v or v is False)
-        with io.open(self._report_dir / filename, 'w', encoding='utf8') as json_file:
+
+        tmp_filepath = self._report_dir / f"{filename}.tmp"
+        final_filepath = self._report_dir / filename
+
+        with io.open(tmp_filepath, "w", encoding="utf8") as json_file:
             json.dump(data, json_file, indent=indent, ensure_ascii=False)
+
+        os.replace(tmp_filepath, final_filepath)
 
     @hookimpl
     def report_result(self, result):
@@ -35,17 +41,25 @@ class AllureFileLogger:
 
     @hookimpl
     def report_attached_file(self, source, file_name):
-        destination = self._report_dir / file_name
-        shutil.copy2(source, destination)
+        tmp_destination = self._report_dir / f"{file_name}.tmp"
+        final_destination = self._report_dir / file_name
+        shutil.copy2(source, tmp_destination)
+        os.replace(tmp_destination, final_destination)
 
     @hookimpl
     def report_attached_data(self, body, file_name):
-        destination = self._report_dir / file_name
-        with open(destination, 'wb') as attached_file:
+        tmp_destination = self._report_dir / f"{file_name}.tmp"
+        final_destination = self._report_dir / file_name
+        with open(tmp_destination, "wb") as attached_file:
             if isinstance(body, str):
-                attached_file.write(body.encode('utf-8'))
+                attached_file.write(body.encode("utf-8"))
             else:
                 attached_file.write(body)
+        os.replace(tmp_destination, final_destination)
+
+    @hookimpl
+    def report_globals(self, globals_item):
+        self._report_item(globals_item)
 
 
 class AllureMemoryLogger:
@@ -54,6 +68,7 @@ class AllureMemoryLogger:
         self.test_cases = []
         self.test_containers = []
         self.attachments = {}
+        self.globals = []
 
     @hookimpl
     def report_result(self, result):
@@ -72,3 +87,8 @@ class AllureMemoryLogger:
     @hookimpl
     def report_attached_data(self, body, file_name):
         self.attachments[file_name] = body
+
+    @hookimpl
+    def report_globals(self, globals_item):
+        data = asdict(globals_item, filter=lambda _, v: v or v is False)
+        self.globals.append(data)

@@ -14,6 +14,7 @@ import (
 
 type AuthorizerConfig struct {
 	authCookieName string
+	debugLogin     string
 }
 
 type Authorizer struct {
@@ -22,12 +23,20 @@ type Authorizer struct {
 }
 
 func (a *Authorizer) getUser(r *http.Request, authCluster string) (*ytmsvc.User, *string, error) {
+	if a.config.debugLogin != "" {
+		return &ytmsvc.User{Login: a.config.debugLogin}, nil, nil
+	}
 	return ytmsvc.GetUser(r, a.l, a.config.authCookieName, authCluster)
 }
 
 func newAuthorizerConfigFromCmd(cmd *cobra.Command) *AuthorizerConfig {
+	debugLogin := ytmsvc.Must(cmd.Flags().GetString("debug-login"))
+	if debugLogin != "" {
+		logger.Warnf("User authentication is disabled; using debug login %q", debugLogin)
+	}
 	return &AuthorizerConfig{
 		authCookieName: ytmsvc.Must(cmd.Flags().GetString("auth-cookie-name")),
+		debugLogin:     debugLogin,
 	}
 }
 

@@ -96,7 +96,14 @@ private:
     EOperationControllerQueue JobEventsControllerQueue_;
 
     NProfiling::TCounter HeartbeatProtoMessageBytes_;
-    NProfiling::TCounter HeartbeatDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalOutputDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalInputDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalDataStatisticsBytes_;
+    // YSON bytes after initial request validation, before parsing and filtering job statuses.
+    // Includes unknown operations, statuses skipped for abort/release and requests whose
+    // subsequent processing fails. HeartbeatStatisticsBytes_ below counts only processed
+    // statuses from successfully handled heartbeats.
+    NProfiling::TCounter HeartbeatStatisticsYsonBytes_;
     // Array of size 2: [0] - unknown job, [1] - known job.
     std::array<NProfiling::TCounter, 2> HeartbeatJobResultBytes_;
     TEnumIndexedArray<EJobStage, std::array<NProfiling::TCounter, 2>> HeartbeatStatisticsBytes_;
@@ -216,8 +223,8 @@ private:
             builder->AppendFormat("{Id: %v, OutBarrierCreationTime: %v}", inBarrier.Id_, inBarrier.OutBarrierCreationTime_);
         }
 
-        template <CInvocable<void(const TError&)> TCallback>
-        void Wait(TCallback&& onCanceled) const;
+        template <NMpl::CInvocable<void(const TError&)> TCallback>
+        void Wait(TCallback&& onCanceled, const NLogging::TLogger& Logger) const;
 
         void Cancel(const TError& error) const;
 
@@ -312,7 +319,6 @@ private:
 
     struct TNodeInfo
     {
-    public:
         TNodeJobs Jobs;
         NConcurrency::TLease Lease;
 
@@ -603,7 +609,7 @@ private:
 
     template <
         class TAllocationEvent,
-        CInvocable<void(
+        NMpl::CInvocable<void(
             TStringBuf reason,
             TAllocationEvent event,
             TJobTracker::TNodeInfo* nodeInfo,

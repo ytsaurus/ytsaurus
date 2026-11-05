@@ -31,7 +31,6 @@ namespace greenlet {
     // from the thread state destructor, which doesn't have the GIL,
     // and Python's allocators can only be called with the GIL.
     typedef std::vector<ThreadState*> cleanup_queue_t;
-
 };
 
 
@@ -44,6 +43,9 @@ void
 greenlet::refs::MainGreenletExactChecker(void *p)
 {
     if (!p) {
+        return;
+    }
+    if (greenlet::IsShuttingDown()) {
         return;
     }
     // We control the class of the main greenlet exactly.

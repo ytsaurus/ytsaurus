@@ -6,9 +6,9 @@ LICENSE(MIT)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(0.9.7)
+VERSION(0.9.8)
 
-ORIGINAL_SOURCE(https://github.com/Neargye/magic_enum/archive/v0.9.7.tar.gz)
+ORIGINAL_SOURCE(https://github.com/Neargye/magic_enum/archive/v0.9.8.tar.gz)
 
 ADDINCL(
     GLOBAL contrib/restricted/magic_enum/include

@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(2.1)
+
+LICENSE(BSD-3-Clause)
+
+JAR_RESOURCE(788929501)
+
+SRC_RESOURCE(788929543)
+
+ORIGINAL_SOURCE(https://github.com/hamcrest/JavaHamcrest)
+
+END()

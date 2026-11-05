@@ -14,6 +14,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -39,7 +40,7 @@ class TAccessControlObjectProxy
     : public TNonversionedObjectProxyBase<TAccessControlObject>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -129,7 +130,7 @@ public:
         THROW_ERROR_EXCEPTION("Access control object child cannot be removed");
     }
 
-    bool RemoveChild(const std::string& key) override
+    bool RemoveChild(TKeyView key) override
     {
         auto child = FindChild(key);
 
@@ -144,28 +145,28 @@ public:
         return true;
     }
 
-    std::vector<std::pair<std::string, INodePtr>> GetChildren() const override
+    std::vector<std::pair<TKey, TValue>> GetChildren() const override
     {
         auto childNode = FindChild(ChildKey);
         return {{ChildKey, std::move(childNode)}};
     }
 
-    std::vector<std::string> GetKeys() const override
+    std::vector<TKey> GetKeys() const override
     {
         return {ChildKey};
     }
 
-    bool AddChild(const std::string& /*key*/, const INodePtr& /*child*/) override
+    bool AddChild(TKeyView /*key*/, const TValue& /*child*/) override
     {
         THROW_ERROR_EXCEPTION("Access control object children are pre-defined and cannot be added directly");
     }
 
-    std::optional<std::string> FindChildKey(const IConstNodePtr& /*child*/) const override
+    std::optional<TKey> FindChildKey(const IConstNodePtr& /*child*/) const override
     {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
 
-    INodePtr FindChild(const std::string& key) const override;
+    TValue FindChild(TKeyView key) const override;
 
     void Clear() override
     {
@@ -176,7 +177,7 @@ private:
     friend class TAccessControlObjectNamespaceProxy;
     friend class TAccessControlPrincipalProxy;
 
-    static const inline std::string ChildKey{"principal"};
+    static const inline TKey ChildKey{"principal"};
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
@@ -491,7 +492,7 @@ protected:
 
             auto parent = GetParent<TAccessControlObjectProxy>();
             parent->SetAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);
@@ -530,7 +531,7 @@ protected:
             auto parent = GetParent<TAccessControlObjectProxy>();
 
             parent->RemoveAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);
@@ -575,7 +576,7 @@ DEFINE_YPATH_SERVICE_METHOD(TAccessControlPrincipalProxy, CheckPermission)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr TAccessControlObjectProxy::FindChild(const std::string& key) const
+auto TAccessControlObjectProxy::FindChild(TKeyView key) const -> TValue
 {
     if (key != ChildKey) {
         return nullptr;
@@ -594,7 +595,7 @@ class TAccessControlObjectNamespaceProxy
     : public TNonversionedObjectProxyBase<TAccessControlObjectNamespace>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -641,12 +642,12 @@ public:
         THROW_ERROR_EXCEPTION("RemoveChild() method is not supported for access control object namespaces");
     }
 
-    bool RemoveChild(const std::string& /*key*/) override
+    bool RemoveChild(TKeyView /*key*/) override
     {
         THROW_ERROR_EXCEPTION("RemoveChild() method is not supported for access control object namespaces");
     }
 
-    std::vector<std::pair<std::string, INodePtr>> GetChildren() const override
+    std::vector<std::pair<TKey, TValue>> GetChildren() const override
     {
         const auto* thisImpl = GetThisImpl();
         const auto& children = thisImpl->Members();
@@ -654,7 +655,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& childHandler = objectManager->GetHandler(EObjectType::AccessControlObject);
 
-        std::vector<std::pair<std::string, INodePtr>> result;
+        std::vector<std::pair<TKey, TValue>> result;
         result.reserve(ssize(children));
         std::transform(
             children.begin(),
@@ -669,12 +670,12 @@ public:
         return result;
     }
 
-    std::vector<std::string> GetKeys() const override
+    std::vector<TKey> GetKeys() const override
     {
         const auto* thisImpl = GetThisImpl();
         const auto& children = thisImpl->Members();
 
-        std::vector<std::string> result;
+        std::vector<TKey> result;
         result.reserve(ssize(children));
         std::transform(
             children.begin(),
@@ -686,12 +687,12 @@ public:
         return result;
     }
 
-    bool AddChild(const std::string& /*key*/, const INodePtr& /*child*/) override
+    bool AddChild(TKeyView /*key*/, const TValue& /*child*/) override
     {
         THROW_ERROR_EXCEPTION("Access control object namespace children cannot be added directly; consider creating an access control object instead");
     }
 
-    std::optional<std::string> FindChildKey(const IConstNodePtr& child) const override
+    std::optional<TKey> FindChildKey(const IConstNodePtr& child) const override
     {
         auto throwNotChild = [] {
             THROW_ERROR_EXCEPTION("Node is not a child");
@@ -712,11 +713,11 @@ public:
         return accessControlObject->GetName();
     }
 
-    INodePtr FindChild(const std::string& key) const override
+    TValue FindChild(TKeyView key) const override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto* thisImpl = GetThisImpl();
-        auto* child = thisImpl->FindMember(key);
+        auto* child = thisImpl->FindMember(TKey(key));
 
         if (!child) {
             return nullptr;
@@ -732,7 +733,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         // NB: zombifying a child will remove it from the member set.
-        auto members = thisImpl->Members();
+        auto members = SortHashMapByKeys(thisImpl->Members());
         for (const auto& [name, member] : members) {
             YT_VERIFY(IsObjectAlive(member));
             objectManager->RemoveObject(member);
@@ -776,13 +777,10 @@ private:
         auto* thisImpl = GetThisImpl();
 
         if (!recursive) {
-            YT_LOG_ALERT_IF(
-                !thisImpl->Members().empty(),
-                "Non-recursive removal of a non-empty access control object namespace detected; skipped "
-                "(NamespaceId: %v, Namespace: %v, MemberCount: %v)",
-                thisImpl->GetId(),
-                thisImpl->GetName(),
-                ssize(thisImpl->Members()));
+            YT_TLOG_ALERT_IF(!thisImpl->Members().empty(), "Non-recursive removal of a non-empty access control object namespace detected; skipped")
+                .With("NamespaceId", thisImpl->GetId())
+                .With("Namespace", thisImpl->GetName())
+                .With("MemberCount", ssize(thisImpl->Members()));
             return;
         }
 

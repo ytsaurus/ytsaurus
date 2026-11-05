@@ -3,6 +3,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 namespace NYT::NTabletNode {
 namespace {
 
@@ -10,6 +12,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NTableClient;
+
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +26,6 @@ protected:
         TOrderedDynamicStoreTestBase::SetUp();
         CreateDynamicStore();
     }
-
 
     TTimestamp WriteRow(const TUnversionedOwningRow& row)
     {
@@ -48,7 +51,6 @@ protected:
             ChunkReadOptions_);
     }
 
-
     std::string DumpStore()
     {
         TStringBuilder builder;
@@ -67,7 +69,6 @@ protected:
         }
         return builder.Flush();
     }
-
 
     TOrderedDynamicStorePtr Store_;
 
@@ -316,7 +317,7 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Write)
 TEST_F(TOrderedDynamicStoreTimestampColumnTest, VersionedWrite)
 {
     auto ts = WriteRow(BuildRow("a=1;\"$timestamp\"=42u"));
-    EXPECT_NE(ts, 42u);
+    EXPECT_NE(ts, 42_ts);
 
     auto rows = Store_->GetAllRows();
     EXPECT_EQ(1u, rows.size());

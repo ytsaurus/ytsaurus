@@ -164,7 +164,7 @@ struct ISortedStoreManager
         const TSharedRange<TLegacyKey>& keys) = 0;
 
     virtual void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) = 0;
-    virtual void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId) = 0;
+    virtual void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId, NHydra::TRevision expectedMountRevision) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)

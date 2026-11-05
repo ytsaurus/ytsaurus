@@ -76,8 +76,8 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->ForwardedRequestTimeoutReserve < config->TimeoutBackoffLeadTime) {
             THROW_ERROR_EXCEPTION("\"forwarded_request_timeout_reserve\" cannot be shorter than \"timeout_backoff_lead_time\"")
-                << TErrorAttribute("forwarded_request_timeout_reserve", config->ForwardedRequestTimeoutReserve)
-                << TErrorAttribute("timeout_backoff_lead_time", config->TimeoutBackoffLeadTime);
+                .With("forwarded_request_timeout_reserve", config->ForwardedRequestTimeoutReserve)
+                .With("timeout_backoff_lead_time", config->TimeoutBackoffLeadTime);
         }
     });
 }
@@ -162,6 +162,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("local_write_request_throttler", &TThis::LocalWriteRequestThrottler)
         .DefaultNew();
+
+    registrar.Parameter("max_vectorized_read_request_size", &TThis::MaxVectorizedReadRequestSize)
+        .Default(100);
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();

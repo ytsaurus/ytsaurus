@@ -182,7 +182,7 @@
 
 3. Убедитесь, что вкладка `Excel` отображается:
 
-   ![Вкладка экспорта Excel в UI](../../../images/install_excel_01_excel_tab.png)
+   ![Вкладка экспорта Excel в UI](../../../_images/install_excel_01_excel_tab.png)
 
 Вкладка должна отображаться, если с вашего браузера запрос `<exportTableBaseUrl>/<cluster-name>/api/ready` вернёт статус 200 OK. Если этого не происходит, обратите внимание на настройки: UI Helm Chart, Excel Helm Chart и Ingress.
 

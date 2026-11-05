@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/web_assembly/api/type_builder.h>
 
+#include <yt/yt/library/numeric/util.h>
+
 namespace NYT::NWebAssembly {
 
 using namespace WAVM;
@@ -54,7 +56,7 @@ TWebAssemblyRuntimeType GetTypeId(
     auto wavmArgumentTypes = ConvertToRuntimeTypeTuple(argumentTypes);
     const auto wavmCallingConvention = intrinsic ? IR::CallingConvention::intrinsic : IR::CallingConvention::wasm;
     auto functionType = IR::FunctionType(wavmReturnType, wavmArgumentTypes, wavmCallingConvention);
-    return TWebAssemblyRuntimeType{std::bit_cast<void*>(functionType.getEncoding().impl)};
+    return TWebAssemblyRuntimeType{BitCast<void*>(functionType.getEncoding().impl)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

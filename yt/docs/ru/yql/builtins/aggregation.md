@@ -1,5 +1,11 @@
 # Агрегатные функции
 
+{% note info %}
+
+Агрегатные функции не учитывают `NULL` в своих аргументах, за исключением функции `COUNT`, если в качестве аргумента указана `*`, а также функций `BOOL_AND` / `BOOL_OR` / `BOOL_XOR`, в которых `NULL` учитывается без пропусков.
+
+{% endnote %}
+
 ## COUNT {#count}
 
 #### Сигнатура
@@ -10,7 +16,7 @@ COUNT(T)->Uint64
 COUNT(T?)->Uint64
 ```
 
-Подсчет количества строк в таблице (если в качестве аргумента указана `*` или константа) или непустых значений в столбце таблицы (если в качестве аргумента указано имя столбца).
+Подсчет количества строк в строковой или колоночной таблице (если в качестве аргумента указана `*` или константа) или непустых значений в столбце таблицы (если в качестве аргумента указано имя столбца).
 
 Как и другие агрегатные функции, может использоваться в сочетании с [GROUP BY](../syntax/group_by.md) для получения статистики по частям таблицы, соответствующим значениям в столбцах, по которым идет группировка. А модификатор [DISTINCT](../syntax/group_by.md#distinct) позволяет посчитать число уникальных значений.
 
@@ -34,7 +40,7 @@ SELECT key, COUNT(value) FROM my_table GROUP BY key;
 SELECT COUNT(DISTINCT value) FROM my_table;
 ```
 
-## MIN и MAX {#min-max}
+## MIN и MAX {#min-max} {#min}
 
 #### Сигнатура
 
@@ -276,7 +282,7 @@ FROM my_table;
 
 
 
-## AGGREGATE_LIST {#agg-list}
+## AGGREGATE_LIST {#agg-list} {#aggregate-list}
 
 #### Сигнатура
 
@@ -335,7 +341,7 @@ FROM users
 {% if audience == "internal" %}[Пример в tutorial]({{yql.link}}/Tutorial/yt_07_Conditional_values_and_UDF){% endif %}
 
 
-## MAX_BY и MIN_BY {#max-min-by}
+## MAX_BY и MIN_BY {#max-min-by} {#minby}
 
 #### Сигнатура
 
@@ -607,7 +613,7 @@ SELECT
 FROM my_table;
 ```
 
-## PERCENTILE и MEDIAN {#percentile-median}
+## PERCENTILE и MEDIAN {#percentile-median} {#percentile}
 
 #### Сигнатура
 
@@ -719,7 +725,7 @@ TWeightedValue CalcWardQuality(const TWeightedValue& left, const TWeightedValue&
 
 Чем отличается Adaptive и Block:
 
-{% block info %}
+{% note info %}
 
 Contrary to adaptive histogram, block histogram doesn't rebuild bins after the addition of each point. Instead, it accumulates points and in case the amount of points overflows specified limits, it shrinks all the points at once to produce histogram. Indeed, there exist two limits and two shrinkage operations:
 
@@ -728,7 +734,7 @@ Contrary to adaptive histogram, block histogram doesn't rebuild bins after the a
 
 While FastGreedyShrink is used most of the time, SlowShrink is mostly used for histogram finalization
 
-{% endblock %}
+{% endnote %}
 
 {% endif %}
 
@@ -919,10 +925,10 @@ FROM my_table;
 Без аргументов. Допускается только при наличии [SessionWindow](../syntax/group_by.md#session-window) в
 [GROUP BY](../syntax/group_by.md) / [PARTITION BY](../syntax/window.md#partition).
 Возвращает значение ключевой колонки `SessionWindow`. В случае `SessionWindow` с двумя аргументами – минимальное значение первого аргумента внутри группы/раздела.
-В случае раширенного варианта `SessionWindoow` – значение второго элемента кортежа, возвращаемого `<calculate_lambda>`, при котором первый элемент кортежа равен `True`.
+В случае раширенного варианта `SessionWindow` – значение второго элемента кортежа, возвращаемого `<calculate_lambda>`, при котором первый элемент кортежа равен `True`.
 
 
-## AGGREGATE_BY и MULTI_AGGREGATE_BY {#aggregate-by}
+## AGGREGATE_BY и MULTI_AGGREGATE_BY {#aggregate-by} {#aggregateby} {#multiaggregateby}
 
 Применение [фабрики агрегационной функции](basic.md#aggregationfactory) ко всем значениям колонки или выражения. Функция `MULTI_AGGREGATE_BY` требует, чтобы в значении колонки или выражения была структура, кортеж или список, и применяет фабрику поэлементно, размещая результат в контейнере той же формы. Если в разных значениях колонки или выражения содержатся списки разной длины, результирующий список будет иметь наименьшую из длин этих списков.
 

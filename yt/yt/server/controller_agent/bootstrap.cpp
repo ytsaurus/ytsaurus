@@ -6,6 +6,7 @@
 #include "job_prober_service.h"
 #include "job_tracker_service.h"
 #include "private.h"
+#include "push_based_shuffle_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -46,6 +47,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -74,6 +77,7 @@ namespace NYT::NControllerAgent {
 
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
@@ -136,7 +140,7 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
-    YT_LOG_INFO("Starting controller agent");
+    YT_TLOG_INFO("Starting controller agent");
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetConnectionInvoker();
@@ -163,6 +167,9 @@ void TBootstrap::DoInitialize()
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, ConfigNode_->AsMap()->FindChild("controller_agent"), this);
 
@@ -171,6 +178,7 @@ void TBootstrap::DoInitialize()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -208,14 +216,25 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreatePushBasedShuffleService(
+        ControllerAgent_->GetPushBasedShuffleRegistry(),
+        ControllerAgent_->GetPushBasedShuffleInvoker(),
+        NativeAuthenticator_));
 }
 
 void TBootstrap::DoStart()
 {
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 }
@@ -282,6 +301,8 @@ void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

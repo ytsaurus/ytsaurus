@@ -226,7 +226,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_fail_on_failed_job(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             vanilla(
                 spec={
                     "tasks": {
@@ -264,7 +264,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         op.wait_for_state("completed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -327,7 +327,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             },
         )
         wait(lambda: len(op.get_running_jobs()) == 2)
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint(job_id=job_ids[0])
         op.wait_for_fresh_snapshot()
         # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
@@ -352,7 +352,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         # 6 jobs may not be running simultaneously, so the snapshot will contain information about
         # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
-        job_ids = wait_breakpoint(job_count=5)
+        job_ids = wait_breakpoint(op, job_count=5)
         release_breakpoint(job_id=job_ids[0])
         wait(lambda: op.get_job_count("completed") == 1)
         op.wait_for_fresh_snapshot()
@@ -376,7 +376,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "fail_on_job_restart": True,
             },
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
         abandon_job(job_id)
@@ -387,7 +387,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     @pytest.mark.parametrize("action", [abort_job])
     def test_fail_on_manually_stopped_job(self, action):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 track=False,
                 spec={
@@ -503,7 +503,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             with_breakpoint("echo YT_COLLECTIVE_MEMBER_RANK $YT_COLLECTIVE_MEMBER_RANK 1>&2; env 1>&2; BREAKPOINT"),
             task_patch={"collective_options": {"size": 2}}, job_count=1,
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         collective_id = list_jobs(op.id, attributes=["collective_id"])["jobs"][0]["collective_id"]
 
         jobs = [
@@ -569,7 +569,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* appears twice with different attributes"):
             vanilla(
                 spec={
                     "tasks": {
@@ -590,9 +590,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_operation_limits(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum number of tasks exceeded"):
             vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum total job count exceeded"):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
     @authors("dakovalkov", "max42")
@@ -616,13 +616,13 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("ignat")
     def test_get_job_context(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input context is not supported for vanilla jobs"):
             dump_job_context(job_id, "//tmp/input_context")
 
         release_breakpoint()
@@ -667,7 +667,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_empty_task_name(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Empty task names are not allowed"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -679,6 +679,21 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
             op.track()
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("task_name", ["source", "sink"])
+    def test_reserved_task_name(self, task_name):
+        with raises_yt_error(f'Task name "{task_name}" is reserved'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        task_name: {
+                            "job_count": 1,
+                            "command": "echo A",
+                        },
+                    },
+                }
+            )
 
     @authors("ignat")
     def test_event_log_with_failed_on_job_restart(self):
@@ -783,7 +798,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_no_nul_in_file_name(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
 
-        with raises_yt_error("must not contain"):
+        with raises_yt_error("File name must not contain NUL byte"):
             run_sleeping_vanilla(
                 track=True,
                 task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
@@ -876,7 +891,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "a",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 },
                             ],
                         }
@@ -886,7 +901,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_non_root_nbd_volumes(self):
-        with raises_yt_error('Non-root nbd are not currently supported'):
+        with raises_yt_error('Non-root NBD are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -896,7 +911,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "nbd",
-                                    "mount_path": "nbd",
+                                    "mount_path": "/sandbox/nbd",
                                 },
                             ],
                             "volumes" : {
@@ -914,7 +929,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -942,6 +956,47 @@ class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+class TestVanillaRestartOptionsValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("fail_on_job_restart_in_task", [False, True])
+    def test_incompatible_fail_on_job_restart_and_restart_exit_code(self, fail_on_job_restart_in_task):
+        task = {
+            "job_count": 1,
+            "command": "echo done",
+            "restart_exit_code": 17,
+        }
+        if fail_on_job_restart_in_task:
+            task["fail_on_job_restart"] = True
+
+        with raises_yt_error("\"restart_exit_code\" cannot be set together with \"fail_on_job_restart\""):
+            vanilla(spec={
+                "tasks": {"task": task},
+                "fail_on_job_restart": not fail_on_job_restart_in_task,
+            })
+
+    @authors("pogorelov")
+    def test_restart_exit_code_in_another_task(self):
+        vanilla(spec={
+            "tasks": {
+                "task_with_restart_exit_code": {
+                    "job_count": 1,
+                    "command": "echo done",
+                    "restart_exit_code": 17,
+                },
+                "task_with_fail_on_job_restart": {
+                    "job_count": 1,
+                    "command": "echo done",
+                    "fail_on_job_restart": True,
+                },
+            },
+        })
 
 
 ##################################################################
@@ -995,8 +1050,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(breakpoint_name="task_a")
-        wait_breakpoint(breakpoint_name="task_b")
+        wait_breakpoint(op, breakpoint_name="task_a")
+        wait_breakpoint(op, breakpoint_name="task_b")
 
         op.wait_for_fresh_snapshot()
 
@@ -1065,7 +1120,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla"},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1107,7 +1162,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla"},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         assert op.get_job_count("aborted") == 1
         release_breakpoint()
 
@@ -1118,7 +1173,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterrupts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1163,7 +1217,7 @@ wait $child_pid
                 "max_failed_job_count": 1,
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
 
         interrupted_job_id = self._interrupt(op)
@@ -1187,11 +1241,11 @@ wait $child_pid
                 "fail_on_job_restart": True,
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Error interrupting job"):
             interrupt_job(job_id)
 
     @authors("ignat")
@@ -1213,14 +1267,14 @@ wait $child_pid
                 },
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         self._interrupt(op)
 
         wait(lambda: op.get_job_count("lost") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
 
         # Give time to execute second trap command.
@@ -1233,7 +1287,7 @@ wait $child_pid
 
     @authors("krasovav")
     def test_incorrect_interrupt_signal(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unsupported signal name .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -1248,7 +1302,6 @@ wait $child_pid
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -1312,6 +1365,10 @@ class TestGangOperations(YTEnvSetup):
     def _verify_job_ids_equal(self, running_jobs, job_ids):
         assert set(running_jobs.keys()) == set(job_ids)
 
+    def _wait_job_aborted_on_node(self, op, job_id):
+        job_path = op.get_job_node_orchid_path(job_id) + "/exec_node/job_controller/active_jobs/{}".format(job_id)
+        wait(lambda: get(job_path + "/job_state", default="aborted") == "aborted")
+
     def _get_jobs_with_no_ranks(self, running_jobs):
         return [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is None]
 
@@ -1360,7 +1417,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(job_ids) == 3
 
@@ -1382,7 +1439,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
@@ -1427,7 +1484,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(job_ids) == 3
 
@@ -1445,7 +1502,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(set(job_ids) & set(new_job_ids)) == 0
 
@@ -1467,7 +1524,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_id_to_abandon, job_id_to_continue = wait_breakpoint(job_count=2)
+        job_id_to_abandon, job_id_to_continue = wait_breakpoint(op, job_count=2)
 
         print(f"Abandoning job {job_id_to_abandon}")
         abandon_job(job_id_to_abandon)
@@ -1517,8 +1574,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
-        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+        (job_a, ) = wait_breakpoint(op, breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(op, breakpoint_name="task_b")
 
         if task_to_abort_job_of == "task_a":
             job_to_abort = job_a
@@ -1526,10 +1583,10 @@ class TestGangOperations(YTEnvSetup):
             job_to_abort = job_b
 
         abort_job(job_to_abort)
-        jobs_a = wait_breakpoint(job_count=2, breakpoint_name="task_a")
+        jobs_a = wait_breakpoint(op, job_count=2, breakpoint_name="task_a")
 
         if task_to_abort_job_of == "task_b":
-            wait_breakpoint(job_count=2, breakpoint_name="task_b")
+            wait_breakpoint(op, job_count=2, breakpoint_name="task_b")
 
             assert get_allocation_id_from_job_id(jobs_a[0]) == get_allocation_id_from_job_id(jobs_a[1])
 
@@ -1574,7 +1631,7 @@ class TestGangOperations(YTEnvSetup):
         all_started_jobs = set()
         previous_operation_incarnations = set()
 
-        last_job_ids = wait_breakpoint(job_count=3)
+        last_job_ids = wait_breakpoint(op, job_count=3)
         all_started_jobs.update(last_job_ids)
 
         for iteration in range(incarnation_switch_count):
@@ -1604,7 +1661,7 @@ class TestGangOperations(YTEnvSetup):
 
             wait(lambda: incarnation_switch_counter.get_delta() == iteration + 1)
 
-            last_job_ids = wait_breakpoint(job_count=3)
+            last_job_ids = wait_breakpoint(op, job_count=3)
             assert len(set(last_job_ids) & all_started_jobs) == 0
 
             all_started_jobs.update(last_job_ids)
@@ -1636,7 +1693,7 @@ class TestGangOperations(YTEnvSetup):
             spec={"enable_multiple_jobs_in_allocation": True},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         release_breakpoint()
 
@@ -1671,8 +1728,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
-        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+        (job_a, ) = wait_breakpoint(op, breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(op, breakpoint_name="task_b")
 
         op.wait_for_fresh_snapshot()
 
@@ -1732,7 +1789,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert first_incarnation_id != second_incarnation_id
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1763,8 +1820,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
-        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+        job_id_a, = wait_breakpoint(op, job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(op, job_count=1, breakpoint_name="task_b")
 
         print_debug(f"Job ids are task_a: {job_id_a}, task_b: {job_id_b}")
 
@@ -1802,14 +1859,12 @@ class TestGangOperations(YTEnvSetup):
         incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
             "controller_agent/gang_operations/incarnation_switch_count")
 
-        # if with_gang_policy:
-        #     release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
-        # else:
-        #     release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
-
         if with_gang_policy:
-            job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
-        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+            # The pre-restart task_a job is aborted by the incarnation switch, but its
+            # breakpoint file persists; release it so the wait below sees only the new job.
+            release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
+            job_id_a, = wait_breakpoint(op, job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(op, job_count=1, breakpoint_name="task_b")
 
         second_incarnation_id = self._get_operation_incarnation(op)
 
@@ -1846,7 +1901,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         print_debug("Running jobs {}; Completing {} and {}, restarting {}".format(job_ids, job_ids[0], job_ids[1], job_ids[2]))
 
@@ -1862,7 +1917,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         release_breakpoint()
         op.track()
 
@@ -1875,7 +1930,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         assert len(job_ids) == 3
 
         if with_job_revival:
@@ -1916,7 +1971,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(set(job_ids) & set(new_job_ids)) == 0
 
@@ -1966,7 +2021,7 @@ class TestGangOperations(YTEnvSetup):
                 expected_job_descriptor = "{}/{}".format(op.id, job_id_to_rank[job_id] << 1)
                 assert descriptor == expected_job_descriptor
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         first_running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(first_running_jobs, first_job_ids)
         assert len(first_job_ids) == 3
@@ -2002,13 +2057,18 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
 
-        release_breakpoint(job_id=first_job_ids[0])
-        release_breakpoint(job_id=first_job_ids[1])
-        release_breakpoint(job_id=first_job_ids[2])
+        # Release each old job's breakpoint only after the job is aborted on its node.
+        # Otherwise a released job may run to completion before the incarnation-change
+        # abort reaches the node; a completed single-job gang allocation then finishes
+        # instead of being preserved for the replacement job, losing the monitoring
+        # descriptor association the assertion below checks. See YT-28595.
+        for old_job_id in first_job_ids:
+            self._wait_job_aborted_on_node(op, old_job_id)
+            release_breakpoint(job_id=old_job_id)
 
         first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
         second_running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(second_running_jobs, second_job_ids)
 
@@ -2046,7 +2106,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        first_incarnation_job_ids = wait_breakpoint(job_count=2)
+        first_incarnation_job_ids = wait_breakpoint(op, job_count=2)
 
         assert len(first_incarnation_job_ids) == 2
 
@@ -2071,7 +2131,7 @@ class TestGangOperations(YTEnvSetup):
 
         first_incarnation_allocation_ids = get_allocation_ids(first_incarnation_job_ids)
 
-        second_incarnation_job_ids = wait_breakpoint(job_count=2)
+        second_incarnation_job_ids = wait_breakpoint(op, job_count=2)
         assert len(second_incarnation_job_ids) == 2
 
         second_incarnation_id = self._get_operation_incarnation(op)
@@ -2111,7 +2171,7 @@ class TestGangOperations(YTEnvSetup):
                 "gang_options": {},
             },
         )
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         job_id_to_interrupt = first_job_ids[0]
 
         print_debug(f"First job ids are {first_job_ids}, interrupting job {job_id_to_interrupt}")
@@ -2128,7 +2188,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
 
         print_debug(f"Second job ids are {second_job_ids}")
 
@@ -2175,7 +2235,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         print_debug(f"Job ids are {job_ids}")
 
         wait(lambda: get(op.get_path() + "/@progress/state") == "failing")
@@ -2194,7 +2254,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
-        with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
+        with pytest.raises(YtError, match='Operation with "collective_options" cannot have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={
@@ -2211,7 +2271,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" enabled cannot have tasks with \"gang_options\""):
             vanilla(
                 track=False,
                 spec={
@@ -2226,7 +2286,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2241,7 +2301,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2263,7 +2323,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_operation_with_output_table(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Gang operations having output tables are not currently supported"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2302,7 +2362,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         assert len(first_job_ids) == 3
 
         first_job_id = first_job_ids[0]
@@ -2352,7 +2412,7 @@ class TestGangOperations(YTEnvSetup):
         release_breakpoint(job_id=first_job_ids[1])
         release_breakpoint(job_id=first_job_ids[2])
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         release_breakpoint()
 
@@ -2375,14 +2435,17 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=2)
+        first_job_ids = wait_breakpoint(op, job_count=2)
         assert len(first_job_ids) == 2
 
         incarnation_switch_counter = _get_controller_profiler().counter(
             "controller_agent/gang_operations/incarnation_switch_count")
         abort_job(first_job_ids[0])
 
-        wait(lambda: incarnation_switch_counter.get() == 1)
+        # The abort always triggers one incarnation switch; a second one may follow
+        # if the reincarnated job manages to start before the reincarnation-timeout
+        # abort fires, so tolerate both outcomes instead of requiring exactly one.
+        wait(lambda: incarnation_switch_counter.get() >= 1)
 
         # Resolve life lock from comment above.
         update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
@@ -2416,7 +2479,7 @@ class TestGangOperations(YTEnvSetup):
             }
         )
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         assert len(first_job_ids) == 3
 
         wait(lambda: "user_job_monitoring_limited" in op.get_alerts())
@@ -2434,7 +2497,7 @@ class TestGangOperations(YTEnvSetup):
         for job_id in first_job_ids:
             release_breakpoint(job_id=job_id)
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
         assert len(set(first_job_ids) & set(second_job_ids)) == 0
         release_breakpoint()
 
@@ -2512,8 +2575,8 @@ class TestGangOperations(YTEnvSetup):
                 assert monitoring_descriptor not in all_descriptors
                 all_descriptors.add(monitoring_descriptor)
 
-        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
-        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        first_task_job_ids = wait_breakpoint(op, breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(op, breakpoint_name="second", job_count=2)
         first_job_ids = first_task_job_ids + second_task_job_ids
         assert len(first_job_ids) == 3
 
@@ -2526,8 +2589,8 @@ class TestGangOperations(YTEnvSetup):
         release_breakpoint(job_id=second_task_job_ids[0], breakpoint_name="second")
         release_breakpoint(job_id=second_task_job_ids[1], breakpoint_name="second")
 
-        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
-        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        first_task_job_ids = wait_breakpoint(op, breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(op, breakpoint_name="second", job_count=2)
         second_job_ids = first_task_job_ids + second_task_job_ids
         assert len(second_job_ids) == 3
 
@@ -2543,7 +2606,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_size_greater_than_job_count(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2620,6 +2683,96 @@ class TestGangOperations(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
+    def test_total_gang_size_persisted_after_revival(self):
+        # Wait at breakpoint, then verify YT_GANG_SIZE.
+        # After revival + abort_job, gang policy spawns new joblets — they read TotalGangSize_
+        # from the controller. Without persistence the value is 0 and the check fails.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_GANG_SIZE" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(op, job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        # Wait until the controller agent re-attaches to the preserved jobs after revival.
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        # Wait until both first-iteration jobs are gone (gang policy aborts the whole gang
+        # and starts a new incarnation).
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_total_target_job_count_persisted_after_revival(self):
+        # Same scenario as test_total_gang_size_persisted_after_revival but for YT_JOB_COUNT,
+        # which is derived from TotalTargetJobCount_ on TVanillaController.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_JOB_COUNT" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(op, job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
     def test_task_gang_size_is_set(self):
         # Die with code 42 if variable is not 1.
         command = '[[ "$YT_TASK_GANG_SIZE" -eq 1 ]] && exit 0 || exit 42'
@@ -2653,7 +2806,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2684,7 +2837,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2716,7 +2869,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2749,7 +2902,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2764,7 +2917,7 @@ class TestGangOperations(YTEnvSetup):
         abort_job(jobs_with_no_ranks[0])
         release_breakpoint(job_id=jobs_with_no_ranks[0])
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -2810,7 +2963,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2826,7 +2979,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: failed_job_profiler.get_job_count_delta() == 1)
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -2868,7 +3021,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2886,7 +3039,7 @@ class TestGangOperations(YTEnvSetup):
 
         release_breakpoint(job_id=jobs_with_no_ranks[0])
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -2913,7 +3066,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(running_jobs, job_ids)
 
@@ -2940,7 +3093,7 @@ class TestGangOperations(YTEnvSetup):
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         print_debug(f"New running jobs are {new_running_jobs}")
@@ -2978,7 +3131,7 @@ class TestGangOperations(YTEnvSetup):
             spec={"pool": "fake_pool"},
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         running_jobs = self._get_running_jobs(op, 2)
         self._verify_job_ids_equal(running_jobs, job_ids)
@@ -3013,7 +3166,7 @@ class TestGangOperations(YTEnvSetup):
 
         first_incarnation_id = self._get_operation_incarnation(op)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         op.wait_for_fresh_snapshot()
 
@@ -3029,7 +3182,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert first_incarnation_id == second_incarnation_id
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -3051,7 +3204,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         op.suspend()
         wait(lambda: get(op.get_path() + "/@suspended"))
@@ -3073,7 +3226,7 @@ class TestGangOperations(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -3175,11 +3328,11 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_increase_job_count(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 4)
 
-        wait_breakpoint(job_count=4)
+        wait_breakpoint(op, job_count=4)
         release_breakpoint()
         op.track()
 
@@ -3189,7 +3342,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_decrease_job_count(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
 
@@ -3204,7 +3357,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_regenerate_jobs(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -3223,7 +3376,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_regenerate_jobs_and_restart_completed(self):
         op = self._run_vanilla(task_spec_template={"restart_completed_jobs": True})
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -3237,7 +3390,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
             wait(lambda: len(op.get_running_jobs()) == 2)
             old_jobs = op.get_running_jobs()
             for job_id in old_jobs:
-                wait_breakpoint(job_id=job_id)
+                wait_breakpoint(op, job_id=job_id)
             if release:
                 for job_id in old_jobs:
                     release_breakpoint(job_id=job_id)
@@ -3258,7 +3411,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_stress_pendulum(self):
         op = self._run_vanilla(tasks=["one", "two"])
 
-        wait_breakpoint(job_count=2 + 2)
+        wait_breakpoint(op, job_count=2 + 2)
 
         patch_op_spec(
             op.id,
@@ -3317,7 +3470,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
         time.sleep(2)
         self.assert_job_states(op, "task", running=1)
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         self._set_job_count(op, 1)
 
         # Wait for anything bad to happen.
@@ -3344,14 +3497,14 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
 
         op = self._run_vanilla()
         op.wait_for_state("running")
-        with raises_yt_error("Validation failed at /tasks/task/job_count"):
+        with raises_yt_error("Validation failed at .*"):
             self._set_job_count(op, 0)
 
     @authors("coteeq")
     def test_operation_finishes_prematurely(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         second_job = [
             job_id
@@ -3395,7 +3548,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
     def test_increase_job_count(self):
         op = self._run_vanilla(delay_in_apply="3s")
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         op.wait_for_fresh_snapshot()
 
         response = self._set_job_count(op, 4, sync=False)
@@ -3420,7 +3573,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
     def test_decrease_job_count(self):
         op = self._run_vanilla(delay_in_apply="3s")
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         op.wait_for_fresh_snapshot()
 
         response = self._set_job_count(op, 1, sync=False)
@@ -3445,7 +3598,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         update_controller_agent_config("enable_snapshot_building", False)
         op = self._run_vanilla(delay_in_apply=0)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 3)
         time.sleep(1)
@@ -3500,9 +3653,9 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(breakpoint_name="first", job_count=2)
+        wait_breakpoint(op1, breakpoint_name="first", job_count=2)
 
-        run_test_vanilla(
+        op2 = run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="second"),
             job_count=2,
             spec={
@@ -3510,7 +3663,7 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             }
         )
 
-        wait_breakpoint(breakpoint_name="second", job_count=2)
+        wait_breakpoint(op2, breakpoint_name="second", job_count=2)
 
         wait(lambda: operation_incarnation_counter.get_delta() == 1)
         wait(lambda: op1.get_job_count("aborted") == 3)

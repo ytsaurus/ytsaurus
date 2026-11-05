@@ -5,8 +5,13 @@ PY_SRCS(
 )
 
 PEERDIR(
+    contrib/python/six
+    library/python/cyson
     yt/python/client
     yt/python/yt/wrapper
+    yt/python/yt/environment
+
+    yql/essentials/providers/common/proto
 )
 
 END()

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/hash_set.h>
 
@@ -33,7 +33,7 @@ public:
     void RemoveAllOperations();
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     int Size_ = 0;
     int MaxSize_ = -1;
     int IndexCount_ = InitialIndexCount;

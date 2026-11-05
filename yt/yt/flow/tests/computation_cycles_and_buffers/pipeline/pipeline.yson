@@ -1,0 +1,139 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["reader_output"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "stream_id" = "source";
+                        "parameters" = {
+                            "update_info_period" = "1s";
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "transform_a" = {
+                "computation_class_name" = "TCycleTransformComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["reader_output"; "sb1"];
+                "output_stream_ids" = ["ta1"; "ta2"];
+                "streams_dependency" = {
+                    "ta1" = ["reader_output"];
+                    "ta2" = ["reader_output"; "sb1"];
+                };
+                "parameters" = {
+                    "processing_mode" = "exactly_once";
+                    "passthrough_rules" = {
+                        "reader_output" = "ta1";
+                        "sb1" = "ta2";
+                    };
+                };
+            };
+            "swift_map_a" = {
+                "computation_class_name" = "TCycleSwiftMapComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["ta1"];
+                "output_stream_ids" = ["sa1"];
+                "streams_dependency" = {
+                    "sa1" = ["ta1"];
+                };
+                "parameters" = {
+                    "passthrough_rules" = {
+                        "ta1" = "sa1";
+                    };
+                    "sleep_per_message" = {
+                        "ta1" = 6;
+                    };
+                };
+            };
+            "transform_b" = {
+                "computation_class_name" = "TCycleTransformComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["sa1"];
+                "output_stream_ids" = ["tb1"];
+                "streams_dependency" = {
+                    "tb1" = ["sa1"];
+                };
+                "parameters" = {
+                    "processing_mode" = "exactly_once";
+                    "passthrough_rules" = {
+                        "sa1" = "tb1";
+                    };
+                };
+            };
+            "swift_map_b" = {
+                "computation_class_name" = "TCycleSwiftMapComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["tb1"];
+                "output_stream_ids" = ["sb1"];
+                "streams_dependency" = {
+                    "sb1" = ["tb1"];
+                };
+                "parameters" = {
+                    "passthrough_rules" = {
+                        "tb1" = "sb1";
+                    };
+                    "sleep_per_message" = {
+                        "tb1" = 12;
+                    };
+                };
+            };
+            "reducer" = {
+                "computation_class_name" = "TReducer";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["ta2"];
+                "output_stream_ids" = [];
+                "parameters" = {
+                    "processing_mode" = "exactly_once";
+                };
+                "external_state_managers" = {
+                    "/state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {"path" = "//path/to/state";};
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "reader_output" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+            "ta1" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+            "sa1" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+            "tb1" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+            "sb1" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+            "ta2" = {"schema" = [{name = "data"; type = "string"; required = %true;};];};
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {"parameters" = {};};
+            "transform_a" = {"max_rows_per_batch" = 30; "parameters" = {"desired_partition_count" = 1;};};
+            "transform_b" = {"max_rows_per_batch" = 30; "parameters" = {"desired_partition_count" = 1;};};
+            "reducer" = {"max_rows_per_batch" = 30; "parameters" = {"desired_partition_count" = 1;};};
+        };
+        "job_tracker" = {
+            "buffer_state_manager" = {
+                "input_buffer" = { job_guarantee = "50"; };
+                "output_buffer" = { job_guarantee = "50"; };
+                demand_window = "20s";
+            };
+        };
+    };
+}

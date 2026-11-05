@@ -8,7 +8,7 @@ While operations are running, {{product-name}} collects various system and user 
 
 Individual job statistics are entered into the scheduler log while aggregated statistics for an operation are available through the web interface by going to the **Statistics** tab on the operation page. The figure shows an example of a page with operation job statistics:
 
-![](../../../../images/jobstatistics.png)
+![](../../../../_images/jobstatistics.png)
 
 {% note info "Note" %}
 

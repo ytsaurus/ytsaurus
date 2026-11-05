@@ -2,9 +2,12 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
+    create_domestic_medium, get_account_disk_space_limit, set_account_disk_space_limit,
     remove_data_center, write_file, wait, sync_control_chunk_replicator,
     read_journal, write_journal, write_table, wait_until_sealed,
-    get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id)
+    get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id, raises_yt_error,
+    add_maintenance, remove_maintenance,
+)
 
 from yt.environment.helpers import assert_items_equal
 
@@ -18,7 +21,6 @@ import math
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCentersBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -186,7 +188,6 @@ class TestDataCentersBase(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCenters(TestDataCentersBase):
     ENABLE_MULTIDAEMON = True
 
@@ -198,13 +199,13 @@ class TestDataCenters(TestDataCentersBase):
 
     @authors("shakurov")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             create_data_center("")
 
     @authors("shakurov")
     def test_duplicate_name_fail(self):
         create_data_center("d")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_data_center("d")
 
     @authors("shakurov")
@@ -230,7 +231,7 @@ class TestDataCenters(TestDataCentersBase):
     def test_rename_fail(self):
         create_data_center("d1")
         create_data_center("d2")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             set("//sys/data_centers/d1/@name", "d2")
 
     @authors("shakurov")
@@ -303,7 +304,7 @@ class TestDataCenters(TestDataCentersBase):
         create_rack("r")
         n = get_nodes()[0]
         self._set_rack(n, "r")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such data center .*"):
             self._set_data_center("r", "d")
 
     @authors("shakurov")
@@ -342,7 +343,7 @@ class TestDataCenters(TestDataCentersBase):
     def test_data_center_count_limit(self):
         for i in range(16):
             create_data_center("d" + str(i))
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center count limit .* is reached"):
             create_data_center("too_many")
 
     @authors("gritukan")
@@ -366,8 +367,13 @@ class TestDataCenters(TestDataCentersBase):
 
     @authors("gritukan")
     @pytest.mark.parametrize("erasure", [False, True])
-    def test_ban_data_center(self, erasure):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_data_center(self, erasure, per_medium):
         self._init_data_center_aware_replicator()
+
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
 
         def check_no_ban(chunk_id):
             expected_counters = [2, 2, 2] if erasure else [1, 1, 1]
@@ -385,13 +391,13 @@ class TestDataCenters(TestDataCentersBase):
             chunk_id = self._create_chunk(replication_factor=3)
         assert check_no_ban(chunk_id)
 
-        self._ban_data_centers(["d0"])
+        ban_data_centers(["d0"])
         wait(lambda: check_ban(chunk_id, "d0"))
 
-        self._ban_data_centers([])
+        ban_data_centers([])
         wait(lambda: check_no_ban(chunk_id))
 
-        self._ban_data_centers(["d2"])
+        ban_data_centers(["d2"])
         wait(lambda: check_ban(chunk_id, "d2"))
 
         if erasure:
@@ -401,20 +407,30 @@ class TestDataCenters(TestDataCentersBase):
         assert check_ban(chunk_id, "d2")
 
     @authors("gritukan")
-    def test_ban_too_many_data_centers(self):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_too_many_data_centers(self, per_medium):
         self._init_data_center_aware_replicator()
 
-        self._ban_data_centers(["d0", "d1"])
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
+
+        ban_data_centers(["d0", "d1"])
         chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
         assert self._get_replica_data_centers(chunk_id) == ["d2"] * 6
 
         assert not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id))
 
     @authors("gritukan")
-    def test_ban_all_data_centers(self):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_all_data_centers(self, per_medium):
         self._init_data_center_aware_replicator()
 
-        self._ban_data_centers(["d0", "d1", "d2"])
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
+
+        ban_data_centers(["d0", "d1", "d2"])
         with pytest.raises(YtError):
             self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
 
@@ -498,7 +514,185 @@ class TestDataCenters(TestDataCentersBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
+class TestTemporarilyUnavailableDataCenter(TestDataCentersBase):
+    ENABLE_MULTIDAEMON = False  # Restart a specific master or node.
+    NUM_MASTERS = 3
+    NUM_NODES = 6
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DATA_CENTERS = ["d0", "d1", "d2"]
+    PENDING_RESTART_LEASE_TIMEOUT = 600000
+    TEMPORARY_LEASE_TIMEOUT = 180000
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "temporarily_unavailable_storage_data_centers": [],
+            "use_data_center_aware_replicator": True,
+            "storage_data_centers": DATA_CENTERS,
+        },
+        "node_tracker": {
+            "pending_restart_lease_timeout": PENDING_RESTART_LEASE_TIMEOUT,
+            "temporarily_unavailable_data_center_lease_timeout": TEMPORARY_LEASE_TIMEOUT,
+            "temporarily_unavailable_data_center_lease_timeout_splay": 0,
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestTemporarilyUnavailableDataCenter, self).setup_method(method)
+
+        self._init_n_racks(self.NUM_NODES)
+        self._init_n_data_centers(len(self.DATA_CENTERS))
+
+        self._nodes_by_data_center = {}
+        for node in sorted(ls("//sys/cluster_nodes")):
+            data_center = get(f"//sys/cluster_nodes/{node}/@data_center")
+            self._nodes_by_data_center.setdefault(data_center, node)
+
+    @authors("danilalexeev")
+    @pytest.mark.parametrize("extra_failure_domain_tolerance", [0, 1])
+    def test_temporarily_unavailable_data_center_replication(self, extra_failure_domain_tolerance):
+        set("//sys/media/default/@config/max_replicas_per_rack", 1)
+        set("//sys/@config/chunk_manager/temporarily_unavailable_extra_failure_domain_tolerance",
+            extra_failure_domain_tolerance)
+
+        chunk_id = self._create_chunk(replication_factor=3)
+        status_path = f"#{chunk_id}/@replication_status/default"
+        temporary_data_centers_path = (
+            "//sys/@config/chunk_manager/temporarily_unavailable_storage_data_centers")
+
+        def check_replication(expected_data_centers, temporarily_unavailable):
+            status = get(status_path)
+            return (
+                sorted(self._get_replica_data_centers(chunk_id)) == expected_data_centers and
+                status["temporarily_unavailable"] == temporarily_unavailable and
+                not status["underreplicated"])
+
+        wait(lambda: check_replication(["d0", "d1", "d2"], False))
+
+        # The sole active DC gets the configured number of reserve replicas.
+        set(temporary_data_centers_path, ["d0", "d1"])
+        expected_data_centers = ["d0", "d1"] + ["d2"] * (1 + extra_failure_domain_tolerance)
+        wait(lambda: (
+            check_replication(expected_data_centers, True) and
+            len(builtins.set(self._get_replica_racks(chunk_id))) == len(expected_data_centers)))
+
+        set(temporary_data_centers_path, [])
+        wait(lambda: (
+            check_replication(["d0", "d1", "d2"], False) and
+            not get(status_path)["overreplicated"]))
+
+    def _set_temporarily_unavailable_data_centers(self, *data_centers):
+        set(
+            "//sys/@config/chunk_manager/temporarily_unavailable_storage_data_centers",
+            list(data_centers))
+
+    def _get_lease_transaction_id(self, node):
+        return get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
+
+    def _get_lease_timeout(self, node):
+        return get(f"#{self._get_lease_transaction_id(node)}/@timeout")
+
+    def _get_lease_timeouts(self, nodes):
+        return {node: self._get_lease_timeout(node) for node in nodes}
+
+    def _set_lease_timeouts(self, lease_timeouts):
+        for node, timeout in lease_timeouts.items():
+            set(f"#{self._get_lease_transaction_id(node)}/@timeout", timeout)
+
+    def _wait_for_lease_timeouts(self, expected_timeouts):
+        wait(lambda: self._get_lease_timeouts(expected_timeouts) == expected_timeouts)
+
+    @authors("danilalexeev")
+    def test_lease_timeout_precedence_and_restoration(self):
+        nodes = [self._nodes_by_data_center[data_center] for data_center in self.DATA_CENTERS]
+        node_a, node_b, node_c = nodes
+
+        initial_timeouts = self._get_lease_timeouts(nodes)
+        baseline_timeouts = {
+            node_a: 45000,
+            node_b: 50000,
+            node_c: 55000,
+        }
+        self._set_lease_timeouts(baseline_timeouts)
+
+        expected_timeouts = baseline_timeouts.copy()
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        maintenance_b = add_maintenance("cluster_node", node_b, "pending_restart", "")[node_b]
+        expected_timeouts[node_b] = self.PENDING_RESTART_LEASE_TIMEOUT
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        self._set_temporarily_unavailable_data_centers(self.DATA_CENTERS[0])
+        expected_timeouts[node_a] = self.TEMPORARY_LEASE_TIMEOUT
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        maintenance_a = add_maintenance("cluster_node", node_a, "pending_restart", "")[node_a]
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        updated_temporary_lease_timeout = 240000
+        set("//sys/@config/node_tracker/temporarily_unavailable_data_center_lease_timeout",
+            updated_temporary_lease_timeout)
+        assert self._get_lease_timeouts(nodes) == expected_timeouts
+
+        self._set_temporarily_unavailable_data_centers(self.DATA_CENTERS[1])
+        expected_timeouts[node_a] = self.PENDING_RESTART_LEASE_TIMEOUT
+        expected_timeouts[node_b] = updated_temporary_lease_timeout
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        remove_maintenance("cluster_node", node_a, id=maintenance_a)
+        expected_timeouts[node_a] = baseline_timeouts[node_a]
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        remove_maintenance("cluster_node", node_b, id=maintenance_b)
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        self._set_temporarily_unavailable_data_centers()
+        expected_timeouts[node_b] = baseline_timeouts[node_b]
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        self._set_lease_timeouts(initial_timeouts)
+
+    @authors("danilalexeev")
+    def test_reregistration(self):
+        target_node = self._nodes_by_data_center[self.DATA_CENTERS[0]]
+        control_node = self._nodes_by_data_center[self.DATA_CENTERS[2]]
+        node_index = get(f"//sys/cluster_nodes/{target_node}/@annotations/yt_env_index")
+        old_transaction_id = self._get_lease_transaction_id(target_node)
+        location_uuids = ls(f"//sys/cluster_nodes/{target_node}/@chunk_locations")
+        baseline_timeouts = self._get_lease_timeouts([target_node, control_node])
+
+        set("//sys/@config/node_tracker/no_restarting_nodes_disposal", True)
+        # Block the fallback disposal path: successful registration must preserve the old locations.
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        assert not get(f"//sys/cluster_nodes/{target_node}/@pending_restart")
+
+        self._set_temporarily_unavailable_data_centers(self.DATA_CENTERS[0])
+        expected_timeouts = baseline_timeouts.copy()
+        expected_timeouts[target_node] = self.TEMPORARY_LEASE_TIMEOUT
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        # Keep the old lease alive so registration reaches address-conflict handling.
+        self.Env.kill_service("node", indexes=[node_index])
+        self.Env.start_nodes(indexes=[node_index], sync=False)
+
+        wait(lambda: self._get_lease_transaction_id(target_node) != old_transaction_id)
+        assert_items_equal(
+            ls(f"//sys/cluster_nodes/{target_node}/@chunk_locations"),
+            location_uuids)
+        self._wait_for_lease_timeouts(expected_timeouts)
+
+        self._set_temporarily_unavailable_data_centers()
+        self._wait_for_lease_timeouts(baseline_timeouts)
+
+
+##################################################################
+
+
 class TestFaultyDataCenters(TestDataCentersBase):
     ENABLE_MULTIDAEMON = True
 
@@ -530,7 +724,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         with pytest.raises(WaitFailed):
             wait(lambda: len(get("//sys/@faulty_storage_data_centers")) > 0, timeout=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
     @authors("koloshmet")
@@ -556,7 +750,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         wait(lambda: has_alert("Storage data center \"d0\" considered faulty"))
         wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
         set_nodes_banned(nodes, False)
@@ -573,7 +767,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         wait(lambda: has_alert("Storage data center \"d2\" considered faulty"))
         wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
     @authors("koloshmet")
@@ -692,7 +886,6 @@ class TestFaultyDataCenters(TestDataCentersBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCentersMulticell(TestDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -705,7 +898,6 @@ class TestDataCentersMulticell(TestDataCenters):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -714,3 +906,135 @@ class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestPerMediumDataCenterBans(TestDataCentersBase):
+    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {"default": {}, "ssd": {}}
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = "ssd"
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_independent_bans(self, erasure):
+        self._init_data_center_aware_replicator()
+        set_account_disk_space_limit("tmp", get_account_disk_space_limit("tmp", "default"), "ssd")
+
+        chunks = {}
+        for medium in self.MEDIUM_CONFIG:
+            path = "//tmp/" + medium
+            attributes = {"primary_medium": medium}
+            if erasure:
+                attributes["erasure_codec"] = "isa_reed_solomon_3_3"
+            else:
+                attributes["replication_factor"] = 3
+            create("table", path, attributes=attributes)
+            write_table(path, [{"x": 42}])
+            chunks[medium] = get_singular_chunk_id(path)
+
+        def check(medium, data_centers):
+            replicas = self._get_replica_data_centers(chunks[medium])
+            return len(replicas) == (6 if erasure else 3) and builtins.set(replicas) == builtins.set(data_centers)
+
+        for medium in chunks:
+            wait(lambda: check(medium, ["d0", "d1", "d2"]))
+
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d0"])
+        wait(lambda: check("ssd", ["d1", "d2"]))
+        assert check("default", ["d0", "d1", "d2"])
+
+        # Global and medium-specific bans are additive, including an overlapping ban.
+        self._ban_data_centers(["d0", "d1"])
+        for medium in chunks:
+            wait(lambda: check(medium, ["d2"]))
+        self._ban_data_centers([])
+        wait(lambda: check("default", ["d0", "d1", "d2"]))
+        wait(lambda: check("ssd", ["d1", "d2"]))
+
+        # Moving a medium ban must also make the previously banned targets available again.
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d1"])
+        wait(lambda: check("ssd", ["d0", "d2"]))
+        assert check("default", ["d0", "d1", "d2"])
+
+        set("//sys/media/ssd/@config/banned_storage_data_centers", [])
+        wait(lambda: check("ssd", ["d0", "d1", "d2"]))
+
+    @authors("aleksandra-zh")
+    def test_storage_data_centers_on_creation(self):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d0"])
+        create_domestic_medium("copied")
+        assert_items_equal(get("//sys/media/copied/@config/storage_data_centers"), ["d0", "d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/banned_storage_data_centers"), ["d0"])
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d1"])
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/storage_data_centers"), ["d0", "d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/banned_storage_data_centers"), ["d0"])
+        create_domestic_medium("copied_later")
+        assert_items_equal(get("//sys/media/copied_later/@config/storage_data_centers"), ["d1", "d2"])
+        assert_items_equal(get("//sys/media/copied_later/@config/banned_storage_data_centers"), ["d1"])
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", [])
+        set("//sys/@config/chunk_manager/storage_data_centers", [])
+        create_domestic_medium("empty")
+        config = get("//sys/media/empty/@config")
+        assert "storage_data_centers" not in config
+        assert "banned_storage_data_centers" not in config
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("erasure", [False, True])
+    @pytest.mark.parametrize("two_random_choices", [False, True])
+    def test_storage_data_centers_override_and_fallback(self, erasure, two_random_choices):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/chunk_manager/enable_two_random_choices_write_target_allocation", two_random_choices)
+        set_account_disk_space_limit("tmp", get_account_disk_space_limit("tmp", "default"), "ssd")
+        chunks = {}
+
+        def write_chunk(medium):
+            path = "//tmp/" + medium
+            attributes = {"primary_medium": medium}
+            if erasure:
+                attributes["erasure_codec"] = "isa_reed_solomon_3_3"
+            else:
+                attributes["replication_factor"] = 3
+            if exists(path):
+                remove(path)
+            create("table", path, attributes=attributes)
+            write_table(path, [{"x": 42}])
+            chunks[medium] = get_singular_chunk_id(path)
+            wait(lambda: len(self._get_replica_nodes(chunks[medium])) == (6 if erasure else 3))
+
+        def check(medium, data_centers):
+            replicas = self._get_replica_data_centers(chunks[medium])
+            return len(replicas) == (6 if erasure else 3) and builtins.set(replicas) == builtins.set(data_centers)
+
+        for medium in self.MEDIUM_CONFIG:
+            set("//sys/media/{}/@config/storage_data_centers".format(medium), [])
+            write_chunk(medium)
+            wait(lambda: check(medium, ["d0", "d1", "d2"]))
+
+        set("//sys/media/ssd/@config/storage_data_centers", ["d0", "d1"])
+        wait(lambda: check("ssd", ["d0", "d1"]))
+        assert check("default", ["d0", "d1", "d2"])
+        write_chunk("ssd")
+        assert check("ssd", ["d0", "d1"])
+
+        # The union stays unchanged, but the fallback medium must refresh its targets.
+        # The explicit medium still uses d0, now outside the common config.
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d1", "d2"])
+        wait(lambda: check("default", ["d1", "d2"]))
+        assert check("ssd", ["d0", "d1"])
+        write_chunk("default")
+        assert check("default", ["d1", "d2"])
+
+        set("//sys/media/ssd/@config/storage_data_centers", [])
+        wait(lambda: check("ssd", ["d1", "d2"]))
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d0", "d2"])
+        for medium in self.MEDIUM_CONFIG:
+            wait(lambda: check(medium, ["d0", "d2"]))
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d0"])
+        wait(lambda: check("ssd", ["d2"]))
+        assert check("default", ["d0", "d2"])

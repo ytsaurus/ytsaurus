@@ -2,22 +2,24 @@ from __future__ import annotations
 
 __all__ = (
     "EventLoopToken",
-    "RunvarToken",
     "RunVar",
+    "RunvarToken",
+    "cancel_shielded_checkpoint",
     "checkpoint",
     "checkpoint_if_cancelled",
-    "cancel_shielded_checkpoint",
     "current_token",
 )
 
 import enum
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Generic, Literal, TypeVar, final, overload
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, final, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
-from .abc import AsyncBackend
+
+if TYPE_CHECKING:
+    from .abc import AsyncBackend
 
 T = TypeVar("T")
 D = TypeVar("D")
@@ -102,7 +104,14 @@ class _NoValueSet(enum.Enum):
 
 
 class RunvarToken(Generic[T]):
-    __slots__ = "_var", "_value", "_redeemed"
+    """
+    A token that can be used to restore a :class:`RunVar` to its previous value.
+
+    Returned by :meth:`RunVar.set`. Can be used as a context manager to automatically
+    reset the variable on exit, or passed directly to :meth:`RunVar.reset`.
+    """
+
+    __slots__ = "_redeemed", "_value", "_var"
 
     def __init__(self, var: RunVar[T], value: T | Literal[_NoValueSet.NO_VALUE_SET]):
         self._var = var
@@ -129,7 +138,7 @@ class RunVar(Generic[T]):
     will reset the variable to its previous value when the context block is exited.
     """
 
-    __slots__ = "_name", "_default"
+    __slots__ = "_default", "_name"
 
     NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
@@ -157,6 +166,14 @@ class RunVar(Generic[T]):
     def get(
         self, default: D | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
     ) -> T | D:
+        """
+        Return the current value of this run variable.
+
+        :param default: a fallback value to return if no value has been set
+        :return: the current value, the provided default, or the variable's own default
+        :raises LookupError: if no value is set and no default is available
+
+        """
         try:
             return self._current_vars[self]
         except KeyError:
@@ -170,12 +187,27 @@ class RunVar(Generic[T]):
         )
 
     def set(self, value: T) -> RunvarToken[T]:
+        """
+        Set the value of this run variable for the current event loop.
+
+        :param value: the new value
+        :return: a token that can be used to restore the previous value
+
+        """
         current_vars = self._current_vars
         token = RunvarToken(self, current_vars.get(self, RunVar.NO_VALUE_SET))
         current_vars[self] = value
         return token
 
     def reset(self, token: RunvarToken[T]) -> None:
+        """
+        Restore this run variable to the value it held before the matching :meth:`set`.
+
+        :param token: the token returned by :meth:`set`
+        :raises ValueError: if the token belongs to a different :class:`RunVar` or the token
+            has already been used
+
+        """
         if token._var is not self:
             raise ValueError("This token does not belong to this RunVar")
 

@@ -26,7 +26,7 @@ using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspE
 
 struct TWatcherLockOptions
 {
-    TString LockPath;
+    NYPath::TYPath LockPath;
     TDuration CheckBackoff;
     TDuration WaitTimeout;
 };

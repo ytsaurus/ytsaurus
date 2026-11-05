@@ -16,23 +16,24 @@
 #
 
 
+import json
+
 #
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 import logging
 import warnings
-import urllib3
-import json
 from collections import defaultdict
 
+import urllib3
 from requests import Session, utils
 
 from .error import ClientError
-from . import loads
+from .load import loads
 
 # Python 2 considers int an instance of str
 try:
-    string_type = basestring  # noqa
+    string_type = basestring  # type: ignore[name-defined]  # noqa
 except NameError:
     string_type = str
 
@@ -74,7 +75,7 @@ class CachedSchemaRegistryClient(object):
                 'url': url,
                 'ssl.ca.location': ca_location,
                 'ssl.certificate.location': cert_location,
-                'ssl.key.location': key_location
+                'ssl.key.location': key_location,
             }
             warnings.warn(
                 "CachedSchemaRegistry constructor is being deprecated. "
@@ -82,7 +83,9 @@ class CachedSchemaRegistryClient(object):
                 "Existing params ca_location, cert_location and key_location will be replaced with their "
                 "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location` and "
                 "`ssl.key.location` respectively",
-                category=DeprecationWarning, stacklevel=2)
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
 
             """Construct a Schema Registry client"""
 
@@ -139,8 +142,13 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
-        https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
-                                            cert_file=cert_location, key_file=key_location, key_password=key_password)
+        https_session = urllib3.PoolManager(
+            cert_reqs='CERT_REQUIRED',
+            ca_certs=ca_certs_path,
+            cert_file=cert_location,
+            key_file=key_location,
+            key_password=key_password,
+        )
         https_session.auth = auth
         return https_session
 
@@ -152,8 +160,7 @@ class CachedSchemaRegistryClient(object):
             request_headers["Content-Length"] = str(len(body))
             request_headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         if auth[0] != '' and auth[1] != '':
-            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
-                                                        auth[1]))
+            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" + auth[1]))
         request_headers.update(headers)
         response = self._https_session.request(method, url, headers=request_headers, body=body)
         return response
@@ -162,8 +169,9 @@ class CachedSchemaRegistryClient(object):
     def _configure_basic_auth(url, conf):
         auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
         if auth_provider not in VALID_AUTH_PROVIDERS:
-            raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
-                             .format(VALID_AUTH_PROVIDERS))
+            raise ValueError(
+                "schema.registry.basic.auth.credentials.source must be one of {}".format(VALID_AUTH_PROVIDERS)
+            )
         if auth_provider == 'SASL_INHERIT':
             if conf.pop('sasl.mechanism', '').upper() == 'GSSAPI':
                 raise ValueError("SASL_INHERIT does not support SASL mechanism GSSAPI")
@@ -180,7 +188,8 @@ class CachedSchemaRegistryClient(object):
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
-                "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
+                "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set"
+            )
         return cert
 
     def _send_request(self, url, method='GET', body=None, headers={}):
@@ -220,11 +229,9 @@ class CachedSchemaRegistryClient(object):
             self.id_to_schema[schema_id] = schema
 
         if subject:
-            self._add_to_cache(self.subject_to_schema_ids,
-                               subject, schema, schema_id)
+            self._add_to_cache(self.subject_to_schema_ids, subject, schema, schema_id)
             if version:
-                self._add_to_cache(self.subject_to_schema_versions,
-                                   subject, schema, version)
+                self._add_to_cache(self.subject_to_schema_versions, subject, schema, version)
 
     def register(self, subject, avro_schema):
         """
@@ -252,18 +259,14 @@ class CachedSchemaRegistryClient(object):
 
         body = {'schema': str(avro_schema)}
         result, code = self._send_request(url, method='POST', body=body)
-        if (code == 401 or code == 403):
-            raise ClientError("Unauthorized access. Error code:" + str(code)
-                              + " message:" + str(result))
+        if code == 401 or code == 403:
+            raise ClientError("Unauthorized access. Error code:" + str(code) + " message:" + str(result))
         elif code == 409:
-            raise ClientError("Incompatible Avro schema:" + str(code)
-                              + " message:" + str(result))
+            raise ClientError("Incompatible Avro schema:" + str(code) + " message:" + str(result))
         elif code == 422:
-            raise ClientError("Invalid Avro schema:" + str(code)
-                              + " message:" + str(result))
+            raise ClientError("Invalid Avro schema:" + str(code) + " message:" + str(result))
         elif not (code >= 200 and code <= 299):
-            raise ClientError("Unable to register schema. Error code:" + str(code)
-                              + " message:" + str(result))
+            raise ClientError("Unable to register schema. Error code:" + str(code) + " message:" + str(result))
         # result is a dict
         schema_id = result['id']
         # cache it
@@ -459,8 +462,7 @@ class CachedSchemaRegistryClient(object):
         :return: True if compatible, False if not compatible
         :rtype: bool
         """
-        url = '/'.join([self.url, 'compatibility', 'subjects', subject,
-                        'versions', str(version)])
+        url = '/'.join([self.url, 'compatibility', 'subjects', subject, 'versions', str(version)])
         body = {'schema': str(avro_schema)}
         try:
             result, code = self._send_request(url, method='POST', body=body)

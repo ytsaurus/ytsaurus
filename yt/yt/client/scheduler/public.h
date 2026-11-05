@@ -79,6 +79,7 @@ YT_DEFINE_ERROR_ENUM(
     ((GangOperationsAllowedOnlyInFifoPools)   (222))
     ((OperationLaunchedInNonexistentPool)     (223))
     ((OperationHasNoController)               (224))
+    ((AgentUnregistered)                      (225))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,
@@ -159,6 +160,8 @@ DEFINE_ENUM(EAbortReason,
     ((NbdError)                        ( 60))
     ((NodePoolTreeChanged)             ( 61))
     ((UserSlotDisabled)                ( 62))
+    ((JobLogDirectoryNotPrepared)      ( 63))
+    ((OverlayLayerPreparationFailed)   ( 64))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

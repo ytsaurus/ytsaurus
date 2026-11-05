@@ -51,10 +51,9 @@ void TInvokerLivenessChecker::DoCheck()
             .WithTimeout(Config_->Timeout));
 
     if (!error.IsOK()) {
-        YT_LOG_ERROR(
-            "Invoker hung up (InvokerName: %v, Timeout: %v)",
-            InvokerName_,
-            Config_->Timeout);
+        YT_TLOG_ERROR("Invoker hung up")
+            .With("InvokerName", InvokerName_)
+            .With("Timeout", Config_->Timeout);
 
         if (Config_->CoreDump) {
             YT_ABORT();

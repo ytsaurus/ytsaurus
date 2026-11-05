@@ -6,10 +6,10 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& GetSandboxRelPath(ESandboxKind sandboxKind)
+const std::string& GetSandboxRelPath(ESandboxKind sandboxKind)
 {
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-    YT_VERIFY(sandboxName);
+    YT_VERIFY(!sandboxName.empty());
     return sandboxName;
 }
 

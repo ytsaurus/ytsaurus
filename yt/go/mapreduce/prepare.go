@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/tink/go/keyset"
+	"github.com/tink-crypto/tink-go/v2/keyset"
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/core/buildinfo"
@@ -39,6 +39,8 @@ type prepare struct {
 
 	spec    *spec.Spec
 	actions []prepareAction
+
+	jobStatePaths []ypath.Path
 }
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
@@ -54,13 +56,18 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 				return backoff.Permanent(err)
 			}
 
+			jobStateDir := p.mr.config.JobStateDirPath
+			if jobStateDir == "" {
+				jobStateDir = defaultJobStateDir
+			}
 			id := guid.New().String()
-			tmpPath := ypath.Path("//tmp/go_job_state").Child(id[:2]).Child(id)
+			tmpPath := jobStateDir.Child(id[:2]).Child(id)
 
 			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 			if err != nil {
 				return err
 			}
+			p.jobStatePaths = append(p.jobStatePaths, tmpPath)
 
 			w, err := p.mr.yc.WriteFile(ctx, tmpPath, nil)
 			if err != nil {
@@ -387,8 +394,20 @@ func (p *prepare) prepare(opts []OperationOption) error {
 	return nil
 }
 
-func (p *prepare) start(opts []OperationOption) (*operation, error) {
-	if err := p.prepare(opts); err != nil {
+func (p *prepare) removeJobState() {
+	for _, path := range p.jobStatePaths {
+		_ = p.mr.yc.RemoveNode(p.ctx, path, &yt.RemoveNodeOptions{Force: true})
+	}
+}
+
+func (p *prepare) start(opts []OperationOption) (op *operation, err error) {
+	defer func() {
+		if err != nil {
+			p.removeJobState()
+		}
+	}()
+
+	if err = p.prepare(opts); err != nil {
 		return nil, err
 	}
 

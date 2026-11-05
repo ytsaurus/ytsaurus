@@ -1,15 +1,20 @@
 #pragma once
 
-#include "helpers.h"
-#include "record_consumer.h"
+#include "private.h"
+
+#include <yt/cpp/mapreduce/interface/operation.h>
 
 namespace NYT::NSequoiaReconstructor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutePathToNodeReduce(
-    const std::vector<TPathToNodeChangeRecord>& records,
+    std::vector<TPathToNodeChangeRecord> records,
     TRecordsConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+::TIntrusivePtr<IReducerBase> CreateYtReducer(std::optional<int> pathToNodeIdTableIndex, std::optional<int> pathForksTableIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

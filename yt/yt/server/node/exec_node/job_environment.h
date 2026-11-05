@@ -11,21 +11,39 @@
 
 #include <yt/yt/core/ytree/node.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobEnvironmentCapabilities
+{
+    bool SupportsVolumeReuse = false;
+    bool SupportsGpuLayers = false;
+    bool SupportsSidecarDockerImages = true;
+    bool SupportsSidecarVolumeMounts = true;
+    bool UsePrivilegedFilesystemAccess = true;
+    bool UseJobUserForPrivateSandbox = false;
+    int PrivateSandboxPermissions = 0700;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IJobEnvironment
     : public virtual TRefCounted
 {
+    virtual TJobEnvironmentCapabilities GetCapabilities() const = 0;
+
     virtual TError Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
     virtual TFuture<void> InitSlot(int slotIndex) = 0;
+    virtual void PrepareSlotForJob(int slotIndex) = 0;
 
     virtual TFuture<void> RunJobProxy(
         const NJobProxy::TJobProxyInternalConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
-        const TString& workingDirectory,
+        const std::string& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) = 0;
@@ -34,7 +52,7 @@ struct IJobEnvironment
 
     virtual void Disable(TError error) = 0;
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) = 0;
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const std::string& path, int locationIndex) = 0;
 
     //! User id for user job processes.
     virtual int GetUserId(int slotIndex) const = 0;
@@ -58,7 +76,7 @@ struct IJobEnvironment
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) = 0;
@@ -67,6 +85,10 @@ struct IJobEnvironment
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) = 0;
+
+    virtual IUserSlotPtr CreateUserSlot(TUserSlotContext context) = 0;
+
+    virtual TJobFSSecretaryPtr CreateJobFSSecretary(NLogging::TLogger logger) = 0;
 
     virtual IVolumeManagerPtr CreateVolumeManager(
         const std::vector<TSlotLocationConfigPtr>& locations) = 0;
@@ -82,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(IJobEnvironment)
 
 IJobEnvironmentPtr CreateJobEnvironment(
     NJobProxy::TJobEnvironmentConfig config,
-    IBootstrap* bootstrap);
+    TNonNullPtr<IBootstrap> bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

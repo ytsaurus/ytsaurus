@@ -1,4 +1,3 @@
-
 JAVA_CONTRIB(junit-4.12)
 
 VERSION(4.12)
@@ -10,6 +9,9 @@ PEERDIR(
 )
 
 LOCAL_JAR(junit-junit-4.12.jar)
+
 LOCAL_SOURCES_JAR(junit-junit-4.12-sources.jar)
+
+ORIGINAL_SOURCE(http://github.com/junit-team/junit/tree/master)
 
 END()

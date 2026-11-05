@@ -18,6 +18,8 @@ What becomes available after installing the package:
 - The binary `yt-fuse` for connecting [Cypress](../../../user-guide/storage/cypress.md) as a file system locally.
 {% endif %}
 
+Current package version requires **Python 3.8+**
+
 ### Installation { #install }
 
 #### YSON libraries
@@ -57,6 +59,20 @@ We do not recommend installing the library and its dependent packages in differe
 
 {% endnote %}
 
+#### Additional dependencies (extras) { #extras }
+
+Some features require the additional dependencies that are not installed by default. They are declared in the extras sets of the `ytsaurus-client` package and are installed by specifying the set in square brackets:
+
+| Set | Dependencies | Purpose |
+| --- | --- | --- |
+| `recommended` | `brotli`, `cryptography` | Recommended optional dependencies |
+| `admin` | `kubernetes`, `docker` | [CLI admin commands](../../../admin-guide/cli-admin.md) (`yt admin logs k8s`, `yt admin metrics replay`) |
+
+```bash
+pip install "ytsaurus-client[recommended]"
+pip install "ytsaurus-client[admin]"
+```
+
 ### User documentation { #userdoc }
 * [General](../../../api/python/userdoc.md#common)
    - [Agreements used in the code](../../../api/python/userdoc.md#agreements)
@@ -71,14 +87,14 @@ We do not recommend installing the library and its dependent packages in differe
    - [Errors](../../../api/python/userdoc.md#errors)
    - [Formats](../../../api/python/userdoc.md#formats)
    - [YPath](../../../api/python/userdoc.md#ypath)
-* [Teams](../../../api/python/userdoc.md#commands)
+* [Commands](../../../api/python/userdoc.md#commands)
    - [Working with Cypress](../../../api/python/userdoc.md#cypress_commands)
    - [Working with files](../../../api/python/userdoc.md#file_commands)
-   - [Working with tables](../../../api/python/userdoc.md#table_commands)
+   - [Working with tables](../../../api/python/userdoc.md#working-with-tables)
       - [Data classes](../../../api/python/userdoc.md#dataclass)
-      - [Schemas] { ../../../api/python/userdoc.md#table_schema }
+      - [Schemas](../../../api/python/userdoc.md#table_schema)
       - [TablePath](../../../api/python/userdoc.md#tablepath_class)
-      - [Teams](../../../api/python/userdoc.md#table_commands)
+      - [Commands](../../../api/python/userdoc.md#table_commands)
       - [Parallel table reading](../../../api/python/userdoc.md#parallel_read)
       - [Parallel table writing](../../../api/python/userdoc.md#parallel_write)
    - [Working with transactions and locks](../../../api/python/userdoc.md#transaction_commands)

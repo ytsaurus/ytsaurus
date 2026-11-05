@@ -125,6 +125,9 @@ void TJobResourceManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("resource_availability_check_period", &TThis::ResourceAvailabilityCheckPeriod)
+        .Default(TDuration::Seconds(1));
+
     registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
         .DefaultNew();
 
@@ -149,14 +152,14 @@ void TJobResourceManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
             THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greater than 0")
-                << TErrorAttribute("cpu_to_vcpu_factor", *config->CpuToVCpuFactor);
+                .With("cpu_to_vcpu_factor", *config->CpuToVCpuFactor);
         }
         if (config->CpuModelToCpuToVCpuFactor) {
             for (const auto& [cpu_model, factor] : config->CpuModelToCpuToVCpuFactor.value()) {
                 if (factor <= 0) {
                     THROW_ERROR_EXCEPTION("Factor in \"cpu_model_to_cpu_to_vcpu_factor\" must be greater than 0")
-                        << TErrorAttribute("cpu_model", cpu_model)
-                        << TErrorAttribute("cpu_to_vcpu_factor", factor);
+                        .With("cpu_model", cpu_model)
+                        .With("cpu_to_vcpu_factor", factor);
                 }
             }
         }

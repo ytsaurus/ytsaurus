@@ -25,7 +25,9 @@ public:
     void Do(T&& row, NRoren::TOutput<T>& output)
     {
         if (!Logged_) {
-            YT_LOG_INFO("Processing %v: %v", ObjectName_, ToString(row));
+            YT_TLOG_INFO("Processing row")
+                .With("Object", ObjectName_)
+                .With("Row", ToString(row));
             Logged_ = true;
         }
         output.Add(std::move(row));

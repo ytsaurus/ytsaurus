@@ -29,6 +29,7 @@ struct TDynamicChaosManagerConfig
 {
     TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
     bool EnableMetadataCells;
+    TDuration CellDirectorySynchronizerErrorDelay;
 
     REGISTER_YSON_STRUCT(TDynamicChaosManagerConfig);
 

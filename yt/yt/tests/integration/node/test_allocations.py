@@ -1,10 +1,11 @@
-from yt_env_setup import (YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE, ROOTFS_LAYER_PATH)
 
 from yt_commands import (
-    authors, print_debug, vanilla, with_breakpoint, wait_breakpoint, release_breakpoint,
-    get_allocation_id_from_job_id, run_test_vanilla, abort_job, create, write_file,
-    update_nodes_dynamic_config, update_controller_agent_config, wait,
+    authors, print_debug, vanilla, map, with_breakpoint, wait_breakpoint, release_breakpoint,
+    get_allocation_id_from_job_id, run_test_vanilla, abort_job, create, write_file, write_table,
+    update_nodes_dynamic_config, update_controller_agent_config, update_scheduler_config, wait,
     sync_create_cells, get, ls, exists,
+    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, start_transaction, commit_transaction
 )
 
 import yt.environment.init_operations_archive as init_operations_archive
@@ -67,7 +68,7 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         print_debug(f"job_id1: {job_id1}")
 
         if with_job_revival:
@@ -78,7 +79,7 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         print_debug(f"job_id2: {job_id2}")
         release_breakpoint(job_id=job_id2)
 
@@ -106,10 +107,10 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
                 "enable_multiple_jobs_in_allocation": True,
             },
         )
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         print_debug(f"job_id1: {job_id1}, job_id2: {job_id2}")
@@ -137,13 +138,323 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
         allocation_id = None
 
         for i in range(job_count):
-            job_id, = wait_breakpoint(job_count=1)
+            job_id, = wait_breakpoint(op, job_count=1)
             release_breakpoint(job_id=job_id)
 
             if allocation_id is None:
                 allocation_id = get_allocation_id_from_job_id(job_id)
             else:
                 assert get_allocation_id_from_job_id(job_id) == allocation_id
+
+        op.track()
+
+
+##################################################################
+
+
+class TestAllocationReuseWhenJobsDisabled(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("disable_jobs_before_job_finishes", [True, False])
+    def test_map_second_job_new_allocation_if_jobs_disabled_before_settlement(self, disable_jobs_before_job_finishes):
+        """
+        Map with allocation reuse and one user slot so jobs run sequentially.
+        After the first job starts, scheduler jobs are disabled on the node so that
+        settlement of the next job in the same allocation is skipped. The second map job
+        must then run in a new allocation (allocation_id differs from the first job's).
+        """
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        spec = {
+            "data_size_per_job": 1,
+            "enable_multiple_jobs_in_allocation": True,
+            "force_allow_job_interruption": True,
+            "resource_limits": {
+                "user_slots": 1,
+            },
+        }
+        if not disable_jobs_before_job_finishes:
+            spec["job_testing_options"] = {
+                "delay_in_cleanup": 5000,
+            }
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec=spec,
+        )
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+        node_user_slots_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_resource_manager/resource_limits/user_slots"
+
+        job_id1, = wait_breakpoint(op, job_count=1)
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        try:
+            # Keep scheduler from aborting the allocation merely because disabling jobs makes
+            # node user slots equal to zero. This test targets node-local job settlement.
+            update_scheduler_config("enable_allocation_abort_on_zero_user_slots", False)
+
+            if disable_jobs_before_job_finishes:
+                # Jobs already disabled when the first job finishes: synchronous branch in settleNewJob.
+                disable_scheduler_jobs_on_node(node, "test allocation settlement with jobs disabled")
+                wait(lambda: get(node_user_slots_path) == 0)
+
+            release_breakpoint(job_id=job_id1)
+
+            if not disable_jobs_before_job_finishes:
+                # Jobs disabled after initial settleNewJob decision but before the cleanup/store callback.
+                disable_scheduler_jobs_on_node(node, "test allocation settlement with jobs disabled")
+                wait(lambda: get(node_user_slots_path) == 0)
+
+            allocation_orchid_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/allocations/{allocation_id1}"
+
+            def allocation_finished_without_settling_new_job():
+                last_job_id = get(f"{allocation_orchid_path}/last_job_id", default=None)
+                assert last_job_id in (None, job_id1,)
+                return last_job_id is None
+
+            wait(allocation_finished_without_settling_new_job)
+
+        finally:
+            enable_scheduler_jobs_on_node(node)
+            wait(lambda: get(node_user_slots_path) > 0)
+
+        job_id2, = wait_breakpoint(op, job_count=1)
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
+
+        assert job_id1 != job_id2
+        assert allocation_id1 != allocation_id2
+
+        # Release every job still waiting on this breakpoint name (covers rare extra waiters).
+        release_breakpoint()
+        op.track()
+
+
+##################################################################
+
+
+class TestNbdInAllocation(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_TEST_PARTITIONS = 3
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    @authors("krasovav")
+    def test_root_volume_nbd_allocation_reuse(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "volumes": {
+                            "root": {
+                                "layers": [
+                                    {
+                                        "path": ROOTFS_LAYER_PATH,
+                                        "access_method": "nbd",
+                                    },
+                                ],
+                                "allow_reusing": True,
+                            },
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "root",
+                                "mount_path": "/",
+                            },
+                        ],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 0,
+            },
+        )
+
+        job_id1, = wait_breakpoint(op, job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(op, job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
+        op.track()
+
+
+##################################################################
+
+
+class TestGpuLayersInAllocation(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_TEST_PARTITIONS = 3
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+            "gpu_manager": {
+                "driver_layer_directory_path": "//tmp/drivers",
+                "driver_version": "test_version",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "gpu_manager": {
+                    "driver_layer_fetching": {
+                        "period": 100,
+                        "splay": 100,
+                    }
+                },
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_files(self):
+        tx = start_transaction()
+        create("map_node", "//tmp/drivers", tx=tx)
+        create(
+            "file",
+            "//tmp/drivers/test_version",
+            attributes={"replication_factor": 1},
+            tx=tx,
+        )
+
+        write_file(
+            "//tmp/drivers/test_version",
+            open("layers/static-bin.tar.gz", "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+            tx=tx,
+        )
+        commit_transaction(tx)
+
+    @authors("krasovav")
+    def test_reuse_gpu_layers(self):
+        self.setup_files()
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "volumes": {
+                            "root": {},
+                        },
+                        "job_volumes_mounts": [
+                            {"volume_id": "root", "mount_path": "/"},
+                        ],
+                        "enable_gpu_layers": True,
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_id1, = wait_breakpoint(op, job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(op, job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
 
         op.track()
 
@@ -242,10 +553,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -258,9 +569,17 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
 
         # First job must have downloaded the artifact.
         assert stats1["exec_agent"]["artifacts"]["cache_miss_artifacts_size"]["sum"] > 0
-        # Second job in same allocation must not have downloaded anything.
+        assert stats1["exec_agent"]["artifacts"]["files_downloaded_size"]["sum"] > 0
+        # The file is fresh, so it must be fetched over the network without waiting for anyone.
+        assert stats1["exec_agent"]["artifacts"]["files_cached_size"]["sum"] == 0
+        assert stats1["exec_agent"]["artifacts"]["files_chunk_cache_async_hit_size"]["sum"] == 0
+
+        # Second job in same allocation must not have downloaded anything (served from cache).
         assert stats2["exec_agent"]["artifacts"]["cache_miss_artifacts_size"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["cache_hit_artifacts_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["files_cached_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["files_downloaded_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["files_downloaded_total_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["files_chunk_cache_async_hit_size"]["sum"] == 0
 
     @authors("pogorelov")
     def test_artifact_evicted_when_allocation_not_reused(self):
@@ -290,10 +609,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -328,10 +647,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -379,7 +698,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         first_job_id = job_ids[0]
 
@@ -388,6 +707,21 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
 
         current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
 
+        def _peer_cache_miss_size():
+            try:
+                stats = op.get_job_statistics(first_incarnation_reused_job_id)
+            except Exception:
+                return None
+            return (
+                stats
+                .get("exec_agent", {})
+                .get("artifacts", {})
+                .get("cache_miss_artifacts_size", {})
+                .get("sum")
+            )
+
+        wait(lambda: (_peer_cache_miss_size() or 0) > 0)
+
         abort_job(first_job_id)
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
@@ -395,7 +729,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -475,7 +809,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -556,7 +890,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
 
         allocations_orchid_path, _ = self._get_orchid_paths()
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
         assert exists(allocations_orchid_path + f"/{allocation_id}")
@@ -572,7 +906,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -596,7 +930,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
         op.suspend()
@@ -621,7 +955,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()

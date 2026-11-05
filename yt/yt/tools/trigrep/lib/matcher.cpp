@@ -2,16 +2,15 @@
 
 #include "format.h"
 #include "line_reader.h"
+#include "posting_codec.h"
 #include "private.h"
 #include "reader.h"
 #include "helpers.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
-#include <library/cpp/containers/absl_flat_hash/flat_hash_set.h>
-
-#include <util/system/unaligned_mem.h>
+#include <library/cpp/containers/absl/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_set.h>
 
 namespace NYT::NTrigrep {
 
@@ -21,14 +20,6 @@ constinit const auto Logger = TrigrepLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMatcherStatistics
-{
-    i64 FramesChecked = 0;
-    i64 LinesRead = 0;
-    i64 LinesChecked = 0;
-    i64 LinesMatched = 0;
-};
-
 using TTrigramSet = absl::flat_hash_set<TTrigram>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,78 +27,22 @@ using TTrigramSet = absl::flat_hash_set<TTrigram>;
 class TUnpackedIndexSegment
 {
 public:
-    TUnpackedIndexSegment(TRef data, int trigramCount, int postingCount)
+    TUnpackedIndexSegment(
+        TRef data,
+        int trigramCount,
+        int postingCount,
+        ui32 postingUpperBound,
+        IPostingCodec* codec)
         : Postings_(postingCount)
         , PostingListStarts_(trigramCount + 1)
     {
-        const char* __restrict__ src = data.begin();
-        auto* dst = Postings_.data();
-        int trigramIndex = 0;
-        PostingListStarts_[0] = dst;
-
-        while (src != data.end()) {
-            ui8 groupHeaderLo = *src++;
-            if (groupHeaderLo == TerminatorGroupTag) {
-                ++trigramIndex;
-                PostingListStarts_[trigramIndex] = dst;
-                continue;
-            }
-
-            ui8 groupHeaderHi = *src++;
-            ui16 groupHeader = groupHeaderLo | (groupHeaderHi << 8);
-            ui16 blockIndex = groupHeader >> 6;
-            ui8 tag = groupHeader & ((1U << 6) - 1);
-
-            if (tag == GroupSize1Tag) {
-                TLineFingerprint lineFingerprint = *src++;
-                *dst++ = MakePosting(blockIndex, lineFingerprint);
-            } else if (tag == GroupSize2Tag) {
-                TLineFingerprint lineFingerprint1 = *src++;
-                TLineFingerprint lineFingerprint2 = *src++;
-                *dst++ = MakePosting(blockIndex, lineFingerprint1);
-                *dst++ = MakePosting(blockIndex, lineFingerprint2);
-            } else if (tag == BitmapGroupTag) {
-                auto bitmap = ReadUnaligned<TLineFingerprintBitmap>(src);
-                src += LineFingerprintBitmapByteSize;
-                for (ui16 lineFingerprint = 0; lineFingerprint <= Max<TLineFingerprint>(); ++lineFingerprint) {
-                    if (bitmap[lineFingerprint >> 3] & (1U << (lineFingerprint & 7))) {
-                        *dst++ = MakePosting(blockIndex, lineFingerprint);
-                    }
-                }
-            } else if (tag <= MaxShortBitpackedTag) {
-                // Tag: 0..47 (== MaxShortBitpackedTag)
-                int bitsPerDiff = (tag & 7) + 1;
-                int groupSize = (tag >> 3) + 3;
-
-                TLineFingerprint lineFingerprint = *src++;
-                *dst++ = MakePosting(blockIndex, lineFingerprint);
-
-                std::tie(src, dst) = BitunpackShort(
-                    dst,
-                    MakePosting(blockIndex, lineFingerprint),
-                    src,
-                    groupSize,
-                    bitsPerDiff);
-            } else if (tag <= MaxLongBitpackedTag) {
-                // Tag: 48..55 (== MaxLongBitpackedTag)
-                int bitsPerDiff = tag - MaxShortBitpackedTag;
-
-                TLineFingerprint lineFingerprint = *src++;
-                *dst++ = MakePosting(blockIndex, lineFingerprint);
-
-                std::tie(src, dst) = BitunpackLong(
-                    dst,
-                    MakePosting(blockIndex, lineFingerprint),
-                    src,
-                    bitsPerDiff);
-            } else {
-                THROW_ERROR_EXCEPTION("Broken index segment");
-            }
-        }
-        if (trigramIndex != trigramCount) {
-            THROW_ERROR_EXCEPTION("Broken index segment");
-        }
-        PostingListStarts_[trigramIndex++] = dst;
+        codec->Decode(
+            data,
+            trigramCount,
+            postingCount,
+            postingUpperBound,
+            Postings_.data(),
+            PostingListStarts_.data());
     }
 
     TRange<TPosting> GetPostingList(int perSegmentIndex) const
@@ -118,69 +53,6 @@ public:
 private:
     std::vector<TPosting> Postings_;
     std::vector<TPosting*> PostingListStarts_;
-
-    static std::pair<const char*, TPosting*> BitunpackShort(
-        TPosting* __restrict__ dst,
-        TPosting basePosting,
-        const char* __restrict__ src,
-        ui16 groupSize,
-        ui16 bitWidth)
-    {
-        auto blockIndex = BlockIndexFromPosting(basePosting);
-        auto lineFingerprint = LineFingerprintFromPosting(basePosting);
-        ui16 bitOffset = 0;
-        ui16 bitMask = (1U << bitWidth) - 1;
-        for (ui32 index = 1; index < groupSize; ++index) {
-            ui16 value = ReadUnaligned<ui16>(src);
-            auto diff = ((value >> bitOffset) & bitMask) + 1;
-
-            bitOffset += bitWidth;
-            if (bitOffset >= 8) {
-                bitOffset -= 8;
-                ++src;
-            }
-
-            lineFingerprint += diff;
-            *dst++ = MakePosting(blockIndex, lineFingerprint);
-        }
-        if (bitOffset != 0) {
-            ++src;
-        }
-        return {src, dst};
-    }
-
-    static std::pair<const char*, TPosting*> BitunpackLong(
-        TPosting* __restrict__ dst,
-        TPosting basePosting,
-        const char* __restrict__ src,
-        ui16 bitWidth)
-    {
-        auto blockIndex = BlockIndexFromPosting(basePosting);
-        auto lineFingerprint = LineFingerprintFromPosting(basePosting);
-        ui16 bitOffset = 0;
-        ui16 bitMask = (1U << bitWidth) - 1;
-        for (;;) {
-            ui16 value = ReadUnaligned<ui16>(src);
-            auto diff = (value >> bitOffset) & bitMask;
-
-            bitOffset += bitWidth;
-            if (bitOffset >= 8) {
-                bitOffset -= 8;
-                ++src;
-            }
-
-            if (diff == 0) {
-                break;
-            }
-
-            lineFingerprint += diff;
-            *dst++ = MakePosting(blockIndex, lineFingerprint);
-        }
-        if (bitOffset != 0) {
-            ++src;
-        }
-        return {src, dst};
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +67,9 @@ public:
         const std::vector<std::string>& patterns,
         const TTrigramSet& patternTrigrams,
         IMatcherCallbacks* callbacks,
-        TMatcherStatistics* statistics)
+        TMatchStatistics* statistics,
+        IPostingCodec* codec,
+        const TMatcherOptions& options)
         : Reader_(reader)
         , IndexFile_(indexFile)
         , ChunkIndex_(chunkIndex)
@@ -203,6 +77,8 @@ public:
         , PatternTrigrams_(patternTrigrams)
         , Callbacks_(callbacks)
         , Statistics_(statistics)
+        , Codec_(codec)
+        , Options_(options)
         , ChunkStartOffset_(IndexFile_->GetPosition())
     { }
 
@@ -212,9 +88,9 @@ public:
             return false;
         }
 
-        YT_LOG_INFO("Matching chunk (ChunkIndex: %v, IndexOffset: %v)",
-            ChunkIndex_,
-            IndexFile_->GetPosition());
+        YT_TLOG_INFO("Matching chunk")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("IndexOffset", IndexFile_->GetPosition());
 
         ReadIndex();
 
@@ -235,7 +111,9 @@ private:
     const std::vector<std::string>& Patterns_;
     const TTrigramSet& PatternTrigrams_;
     IMatcherCallbacks* const Callbacks_;
-    TMatcherStatistics* const Statistics_;
+    TMatchStatistics* const Statistics_;
+    IPostingCodec* const Codec_;
+    const TMatcherOptions& Options_;
 
     const i64 ChunkStartOffset_;
     i64 ChunkEndOffset_ = -1;
@@ -310,6 +188,11 @@ private:
             ChunkEndOffset_ = SegmentStartOffsets_[0] + ChunkHeader_.SegmentsSize;
         }
 
+        // The whole chunk counts toward the denominator even if it is later
+        // skipped entirely (a pattern trigram is absent).
+        Statistics_->FramesTotal += ChunkHeader_.FrameCount;
+        Statistics_->BytesTotal += ChunkHeader_.InputSize;
+
         {
             FrameIndexToFirstBlockIndex_.reserve(ChunkHeader_.FrameCount);
             FrameIndexToFirstLineIndex_.reserve(ChunkHeader_.FrameCount);
@@ -341,13 +224,12 @@ private:
             }
         }
 
-        YT_LOG_INFO("Chunk index read (TrigramCount: %v, IndexedTrigramCount: %v, "
-            "BlockCount: %v, FrameCount: %v, SegmentCount: %v)",
-            ChunkHeader_.TrigramCount,
-            ChunkHeader_.IndexedTrigramCount,
-            BlockHeaders_.size(),
-            FrameHeaders_.size(),
-            SegmentHeaders_.size());
+        YT_TLOG_INFO("Chunk index read")
+            .With("TrigramCount", ChunkHeader_.TrigramCount)
+            .With("IndexedTrigramCount", ChunkHeader_.IndexedTrigramCount)
+            .With("BlockCount", BlockHeaders_.size())
+            .With("FrameCount", FrameHeaders_.size())
+            .With("SegmentCount", SegmentHeaders_.size());
     }
 
     bool ComputePatternTrigramIndexes()
@@ -357,30 +239,23 @@ private:
 
             auto it = TrigramsToIndex_.find(trigram);
             if (it == TrigramsToIndex_.end()) {
-                YT_LOG_INFO("Trigram is missing, no matches in chunk (Trigram: %v%v%v)",
-                    unpackedTrigram[0],
-                    unpackedTrigram[1],
-                    unpackedTrigram[2]);
+                YT_TLOG_INFO("Trigram is missing, no matches in chunk")
+                    .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2]);
                 return false;
             }
 
             auto trigramIndex = it->second;
             if (trigramIndex >= ChunkHeader_.IndexedTrigramCount) {
-                YT_LOG_TRACE("Trigram is not indexed (Trigram: %v%v%v)",
-                    unpackedTrigram[0],
-                    unpackedTrigram[1],
-                    unpackedTrigram[2]);
+                YT_TLOG_TRACE("Trigram is not indexed")
+                    .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2]);
                 continue;
             }
 
             auto trigramCompositeIndex = TrigramIndexToTrigramCompositeIndex_[trigramIndex];
-            YT_LOG_TRACE("Trigram is indexed (Trigram: %v%v%v, Index: %v, CompositeIndex: %v:%v)",
-                unpackedTrigram[0],
-                unpackedTrigram[1],
-                unpackedTrigram[2],
-                trigramIndex,
-                trigramCompositeIndex.SegmentIndex,
-                trigramCompositeIndex.PerSegmentTrigramIndex);
+            YT_TLOG_TRACE("Trigram is indexed")
+                .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2])
+                .With("Index", trigramIndex)
+                .WithFormat("CompositeIndex", "%v:%v", trigramCompositeIndex.SegmentIndex, trigramCompositeIndex.PerSegmentTrigramIndex);
 
             PatternsTrigramCompositeIndexes_.push_back(trigramCompositeIndex);
         }
@@ -406,7 +281,7 @@ private:
                 PatternsTrigramCompositeIndexes_.begin() + endIndex));
 
             if (PostingListsIntersection_->empty()) {
-                YT_LOG_INFO("Posting lists intersection is empty, no matches in chunk");
+                YT_TLOG_INFO("Posting lists intersection is empty, no matches in chunk");
                 break;
             }
 
@@ -422,20 +297,23 @@ private:
         std::vector<char> buffer(segmentHeader.ByteSize + sizeof(ui64));
         IndexFile_->Seek(SegmentStartOffsets_[segmentIndex], sSet);
         IndexFile_->Load(buffer.data(), segmentHeader.ByteSize);
+        auto postingUpperBound = static_cast<ui32>(ChunkHeader_.BlockCount) * (LineFingerprintMask + 1) - 1;
         return TUnpackedIndexSegment(
             TRef(buffer.data(), segmentHeader.ByteSize),
             segmentHeader.TrigramCount,
-            segmentHeader.PostingCount);
+            segmentHeader.PostingCount,
+            postingUpperBound,
+            Codec_);
     }
 
     void IntersectPostingListsInSegment(TRange<TTrigramCompositeIndex> trigramCompositeIndexes)
     {
         int segmentIndex = trigramCompositeIndexes.Front().SegmentIndex;
 
-        YT_LOG_DEBUG("Matching index segment (SegmentIndex: %v, TrigramCount: %v, CandidatesRemaining: %v)",
-            segmentIndex,
-            trigramCompositeIndexes.size(),
-            PostingListsIntersection_ ? std::to_string(PostingListsIntersection_->size()) : "INF");
+        YT_TLOG_DEBUG("Matching index segment")
+            .With("SegmentIndex", segmentIndex)
+            .With("TrigramCount", trigramCompositeIndexes.size())
+            .With("CandidatesRemaining", PostingListsIntersection_ ? std::to_string(PostingListsIntersection_->size()) : "INF");
 
         auto unpackedIndexSegment = UnpackIndexSegment(segmentIndex);
         for (auto [_, perSegmentIndex] : trigramCompositeIndexes) {
@@ -469,7 +347,7 @@ private:
                 return;
             }
 
-            YT_LOG_INFO("Scanning matching frames");
+            YT_TLOG_INFO("Scanning matching frames");
 
             int startIndex = 0;
             while (startIndex < std::ssize(*PostingListsIntersection_)) {
@@ -484,14 +362,22 @@ private:
                     ++endIndex;
                 }
 
-                CheckCandidateFrame(frameIndex, &postingSet);
+                Statistics_->FramesSelected += 1;
+                Statistics_->BytesSelected += FrameHeaders_[frameIndex].InputSize;
+                if (!Options_.DryRun) {
+                    CheckCandidateFrame(frameIndex, &postingSet);
+                }
                 startIndex = endIndex;
             }
         } else {
-            YT_LOG_INFO("Falling back to full scan");
+            YT_TLOG_INFO("Falling back to full scan");
 
-            for (int frameIndex = 0; frameIndex < ChunkHeader_.FrameCount; ++frameIndex) {
-                CheckCandidateFrame(frameIndex, nullptr);
+            Statistics_->FramesSelected += ChunkHeader_.FrameCount;
+            Statistics_->BytesSelected += ChunkHeader_.InputSize;
+            if (!Options_.DryRun) {
+                for (int frameIndex = 0; frameIndex < ChunkHeader_.FrameCount; ++frameIndex) {
+                    CheckCandidateFrame(frameIndex, nullptr);
+                }
             }
         }
     }
@@ -499,11 +385,11 @@ private:
     void CheckCandidateFrame(int frameIndex, const absl::flat_hash_set<TPosting>* postingSet)
     {
         const auto& frameHeader = FrameHeaders_[frameIndex];
-        YT_LOG_DEBUG("Checking frame (FrameIndex: %v, InputStartOffset: %v, InputSize: %v, LineCount: %v)",
-            frameIndex,
-            frameHeader.InputStartOffset,
-            frameHeader.InputSize,
-            frameHeader.LineCount);
+        YT_TLOG_DEBUG("Checking frame")
+            .With("FrameIndex", frameIndex)
+            .With("InputStartOffset", frameHeader.InputStartOffset)
+            .With("InputSize", frameHeader.InputSize)
+            .With("LineCount", frameHeader.LineCount);
 
         auto input = Reader_->CreateFrameStream(
             frameHeader.InputStartOffset,
@@ -551,13 +437,13 @@ private:
 
         auto matchingRanges = ComputeMatchingRanges(line, Patterns_);
         if (matchingRanges.empty()) {
-            YT_LOG_TRACE("Line does not match (LineIndex: %v, Line: %v)",
-                lineIndex,
-                line);
+            YT_TLOG_TRACE("Line does not match")
+                .With("LineIndex", lineIndex)
+                .With("Line", line);
         } else {
-            YT_LOG_TRACE("Line matches (LineIndex: %v, Line: %v)",
-                lineIndex,
-                line);
+            YT_TLOG_TRACE("Line matches")
+                .With("LineIndex", lineIndex)
+                .With("Line", line);
             Callbacks_->OnMatch(lineIndex, line, matchingRanges);
             ++Statistics_->LinesMatched;
         }
@@ -573,18 +459,20 @@ public:
         IRandomReader* reader,
         TFile* indexFile,
         const std::vector<std::string>& patterns,
-        IMatcherCallbacks* callbacks)
+        IMatcherCallbacks* callbacks,
+        const TMatcherOptions& options)
         : Reader_(reader)
         , IndexFile_(indexFile)
         , Patterns_(patterns)
         , Callbacks_(callbacks)
+        , Options_(options)
     { }
 
-    void Run()
+    TMatchStatistics Run()
     {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_INFO("Started matching file");
+        YT_TLOG_INFO("Started matching file");
 
         ReadHeader();
 
@@ -598,18 +486,26 @@ public:
                 Patterns_,
                 PatternTrigrams_,
                 Callbacks_,
-                &Statistics_);
+                &Statistics_,
+                Codec_,
+                Options_);
             if (!chunkMatcher.Run()) {
                 break;
             }
         }
 
-        YT_LOG_INFO("Finished matching file (ElapsedTime: %v, FramesChecked: %v, LinesRead: %v, LinesChecked: %v, LinesMatched: %v)",
-            timer.GetElapsedTime(),
-            Statistics_.FramesChecked,
-            Statistics_.LinesRead,
-            Statistics_.LinesChecked,
-            Statistics_.LinesMatched);
+        YT_TLOG_INFO("Finished matching file")
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("FramesChecked", Statistics_.FramesChecked)
+            .With("LinesRead", Statistics_.LinesRead)
+            .With("LinesChecked", Statistics_.LinesChecked)
+            .With("LinesMatched", Statistics_.LinesMatched)
+            .With("FramesSelected", Statistics_.FramesSelected)
+            .With("FramesTotal", Statistics_.FramesTotal)
+            .With("BytesSelected", Statistics_.BytesSelected)
+            .With("BytesTotal", Statistics_.BytesTotal);
+
+        return Statistics_;
     }
 
 private:
@@ -617,20 +513,19 @@ private:
     TFile* const IndexFile_;
     const std::vector<std::string>& Patterns_;
     IMatcherCallbacks* const Callbacks_;
+    const TMatcherOptions& Options_;
 
     TIndexFileHeader Header_;
-    TMatcherStatistics Statistics_;
+    TMatchStatistics Statistics_;
     TTrigramSet PatternTrigrams_;
+    IPostingCodec* Codec_ = nullptr;
 
     void ReadHeader()
     {
         IndexFile_->Load(&Header_, sizeof(Header_));
 
-        if (Header_.Signature != TIndexFileHeader::V2Signature) {
-            THROW_ERROR_EXCEPTION("Invalid index file signature: expected %x, got %x",
-                TIndexFileHeader::V2Signature,
-                Header_.Signature);
-        }
+        // Auto-detect the posting-list format from the signature.
+        Codec_ = GetPostingCodec(GetIndexFormatFromSignature(Header_.Signature));
     }
 
     void BuildTrigramSet()
@@ -641,20 +536,21 @@ private:
             }
         }
 
-        YT_LOG_INFO("Pattern trigrams built (TrigramCount: %v)",
-            PatternTrigrams_.size());
+        YT_TLOG_INFO("Pattern trigrams built")
+            .With("TrigramCount", PatternTrigrams_.size());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunMatcher(
+TMatchStatistics RunMatcher(
     IRandomReader* reader,
     TFile* indexFile,
     const std::vector<std::string>& patterns,
-    IMatcherCallbacks* callbacks)
+    IMatcherCallbacks* callbacks,
+    const TMatcherOptions& options)
 {
-    TFileIndexMatcher(reader, indexFile, patterns, callbacks).Run();
+    return TFileIndexMatcher(reader, indexFile, patterns, callbacks, options).Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

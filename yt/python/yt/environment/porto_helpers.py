@@ -1,8 +1,3 @@
-try:
-    from yt.packages.six import iteritems
-except ImportError:
-    from six import iteritems
-
 from yt.wrapper.common import generate_uuid
 
 import logging
@@ -66,7 +61,7 @@ class PortoSubprocess(object):
                 # taken by base infractructure. About 40 more symbols are used by YT node. We are left with
                 # 40 symbols to start YT cluster with porto containers inside, so we can't afford to use full
                 # GUID here.
-                name = generate_uuid()[:4]
+                name = generate_uuid()[:8]
                 container = conn.Create("self/" + str(name), weak=True)
                 break
             except exceptions.ContainerAlreadyExists:
@@ -146,6 +141,6 @@ class PortoSubprocess(object):
             return key + "=" + value.replace(';', '\\;')
         if env is not None:
             environment = []
-            for key, value in iteritems(env):
+            for key, value in env.items():
                 environment.append(_format_key(key, value))
             self._container.SetProperty("env", ";".join(environment))

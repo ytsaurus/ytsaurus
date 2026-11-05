@@ -16,7 +16,7 @@ from yt_helpers import profiler_factory
 from yt_scheduler_helpers import (
     scheduler_orchid_node_path, scheduler_orchid_path)
 
-from yt.common import YtError, YtResponseError
+from yt.common import YtResponseError
 
 import pytest
 
@@ -27,7 +27,6 @@ import builtins
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -68,7 +67,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=10)
+        jobs = wait_breakpoint(op, job_count=10)
         for id in jobs:
             release_breakpoint(job_id=id)
 
@@ -98,11 +97,11 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=10)
+        jobs = wait_breakpoint(op, job_count=10)
         for id in jobs:
             release_breakpoint(job_id=id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("All suitable online nodes in trees .* were banned"):
             op.track()
 
     @authors("ignat")
@@ -112,7 +111,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -127,7 +126,6 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplacementCpuToVCpu(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -169,7 +167,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
 
         node = self._get_job_node(op)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         scheduler_resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
         assert scheduler_resource_limits["cpu"] == 23.35
@@ -223,7 +221,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         node = self._get_job_node(op)
 
@@ -240,7 +238,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     @authors("nadya73")
     def test_cpu_to_vcpu_factor_no_enough_cpu(self):
         self._init_dynamic_config()
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -263,7 +261,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             }
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -275,7 +273,6 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         assert resource_limits["cpu"] == 23.35
 
 
-@pytest.mark.enabled_multidaemon
 class TestVCpuDisableByDefault(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -301,7 +298,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
             },
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 23},
@@ -316,7 +313,6 @@ class TestVCpuDisableByDefault(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestResourceLimitsOverrides(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -463,7 +459,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -486,7 +482,7 @@ class TestSchedulingTags(YTEnvSetup):
             spec={"scheduling_tag_filter": "tagA & !tagC"},
         )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -498,7 +494,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         wait(lambda: "default" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(self.node)))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No online node can satisfy the resource demand|Found no nodes with enough resources"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -724,12 +720,12 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"data_size_per_job": 1},
             )
-            jobs = wait_breakpoint(tag, job_count=2)
+            jobs = wait_breakpoint(op, tag, job_count=2)
             release_breakpoint(breakpoint_name=tag, job_id=jobs[0])
             release_breakpoint(breakpoint_name=tag, job_id=jobs[1])
             time.sleep(5)
             wait(lambda: op.get_job_count("running") == 2)
-            wait_breakpoint(tag)
+            wait_breakpoint(op, tag)
             op.tag = tag
             return op
 
@@ -765,7 +761,6 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationNodeBan(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -790,7 +785,7 @@ class TestOperationNodeBan(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         jobs = list_jobs(op.id)["jobs"]
@@ -798,7 +793,6 @@ class TestOperationNodeBan(YTEnvSetup):
         assert len(builtins.set(job["address"] for job in jobs)) == 3
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulingHeartbeatThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

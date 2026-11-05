@@ -40,6 +40,8 @@ using NYT::NQueryClient::TTernaryComparerFunction;
 using NYT::NQueryClient::TArrayJoinParameters;
 using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
+using NYT::NQueryClient::THierarchicalJoinClosure;
+using NYT::NQueryClient::TSingleJoinParameters;
 using NYT::NQueryClient::TLikeExpressionContext;
 using NYT::NQueryClient::TRowSchemaInformation;
 using NYT::NQueryClient::TCompositeMemberAccessorPath;
@@ -47,6 +49,7 @@ using NYT::NQueryClient::TSubqueryParameters;
 using NYT::NQueryClient::TSubqueryWriteOpClosure;
 using NYT::NQueryClient::TNestedExecutionContext;
 using NYT::NQueryClient::TNestedGroupByClosure;
+using NYT::NQueryClient::TNestedOrderByClosure;
 
 using NYT::NTableClient::TRowBuffer;
 using NYT::NTableClient::TLogicalTypePtr;
@@ -83,6 +86,9 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TArrayJoinParameters*)
     OPAQUE_TYPE(TMultiJoinParameters*)
     OPAQUE_TYPE(TMultiJoinClosure*)
+    OPAQUE_TYPE(THierarchicalJoinClosure*)
+    OPAQUE_TYPE(THierarchicalJoinClosure**)
+    OPAQUE_TYPE(TSingleJoinParameters*)
     OPAQUE_TYPE(std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>*)
     OPAQUE_TYPE(TSharedRange<TRange<TPIValue>>*)
     OPAQUE_TYPE(TLikeExpressionContext*)
@@ -93,6 +99,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TLogicalTypePtr*)
 
     OPAQUE_TYPE(TNestedExecutionContext*)
+    OPAQUE_TYPE(TNestedOrderByClosure*)
 
     OPAQUE_TYPE(struct tm*)
 
@@ -103,7 +110,6 @@ struct TTypeBuilder<bool>
 template <>
 struct TTypeBuilder<TRowHeader>
 {
-public:
     enum Fields
     {
         Count,
@@ -121,7 +127,6 @@ public:
 template <>
 struct TTypeBuilder<TRow>
 {
-public:
     using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
@@ -139,7 +144,6 @@ public:
 template <>
 struct TTypeBuilder<TMutableRow>
 {
-public:
     using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
@@ -157,7 +161,6 @@ public:
 template <>
 struct TTypeBuilder<TExpressionClosure>
 {
-public:
     using TOpaqueValues = TTypeBuilder<void* const*>;
     using TBuffer = TTypeBuilder<TExpressionContext*>;
 
@@ -180,7 +183,6 @@ public:
 template <>
 struct TTypeBuilder<TJoinComparers>
 {
-public:
     enum Fields
     {
         PrefixEqComparer,
@@ -208,7 +210,6 @@ public:
 template <>
 struct TTypeBuilder<TNestedExecutionContext>
 {
-public:
     enum Fields
     {
         ExpressionContext,

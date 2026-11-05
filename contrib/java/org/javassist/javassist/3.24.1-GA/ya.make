@@ -1,0 +1,13 @@
+JAVA_CONTRIB(javassist-3.24.1-GA)
+
+VERSION(3.24.1-GA)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(1236783070)
+
+SRC_RESOURCE(1236783107)
+
+ORIGINAL_SOURCE(scm:git:git@github.com:jboss-javassist/javassist.git)
+
+END()

@@ -20,7 +20,7 @@ public:
     explicit TBannedReplicaTracker(NLogging::TLogger logger)
         : Logger(std::move(logger))
     {
-        YT_LOG_DEBUG("Banned replica tracker created");
+        YT_TLOG_DEBUG("Banned replica tracker created");
     }
 
     bool IsReplicaBanned(TReplicaId replicaId) override
@@ -30,9 +30,9 @@ public:
         auto it = BannedReplicas_.find(replicaId);
         bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-        YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
-            replicaId,
-            result);
+        YT_TLOG_TRACE("Banned replica tracker checking replica")
+            .With("ReplicaId", replicaId)
+            .With("Result", result);
 
         return result;
     }
@@ -51,38 +51,33 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
+        // Should be always filled by SyncReplicas.
         BannedReplicas_[replicaId] = TReplicaState{
-            .Counter = static_cast<int>(std::ssize(BannedReplicas_)),
+            .Counter = std::max(static_cast<int>(std::ssize(BannedReplicas_)), 1),
             .Error = std::move(error)
         };
 
-        YT_LOG_DEBUG("Banned replica tracker has banned replica (ReplicaId: %v, ReplicasSize: %v)",
-            replicaId,
-            BannedReplicas_.size());
+        YT_TLOG_DEBUG("Banned replica tracker has banned replica")
+            .With("ReplicaId", replicaId)
+            .With("ReplicasSize", BannedReplicas_.size());
     }
 
     void SyncReplicas(const TReplicationCardPtr& replicationCard) override
     {
         auto guard = Guard(SpinLock_);
-
-        auto replicaIds = GetKeys(BannedReplicas_);
-        for (auto replicaId : replicaIds) {
-            if (!replicationCard->Replicas.contains(replicaId)) {
-                EraseOrCrash(BannedReplicas_, replicaId);
-            }
-        }
+        DropMissingKeys(BannedReplicas_, replicationCard->Replicas);
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-            if (!BannedReplicas_.contains(replicaId) &&
-                replicaInfo.ContentType == ETableReplicaContentType::Data &&
-                IsReplicaEnabled(replicaInfo.State))
+            if (replicaInfo.ContentType == ETableReplicaContentType::Data &&
+                IsReplicaEnabled(replicaInfo.State) &&
+                !BannedReplicas_.contains(replicaId))
             {
                 InsertOrCrash(BannedReplicas_, std::pair(replicaId, TReplicaState{}));
             }
         }
 
-        YT_LOG_DEBUG("Banned replica tracker synced replicas (Replicas: %v)",
-            BannedReplicas_.size());
+        YT_TLOG_DEBUG("Banned replica tracker synced replicas")
+            .With("Replicas", BannedReplicas_.size());
 
         DecreaseCounters();
     }
@@ -98,7 +93,7 @@ private:
 
     THashMap<TReplicaId, TReplicaState> BannedReplicas_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     void DecreaseCounters()
     {
@@ -188,7 +183,7 @@ public:
             return result->GetValue();
         }
 
-        auto tracker = CreateBannedReplicaTracker(Logger().WithTag("TableId: %v", tableId));
+        auto tracker = CreateBannedReplicaTracker(Logger().WithTag("TableId", tableId));
         TryInsert(New<TBannedReplicaTrackerCacheValue>(tableId, tracker));
 
         return tracker;

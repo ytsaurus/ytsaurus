@@ -12,9 +12,9 @@ void TConsistencyChecker::Check(TValue value)
 {
     auto guard = Guard(Lock_);
     if (value < Value_) {
-        YT_LOG_FATAL("Consistency check failed (PrevValue: %v, Value: %v)",
-            Value_,
-            value);
+        YT_TLOG_FATAL("Consistency check failed")
+            .With("PrevValue", Value_)
+            .With("Value", value);
     }
     Value_ = value;
 }
@@ -29,26 +29,27 @@ void TLinearizabilityChecker::SubmitMutation(ui64 randomSeed, i64 index)
 {
     auto guard = Guard(Lock_);
 
-    YT_LOG_DEBUG("Submitting mutation to linearizability checker (RandomSeed: %x, Index: %v)",
-        randomSeed,
-        index);
+    YT_TLOG_DEBUG("Submitting mutation to linearizability checker")
+        .WithFormat("RandomSeed", "%x", randomSeed)
+        .With("Index", index);
 
     if (auto it = Mutations_.find(randomSeed)) {
         auto& [oldIndex, count] = it->second;
         ++count;
 
         if (oldIndex != index) {
-            YT_LOG_FATAL("Mutation indices differ (RandomSeed: %x, OldIndex: %v, Index: %v)",
-                randomSeed,
-                oldIndex,
-                index);
+            YT_TLOG_FATAL("Mutation indices differ")
+                .WithFormat("RandomSeed", "%x", randomSeed)
+                .With("OldIndex", oldIndex)
+                .With("Index", index);
         }
     } else {
         Mutations_.emplace(randomSeed, std::pair(index, 1));
     }
 
     if (Mutations_.at(randomSeed).second == PeerCount_) {
-        YT_LOG_DEBUG("Erasing mutation from linearizability checker (RandomSeed: %x)", randomSeed);
+        YT_TLOG_DEBUG("Erasing mutation from linearizability checker")
+            .WithFormat("RandomSeed", "%x", randomSeed);
         YT_VERIFY(Mutations_.erase(randomSeed) == 1);
     }
 }
@@ -64,8 +65,8 @@ void TLivenessChecker::IncrementErrorCount(int delta)
 {
     auto guard = Guard(Lock_);
     ErrorCount_ += delta;
-    YT_LOG_INFO("Change error count (ErrorCount: %v)",
-        ErrorCount_);
+    YT_TLOG_INFO("Change error count")
+        .With("ErrorCount", ErrorCount_);
     LastStateChangeTime_ = TInstant::Now();
 }
 
@@ -73,11 +74,11 @@ void TLivenessChecker::Report(bool isOk)
 {
     auto guard = Guard(Lock_);
 
-    YT_LOG_DEBUG("Availability result reported (IsOK: %v, ErrorCount: %v, LastSuccess: %v, LastStateChange: %v)",
-        isOk,
-        ErrorCount_,
-        LastSuccess_,
-        LastStateChangeTime_);
+    YT_TLOG_DEBUG("Availability result reported")
+        .With("IsOK", isOk)
+        .With("ErrorCount", ErrorCount_)
+        .With("LastSuccess", LastSuccess_)
+        .With("LastStateChange", LastStateChangeTime_);
 
     auto now = TInstant::Now();
     if (isOk) {
@@ -89,7 +90,7 @@ void TLivenessChecker::Report(bool isOk)
         && now - LastSuccess_ > Config_->UnavailabilityTimeout
         && now - LastStateChangeTime_ > Config_->ResurrectionTimeout)
     {
-        YT_LOG_FATAL("Liveness check failed");
+        YT_TLOG_FATAL("Liveness check failed");
     }
 }
 

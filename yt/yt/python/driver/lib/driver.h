@@ -10,6 +10,15 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns true if the current process is a fork of a process that had created a driver.
+//! See https://ytsaurus.tech/docs/api/python/userdoc#threadsafety.
+bool ForkOccurredAfterDriverCreation();
+
+//! Throws a Python exception if ForkOccurredAfterDriverCreation() is true.
+void ValidateNoForkOccurred();
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define PYCXX_DECLARE_DRIVER_METHODS(className) \
     PYCXX_KEYWORDS_METHOD_DECL(className, Execute) \
     PYCXX_KEYWORDS_METHOD_DECL(className, RegisterAlienTransaction) \
@@ -96,7 +105,7 @@ public:
     using PycxxMethod = Py::Object (TDriverModuleBase::*)(const Py::Tuple &args, const Py::Dict& kwargs);
 
     void Initialize(
-        const TString& moduleName,
+        const std::string& moduleName,
         std::function<void()> initTypeFunction,
         std::function<void()> initModule,
         std::function<Py::Dict()> getModuleDictionary,

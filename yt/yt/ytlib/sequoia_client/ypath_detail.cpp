@@ -40,13 +40,13 @@ TRelativePath TRelativePath::MakeCanonicalPathOrThrow(TStringBuf path)
         THROW_ERROR_EXCEPTION(
             "Could not canonicalize relative path %v; the path is malformed or invalid",
             path)
-            << ex;
+            .With(ex);
     }
 
     return TRelativePath(builder.Flush());
 }
 
-TRelativePath TRelativePath::UnsafeMakeCanonicalPath(TString&& path) noexcept
+TRelativePath TRelativePath::UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept
 {
     return TRelativePath(std::move(path));
 }
@@ -72,13 +72,13 @@ TAbsolutePath TAbsolutePath::MakeCanonicalPathOrThrow(TStringBuf path)
         THROW_ERROR_EXCEPTION(
             "Could not canonicalize absolute path %v; the path is malformed or invalid",
             path)
-            << ex;
+            .With(ex);
     }
 
     return TAbsolutePath(builder.Flush());
 }
 
-TAbsolutePath TAbsolutePath::UnsafeMakeCanonicalPath(TString&& path) noexcept
+TAbsolutePath TAbsolutePath::UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept
 {
     return TAbsolutePath(std::move(path));
 }

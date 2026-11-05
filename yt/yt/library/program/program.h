@@ -43,7 +43,7 @@ public:
 
 protected:
     NLastGetopt::TOpts Opts_;
-    TString Argv0_;
+    std::string Argv0_;
     bool PrintYTVersion_ = false;
     bool PrintVersion_ = false;
     bool PrintBuild_ = false;
@@ -52,7 +52,7 @@ protected:
 
     virtual void DoRun() = 0;
 
-    virtual void OnError(const TString& message) noexcept;
+    virtual void OnError(const std::string& message) noexcept;
 
     virtual bool ShouldAbortOnHungShutdown() noexcept;
 
@@ -105,18 +105,18 @@ class TProgramException
     : public std::exception
 {
 public:
-    explicit TProgramException(TString what);
+    explicit TProgramException(std::string what);
 
     const char* what() const noexcept override;
 
 private:
-    const TString What_;
+    const std::string What_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper for TOpt::StoreMappedResult to validate file paths for existence.
-TString CheckPathExistsArgMapper(const TString& arg);
+std::string CheckPathExistsArgMapper(const std::string& arg);
 
 //! Helper for TOpt::StoreMappedResult to parse types with #FromString.
 template <class T>
@@ -127,7 +127,7 @@ template <class T>
 T ParseEnumArgMapper(TStringBuf arg);
 
 //! Helper for TOpt::StoreMappedResult to parse YSON strings.
-NYson::TYsonString CheckYsonArgMapper(const TString& arg);
+NYson::TYsonString CheckYsonArgMapper(const std::string& arg);
 
 //! Drop privileges and save them if running with suid-bit.
 void ConfigureUids();

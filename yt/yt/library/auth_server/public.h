@@ -13,6 +13,7 @@ namespace NYT::NAuth {
 DECLARE_REFCOUNTED_STRUCT(TAuthCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxTicketAuthenticatorConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingTicketAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressTokenAuthenticatorConfig)
@@ -27,6 +28,7 @@ DECLARE_REFCOUNTED_STRUCT(TDefaultSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TAuthenticationManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TAuthenticationManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TOAuthAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthCookieAuthenticatorConfig)
@@ -44,6 +46,11 @@ DECLARE_REFCOUNTED_STRUCT(TCypressCookie)
 DECLARE_REFCOUNTED_STRUCT(TCypressCookieStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressCookieGeneratorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressCookieManagerConfig)
+
+DECLARE_REFCOUNTED_STRUCT(TLdapServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressPasswordAuthenticatorConfig)
+
+DECLARE_REFCOUNTED_STRUCT(ILoginAuthenticator)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieStore)
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
@@ -100,11 +107,27 @@ DEFINE_ENUM(EBlackboxCacheKeyMode,
     (CredentialsAndUserAddress)
 );
 
+DEFINE_ENUM(EAuthSource,
+    //! Authenticated via Cypress password.
+    (Cypress)
+    //! Authenticated via LDAP.
+    (Ldap)
+);
+
+DEFINE_ENUM(ELdapEncryption,
+    //! Plain LDAP (ldap://, port 389 by default). No TLS.
+    (None)
+    //! LDAP over SSL from the start (ldaps://, port 636 by default).
+    (Ldaps)
+    //! Upgrade plaintext connection to TLS via StartTLS extended operation (port 389 by default).
+    (StartTls)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTokenCredentials;
 struct TCookieCredentials;
-struct TTicketCredentials;
+struct TUserTicketCredentials;
 struct TServiceTicketCredentials;
 
 struct TAuthenticationResult;

@@ -47,11 +47,11 @@ struct TOpts
 
     NLastGetopt::TOpts Opts;
 
-    TString Proxy;
-    TString ResultTable;
-    TString Format;
-    std::optional<TString> Config;
-    std::optional<TString> NetworkProject;
+    std::string Proxy;
+    std::string ResultTable;
+    std::string Format;
+    std::optional<std::string> Config;
+    std::optional<std::string> NetworkProject;
 };
 
 struct TOptsHuggingface
@@ -71,9 +71,9 @@ struct TOptsHuggingface
             .Required();
     }
 
-    TString Dataset;
-    TString Subset;
-    TString Split;
+    std::string Dataset;
+    std::string Subset;
+    std::string Split;
 };
 
 struct TOptsS3
@@ -96,30 +96,31 @@ struct TOptsS3
             .StoreResult(&Prefix);
     }
 
-    TString Url;
-    TString Region;
-    TString Bucket;
-    TString Prefix;
+    std::string Url;
+    std::string Region;
+    std::string Bucket;
+    std::string Prefix;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TImportConfigPtr LoadConfig(const std::optional<TString>& configPath)
+TImportConfigPtr LoadConfig(const std::optional<std::string>& configPath)
 {
+    // TODO(babenko): drop TString cast once TUnbufferedFileInput accepts std::string.
     auto config = !configPath
         ? New<TImportConfig>()
-        : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(*configPath).ReadAll()));
+        : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(TString(*configPath)).ReadAll()));
     ConfigureSingletons(config->Singletons);
     return config;
 }
 
-EFileFormat ParseFileFormat(const TString& fileFormatString)
+EFileFormat ParseFileFormat(const std::string& fileFormatString)
 {
     try {
         return ParseEnum<EFileFormat>(fileFormatString);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid file format %s", fileFormatString)
-            << ex;
+        THROW_ERROR_EXCEPTION("Invalid file format %Qv", fileFormatString)
+            .With(ex);
     }
 }
 

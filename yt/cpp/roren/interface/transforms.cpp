@@ -1,8 +1,7 @@
 #include "transforms.h"
-
 #include "roren.h"
 
-#include "private/co_group_by_key.h"
+#include <yt/cpp/roren/interface/private/co_group_by_key.h>
 
 namespace NRoren {
 

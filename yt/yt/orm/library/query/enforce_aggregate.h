@@ -2,7 +2,7 @@
 
 #include <yt/yt/library/query/base/ast.h>
 
-namespace NYT::NOrm::NServer::NObjects {
+namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,4 +12,4 @@ NQueryClient::NAst::TExpressionPtr EnforceAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects
+} // namespace NYT::NOrm::NQuery

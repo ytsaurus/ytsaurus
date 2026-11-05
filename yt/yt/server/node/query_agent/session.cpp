@@ -21,7 +21,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NQueryAgent {
 
@@ -137,9 +137,9 @@ public:
         auto proxy = TQueryServiceProxy(channelFactory->CreateChannel(nodeAddress));
 
         {
-            YT_LOG_DEBUG("Propagating distributed session (SessionId: %v, NodeAddress: %v)",
-                SessionId_,
-                nodeAddress);
+            YT_TLOG_DEBUG("Propagating distributed session")
+                .With("SessionId", SessionId_)
+                .With("NodeAddress", nodeAddress);
 
             auto request = proxy.CreateDistributedSession();
             ToProto(request->mutable_session_id(), SessionId_);
@@ -175,10 +175,10 @@ public:
         }
 
         {
-            YT_LOG_DEBUG("Pushing rowset (SessionId: %v, RowsetId: %v, RowCount: %v)",
-                SessionId_,
-                shufflePart.RowsetId,
-                rowCount);
+            YT_TLOG_DEBUG("Pushing rowset")
+                .With("SessionId", SessionId_)
+                .With("RowsetId", shufflePart.RowsetId)
+                .With("RowCount", rowCount);
 
             auto request = proxy.PushRowset();
             ToProto(request->mutable_session_id(), SessionId_);

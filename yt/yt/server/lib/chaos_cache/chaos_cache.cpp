@@ -85,31 +85,31 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
     bool cacheHit = false;
     if (entry) {
         if (refreshEra != InvalidReplicationEra && entry->GetSuccess() && entry->GetReplicationCard().Value()->Era < refreshEra) {
-            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Era: %v, RefreshEra: %v, User: %v)",
-                requestId,
-                key,
-                entry->GetReplicationCard().Value()->Era,
-                refreshEra,
-                user);
+            YT_TLOG_DEBUG("Cache entry refresh requested")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .With("Era", entry->GetReplicationCard().Value()->Era)
+                .With("RefreshEra", refreshEra)
+                .With("User", user);
 
             TryRemoveValue(entry);
         }
 
         if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
-            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Success: %v, User: %v)",
-                requestId,
-                key,
-                entry->GetSuccess(),
-                user);
+            YT_TLOG_DEBUG("Cache entry expired")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .With("Success", entry->GetSuccess())
+                .With("User", user);
 
             TryRemoveValue(entry);
         } else {
             cacheHit = true;
-            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Success: %v, User: %v)",
-                requestId,
-                key,
-                entry->GetSuccess(),
-                user);
+            YT_TLOG_DEBUG("Cache hit")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .With("Success", entry->GetSuccess())
+                .With("User", user);
         }
     }
 
@@ -131,10 +131,10 @@ void TChaosCache::EndLookup(
 {
     const auto& key = cookie.GetKey();
 
-    YT_LOG_DEBUG("Cache population request succeeded (RequestId: %v, Key: %v, Success: %v)",
-        requestId,
-        key,
-        replicationCard.IsOK());
+    YT_TLOG_DEBUG("Cache population request succeeded")
+        .With("RequestId", requestId)
+        .With("Key", key)
+        .With("Success", replicationCard.IsOK());
 
     auto entry = New<TChaosCacheEntry>(
         key,
@@ -175,10 +175,10 @@ void TChaosCache::OnAdded(const TChaosCacheEntryPtr& entry)
     TAsyncSlruCacheBase::OnAdded(entry);
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry added (Key: %v, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry added")
+        .With("Key", key)
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 }
 
 void TChaosCache::OnRemoved(const TChaosCacheEntryPtr& entry)
@@ -188,10 +188,10 @@ void TChaosCache::OnRemoved(const TChaosCacheEntryPtr& entry)
     TAsyncSlruCacheBase::OnRemoved(entry);
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry removed (Key: %v, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry removed")
+        .With("Key", key)
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 }
 
 i64 TChaosCache::GetWeight(const TChaosCacheEntryPtr& entry) const

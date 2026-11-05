@@ -1,0 +1,104 @@
+{
+    "spec" = {
+        "computations" = {
+            "BigInjector" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["big_messages"];
+                "parameters" = {};
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "stream_id" = "raw";
+                        "parameters" = {
+                            "message_size_mean" = 1024;
+                            "message_count_mean" = 100;
+                        };
+                    };
+                };
+            };
+            "SmallInjector" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["small_messages"];
+                "parameters" = {};
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "stream_id" = "raw";
+                        "parameters" = {
+                            "message_size_mean" = 16;
+                            "message_count_mean" = 100;
+                        };
+                    };
+                };
+            };
+            "Output" = {
+                "computation_class_name" = "TTableWriter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["small_messages"; "big_messages"];
+                "output_stream_ids" = ["output"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["output"];
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//tmp/t_output";
+                            "producer_path" = "<cluster=primary//tmp/t_output_producer"
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "small_messages" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string"};
+                ];
+            };
+            "big_messages" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string"};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "BigInjector" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 2;
+                };
+            };
+            "SmallInjector" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 2;
+                };
+            };
+            "Output" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 200;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+        };
+        "job_tracker" = {
+            "buffer_state_manager" = {
+                "input_buffer_limit" = 548576;
+                "output_buffer_limit" = 648576;
+                "segment_size" = 4096;
+                "slow_start_threshold" = 1048576;
+                "buffer_management_strategy" = "fair_share";
+            };
+        };
+    };
+}

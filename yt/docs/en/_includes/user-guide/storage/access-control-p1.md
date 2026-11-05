@@ -66,7 +66,7 @@ Users have the `user` system object type. Groups have the `group` object type.
 
 - In the web interface
 
-  Go to the user or group page and click ![](../../../../images/attrs-icon.png =20x20) on the right.
+  Go to the user or group page and click ![](../../../../_images/attrs-icon.png =20x20) on the right.
 
 - Via the CLI
 

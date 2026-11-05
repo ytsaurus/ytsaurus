@@ -46,7 +46,7 @@ public:
 TEST_F(TP2PTest, LookupBlocks)
 {
     auto chunk0 = TChunkId::Create();
-    auto block3 = TBlock{TSharedRef::FromString("hello")};
+    auto block3 = TBlock{TSharedRef::FromString(std::string("hello"))};
 
     auto blocks = Cache->LookupBlocks(chunk0, {2, 3});
     ASSERT_EQ(2u, blocks.size());
@@ -64,7 +64,7 @@ TEST_F(TP2PTest, LookupBlocks)
 TEST_F(TP2PTest, SnoopNoNodes)
 {
     auto chunk0 = TChunkId::Create();
-    auto block0 = TBlock{TSharedRef::FromString("b0")};
+    auto block0 = TBlock{TSharedRef::FromString(std::string("b0"))};
     std::vector<TBlock> blocks{block0};
 
     for (int i = 0; i <= Config->HotBlockThreshold; i++) {
@@ -136,7 +136,7 @@ TEST_F(TP2PTest, BlockRedistribution)
     Snooper->SetEligiblePeers(peers);
 
     auto chunk0 = TChunkId::Create();
-    auto block2 = TBlock{TSharedRef::FromString("b2")};
+    auto block2 = TBlock{TSharedRef::FromString(std::string("b2"))};
 
     std::vector<TBlock> blocks{block2};
     for (int i = 0; i < Config->HotBlockThreshold; i++) {
@@ -167,9 +167,9 @@ TEST_F(TP2PTest, Snoop)
 {
     auto chunk0 = TChunkId::Create();
 
-    auto block2 = TBlock{TSharedRef::FromString("b2")};
-    auto block3 = TBlock{TSharedRef::FromString("b3")};
-    auto block4 = TBlock{TSharedRef::FromString("b4")};
+    auto block2 = TBlock{TSharedRef::FromString(std::string("b2"))};
+    auto block3 = TBlock{TSharedRef::FromString(std::string("b3"))};
+    auto block4 = TBlock{TSharedRef::FromString(std::string("b4"))};
 
     std::vector peers{TNodeId(42), TNodeId(43), TNodeId(44), TNodeId(45), TNodeId(46)};
     Snooper->SetEligiblePeers(peers);

@@ -1,0 +1,82 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["rows"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "mapper" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["rows"];
+                "output_stream_ids" = ["mapped"];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "text"; type = "string";};
+                ];
+            };
+            "mapped" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "text"; type = "string";};
+                    {name = "text_upper"; type = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                    "entrypoint" = {
+                        "executable" = "/usr/local/bin/python3";
+                        "args" = ["main.py"];
+                    };
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {"parameters" = {};};
+            "mapper" = {"parameters" = {};};
+        };
+    };
+    "vanilla" = {
+        "enable" = %true;
+        "pool" = "pool_name";
+        "controller" = {"count" = 1; "docker_image" = "registry.example.com/ytflow-python-companion:tag";};
+        "worker" = {
+            "count" = 1;
+            "docker_image" = "registry.example.com/ytflow-python-companion:tag";
+            "local_files" = {
+                "main.py" = "/path/to/main.py";
+            };
+        };
+    };
+}

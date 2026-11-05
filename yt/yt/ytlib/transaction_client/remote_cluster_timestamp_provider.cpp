@@ -1,7 +1,5 @@
 #include "remote_cluster_timestamp_provider.h"
 
-#include "public.h"
-
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -9,8 +7,6 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
-
-#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -20,7 +16,6 @@ namespace NYT::NTransactionClient {
 
 using namespace NApi::NNative;
 using namespace NObjectClient;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +66,7 @@ public:
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
             THROW_ERROR_EXCEPTION("Cannot generate timestamps: connection terminated")
-                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+                .With("clock_cluster_tag", clockClusterTag);
         }
 
         return nativeConnection->GetClusterDirectorySynchronizer()->Sync()
@@ -82,10 +77,10 @@ public:
 
                 if (underlying) {
                     return GenerateTimestampsWithFallback(
-                    count,
-                    std::move(underlying),
-                    std::move(remoteUnderlying),
-                    clockClusterTag);
+                        count,
+                        std::move(underlying),
+                        std::move(remoteUnderlying),
+                        clockClusterTag);
                 }
 
                 return MakeFuture<TTimestamp>(TError(
@@ -117,11 +112,18 @@ private:
     TAtomicIntrusivePtr<ITimestampProvider> Underlying_;
     TAtomicIntrusivePtr<ITimestampProvider> UnderlyingRemoteCluster_;
 
+    static bool IsClockFallbackErrorCode(TErrorCode code)
+    {
+        return code == EErrorCode::UnknownClockClusterTag ||
+            code == EErrorCode::ClockClusterTagMismatch ||
+            code == NRpc::EErrorCode::UnsupportedServerFeature;
+    }
+
     void OnClusterDirectorySync(const TError& /*error*/)
     {
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
-            YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated");
+            YT_TLOG_DEBUG("Cannot initialize timestamp provider: connection terminated");
             return;
         }
 
@@ -131,8 +133,8 @@ private:
             if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
                 UnderlyingRemoteCluster_.Store(connection->GetTimestampProvider());
             } else {
-                YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known (ClockClusterTag: %v)",
-                    ClockClusterTag_);
+                YT_TLOG_DEBUG("Cannot initialize timestamp provider: cluster is not known")
+                    .With("ClockClusterTag", ClockClusterTag_);
             }
         } else {
             UnderlyingRemoteCluster_.Store(nativeConnection->GetTimestampProvider());
@@ -152,24 +154,18 @@ private:
                     Logger = Logger,
                     clockClusterTag,
                     remoteUnderlying] (TErrorOr<TTimestamp>&& providerResult) {
-                if (providerResult.IsOK() ||
-                    !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
-                        providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
-                        providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
-                {
+                if (providerResult.IsOK() || !providerResult.FindMatching(IsClockFallbackErrorCode)) {
                     return MakeFuture(std::move(providerResult));
                 }
 
                 if (remoteUnderlying) {
-                    YT_LOG_WARNING(
-                        providerResult,
-                        "Wrong clock cluster, trying to generate timestamps via direct call (ClockClusterTag: %v)",
-                        clockClusterTag);
-                        return remoteUnderlying->GenerateTimestamps(count);
+                    YT_TLOG_WARNING("Wrong clock cluster, trying to generate timestamps via direct call")
+                        .With("ClockClusterTag", clockClusterTag)
+                        .With(providerResult);
+                    return remoteUnderlying->GenerateTimestamps(count);
                 } else {
-                    YT_LOG_WARNING(
-                        "Cannot generate timestamps via direct call (CloclClusterTag: %v)",
-                        clockClusterTag);
+                    YT_TLOG_WARNING("Cannot generate timestamps via direct call")
+                        .With("ClockClusterTag", clockClusterTag);
                     return MakeFuture<TTimestamp>(TError(
                         "Timestamp provider for clock cluster tag %v is unavailable at the moment",
                         clockClusterTag));

@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include <util/stream/null.h>
+#include <util/system/cpu_id.h>
 #include <util/system/compiler.h>
 #include <util/system/fs.h>
 #include <util/system/mem_info.h>
@@ -380,6 +381,7 @@ template <size_t Batch, typename... Args> class TBenchmark {
                         checksum += ReadUnaligned<ui32>(it);
                         matches += 
                             ReadUnaligned<ui8>(row + 2 * sizeof(ui32) + (1 + 7) / 8);
+                        return true;
                     });
                 }
             });
@@ -485,6 +487,103 @@ using TPageTableAVX2Pref = TPageHashTableImpl<NSimd::TSimdAVX2Traits, true>;
 
 // -----------------------------------------------------------------
 
+namespace {
+
+// Out-of-place layouts keep an index in the buffer slot instead of the row, so Apply has to
+// hand out the packed row it points at
+template <typename TTable> void TestApplyReturnsPackedRows() {
+    TScopedAlloc alloc(__LOCATION__);
+
+    TColumnDesc key;
+    key.Role = EColumnRole::Key;
+    key.DataSize = sizeof(ui32);
+
+    TColumnDesc payload;
+    payload.Role = EColumnRole::Payload;
+    payload.DataSize = 32;
+
+    std::vector<TColumnDesc> columns{key, payload};
+    auto layout = TTupleLayout::Create(columns);
+    UNIT_ASSERT_GT(layout->TotalRowSize, ui32(16));
+
+    constexpr ui32 size = 3;
+    std::vector<ui32> keys{7, 7, 9};
+    std::vector<ui8> payloads(size * payload.DataSize, 0);
+    for (ui32 index = 0; index < size; ++index) {
+        payloads[index * payload.DataSize] = index + 1;
+    }
+
+    const ui8 *cols[2] = {(const ui8 *)keys.data(), payloads.data()};
+    std::vector<ui8> keysValid((size + 7) / 8, ~0);
+    std::vector<ui8> payloadsValid((size + 7) / 8, ~0);
+    const ui8 *colsValid[2] = {keysValid.data(), payloadsValid.data()};
+
+    std::vector<ui8> packed(layout->TotalRowSize * size + 64, 0);
+    std::vector<ui8, TMKQLAllocator<ui8>> overflow;
+    layout->Pack(cols, colsValid, packed.data(), overflow, 0, size);
+
+    TTable table(layout.Get());
+    table.Build(packed.data(), overflow.data(), size);
+
+    const ui8 *const probe = packed.data();
+    std::vector<ui8> matchedPayloads;
+    table.Apply(probe, overflow.data(), [&](const ui8 *const row) {
+        UNIT_ASSERT(row >= packed.data() && row < packed.data() + layout->TotalRowSize * size);
+        UNIT_ASSERT_VALUES_EQUAL(ReadUnaligned<ui32>(row + layout->KeyColumnsOffset), keys[0]);
+        matchedPayloads.push_back(ReadUnaligned<ui8>(row + layout->PayloadOffset));
+        return true;
+    });
+
+    std::sort(matchedPayloads.begin(), matchedPayloads.end());
+    UNIT_ASSERT_VALUES_EQUAL(matchedPayloads, (std::vector<ui8>{1, 2}));
+
+    ui32 visited = 0;
+    table.Apply(probe, overflow.data(), [&](const ui8 *const) {
+        ++visited;
+        return false;
+    });
+    UNIT_ASSERT_VALUES_EQUAL(visited, 1u);
+}
+
+} // namespace
+
+Y_UNIT_TEST_SUITE(NeumannHashTableTest) {
+    Y_UNIT_TEST(ApplyReturnsPackedRows) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
+        TestApplyReturnsPackedRows<TNeumannTable>();
+    }
+
+    Y_UNIT_TEST(ApplyReturnsPackedRowsWithConsecutiveDuplicates) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
+        TestApplyReturnsPackedRows<TNeumannTableSeq>();
+    }
+
+    Y_UNIT_TEST(RequiredMemoryForBuild) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
+        TColumnDesc key;
+        key.Role = EColumnRole::Key;
+        key.DataSize = sizeof(ui32);
+
+        auto layout = TTupleLayout::Create({key});
+        TNeumannTable table(layout.Get());
+
+        constexpr int nItems = 1024;
+        constexpr ui64 directoryEntries = 2049;
+        const ui64 expected = directoryEntries * sizeof(ui64)
+            + static_cast<ui64>(layout->TotalRowSize) * nItems;
+
+        UNIT_ASSERT_VALUES_EQUAL(table.RequiredMemoryForBuild(nItems), expected);
+    }
+}
+
+// -----------------------------------------------------------------
+
 template <typename... Args> struct TTablesCase {
     template <size_t Batch> using TBenchmark = TBenchmark<Batch, Args...>;
 };
@@ -499,6 +598,9 @@ Y_UNIT_TEST_SUITE(HashTablesBenchmark) {
     static constexpr bool toCSV = false;
 
     Y_UNIT_TEST(Uniform) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
         TUniformDistribution uni1M(0, 1e6 - 1);
 
         auto benchmark = TTablesBenchmark::TBenchmark<batchSize>(4, Name_);
@@ -509,6 +611,9 @@ Y_UNIT_TEST_SUITE(HashTablesBenchmark) {
     }
 
     Y_UNIT_TEST(UniformPayloaded) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
         TUniformDistribution uni1M(0, 1e6 - 1);
 
         auto benchmark = TTablesBenchmark::TBenchmark<batchSize>(21, Name_);
@@ -519,6 +624,9 @@ Y_UNIT_TEST_SUITE(HashTablesBenchmark) {
     }
 
     Y_UNIT_TEST(NormalPayloaded) {
+        if (!NX86::HaveAVX2()) {
+            return;
+        }
         TNormalDistribution norm1M(1000000 / 2, 1000000 / 6);
 
         auto benchmark = TTablesBenchmark::TBenchmark<batchSize>(21, Name_);

@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
@@ -371,6 +372,7 @@ public:
 
         rows->resize(offset);
         ReaderStatistics_->RowCount += rows->size();
+        ReaderStatistics_->DataWeight += *dataWeight;
         return hasMoreRows;
     }
 
@@ -471,17 +473,24 @@ void FormatValue(TStringBuilderBase* builder, const TReaderStatistics& statistic
         return static_cast<ui64>(cpuDuration * ticksToNanoseconds);
     };
 
+    auto readTimeNs = cpuDurationToNs(statistics.ReadTime);
+    auto readSpeedMBps = readTimeNs > 0
+        ? static_cast<double>(statistics.DataWeight) * 1'000'000'000 / (static_cast<double>(readTimeNs) * 1_MB)
+        : 0.0;
+
     Format(
         builder,
-        "RowCount: %v, "
+        "RowCount: %v, DataWeight: %v, ReadSpeed: %.2fMB/s, "
         "Summary Init/Read Time: %vns / %vns, "
         "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/BuildColumnInfos/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "Decode Timestamp/Key/Value Times: %vns / %vns / %vns, "
         "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
         statistics.RowCount,
+        statistics.DataWeight,
+        readSpeedMBps,
         cpuDurationToNs(statistics.InitTime),
-        cpuDurationToNs(statistics.ReadTime),
+        readTimeNs,
         cpuDurationToNs(statistics.BuildReadWindowsTime),
         cpuDurationToNs(statistics.GetValuesIdMappingTime),
         cpuDurationToNs(statistics.CreateColumnBlockHoldersTime),
@@ -542,7 +551,8 @@ public:
 
     ~TReaderWrapper()
     {
-        YT_LOG_DEBUG("Reader statistics (%v)", *ReaderStatistics_);
+        YT_TLOG_DEBUG("Reader statistics")
+            .With("ReaderStatistics", *ReaderStatistics_);
     }
 
     TFuture<void> Open() override
@@ -855,8 +865,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
     }
 
-    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        makeColumnBase(preparedChunkMeta->ColumnInfos[chunkSchemaIndex], readerSchemaIndex);
+    for (const auto& entry : valuesIdMapping) {
+        makeColumnBase(
+            preparedChunkMeta->ColumnInfos[entry.ChunkSchemaIndex],
+            entry.ReaderSchemaIndex);
     }
 
     {
@@ -875,20 +887,19 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     // Do not log in case of reading from memory.
-    YT_LOG_DEBUG_IF(
-        !blockManager->IsFetchingCompleted(),
-        "Creating rowset builder (ReadItemCount: %v, GroupIds: %v, KeyTypes: %v, "
-        "ReadItemWidth: %v, KeyColumnIndexes: %v, ValueTypes: %v, NewMeta: %v)",
-        readItemCount,
-        groupIds,
-        keyTypes,
-        readItemWidth,
-        keyColumnIndexes,
-        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
+    YT_TLOG_DEBUG_IF(!blockManager->IsFetchingCompleted(), "Creating rowset builder")
+        .With("ReadItemCount", readItemCount)
+        .With("GroupIds", groupIds)
+        .With("KeyTypes", keyTypes)
+        .With("ReadItemWidth", readItemWidth)
+        .With("KeyColumnIndexes", keyColumnIndexes)
+        .With("ValueTypes", MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
             builder->AppendFormat("(Type: %v, ConvertToAny: %v)", valueSchema.Type, valueSchema.ConvertToAny);
-        }),
-        preparedChunkMeta->FullNewMeta);
+        }))
+        .With("NewMeta", preparedChunkMeta->FullNewMeta);
 
+    // NB: to avoid use-after-move down the line.
+    bool itemsAreKeys = IsKeys(readItems);
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         .KeyTypes = keyTypes,
         .ReadItemWidth = static_cast<ui16>(readItemWidth),
@@ -906,8 +917,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     std::unique_ptr<bool[]> columnHunkFlags;
     if (chunkSchema->HasHunkColumns()) {
         columnHunkFlags.reset(new bool[tableSchema->GetColumnCount()]());
-        for (auto [chunkColumnId, tableColumnId] : valuesIdMapping) {
-            columnHunkFlags[tableColumnId] = chunkSchema->Columns()[chunkColumnId].MaxInlineHunkSize().has_value();
+        for (const auto& entry : valuesIdMapping) {
+            columnHunkFlags[entry.ReaderSchemaIndex] =
+                chunkSchema->Columns()[entry.ChunkSchemaIndex].MaxInlineHunkSize().has_value();
         }
     }
 
@@ -918,7 +930,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(blockManager),
         std::move(rowsetBuilder),
         std::move(windowsList),
-        IsKeys(readItems),
+        itemsAreKeys,
         skipValueBlocksForMissingKeys,
         readerStatistics,
         std::move(keyFilterStatistics),
@@ -974,10 +986,12 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
 
 TSharedRange<TRowRange> ClipRanges(
     TSharedRange<TRowRange> ranges,
-    TUnversionedRow lower,
-    TUnversionedRow upper,
-    THolderPtr holder)
+    const NTableClient::TLegacyOwningKey& lowerBound,
+    const NTableClient::TLegacyOwningKey& upperBound)
 {
+    auto lower = lowerBound.Get();
+    auto upper = upperBound.Get();
+
     auto startIt = ranges.begin();
     auto endIt = ranges.end();
 
@@ -1018,7 +1032,8 @@ TSharedRange<TRowRange> ClipRanges(
         return MakeSharedRange(
             std::move(items),
             std::move(ranges.ReleaseHolder()),
-            std::move(holder));
+            lowerBound,
+            upperBound);
     } else {
         return {}; // Empty ranges.
     }
@@ -1061,9 +1076,9 @@ TKeysWithHints BuildKeyHintsUsingLookupTable(
     std::sort(indexList.begin(), indexList.end());
     TCpuDuration sortTime = GetCpuInstant() - sortStart;
 
-    YT_LOG_DEBUG("BuildKeyHintsUsingLookupTable (Lookup/Sort Time: %v / %v )",
-        CpuDurationToDuration(lookupInHashTableTime),
-        CpuDurationToDuration(sortTime));
+    YT_TLOG_DEBUG("Built key hints using lookup table")
+        .With("LookupTime", CpuDurationToDuration(lookupInHashTableTime))
+        .With("SortTime", CpuDurationToDuration(sortTime));
 
     if (!keys.empty()) {
         indexList.emplace_back(SentinelRowIndex, keys.size() - 1);

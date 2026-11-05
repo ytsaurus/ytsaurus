@@ -28,7 +28,7 @@ types:
         sort_order: Ascending
 
       - cpp_name: Stderr
-        cpp_type: TString
+        cpp_type: std::string
         column_name: stderr
         column_type: String
 

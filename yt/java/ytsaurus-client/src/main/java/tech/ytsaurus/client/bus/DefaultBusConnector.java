@@ -7,6 +7,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -18,6 +20,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.concurrent.DefaultThreadFactory;
 
 public class DefaultBusConnector implements BusConnector {
@@ -27,6 +30,8 @@ public class DefaultBusConnector implements BusConnector {
     private Duration writeTimeout = Duration.ofMinutes(2);
     private boolean verifyChecksums = false;
     private boolean calculateChecksums = false;
+    @Nullable
+    private InetSocketAddress httpConnectProxy;
     private DefaultBusChannelMetricsHolder metricsHolder;
 
     public DefaultBusConnector() {
@@ -92,8 +97,30 @@ public class DefaultBusConnector implements BusConnector {
         return this;
     }
 
+    @Nullable
+    public InetSocketAddress getHttpConnectProxy() {
+        return httpConnectProxy;
+    }
+
+    /**
+     * Set an HTTP proxy that tunnels bus connections with the HTTP CONNECT method.
+     *
+     * <p>
+     * Affects bus connections only. Proxying of the HTTP rpc-proxy discovery is set up separately,
+     * see {@code YTsaurusClient.ClientBuilder#setHttpConnectProxy}. The proxy hostname is resolved
+     * anew for every connection, an unresolved address is rejected.
+     */
+    public DefaultBusConnector setHttpConnectProxy(@Nullable InetSocketAddress httpConnectProxy) {
+        if (httpConnectProxy != null && httpConnectProxy.isUnresolved()) {
+            throw new IllegalArgumentException(
+                    "Cannot resolve http connect proxy host: " + httpConnectProxy.getHostString());
+        }
+        this.httpConnectProxy = httpConnectProxy;
+        return this;
+    }
+
     private Bootstrap newInetBootstrap(BusListener listener) {
-        return new Bootstrap()
+        Bootstrap bootstrap = new Bootstrap()
                 .group(group)
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.SO_KEEPALIVE, true)
@@ -102,7 +129,12 @@ public class DefaultBusConnector implements BusConnector {
                         .setReadTimeout(readTimeout)
                         .setWriteTimeout(writeTimeout)
                         .setVerifyChecksums(verifyChecksums)
-                        .setCalculateChecksums(calculateChecksums));
+                        .setCalculateChecksums(calculateChecksums)
+                        .setHttpConnectProxy(httpConnectProxy));
+        if (httpConnectProxy != null) {
+            bootstrap.resolver(NoopAddressResolverGroup.INSTANCE);
+        }
+        return bootstrap;
     }
 
     private Bootstrap newSocketBootstrap(BusListener listener) {

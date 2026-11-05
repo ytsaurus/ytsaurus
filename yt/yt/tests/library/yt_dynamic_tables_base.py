@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
-    remove, insert_rows, write_hunks
+    remove, insert_rows, write_hunks, build_snapshot, enable_tablet_cells_on_node, alter_table
 )
 
 # Used by SmoothMovementHelper by name lookup.
@@ -13,7 +13,9 @@ from yt_commands import ( # noqa
     remount_table, create
 )
 
-import yt_smooth_movement_helper_base
+from yt.yt.tests.library.smooth_movement_helper import (
+    SmoothMovementHelperBase, CommandProvider as SmoothMomentHelperCommandProvider
+)
 
 from yt.common import YtError
 
@@ -22,6 +24,9 @@ import yt.yson as yson
 import yt_error_codes
 
 from concurrent.futures import ThreadPoolExecutor
+
+import builtins
+import time
 
 ##################################################################
 
@@ -84,6 +89,16 @@ class DynamicTablesBase(YTEnvSetup):
                 },
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "tablet_manager": {
+                    "yield_before_building_lsm_actions": True,
+                }
+            }
+        }
     }
 
     class CellsDisabled():
@@ -246,7 +261,7 @@ class DynamicTablesBase(YTEnvSetup):
                     proxies = ls("//sys/rpc_proxies", driver=driver)
                     orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
                     for proxy in proxies:
-                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value)
+                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value, ignore_exceptions=True)
             else:
                 assert config_path == ""
                 self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)
@@ -394,6 +409,12 @@ class DynamicTablesBase(YTEnvSetup):
                     raise
         raise RuntimeError("Method get_store_chunk_ids failed")
 
+    def _get_chunk_ids(self, path="//tmp/t"):
+        chunk_ids = get("{}/@chunk_ids".format(path))
+        store_chunk_ids = builtins.set(self._get_store_chunk_ids(path))
+        hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+        return store_chunk_ids, hunk_chunk_ids
+
     def _get_hunk_chunk_ids(self, path):
         for _ in range(5):
             try:
@@ -403,6 +424,68 @@ class DynamicTablesBase(YTEnvSetup):
                 if not err.is_resolve_error():
                     raise
         raise RuntimeError("Method get_hunk_chunk_ids failed")
+
+    def _setup_for_value_dictionary_compression(self, path):
+        set(f"{path}/@mount_config/enable_lsm_verbose_logging", True)
+        set(f"{path}/@mount_config/value_dictionary_compression", {
+            "enable": True,
+            "column_dictionary_size": 256,
+            "max_processed_chunk_count": 2,
+            "backoff_period": 1000,
+        })
+        set(f"{path}/@hunk_chunk_reader/max_decompression_blob_size", 100)
+
+    def _wait_value_dictionaries_built(self, path, previous_hunk_chunk_count):
+        # One dictionary hunk chunk for each of two policies.
+        wait(lambda: len(self._get_hunk_chunk_ids(path)) == previous_hunk_chunk_count + 2)
+
+    def _find_data_hunk_chunks(self, path):
+        data_hunk_chunk_ids = builtins.set()
+        for chunk_id in self._get_store_chunk_ids(path):
+            for ref in get("#{}/@hunk_chunk_refs".format(chunk_id)):
+                if ref["hunk_count"] != 0:
+                    data_hunk_chunk_ids.add(ref["chunk_id"])
+        return list(data_hunk_chunk_ids)
+
+    def _find_referenced_dictionary_hunk_chunks(self, path, expected_count):
+        def _do_find_referenced_dictionary_hunk_chunks():
+            data_hunk_chunk_ids = self._find_data_hunk_chunks(path)
+            dictionary_hunk_chunk_ids = [
+                chunk_id
+                for chunk_id in self._get_hunk_chunk_ids(path)
+                if chunk_id not in data_hunk_chunk_ids
+            ]
+            tablet_info = get("{}/@tablets/0".format(path))
+
+            def is_referenced_dictionary(chunk_id):
+                try:
+                    hunk_chunk_info = get(
+                        "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/hunk_chunks/{}".format(
+                            tablet_info["cell_leader_address"],
+                            tablet_info["cell_id"],
+                            tablet_info["tablet_id"],
+                            chunk_id,
+                        )
+                    )
+                    return (
+                        "dictionary_compression_policy" in hunk_chunk_info and
+                        not hunk_chunk_info["dangling"]
+                    )
+                except YtError as err:
+                    if err.contains_code(yt_error_codes.ResolveErrorCode):
+                        return False
+                    raise
+
+            return [
+                chunk_id for chunk_id in dictionary_hunk_chunk_ids
+                if is_referenced_dictionary(chunk_id)
+            ]
+
+        if expected_count is None:
+            return _do_find_referenced_dictionary_hunk_chunks()
+
+        wait(lambda: len(_do_find_referenced_dictionary_hunk_chunks()) == expected_count)
+        return _do_find_referenced_dictionary_hunk_chunks()
 
     def _get_delta_profiling_wrapper(self, profiling_path, counters, table, user=None):
         self_ = self
@@ -458,19 +541,27 @@ class DynamicTablesBase(YTEnvSetup):
 
         return sensors[0]
 
-    def _insert_rows_with_hunk_storage(self, path, rows, retry_count=100):
+    def _insert_rows_with_hunk_storage(self, path, rows, tx=None, retry_count=100):
+        last_error = None
         iteration = 0
         while iteration < retry_count:
             iteration += 1
             try:
-                insert_rows(path, rows)
+                if tx is not None:
+                    insert_rows(path, rows, tx=tx)
+                else:
+                    insert_rows(path, rows)
                 return
             except YtError as e:
                 if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
                    not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
+                last_error = e
+                time.sleep(0.1)
+        raise last_error
 
     def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
+        last_error = None
         iteration = 0
         while iteration < retry_count:
             iteration += 1
@@ -481,25 +572,67 @@ class DynamicTablesBase(YTEnvSetup):
                 if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
                    not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
+                last_error = e
+                time.sleep(0.1)
+        raise last_error
+
+    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
+        def _get_peer_address():
+            for peer in get(f"#{cell_id}/@peers"):
+                if address := peer.get("address"):
+                    return address
+
+        node_address = _get_peer_address()
+        if with_snapshot:
+            build_snapshot(cell_id)
+        disable_tablet_cells_on_node(node_address)
+        wait(lambda: _get_peer_address() != node_address)
+        enable_tablet_cells_on_node(node_address)
+        if sync:
+            wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+    def _alter_to_static(self, path="//tmp/t"):
+        def _wait_sealed():
+            _, hunk_chunk_ids = self._get_chunk_ids(path)
+            for hunk_chunk_id in hunk_chunk_ids:
+                if not get("#{}/@sealed".format(hunk_chunk_id)):
+                    return False
+            return True
+
+        wait(lambda: _wait_sealed())
+        set("//sys/@config/tablet_manager/enable_alter_to_static_with_hunks", True)
+        alter_table(path, dynamic=False)
 
 
 ##################################################################
 
 
-class IntegrationTestCommandProvider(yt_smooth_movement_helper_base.CommandProvider):
+class IntegrationTestCommandProvider(SmoothMomentHelperCommandProvider):
     _command_mapping = {
         "list": "ls",
         "wait": "wait",
         "print_debug": "print_debug",
     }
 
+    _driverless_commands = {
+        "wait",
+        "print_debug",
+    }
+
+    driver = None
+
     @classmethod
     def _make_command(cls, command_name):
-        return lambda self, *args, **kwargs: globals()[command_name](*args, **kwargs)
+        if command_name in cls._driverless_commands:
+            return lambda self, *args, **kwargs: globals()[command_name](*args, **kwargs)
+        else:
+            return lambda self, *args, **kwargs: globals()[command_name](*args, **(kwargs | {"driver": self.driver}))
 
 
 class SmoothMovementHelper(
-    yt_smooth_movement_helper_base.SmoothMovementHelperBase,
+    SmoothMovementHelperBase,
     IntegrationTestCommandProvider
 ):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.driver = kwargs.pop("driver", None)
+        super().__init__(*args, **kwargs)

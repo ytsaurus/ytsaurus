@@ -46,14 +46,14 @@ TMutationContext::TMutationContext(
     i64 sequenceNumber,
     ui64 stateHash,
     int term,
-    TSharedRef localHostNameOverride)
+    TStringBuf localHostNameOverride)
     : THydraContext(
         logicalVersion,
         physicalVersion,
         compatOnlyPhysicalVersion,
         timestamp,
         randomSeed,
-        std::move(localHostNameOverride))
+        localHostNameOverride)
     , Parent_(nullptr)
     , Request_(request)
     , PrevRandomSeed_(prevRandomSeed)
@@ -69,7 +69,7 @@ TMutationContext::TMutationContext(TTestingTag)
         TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
-        /*localHostNameOverride*/ TSharedRef::FromString("<unknown-testing>"))
+        /*localHostNameOverride*/ "<unknown-testing>")
     , Parent_(nullptr)
     , Request_(nullptr)
     , PrevRandomSeed_(0)
@@ -136,6 +136,18 @@ void TMutationContext::SetResponseKeeperSuppressed(bool value)
 bool TMutationContext::GetResponseKeeperSuppressed()
 {
     return ResponseKeeperSuppressed_;
+}
+
+std::optional<i64> TMutationContext::GetGroundUpdateQueueSequenceNumber() const
+{
+    return GroundUpdateQueueSequenceNumber_;
+}
+
+void TMutationContext::SetGroundUpdateQueueSequenceNumber(i64 groundUpdateQueueSequenceNumber)
+{
+    if (groundUpdateQueueSequenceNumber != -1) {
+        GroundUpdateQueueSequenceNumber_ = groundUpdateQueueSequenceNumber;
+    }
 }
 
 TLogicalVersion TMutationContext::GetLastUsedVersion() const

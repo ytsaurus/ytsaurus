@@ -17,6 +17,7 @@ from typing import (
 from .. import to_thread
 from .._core._fileio import AsyncFile
 from ..lowlevel import checkpoint_if_cancelled
+from ._tasks import CancelScope
 
 if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
@@ -365,14 +366,14 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
     async def readinto(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
-            self._fp.readinto(b)
+            return self._fp.readinto(b)
 
         return await super().readinto(b)
 
     async def readinto1(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
-            self._fp.readinto(b)
+            return self._fp.readinto1(b)
 
         return await super().readinto1(b)
 
@@ -505,9 +506,10 @@ class TemporaryDirectory(Generic[AnyStr]):
         traceback: TracebackType | None,
     ) -> None:
         if self._tempdir is not None:
-            await to_thread.run_sync(
-                self._tempdir.__exit__, exc_type, exc_value, traceback
-            )
+            with CancelScope(shield=True):
+                await to_thread.run_sync(
+                    self._tempdir.__exit__, exc_type, exc_value, traceback
+                )
 
     async def cleanup(self) -> None:
         if self._tempdir is not None:

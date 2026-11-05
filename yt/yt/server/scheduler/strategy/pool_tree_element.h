@@ -20,8 +20,8 @@
 
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -70,10 +70,9 @@ struct IPoolTreeElementHost
 {
     virtual TResourceTree* GetResourceTree() = 0;
 
-    virtual void BuildElementLoggingStringAttributes(
+    virtual NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        const TPoolTreeElement* element) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPoolTreeElementHost)
@@ -199,6 +198,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled, false);
     DEFINE_BYVAL_RO_PROPERTY(std::optional<TDuration>, EffectiveWaitingForResourcesOnNodeTimeout);
 
     DEFINE_BYVAL_RO_PROPERTY(TPoolTreeElement*, LowestStarvingAncestor, nullptr);
@@ -254,7 +254,7 @@ public:
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
 
-    TString GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
+    NLogging::TLoggingTagList GetLoggingTags(const TPoolTreeSnapshotPtr& treeSnapshot) const;
 
     TPoolTreeCompositeElement* GetMutableParent();
     const TPoolTreeCompositeElement* GetParent() const;
@@ -340,7 +340,7 @@ public:
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
     bool IsDemandFullySatisfied() const;
@@ -356,7 +356,7 @@ protected:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         std::string treeId,
-        TString id,
+        std::string id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeElement(
@@ -371,7 +371,7 @@ protected:
         const TError& alert,
         std::optional<TDuration> timeout);
 
-    virtual void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const;
+    virtual NLogging::TLoggingTagList BuildLoggingTags() const;
 
     //! Pre update methods.
     virtual void DisableNonAliveElements() = 0;
@@ -456,7 +456,7 @@ public:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         const std::string& treeId,
-        const TString& id,
+        const std::string& id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeCompositeElement(
@@ -521,6 +521,10 @@ public:
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
+
+    //! Empty means the value is inherited from the closest ancestor that specifies one.
+    virtual std::optional<bool> GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const;
 
     //! Post fair share update methods.
     void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation) override;
@@ -540,7 +544,7 @@ public:
     virtual TGuid GetObjectId() const = 0;
 
     //! Other methods.
-    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+    virtual THashSet<std::string> GetAllowedProfilingTags() const = 0;
 
     virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
 
@@ -598,9 +602,9 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreeCompositeElement)
 class TPoolTreePoolElementFixedState
 {
 protected:
-    TPoolTreePoolElementFixedState(TString id, NObjectClient::TObjectId objectId);
+    TPoolTreePoolElementFixedState(std::string id, NObjectClient::TObjectId objectId);
 
-    const TString Id_;
+    const std::string Id_;
 
     // Used only in trunk node.
     bool DefaultConfigured_ = true;
@@ -624,7 +628,7 @@ public:
     TPoolTreePoolElement(
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
-        const TString& id,
+        const std::string& id,
         TGuid objectId,
         TPoolConfigPtr config,
         bool defaultConfigured,
@@ -640,7 +644,7 @@ public:
 
     ESchedulerElementType GetType() const override;
 
-    TString GetId() const override;
+    std::string GetId() const override;
 
     void AttachParent(TPoolTreeCompositeElement* newParent);
     void ChangeParent(TPoolTreeCompositeElement* newParent);
@@ -696,6 +700,7 @@ public:
     TIntegralResourcesState& IntegralResourcesState() override;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    std::optional<bool> GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 
@@ -716,10 +721,10 @@ public:
     //! Other methods.
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     TGuid GetObjectId() const override;
 
@@ -762,7 +767,7 @@ class TPoolTreeOperationElementFixedState
 {
 public:
     // Used by trunk node.
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, PendingByPool);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
@@ -842,7 +847,7 @@ public:
 
     TInstant GetStartTime() const;
 
-    TString GetId() const override;
+    std::string GetId() const override;
     TOperationId GetOperationId() const;
     std::optional<std::string> GetTitle() const;
 
@@ -851,7 +856,7 @@ public:
 
     void UpdatePoolAttributes(bool runningInEphemeralPool);
 
-    void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+    NLogging::TLoggingTagList BuildLoggingTags() const override;
     bool AreDetailedLogsEnabled() const final;
 
     ESchedulableStatus GetStatus() const override;
@@ -912,7 +917,7 @@ public:
     bool IsMaxScheduleAllocationCallsViolated() const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
         const std::string& treeId,
@@ -924,9 +929,11 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const std::string& treeId);
+        const std::string& treeId,
+        std::optional<std::string> allocationGroupName = {},
+        TAllocationId allocationId = {});
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
     void AbortAllocation(
@@ -945,14 +952,14 @@ public:
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
+    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
     EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput);
-    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta);
+    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
     //! Other methods.
-    std::optional<TString> GetCustomProfilingTag() const;
+    std::optional<std::string> GetCustomProfilingTag() const;
 
     bool IsLimitingAncestorCheckEnabled() const;
 
@@ -1026,7 +1033,7 @@ public:
     TPoolTreeRootElement(const TPoolTreeRootElement& other);
 
     //! Common interface.
-    TString GetId() const override;
+    std::string GetId() const override;
 
     TPoolTreeRootElementPtr Clone();
 
@@ -1083,11 +1090,11 @@ public:
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;
@@ -1131,15 +1138,15 @@ TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& v
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YT_ELEMENT_LOG_DETAILED(schedulerElement, ...) \
-    do { \
-        const auto& Logger = schedulerElement->GetLogger(); \
-        if (schedulerElement->AreDetailedLogsEnabled()) { \
-            YT_LOG_DEBUG(__VA_ARGS__); \
-        } else { \
-            YT_LOG_TRACE(__VA_ARGS__); \
-        } \
-    } while(false)
+#define YT_ELEMENT_LOG_DETAILED(schedulerElement, message) \
+    if (auto&& schedulerElement__ = (schedulerElement); false) \
+    { } else \
+        YT_TLOG_EVENT( \
+            schedulerElement__->GetLogger(), \
+            schedulerElement__->AreDetailedLogsEnabled() \
+                ? ::NYT::NLogging::ELogLevel::Debug \
+                : ::NYT::NLogging::ELogLevel::Trace, \
+            message)
 
 ////////////////////////////////////////////////////////////////////////////////
 

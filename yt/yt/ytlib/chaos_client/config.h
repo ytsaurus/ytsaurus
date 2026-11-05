@@ -37,8 +37,6 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellDirectorySynchronizerConfig)
 struct TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
-    bool UseHasChaosObject;
-
     TChaosResidencyCacheConfigPtr ApplyDynamic(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
@@ -92,6 +90,22 @@ struct TReplicationCardsWatcherConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCardsWatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosLeasesWatcherConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration PollExpirationTime;
+    TDuration GoneLeasesExpirationTime;
+    TDuration ExpirationSweepPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosLeasesWatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosLeasesWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

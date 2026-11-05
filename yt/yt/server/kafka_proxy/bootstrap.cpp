@@ -28,17 +28,17 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
-#include <yt/yt/library/orchid/orchid_service.h>
-
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
+#include <yt/yt/library/fusion/service_locator.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
-
-#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -46,6 +46,10 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -57,14 +61,13 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/yt/core/misc/configurable_singleton_def.h>
-
 namespace NYT::NKafkaProxy {
 
 using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 using namespace NMonitoring;
@@ -172,6 +175,7 @@ private:
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -188,6 +192,9 @@ private:
     void DoInitialize()
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.CreateQueueConsumerRegistrationManager = true;
@@ -211,7 +218,7 @@ private:
             TCypressRegistrarOptions options{
                 .RootPath = Format("%v/%v", KafkaProxiesInstancesPath, NNet::BuildServiceAddress(
                     NNet::GetLocalHostName(),
-                    Config_->Port)),
+                    Config_->Server->Port)),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };
@@ -224,6 +231,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -266,9 +274,10 @@ private:
             groupCoordinatorManager);
 
         Server_ = CreateServer(
-            Config_,
+            Config_->Server,
             Poller_,
             Acceptor_,
+            GetControlInvoker(),
             RequestHandler_);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
@@ -283,10 +292,17 @@ private:
     {
         DynamicConfigManager_->Start();
 
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_TLOG_INFO("Listening for HTTPS requests")
+                .With("Port", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
-        YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
+        YT_TLOG_INFO("Listening for Kafka requests")
+            .With("Port", Config_->Port);
         Server_->Start();
 
         RpcServer_->Start();

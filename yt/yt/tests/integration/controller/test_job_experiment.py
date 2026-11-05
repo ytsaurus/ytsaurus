@@ -15,7 +15,6 @@ USER_NETWORK_PROJECT = "user_network_project"
 USER_NETWORK_PROJECT_ID = 333
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobExperiment(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5

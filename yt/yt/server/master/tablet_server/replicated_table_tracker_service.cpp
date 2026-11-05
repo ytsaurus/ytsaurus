@@ -51,9 +51,9 @@ private:
     {
         Bootstrap_->GetHydraFacade()->GetHydraManager()->ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("Revision: %v, SnapshotRequested: %v",
-            request->revision(),
-            request->snapshot_requested());
+        context->AnnotateRequest()
+            .With("Revision", request->revision())
+            .With("SnapshotRequested", request->snapshot_requested());
 
         Bootstrap_->GetReplicatedTableTrackerStateProvider()->DrainUpdateQueue(
             response,
@@ -67,8 +67,8 @@ private:
     {
         Bootstrap_->GetHydraFacade()->GetHydraManager()->ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("ChangeReplicaModeCommandCount: %v",
-            request->commands_size());
+        context->AnnotateRequest()
+            .With("ChangeReplicaModeCommandCount", request->commands_size());
 
         auto commands = FromProto<std::vector<TChangeReplicaModeCommand>>(request->commands());
 
@@ -87,8 +87,8 @@ private:
     {
         Bootstrap_->GetHydraFacade()->GetHydraManager()->ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("ReplicaCount: %v",
-            request->replica_ids_size());
+        context->AnnotateRequest()
+            .With("ReplicaCount", request->replica_ids_size());
 
         auto replicaIds = FromProto<std::vector<TTableReplicaId>>(request->replica_ids());
 

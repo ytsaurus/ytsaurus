@@ -33,7 +33,7 @@ CLI
 ```bash
 $ yt get //path/to/my/table/@media
 ```
-```
+```yson
 {
   "default" = {
     "replication_factor" = 3;
@@ -135,7 +135,7 @@ $ yt get //sys/precarious_vital_chunks
 0
 ```
 
-## Атрибуты
+## Атрибуты { #attributes }
 
 Объект медиума обладает следующими атрибутами:
 

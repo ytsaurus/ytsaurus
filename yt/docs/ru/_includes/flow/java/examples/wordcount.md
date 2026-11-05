@@ -1,0 +1,83 @@
+# Word Count в {{product-name}} Flow (Java)
+
+[Пайплайн](../../../../flow/concepts/glossary.md#pipeline) читает [поток](../../../../flow/concepts/glossary.md#stream-and-computation) слов и подсчитывает количество вхождений каждого слова с использованием YSON-стейта. Пример демонстрирует конфигурацию [компаньона](../../../../flow/concepts/glossary.md#companion) через Spring Boot.
+
+[Исходный код (Java)]({{source-root}}/yt/yt/flow/examples/java/word_count)
+[Исходный код (Kotlin)]({{source-root}}/yt/yt/flow/examples/kotlin/word_count)
+
+## Компоненты
+
+### WordCountApplication
+
+Единственная точка входа: класс с `@SpringBootApplication` запускает пайплайн, когда `YT_FLOW_MODE` не задана, и обслуживает его как компаньон, когда воркер выставляет `YT_FLOW_MODE=Worker`:
+
+{% list tabs group=lang %}
+
+- Java
+
+  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/WordCountApplication.java' lang='java' lines='[BEGIN word_count_application]-[END word_count_application]' keep-indents %}
+
+- Kotlin
+
+  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountApplication.kt' lang='kotlin' lines='[BEGIN word_count_application]-[END word_count_application]' keep-indents %}
+
+{% endlist %}
+
+gRPC-сервер поднимается автоматически через Spring Boot auto-config.
+
+### Регистрация стримов
+
+Типизированные стримы объявляются декларативно: POJO-класс сообщения помечается аннотацией `@FlowMessage` со списком идентификаторов стримов (`streamIds`), которые он обслуживает. Класс уже помечен JPA-аннотацией `@Entity`, из которой выводится схема. Spring Boot находит такие классы сканированием пакетов приложения и регистрирует стримы автоматически. Компьютейшен `mapper` регистрируется аннотацией `@FlowComputation` на классе `WordCountMapper` (см. ниже):
+
+{% list tabs group=lang %}
+
+- Java
+
+  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/model/Word.java' lang='java' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+
+- Kotlin
+
+  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/model/Word.kt' lang='kotlin' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+
+{% endlist %}
+
+- `reader` — SourceComputation без процессной функции. Чтение и парсинг выполняются на стороне C++ [worker](../../../../flow/concepts/glossary.md#worker)-а.
+- `mapper` — Computation, реализованный классом `WordCountMapper` с аннотацией `@FlowComputation(id = "mapper")`.
+- `@FlowMessage(streamIds = {"words"})` на классе `Word` — регистрирует типизированный стрим `"words"`, что позволяет получать сообщения как объекты `Word`.
+
+### WordCountMapper
+
+Процессная функция, реализующая подсчет слов с использованием [YsonStateAccessor](../../../../flow/java/state.md#yson-state):
+
+{% list tabs group=lang %}
+
+- Java
+
+  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/WordCountMapper.java' lang='java' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+
+- Kotlin
+
+  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountMapper.kt' lang='kotlin' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+
+{% endlist %}
+
+Аннотация `@FlowComputation(id = "mapper")` регистрирует класс как компьютейшен и делает его Spring-бином (она мета-аннотирована `@Component`).
+
+## Ключевые паттерны
+
+- **Spring Boot auto-config** — не нужно вручную создавать `PipelineContext` и `GrpcServerExecution`.
+- **@FlowComputation** — процессная функция одновременно становится Spring-бином и компьютейшеном; можно использовать инъекцию зависимостей.
+- **@FlowMessage** — регистрация типизированных стримов через классы сообщений.
+- **FlowStreams.typed** — типизированный доступ к сообщениям через Java-объекты.
+
+## Запуск
+
+Пайплайн запускается одним классом `WordCountApplication`:
+
+```bash
+./run.sh tech.ytsaurus.flow.examples.wordcount.WordCountApplication --config pipeline.yson --flow-bin flow_server
+```
+
+Он же служит компаньоном: воркер запускает его с `YT_FLOW_MODE=Worker`, и в этом режиме стартер поднимает gRPC-сервер вместо запуска пайплайна.
+
+

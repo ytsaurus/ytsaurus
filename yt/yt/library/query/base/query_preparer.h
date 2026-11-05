@@ -45,6 +45,9 @@ std::unique_ptr<TParsedSource> ParseSource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst);
+void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy);
+
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,

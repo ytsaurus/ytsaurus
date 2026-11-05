@@ -105,7 +105,7 @@ NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
         return NYTree::ConvertTo<NScheduler::TStrategyOperationSpecPtr>(GetSpecString());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing strategy spec of operation")
-                << ex;
+                .With(ex);
     }
 }
 

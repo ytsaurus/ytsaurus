@@ -67,7 +67,7 @@ struct TDictionaryConfig
 {
     TString Name;
 
-    TString Database;
+    std::optional<TString> Database;
 
     //! Source configuration.
     TDictionarySourceConfigPtr Source;
@@ -122,10 +122,9 @@ DEFINE_REFCOUNTED_TYPE(TPocoInvalidCertificateHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoOpenSslConfigEntry
+struct TPocoOpenSslConfigEntry
     : public NYTree::TYsonStruct
 {
-public:
     TPocoInvalidCertificateHandlerConfigPtr InvalidCertificateHandler;
     TString CAConfig;
 

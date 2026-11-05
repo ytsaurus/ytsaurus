@@ -49,7 +49,7 @@ using namespace NTransactionSupervisor;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = CellarNodeLogger;
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +139,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing cellar node");
+        YT_TLOG_INFO("Initializing cellar node");
 
         // Cycles are fine for bootstrap.
         GetBundleDynamicConfigManager()
@@ -245,7 +245,7 @@ public:
     }
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         NHydra::NProto::TSnapshotMeta meta,
         ESerializationDumpMode dumpMode,
         bool checkInvariants) override
@@ -257,7 +257,7 @@ public:
             .ThrowOnError();
     }
 
-    void ReplayChangelogs(std::vector<TString> changelogFileNames) override
+    void ReplayChangelogs(std::vector<std::string> changelogFileNames) override
     {
         BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
@@ -322,25 +322,22 @@ private:
         auto clockClusterTag = GetConfig()->DryRun->ClockClusterTag;
         YT_VERIFY(cellId);
 
-        YT_LOG_EVENT(
-            DryRunLogger,
-            NLogging::ELogLevel::Info,
-            "Creating dry run occupant (CellId: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
-            cellId,
-            tabletCellBundle,
-            clockClusterTag);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Creating dry run occupant")
+            .With("CellId", cellId)
+            .With("TabletCellBundle", tabletCellBundle)
+            .With("ClockClusterTag", clockClusterTag);
 
         DryRunOccupant_ = CreateFakeOccupant(this, cellId, tabletCellBundle, clockClusterTag);
     }
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         const NHydra::NProto::TSnapshotMeta& meta,
         ESerializationDumpMode dumpMode,
         bool checkInvariants)
     {
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
-            meta);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received")
+            .With("Meta", meta);
 
         EnsureDryRunOccupantCreated();
         auto snapshotReader = CreateUncompressedHeaderlessLocalSnapshotReader(
@@ -366,7 +363,7 @@ private:
         }
     }
 
-    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+    void DoReplayChangelogs(const std::vector<std::string>& changelogFileNames)
     {
         EnsureDryRunOccupantCreated();
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
@@ -375,11 +372,11 @@ private:
         for (const auto& changelogFileName : changelogFileNames) {
             int changelogId  = InvalidSegmentId;
             if (!TryFromString(NFS::GetFileNameWithoutExtension(changelogFileName), changelogId)) {
-                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Error parsing changelog name as id, using id %v as substitute",
-                    changelogId);
+                YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Error parsing changelog name as ID; using a substitute")
+                    .With("ChangelogId", changelogId);
             }
 
-            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
+            YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
             auto changelog = CreateJournalAsLocalFileReadOnlyChangelog(changelogFileName, changelogId);
             dryRunHydraManager->DryRunReplayChangelog(changelog);
         }

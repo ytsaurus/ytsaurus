@@ -302,7 +302,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         self._check_operation_info(rows, op_id)
 
     def _run_script_table_mode(self, input_data, target, expiration_timeout):
-        prepare_scheduling_usage_dir = "//prepare_scheduling_usage"
+        prepare_scheduling_usage_dir = "//tmp/prepare_scheduling_usage"
 
         if not os.path.exists(os.path.join(self.Env.path, "prepare_scheduling_usage")):
             os.mkdir(os.path.join(self.Env.path, "prepare_scheduling_usage"))
@@ -342,6 +342,14 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 force=True
             )
 
+        # The local cluster config lets Python jobs refer to host files by path.
+        # Porto jobs cannot access those paths, so upload the files as artifacts.
+        env = os.environ.copy()
+        env["YT_CONFIG_PATCHES"] = yson.dumps(
+            {"pickling": {"enable_local_files_usage_in_job": False}},
+            yson_format="text",
+        ).decode("ascii")
+
         with open(os.path.join(self.Env.path, "prepare_scheduling_usage", "test_link_bin.log"), "w") as fout:
             subprocess.check_call(
                 [
@@ -353,6 +361,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 ] + ([] if expiration_timeout is None else [
                     "--set-expiration-timeout", str(expiration_timeout)
                 ]),
+                env=env,
                 stderr=fout)
 
         return input_filepath, output_filepath, input_dir, output_dir

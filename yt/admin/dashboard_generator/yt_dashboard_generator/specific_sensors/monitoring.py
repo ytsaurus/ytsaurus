@@ -7,6 +7,7 @@ from enum import Enum, auto
 
 class MonitoringSystemFields(Enum):
     DownsamplingAggregation = auto()
+    DownsamplingGridInterval = auto()
 
 
 class DownsamplingAggregation:
@@ -22,6 +23,7 @@ class MonitoringExpr(Taggable):
     class NodeType(Enum):
         Terminal = auto()
         BinaryOp = auto()
+        Conditional = auto()
         Func = auto()
 
     def __repr__(self):
@@ -71,6 +73,18 @@ class MonitoringExpr(Taggable):
     def binary_op(cls, op, lhs, rhs):
         return MonitoringExpr(cls.NodeType.BinaryOp, op, lhs, rhs)
 
+    @classmethod
+    def conditional(cls, condition, true_expression, false_expression):
+        return MonitoringExpr(
+            cls.NodeType.Conditional,
+            condition,
+            true_expression,
+            false_expression)
+
+    @classmethod
+    def constant_line(cls, value):
+        return cls.func("constant_line", value)
+
     def alias(self, param):
         return self.func("alias", self, f'"{param}"')
 
@@ -85,6 +99,15 @@ class MonitoringExpr(Taggable):
 
     def drop_below(self, value):
         return self.func("drop_below", self, value)
+
+    def drop_above(self, value):
+        return self.func("drop_above", self, value)
+
+    def drop_label(self, label):
+        return self.func("drop_label", self, f'"{label}"')
+
+    def drop_labels(self, *labels):
+        return self.func("drop_labels", self, [f'"{label}"' for label in labels])
 
     def group_by_labels(self, label, expr):
         return self.func("group_by_labels", self, f'"{label}"', expr)
@@ -130,8 +153,19 @@ class MonitoringExpr(Taggable):
     def diff(self):
         return self.func("diff", self)
 
+    def derivative(self):
+        return self.func("derivative", self)
+
+    def sign(self):
+        return self.func("sign", self)
+
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)
+
+    def downsampling_grid_interval(self, ms):
+        # Time interval (ms) for downsampling: points within the interval are
+        # aggregated into one. Pairs with downsampling_aggregation.
+        return self.value(MonitoringSystemFields.DownsamplingGridInterval, ms)
 
     def drop_nan(self):
         return self.func("drop_nan", self)
@@ -177,6 +211,12 @@ class MonitoringExpr(Taggable):
                     serialized = f'({serialized})'
                 args[i] = serialized
             return f"{args[0]} {op} {args[1]}"
+        elif self.node_type == self.NodeType.Conditional:
+            condition, true_expression, false_expression = [
+                self._serialize_arg(arg, default_serializer)
+                for arg in self.args
+            ]
+            return f"({condition} ? {true_expression} : {false_expression})"
         elif self.node_type == self.NodeType.Func:
             args = [self._serialize_arg(arg, default_serializer) for arg in self.args[1:]]
             joined_args = ", ".join(args)

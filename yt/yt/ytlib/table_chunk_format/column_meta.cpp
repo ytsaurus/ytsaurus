@@ -19,7 +19,7 @@ void ToProto(
 {
     protoTimestampSegmentMeta->Clear();
 
-    protoTimestampSegmentMeta->set_min_timestamp(timestampSegmentMeta.MinTimestamp);
+    protoTimestampSegmentMeta->set_min_timestamp(ToProto(timestampSegmentMeta.MinTimestamp));
     protoTimestampSegmentMeta->set_expected_writes_per_row(timestampSegmentMeta.ExpectedWritesPerRow);
     protoTimestampSegmentMeta->set_expected_deletes_per_row(timestampSegmentMeta.ExpectedDeletesPerRow);
 }

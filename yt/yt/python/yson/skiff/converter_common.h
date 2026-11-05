@@ -43,30 +43,30 @@ using TPythonToSkiffConverter = std::function<void(PyObject*, NSkiff::TCheckedIn
 
 bool IsTiTypeOptional(Py::Object pySchema);
 bool IsPySchemaHasRuntimeValidation(Py::Object pySchema);
-PyObjectPtr GetSchemaType(const TString& name);
+PyObjectPtr GetSchemaType(const std::string& name);
 EPythonType GetPythonType(Py::Object pyType);
-TString GetRowClassName(Py::Object pySchema);
+std::string GetRowClassName(Py::Object pySchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString WireTypeFieldName = "_wire_type";
-const TString PyTypeFieldName = "_py_type";
-const TString PyWireTypeFieldName = "_py_wire_type";
-const TString FieldsFieldName = "_fields";
-const TString PySchemaFieldName = "_py_schema";
-const TString NameFieldName = "_name";
-const TString ItemFieldName = "_item";
-const TString ElementsFieldName = "_elements";
-const TString KeyFieldName = "_key";
-const TString ValueFieldName = "_value";
-const TString StructSchemaFieldName = "_struct_schema";
-const TString OtherColumnsFieldFieldName = "_other_columns_field";
-const TString ControlAttributesFieldName = "_control_attributes";
-const TString SystemColumnsFieldName = "_SYSTEM_COLUMNS";
-const TString IsTiTypeOptionalFieldName = "_is_ti_type_optional";
-const TString SchemaRuntimeContextFieldName = "_schema_runtime_context";
-const TString ValidateOptionalOnRuntimeFieldName = "_validate_optional_on_runtime";
-const TString QualNameFieldName = "__qualname__";
+inline const std::string WireTypeFieldName = "_wire_type";
+inline const std::string PyTypeFieldName = "_py_type";
+inline const std::string PyWireTypeFieldName = "_py_wire_type";
+inline const std::string FieldsFieldName = "_fields";
+inline const std::string PySchemaFieldName = "_py_schema";
+inline const std::string NameFieldName = "_name";
+inline const std::string ItemFieldName = "_item";
+inline const std::string ElementsFieldName = "_elements";
+inline const std::string KeyFieldName = "_key";
+inline const std::string ValueFieldName = "_value";
+inline const std::string StructSchemaFieldName = "_struct_schema";
+inline const std::string OtherColumnsFieldFieldName = "_other_columns_field";
+inline const std::string ControlAttributesFieldName = "_control_attributes";
+inline const std::string SystemColumnsFieldName = "_SYSTEM_COLUMNS";
+inline const std::string IsTiTypeOptionalFieldName = "_is_ti_type_optional";
+inline const std::string SchemaRuntimeContextFieldName = "_schema_runtime_context";
+inline const std::string ValidateOptionalOnRuntimeFieldName = "_validate_optional_on_runtime";
+inline const std::string QualNameFieldName = "__qualname__";
 
 ////////////////////////////////////////////////////////////////////////////////
 

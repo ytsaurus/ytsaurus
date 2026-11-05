@@ -280,6 +280,13 @@ void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 ComputeHunkDataSize(const NProto::THunkChunkRef& ref)
+{
+    return ref.total_hunk_length() + sizeof(THunkPayloadHeader) * ref.hunk_count();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValue& value)
 {
     YT_VERIFY(value.Payload.Size() != 0);
@@ -805,8 +812,8 @@ public:
 
         auto onField = [&] (auto field) {
             (this->*field)().fetch_add(
-                (from.Get()->*field)().load(std::memory_order_relaxed),
-                std::memory_order_relaxed);
+                (from.Get()->*field)().load(std::memory_order::relaxed),
+                std::memory_order::relaxed);
         };
 
         onField(&IHunkChunkReaderStatistics::DataWeight);
@@ -1207,12 +1214,11 @@ public:
                     return;
                 }
 
-                YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v, "
-                    "NewDictionaryId: %v, DictionaryIds: %v)",
-                    underlying->GetChunkId(),
-                    hunkChunkRefs,
-                    newDictionaryId,
-                    dictionaryIds);
+                YT_TLOG_DEBUG("Hunk chunk references written")
+                    .With("StoreId", underlying->GetChunkId())
+                    .With("HunkChunkRefs", hunkChunkRefs)
+                    .With("NewDictionaryId", newDictionaryId)
+                    .With("DictionaryIds", dictionaryIds);
 
                 NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkChunkRefs);
@@ -1499,6 +1505,11 @@ private:
                     columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
                 }
                 auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
+                if (valueDataWeights) {
+                    // The original value is no longer stored in the store chunk;
+                    // account the local hunk reference instead.
+                    DataWeight_ += std::ssize(localizedPayload) - (*valueDataWeights)[valueIndex];
+                }
                 SetValueRef(&value, localizedPayload);
                 value.Flags |= EValueFlags::Hunk;
             };
@@ -1571,13 +1582,13 @@ TSharedRef GetAndValidateHunkPayload(TSharedRef fragment, const IChunkFragmentRe
     auto actualChecksum = GetChecksum(payload);
     if (actualChecksum != header->Checksum) {
         THROW_ERROR_EXCEPTION("Hunk fragment checksum mismatch")
-            << TErrorAttribute("chunk_id", request.ChunkId)
-            << TErrorAttribute("block_index", request.BlockIndex)
-            << TErrorAttribute("block_offset", request.BlockOffset)
-            << TErrorAttribute("length", request.Length)
-            << TErrorAttribute("expected_checksum", header->Checksum)
-            << TErrorAttribute("actual_checksum", actualChecksum)
-            << TErrorAttribute("recalculated_checksum", GetChecksum(payload));
+            .With("chunk_id", request.ChunkId)
+            .With("block_index", request.BlockIndex)
+            .With("block_offset", request.BlockOffset)
+            .With("length", request.Length)
+            .With("expected_checksum", header->Checksum)
+            .With("actual_checksum", actualChecksum)
+            .With("recalculated_checksum", GetChecksum(payload));
     }
     return payload;
 }
@@ -1608,6 +1619,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     int inlineHunkValueCount = 0;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     std::vector<TUnversionedValue*> requestedValues;
+    std::vector<bool> requestedValuesAreCompressed;
 
     std::vector<TUnversionedValue*> compressedValues;
     std::vector<TChunkId> compressionDictionaryIds;
@@ -1648,6 +1660,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .BlockSize = globalRefHunkValue.BlockSize,
                 });
                 requestedValues.push_back(value);
+                requestedValuesAreCompressed.push_back(static_cast<bool>(
+                    globalRefHunkValue.CompressionDictionaryId));
 
                 if (globalRefHunkValue.CompressionDictionaryId) {
                     compressedValues.push_back(value);
@@ -1664,12 +1678,13 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         columnarStatisticsThunk->MergeTo(hunkChunkReaderStatistics);
     }
 
-    auto fragmentsFuture = chunkFragmentReader->ReadFragments(options, requests);
+    auto fragmentsFuture = chunkFragmentReader->ReadFragments(requests, options);
     return fragmentsFuture.AsUnique().Apply(BIND([
             =,
             requests = std::move(requests),
             values = std::move(values),
             requestedValues = std::move(requestedValues),
+            requestedValuesAreCompressed = std::move(requestedValuesAreCompressed),
             compressedValues = std::move(compressedValues),
             compressionDictionaryIds = std::move(compressionDictionaryIds),
             hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
@@ -1678,12 +1693,15 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             performanceCounters = std::move(performanceCounters)
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) mutable {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
+            YT_VERIFY(response.Fragments.size() == requestedValuesAreCompressed.size());
             YT_VERIFY(performanceCounters);
 
-            i64 dataWeight = 0;
+            i64 nonCompressedDataWeight = 0;
             for (int index = 0; index < std::ssize(response.Fragments); ++index) {
                 const auto& fragment = response.Fragments[index];
-                dataWeight += fragment.Size();
+                if (!requestedValuesAreCompressed[index]) {
+                    nonCompressedDataWeight += fragment.Size();
+                }
                 auto payload = GetAndValidateHunkPayload(fragment, requests[index]);
                 setValuePayload(requestedValues[index], payload);
             }
@@ -1697,7 +1715,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
 
                 if (compressedValues.empty()) {
-                    hunkChunkReaderStatistics->DataWeight() += dataWeight;
+                    hunkChunkReaderStatistics->DataWeight() += nonCompressedDataWeight;
                 }
             }
 
@@ -1706,12 +1724,12 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             if (compressedValues.empty()) {
                 performanceCounters->IncrementHunkDataWeight(
                     initialQueryKind,
-                    dataWeight,
+                    nonCompressedDataWeight,
                     options.WorkloadDescriptor.Category);
             }
 
 
-            auto result = MakeSharedRange(values, values, std::move(response.Fragments));
+            auto result = MakeSharedRange(values, values, std::move(response.Fragments), std::move(response.MemoryGuard));
 
             if (!compressedValues.empty()) {
                 // NB: We have to make an owning holder of the values here
@@ -1729,9 +1747,10 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                         hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
                         performanceCounters = std::move(performanceCounters),
                         initialQueryKind,
-                        workloadCategory
+                        workloadCategory,
+                        nonCompressedDataWeight
                     ] (std::vector<TSharedRef>&& decompressionResults) {
-                        auto dataWeight = GetByteSize(decompressionResults);
+                        auto dataWeight = nonCompressedDataWeight + GetByteSize(decompressionResults);
                         if (hunkChunkReaderStatistics) {
                             hunkChunkReaderStatistics->DataWeight() += dataWeight;
                         }
@@ -1867,8 +1886,7 @@ public:
         , DictionaryCompressionFactory_(std::move(dictionaryCompressionFactory))
         , Options_(std::move(options))
         , PerformanceCounters_(std::move(performanceCounters))
-        , Logger(TableClientLogger().WithTag("ReadSessionId: %v",
-            Options_.ReadSessionId))
+        , Logger(TableClientLogger().WithTag("ReadSessionId", Options_.ReadSessionId))
     { }
 
     TDataStatistics GetDataStatistics() const override
@@ -1952,8 +1970,8 @@ protected:
             EncodedRows_ = UnderlyingRowBatch_->MaterializeRows();
             CurrentEncodedRowIndex_ = 0;
 
-            YT_LOG_DEBUG("Hunk-encoded rows materialized (RowCount: %v)",
-                EncodedRows_.size());
+            YT_TLOG_DEBUG("Hunk-encoded rows materialized")
+                .With("RowCount", EncodedRows_.size());
         }
 
         RowBuffer_->Clear();
@@ -1986,12 +2004,11 @@ protected:
             return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
         }
 
-        YT_LOG_DEBUG("Fetching hunks in row slice "
-            "(StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
-            startRowIndex,
-            endRowIndex,
-            hunkCount,
-            totalHunkLength);
+        YT_TLOG_DEBUG("Fetching hunks in row slice")
+            .With("StartRowIndex", startRowIndex)
+            .With("EndRowIndex", endRowIndex)
+            .With("HunkCount", hunkCount)
+            .With("TotalHunkLength", totalHunkLength);
 
         ReadyEvent_ =
             DecodeHunks(
@@ -2354,7 +2371,7 @@ public:
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
 
         if (auto codecId = Underlying_->GetErasureCodecId(); codecId != NErasure::ECodec::None) {
-            DataPartCount_ = NErasure::GetCodec(codecId)->GetDataPartCount();
+            DataPartCount_ = NErasure::GetCodecOrThrow(codecId)->GetParams().DataPartCount;
         }
     }
 
@@ -2449,6 +2466,13 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    i64 GetDataWeight() const override
+    {
+        auto guard = Guard(Lock_);
+
+        return DataWeight_;
+    }
+
     void OnParentReaderFinished(TChunkId compressionDictionaryId) override
     {
         auto guard = Guard(Lock_);
@@ -2483,7 +2507,7 @@ private:
     const IChunkWriterPtr Underlying_;
     const IChunkWriter::TWriteBlocksOptions UnderlyingOptions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     int DataPartCount_ = 1;
 
@@ -2620,6 +2644,98 @@ size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
             }
         }
     }
+
+    return result;
+}
+
+i64 GetDataWeightAfterHunkDecoding(TUnversionedRow row, const TTableSchemaPtr& schema)
+{
+    if (!row || !schema->HasHunkColumns()) {
+        return GetDataWeight(row);
+    }
+
+    i64 result = 1;
+    for (const auto& value : row) {
+        result += Any(value.Flags & EValueFlags::Hunk)
+            ? static_cast<i64>(ComputeDataWeightAfterHunkDecoding(ReadHunkValue(GetValueRef(value))))
+            : GetDataWeight(value);
+    }
+
+    return result;
+}
+
+i64 GetDataWeightAfterHunkDecoding(TVersionedRow row, const TTableSchemaPtr& schema)
+{
+    if (!row || !schema->HasHunkColumns()) {
+        return GetDataWeight(row);
+    }
+
+    i64 result = 0;
+    result += std::accumulate(
+        row.BeginValues(),
+        row.EndValues(),
+        0ll,
+        [] (size_t x, const TVersionedValue& value) {
+            return (Any(value.Flags & EValueFlags::Hunk)
+                ? static_cast<i64>(ComputeDataWeightAfterHunkDecoding(ReadHunkValue(GetValueRef(value)))) + sizeof(TTimestamp)
+                : GetDataWeight(value))
+                + x;
+        });
+
+    result += std::accumulate(
+        row.BeginKeys(),
+        row.EndKeys(),
+        0ll,
+        [] (size_t x, const TUnversionedValue& value) {
+            return GetDataWeight(value) + x;
+        });
+
+    result += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+    result += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
+
+    return result;
+}
+
+i64 GetDataWeightWithoutHunkEncoding(const TUnversionedValue& value)
+{
+    if (!IsStringLikeType(value.Type) || None(value.Flags & EValueFlags::Hunk)) {
+        return GetDataWeight(value);
+    }
+
+    // Everything but the payload that is stored inline is an encoding overhead;
+    // in particular, the whole value is such for a reference.
+    return Visit(
+        ReadHunkValue(GetValueRef(value)),
+        [] (const TInlineHunkValue& inlineHunkValue) {
+            return std::ssize(inlineHunkValue.Payload);
+        },
+        [] (const TCompressedInlineRefHunkValue& compressedInlineRefHunkValue) {
+            auto* codec = NCompression::GetDictionaryCompressionCodec();
+            return static_cast<i64>(codec->GetFrameInfo(compressedInlineRefHunkValue.Payload).ContentSize);
+        },
+        [] (const TLocalRefHunkValue& /*localRefHunkValue*/) { return i64(0); },
+        [] (const TGlobalRefHunkValue& /*globalRefHunkValue*/) { return i64(0); });
+}
+
+i64 GetDataWeightWithoutHunkEncoding(TVersionedRow row)
+{
+    if (!row) {
+        return 0;
+    }
+
+    i64 result = 0;
+
+    // NB: Key columns cannot be hunk ones.
+    for (const auto& value : row.Keys()) {
+        result += GetDataWeight(value);
+    }
+
+    for (const auto& value : row.Values()) {
+        result += GetDataWeightWithoutHunkEncoding(static_cast<TUnversionedValue>(value)) + sizeof(TTimestamp);
+    }
+
+    result += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+    result += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
 
     return result;
 }

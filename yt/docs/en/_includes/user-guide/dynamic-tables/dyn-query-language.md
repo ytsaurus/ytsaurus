@@ -195,7 +195,7 @@ FROM (<list-expression-1> AS <alias-1>, <list-expression-2> AS <alias-2>, ...)
 #### Examples
 
 Data:
-```
+```yson
 a=1; b=[1;2;3]; c=[x;y;z]
 ```
 
@@ -205,7 +205,7 @@ SELECT t.a AS a, (SELECT b, c FROM (t.b AS b, t.c AS c) WHERE b > 1) AS nested F
 ```
 
 Result:
-```
+```yson
 a=1; nested=[[2;y];[3;z]]
 ```
 
@@ -692,7 +692,7 @@ The following aggregation functions are supported in the query language:
 
 ## Executing a query { #query_execution }
 
-![](../../../../images/query_execution.png)
+![](../../../../_images/query_execution.png)
 
 The query is executed on the cluster in a distributed way. The query execution process is conventionally divided into two phases: coordination and execution. During coordination, multiple cluster nodes are defined to execute the query, and during execution, the data is processed directly. A typical scenario involves a user-defined query being decomposed into multiple _execution fragments_ that are processed by cluster nodes. The final result is generated on the client by merging intermediate results received from cluster nodes.
 
@@ -860,7 +860,7 @@ The statistics have a hierarchical structure and correspond to the query executi
 ### The explain-query command { #explain_query }
 You can debug a query using the "explain" command. The command outputs the result in a structured form.
 Example:
-```
+```yson
 {
     "udf_registry_path" = "//sys/udfs";
     "query" = {

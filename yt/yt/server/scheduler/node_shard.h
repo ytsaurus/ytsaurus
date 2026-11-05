@@ -474,7 +474,7 @@ private:
     void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
 
     void UpdateCumulativeUnutilizedResources(
-        const EUnutilizedResourceReason reason,
+        EUnutilizedResourceReason reason,
         const TJobResources& resources,
         const TCompactVector<NProfiling::TTag, 2>& tags);
 
@@ -484,6 +484,14 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Folds |otherUpdate| into |update|; both must describe the same allocation under the same
+//! controller epoch.
+void MergeAllocationUpdates(
+    NStrategy::TAllocationUpdate* update,
+    const NStrategy::TAllocationUpdate& otherUpdate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

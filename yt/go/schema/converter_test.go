@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/ptr"
-	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/client/api/common"
 )
 
 func TestConvertFromProto_SimpleColumn(t *testing.T) {
-	rpcSchema := &rpc_proxy.TTableSchema{
+	rpcSchema := &common.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
-		Columns: []*rpc_proxy.TColumnSchema{
+		Columns: []*common.TColumnSchema{
 			{
 				Name:       ptr.String("test_column"),
 				Type:       ptr.Int32(0x10), // VT_String
@@ -50,10 +50,10 @@ func TestConvertFromProto_SimpleColumn(t *testing.T) {
 func TestConvertFromProto_WithComplexType(t *testing.T) {
 	typeV3 := []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}`)
 
-	rpcSchema := &rpc_proxy.TTableSchema{
+	rpcSchema := &common.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
-		Columns: []*rpc_proxy.TColumnSchema{
+		Columns: []*common.TColumnSchema{
 			{
 				Name:       ptr.String("person"),
 				Type:       ptr.Int32(0x03), // VT_Int64
@@ -86,10 +86,10 @@ func TestConvertFromProto_WithComplexType(t *testing.T) {
 }
 
 func TestConvertFromProto_EmptyTypeV3(t *testing.T) {
-	rpcSchema := &rpc_proxy.TTableSchema{
+	rpcSchema := &common.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
-		Columns: []*rpc_proxy.TColumnSchema{
+		Columns: []*common.TColumnSchema{
 			{
 				Name:       ptr.String("simple_column"),
 				Type:       ptr.Int32(0x03), // VT_Int64
@@ -113,10 +113,10 @@ func TestConvertFromProto_EmptyTypeV3(t *testing.T) {
 }
 
 func TestConvertFromProto_InvalidYSON(t *testing.T) {
-	rpcSchema := &rpc_proxy.TTableSchema{
+	rpcSchema := &common.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
-		Columns: []*rpc_proxy.TColumnSchema{
+		Columns: []*common.TColumnSchema{
 			{
 				Name:       ptr.String("invalid_column"),
 				Type:       ptr.Int32(0x03),
@@ -167,6 +167,26 @@ func TestConvertType(t *testing.T) {
 			expected:  TypeAny,
 		},
 		{
+			name:      "date32 type",
+			valueType: ptr.Int32(0x1010),
+			expected:  TypeDate32,
+		},
+		{
+			name:      "datetime64 type",
+			valueType: ptr.Int32(0x1011),
+			expected:  TypeDatetime64,
+		},
+		{
+			name:      "timestamp64 type",
+			valueType: ptr.Int32(0x1012),
+			expected:  TypeTimestamp64,
+		},
+		{
+			name:      "interval64 type",
+			valueType: ptr.Int32(0x1013),
+			expected:  TypeInterval64,
+		},
+		{
 			name:      "unknown type",
 			valueType: ptr.Int32(0xFFFF),
 			expected:  TypeAny,
@@ -182,10 +202,10 @@ func TestConvertType(t *testing.T) {
 }
 
 func TestConvertFromProto_NullColumn(t *testing.T) {
-	rpcSchema := &rpc_proxy.TTableSchema{
+	rpcSchema := &common.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
-		Columns: []*rpc_proxy.TColumnSchema{
+		Columns: []*common.TColumnSchema{
 			{
 				Name:     ptr.String("null_column"),
 				Type:     ptr.Int32(0x02), // Null type

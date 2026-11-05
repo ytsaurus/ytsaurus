@@ -48,7 +48,7 @@ func (w *writer) writeRaw(b []byte) {
 func (w *writer) writeValue(v Value) {
 	var header [8]byte
 	binary.LittleEndian.PutUint16(header[0:2], v.ID)
-	header[2] = uint8(v.Type) + typeOffset
+	header[2] = v.Type.Code()
 	if v.Aggregate {
 		header[3] = 1
 	}

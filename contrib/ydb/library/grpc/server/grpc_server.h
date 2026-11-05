@@ -19,18 +19,21 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <atomic>
+
 namespace NMonitoring {
     struct TDynamicCounters;
 } // NMonitoring
 
 namespace NYdbGrpc {
 
-static std::atomic<int> GrpcDead = 0;
+extern std::atomic<bool> GrpcDead;
 struct TSslData {
     TString Cert;
     TString Key;
     TString Root;
     bool DoRequestClientCertificate = false;
+    bool ClientCertificateRequired = false;
 };
 
 struct IExternalListener
@@ -383,10 +386,19 @@ public:
     // Send stop to registred services and call Shutdown on grpc server
     // This method MUST be called before destroying TGRpcServer
     void Stop();
+    // Like Stop(), but completion queues keep polling, so requests that outlive
+    // GRpcShutdownDeadline can still finish their grpc calls. Call Stop() once RequestsInProgress() is 0.
+    void StopAcceptingRequests();
     ui16 GetPort() const;
     TString GetHost() const;
 
     const TVector<IGRpcServicePtr>& GetServices() const;
+
+    // Total number of request contexts registered in the services. When it is
+    // zero after Stop(), no request context can dereference this server
+    // anymore: DeregisterRequestCtx() is the last touch of the server in a
+    // request context lifecycle.
+    size_t RequestsInProgress() const;
 
 private:
     using IThreadRef = TAutoPtr<IThreadFactory::IThread>;
@@ -399,6 +411,9 @@ private:
 
     TVector<IGRpcServicePtr> Services_;
     TGlobalLimiter Limiter_;
+
+    std::atomic<bool> Stopped_{ false };
+    std::atomic<bool> CompletionQueuesStopped_{ false };
 };
 
 } // namespace NYdbGrpc

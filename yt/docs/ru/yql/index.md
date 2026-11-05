@@ -29,7 +29,7 @@ YQL предоставляет функциональный веб-интерф�
    SELECT "Hello, World!";
    ```
 
-   ![](../../images/yql-how-to-try.png){ .center }
+   ![](../../_images/yql-how-to-try.png){ .center }
 
 ## Глоссарий
 

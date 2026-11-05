@@ -5,11 +5,11 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
 
 struct IVolumeArtifact
     : public TRefCounted
@@ -19,15 +19,22 @@ struct IVolumeArtifact
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IVolumeArtifactCache)
+DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IVolumeArtifactCache
     : public TRefCounted
 {
     virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/error_code.h>
+#include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -32,7 +32,7 @@ YT_DEFINE_ERROR_ENUM(
     ((SetupCommandFailed)                    (1121))
     ((GpuLayerNotFetched)                    (1122))
     ((GpuJobWithoutLayers)                   (1123))
-    ((TmpfsOverflow)                         (1124))
+    ((VolumeSizeLimitExceeded)               (1124))
     ((GpuCheckCommandFailed)                 (1125))
     ((GpuCheckCommandPreparationFailed)      (1126))
     ((JobProxyUnavailable)                   (1127))
@@ -58,15 +58,19 @@ YT_DEFINE_ERROR_ENUM(
     ((NonRootVolumePreparationFailed)        (1147))
     ((NonRootVolumeLinkingFailed)            (1148))
     ((NbdServerDisabledOnNode)               (1149))
+    ((OverlayLayerPreparationFailed)         (1150))
 );
 
-DEFINE_ENUM(EJobPhase,
+// COMPAT(pogorelov): Remove in 26.3.
+DEFINE_ENUM(EJobPhaseOld,
     ((Missing)                      (100))
 
     ((Created)                      (  0))
     ((PreparingNodeDirectory)       (  5))
     ((DownloadingArtifacts)         ( 10))
     ((CachingArtifacts)             ( 11))
+    ((PreparingLayers)              ( 12))
+    ((PreparingSlotDirectories)     ( 13))
     ((PreparingVolumes)             ( 15))
     ((PreparingGpuCheckVolume)      ( 20))
     ((LinkingVolumes)               ( 21))
@@ -86,11 +90,47 @@ DEFINE_ENUM(EJobPhase,
     ((Finished)                     ( 80))
 );
 
+DEFINE_ENUM_UNKNOWN_VALUE(EJobPhaseOld, Missing);
+
+DEFINE_ENUM(EJobPhase,
+    ((Missing)                      (100000))
+
+    ((Created)                      (     0))
+    ((PreparingNodeDirectory)       (  1000))
+    ((DownloadingArtifacts)         (  2000))
+    ((CachingArtifacts)             (  3000))
+    ((PreparingSlotDirectories)     (  4000))
+    ((PreparingLayers)              (  5000))
+    ((PreparingVolumes)             (  6000))
+    ((PreparingGpuCheckVolume)      (  7000))
+    ((LinkingVolumes)               (  8000))
+    ((ValidatingRootFS)             (  9000))
+    ((PreparingSandboxDirectories)  ( 10000))
+    ((RunningSetupCommands)         ( 11000))
+    ((RunningCustomPreparations)    ( 12000))
+    ((RunningGpuCheckCommand)       ( 13000))
+    ((SpawningJobProxy)             ( 14000))
+    ((PreparingArtifacts)           ( 15000))
+    ((PreparingJob)                 ( 16000))
+    ((Running)                      ( 17000))
+    ((FinalizingJobProxy)           ( 18000))
+    ((RunningExtraGpuCheckCommand)  ( 19000))
+    ((WaitingForCleanup)            ( 20000))
+    ((Cleanup)                      ( 21000))
+    ((Finished)                     ( 22000))
+);
+
 DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
+
+EJobPhase ConvertJobPhaseFromOld(EJobPhaseOld phase);
+EJobPhaseOld ConvertJobPhaseToOld(EJobPhase phase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr i64 MaxNbdDiskSize = 60_GB;
+static constexpr i64 MaxNbdDiskSize = 512_GB;
+
+//! Default number of TCP connections used for NBD RPC requests (multiplexing parallelism).
+static constexpr int DefaultNbdMultiplexingParallelism = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 

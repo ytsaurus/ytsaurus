@@ -1,8 +1,65 @@
+from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
 from yt.mcp.lib.tools.helpers import YTToolBase
+from yt.mcp.lib.tools.common_client import CommonCypress
+from yt.wrapper.response_stream import EmptyResponseStream, ResponseStream
 
+import json
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def test_common_client_get_operation_exposes_and_forwards_include_runtime():
+    class FakeClient:
+        def __init__(self):
+            self.kwargs = None
+
+        def get_operation(self, **kwargs):
+            self.kwargs = kwargs
+            return {"id": "1-2-3-4"}
+
+    client = FakeClient()
+
+    class FakeRunner:
+        _logger = logger
+
+        def helper_get_yt_client(self, cluster, request_context):
+            return client
+
+        def return_structured(self, data):
+            return data
+
+    tool = CommonCypress()
+    runner = FakeRunner()
+    tool.set_runner(runner)
+
+    get_operation_variant = next(
+        variant for variant in tool.get_tool_variants()
+        if variant["name"] == "get_operation"
+    )
+    include_runtime_field = next(
+        field for field in get_operation_variant["input"]
+        if field["name"] == "include_runtime"
+    )
+    assert include_runtime_field["field_type"] == Optional[bool]
+    assert include_runtime_field["default"] is False
+
+    result = tool.on_handle_request(
+        cluster="watt",
+        method="get_operation",
+        operation_id="1-2-3-4",
+        attributes=["progress"],
+        include_runtime=True,
+        request_context=None,
+    )
+
+    assert result == {"id": "1-2-3-4"}
+    assert client.kwargs == {
+        "operation_id": "1-2-3-4",
+        "attributes": ["progress"],
+        "include_runtime": True,
+    }
 
 
 def test_dict_variation():
@@ -102,3 +159,18 @@ def test_dict_variation():
     for k in ('name', 'description'):
         assert clones_by_dict[0]._tool_description[0].__dict__[k] == clones_by_variants[0]._tool_description[0].__dict__[k]
     assert str(clones_by_dict[0]._tool_description[1]) == str(clones_by_variants[0]._tool_description[1])
+
+
+def test_return_structured_reads_job_stderr_stream():
+    stream = ResponseStream(
+        get_response=lambda: None,
+        iter_content=iter([b"Traceback (most recent call last):\n", b"ValueError: boom\n"]),
+        close=lambda from_delete=False: None,
+        process_error=lambda response: None,
+        get_response_parameters=lambda: None,
+    )
+
+    text = json.loads(YTToolRunnerMCP().return_structured(stream).text)
+
+    assert "ValueError: boom" in text, "job stderr stream is returned as repr: {}".format(text)
+    assert "EmptyResponseStream" not in YTToolRunnerMCP().return_structured(EmptyResponseStream()).text

@@ -20,12 +20,12 @@ auto InvokeAndWrapHydraException(TFunc&& func, TArgs&&... args)
 
         THROW_ERROR_EXCEPTION(EErrorCode::ExpectedMutationHandlerException,
             "Error executing mutation")
-            << error;
+            .With(error);
 
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(EErrorCode::ExpectedMutationHandlerException,
             "Error executing mutation")
-            << ex;
+            .With(ex);
     }
 }
 

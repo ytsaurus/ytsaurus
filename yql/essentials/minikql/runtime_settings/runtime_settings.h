@@ -2,22 +2,45 @@
 
 #include <yql/essentials/providers/common/config/yql_setting.h>
 
+#include <util/datetime/base.h>
+#include <util/generic/map.h>
 #include <util/generic/ptr.h>
+#include <util/generic/set.h>
+#include <util/generic/strbuf.h>
+#include <util/generic/string.h>
+
+#include <utility>
 
 namespace NYql {
+
+using TUdfModuleSet = TSet<TString>;
+
+enum class EDatumValidationMode {
+    None,
+    Cheap,
+    Expensive,
+};
+
+constexpr EDatumValidationMode DefaultDatumValidationMode = EDatumValidationMode::None;
+
+constexpr EDatumValidationMode DefaultDatumTestValidationMode = EDatumValidationMode::Cheap;
 
 template <typename TType>
 class TRuntimeSetting {
 public:
     using TConfSetting = NYql::NCommon::TConfSetting<TType, NYql::NCommon::EConfSettingType::Static>;
 
-    explicit TRuntimeSetting(const TType& value)
-        : DefaultValue_(value)
+    explicit TRuntimeSetting(TType value)
+        : DefaultValue_(std::move(value))
     {
     }
 
-    TType Get() const {
+    const TType& Get() const {
         return Setting_.Get().GetOrElse(DefaultValue_);
+    }
+
+    bool IsSet() const {
+        return Setting_.Get().Defined();
     }
 
     void Set(const TType& value) {
@@ -31,38 +54,54 @@ private:
     TType DefaultValue_;
 };
 
-struct TRuntimeSettings {
+namespace NPrivate {
+
+struct TRuntimeHostSettings {
+    TRuntimeSetting<EDatumValidationMode> DatumValidation{DefaultDatumValidationMode};
+    // Noop feature.
+    // Used for testing only.
+    TRuntimeSetting<bool> TestHostSetting{false};
+    // UDF call profiling (YQL-21019).
+    TRuntimeSetting<bool> UdfProfileEnable{false};
+    TRuntimeSetting<TDuration> UdfProfileMinTimeUs{TDuration::MicroSeconds(1000)};
+    TRuntimeSetting<ui64> UdfProfileGraceCount{10};
+    TRuntimeSetting<TUdfModuleSet> UdfProfileExcludeModules{{}};
+    TRuntimeSetting<ui32> UdfProfileHLLPrecision{14};
+};
+
+} // namespace NPrivate
+
+struct TRuntimeSettings: public NPrivate::TRuntimeHostSettings {
     using TPtr = TSharedPtr<TRuntimeSettings, TAtomicCounter>;
     using TConstPtr = TSharedPtr<const TRuntimeSettings, TAtomicCounter>;
 
     TRuntimeSettings();
     virtual ~TRuntimeSettings();
 
-    // =============================== Host settings ===============================
-    TRuntimeSetting<bool> DatumValidation{false};
-    // =============================== Host settings end ===========================
-    using TUdfSettings = THashMap<TString, TString>;
+    using TUdfSettings = TMap<TString, TString>;
 
-    TString GetUdfSetting(const TString& module, const TString& settingName) const {
-        if (ModuleToSettings_.find(module) == ModuleToSettings_.end()) {
-            return TString{};
+    TStringBuf GetUdfSetting(TStringBuf module, TStringBuf settingName) const {
+        const auto moduleIt = ModuleToSettings_.find(module);
+        if (moduleIt == ModuleToSettings_.end()) {
+            return TStringBuf{};
         }
-        if (ModuleToSettings_.at(module).find(settingName) == ModuleToSettings_.at(module).end()) {
-            return TString{};
+        const auto settingIt = moduleIt->second.find(settingName);
+        if (settingIt == moduleIt->second.end()) {
+            return TStringBuf{};
         }
-        return ModuleToSettings_.at(module).at(settingName);
+        return settingIt->second;
     }
 
     void SetUdfSetting(const TString& module, const TString& settingName, const TString& value) {
         ModuleToSettings_[module][settingName] = value;
     }
 
-    const THashMap<TString, TUdfSettings>& GetUdfSettings() const {
+    const TMap<TString, TUdfSettings>& GetUdfSettings() const {
         return ModuleToSettings_;
     }
 
 private:
-    THashMap<TString, TUdfSettings> ModuleToSettings_;
+    TMap<TString, TUdfSettings> ModuleToSettings_;
 };
 
 TRuntimeSettings::TConstPtr MakeRuntimeSettings(auto&&... args) {
@@ -74,3 +113,6 @@ TRuntimeSettings::TPtr MakeRuntimeSettingsMutable(auto&&... args) {
 }
 
 } // namespace NYql
+
+template <>
+void Out<NYql::EDatumValidationMode>(IOutputStream& out, NYql::EDatumValidationMode value);

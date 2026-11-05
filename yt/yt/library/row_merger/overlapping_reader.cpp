@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/misc/heap.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <library/cpp/yt/memory/atomic.h>
 
@@ -74,7 +74,7 @@ private:
     std::atomic<i64> RowCount_ = 0;
     std::atomic<i64> DataWeight_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;
@@ -106,7 +106,7 @@ private:
         {
             YT_ASSERT(lhs->CurrentRow >= lhs->Rows.begin() && lhs->CurrentRow < lhs->Rows.end());
             YT_ASSERT(rhs->CurrentRow >= rhs->Rows.begin() && rhs->CurrentRow < rhs->Rows.end());
-            return KeyComparer_(lhs->CurrentRow->Keys(), rhs->CurrentRow->Keys()) <= 0;
+            return KeyComparer_(lhs->CurrentRow->Keys(), rhs->CurrentRow->Keys()) < 0;
         }
 
     private:

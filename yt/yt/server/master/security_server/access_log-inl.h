@@ -4,9 +4,12 @@
 #include "access_log.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

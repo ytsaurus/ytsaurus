@@ -38,7 +38,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     NChunkClient::IChunkWriterPtr chunkWriter,
     NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink = {},
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache(),
+    IInvokerPtr compressionInvokerOverride = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,21 +59,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
     TMasterTableSchemaId schemaId,
-    NChunkClient::TChunkListId parentChunkListId = {},
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
-
-IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TTableSchemaPtr schema,
-    NApi::NNative::IClientPtr client,
-    std::string localHostName,
-    NObjectClient::TCellTag cellTag,
-    NTransactionClient::TTransactionId transactionId,
-    TMasterTableSchemaId schemaId,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
-    const std::optional<NChunkClient::TDataSink>& dataSink = {},
     NChunkClient::TChunkListId parentChunkListId = {},
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

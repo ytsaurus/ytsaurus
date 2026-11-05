@@ -32,7 +32,7 @@ public:
 private:
     const TTmpfsManagerConfigPtr Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MaxTmpfsUsageLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MaxTmpfsUsageLock_);
     mutable std::vector<i64> MaxTmpfsUsage_;
     mutable i64 MaxAggregatedTmpfsUsage_ = 0;
 

@@ -138,7 +138,7 @@ ui32 TTimestampSegmentReader::GetWriteIndex(i64 adjustedRowIndex) const
 
 TTimestamp TTimestampSegmentReader::GetTimestampById(ui32 id) const
 {
-    return TimestampMeta_.min_timestamp() + DictionaryReader_[id];
+    return TTimestamp(TimestampMeta_.min_timestamp() + DictionaryReader_[id]);
 }
 
 TTimestamp TTimestampSegmentReader::GetDeleteTimestamp(ui32 deleteIndex) const

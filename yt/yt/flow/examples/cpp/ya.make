@@ -1,0 +1,15 @@
+RECURSE(
+    async_request
+    companion_word_count
+    external_state_join
+    file_resource
+    log_parser
+    noop
+    proto_parser
+    retryable_async_request
+    shuffle
+    static_table_join
+    url_downloader
+    wait_click_join
+    word_count
+)

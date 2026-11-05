@@ -81,6 +81,7 @@ public:
         , ChunkReaderHost_(New<TMultiChunkReaderHost>(
             New<TChunkReaderHost>(storageContext->QueryContext->Client())))
         , ChunkReadOptions_(chunkReadOptions)
+        , IsReadInOrder_(!subquerySpec.SubqueryOptions.SortDescription.empty())
         , TableReaderConfig_(MergeTableReaderConfigs(
             storageContext->Settings->TableReader,
             subquerySpec.TableReaderConfig))
@@ -138,6 +139,7 @@ private:
     const NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
     const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClientChunkReadOptions ChunkReadOptions_;
+    const bool IsReadInOrder_;
     const TTableReaderConfigPtr TableReaderConfig_;
     const TNameTablePtr NameTable_;
     const NChunkClient::IMultiReaderMemoryManagerPtr RootReaderMemoryManager_;
@@ -160,7 +162,9 @@ private:
             QueryContext_->Host->GetConfig()->ReaderMemoryRequirement,
             {{"user", QueryContext_->User}});
 
-        return CreateSchemalessParallelMultiReader(
+        auto readerFactory = IsReadInOrder_ ? CreateSchemalessSequentialMultiReader : CreateSchemalessParallelMultiReader;
+
+        return readerFactory(
             TableReaderConfig_,
             New<TTableReaderOptions>(),
             ChunkReaderHost_,
@@ -227,7 +231,7 @@ public:
         TLogger logger,
         TCallback<void(const TStatistics&)> statisticsCallback)
         : DB::ISource(
-            DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
+            DeriveHeaderBlockFromReadPlan(readPlan, settings->Conversion),
             /*enable_auto_progress*/ false)
         , ReadPlan_(std::move(readPlan))
         , TraceContext_(std::move(traceContext))
@@ -306,12 +310,12 @@ public:
         Statistics_.AddSample("/secondary_query_source/idle_time_us"_SP, lastIdleDuration.MicroSeconds());
 
         TWallTimer totalWallTimer;
-        YT_LOG_TRACE("Started reading ClickHouse block");
+        YT_TLOG_TRACE("Started reading ClickHouse block");
 
         i64 readRows = 0;
         DB::Block resultBlock;
         while (CanReadBatch() && resultBlock.rows() == 0) {
-            YT_LOG_TRACE("Started reading loop iteration");
+            YT_TLOG_TRACE("Started reading loop iteration");
             auto batch = ReadBatch();
             if (!batch) {
                 continue;
@@ -326,7 +330,8 @@ public:
                 Statistics_.AddSample("/secondary_query_source/wait_ready_event_time_us"_SP, elapsed.MicroSeconds());
 
                 if (elapsed > TDuration::Seconds(1)) {
-                    YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+                    YT_TLOG_DEBUG("Reading took significant time")
+                        .With("WallTime", elapsed);
                 }
                 continue;
             }
@@ -389,16 +394,19 @@ public:
 
         if (auto breakpointFilename = Settings_->Testing->SourceGenerateCallBreakpoint) {
             HandleBreakpoint(*breakpointFilename, Host_->GetRootClient());
-            YT_LOG_DEBUG("Secondary query source generate call handled breakpoint (Breakpoint: %v)", *breakpointFilename);
+            YT_TLOG_DEBUG("Secondary query source generate call handled breakpoint")
+                .With("Breakpoint", *breakpointFilename);
         }
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
         if (totalElapsed > TDuration::Seconds(5)) {
-            YT_LOG_DEBUG("Generate call took significant time (WallTime: %v)", totalElapsed);
+            YT_TLOG_DEBUG("Generate call took significant time")
+                .With("WallTime", totalElapsed);
         }
 
         TotalGenerateTime_ += totalElapsed;
-        YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
+        YT_TLOG_TRACE("Finished reading ClickHouse block")
+            .With("WallTime", totalElapsed);
 
         // Report the query progress, including rows that were filtered out.
         // The number of bytes read by the reader but later filtered cannot be counted,
@@ -458,12 +466,12 @@ protected:
         Converters_.reserve(ReadPlan_->Steps.size());
         for (int i = 0; i < std::ssize(ReadPlan_->Steps); ++i) {
             bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Options_.UseDistinctReadOptimization : false;
-            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
+            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Conversion, enableOptimizeDistinctRead);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
 
-        YT_LOG_DEBUG("Secondary query source was initialized");
+        YT_TLOG_DEBUG("Secondary query source was initialized");
 
         IdleTimer_.Start();
     }
@@ -482,15 +490,13 @@ protected:
             StatisticsCallback_(Statistics_);
         }
 
-        YT_LOG_DEBUG(
-            "Secondary query source timing statistics (TotalGenerateTime: %v, ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
-            "ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
-            TotalGenerateTime_,
-            ColumnarConversionCpuTime_,
-            NonColumnarConversionCpuTime_,
-            ConversionSyncWaitTime_,
-            IdleTimer_.GetElapsedTime(),
-            ReadCount_);
+        YT_TLOG_DEBUG("Secondary query source timing statistics")
+            .With("TotalGenerateTime", TotalGenerateTime_)
+            .With("ColumnarConversionCpuTime", ColumnarConversionCpuTime_)
+            .With("NonColumnarConversionCpuTime", NonColumnarConversionCpuTime_)
+            .With("ConversionSyncWaitTime", ConversionSyncWaitTime_)
+            .With("IdleTime", IdleTimer_.GetElapsedTime())
+            .With("ReadCount", ReadCount_);
 
         if (TraceContext_ && TraceContext_->IsRecorded()) {
             TraceContext_->AddTag("chyt.reader.idle_time", IdleTimer_.GetElapsedTime());
@@ -815,7 +821,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         nullGuard.Release();
     }
 
-    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User, std::move(granuleFilter));
+    auto chunkReadOptions = CreateChunkReadOptions(TString(queryContext->User), std::move(granuleFilter));
     auto nameTable = GetPlanNameTable(readPlan);
     auto readerFactory = std::make_unique<TReaderFactory>(
         storageContext,
@@ -827,7 +833,8 @@ DB::SourcePtr CreateSecondaryQuerySource(
     TLogger Logger(queryContext->Logger);
     if (auto breakpointFilename = queryContext->SessionSettings->Testing->InputStreamFactoryBreakpoint) {
         HandleBreakpoint(*breakpointFilename, queryContext->Client());
-        YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
+        YT_TLOG_DEBUG("Input stream factory handled breakpoint")
+            .With("Breakpoint", *breakpointFilename);
     }
 
     return std::make_shared<TSecondaryQuerySource>(
@@ -837,7 +844,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         queryContext->Host,
         storageContext->Settings,
         subquerySpec.SubqueryOptions,
-        queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
+        queryContext->Logger.WithTag("ReadSessionId", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback),
         std::move(readerFactory));

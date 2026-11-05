@@ -24,6 +24,12 @@ struct TProtobufInteropConfig
     // Note: Applies to each protobuf message only on first seen, changes of flag after do not have effect.
     bool ForceSnakeCaseNames;
 
+    // If `true` convert all enum fields to string type.
+    bool ForceEnumStringType;
+
+    // Allow parsing messages with the yson_list option from maps.
+    bool AllowYsonListFromMap;
+
     TProtobufInteropConfigPtr ApplyDynamic(const TProtobufInteropDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TProtobufInteropConfig);
@@ -41,6 +47,8 @@ struct TProtobufInteropDynamicConfig
 {
     // Check if string field contains actual UTF-8 string.
     std::optional<EUtf8Check> Utf8Check;
+
+    std::optional<bool> AllowYsonListFromMap;
 
     REGISTER_YSON_STRUCT(TProtobufInteropDynamicConfig);
 

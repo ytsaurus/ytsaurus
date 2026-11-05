@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import cimpl
-
 from enum import Enum
+from typing import List, Optional
+
+from .. import cimpl
 
 
 class ScramMechanism(Enum):
     """
     Enumerates SASL/SCRAM mechanisms.
     """
+
     UNKNOWN = cimpl.SCRAM_MECHANISM_UNKNOWN  #: Unknown SASL/SCRAM mechanism
     SCRAM_SHA_256 = cimpl.SCRAM_MECHANISM_SHA_256  #: SCRAM-SHA-256 mechanism
     SCRAM_SHA_512 = cimpl.SCRAM_MECHANISM_SHA_512  #: SCRAM-SHA-512 mechanism
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ScramMechanism):
             return NotImplemented
         return self.value < other.value
 
@@ -43,7 +45,8 @@ class ScramCredentialInfo:
     iterations: int
         Positive number of iterations used when creating the credential.
     """
-    def __init__(self, mechanism, iterations):
+
+    def __init__(self, mechanism: ScramMechanism, iterations: int) -> None:
         self.mechanism = mechanism
         self.iterations = iterations
 
@@ -60,7 +63,8 @@ class UserScramCredentialsDescription:
     scram_credential_infos: list(ScramCredentialInfo)
         SASL/SCRAM credential representations for the user.
     """
-    def __init__(self, user, scram_credential_infos):
+
+    def __init__(self, user: str, scram_credential_infos: List[ScramCredentialInfo]) -> None:
         self.user = user
         self.scram_credential_infos = scram_credential_infos
 
@@ -74,7 +78,8 @@ class UserScramCredentialAlteration:
     user: str
         The user name.
     """
-    def __init__(self, user: str):
+
+    def __init__(self, user: str) -> None:
         self.user = user
 
 
@@ -93,7 +98,10 @@ class UserScramCredentialUpsertion(UserScramCredentialAlteration):
     salt: bytes
         Salt to use. Will be generated randomly if None. (optional)
     """
-    def __init__(self, user, scram_credential_info, password, salt=None):
+
+    def __init__(
+        self, user: str, scram_credential_info: ScramCredentialInfo, password: bytes, salt: Optional[bytes] = None
+    ) -> None:
         super(UserScramCredentialUpsertion, self).__init__(user)
         self.scram_credential_info = scram_credential_info
         self.password = password
@@ -111,6 +119,7 @@ class UserScramCredentialDeletion(UserScramCredentialAlteration):
     mechanism: ScramMechanism
         SASL/SCRAM mechanism.
     """
-    def __init__(self, user, mechanism):
+
+    def __init__(self, user: str, mechanism: ScramMechanism) -> None:
         super(UserScramCredentialDeletion, self).__init__(user)
         self.mechanism = mechanism

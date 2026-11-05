@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
 
+#include <yt/yt/library/cypress_election/election_manager.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -143,8 +145,8 @@ private:
 
         if (!found) {
             THROW_ERROR_EXCEPTION("Invalid instance size")
-                << TErrorAttribute("provided_instance_size", instanceSize)
-                << TErrorAttribute("instance_type", instanceType);
+                .With("provided_instance_size", instanceSize)
+                .With("instance_type", instanceType);
         }
     }
 
@@ -162,20 +164,20 @@ private:
 
         if (targetMemory > resourceQuota->Memory) {
             THROW_ERROR_EXCEPTION("Cannot allocate new instance: memory quota is exhausted")
-                << TErrorAttribute("target_memory", targetMemory)
-                << TErrorAttribute("quota_memory", resourceQuota->Memory);
+                .With("target_memory", targetMemory)
+                .With("quota_memory", resourceQuota->Memory);
         }
 
         if (targetVcpu > resourceQuota->Vcpu) {
             THROW_ERROR_EXCEPTION("Cannot allocate new instance: vcpu quota is exhausted")
-                << TErrorAttribute("target_vcpu", targetVcpu)
-                << TErrorAttribute("quota_vcpu", resourceQuota->Vcpu);
+                .With("target_vcpu", targetVcpu)
+                .With("quota_vcpu", resourceQuota->Vcpu);
         }
 
         if (targetNetwork > resourceQuota->NetworkBytes) {
             THROW_ERROR_EXCEPTION("Cannot allocate new instance: network quota is exhausted")
-                << TErrorAttribute("target_network", targetNetwork)
-                << TErrorAttribute("quota_network", resourceQuota->NetworkBytes);
+                .With("target_network", targetNetwork)
+                .With("quota_network", resourceQuota->NetworkBytes);
         }
 
         // Checking memory categories oversubscription
@@ -193,8 +195,8 @@ private:
 
         if (sumMemoryLimits > bundleConfig->TabletNodeResourceGuarantee->Memory) {
             THROW_ERROR_EXCEPTION("The sum of the memory limits exceeds the allowed values")
-                << TErrorAttribute("current_memory", sumMemoryLimits)
-                << TErrorAttribute("tablet_node_memory", bundleConfig->TabletNodeResourceGuarantee->Memory);
+                .With("current_memory", sumMemoryLimits)
+                .With("tablet_node_memory", bundleConfig->TabletNodeResourceGuarantee->Memory);
         }
 
         // Check for cpu oversubscription
@@ -205,8 +207,8 @@ private:
 
         if (sumVcpuLimits > bundleConfig->TabletNodeResourceGuarantee->Vcpu) {
             THROW_ERROR_EXCEPTION("The sum of the cpu limits thread pools exceeds the allowed values")
-                << TErrorAttribute("current_vcpu", sumVcpuLimits)
-                << TErrorAttribute("tablet_node_vcpu", bundleConfig->TabletNodeResourceGuarantee->Vcpu);
+                .With("current_vcpu", sumVcpuLimits)
+                .With("tablet_node_vcpu", bundleConfig->TabletNodeResourceGuarantee->Vcpu);
         }
 
         // TODO(capone212): multi-dc logic
@@ -228,8 +230,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, GetBundleConfig)
     {
         const auto& bundleName = request->bundle_name();
-        context->SetRequestInfo("BundleName: %v",
-            bundleName);
+        context->AnnotateRequest()
+            .With("BundleName", bundleName);
 
         auto timeout = context->GetTimeout();
 
@@ -249,8 +251,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, SetBundleConfig)
     {
         const auto& bundleName = request->bundle_name();
-        context->SetRequestInfo("BundleName: %v",
-            bundleName);
+        context->AnnotateRequest()
+            .With("BundleName", bundleName);
 
         auto timeout = context->GetTimeout();
 
@@ -270,13 +272,16 @@ private:
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
-        YT_LOG_INFO("Bundle controller got node heartbeat (NodeId: %v, NodeAddress: %v)", nodeId, nodeAddress);
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("NodeAddress", nodeAddress);
+
+        if (!Bootstrap_->GetElectionManager()->IsLeader()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bundle controller instance is not leading");
+        }
 
         Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
 
-        context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
-            nodeId,
-            nodeAddress);
         context->Reply();
     }
 };

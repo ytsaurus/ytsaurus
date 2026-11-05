@@ -1,9 +1,9 @@
 #pragma once
 
-#include "chunk.h"
-#include "chunk_tree_statistics.h"
+#include "private.h"
+
 #include "chunk_tree.h"
-#include "public.h"
+#include "chunk_tree_statistics.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -82,6 +82,7 @@ public:
     void RemoveParent(TChunkList* parent);
 
     TChunkTreeStatistics GetStatistics() const;
+    THunkChunkTreeStatistics GetHunkStatistics() const;
 
     //! Compares two chunk views not considering read range.
     //! Returns -1, 0 or 1.

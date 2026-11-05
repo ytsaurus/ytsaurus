@@ -2,7 +2,6 @@ package system
 
 import (
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -16,7 +15,7 @@ const DefaultPathEnvUnix = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/s
 // DefaultPathEnvWindows is windows style list of directories to search for
 // executables. Each directory is separated from the next by a colon
 // ';' character .
-const DefaultPathEnvWindows = "c:\\Windows\\System32;c:\\Windows"
+const DefaultPathEnvWindows = "c:\\Windows\\System32;c:\\Windows;C:\\Windows\\System32\\WindowsPowerShell\\v1.0"
 
 func DefaultPathEnv(os string) string {
 	if os == "windows" {
@@ -27,7 +26,7 @@ func DefaultPathEnv(os string) string {
 
 // NormalizePath cleans the path based on the operating system the path is meant for.
 // It takes into account a potential parent path, and will join the path to the parent
-// if the path is relative. Additionally, it will apply the folliwing rules:
+// if the path is relative. Additionally, it will apply the following rules:
 //   - always return an absolute path
 //   - always strip drive letters for Windows paths
 //   - optionally keep the trailing slashes on paths
@@ -46,7 +45,7 @@ func NormalizePath(parent, newPath, inputOS string, keepSlash bool) (string, err
 	}
 
 	var err error
-	parent, err = CheckSystemDriveAndRemoveDriveLetter(parent, inputOS)
+	parent, err = CheckSystemDriveAndRemoveDriveLetter(parent, inputOS, keepSlash)
 	if err != nil {
 		return "", errors.Wrap(err, "removing drive letter")
 	}
@@ -61,7 +60,7 @@ func NormalizePath(parent, newPath, inputOS string, keepSlash bool) (string, err
 		newPath = parent
 	}
 
-	newPath, err = CheckSystemDriveAndRemoveDriveLetter(newPath, inputOS)
+	newPath, err = CheckSystemDriveAndRemoveDriveLetter(newPath, inputOS, keepSlash)
 	if err != nil {
 		return "", errors.Wrap(err, "removing drive letter")
 	}
@@ -89,7 +88,7 @@ func ToSlash(inputPath, inputOS string) string {
 	if inputOS != "windows" {
 		return inputPath
 	}
-	return strings.Replace(inputPath, "\\", "/", -1)
+	return strings.ReplaceAll(inputPath, "\\", "/")
 }
 
 func FromSlash(inputPath, inputOS string) string {
@@ -97,7 +96,7 @@ func FromSlash(inputPath, inputOS string) string {
 	if inputOS == "windows" {
 		separator = "\\"
 	}
-	return strings.Replace(inputPath, "/", separator, -1)
+	return strings.ReplaceAll(inputPath, "/", separator)
 }
 
 // NormalizeWorkdir will return a normalized version of the new workdir, given
@@ -137,7 +136,7 @@ func IsAbs(pth, inputOS string) bool {
 	if inputOS == "" {
 		inputOS = "linux"
 	}
-	cleanedPath, err := CheckSystemDriveAndRemoveDriveLetter(pth, inputOS)
+	cleanedPath, err := CheckSystemDriveAndRemoveDriveLetter(pth, inputOS, false)
 	if err != nil {
 		return false
 	}
@@ -174,7 +173,7 @@ func IsAbs(pth, inputOS string) bool {
 // There is no sane way to support this without adding a lot of complexity
 // which I am not sure is worth it.
 // \\.\C$\a     --> Fail
-func CheckSystemDriveAndRemoveDriveLetter(path string, inputOS string) (string, error) {
+func CheckSystemDriveAndRemoveDriveLetter(path string, inputOS string, keepSlash bool) (string, error) {
 	if inputOS == "" {
 		inputOS = "linux"
 	}
@@ -193,9 +192,10 @@ func CheckSystemDriveAndRemoveDriveLetter(path string, inputOS string) (string, 
 	}
 
 	parts := strings.SplitN(path, ":", 2)
+
 	// Path does not have a drive letter. Just return it.
 	if len(parts) < 2 {
-		return ToSlash(filepath.Clean(path), inputOS), nil
+		return ToSlash(cleanPath(path, inputOS, keepSlash), inputOS), nil
 	}
 
 	// We expect all paths to be in C:
@@ -220,5 +220,30 @@ func CheckSystemDriveAndRemoveDriveLetter(path string, inputOS string) (string, 
 	//
 	// We must return the second element of the split path, as is, without attempting to convert
 	// it to an absolute path. We have no knowledge of the CWD; that is treated elsewhere.
-	return ToSlash(filepath.Clean(parts[1]), inputOS), nil
+	return ToSlash(cleanPath(parts[1], inputOS, keepSlash), inputOS), nil
+}
+
+// An adaptation of filepath.Clean to allow an option to
+// retain the trailing slash, on either of the platforms.
+// See https://github.com/moby/buildkit/issues/5249
+func cleanPath(origPath, inputOS string, keepSlash bool) string {
+	// so as to handle cases like \\a\\b\\..\\c\\
+	// on Linux, when inputOS is Windows
+	origPath = ToSlash(origPath, inputOS)
+
+	if !keepSlash {
+		return path.Clean(origPath)
+	}
+
+	cleanedPath := path.Clean(origPath)
+	// Windows supports both \\ and / as path separator.
+	hasTrailingSlash := strings.HasSuffix(origPath, "/")
+	if inputOS == "windows" {
+		hasTrailingSlash = hasTrailingSlash || strings.HasSuffix(origPath, "\\")
+	}
+
+	if len(cleanedPath) > 1 && hasTrailingSlash {
+		return cleanedPath + "/"
+	}
+	return cleanedPath
 }

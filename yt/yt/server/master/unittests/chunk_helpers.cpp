@@ -25,6 +25,8 @@ using namespace NTableClient;
 using NYT::ToProto;
 using NYT::FromProto;
 
+using NChunkClient::EChunkFormat;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TGuid GenerateId(EObjectType type)
@@ -40,7 +42,9 @@ TChunk* TChunkGeneratorTestBase::CreateChunk(
     i64 dataWeight,
     NTableClient::TLegacyOwningKey minKey,
     NTableClient::TLegacyOwningKey maxKey,
-    EChunkType chunkType)
+    EChunkType chunkType,
+    EChunkFormat chunkFormat,
+    i64 diskSpace)
 {
     auto objectType = chunkType == EChunkType::Journal
         ? EObjectType::JournalChunk
@@ -51,6 +55,7 @@ TChunk* TChunkGeneratorTestBase::CreateChunk(
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
     chunkMeta.set_type(ToProto(chunkType));
+    chunkMeta.set_format(ToProto(chunkFormat));
 
     NChunkClient::NProto::TMiscExt miscExt;
     miscExt.set_row_count(rowCount);
@@ -65,6 +70,7 @@ TChunk* TChunkGeneratorTestBase::CreateChunk(
     SetProtoExtension(chunkMeta.mutable_extensions(), boundaryKeysExt);
 
     NChunkClient::NProto::TChunkInfo chunkInfo;
+    chunkInfo.set_disk_space(diskSpace);
 
     chunk->Confirm(chunkInfo, chunkMeta);
 
@@ -83,7 +89,7 @@ TChunk* TChunkGeneratorTestBase::CreateUnconfirmedChunk()
     return ptr;
 }
 
-TChunk* TChunkGeneratorTestBase::CreateJournalChunk(bool sealed, bool overlayed)
+TChunk* TChunkGeneratorTestBase::CreateJournalChunk(bool sealed, bool overlayed, EChunkFormat chunkFormat)
 {
     auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::JournalChunk));
     chunk->SetOverlayed(overlayed);
@@ -91,6 +97,7 @@ TChunk* TChunkGeneratorTestBase::CreateJournalChunk(bool sealed, bool overlayed)
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
     chunkMeta.set_type(ToProto(EChunkType::Journal));
+    chunkMeta.set_format(ToProto(chunkFormat));
 
     NChunkClient::NProto::TMiscExt miscExt;
     SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);

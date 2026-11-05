@@ -2,63 +2,38 @@
 
 #include "preparation_options.h"
 #include "public.h"
+#include "volume.h"
 #include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class creates all volumes for job.
+//! Controls the node-wide volume service lifecycle and resource cleanup.
 struct IVolumeManager
     : public virtual TRefCounted
 {
-    //! Prepare root overlayfs volume.
-    virtual TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options) = 0;
+    virtual void InitializeSlot(TNonNullPtr<TSlotLocation> location, int slotIndex) = 0;
 
-    //! Prepare non-root volumes.
-    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        const std::optional<TString>& sandboxPath,
-        const TJobId& jobId,
-        const std::vector<TBaseVolumeParamsPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
-
-    //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
-    virtual TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume,
-        const TString& slotPath) = 0;
-
-    //! Link volumes into destination directory.
-    virtual TFuture<void> LinkVolumes(
-        const TString& destinationDirectory,
-        const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
-
-    //! Remove volumes planted at a given place.
-    virtual TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) = 0;
-
-    //! Remove layers planted at a given place.
-    virtual TFuture<void> RemoveLayers(const TString& place, TDuration timeout) = 0;
-
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
+    //! Prepares this manager for replacement during job environment resurrection,
+    //! preserving resources that the new manager can reuse.
+    virtual void PrepareForReplacement() const = 0;
 
     virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
 
-    virtual void ClearCaches() const = 0;
-
-    virtual void MarkLayersAsNotRemovable() const = 0;
-
     virtual TFuture<void> GetVolumeReleaseEvent() = 0;
 
-    virtual TFuture<void> DisableLayerCache(const TError& reason) = 0;
+    virtual TFuture<void> Disable(const TError& reason) = 0;
 
     virtual bool IsEnabled() const = 0;
+
+    virtual TError GetHealthCheckError() const = 0;
 
     virtual void OnDynamicConfigChanged(
         const TVolumeManagerDynamicConfigPtr& oldConfig,
@@ -66,23 +41,6 @@ struct IVolumeManager
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)
-
-//! Porto volume manager initialization invokes a number of async operations
-//! including population of on-disk and tmpfs layer cache.
-TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
-    NDataNode::TDataNodeConfigPtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    IVolumeArtifactCachePtr artifactCache,
-    IInvokerPtr controlInvoker,
-    IMemoryUsageTrackerPtr memoryUsageTracker,
-    IBootstrap* bootstrap);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
-    const std::vector<TSlotLocationConfigPtr>& locations,
-    IInvokerPtr invoker,
-    bool detachedTmpfsUmount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -77,17 +77,15 @@ private:
         auto hintId = FromProto<TNodeId>(request->hint_id());
         auto transactionId = GetTransactionId(context->RequestHeader());
 
-        context->SetRequestInfo(
-            "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-            "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
-            type,
-            ignoreExisting,
-            lockExisting,
-            recursive,
-            force,
-            ignoreTypeMismatch,
-            hintId,
-            transactionId);
+        context->AnnotateRequest()
+            .With("Type", type)
+            .With("IgnoreExisting", ignoreExisting)
+            .With("LockExisting", lockExisting)
+            .With("Recursive", recursive)
+            .With("Force", force)
+            .With("IgnoreTypeMismatch", ignoreTypeMismatch)
+            .With("HintId", hintId)
+            .With("TransactionId", transactionId);
 
         if (ignoreExisting) {
             THROW_ERROR_EXCEPTION("Rootstock creation with \"ignore_existing\" flag is not supported in Sequoia yet");

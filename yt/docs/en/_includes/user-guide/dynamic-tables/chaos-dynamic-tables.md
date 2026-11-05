@@ -85,7 +85,7 @@ When working with a table over an extended period of time, you may occasionally 
 
 There are several ways to add a new replica that don't require replication of lifetime data:
 - Specify `catchup=%false` when creating the replica. In this case, it's assumed that the replica doesn't need the history, so it receives data only starting from a specific timestamp after the table's creation. For a replica with data, only the latest records are replicated, meaning its contents will differ from other replicas. However, `catchup=%false` mode may be a reasonable default approach for adding a new replication queue: typically, replication queues store only a small portion of recent data that hasn't yet been propagated to other replicas.
-- Specify a `replication_progress` when creating the replica. In this case, replication to the replica starts at the specified [progress point](#progress-replikacii). With this method, you can explicitly control the starting point for data replication. For more information about replication progress, read below.
+- Specify a `replication_progress` when creating the replica. In this case, replication to the replica starts at the specified [progress point](#replication-progress). With this method, you can explicitly control the starting point for data replication. For more information about replication progress, read below.
 - Specify the progress on the replica table. Similar to the previous approach, replication continues from the specified progress point. This is the recommended method because the progress is explicitly stored as an attribute of the table. **Note:** the progress on the table must be greater than or equal to the value specified in the `chaos_table_replica`. If the table's progress suddenly drops below this value, replication stops.
 
 When adding a new replica with an explicitly specified progress, make sure that your current replication queues contain the necessary data. You can usually achieve this by unmounting an existing replica with data. This ensures that data can no longer be replicated to this table and will start to accumulate in the queues.
@@ -164,7 +164,7 @@ To perform chaos replication, you need a chaos cell bundle and the appropriate p
 Currently, only administrators can create chaos cell bundles. If you want to use chaos replication, contact support.
 {%endif%}
 
-## Replication progress
+## Replication progress { #replication-progress }
 
 During replication, it's important to know which data has been transmitted and which hasn't. In the transactional data model, updates to {{product-name}} dynamic tables are uniquely identified by a key-timestamp pair, with timestamps strictly increasing. This way:
 - For each individual key, updates must be strictly ordered by timestamps.

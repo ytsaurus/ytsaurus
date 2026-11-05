@@ -10,8 +10,6 @@
 #include "scheduling_policy.h"
 #include "attributes_list.h"
 
-#include <yt/yt/server/scheduler/strategy/policy/gpu/public.h>
-
 #include <yt/yt/server/scheduler/strategy/field_filter.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
@@ -207,31 +205,21 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulingStageProfilingCounters
+    : public TCommonSchedulingProfilingCounters
 {
-    TSchedulingStageProfilingCounters() = default;
     explicit TSchedulingStageProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter PrescheduleAllocationCount;
     NProfiling::TCounter UselessPrescheduleAllocationCount;
     NProfiling::TEventTimer PrescheduleAllocationTime;
-    NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
-    NProfiling::TEventTimer ControllerScheduleAllocationTime;
-    NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
     NProfiling::TEventTimer StrategyScheduleAllocationTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
     NProfiling::TEventTimer PackingCheckTime;
     NProfiling::TEventTimer AnalyzeAllocationsTime;
     NProfiling::TTimeCounter CumulativePrescheduleAllocationTime;
-    NProfiling::TTimeCounter CumulativeTotalControllerScheduleAllocationTime;
-    NProfiling::TTimeCounter CumulativeExecControllerScheduleAllocationTime;
     NProfiling::TTimeCounter CumulativeStrategyScheduleAllocationTime;
     NProfiling::TTimeCounter CumulativeAnalyzeAllocationsTime;
-    NProfiling::TCounter ScheduleAllocationAttemptCount;
-    NProfiling::TCounter ScheduleAllocationFailureCount;
-    NProfiling::TCounter ControllerScheduleAllocationCount;
-    NProfiling::TCounter ControllerScheduleAllocationTimedOutCount;
 
-    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
     TEnumIndexedArray<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
@@ -284,7 +272,7 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(DefaultGpuFullHostPreemptionEnabled);
 
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
-    DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatisticsImplPtr, SchedulingStatistics);
 
 public:
     TScheduleAllocationsContext(
@@ -332,7 +320,7 @@ public:
         const TAllocationPtr& allocation,
         TPoolTreeOperationElement* element,
         EAllocationPreemptionReason preemptionReason,
-        bool commitPreemptedResourceUsage = false) const;
+        const std::optional<TJobResources>& preemptedResourceUsagePrecommit = {}) const;
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
 
@@ -381,22 +369,17 @@ private:
 
         bool PrescheduleExecuted = false;
 
-        std::vector<TDuration> ScheduleAllocationDurations;
+        TScheduleAllocationAttemptStatistics AttemptStatistics;
 
         TDuration TotalDuration;
         TDuration PrescheduleDuration;
-        TDuration TotalScheduleAllocationDuration;
-        TDuration ExecScheduleAllocationDuration;
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
         TDuration AnalyzeAllocationsDuration;
-        TEnumIndexedArray<NControllerAgent::EScheduleFailReason, int> FailedScheduleAllocation;
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
         int TotalHeapElementCount = 0;
-        int ScheduleAllocationAttemptCount = 0;
-        int ScheduleAllocationFailureCount = 0;
         TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons;
         THashMap<int, int> SchedulingIndexToScheduleAllocationAttemptCount;
         int MaxSchedulingIndex = UndefinedSchedulingIndex;
@@ -571,9 +554,10 @@ public:
     //! Node management.
     void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) override;
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) override;
+    std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const override;
 
     //! Scheduling.
-    void ProcessSchedulingHeartbeat(
+    TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) override;
@@ -582,7 +566,7 @@ public:
     void RegisterOperation(const TPoolTreeOperationElement* element) override;
     void UnregisterOperation(const TPoolTreeOperationElement* element) override;
 
-    TError OnOperationMaterialized(const TPoolTreeOperationElement* element) override;
+    TError OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot) override;
     TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const override;
 
     void EnableOperation(const TPoolTreeOperationElement* element) override;
@@ -590,48 +574,30 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const override;
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+        std::vector<TAllocationPtr> allocations) override;
+    TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) override;
+        const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     //! Diagnostics.
-    void BuildSchedulingAttributesStringForNode(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        NNodeTrackerClient::TNodeId nodeId) const override;
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         NNodeTrackerClient::TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
-    void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const override;
-    void BuildSchedulingAttributesStringForOngoingAllocations(
+        NYTree::TFluentMap fluent) const override;
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+        TInstant now) const override;
 
-    // TODO(eshcherbin): Do something about these three static methods which we currently cannot add to the interface.
-    static TError CheckOperationIsStuck(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        TInstant now,
-        TInstant activationTime,
-        const TOperationStuckCheckOptionsPtr& options);
+        const TPoolTreeElement* element) const override;
 
-    static void BuildOperationProgress(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        IStrategyHost* const strategyHost,
-        NYTree::TFluentMap fluent);
-    static void BuildElementYson(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        const TFieldFilter& filter,
-        NYTree::TFluentMap fluent);
-
-    void BuildElementLoggingStringAttributes(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
-
-    void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const override;
 
     void ProfileOperation(
         const TPoolTreeOperationElement* element,
@@ -682,7 +648,6 @@ private:
     NProfiling::TProfiler Profiler_;
 
     NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
-    NConcurrency::TPeriodicExecutorPtr MinNodeResourceLimitsCheckExecutor_;
 
     TEnumIndexedArray<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
@@ -719,17 +684,34 @@ private:
     // and we start building up-to-date persistent state.
     TInstant SchedulingSegmentsInitializationDeadline_;
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
-    TPersistentStatePtr PersistentState_;
+    //! Updated once per scheduling segments management cycle and treated as immutable after publication.
+    NYTree::INodePtr CachedPersistentStateNode_;
 
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    //! Applies a single allocation update. Called in a loop by ProcessAllocationUpdates.
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TPoolTreeOperationElement* element,
+        const TAllocationUpdate& allocationUpdate);
+
+    //! Applies the whole batch on the node shard invoker. Must not suspend (see ProcessAllocationUpdates).
+    std::vector<TProcessAllocationUpdateResult> DoProcessAllocationUpdates(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const std::vector<TAllocationUpdate>& allocationUpdates);
+
     //! Initialization.
     void InitSchedulingProfilingCounters();
 
     //! Process node heartbeat, including allocation scheduling.
+    void DoProcessSchedulingHeartbeat(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        bool skipScheduleAllocations);
+
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
         const TNodeStatePtr& nodeState,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
@@ -823,8 +805,6 @@ private:
     void ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
 
     void ManageSchedulingSegments();
-
-    void CheckMinNodeResourceLimits();
 
     bool IsGpuTree() const;
 };

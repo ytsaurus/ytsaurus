@@ -149,7 +149,7 @@ class Cli():
                 p.add_argument("--verbose", action="store_true", help="print raw dashboard representation before submit")
             if command == "submit-cypress":
                 p.add_argument("--proxy", type=yt.config.set_proxy, help="[YT] Cluster proxy to which you need to upload the dashboard")
-                p.add_argument("--cypress-path", default="//sys/interface-monitoring", help="[YT] Path to the node where the dashboard will be saved")
+                p.add_argument("--cypress-path", default="//sys/interface_monitoring", help="[YT] Path to the node where the dashboard will be saved")
                 p.add_argument(
                     "--cypress-document-name",
                     default=None,
@@ -207,7 +207,7 @@ class Cli():
                 headers="firstrow"))
             return
 
-        if args.command in ["diff", "show", "submit"]:
+        if args.command in ["diff", "show", "submit", "json"]:
             if args.backend is not None:
                 for backend_name in args.backend:
                     self.backend_classes[backend_name].on_args_parsed(args)

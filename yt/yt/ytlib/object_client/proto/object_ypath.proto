@@ -54,6 +54,16 @@ message TMulticellSyncExt
     optional bool suppress_strongly_ordered_transaction_barrier = 4 [default = false];
 }
 
+message TResolvedSequoiaObjectExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TResolvedSequoiaObjectExt resolved_sequoia_object = 128;
+    }
+
+    required NYT.NProto.TGuid object_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetBasicAttributes

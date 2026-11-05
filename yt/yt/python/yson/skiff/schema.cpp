@@ -16,6 +16,35 @@ using namespace NSkiffExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSupportedWireType(NSkiff::EWireType wireType)
+{
+    using NSkiff::EWireType;
+
+    switch (wireType) {
+        case EWireType::Boolean:
+        case EWireType::Int64:
+        case EWireType::Uint64:
+        case EWireType::Double:
+        case EWireType::String32:
+        case EWireType::Yson32:
+            return true;
+        default:
+            return false;
+    }
+}
+
+NSkiff::EWireType GetSupportedWireTypeOrThrow(const NSkiff::TSkiffSchemaPtr& skiffSchema)
+{
+    auto wireType = skiffSchema->GetWireType();
+    if (!IsSupportedWireType(wireType)) {
+        THROW_ERROR_EXCEPTION("Wire type %Qlv is not supported by the Python Skiff bindings",
+            wireType);
+    }
+    return wireType;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSkiffSchema::TSkiffSchema(
     const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
     const std::string& rangeIndexColumnName,
@@ -70,12 +99,12 @@ TFieldDescription TSkiffSchema::GetSparseField(ui16 index)
     return TableDescription_.SparseFieldDescriptionList[index];
 }
 
-ui16 TSkiffSchema::GetFieldIndex(const TString& name)
+ui16 TSkiffSchema::GetFieldIndex(const std::string& name)
 {
     return FieldIndices_[name];
 }
 
-bool TSkiffSchema::HasField(const TString& name)
+bool TSkiffSchema::HasField(const std::string& name)
 {
     return FieldIndices_.find(name) != FieldIndices_.end();
 }
@@ -123,11 +152,11 @@ TSkiffSchemaPython::TSkiffSchemaPython(Py::PythonClassInstance* self, Py::Tuple&
             throw Py::ValueError("\"table_skiff_schema\" list should contain exactly one element");
         }
 
-        TString rangeIndexColumnName = "@range_index";
+        std::string rangeIndexColumnName = "@range_index";
         if (HasArgument(args, kwargs, "range_index_column_name")) {
             rangeIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "range_index_column_name"));
         }
-        TString rowIndexColumnName = "@row_index";
+        std::string rowIndexColumnName = "@row_index";
         if (HasArgument(args, kwargs, "row_index_column_name")) {
             rowIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "row_index_column_name"));
         }

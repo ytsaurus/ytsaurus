@@ -1,5 +1,6 @@
 #include "tablet_proxy_base.h"
 
+#include "tablet.h"
 #include "tablet_base.h"
 #include "tablet_cell.h"
 #include "tablet_action.h"
@@ -247,6 +248,7 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                     .Item("cell_id").Value(GetObjectId(servant.GetCell()))
                     .Item("state").Value(servant.GetState())
                     .Item("mount_revision").Value(servant.GetMountRevision())
+                    .Item("logical_mount_revision").Value(servant.GetLogicalMountRevision())
                     .Item("mount_time").Value(servant.GetMountTime())
                     .DoIf(servant.GetMovementRole() != NTabletNode::ESmoothMovementRole::None, [&] (TFluentMap fluent) {
                         fluent

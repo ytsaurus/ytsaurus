@@ -7,7 +7,6 @@
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/cell_master/gossip_value.h>
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -20,14 +19,15 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
+#include <library/cpp/yt/misc/property.h>
+
+#include <deque>
 #include <optional>
 
 namespace NYT::NCellServer {
@@ -51,6 +51,16 @@ void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCellHealthHistoryItem
+{
+    TInstant Time;
+    ECellHealth Health;
+};
+
+void Serialize(const TCellHealthHistoryItem& item, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellBase
     : public NObjectServer::TObject
     , public TRefTracked<TCellBase>
@@ -67,6 +77,9 @@ public:
         EPeerState LastSeenState = EPeerState::None;
         TError LastRevocationReason;
         NTransactionServer::TTransactionRawPtr PrerequisiteTransaction;
+
+        // Diagnostics only, not persisted.
+        TError LastHydraRestartReason;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
@@ -90,6 +103,9 @@ public:
     //! Last cell status reported during gossip.
     // NB: This field is intentionally transient.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TCellStatus>, LastGossipStatus);
+
+    //! History of cluster health changes. Diagnostics only, not persisted.
+    DEFINE_BYREF_RO_PROPERTY(std::deque<TCellHealthHistoryItem>, HealthHistory);
 
     //! Overrides `peer_count` in cell bundle.
     DEFINE_BYREF_RW_PROPERTY(std::optional<int>, PeerCount);
@@ -132,14 +148,14 @@ public:
 
     void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, int peerId);
     void RevokePeer(int peerId, const TError& reason);
-    void ExpirePeerRevocationReasons(TInstant deadline);
+    void ExpireDiagnosticErrors(TInstant deadline);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, int peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(int peerId, TInstant when);
     void UpdatePeerState(int peerId, EPeerState peerState);
 
-    NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(int peerId) const;
+    NNodeTrackerServer::TCellSlot* FindCellSlot(int peerId) const;
 
     NHydra::EPeerState GetPeerState(int peerId) const;
 
@@ -157,6 +173,12 @@ public:
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatus();
+
+    void UpdateHealthHistory(
+        ECellHealth oldHealth,
+        ECellHealth newHealth,
+        int healthHistoryMaxSize,
+        TDuration healthHistoryExpirationTime);
 
     //! Helper to calculate aggregated health.
     static ECellHealth CombineHealths(ECellHealth lhs, ECellHealth rhs);

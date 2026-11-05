@@ -102,6 +102,7 @@ struct TReqExecuteBatchRetriesOptions
     TDuration StartBackoff;
     TDuration MaxBackoff;
     double BackoffMultiplier;
+    double BackoffJitter;
     int RetryCount;
 };
 
@@ -122,8 +123,8 @@ struct TAbcConfig
     : public virtual NYTree::TYsonStruct
 {
     int Id;
-    std::optional<TString> Name;
-    TString Slug;
+    std::optional<std::string> Name;
+    std::string Slug;
 
     REGISTER_YSON_STRUCT(TAbcConfig);
 

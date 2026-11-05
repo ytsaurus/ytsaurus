@@ -1,5 +1,9 @@
-#include <yt/yt/server/lib/nbd/chunk_handler.h>
-#include <yt/yt/server/lib/nbd/config.h>
+
+#include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
+
+#include <yt/yt/library/nbd/chunk/config.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -21,9 +25,10 @@ namespace NYT::NNbd {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NNbd::NChunk;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +40,7 @@ struct TConfig
     i64 Size;
     int MediumIndex;
     EFilesystemType FsType;
-    TString Address;
+    std::string Address;
     TDuration DataNodeNbdServiceRpcTimeout;
     TDuration DataNodeNbdServiceMakeTimeout;
     i64 NumIters;
@@ -79,9 +84,10 @@ protected:
     {
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
-        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
+        // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
 
-        auto client = NYT::NBus::CreateBusClient(NYT::NBus::TBusClientConfig::CreateTcp(config->Address));
+        auto client = NYT::NBus::NTcp::CreateBusClient(NYT::NBus::NTcp::TBusClientConfig::CreateTcp(config->Address));
         auto channel = NRpc::NBus::CreateBusChannel(client);
         auto queue = New<TActionQueue>("RPC");
 
@@ -92,7 +98,7 @@ protected:
         deviceConfig->DataNodeNbdServiceRpcTimeout = config->DataNodeNbdServiceRpcTimeout;
         deviceConfig->DataNodeNbdServiceMakeTimeout = config->DataNodeNbdServiceMakeTimeout;
 
-        auto handler = NYT::NNbd::CreateChunkHandler(
+        auto handler = NYT::NNbd::NChunk::CreateChunkHandler(
             /*blockDevice*/ nullptr,
             std::move(deviceConfig),
             queue->GetInvoker(),
@@ -122,7 +128,7 @@ protected:
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

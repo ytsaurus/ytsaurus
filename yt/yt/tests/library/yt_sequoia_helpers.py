@@ -1,6 +1,6 @@
 from yt_commands import (
-    get_driver, get,
-    lookup_rows, select_rows, delete_rows, insert_rows)
+    create, exists, get_driver, get, map as run_map_operation,
+    lookup_rows, ls, remove, select_rows, delete_rows, insert_rows, write_file, write_table)
 
 from yt.yson import YsonMap
 from yt.yson.yson_token import TOKEN_SLASH, TOKEN_LITERAL, TOKEN_END_OF_STREAM
@@ -22,6 +22,12 @@ from typing_extensions import override
 SEQUOIA_MAP_NODE_OBJECT_ID = 1504
 ROOTSTOCK_OBJECT_ID = 12000
 SCION_OBJECT_ID = 12000
+
+CELL_BUNDLE_CONFIG = {
+    "options": {"changelog_account": "sequoia", "snapshot_account": "sequoia"},
+    "acl": [{"action": "allow", "permissions": ["use"], "subjects": ["users"]}],
+    "resource_limits": {"tablet_count": 10**5, "tablet_static_memory": 2**40},
+}
 
 
 def get_ground_driver(cluster="primary"):
@@ -63,19 +69,55 @@ def select_rows_from_ground(query, **kwargs):
 
 def delete_rows_from_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
-    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+    return delete_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
 def insert_rows_to_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
-    insert_rows(descriptor.get_default_path(), rows, **kwargs)
+    return insert_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
 def clear_table_in_ground(descriptor: yt_sequoia.TableDescriptor, **kwargs):
     _use_ground_driver(kwargs)
     keys = [c["name"] for c in descriptor.schema if "sort_order" in c and "expression" not in c]
     rows = select_rows_from_ground(", ".join(keys) + f" from [{descriptor.get_default_path()}]")
-    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+    return delete_rows(descriptor.get_default_path(), rows, **kwargs)
+
+
+def exists_in_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return exists(path, **kwargs)
+
+
+def create_in_ground(object_type, path, **kwargs):
+    _use_ground_driver(kwargs)
+    return create(object_type, path, **kwargs)
+
+
+def remove_from_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return remove(path, **kwargs)
+
+
+def write_table_to_ground(path, value=None, is_raw=False, **kwargs):
+    _use_ground_driver(kwargs)
+    return write_table(path, value=value, is_raw=is_raw, **kwargs)
+
+
+def write_file_to_ground(path, stream, **kwargs):
+    _use_ground_driver(kwargs)
+    kwargs["input_stream"] = stream
+    return write_file(path, None, **kwargs)
+
+
+def ls_in_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return ls(path, **kwargs)
+
+
+def map_in_ground(**kwargs):
+    _use_ground_driver(kwargs)
+    return run_map_operation(**kwargs)
 
 
 ################################################################################
@@ -282,12 +324,6 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
         })
 
     class ConfigProviderImpl(yt_sequoia.ConfigProvider):
-        CELL_BUNDLE_CONFIG = {
-            "options": {"changelog_account": "sequoia", "snapshot_account": "sequoia"},
-            "acl": [{"action": "allow", "permissions": ["use"], "subjects": ["users"]}],
-            "resource_limits": {"tablet_count": 10**5, "tablet_static_memory": 2**40},
-        }
-
         @override
         def get_ground_config(self) -> yt_sequoia.GroundClusterConfig:
             return yt_sequoia.GroundClusterConfig(
@@ -298,35 +334,27 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
 
         @override
         def get_component_config(self, scope: yt_sequoia.Scope) -> yt_sequoia.SequoiaComponentConfig:
-            # Helper to convert dicts to `TableGroupDescriptor` instances.
-            def create_table_group(name, attrs):
-                return yt_sequoia.TableGroupDescriptor(name=name, attributes=attrs)
-
             if scope == yt_sequoia.Scope.REPLICAS:
-                table_groups = [
-                    create_table_group("chunk_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("location_replicas_table", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("refresh_chunk_tables", {"in_memory_mode": "uncompressed", "tablet_count": 60}),
-                    create_table_group("unapproved_replicas_table", {
-                        "in_memory_mode": "uncompressed",
+                default_attrs = {"in_memory_mode": "uncompressed", "tablet_count": 2}
+                patches = {
+                    "chunk_refresh_queue": {"tablet_count": 60},
+                    "unapproved_chunk_replicas": {
                         "mount_config": {"max_data_ttl": 5000, "min_data_ttl": 0, "max_data_versions": 1, "min_data_versions": 0},
-                    }),
-                ]
+                    },
+                }
             else:
-                table_groups = [
-                    create_table_group("resolve_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("transaction_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("response_keeper_table", {
-                        "in_memory_mode": "uncompressed",
-                        "mount_config": {"max_data_ttl": 1000, "min_data_ttl": 1000, "max_data_versions": 1, "min_data_versions": 0}
-                    }),
-                ]
+                default_attrs = {"in_memory_mode": "uncompressed"}
+                patches = {
+                    "response_keeper": {
+                        "mount_config": {"max_data_ttl": 1000, "min_data_ttl": 1000, "max_data_versions": 1, "min_data_versions": 0},
+                    },
+                }
 
             return yt_sequoia.SequoiaComponentConfig(
                 tablet_cell_bundle="sequoia-chunks" if scope == yt_sequoia.Scope.REPLICAS else "sequoia-cypress",
-                tablet_cell_bundle_config=self.CELL_BUNDLE_CONFIG,
-                tablet_cell_count=1,
-                table_groups=table_groups)
+                tablet_cell_bundle_config=CELL_BUNDLE_CONFIG,
+                default_table_attributes=default_attrs,
+                table_attribute_patches=patches)
 
     class AutoInteraction(yt_sequoia.UserInteraction):
         @override

@@ -1,6 +1,7 @@
 RECURSE(
     coordinator
     file
+    fmr_download
     fmr_tool_lib
     gc_service
     job
@@ -13,8 +14,10 @@ RECURSE(
     table_data_service
     tests
     test_tools
+    test_utils
     tvm
     utils
+    vanilla
     worker
     yt_job_service
 )

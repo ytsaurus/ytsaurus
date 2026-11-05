@@ -33,7 +33,7 @@ public:
     bool IsViolatedBy(const TClusterResourceLimits& rhs) const noexcept;
     TViolatedClusterResourceLimits GetViolatedBy(const TClusterResourceLimits& usage) const;
 
-    using TDiskSpaceLimits = TDefaultMap<NChunkClient::TMediumMap<TLimit64>>;
+    using TDiskSpaceLimits = TDefaultMap<NChunkClient::TCompactMediumMap<TLimit64>>;
     const TDiskSpaceLimits& DiskSpace() const;
 
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, TLimit64, NodeCount);
@@ -101,14 +101,14 @@ public:
     const TViolatedMasterMemoryLimits& MasterMemory() const;
     void SetMasterMemory(TViolatedMasterMemoryLimits masterMemoryLimits) &;
 
-    NChunkClient::TMediumMap<i64>& DiskSpace();
-    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
+    NChunkClient::TCompactMediumMap<i64>& DiskSpace();
+    const NChunkClient::TCompactMediumMap<i64>& DiskSpace() const;
 
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
     void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
 
 private:
-    NChunkClient::TMediumMap<i64> DiskSpace_;
+    NChunkClient::TCompactMediumMap<i64> DiskSpace_;
     TViolatedMasterMemoryLimits MasterMemory_;
 };
 

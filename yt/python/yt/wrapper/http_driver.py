@@ -41,6 +41,8 @@ class HeavyProxyProviderState(object):
     def __init__(self):
         self.banned_proxies = {}
         self.last_provided_proxy = None
+        self._requested_proxy_role = None
+        self._is_light_proxy_used = False
 
 
 class HeavyProxyProvider(ProxyProvider):
@@ -71,12 +73,25 @@ class HeavyProxyProvider(ProxyProvider):
         if get_config(self.client)["proxy"]["enable_proxy_discovery"]:
             limit = get_config(self.client)["proxy"]["number_of_top_proxies_for_random_choice"]
             unbanned_proxies = []
+            proxy_role = get_config(self.client)["proxy"]["http_proxy_role"]
+            self.state._requested_proxy_role = proxy_role
+
             heavy_proxies = self._discover_heavy_proxies()
             if not heavy_proxies:
                 if get_config(self.client)["proxy"]["allow_light_proxy_for_heavy_requests"]:
+                    if proxy_role is not None and not self.state._is_light_proxy_used:
+                        logger.debug(
+                            f"No proxies found for role \"{proxy_role}\" on cluster, "
+                            f"falling back to light proxy")
+                    self.state._is_light_proxy_used = True
                     return self._get_light_proxy()
                 else:
+                    if proxy_role is not None:
+                        raise YtError(f"No proxies found for role \"{proxy_role}\" on cluster "
+                                      f"and using light proxy is forbidden")
                     raise YtError("There are no heavy proxies and using light proxy is forbidden")
+
+            self.state._is_light_proxy_used = False
 
             for proxy in heavy_proxies:
                 if proxy not in self.state.banned_proxies:
@@ -99,6 +114,10 @@ class HeavyProxyProvider(ProxyProvider):
         return self._get_light_proxy()
 
     def on_error_occurred(self, error):
+        if isinstance(error, YtProxyUnavailable) and self.state._is_light_proxy_used and self.state._requested_proxy_role is not None:
+            error.message += (
+                f". Note: proxy role \"{self.state._requested_proxy_role}\" was requested but not found on cluster, "
+                f"request was served by light proxy")
         if isinstance(error, self.ban_errors) and self.state.last_provided_proxy is not None:
             proxy = self.state.last_provided_proxy
             logger.info("Proxy %s considered unavailable and temporarily banned", proxy)

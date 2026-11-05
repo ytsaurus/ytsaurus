@@ -28,6 +28,9 @@ struct TPeerConnectionConfig
     //! are overridden with master cache addresses.
     bool IgnorePeerState;
 
+    //! If true, follower read requests may also be routed to the leader.
+    bool AlwaysReadFromLeader;
+
     REGISTER_YSON_STRUCT(TPeerConnectionConfig);
 
     static void Register(TRegistrar registrar);

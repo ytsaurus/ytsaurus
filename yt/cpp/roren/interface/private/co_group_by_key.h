@@ -1,7 +1,8 @@
 #pragma once
 
 #include "fwd.h"
-#include "../fwd.h"
+
+#include <yt/cpp/roren/interface/fwd.h>
 
 #include <vector>
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,36 @@ type Config struct {
 	//
 	// Only relevant for RPC client.
 	RPCProxy string
+
+	// ClockClusterTag configures the clock cluster used to generate timestamps.
+	//
+	// A zero value uses the cluster's default clock.
+	//
+	// Only relevant for RPC client.
+	ClockClusterTag CellTag
+
+	// RPCProxyPriorityStrategy configures how RPC proxies are prioritized.
+	//
+	// Only relevant for RPC client. By default, all proxies have the same priority.
+	RPCProxyPriorityStrategy RPCProxyPriorityStrategy
+
+	// RPCProxyMinPeerCountForPriorityAwareness, if positive, is the number of active local RPC proxies
+	// required for a single-proxy selection to use only local proxies. Without the power-of-two strategy,
+	// if this condition is not satisfied, a local proxy is chosen with probability L/N, where L is the
+	// number of active local proxies and N is this value capped by the number of active proxies.
+	// The power-of-two strategy raises the minimum to two for candidate selection; the final choice
+	// depends on load.
+	//
+	// Only relevant for RPC client with RPCProxyPriorityStrategyPreferLocal.
+	RPCProxyMinPeerCountForPriorityAwareness int
+
+	// EnableRPCProxyPowerOfTwoChoicesStrategy makes the client pick two distinct random active
+	// RPC proxies and send the request to the one with fewer requests from this client in flight.
+	// With RPCProxyPriorityStrategyPreferLocal, a proxy from another data center may be picked
+	// unless at least max(2, RPCProxyMinPeerCountForPriorityAwareness) local proxies are active.
+	//
+	// Only relevant for RPC client. By default, the strategy is disabled.
+	EnableRPCProxyPowerOfTwoChoicesStrategy bool
 
 	// ProxyRole configures desired proxy role used by the client.
 	//
@@ -186,6 +217,17 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
+
+	// IPVersion restricts the address family used for outbound connections.
+	//
+	// Applies to:
+	//   - bus TCP dials (RPC client only)
+	//   - HTTP dials (proxy discovery for RPC, all requests for HTTP client) —
+	//     only when HTTPClient is unset; a user-provided HTTPClient is responsible
+	//     for configuring its own transport.
+	//
+	// YT_FORCE_IPV4 and YT_FORCE_IPV6 environment variables can be used, but non Any config value takes priority.
+	IPVersion IPVersion
 
 	// HTTPClient allows to override default http.Client.
 	//
@@ -398,6 +440,31 @@ func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 	return c.CompressionCodec
 }
 
+func parseEnvBool(name string) bool {
+	v := os.Getenv(name)
+	if v == "" {
+		return false
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false
+	}
+	return b
+}
+
+func (c *Config) GetIPVersion() IPVersion {
+	if c.IPVersion != IPVersionAny {
+		return c.IPVersion
+	}
+	if parseEnvBool("YT_FORCE_IPV4") {
+		return IPVersionV4
+	}
+	if parseEnvBool("YT_FORCE_IPV6") {
+		return IPVersionV6
+	}
+	return c.IPVersion
+}
+
 const (
 	TVMOnlyHTTPProxyPort  = 9026
 	TVMOnlyHTTPSProxyPort = 9443
@@ -460,6 +527,34 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		return "", false
 	}
 }
+
+// IPVersion restricts address family used for outbound connections.
+type IPVersion int
+
+const (
+	IPVersionAny IPVersion = iota
+	IPVersionV4
+	IPVersionV6
+)
+
+func (v IPVersion) Network() string {
+	switch v {
+	case IPVersionV4:
+		return "tcp4"
+	case IPVersionV6:
+		return "tcp6"
+	default:
+		return "tcp"
+	}
+}
+
+// RPCProxyPriorityStrategy configures RPC proxy selection priority.
+type RPCProxyPriorityStrategy int
+
+const (
+	RPCProxyPriorityStrategyNone RPCProxyPriorityStrategy = iota
+	RPCProxyPriorityStrategyPreferLocal
+)
 
 type TVMFn func(ctx context.Context) (string, error)
 

@@ -1,0 +1,9 @@
+package NYT.NFlow.NTest;
+
+message TTestRecordProto {
+    optional int64 value = 1;
+};
+
+message TTestRequiredRecordProto {
+    required int64 value = 1;
+};

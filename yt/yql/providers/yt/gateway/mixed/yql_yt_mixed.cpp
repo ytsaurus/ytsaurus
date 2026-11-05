@@ -244,6 +244,10 @@ public:
         return FileGateway_->Commit(std::move(options));
     }
 
+    TFuture<TUnlockTablesResult> UnlockTables(TUnlockTablesOptions&& options) final {
+        return NativeGateway_->UnlockTables(std::move(options));
+    }
+
     TFuture<TDropTrackablesResult> DropTrackables(TDropTrackablesOptions&& options) final {
         return FileGateway_->DropTrackables(std::move(options));
     }
@@ -266,6 +270,10 @@ public:
 
     TString GetClusterServer(const TString& cluster) const final {
         return NativeGateway_->GetClusterServer(cluster);
+    }
+
+    TString GetClusterYtName(const TString& cluster) const final {
+        return NativeGateway_->GetClusterYtName(cluster);
     }
 
     NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder, bool temp, bool anonymous) const final {
@@ -326,6 +334,10 @@ public:
 
     NThreading::TFuture<TDownloadTableResult> DownloadTable(TDownloadTableOptions&& options) override {
         return NativeGateway_->DownloadTable(std::move(options));
+    }
+
+    NThreading::TFuture<TUploadFilesToCacheResult> UploadFilesToCache(TUploadFilesToCacheOptions&& options) override {
+        return NativeGateway_->UploadFilesToCache(std::move(options));
     }
 
     IYtTokenResolver::TPtr GetYtTokenResolver() const override {

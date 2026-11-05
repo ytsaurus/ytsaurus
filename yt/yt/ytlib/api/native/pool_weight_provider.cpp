@@ -28,7 +28,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             invoker,
-            std::move(logger).WithTag("Cache: PoolWeight"))
+            std::move(logger).WithTag("Cache", "PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }
@@ -39,7 +39,7 @@ public:
             auto guard = ReaderGuard(SpinLock_);
 
             if (auto it = WeightOverrides_.find(poolName); it != WeightOverrides_.end()) {
-                return it->second;
+                return GetSanitizedWeight(it->second, poolName, Logger_);
             }
         }
 
@@ -108,20 +108,34 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
-                poolName);
+            YT_TLOG_WARNING("Failed to get pool info from Cypress, assuming defaults")
+                .With("Pool", poolName)
+                .With(rspOrError);
             return DefaultPoolWeight;
         }
 
         try {
-            auto weight = ConvertTo<double>(rspOrError.Value());
-            THROW_ERROR_EXCEPTION_IF(!std::isfinite(weight) || weight <= 0,
-                "Weight must be a finite positive number");
-            return weight;
+            return GetSanitizedWeight(ConvertTo<double>(rspOrError.Value()), poolName, Logger);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
-                poolName);
+            YT_TLOG_WARNING("Error parsing pool weight retrieved from Cypress, assuming default")
+                .With("Pool", poolName)
+                .With(ex);
             return DefaultPoolWeight;
+        }
+    }
+
+    static double GetSanitizedWeight(
+        double weight,
+        const std::string& poolName,
+        const TLogger& Logger)
+    {
+        if (!std::isfinite(weight) || weight <= 0) {
+            YT_TLOG_WARNING("Expected a finite positive value as weight, falling back to default")
+                .With("Weight", weight)
+                .With("Pool", poolName);
+            return DefaultPoolWeight;
+        } else {
+            return weight;
         }
     }
 };

@@ -16,6 +16,7 @@ import tech.ytsaurus.rpcproxy.TReqAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqAlterQuery;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
+import tech.ytsaurus.rpcproxy.TReqAttachTransaction;
 import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TReqCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TReqCheckPermission;
@@ -90,6 +91,7 @@ import tech.ytsaurus.rpcproxy.TReqSuspendOperation;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
 import tech.ytsaurus.rpcproxy.TReqUnfreezeTable;
 import tech.ytsaurus.rpcproxy.TReqUnmountTable;
+import tech.ytsaurus.rpcproxy.TReqUnregisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
@@ -104,6 +106,7 @@ import tech.ytsaurus.rpcproxy.TRspAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspAlterQuery;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
 import tech.ytsaurus.rpcproxy.TRspAlterTableReplica;
+import tech.ytsaurus.rpcproxy.TRspAttachTransaction;
 import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TRspCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TRspCheckPermission;
@@ -178,6 +181,7 @@ import tech.ytsaurus.rpcproxy.TRspSuspendOperation;
 import tech.ytsaurus.rpcproxy.TRspTrimTable;
 import tech.ytsaurus.rpcproxy.TRspUnfreezeTable;
 import tech.ytsaurus.rpcproxy.TRspUnmountTable;
+import tech.ytsaurus.rpcproxy.TRspUnregisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
@@ -189,6 +193,9 @@ import tech.ytsaurus.rpcproxy.TRspWriteTableFragment;
 public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqStartTransaction.Builder, TRspStartTransaction> START_TRANSACTION =
             apiServiceMethod("StartTransaction", TReqStartTransaction::newBuilder, TRspStartTransaction.parser());
+
+    public static final RpcMethodDescriptor<TReqAttachTransaction.Builder, TRspAttachTransaction> ATTACH_TRANSACTION =
+            apiServiceMethod("AttachTransaction", TReqAttachTransaction::newBuilder, TRspAttachTransaction.parser());
 
     public static final RpcMethodDescriptor<TReqPingTransaction.Builder, TRspPingTransaction> PING_TRANSACTION =
             apiServiceMethod("PingTransaction", TReqPingTransaction::newBuilder, TRspPingTransaction.parser());
@@ -363,6 +370,12 @@ public class ApiServiceMethodTable {
             REGISTER_QUEUE_CONSUMER = apiServiceMethod(
             "RegisterQueueConsumer",
             TReqRegisterQueueConsumer::newBuilder, TRspRegisterQueueConsumer.parser()
+    );
+
+    public static final RpcMethodDescriptor<TReqUnregisterQueueConsumer.Builder, TRspUnregisterQueueConsumer>
+            UNREGISTER_QUEUE_CONSUMER = apiServiceMethod(
+            "UnregisterQueueConsumer",
+            TReqUnregisterQueueConsumer::newBuilder, TRspUnregisterQueueConsumer.parser()
     );
 
     public static final RpcMethodDescriptor<

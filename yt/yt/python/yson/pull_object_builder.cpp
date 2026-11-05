@@ -20,7 +20,7 @@ static constexpr const char* attributesStr = "attributes";
 TPullObjectBuilder::TPullObjectBuilder(
     TYsonPullParser* parser,
     bool alwaysCreateAttributes,
-    const std::optional<TString>& encoding)
+    const std::optional<std::string>& encoding)
     : Cursor_(parser)
     , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)

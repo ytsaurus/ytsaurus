@@ -21,6 +21,7 @@ const (
 	CapSourceLocalExcludePatterns apicaps.CapID = "source.local.excludepatterns"
 	CapSourceLocalSharedKeyHint   apicaps.CapID = "source.local.sharedkeyhint"
 	CapSourceLocalDiffer          apicaps.CapID = "source.local.differ"
+	CapSourceMetadataTransfer     apicaps.CapID = "source.local.metadatatransfer"
 
 	CapSourceGit              apicaps.CapID = "source.git"
 	CapSourceGitKeepDir       apicaps.CapID = "source.git.keepgitdir"
@@ -29,11 +30,15 @@ const (
 	CapSourceGitKnownSSHHosts apicaps.CapID = "source.git.knownsshhosts"
 	CapSourceGitMountSSHSock  apicaps.CapID = "source.git.mountsshsock"
 	CapSourceGitSubdir        apicaps.CapID = "source.git.subdir"
+	CapSourceGitChecksum      apicaps.CapID = "source.git.checksum"
 
 	CapSourceHTTP         apicaps.CapID = "source.http"
+	CapSourceHTTPAuth     apicaps.CapID = "source.http.auth"
 	CapSourceHTTPChecksum apicaps.CapID = "source.http.checksum"
 	CapSourceHTTPPerm     apicaps.CapID = "source.http.perm"
-	CapSourceHTTPUIDGID   apicaps.CapID = "soruce.http.uidgid"
+	// NOTE the historical typo
+	CapSourceHTTPUIDGID apicaps.CapID = "soruce.http.uidgid"
+	CapSourceHTTPHeader apicaps.CapID = "source.http.header"
 
 	CapSourceOCILayout apicaps.CapID = "source.ocilayout"
 
@@ -47,6 +52,7 @@ const (
 	CapExecMetaSecurityDeviceWhitelistV1 apicaps.CapID = "exec.meta.security.devices.v1"
 	CapExecMetaSetsDefaultPath           apicaps.CapID = "exec.meta.setsdefaultpath"
 	CapExecMetaUlimit                    apicaps.CapID = "exec.meta.ulimit"
+	CapExecMetaCDI                       apicaps.CapID = "exec.meta.cdi"
 	CapExecMetaRemoveMountStubsRecursive apicaps.CapID = "exec.meta.removemountstubs.recursive"
 	CapExecMountBind                     apicaps.CapID = "exec.mount.bind"
 	CapExecMountBindReadWriteNoOutput    apicaps.CapID = "exec.mount.bind.readwrite-nooutput"
@@ -57,13 +63,18 @@ const (
 	CapExecMountTmpfsSize                apicaps.CapID = "exec.mount.tmpfs.size"
 	CapExecMountSecret                   apicaps.CapID = "exec.mount.secret"
 	CapExecMountSSH                      apicaps.CapID = "exec.mount.ssh"
+	CapExecMountContentCache             apicaps.CapID = "exec.mount.cache.content"
 	CapExecCgroupsMounted                apicaps.CapID = "exec.cgroup"
 	CapExecSecretEnv                     apicaps.CapID = "exec.secretenv"
+	CapExecValidExitCode                 apicaps.CapID = "exec.validexitcode"
 
-	CapFileBase                       apicaps.CapID = "file.base"
-	CapFileRmWildcard                 apicaps.CapID = "file.rm.wildcard"
-	CapFileCopyIncludeExcludePatterns apicaps.CapID = "file.copy.includeexcludepatterns"
-	CapFileRmNoFollowSymlink          apicaps.CapID = "file.rm.nofollowsymlink"
+	CapFileBase                               apicaps.CapID = "file.base"
+	CapFileRmWildcard                         apicaps.CapID = "file.rm.wildcard"
+	CapFileCopyIncludeExcludePatterns         apicaps.CapID = "file.copy.includeexcludepatterns"
+	CapFileRmNoFollowSymlink                  apicaps.CapID = "file.rm.nofollowsymlink"
+	CapFileCopyAlwaysReplaceExistingDestPaths apicaps.CapID = "file.copy.alwaysreplaceexistingdestpaths"
+	CapFileCopyModeStringFormat               apicaps.CapID = "file.copy.modestring"
+	CapFileSymlinkCreate                      apicaps.CapID = "file.symlink.create"
 
 	CapConstraints apicaps.CapID = "constraints"
 	CapPlatform    apicaps.CapID = "platform"
@@ -85,7 +96,16 @@ const (
 	// CapSourceDateEpoch is the capability to automatically handle the date epoch
 	CapSourceDateEpoch apicaps.CapID = "exporter.sourcedateepoch"
 
+	CapMultipleExporters apicaps.CapID = "exporter.multiple"
+	CapSessionExporter   apicaps.CapID = "exporter.session"
+
 	CapSourcePolicy apicaps.CapID = "source.policy"
+
+	// GC/Prune controls allow MinFreeSpace and MaxUsedSpace to be set
+	CapGCFreeSpaceFilter apicaps.CapID = "gc.freespacefilter"
+
+	// ListenBuildHistory requests support server-side filters
+	CapHistoryFilters apicaps.CapID = "history.filter"
 )
 
 func init() {
@@ -156,6 +176,12 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
+		ID:      CapSourceMetadataTransfer,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
 		ID:      CapSourceGit,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
@@ -198,6 +224,12 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
+		ID:      CapSourceGitChecksum,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
 		ID:      CapSourceHTTP,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
@@ -216,13 +248,25 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
-		ID:      CapSourceOCILayout,
+		ID:      CapSourceHTTPAuth,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
 	})
 
 	Caps.Init(apicaps.Cap{
 		ID:      CapSourceHTTPUIDGID,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapSourceHTTPHeader,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapSourceOCILayout,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
 	})
@@ -282,6 +326,12 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
+		ID:      CapExecMetaCDI,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
 		ID:      CapExecMountBind,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
@@ -336,6 +386,12 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
+		ID:      CapExecMountContentCache,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
 		ID:      CapExecCgroupsMounted,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
@@ -343,6 +399,12 @@ func init() {
 
 	Caps.Init(apicaps.Cap{
 		ID:      CapExecSecretEnv,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapExecValidExitCode,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
 	})
@@ -371,6 +433,18 @@ func init() {
 
 	Caps.Init(apicaps.Cap{
 		ID:      CapFileCopyIncludeExcludePatterns,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapFileCopyAlwaysReplaceExistingDestPaths,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapFileSymlinkCreate,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
 	})
@@ -455,7 +529,31 @@ func init() {
 	})
 
 	Caps.Init(apicaps.Cap{
+		ID:      CapMultipleExporters,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapSessionExporter,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
 		ID:      CapSourcePolicy,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapGCFreeSpaceFilter,
+		Enabled: true,
+		Status:  apicaps.CapStatusExperimental,
+	})
+
+	Caps.Init(apicaps.Cap{
+		ID:      CapHistoryFilters,
 		Enabled: true,
 		Status:  apicaps.CapStatusExperimental,
 	})

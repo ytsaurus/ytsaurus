@@ -3,6 +3,8 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_base.h"
 
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -111,6 +113,17 @@ const TTabletOwnerBase* TTabletOwnerBase::GetTrunkNode() const
     return TChunkOwnerBase::GetTrunkNode()->As<TTabletOwnerBase>();
 }
 
+TTabletCellBundleRawPtr TTabletOwnerBase::GetTabletCellBundle() const
+{
+    return GetTrunkNode()->TabletCellBundle_.Get();
+}
+
+void TTabletOwnerBase::SetTabletCellBundle(TTabletCellBundle* cellBundle)
+{
+    YT_VERIFY(IsTrunk());
+    TabletCellBundle_.Assign(cellBundle);
+}
+
 TDetailedMasterMemory TTabletOwnerBase::GetDetailedMasterMemoryUsage() const
 {
     auto result = TChunkOwnerBase::GetDetailedMasterMemoryUsage();
@@ -209,7 +222,7 @@ void TTabletOwnerBase::ValidateNoCurrentMountTransaction(TStringBuf message) con
     const auto* trunkNode = GetTrunkNode();
     if (auto transactionId = trunkNode->GetCurrentMountTransactionId()) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since node is locked by mount-unmount operation", message)
-            << TErrorAttribute("current_mount_transaction_id", transactionId);
+            .With("current_mount_transaction_id", transactionId);
     }
 }
 
@@ -220,8 +233,8 @@ void TTabletOwnerBase::ValidateTabletStateFixed(TStringBuf message) const
     const auto* trunkNode = GetTrunkNode();
     if (auto transactionId = trunkNode->GetLastMountTransactionId()) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since some tablets are in transient state", message)
-            << TErrorAttribute("last_mount_transaction_id", transactionId)
-            << TErrorAttribute("expected_tablet_state", trunkNode->GetExpectedTabletState());
+            .With("last_mount_transaction_id", transactionId)
+            .With("expected_tablet_state", trunkNode->GetExpectedTabletState());
     }
 }
 
@@ -235,8 +248,8 @@ void TTabletOwnerBase::ValidateExpectedTabletState(TStringBuf message, bool allo
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since not all tablets are %v",
             message,
             allowFrozen ? "frozen or unmounted" : "unmounted")
-            << TErrorAttribute("actual_tablet_state", trunkNode->GetActualTabletState())
-            << TErrorAttribute("expected_tablet_state", trunkNode->GetExpectedTabletState());
+            .With("actual_tablet_state", trunkNode->GetActualTabletState())
+            .With("expected_tablet_state", trunkNode->GetExpectedTabletState());
     }
 }
 
@@ -271,7 +284,8 @@ void TTabletOwnerBase::ValidateReshard(
     int /*lastTabletIndex*/,
     int /*newTabletCount*/,
     const std::vector<NTableClient::TLegacyOwningKey>& /*pivotKeys*/,
-    const std::vector<i64>& /*trimmedRowCounts*/) const
+    const std::vector<i64>& /*trimmedRowCounts*/,
+    const std::vector<i64>& /*cumulativeDataWeights*/) const
 { }
 
 void TTabletOwnerBase::LockCurrentMountTransaction(TTransactionId transactionId)

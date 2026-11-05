@@ -6,4 +6,4 @@
 SELECT "Hello, World!"
 ```
 
-![](../../images/yql-how-to-try){ .center }
+![](../../_images/yql-how-to-try){ .center }

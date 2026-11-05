@@ -59,7 +59,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 
 - Запуск задач с высокой периодичностью (более 1 раза в час). Эффективность достигается за счет того, что время запуска задачи в standalone кластере существенно меньше, чем время запуска операции в {{product-name}}.
 - Ad-hoc аналитика в Jupyter-ноутбуках.
-- Ad-hoc аналитика с использованием Query tracker и livy.
+- Ad-hoc аналитика с использованием Query Tracker и [Livy](../../../../user-guide/data-processing/spyt/cluster/livy.md) в версиях SPYT ниже 2.10.0. Начиная с SPYT 2.10.0 и Query Tracker 0.4 используйте [SPYT Connect](../../../../user-guide/data-processing/spyt/connect.md).
 
 Для запуска внутреннего standalone Spark кластера необходимо выполнить следующие шаги:
 
@@ -81,7 +81,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     - `--proxy` — имя кластера;
     - `--pool` — вычислительный пул {{product-name}};
     - `--spyt-version` — директория для служебных данных Spark;
-    - `--worker-cores` — количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone);
+    - `--worker-cores` — количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone);
     - `--worker-num` — количество воркеров;
     - `--worker-memory` — количество памяти у каждого воркера;
     - `--spark-cluster-version` — [версия](../../../../user-guide/data-processing/spyt/version.md) кластера (опционально).
@@ -100,7 +100,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     - `spark-submit-yt` — обертка над [spark-submit](https://spark.apache.org/docs/latest/submitting-applications.html), позволяет определить адрес мастера Spark из Vanilla-операции. Поиск производится по аргументам: `proxy`, `id`, `discovery-path`;
     - `--proxy` — имя кластера;
     - `--discovery-path` — директория для служебных данных Spark;
-    - `--deploy-mode` (`cluster` или `client`) — [режим](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode--cluster-mode) запуска кластера;
+    - `--deploy-mode` (`cluster` или `client`) — [режим](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode) запуска кластера;
     - `--spyt-version` — версия SPYT (опционально);
     - адрес файла с кодом в {{product-name}}.
 

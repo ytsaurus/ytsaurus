@@ -18,7 +18,7 @@ void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics
         statistics.PreemptibleGpuTime);
 }
 
-TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)
+std::string FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)
 {
     return Format(
         "{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
@@ -37,6 +37,66 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
             .Item("total_gpu_time").Value(statistics.TotalGpuTime)
             .Item("preemptible_gpu_time").Value(statistics.PreemptibleGpuTime)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TScheduleAllocationsStatisticsImplPtr& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do(std::bind(BuildScheduleAllocationsStatisticsCommon, statistics, std::placeholders::_1))
+            .Item("schedule_job_attempt_count_per_stage").Value(statistics->ScheduleAllocationAttemptCountPerStage)
+            .Item("operation_count_by_preemption_priority").Value(statistics->OperationCountByPreemptionPriority)
+            .Item("resource_usage_discount").Value(statistics->ResourceUsageDiscount)
+            .Item("ssd_priority_preemption_enabled").Value(statistics->SsdPriorityPreemptionEnabled)
+            .Item("ssd_priority_preemption_media").Value(statistics->SsdPriorityPreemptionMedia)
+        .EndMap();
+}
+
+std::string TScheduleAllocationsStatisticsImpl::FormatScheduleAllocationAttemptsCompact() const
+{
+    return Format("{RH: %v, RM: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::RegularHighPriority],
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::RegularMediumPriority],
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveSsdAggressive],
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveSsdNormal],
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveAggressive],
+        ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveNormal],
+        ControllerScheduleAllocationCount,
+        ControllerScheduleAllocationTimedOutCount,
+        MaxNonPreemptiveSchedulingIndex);
+}
+
+std::string TScheduleAllocationsStatisticsImpl::FormatOperationCountByPreemptionPriorityCompact() const
+{
+    return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v, GFH: %v}",
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::None],
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::Normal],
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::Aggressive],
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdNormal],
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdAggressive],
+        OperationCountByPreemptionPriority[EOperationPreemptionPriority::DefaultGpuFullHost]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCommonSchedulingProfilingCounters::TCommonSchedulingProfilingCounters(const NProfiling::TProfiler& profiler)
+    : ControllerScheduleAllocationCount(profiler.Counter("/controller_schedule_job_count"))
+    , ControllerScheduleAllocationTimedOutCount(profiler.Counter("/controller_schedule_job_timed_out_count"))
+    , TotalControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/total"))
+    , ControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time"))
+    , ExecControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/exec"))
+    , CumulativeTotalControllerScheduleAllocationTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/total"))
+    , CumulativeExecControllerScheduleAllocationTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/exec"))
+    , ScheduleAllocationAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
+    , ScheduleAllocationFailureCount(profiler.Counter("/schedule_job_failure_count"))
+{
+    for (auto reason : TEnumTraits<NControllerAgent::EScheduleFailReason>::GetDomainValues()) {
+        ControllerScheduleAllocationFail[reason] = profiler
+            .WithTag("reason", FormatEnum(reason))
+            .Counter("/controller_schedule_job_fail");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateError(const Py::Callable& errorClass, const TString& message, const Py::Object& innerErrors)
+Py::Exception CreateError(const Py::Callable& errorClass, const std::string& message, const Py::Object& innerErrors)
 {
     Py::Dict options;
     options.setItem("message", Py::ConvertToPythonString(message));
@@ -25,7 +25,7 @@ Py::Exception CreateError(const Py::Callable& errorClass, const TString& message
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const TString& message, const Py::Object& innerErrors)
+Py::Exception CreateYtError(const std::string& message, const Py::Object& innerErrors)
 {
     auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
     auto ytErrorClass = Py::Callable(GetAttr(ytModule, "YtError"));
@@ -33,14 +33,14 @@ Py::Exception CreateYtError(const TString& message, const Py::Object& innerError
     return CreateError(ytErrorClass, message, innerErrors);
 }
 
-Py::Exception CreateYtError(const TString& message)
+Py::Exception CreateYtError(const std::string& message)
 {
     return CreateYtError(message, Py::None());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const TString& message, const Py::Object& innerErrors)
+Py::Exception CreateYsonError(const std::string& message, const Py::Object& innerErrors)
 {
     auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
@@ -48,7 +48,7 @@ Py::Exception CreateYsonError(const TString& message, const Py::Object& innerErr
     return CreateError(ysonErrorClass, message, innerErrors);
 }
 
-Py::Exception CreateYsonError(const TString& message)
+Py::Exception CreateYsonError(const std::string& message)
 {
     return CreateYsonError(message, Py::None());
 }

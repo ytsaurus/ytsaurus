@@ -68,7 +68,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , Config_(std::move(config))
     , SchedulerConfig_(std::move(schedulerConfig))
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", Id_)))
-    , Logger(SchedulerSimulatorLogger().WithTag("NodeShardId: %v", Id_))
+    , Logger(SchedulerSimulatorLogger().WithTag("NodeShardId", Id_))
     , MediumDirectory_(CreateDefaultMediumDirectory())
 {
     if (Config_->RemoteEventLog) {
@@ -99,18 +99,15 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
 
     const auto& node = IdToNode_[event.NodeId];
 
-    YT_LOG_DEBUG(
-        "Heartbeat started "
-        "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
-        "ResourceUsage: %v, DiskResources: %v, JobCount: %v)",
-        event.Time,
-        event.NodeId,
-        node->GetDefaultAddress(),
-        NScheduler::FormatResourceUsage(
+    YT_TLOG_DEBUG("Heartbeat started")
+        .With("VirtualTimestamp", event.Time)
+        .With("NodeId", event.NodeId)
+        .With("NodeAddress", node->GetDefaultAddress())
+        .With("ResourceUsage", NScheduler::FormatResourceUsage(
             TJobResources(node->ResourceUsage()),
-            TJobResources(node->ResourceLimits())),
-        node->DiskResources(),
-        node->Allocations().size());
+            TJobResources(node->ResourceLimits())))
+        .With("DiskResources", node->DiskResources())
+        .With("JobCount", node->Allocations().size());
 
     auto strategyProxy = Strategy_->CreateNodeHeartbeatStrategyProxy(
         node->GetId(),
@@ -145,13 +142,12 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         // Notify scheduler.
         allocation->SetState(EAllocationState::Running);
 
-        YT_LOG_DEBUG(
-            "Allocation started (VirtualTimestamp: %v, AllocationId: %v, OperationId: %v, FinishTime: %v, NodeId: %v)",
-            event.Time,
-            allocation->GetId(),
-            allocation->GetOperationId(),
-            event.Time + duration,
-            event.NodeId);
+        YT_TLOG_DEBUG("Allocation started")
+            .With("VirtualTimestamp", event.Time)
+            .With("AllocationId", allocation->GetId())
+            .With("OperationId", allocation->GetOperationId())
+            .With("FinishTime", event.Time + duration)
+            .With("NodeId", event.NodeId);
 
         // Schedule new event.
         Events_->InsertNodeEvent(CreateAllocationFinishedNodeEvent(
@@ -189,30 +185,13 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         Events_->InsertNodeEvent(nextHeartbeatEvent);
     }
 
-    TStringBuilder schedulingAttributesBuilder;
-    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
-
-    const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-    YT_LOG_DEBUG(
-        "Heartbeat finished "
-        "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
-        "StartedJobs: %v, PreemptedJobs: %v, "
-        "AllocationsScheduledDuringPreemption: %v, PreemptibleAllocationCount: %v, Discount: %v, "
-        "ControllerScheduleAllocationCount: %v, ScheduleAllocationAttemptCountPerStage: %v, "
-        "OperationCountByPreemptionPriority: %v, %v)",
-        event.Time,
-        event.NodeId,
-        node->GetDefaultAddress(),
-        schedulingHeartbeatContext->StartedAllocations().size(),
-        schedulingHeartbeatContext->PreemptedAllocations().size(),
-        statistics.ScheduledDuringPreemption,
-        statistics.PreemptibleAllocationCount,
-        FormatResources(statistics.ResourceUsageDiscount),
-        statistics.ControllerScheduleAllocationCount,
-        statistics.ScheduleAllocationAttemptCountPerStage,
-        statistics.OperationCountByPreemptionPriority,
-        schedulingAttributesBuilder.Flush());
+    YT_TLOG_DEBUG("Heartbeat finished")
+        .With("VirtualTimestamp", event.Time)
+        .With("NodeId", event.NodeId)
+        .With("NodeAddress", node->GetDefaultAddress())
+        .With("StartedJobs", schedulingHeartbeatContext->StartedAllocations().size())
+        .With("PreemptedJobs", schedulingHeartbeatContext->PreemptedAllocations().size())
+        .With(strategyProxy->BuildSchedulingAttributeTags(schedulingHeartbeatContext));
 }
 
 void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
@@ -229,12 +208,11 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 
     EraseOrCrash(allocation->GetNode()->Allocations(), allocation);
 
-    YT_LOG_DEBUG(
-        "Allocation finished (VirtualTimestamp: %v, AllocationId: %v, OperationId: %v, NodeId: %v)",
-        event.Time,
-        allocation->GetId(),
-        allocation->GetOperationId(),
-        event.NodeId);
+    YT_TLOG_DEBUG("Allocation finished")
+        .With("VirtualTimestamp", event.Time)
+        .With("AllocationId", allocation->GetId())
+        .With("OperationId", allocation->GetOperationId())
+        .With("NodeId", event.NodeId);
 
     JobAndOperationCounter_->OnJobFinished();
 
@@ -258,7 +236,6 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         .OperationId = allocation->GetOperationId(),
         .AllocationId = allocation->GetId(),
         .TreeId = allocation->GetTreeId(),
-        .AllocationResources = TJobResources(),
         .AllocationDataCenter = std::nullopt,
         .AllocationInfinibandCluster = std::nullopt,
         .Finished = true,
@@ -295,7 +272,9 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 
         JobAndOperationCounter_->OnOperationFinished();
 
-        YT_LOG_INFO("Operation finished (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
+        YT_TLOG_INFO("Operation finished")
+            .With("VirtualTimestamp", event.Time)
+            .With("OperationId", operation->GetId());
 
         const auto& id = operation->GetId();
         auto stats = OperationStatistics_->OnOperationFinished(
@@ -365,7 +344,7 @@ NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedAllocationFluently(
     ELogEventType eventType,
     const TAllocationPtr& allocation)
 {
-    YT_LOG_INFO("Logging allocation event");
+    YT_TLOG_INFO("Logging allocation event");
 
     return LogEventFluently(StrategyHost_->GetEventLogger(), eventType)
         .Item("allocation_id").Value(allocation->GetId())

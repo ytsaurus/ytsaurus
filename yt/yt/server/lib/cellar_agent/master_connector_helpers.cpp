@@ -6,6 +6,8 @@
 #include "private.h"
 #include "public.h"
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -24,6 +26,7 @@ using namespace NCellarClient;
 using namespace NCellarNodeTrackerClient::NProto;
 using namespace NObjectClient;
 using namespace NHiveClient;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,22 +50,30 @@ void AddCellarInfoToHeartbeatRequest(
     for (const auto& occupant : cellar->Occupants()) {
         auto* protoSlotInfo = request->add_cell_slots();
 
-        if (occupant) {
-            TCellInfo cellInfo {
-                .CellId = occupant->GetCellId(),
-                .ConfigVersion = occupant->GetConfigVersion()
-            };
-
-            ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
-            protoSlotInfo->set_peer_state(ToProto(occupant->GetControlState()));
-            protoSlotInfo->set_peer_id(occupant->GetPeerId());
-            protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());
-
-            if (const auto& responseKeeper = occupant->GetResponseKeeper()) {
-                protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
-            }
-        } else {
+        if (!occupant) {
             protoSlotInfo->set_peer_state(ToProto(NHydra::EPeerState::None));
+            continue;
+        }
+
+        TCellInfo cellInfo {
+            .CellId = occupant->GetCellId(),
+            .ConfigVersion = occupant->GetConfigVersion()
+        };
+
+        ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
+        protoSlotInfo->set_peer_state(ToProto(occupant->GetControlState()));
+        protoSlotInfo->set_peer_id(occupant->GetPeerId());
+        protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());
+
+        // Sending errors for active peers is useless: if the cell has recovered completely
+        // between two successive heartbeats then the master doesn't know that it was ever failed.
+        auto hydraManager = occupant->GetHydraManager();
+        if (hydraManager && !hydraManager->IsActive()) {
+            ToProto(protoSlotInfo->mutable_error(), hydraManager->GetLastRestartError());
+        }
+
+        if (const auto& responseKeeper = occupant->GetResponseKeeper()) {
+            protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
         }
     }
 }
@@ -72,10 +83,10 @@ void UpdateCellarFromHeartbeatResponse(
     const ICellarPtr& cellar,
     const TRspCellarHeartbeat& response)
 {
-    auto Logger = CellarAgentLogger().WithTag("CellarType: %v", cellarType);
+    auto Logger = CellarAgentLogger().WithTag("CellarType", cellarType);
 
     if (!cellar) {
-        YT_LOG_WARNING("Processing heartbeat for non-existing cellar, ignored");
+        YT_TLOG_WARNING("Processing heartbeat for non-existing cellar, ignored");
         return;
     }
 
@@ -85,13 +96,13 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to remove a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to remove a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Requested to remove cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Requested to remove cell")
+            .With("CellId", cellId);
 
         YT_UNUSED_FUTURE(cellar->RemoveOccupant(slot));
     }
@@ -101,19 +112,19 @@ void UpdateCellarFromHeartbeatResponse(
         YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         if (cellar->GetAvailableSlotCount() == 0) {
-            YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to start cell when all slots are used, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
         if (cellar->FindOccupant(cellId)) {
-            YT_LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Requested to start cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Requested to start cell")
+            .With("CellId", cellId);
 
         cellar->CreateOccupant(info);
     }
@@ -125,20 +136,20 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to configure a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to configure a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
         if (!slot->CanConfigure()) {
-            YT_LOG_WARNING("Cannot configure cell in non-configurable state, ignored (CellId: %v, State: %v)",
-                cellId,
-                slot->GetControlState());
+            YT_TLOG_WARNING("Cannot configure cell in non-configurable state, ignored")
+                .With("CellId", cellId)
+                .With("State", slot->GetControlState());
             continue;
         }
 
-        YT_LOG_DEBUG("Configuruing cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Configuring cell")
+            .With("CellId", cellId);
 
         cellar->ConfigureOccupant(slot, info);
     }
@@ -149,13 +160,13 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to update dynamic options for a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to update dynamic options for a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Updating cell dynamic config (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Updating cell dynamic config")
+            .With("CellId", cellId);
 
         cellar->UpdateOccupant(slot, info);
     }
@@ -200,8 +211,8 @@ TError UpdateSolomonTags(
     } else {
         NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
         return TError("Conflicting profiling tags")
-            << TErrorAttribute("cellar_type", cellarType)
-            << TErrorAttribute("tags", seenTags);
+            .With("cellar_type", cellarType)
+            .With("tags", seenTags);
     }
 
     return {};

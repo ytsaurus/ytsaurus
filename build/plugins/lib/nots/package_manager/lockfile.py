@@ -5,6 +5,7 @@ import re
 
 from urllib import parse as urlparse
 
+from .common_config import load_tier0_settings
 from .package_json import PackageJson
 
 try:
@@ -45,25 +46,48 @@ class LockfilePackageMeta(object):
                 "tarball can only point to npm.yandex-team.ru, got {}".format(tarball_url)
             )
 
-        # http://npm.yandex-team.ru/@scope%2fname/-/name-0.0.1.tgz
-        parts = tarball_url.split("/")
-
         self.key = key
         self.tarball_url = tarball_url
         self.sky_id = sky_id
         self.integrity = integrity
         self.integrity_algorithm = integrity_algorithm
-        self.tarball_path = "/".join(parts[-3:]).replace("%2f", "/")  # @scope%2fname/-/name-0.0.1.tgz
+        self.tarball_path = _tarball_path_from_url(tarball_url)
 
     def to_str(self):
         return " ".join([self.tarball_url, self.sky_id, self.integrity, self.integrity_algorithm])
 
     def to_uri(self):
-        tarball_url: str = self.tarball_url
+        tarball_url = _normalize_tarball_url(self.tarball_url)
         if not tarball_url.startswith("https://") and not tarball_url.startswith("http://"):
             tarball_url = "https://npm.yandex-team.ru/" + tarball_url
         pkg_uri = f"{tarball_url}#integrity={self.integrity_algorithm}-{self.integrity}"
         return pkg_uri
+
+
+def _normalize_tarball_url(tarball_url):
+    parsed_url = urlparse.urlparse(tarball_url)
+    package_path, separator, filename = parsed_url.path.rpartition("/-/")
+
+    if separator and "/" in filename:
+        normalized_path = "{}/-/{}".format(package_path, filename.rsplit("/", 1)[-1])
+        return urlparse.urlunparse(parsed_url._replace(path=normalized_path))
+
+    return tarball_url
+
+
+def _tarball_path_from_url(tarball_url):
+    path = urlparse.unquote(urlparse.urlparse(tarball_url).path)
+    package_path, separator, filename = path.rpartition("/-/")
+
+    if separator:
+        package_parts = package_path.rstrip("/").split("/")
+        package_name = package_parts[-1]
+        if len(package_parts) > 1 and package_parts[-2].startswith("@"):
+            package_name = "/".join(package_parts[-2:])
+        return "{}/-/{}".format(package_name, filename.rsplit("/", 1)[-1])
+
+    # Keep supporting non-standard tarball values that do not use the npm /-/ layout.
+    return "/".join(path.split("/")[-3:])
 
 
 class PnpmLockfileHelper:
@@ -379,6 +403,17 @@ class Lockfile(object):
         self.data = PnpmLockfileHelper.ensure_v9(self.data)
         lf.data = PnpmLockfileHelper.ensure_v9(lf.data)
 
+        injected_directories = {}
+        for package_id, package_meta in lf.data.get("packages", {}).items():
+            resolution = package_meta.get("resolution", {})
+            if resolution.get("type") != "directory" or "directory" not in resolution:
+                continue
+
+            old_directory = resolution["directory"]
+            package_path = os.path.normpath(os.path.join(os.path.dirname(lf.path), old_directory))
+            new_directory = os.path.relpath(package_path, build_path)
+            injected_directories[package_id] = new_directory
+
         for importer, imports in lf.get_importers().items():
             importer_path = os.path.normpath(os.path.join(os.path.dirname(lf.path), importer))
             importer_rel_path = os.path.relpath(importer_path, build_path)
@@ -392,6 +427,8 @@ class Lockfile(object):
         packages = self.data.get("packages", {})
         for k, v in lf.data.get("packages", {}).items():
             if k not in packages:
+                if k in injected_directories:
+                    v["resolution"]["directory"] = injected_directories[k]
                 packages[k] = v
         self.data["packages"] = packages
 
@@ -436,8 +473,10 @@ def _parse_package_meta(key, meta, allow_file_protocol=False):
         if meta["resolution"].get("type") == "directory":
             return None
 
-        tarball_url = _parse_tarball_url(meta["resolution"]["tarball"], allow_file_protocol)
-        sky_id = _parse_sky_id_from_tarball_url(meta["resolution"]["tarball"])
+        resolution = meta["resolution"]
+        tarball = resolution["tarball"] if "tarball" in resolution else _tarball_url_from_package_key(key)
+        tarball_url = _parse_tarball_url(tarball, allow_file_protocol)
+        sky_id = _parse_sky_id_from_tarball_url(tarball)
         integrity_algorithm, integrity = _parse_package_integrity(meta["resolution"]["integrity"])
     except KeyError as e:
         raise TypeError(f"Invalid package meta for '{key}', missing {e} key")
@@ -445,6 +484,30 @@ def _parse_package_meta(key, meta, allow_file_protocol=False):
         raise TypeError(f"Invalid package meta for '{key}', parse error: {e}")
 
     return LockfilePackageMeta(key, tarball_url, sky_id, integrity, integrity_algorithm)
+
+
+def _tarball_url_from_package_key(key):
+    # v6 keys have a leading slash and may include peer contexts.
+    package_id = PnpmLockfileHelper.package_id_from_snapshot_id(key.lstrip("/"))
+    name, separator, version = package_id.rpartition("@")
+    if (
+        not separator
+        # Only URL-safe npm characters; keep support for legacy uppercase/special names.
+        or not re.fullmatch(r"(?:@[0-9A-Za-z._~!'()*-]+/)?[0-9A-Za-z_~!'()*-][0-9A-Za-z._~!'()*-]*", name)
+        or not re.fullmatch(
+            r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+            r"(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+            r"(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+            r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+            version,
+        )
+    ):
+        raise LockfilePackageMetaInvalidError(f"cannot infer tarball URL from package key '{key}'")
+
+    package_path = name.replace("/", "%2f")
+    filename = f"{name.rsplit('/', 1)[-1]}-{version}.tgz"
+    registry = load_tier0_settings()["pnpm"]["defaults"]["registry"].rstrip("/")
+    return f"{registry}/{package_path}/-/{filename}"
 
 
 def _parse_tarball_url(tarball_url, allow_file_protocol):

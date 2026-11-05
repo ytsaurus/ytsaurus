@@ -1,5 +1,8 @@
 package tech.ytsaurus.client.request;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -8,13 +11,16 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpcproxy.TReqGetJob;
+import tech.ytsaurus.ytree.TAttributeFilter;
 
 public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements HighLevelRequest<TReqGetJob.Builder> {
     private final GUID jobId;
+    private final List<String> attributes;
 
     public GetJob(BuilderBase<?> builder) {
         super(builder);
         this.jobId = Objects.requireNonNull(builder.jobId);
+        this.attributes = builder.attributes;
     }
 
     public GetJob(GUID operationId, GUID jobId) {
@@ -41,10 +47,16 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
         TReqGetJob.Builder messageBuilder = requestBuilder.body();
         writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
         messageBuilder.setJobId(RpcUtil.toProto(jobId));
+        if (!attributes.isEmpty()) {
+            messageBuilder.setAttributes(TAttributeFilter.newBuilder().addAllKeys(attributes));
+        }
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
+        if (!attributes.isEmpty()) {
+            sb.append("Attributes: ").append(attributes).append("; ");
+        }
         super.writeArgumentsLogString(sb);
         sb.append("jobId: ").append(jobId).append(";");
     }
@@ -55,6 +67,7 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
                 .setOperationId(operationId)
                 .setOperationAlias(operationAlias)
                 .setJobId(jobId)
+                .setAttributes(new ArrayList<>(attributes))
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -74,6 +87,7 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
             extends OperationReq.Builder<TBuilder, GetJob> {
         @Nullable
         private GUID jobId;
+        private List<String> attributes = new ArrayList<>();
 
         public BuilderBase() {
         }
@@ -81,6 +95,7 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
         public BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.jobId = builder.jobId;
+            this.attributes = new ArrayList<>(builder.attributes);
         }
 
         public TBuilder setJobId(GUID jobId) {
@@ -88,8 +103,22 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
             return self();
         }
 
+        public TBuilder addAttribute(String attribute) {
+            this.attributes.add(attribute);
+            return self();
+        }
+
+        public TBuilder setAttributes(Collection<String> attributes) {
+            this.attributes.clear();
+            this.attributes.addAll(attributes);
+            return self();
+        }
+
         @Override
         protected void writeArgumentsLogString(StringBuilder sb) {
+            if (!attributes.isEmpty()) {
+                sb.append("Attributes: ").append(attributes).append("; ");
+            }
             super.writeArgumentsLogString(sb);
             sb.append("jobId: ").append(jobId).append(";");
         }

@@ -20,6 +20,7 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -117,8 +118,9 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
+    auto allowChangeLimitsForRoot = Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot;
 
-    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+    THROW_ERROR_EXCEPTION_IF(user == rootUser && !allowChangeLimitsForRoot,
         "Cannot set user request rate limit for root");
 
     user->SetRequestRateLimit(limit, type);
@@ -131,8 +133,9 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
+    auto allowChangeLimitsForRoot = Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot;
 
-    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+    THROW_ERROR_EXCEPTION_IF(user == rootUser && !allowChangeLimitsForRoot,
         "Cannot set request rate limits for root");
 
     user->SetObjectServiceRequestLimits(std::move(config));
@@ -225,7 +228,8 @@ void TRequestTracker::OnUpdateAlivePeerCount()
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
     auto alivePeerIds = hydraManager->GetAlivePeerIds();
-    YT_LOG_DEBUG("Alive peers updated (AlivePeerIds: %v)", alivePeerIds);
+    YT_TLOG_DEBUG("Alive peers updated")
+        .With("AlivePeerIds", alivePeerIds);
     int peerCount = std::ssize(alivePeerIds);
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;

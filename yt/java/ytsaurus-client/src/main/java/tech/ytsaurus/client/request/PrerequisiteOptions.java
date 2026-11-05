@@ -84,4 +84,21 @@ public class PrerequisiteOptions {
         }
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return "PrerequisiteOptions{" +
+            "transactionsIds=" + transactionsIds +
+            ", revisions=" + revisions +
+            '}';
+    }
+
+    public void writeArgumentsLogString(StringBuilder sb) {
+        if (transactionsIds != null) {
+            sb.append("TransactionIds: ").append(transactionsIds).append("; ");
+        }
+        if (revisions != null) {
+            sb.append("Revisions: ").append(revisions).append("; ");
+        }
+    }
 }

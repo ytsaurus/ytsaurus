@@ -18,9 +18,9 @@ DECLARE_REFCOUNTED_CLASS(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TvmSynchronizerLogger, "TvmSynchronizer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TvmSynchronizerLogger, "TvmSynchronizer");
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, NativeConnectionLogger, "NativeConnection");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, NativeConnectionLogger, "NativeConnection");
 
 inline static constexpr std::string_view UpstreamReplicaIdAttributeName = "upstream_replica_id"sv;
 

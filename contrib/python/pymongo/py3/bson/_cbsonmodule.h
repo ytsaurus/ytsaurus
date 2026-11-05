@@ -72,6 +72,8 @@ typedef struct codec_options_t {
     unsigned char datetime_conversion;
     PyObject* options_obj;
     unsigned char is_raw_bson;
+    unsigned char is_dict_class;
+    PyObject* buffer_owner; /* The owning decode input buffer for RawBSONDocument */
 } codec_options_t;
 
 /* C API functions */

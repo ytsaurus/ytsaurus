@@ -509,14 +509,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
     TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", this->GetTypeName()));
 
-    size_t size;
-    auto value = TSizeSerializer::Load(context);
-    // COMPAT(danilalexeev): YT-24017.
-    if (value == BatchedFormatMarker) {
-        size = TSizeSerializer::LoadSuspended(context);
-    } else {
-        size = value;
-    }
+    size_t size = TSizeSerializer::LoadSuspended(context);
 
     SERIALIZATION_DUMP_WRITE(context, "keys[%v]", size);
 

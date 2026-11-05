@@ -29,7 +29,7 @@ TOperationEventRowlet::TOperationEventRowlet(TOperationEventReport&& report)
 
 size_t TOperationEventRowlet::EstimateSize() const
 {
-    // TODO(bystrovserg): Use tranform from std::optional after switching to C++23.
+    // TODO(bystrovserg): Use transform from std::optional after switching to C++23.
     std::optional<TYsonString> incarnationSwitchInfoYson;
     if (Report_.IncarnationSwitchInfo) {
         incarnationSwitchInfoYson = ConvertToYsonString(*Report_.IncarnationSwitchInfo);
@@ -48,7 +48,7 @@ NTableClient::TUnversionedOwningRow TOperationEventRowlet::ToRow(int /*archiveVe
 {
     auto operationIdAsGuid = Report_.OperationId.Underlying();
 
-    // TODO(bystrovserg): Use tranform from std::optional after switching to C++23.
+    // TODO(bystrovserg): Use transform from std::optional after switching to C++23.
     std::optional<std::string> incarnationSwitchReason;
     if (Report_.IncarnationSwitchReason) {
         incarnationSwitchReason = FormatEnum(*Report_.IncarnationSwitchReason);
@@ -105,9 +105,9 @@ void TOperationEventReporter::ReportEvent(TOperationEventReport event)
     }
 
     if (!Config_->Enabled) {
-        YT_LOG_DEBUG("Operation event reporter disabled (OperationId: %v, EventType: %v)",
-            event.OperationId,
-            event.EventType);
+        YT_TLOG_DEBUG("Operation event reporter disabled")
+            .With("OperationId", event.OperationId)
+            .With("EventType", event.EventType);
         return;
     }
 

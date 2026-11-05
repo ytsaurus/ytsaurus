@@ -23,6 +23,8 @@ message TReqMaterializeNode
     // COMPAT(gritukan)
     required bool exec_node_is_not_data_node = 10;
     optional int32 node_state = 11; // ENodeState
+
+    optional uint64 registration_revision = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

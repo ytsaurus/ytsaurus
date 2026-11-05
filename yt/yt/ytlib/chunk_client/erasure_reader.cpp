@@ -14,7 +14,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <util/random/shuffle.h>
 
@@ -130,7 +130,7 @@ public:
 private:
     const std::optional<TRepairingErasureReaderTestingOptions> TestingOptions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlacementExtLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PlacementExtLock_);
     TFuture<TErasurePlacementExt> PlacementExtFuture_;
 
 
@@ -267,7 +267,7 @@ private:
             NChunkClient::EErrorCode::ChunkMetaFetchFailed,
             "Failed to get chunk meta of chunk %v from any of valid part readers",
             GetChunkId())
-            << errors;
+            .With(errors);
     }
 
     // ReadBlocks implementation with customizable readers list.
@@ -276,7 +276,7 @@ private:
         const std::vector<int>& blockIndexes,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers) override
     {
-        NErasure::TPartIndexList existingPartIndices(Codec_->GetDataPartCount());
+        NErasure::TPartIndexList existingPartIndices(Codec_->GetParams().DataPartCount);
         std::iota(existingPartIndices.begin(), existingPartIndices.end(), 0);
 
         auto session = New<TAdaptiveErasureRepairingSession>(
@@ -296,9 +296,9 @@ private:
                 const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders)
             {
                 if (!erasedParts.empty()) {
-                    YT_LOG_DEBUG("Reading blocks with repair (Blocks: %v, BannedPartIndices: %v)",
-                        MakeCompactIntervalView(blockIndexes),
-                        erasedParts);
+                    YT_TLOG_DEBUG("Reading blocks with repair")
+                        .With("Blocks", MakeCompactIntervalView(blockIndexes))
+                        .With("BannedPartIndices", erasedParts);
                 }
 
                 const auto& reader = availableReaders[RandomNumber(availableReaders.size())];

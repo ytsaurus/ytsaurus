@@ -21,12 +21,14 @@
 #include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/yson/async_writer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityServer {
 
@@ -38,6 +40,46 @@ using namespace NYTree;
 using namespace NServer;
 
 using ::ToString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkMergerUsage
+{
+    int NodeTraversals;
+    i64 MergeJobThrottlerAvailability;
+    std::optional<double> MergeJobThrottlerLimit;
+};
+
+void Deserialize(TChunkMergerUsage& usage, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    Deserialize(usage.NodeTraversals, mapNode->GetChildOrThrow("node_traversals"));
+    Deserialize(usage.MergeJobThrottlerAvailability, mapNode->GetChildOrThrow("merge_job_throttler_availability"));
+}
+
+void Deserialize(TChunkMergerUsage& usage, TYsonPullParserCursor* cursor)
+{
+    Deserialize(usage, ExtractTo<INodePtr>(cursor));
+}
+
+void Serialize(const TChunkMergerUsage& usage, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_traversals").Value(usage.NodeTraversals)
+            .Item("merge_job_throttler_availability").Value(usage.MergeJobThrottlerAvailability)
+        .EndMap();
+}
+
+TChunkMergerUsage GetChunkMergerUsageFromAccount(const TAccount* account)
+{
+    const auto& mergeJobThrottler = account->MergeJobThrottler();
+    return TChunkMergerUsage{
+        .NodeTraversals = account->GetChunkMergerNodeTraversals(),
+        .MergeJobThrottlerAvailability = mergeJobThrottler->GetAvailable(),
+        .MergeJobThrottlerLimit = mergeJobThrottler->GetLimit(),
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +145,16 @@ private:
                 account->GetName());
         }
 
+        // Master memory usage is eventually consistent and may be stale, so do not check it here.
+        if (!account->ClusterStatistics().IsPersistentlyEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot remove account %Qv because its usage is not zero",
+                account->GetName())
+                .With("current_usage", ToString(account->ClusterStatistics()));
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateAccountRemoval(account);
+
         TBase::ValidateRemoval();
     }
 
@@ -118,12 +170,16 @@ private:
         }
     }
 
-    void ValidateSuperuser(TInternedAttributeKey key)
+    bool IsSuperuser()
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
+        return securityManager->IsSuperuser(user);
+    }
 
-        if (!securityManager->IsSuperuser(user)) {
+    void ValidateSuperuser(TInternedAttributeKey key)
+    {
+        if (!IsSuperuser()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied: only superusers can change %Qv",
@@ -143,6 +199,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         auto isRootAccount = IsRootAccount();
+        auto isSuperuser = IsSuperuser();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(!isRootAccount));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommittedResourceUsage)
@@ -188,6 +246,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllowUsingChunkMerger)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerUsage));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellChunkMergerUsage)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
@@ -205,6 +266,14 @@ private:
             .SetWritable(true)
             .SetReplicated(true);
 
+        descriptors->emplace_back(EInternedAttributeKey::BackupConfig)
+            .SetWritable(isSuperuser)
+            .SetReplicated(true)
+            .SetOpaque(true)
+            .SetRemovable(true);
+        descriptors->emplace_back(EInternedAttributeKey::BackupSourceAccounts)
+            .SetOpaque(true);
+
         if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
             descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransientMasterMemoryUsage));
         }
@@ -214,6 +283,7 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto* account = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         switch (key) {
             case EInternedAttributeKey::ResourceUsage:
@@ -332,6 +402,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkMergerUsage: {
+                BuildYsonFluently(consumer)
+                    .Value(GetChunkMergerUsageFromAccount(account));
+                return true;
+            }
+
             case EInternedAttributeKey::Abc: {
                 if (account->GetAbcConfig()) {
                     BuildYsonFluently(consumer)
@@ -365,11 +441,94 @@ private:
                     .Value(account->DetailedMasterMemoryUsage());
                 return true;
 
+            case EInternedAttributeKey::BackupConfig:
+                if (account->GetBackupConfig()) {
+                    SerializeAccountBackupConfig(
+                        *account->GetBackupConfig(),
+                        consumer,
+                        Bootstrap_);
+
+                    return true;
+                } else {
+                    return false;
+                }
+
+            case EInternedAttributeKey::BackupSourceAccounts:
+                BuildYsonFluently(consumer)
+                    .Value(securityManager->GetBackupSourceAccountNames(account));
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        auto* account = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::MulticellChunkMergerUsage: {
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    break;
+                }
+
+                std::vector<TFuture<std::pair<TCellTag, TChunkMergerUsage>>> asyncResults;
+                asyncResults.push_back(MakeFuture(std::make_pair(Bootstrap_->GetPrimaryCellTag(), GetChunkMergerUsageFromAccount(account))));
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto secondaryCellTags = multicellManager->GetSecondaryCellTags();
+
+                for (auto cellTag : secondaryCellTags) {
+                    asyncResults.push_back(GetRemoteChunkMergerUsage(cellTag, account));
+                }
+
+                return AllSucceeded(asyncResults).Apply(
+                    BIND([] (const std::vector<std::pair<TCellTag, TChunkMergerUsage>>& results) {
+                        return BuildYsonStringFluently()
+                            .DoMapFor(results, [] (TFluentMap map, const std::pair<TCellTag, TChunkMergerUsage>& response) {
+                                map.Item(Format("%v", response.first))
+                                    .Value(response.second);
+                            });
+                    }));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    TFuture<std::pair<TCellTag, TChunkMergerUsage>> GetRemoteChunkMergerUsage(TCellTag cellTag, const TAccount* account)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+        auto batchReq = proxy.ExecuteBatch();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        batchReq->SetUser(securityManager->GetAuthenticatedUserNameToForward());
+
+        auto accountId = GetId();
+
+        auto req = TYPathProxy::Get(account->GetObjectPath() + "/@chunk_merger_usage");
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke()
+            .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+
+                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching chunk merger usage of account %v from cell %v",
+                    accountId,
+                    cellTag);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                return std::pair(cellTag, ConvertTo<TChunkMergerUsage>(TYsonString(rsp->value())));
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override
@@ -454,9 +613,20 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::EnableChunkReincarnation:
+            case EInternedAttributeKey::EnableChunkReincarnation: {
                 account->SetEnableChunkReincarnation(ConvertTo<bool>(value));
                 return true;
+            }
+
+            case EInternedAttributeKey::BackupConfig: {
+                ValidateSuperuser(key);
+
+                auto backupConfig = DeserializeAccountBackupConfig(ConvertToNode(value), Bootstrap_);
+                backupConfig.Validate(Bootstrap_);
+
+                securityManager->UpdateBackupConfigForAccount(account, std::move(backupConfig));
+                return true;
+            }
 
             default:
                 break;
@@ -468,6 +638,7 @@ private:
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* account = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         switch (key) {
             case EInternedAttributeKey::ChunkMergerCriteria: {
@@ -482,6 +653,12 @@ private:
 
             case EInternedAttributeKey::FolderId: {
                 account->SetFolderId(std::nullopt);
+                return true;
+            }
+
+            case EInternedAttributeKey::BackupConfig: {
+                ValidateSuperuser(key);
+                securityManager->RemoveBackupConfigForAccount(account);
                 return true;
             }
 
@@ -518,9 +695,9 @@ private:
             Bootstrap_,
             /*zeroByDefault*/ true);
 
-        context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
-            srcAccount->GetName(),
-            impl->GetName());
+        context->AnnotateRequest()
+            .With("SrcAccount", srcAccount->GetName())
+            .With("DstAccount", impl->GetName());
 
         securityManager->TransferAccountResources(srcAccount, impl, resourceDelta);
 
@@ -545,4 +722,3 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> CreateAccountProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

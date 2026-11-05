@@ -12,30 +12,56 @@ using namespace NProfiling;
 
 TNetworkStatistics::TNetworkStatistics(TDataNodeConfigPtr config)
     : Config_(std::move(config))
+    , ThrottlingDuration_(2 * DurationToCpuDuration(Config_->NetOutThrottlingDuration))
 { }
 
-void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
+TNetworkCounters* TNetworkStatistics::GetOrCreateCounters(const std::string& name)
 {
-    auto counters = Counters_.FindOrInsert(name, [&] {
+    return Counters_.FindOrInsert(name, [&] {
         auto counters = New<TNetworkCounters>();
-        counters->ThrottledReadsCounter = DataNodeProfiler()
-            .WithTag("network", name)
-            .Counter("/net_throttled_reads");
+        auto profiler = DataNodeProfiler().WithTag("network", name);
+        counters->ThrottledReadsCounter = profiler.Counter("/net_throttled_reads");
+        counters->ThrottledWritesCounter = profiler.Counter("/net_throttled_writes");
         return counters;
     }).first->Get();
+}
 
-    counters->UpdateTime = GetCpuInstant();
+void TNetworkStatistics::IncrementReadThrottlingCounter(const std::string& name)
+{
+    auto* counters = GetOrCreateCounters(name);
+
+    counters->ReadUpdateTime = GetCpuInstant();
     counters->ThrottledReadsCounter.Increment();
+}
+
+void TNetworkStatistics::IncrementWriteThrottlingCounter(const std::string& name)
+{
+    auto* counters = GetOrCreateCounters(name);
+
+    counters->WriteUpdateTime = GetCpuInstant();
+    counters->ThrottledWritesCounter.Increment();
+}
+
+void TNetworkStatistics::Reconfigure(const TDataNodeDynamicConfigPtr& config)
+{
+    auto throttlingDuration = config->NetOutThrottlingDuration.value_or(Config_->NetOutThrottlingDuration);
+    ThrottlingDuration_.store(2 * DurationToCpuDuration(throttlingDuration));
 }
 
 void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics)
 {
+    Counters_.Flush();
+
     Counters_.IterateReadOnly([&] (const auto& name, const auto& counters) {
         auto* network = statistics->add_network();
         network->set_network(name);
 
-        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottlingDuration);
-        network->set_throttling_reads(GetCpuInstant() < resetAt);
+        auto now = GetCpuInstant();
+        auto throttlingDuration = ThrottlingDuration_.load();
+        auto readUpdateTime = counters->ReadUpdateTime.load();
+        auto writeUpdateTime = counters->WriteUpdateTime.load();
+        network->set_throttling_reads(readUpdateTime != 0 && now < readUpdateTime + throttlingDuration);
+        network->set_throttling_writes(writeUpdateTime != 0 && now < writeUpdateTime + throttlingDuration);
     });
 }
 

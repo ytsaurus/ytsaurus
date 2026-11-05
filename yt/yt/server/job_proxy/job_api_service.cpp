@@ -11,7 +11,7 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, JobApiLogger, "JobApi");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, JobApiLogger, "JobApi");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +42,7 @@ private:
         auto progressSaveTime = TInstant::Now();
         GetJobProxyOrThrow()->OnProgressSaved(progressSaveTime);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         context->Reply();
     }
 

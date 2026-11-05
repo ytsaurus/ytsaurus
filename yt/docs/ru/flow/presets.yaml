@@ -1,0 +1,7 @@
+default:
+public:
+    flow-example-cluster: <cluster-name>
+    flow-data-cluster: <cluster-name>
+    flow-runtime-cluster: <cluster-name>
+    flow-consumer-cluster: <cluster-name>
+    yt-cli: yt

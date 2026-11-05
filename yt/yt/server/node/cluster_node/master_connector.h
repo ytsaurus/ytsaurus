@@ -97,12 +97,37 @@ struct IMasterConnector
     */
     virtual TMasterEpoch GetEpoch() const = 0;
 
+    //! Returns the registration revision assigned by the primary master, or
+    //! |NHydra::NullRevision| if the primary master does not support it.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual NHydra::TRevision GetRegistrationRevision() const = 0;
+
     //! Returns list of all master cell tags (including the primary).
     /*!
     *  \note
     *  Thread affinity: any
     */
     virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
+
+    //! Given a list of cell tags, returns a future which becomes set
+    //! when at least one heartbeat to each of the master cells is fully executed.
+    //! Note: if the heartbeat executor to a certain cell has not been created,
+    //! the future will not wait for the heartbeat to that cell.
+    /*!
+    *  \note
+    *  Thread affinity: Control
+    */
+    virtual TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
+
+    //! Requests immediate cluster node heartbeat.
+    /*!
+    *  \note
+    *  Thread affinity: Control
+    */
+    virtual void ScheduleMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

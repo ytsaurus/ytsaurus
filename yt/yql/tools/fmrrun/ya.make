@@ -29,6 +29,6 @@ PEERDIR(
     yql/essentials/sql/pg
 )
 
-YQL_LAST_ABI_VERSION()
+YQL_CURRENT_ABI_VERSION()
 
 END()

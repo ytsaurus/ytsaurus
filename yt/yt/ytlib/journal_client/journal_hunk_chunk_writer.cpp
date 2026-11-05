@@ -44,7 +44,7 @@ public:
             logger))
         , Options_(std::move(options))
         , Config_(std::move(config))
-        , Logger(logger.WithTag("ChunkId: %v", sessionId.ChunkId))
+        , Logger(logger.WithTag("ChunkId", sessionId.ChunkId))
         , ChunkId_(sessionId.ChunkId)
     {
         auto guard = Guard(Lock_);
@@ -78,7 +78,7 @@ public:
         std::vector<TFuture<std::vector<TJournalHunkDescriptor>>> futures;
 
         bool newRecord = true;
-        std::optional<TGuard<NThreading::TSpinLock>> guard;
+        std::optional<TGuard<TSpinLock>> guard;
         for (auto& payload : payloads) {
             if (newRecord) {
                 newRecord = false;
@@ -143,7 +143,7 @@ private:
 
     const TChunkId ChunkId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     std::vector<TSharedRef> CurrentRecordPayloads_;
     std::vector<TPromise<std::vector<TJournalHunkDescriptor>>> CurrentRecordPromises_;
@@ -185,7 +185,7 @@ private:
         FlushCurrentRecord(guard);
     }
 
-    bool FlushIfNeeded(std::optional<TGuard<NThreading::TSpinLock>>& guard)
+    bool FlushIfNeeded(std::optional<TGuard<TSpinLock>>& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -199,22 +199,21 @@ private:
         }
     }
 
-    void FlushCurrentRecord(std::optional<TGuard<NThreading::TSpinLock>>& guard)
+    void FlushCurrentRecord(std::optional<TGuard<TSpinLock>>& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         if (CurrentRecordPayloads_.empty()) {
             guard.reset();
-            YT_LOG_DEBUG("No journal hunk chunk records to flush");
+            YT_TLOG_DEBUG("No journal hunk chunk records to flush");
             return;
         }
 
-        YT_LOG_DEBUG("Flushing journal hunk chunk record "
-            "(RecordIndex: %v, RecordSize: %v, RecordHunkCount: %v, FutureCount: %v)",
-            CurrentRecordIndex_,
-            CurrentRecordSize_,
-            std::ssize(CurrentRecordPayloads_),
-            CurrentRecordPromises_.size());
+        YT_TLOG_DEBUG("Flushing journal hunk chunk record")
+            .With("RecordIndex", CurrentRecordIndex_)
+            .With("RecordSize", CurrentRecordSize_)
+            .With("RecordHunkCount", std::ssize(CurrentRecordPayloads_))
+            .With("FutureCount", CurrentRecordPromises_.size());
 
         auto recordFlushFuture = Options_->ErasureCodec == NErasure::ECodec::None
             ? FlushRegularRecord()
@@ -298,14 +297,15 @@ private:
         }
         YT_VERIFY(ptr == record.End());
 
-        return UnderlyingWriter_->WriteRecord(std::move(record));
+        return UnderlyingWriter_->WriteRecord(std::move(record)).AsVoid();
     }
 
     TFuture<void> FlushErasureRecord()
     {
-        auto* codec = NErasure::GetCodec(Options_->ErasureCodec);
-        auto dataPartCount = codec->GetDataPartCount();
-        auto totalPartCount = codec->GetTotalPartCount();
+        auto* codec = NErasure::GetCodecOrThrow(Options_->ErasureCodec);
+        const auto& codecParams = codec->GetParams();
+        auto dataPartCount = codecParams.DataPartCount;
+        auto totalPartCount = codecParams.TotalPartCount;
 
         // NB: We prepend TErasureRowHeader for compatibility only as chunk fragment reader
         // does not distinguish non-hunk and hunk erasure journal chunks.

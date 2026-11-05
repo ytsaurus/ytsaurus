@@ -6,7 +6,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists, multicell_sleep, build_snapshot, create_dynamic_table,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_table_replica, make_ace,
-    insert_rows, mount_table, unmount_table, freeze_table,
+    insert_rows, lookup_rows, mount_table, unmount_table, freeze_table,
     unfreeze_table, remount_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
@@ -145,7 +145,7 @@ class TestTabletActions(TabletActionsBase):
                 authenticated_user="u",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             _create_action()
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
         _create_action()
@@ -334,7 +334,7 @@ class TestTabletActions(TabletActionsBase):
             })
             return create("tablet_action", "", attributes=attributes)
 
-        with raises_yt_error("cells cannot be specified with inplace reshard"):
+        with raises_yt_error("Destination cells cannot be specified with inplace reshard"):
             _create_action(
                 cell_ids=[cells[0]],
                 tablet_ids=[tablet_ids[0], tablet_ids[1]],
@@ -357,10 +357,10 @@ class TestTabletActions(TabletActionsBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t", target_cell_ids=cells)
 
-        with raises_yt_error("must belong to the same cell"):
+        with raises_yt_error("All tablets must belong to the same cell"):
             _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=2)
 
-        with raises_yt_error("can not be set together with"):
+        with raises_yt_error("\"inplace_reshard\" cannot be set together with move action"):
             _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
 
     @authors("atalmenev")
@@ -395,6 +395,115 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get(f"#{action}/@state") == "completed")
 
         wait(lambda: get("//tmp/t/@preload_state") == "complete", timeout=5)
+
+    @authors("atalmenev")
+    def test_data_retention_in_memory_shared_chunk(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_narrow_chunk_view_compaction": False,
+            },
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            chunk_writer={"block_size": 1},
+            optimize_for="lookup",
+            in_memory_mode="uncompressed")
+
+        rows = [{"key": i, "value": "FF"} for i in range(30)]
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 1
+
+        sync_reshard_table("//tmp/t", [[], [15]])
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+        assert len(builtins.set(chunk_ids)) == 1
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[], [10], [20]],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
+
+    @authors("atalmenev")
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_data_retention_in_memory_shared_chunk_merge(self, mode):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+                "testing": {
+                    "simulated_store_preload_delay": 10**9,
+                },
+            },
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            chunk_writer={
+                "block_size": 1,
+                "key_filter": {"enable": True},
+            },
+            optimize_for="lookup",
+            in_memory_mode=mode)
+
+        def get_preload_pending_store_count():
+            return sum(
+                tablet["statistics"]["preload_pending_store_count"]
+                for tablet in get("//tmp/t/@tablets"))
+
+        rows = [{"key": i, "value": "FF"} for i in range(30)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert get_preload_pending_store_count() == 0
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        set("//tmp/t/@mount_config/testing/simulated_store_preload_delay", 0)
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [15]])
+        sync_mount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+        assert len(builtins.set(chunk_ids)) == 1
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        set("//tmp/t/@mount_config/testing/simulated_store_preload_delay", 10**9)
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[]],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
+        wait(lambda: get_preload_pending_store_count() == 0)
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
 
     @authors("atalmenev")
     def test_provisional_flush(self):
@@ -528,6 +637,47 @@ class TestTabletActions(TabletActionsBase):
             },
         )
         wait(lambda: get(f"#{action}/@state") == "completed")
+
+    @authors("atalmenev")
+    def test_no_stale_read_during_provisional_flush(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            mount_config={
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                },
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        old_rows = [{"key": i, "value": "old"} for i in range(10)]
+        insert_rows("//tmp/t", old_rows)
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "tablet_count": 3,
+                "inplace_reshard": True,
+            },
+        )
+
+        wait(lambda: get(f"#{action}/@state") == "provisionally_flushing")
+
+        new_rows = [{"key": i, "value": "new"} for i in range(10)]
+        insert_rows("//tmp/t", new_rows)
+
+        keys = [{"key": row["key"]} for row in new_rows]
+        assert lookup_rows("//tmp/t", keys) == new_rows
 
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
@@ -1046,6 +1196,47 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get(f"#{action_id}/@state") == "completed")
         assert get("//tmp/t/@unflushed_timestamp") == min(unflushed_timestamps)
 
+    @authors("alexelexa")
+    def test_logical_mount_revision(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        tablet_id = tablet["tablet_id"]
+        old_mount_revision = tablet["mount_revision"]
+        old_logical_mount_revision = tablet["logical_mount_revision"]
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "tablet_ids": [tablet_id],
+                "cell_ids": [cell_ids[1]],
+            },
+        )
+
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        tablet = get("//tmp/t/@tablets/0")
+        new_mount_revision = tablet["mount_revision"]
+        new_logical_mount_revision = tablet["logical_mount_revision"]
+
+        assert old_mount_revision < new_mount_revision
+        assert old_mount_revision == old_logical_mount_revision
+        assert old_logical_mount_revision != new_logical_mount_revision
+        assert new_mount_revision == new_logical_mount_revision
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        assert new_logical_mount_revision < tablet["logical_mount_revision"]
+        assert tablet["logical_mount_revision"] == tablet["mount_revision"]
+
+
 ##################################################################
 
 
@@ -1508,9 +1699,9 @@ class TabletBalancerBase(TabletActionsBase):
         assert get("//tmp/t/@max_tablet_size") == 3
         assert get("//tmp/t/@desired_tablet_count") == 4
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be less than or equal to .*"):
             set("//tmp/t/@min_tablet_size", 5)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be less than or equal to .*"):
             set("//tmp/t/@tablet_balancer_config/min_tablet_size", 5)
 
         remove("//tmp/t/@min_tablet_size")
@@ -1542,11 +1733,11 @@ class TabletBalancerBase(TabletActionsBase):
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_balance_tablet_cells("b", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
 
         # Remove `deny` ACE.
@@ -1562,13 +1753,13 @@ class TabletBalancerBase(TabletActionsBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", dynamic=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be dynamic"):
             sync_reshard_table_automatic("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             sync_reshard_table_automatic("/")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             sync_balance_tablet_cells("nonexisting_bundle")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be dynamic"):
             sync_balance_tablet_cells("default", ["//tmp/t"])
 
     @authors("ifsmirnov")
@@ -1578,7 +1769,7 @@ class TabletBalancerBase(TabletActionsBase):
         self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
         sync_mount_table("//tmp/t")
         sync_balance_tablet_cells("b")
-        with pytest.raises(YtError):
+        with raises_yt_error("All tables must be from the tablet cell bundle"):
             sync_balance_tablet_cells("b", ["//tmp/t"])
 
     @authors("ifsmirnov")
@@ -1654,14 +1845,14 @@ class TabletBalancerBase(TabletActionsBase):
 
         check_balancer_is_active(True)
         if not self.ENABLE_STANDALONE_TABLET_BALANCER:
-            with pytest.raises(YtError):
+            with raises_yt_error("\"tablet_balancer_schedule\" cannot be empty in master config"):
                 self._set_default_schedule_formula("")
 
-            with pytest.raises(YtError):
+            with raises_yt_error("Invalid variable .* in time formula"):
                 self._set_default_schedule_formula("wrong_variable")
             check_balancer_is_active(True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid variable .* in time formula"):
             set(local_config, "wrong_variable")
 
         set(local_config, "")
@@ -1761,7 +1952,6 @@ class TabletBalancerBase(TabletActionsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletBalancer(TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
     ENABLE_TABLET_BALANCER = True
@@ -1893,7 +2083,6 @@ class TestTabletActionsRpcProxy(TestTabletActions):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletBalancerMulticell(TestTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1904,7 +2093,6 @@ class TestTabletBalancerMulticell(TestTabletBalancer):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletBalancerRpcProxy(TestTabletBalancer):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1914,7 +2102,6 @@ class TestTabletBalancerRpcProxy(TestTabletBalancer):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRemoteChangelogStore(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1945,7 +2132,6 @@ class TestRemoteChangelogStore(YTEnvSetup):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == desired_cell_tag
 
 
-@pytest.mark.enabled_multidaemon
 class TestRemoteChangelogStoreMulticell(TestRemoteChangelogStore):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

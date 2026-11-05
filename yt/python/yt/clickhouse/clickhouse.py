@@ -16,11 +16,6 @@ from yt.wrapper.yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 from copy import deepcopy
 from tempfile import NamedTemporaryFile
 
@@ -118,9 +113,6 @@ def prepare_configs(instance_count,
             },
             "max_server_memory_usage": memory_config["max_server_memory_usage"]
         },
-        "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-        },
         "cluster_connection": {
             "block_cache": {
                 "uncompressed_data": {
@@ -159,15 +151,9 @@ def prepare_configs(instance_count,
     for patch in (clickhouse_config_cypress_base, clickhouse_config_base, clickhouse_config, cluster_connection_patch):
         update_inplace(resulting_clickhouse_config, patch)
 
-    log_tailer_config_base = {
-        "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-        }
-    }
-
     log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path else None
     resulting_log_tailer_config = {}
-    for patch in (log_tailer_config_cypress_base, log_tailer_config_base, cluster_connection_patch):
+    for patch in (log_tailer_config_cypress_base, cluster_connection_patch):
         update_inplace(resulting_log_tailer_config, patch)
 
     return {
@@ -212,7 +198,7 @@ def prepare_artifacts(artifact_path,
                 else:
                     dump_suffix = None
             if dump_suffix is None:
-                dump_suffix = ''.join(random.choice("0123456789abcdef") for i in xrange(16))
+                dump_suffix = ''.join(random.choice("0123456789abcdef") for i in range(16))
                 logger.debug("Dumping suffix is random = %s", dump_suffix)
 
         for table_path in (stderr_table_path, core_table_path):

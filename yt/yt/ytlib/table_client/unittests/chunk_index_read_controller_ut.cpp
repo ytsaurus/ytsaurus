@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/checksum.h>
@@ -22,6 +24,7 @@ namespace {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
+using NTransactionClient::operator""_ts;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +116,6 @@ public:
         EXPECT_LT(0, id.BlockIndex);
         EXPECT_LT(id.BlockIndex, std::ssize(Blocks_));
         EXPECT_EQ(type, EBlockType::HashTableChunkIndex);
-
 
         if (CachedSystemBlockFlags_[id.BlockIndex - 1]) {
             ++BlockIndexToAccessStatistics_[id.BlockIndex].HitCount;
@@ -601,7 +603,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
                 keyColumns,
                 builder.Flush(),
                 /*deleteTimestamps*/ {},
-                /*extraWriteTimestamps*/ {100}),
+                /*extraWriteTimestamps*/ {100_ts}),
             result[1]);
         ExpectSchemafulRowsEqual(TVersionedRow(), result[2]);
     }
@@ -609,7 +611,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
 
 TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
 {
-    std::vector<TTimestamp> timestamps = {100, 200};
+    std::vector<TTimestamp> timestamps = {100_ts, 200_ts};
     std::vector<std::string> values = {
         "<id=1;ts=100> 0",
         "<id=1;ts=200> 1"
@@ -878,7 +880,7 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
 
     TControllerUnittestingOptions testingOptions{
-        .Timestamp = 100,
+        .Timestamp = 100_ts,
         .FingerprintDomainSize = 2,
     };
     auto controller = InitializeController(

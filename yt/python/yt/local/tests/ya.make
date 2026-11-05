@@ -29,7 +29,7 @@ SPLIT_FACTOR(16)
 IF (YT_TEAMCITY)
     TAG(ya:yt)
 
-    YT_SPEC(yt/yt/tests/integration/spec.yson)
+    YT_SPEC(yt/yt/tests/integration/spec_teamcity.yson)
 
     REQUIREMENTS(
         ram_disk:32

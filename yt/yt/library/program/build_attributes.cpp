@@ -5,7 +5,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/yt/core/misc/error_code.h>
+#include <library/cpp/yt/error/error_code.h>
 
 namespace NYT {
 
@@ -14,7 +14,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Build");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Build");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ void TBuildInfo::Register(TRegistrar registrar)
 
 std::optional<TInstant> TBuildInfo::ParseBuildTime()
 {
-    TString rawBuildTime(GetBuildTime());
+    std::string rawBuildTime(GetBuildTime());
 
     // Build time may be empty if code is building
     // without -DBUILD_DATE (for example, in opensource build).
@@ -49,7 +49,8 @@ std::optional<TInstant> TBuildInfo::ParseBuildTime()
     try {
         return TInstant::ParseIso8601(rawBuildTime);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error parsing build time");
+        YT_TLOG_ERROR("Error parsing build time")
+            .With(ex);
         return std::nullopt;
     }
 }

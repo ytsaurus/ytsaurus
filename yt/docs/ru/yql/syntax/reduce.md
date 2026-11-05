@@ -5,7 +5,7 @@
 
 Указываемые следом ключевые слова:
 
-* `PRESORT` (опционально) — указание порядка внутри каждой группы, синтаксис аналогичен [ORDER BY](select/order_by.md);
+* `PRESORT` (опционально)— указание порядка внутри каждой группы, синтаксис аналогичен [ORDER BY](select/order_by.md);
 * `ON` (обязательно) — указание ключевых столбцов;
 * `USING` или `USING ALL` (обязательно) — вызов UDF, о правилах подробнее ниже.
 
@@ -107,3 +107,10 @@ $udf = Python::MyReducer(Callable<(String, Stream<Variant<Struct<...>,Struct<...
 
 REDUCE my_table1, my_table2 ON key USING $udf(TableRow());
 ```
+
+{% if audience == "internal" %}
+Примеры из tutorial:
+
+* [Python UDF](https://yql.yandex-team.ru/Tutorial/yt_26_Reduce_with_libra)
+* [C++ UDF](https://yql.yandex-team.ru/Tutorial/yt_27_Reduce_with_ralib)
+{% endif %}

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Authentication helpers."""
+
 from __future__ import annotations
 
 import functools
@@ -20,12 +21,11 @@ import hashlib
 import hmac
 import socket
 from base64 import standard_b64decode, standard_b64encode
+from collections.abc import Mapping, MutableMapping
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Mapping,
-    MutableMapping,
     Optional,
     cast,
 )
@@ -181,7 +181,7 @@ def _canonicalize_hostname(hostname: str, option: str | bool) -> str:
     if option in [False, "none"]:
         return hostname
 
-    af, socktype, proto, canonname, sockaddr = (
+    _af, _socktype, _proto, canonname, sockaddr = (
         _getaddrinfo(
             hostname,
             None,
@@ -341,18 +341,15 @@ def _authenticate_x509(credentials: MongoCredential, conn: Connection) -> None:
 
 
 def _authenticate_default(credentials: MongoCredential, conn: Connection) -> None:
-    if conn.max_wire_version >= 7:
-        if conn.negotiated_mechs:
-            mechs = conn.negotiated_mechs
-        else:
-            source = credentials.source
-            cmd = conn.hello_cmd()
-            cmd["saslSupportedMechs"] = source + "." + credentials.username
-            mechs = (conn.command(source, cmd, publish_events=False)).get("saslSupportedMechs", [])
-        if "SCRAM-SHA-256" in mechs:
-            return _authenticate_scram(credentials, conn, "SCRAM-SHA-256")
-        else:
-            return _authenticate_scram(credentials, conn, "SCRAM-SHA-1")
+    if conn.negotiated_mechs:
+        mechs = conn.negotiated_mechs
+    else:
+        source = credentials.source
+        cmd = conn.hello_cmd()
+        cmd["saslSupportedMechs"] = source + "." + credentials.username
+        mechs = (conn.command(source, cmd, publish_events=False)).get("saslSupportedMechs", [])
+    if "SCRAM-SHA-256" in mechs:
+        return _authenticate_scram(credentials, conn, "SCRAM-SHA-256")
     else:
         return _authenticate_scram(credentials, conn, "SCRAM-SHA-1")
 

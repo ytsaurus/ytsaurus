@@ -8,4 +8,6 @@ JAR_RESOURCE(2936408987)
 
 SRC_RESOURCE(2936403559)
 
+ORIGINAL_SOURCE(https://github.com/qos-ch/slf4j)
+
 END()

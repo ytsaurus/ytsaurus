@@ -73,7 +73,6 @@ class ReincarnatorStatistic:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -282,7 +281,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id(path)
         if not present:
-            with raises_yt_error("Attribute \"schema\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get(f"#{chunk_id}/@schema")
         else:
             chunk_id = get_singular_chunk_id(path)
@@ -319,7 +318,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         write_table("//tmp/t", {"key": 123, "value": "hi"})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        with raises_yt_error("Attribute \"schema\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get(f"#{chunk_id}/@schema")
 
         set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
@@ -405,7 +404,6 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1085,10 +1083,40 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         self._check_tables(tables)
 
 
+class TestChunkReincarnatorMultiCellSequoia(TestChunkReincarnatorMultiCell):
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_reincarnator": {
+                "chunk_scan_period": 600,
+                "ignore_account_settings": True,
+                "skip_versioned_chunks": False,
+            },
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "fetch_replicas_from_sequoia": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "store_sequoia_replicas_on_master_percentage": 100,
+                    "replicas_percentage": 100
+                },
+            }
+        },
+        "cell_master": {
+            "mutation_time_commit_period": 150,
+        }
+    }
+
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorForErasureSingleCell(TestChunkReincarnatorSingleCell):
     ENABLE_MULTIDAEMON = True
     ERASURE_CODEC = "reed_solomon_3_3"
@@ -1105,7 +1133,6 @@ class TestChunkReincarnatorForErasureMultiCell(TestChunkReincarnatorMultiCell):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkReincarnationLeaderSwitch(TestChunkReincarnatorBase):
     ENABLE_MULTIDAEMON = True
 

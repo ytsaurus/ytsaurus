@@ -10,13 +10,14 @@ __all__ = (
 )
 
 import sys
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Coroutine, Generator
 from concurrent.futures import Future
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
     contextmanager,
 )
+from contextvars import Context
 from dataclasses import dataclass, field
 from functools import partial
 from inspect import isawaitable
@@ -42,9 +43,9 @@ from .abc._tasks import TaskStatus
 from .lowlevel import EventLoopToken, current_token
 
 if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
+    from typing import Self, TypeVarTuple, Unpack
 else:
-    from typing_extensions import TypeVarTuple, Unpack
+    from typing_extensions import Self, TypeVarTuple, Unpack
 
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co", covariant=True)
@@ -65,10 +66,10 @@ def _token_or_error(token: EventLoopToken | None) -> EventLoopToken:
 
 
 def run(
-    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+    func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
     *args: Unpack[PosArgsT],
     token: EventLoopToken | None = None,
-) -> T_Retval:
+) -> T_co:
     """
     Call a coroutine function from a worker thread.
 
@@ -120,7 +121,7 @@ def run_sync(
     )
 
 
-class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
+class _BlockingAsyncContextManager(AbstractContextManager, Generic[T_co]):
     _enter_future: Future[T_co]
     _exit_future: Future[bool | None]
     _exit_event: Event
@@ -165,11 +166,12 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
 
     def __exit__(
         self,
-        __exc_type: type[BaseException] | None,
-        __exc_value: BaseException | None,
-        __traceback: TracebackType | None,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
     ) -> bool | None:
-        self._exit_exc_info = __exc_type, __exc_value, __traceback
+        self._exit_exc_info = exc_type, exc_value, traceback
         self._portal.call(self._exit_event.set)
         return self._exit_future.result()
 
@@ -196,7 +198,7 @@ class BlockingPortal:
         self._stop_event = Event()
         self._task_group = create_task_group()
 
-    async def __aenter__(self) -> BlockingPortal:
+    async def __aenter__(self) -> Self:
         await self._task_group.__aenter__()
         return self
 
@@ -244,12 +246,16 @@ class BlockingPortal:
         kwargs: dict[str, Any],
         future: Future[T_Retval],
     ) -> None:
+        event_loop_thread_id = self._event_loop_thread_id
+
         def callback(f: Future[T_Retval]) -> None:
             if f.cancelled():
-                if self._event_loop_thread_id == get_ident():
+                if event_loop_thread_id == get_ident():
                     scope.cancel("the future was cancelled")
-                elif self._event_loop_thread_id is not None:
-                    self.call(scope.cancel, "the future was cancelled")
+                elif event_loop_thread_id is not None:
+                    run_sync(
+                        scope.cancel, "the future was cancelled", token=self._token
+                    )
 
         try:
             retval_or_awaitable = func(*args, **kwargs)
@@ -537,7 +543,11 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
+    kwargs: dict[str, Any] = {}
+    if sys.version_info >= (3, 14):
+        kwargs["context"] = Context()
+
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name, **kwargs)
     thread.start()
     try:
         cancel_remaining_tasks = False

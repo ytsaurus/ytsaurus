@@ -26,7 +26,7 @@ namespace {
 constexpr int FileCacheHashDigitCount = 2;
 constexpr int MD5HashDigitCount = 32;
 
-TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
+TYPath GetFilePathInCache(const std::string& md5, const TYPath& cachePath)
 {
     YT_VERIFY(std::size(md5) == MD5HashDigitCount);
 
@@ -39,7 +39,7 @@ TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClient::SetTouchedAttribute(
-    const TString& destination,
+    const TYPath& destination,
     const TPrerequisiteOptions& options,
     TTransactionId transactionId)
 {
@@ -59,21 +59,20 @@ void TClient::SetTouchedAttribute(
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
         }
 
-        YT_LOG_DEBUG(
-            "Attribute /@touched set (Destination: %v)",
-            destination);
+        YT_TLOG_DEBUG("Attribute /@touched set")
+            .With("Destination", destination);
     }
 }
 
 TGetFileFromCacheResult TClient::DoGetFileFromCache(
-    const TString& md5,
+    const std::string& md5,
     const TGetFileFromCacheOptions& options)
 {
     TGetFileFromCacheResult result;
 
     if (std::ssize(md5) != MD5HashDigitCount) {
-        YT_LOG_DEBUG("MD5 hash is invalid (MD5: %v)",
-            md5);
+        YT_TLOG_DEBUG("MD5 hash is invalid")
+            .With("MD5", md5);
         return result;
     }
 
@@ -89,12 +88,10 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
 
     auto rspOrError = WaitFor(proxy.Execute(req));
     if (!rspOrError.IsOK()) {
-        YT_LOG_DEBUG(
-            rspOrError,
-            "File is missing "
-            "(Destination: %v, MD5: %v)",
-            destination,
-            md5);
+        YT_TLOG_DEBUG("File is missing")
+            .With("Destination", destination)
+            .With("MD5", md5)
+            .With(rspOrError);
 
         return result;
     }
@@ -102,14 +99,12 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto rsp = rspOrError.Value();
     auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-    auto originalMD5 = attributes->Get<TString>("md5", TString());
+    auto originalMD5 = attributes->Get<std::string>("md5", std::string());
     if (md5 != originalMD5) {
-        YT_LOG_DEBUG(
-            "File has incorrect MD5 hash "
-            "(Destination: %v, ExpectedMD5: %v, OriginalMD5: %v)",
-            destination,
-            md5,
-            originalMD5);
+        YT_TLOG_DEBUG("File has incorrect MD5 hash")
+            .With("Destination", destination)
+            .With("ExpectedMD5", md5)
+            .With("OriginalMD5", originalMD5);
 
         return result;
     }
@@ -117,10 +112,9 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     try {
         SetTouchedAttribute(destination, TPrerequisiteOptions(), options.TransactionId);
     } catch (const NYT::TErrorException& ex) {
-        YT_LOG_DEBUG(
-            ex.Error(),
-            "Failed to set touched attribute on file (Destination: %v)",
-            destination);
+        YT_TLOG_DEBUG("Failed to set touched attribute on file")
+            .With("Destination", destination)
+            .With(ex.Error());
         return result;
     }
 
@@ -130,7 +124,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
 
 TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options,
     NLogging::TLogger logger)
 {
@@ -152,12 +146,11 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
-        YT_LOG_DEBUG(
-            "Transaction started (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction started")
+            .With("TransactionId", transaction->GetId());
     }
 
-    Logger.AddTag("TransactionId: %v", transaction->GetId());
+    Logger.AddTag("TransactionId", transaction->GetId());
 
     // Acquire lock.
     TYPath objectIdPath;
@@ -167,9 +160,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         auto lockResult = DoLockNode(path, ELockMode::Snapshot, lockNodeOptions);
         objectIdPath = FromObjectId(lockResult.NodeId);
 
-        YT_LOG_DEBUG(
-            "Lock for node acquired (LockId: %v)",
-            lockResult.LockId);
+        YT_TLOG_DEBUG("Lock for node acquired")
+            .With("LockId", lockResult.LockId);
     }
 
     // Check permissions.
@@ -186,8 +178,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
             THROW_ERROR_EXCEPTION("You need %Qlv or %Qlv permission to use file cache",
                 EPermission::Use,
                 EPermission::Write)
-                << usePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Use)
-                << writePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Write);
+                .With(usePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Use))
+                .With(writePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Write));
         }
     }
 
@@ -211,7 +203,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         auto rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        auto md5 = attributes->Get<TString>("md5");
+        auto md5 = attributes->Get<std::string>("md5");
         if (expectedMD5 != md5) {
             THROW_ERROR_EXCEPTION(
                 "MD5 mismatch: expected %v, got %v",
@@ -219,9 +211,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
                 md5);
         }
 
-        YT_LOG_DEBUG(
-            "MD5 hash checked (MD5: %v)",
-            expectedMD5);
+        YT_TLOG_DEBUG("MD5 hash checked")
+            .With("MD5", expectedMD5);
     }
 
     auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
@@ -240,9 +231,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "File has been copied to cache (Destination: %v)",
-            destination);
+        YT_TLOG_DEBUG("File has been copied to cache")
+            .With("Destination", destination);
     }
 
     SetTouchedAttribute(destination, options, transaction->GetId());
@@ -256,10 +246,12 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
 
 TPutFileToCacheResult TClient::DoPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
-    auto Logger = this->Logger().WithTag("Path: %v, Command: PutFileToCache", path);
+    auto Logger = this->Logger()
+        .WithTag("Path", path)
+        .WithTag("Command", "PutFileToCache");
 
     int retryAttempts = 0;
     while (true) {
@@ -269,7 +261,8 @@ TPutFileToCacheResult TClient::DoPutFileToCache(
             auto error = ex.Error();
             ++retryAttempts;
             if (retryAttempts < options.RetryCount && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
-                YT_LOG_DEBUG(error, "Put file to cache failed, doing another attempt");
+                YT_TLOG_DEBUG("Put file to cache failed, doing another attempt")
+                    .With(error);
             } else {
                 throw;
             }

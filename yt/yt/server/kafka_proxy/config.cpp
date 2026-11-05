@@ -8,6 +8,7 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <yt/yt/core/crypto/config.h>
 
 namespace NYT::NKafkaProxy {
 
@@ -19,14 +20,13 @@ void TStringTransformationConfig::Register(TRegistrar registrar)
     registrar.Parameter("replacement", &TThis::Replacement)
         .Default();
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyBootstrapConfig::Register(TRegistrar registrar)
+void TKafkaServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
         .Default(80);
-    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
-        .Default(false);
 
     registrar.Parameter("bind_retry_count", &TThis::BindRetryCount)
         .Default(5);
@@ -45,6 +45,23 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("write_idle_timeout", &TThis::WriteIdleTimeout)
         .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("credentials", &TThis::Credentials)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("server", &TThis::Server)
+        .DefaultNew();
+
+    registrar.Parameter("port", &TThis::Port)
+        .Optional();
+
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
+        .Default(false);
 
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
@@ -68,6 +85,10 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
+        if (config->Port) {
+            config->Server->Port = *config->Port;
+        }
+
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = Format("%v/@config", KafkaProxiesRootPath);
         }

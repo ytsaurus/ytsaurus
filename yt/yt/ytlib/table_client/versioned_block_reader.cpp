@@ -1,4 +1,6 @@
 #include "versioned_block_reader.h"
+
+#include "chunk_column_mapping.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
 #include "hunks.h"

@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
+#include "hunks.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
 #include "key_filter.h"
@@ -55,9 +56,9 @@ using namespace NApi;
 using namespace NTableClient::NProto;
 using namespace NTracing;
 
-using NYT::TRange;
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,8 +73,9 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
+        : Logger(TableClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
         , Options_(std::move(options))
         , Config_(std::move(config))
         , BlockSize_(GetWriteBlockSize(Config_, Options_))
@@ -89,7 +91,8 @@ public:
             chunkWriter,
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            Logger))
+            Logger,
+            std::move(compressionInvokerOverride)))
         , LastKey_(TUnversionedValueRange(nullptr, nullptr))
         , MinTimestamp_(MaxTimestamp)
         , MaxTimestamp_(MinTimestamp)
@@ -97,7 +100,7 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
-        , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->CompactionHintWriter.RowDigest))
+        , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->CompactionHintWriter.RowDigest, Schema_))
         , MinHashDigestBuilder_(CreateMinHashDigestBuilder(Config_->CompactionHintWriter.MinHashDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -373,9 +376,9 @@ protected:
     {
         if (dataWeight > MaxServerVersionedRowDataWeight) {
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
-                << TErrorAttribute("key", ToOwningKey(row))
-                << TErrorAttribute("actual_data_weight", dataWeight)
-                << TErrorAttribute("max_data_weight", MaxServerVersionedRowDataWeight);
+                .With("key", ToOwningKey(row))
+                .With("actual_data_weight", dataWeight)
+                .With("max_data_weight", MaxServerVersionedRowDataWeight);
         }
     }
 };
@@ -541,7 +544,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -549,7 +553,8 @@ public:
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink)
+            dataSink,
+            std::move(compressionInvokerOverride))
         , TBlockFormatAdapter(
             Config_,
             Schema_,
@@ -602,11 +607,11 @@ private:
 
         if (row.GetWriteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
-                << TErrorAttribute("key", ToOwningKey(row));
+                .With("key", ToOwningKey(row));
         }
         if (row.GetDeleteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row")
-                << TErrorAttribute("key", ToOwningKey(row));
+                .With("key", ToOwningKey(row));
         }
     }
 
@@ -615,7 +620,10 @@ private:
         TUnversionedValueRange prevKey)
     {
         EmitSampleRandomly(row);
-        auto rowWeight = NTableClient::GetDataWeight(row);
+
+        // NB: Hunk encoding overhead is excluded from the data weight of the chunk so that
+        // the latter matches the data weight of the original rows.
+        auto rowWeight = GetDataWeightWithoutHunkEncoding(row);
 
         ValidateRow(row, rowWeight, prevKey);
 
@@ -658,8 +666,8 @@ private:
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(MinTimestamp_);
-        miscExt.set_max_timestamp(MaxTimestamp_);
+        miscExt.set_min_timestamp(ToProto(MinTimestamp_));
+        miscExt.set_max_timestamp(ToProto(MaxTimestamp_));
     }
 
     void DoClose() override
@@ -697,7 +705,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -705,20 +714,23 @@ public:
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink)
+            dataSink,
+            std::move(compressionInvokerOverride))
         , DataToBlockFlush_(std::min(BlockSize_, BufferSize_))
     {
         THROW_ERROR_EXCEPTION_IF(!IsColumnMetaInChunkMetaEnabled() && !IsSegmentMetaInBlocksEnabled(),
             "Bad chunk writer configuration. Either column meta in chunk meta or segment meta in blocks"
             "must be allowed");
 
-        YT_LOG_DEBUG("Created columnar versioned chunk writer (ColumnMetaEnabled: %v, SegmentMetaEnabled: %v)",
-            IsColumnMetaInChunkMetaEnabled(),
-            IsSegmentMetaInBlocksEnabled());
+        YT_TLOG_DEBUG("Created columnar versioned chunk writer")
+            .With("ColumnMetaEnabled", IsColumnMetaInChunkMetaEnabled())
+            .With("SegmentMetaEnabled", IsSegmentMetaInBlocksEnabled());
 
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
-            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(IsSegmentMetaInBlocksEnabled()));
+            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(
+                IsSegmentMetaInBlocksEnabled(),
+                IsColumnMetaInChunkMetaEnabled()));
             return blockWriterIndex;
         };
 
@@ -828,7 +840,9 @@ private:
             int rowIndex = startRowIndex;
             for (; rowIndex < std::ssize(rows) && weight < DataToBlockFlush_; ++rowIndex) {
                 auto row = rows[rowIndex];
-                auto rowWeight = NTableClient::GetDataWeight(row);
+                // NB: Hunk encoding overhead is excluded from the data weight of the chunk so that
+                // the latter matches the data weight of the original rows.
+                auto rowWeight = GetDataWeightWithoutHunkEncoding(row);
                 if (rowIndex == 0) {
                     ValidateRow(row, rowWeight, LastKey_.Elements());
                 } else {
@@ -922,8 +936,8 @@ private:
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(TimestampWriter_->GetMinTimestamp());
-        miscExt.set_max_timestamp(TimestampWriter_->GetMaxTimestamp());
+        miscExt.set_min_timestamp(ToProto(TimestampWriter_->GetMinTimestamp()));
+        miscExt.set_max_timestamp(ToProto(TimestampWriter_->GetMaxTimestamp()));
 
         auto meta = EncodingChunkWriter_->GetMeta();
 
@@ -989,7 +1003,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     IChunkWriterPtr chunkWriter,
     NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    IInvokerPtr compressionInvokerOverride)
 {
     if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
         // It is hard to support both reordering and uncompressed block caching
@@ -1007,7 +1022,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink);
+            dataSink,
+            std::move(compressionInvokerOverride));
     };
 
     auto chunkFormat = options->GetEffectiveChunkFormat(/*versioned*/ true);
@@ -1062,46 +1078,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         parentChunkListId,
         std::move(chunkWriterFactory),
         /*trafficMeter*/ nullptr,
-        std::move(throttler),
-        std::move(blockCache));
-}
-
-IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TTableSchemaPtr schema,
-    NNative::IClientPtr client,
-    std::string localHostName,
-    TCellTag cellTag,
-    TTransactionId transactionId,
-    TMasterTableSchemaId schemaId,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
-    const std::optional<NChunkClient::TDataSink>& dataSink,
-    TChunkListId parentChunkListId,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
-{
-    auto chunkWriterFactory = [=] (IChunkWriterPtr underlyingWriter) {
-        return CreateVersionedChunkWriter(
-            config,
-            options,
-            schema,
-            std::move(underlyingWriter),
-            writeBlocksOptions,
-            dataSink,
-            blockCache);
-    };
-
-    return CreateVersionedMultiChunkWriter(
-        std::move(chunkWriterFactory),
-        std::move(config),
-        std::move(options),
-        std::move(client),
-        std::move(localHostName),
-        cellTag,
-        transactionId,
-        schemaId,
-        parentChunkListId,
         std::move(throttler),
         std::move(blockCache));
 }

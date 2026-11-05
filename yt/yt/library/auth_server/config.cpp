@@ -6,6 +6,9 @@
 
 #include <yt/yt/core/https/config.h>
 
+#include <util/stream/file.h>
+#include <util/system/env.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +78,20 @@ void TBlackboxTicketAuthenticatorConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("enable_scope_check", &TThis::EnableScopeCheck)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingTicketAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache", &TThis::Cache)
+        .DefaultCtor([] {
+            auto config = New<TAuthCacheConfig>();
+            config->CacheTtl = TDuration::Seconds(30);
+            config->OptimisticCacheTtl = TDuration::Minutes(5);
+            config->ErrorTtl = TDuration::Seconds(15);
+            return config;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,6 +343,90 @@ void TCachingSecretVaultServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TLdapServiceConfig::GetAdminPassword() const
+{
+    // The password is passed through verbatim: trailing whitespace may well be
+    // part of it, and silently trimming a secret would turn a valid password into
+    // an inexplicable authentication failure.
+    std::string password;
+    if (AdminPasswordPath) {
+        TFileInput input(*AdminPasswordPath);
+        password = input.ReadAll();
+    } else if (AdminPasswordEnvVar) {
+        // TODO(babenko): migrate to std::string
+        auto value = TryGetEnv(TString(*AdminPasswordEnvVar));
+        if (!value) {
+            THROW_ERROR_EXCEPTION(
+                "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
+                *AdminPasswordEnvVar);
+        }
+        password = std::string(*value);
+    } else {
+        YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+    }
+
+    // An empty password would be sent as an unauthenticated simple bind per
+    // RFC 4513 §5.1.2 — Active Directory accepts that with LDAP_SUCCESS but keeps
+    // the session anonymous, then rejects the subsequent search with "successful
+    // bind must be completed on the connection". Fail loudly instead.
+    if (password.empty()) {
+        THROW_ERROR_EXCEPTION("LDAP admin password is empty")
+            .With("source",
+                AdminPasswordPath
+                    ? Format("file %Qv", *AdminPasswordPath)
+                    : Format("env var %Qv", *AdminPasswordEnvVar));
+    }
+    return password;
+}
+
+void TLdapServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Optional();
+    registrar.Parameter("encryption", &TThis::Encryption)
+        .Default(ELdapEncryption::None);
+    registrar.Parameter("enable_referrals", &TThis::EnableReferrals)
+        .Default(false);
+    registrar.Parameter("ca", &TThis::CertificateAuthority)
+        .Optional();
+    registrar.Parameter("admin_dn", &TThis::AdminDn)
+        .NonEmpty();
+    registrar.Parameter("admin_password_path", &TThis::AdminPasswordPath)
+        .Optional();
+    registrar.Parameter("admin_password_env_var", &TThis::AdminPasswordEnvVar)
+        .Optional();
+    registrar.Parameter("search_base", &TThis::SearchBase)
+        .NonEmpty();
+    registrar.Parameter("search_filter", &TThis::SearchFilter)
+        .Default("(uid={login})");
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Port) {
+            config->Port = (config->Encryption == ELdapEncryption::Ldaps) ? 636 : 389;
+        }
+        if (static_cast<int>(config->AdminPasswordPath.has_value()) +
+            static_cast<int>(config->AdminPasswordEnvVar.has_value()) != 1)
+        {
+            THROW_ERROR_EXCEPTION(
+                "Exactly one of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressCookieStoreConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("full_fetch_period", &TThis::FullFetchPeriod)
@@ -354,6 +455,9 @@ void TCypressCookieGeneratorConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("path", &TThis::Path)
         .Default("/");
+
+    registrar.Parameter("ldap_cookie_expiration_timeout", &TThis::LdapCookieExpirationTimeout)
+        .Default(TDuration::Hours(8));
 
     registrar.Parameter("redirect_url", &TThis::RedirectUrl)
         .Default();
@@ -412,7 +516,7 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TAuthenticationManagerConfig::GetCsrfSecret() const
+std::string TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
         BlackboxCookieAuthenticator->CsrfSecret)
@@ -420,7 +524,7 @@ TString TAuthenticationManagerConfig::GetCsrfSecret() const
         return *BlackboxCookieAuthenticator->CsrfSecret;
     }
 
-    return TString();
+    return std::string();
 }
 
 TInstant TAuthenticationManagerConfig::GetCsrfTokenExpirationTime() const
@@ -453,6 +557,8 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("blackbox_ticket_authenticator", &TThis::BlackboxTicketAuthenticator)
         .Optional();
+    registrar.Parameter("caching_ticket_authenticator", &TThis::CachingTicketAuthenticator)
+        .DefaultNew();
     registrar.Parameter("cypress_cookie_manager", &TThis::CypressCookieManager)
         .Default();
     registrar.Parameter("oauth_cookie_authenticator", &TThis::OAuthCookieAuthenticator)
@@ -466,6 +572,18 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
         .Optional();
+    registrar.Parameter("cypress_password_authenticator", &TThis::CypressPasswordAuthenticator)
+        .DefaultNew();
+    registrar.Parameter("ldap_service", &TThis::LdapService)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAuthenticationManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

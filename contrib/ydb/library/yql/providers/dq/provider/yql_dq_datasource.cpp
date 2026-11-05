@@ -5,13 +5,12 @@
 #include "yql_dq_validate.h"
 #include "yql_dq_statistics.h"
 
-#include <yql/essentials/providers/common/config/yql_configuration_transformer.h>
+#include <yql/essentials/providers/common/config/transformer/yql_configuration_transformer.h>
 #include <yql/essentials/providers/common/provider/yql_data_provider_impl.h>
 #include <yql/essentials/providers/common/provider/yql_provider.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/providers/common/transform/yql_exec.h>
 #include <yql/essentials/providers/common/transform/yql_lazy_init.h>
-#include <yql/essentials/providers/result/expr_nodes/yql_res_expr_nodes.h>
 
 #include <contrib/ydb/library/yql/providers/dq/opt/dqs_opt.h>
 #include <contrib/ydb/library/yql/providers/dq/expr_nodes/dqs_expr_nodes.h>

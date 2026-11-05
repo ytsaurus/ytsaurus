@@ -5,6 +5,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/string/string_builder.h>
+#include <library/cpp/yt/string/stream.h>
 
 #include <library/cpp/yt/yson_string/public.h>
 
@@ -24,11 +25,11 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         return;
     }
 
-    TString attrString;
-    TStringOutput output(attrString);
+    std::string attrString;
+    TStdStringOutput output(attrString);
     TYsonWriter attrWriter(&output, EYsonFormat::Text, EYsonType::MapFragment);
 
-    std::ranges::sort(attributePairs, [](const auto& lhs, const auto& rhs) {
+    std::ranges::sort(attributePairs, [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
     });
 
@@ -38,11 +39,12 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         attrWriter.OnRaw(value);
     }
     attrWriter.OnEndAttributes();
+    attrWriter.Flush();
 
     builder->AppendString(attrString);
 }
 
-TString ConvertToString(const TGenericObjectReference& ref)
+std::string ConvertToString(const TGenericObjectReference& ref)
 {
     TStringBuilder builder;
     AppendAttributes(&builder, ref.Attributes());
@@ -50,24 +52,34 @@ TString ConvertToString(const TGenericObjectReference& ref)
     return builder.Flush();
 }
 
+template <const char... AttributeKey[]>
+IAttributeDictionaryPtr FilterAttributes(const IAttributeDictionary& attributes)
+{
+    auto filteredAttributes = CreateEphemeralAttributes();
+    auto applyOne = [&] (const char* attribute) {
+        auto value = attributes.Find<std::string>(attribute);
+        if (value) {
+            filteredAttributes->Set(attribute, *value);
+        }
+    };
+    (applyOne(AttributeKey), ...);
+    return filteredAttributes;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePath TTablePath::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+TTablePath TTablePath::FromRichYPath(const NYPath::TRichYPath& richYPath)
 {
-    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
-    return TTablePath(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+    return TTablePath(richYPath.GetPath(), *FilterAttributes<ClusterAttributeKey>(richYPath.Attributes()));
 }
 
-TGenericObjectReference TGenericObjectReference::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+TGenericObjectReference TGenericObjectReference::FromRichYPath(const NYPath::TRichYPath& richYPath)
 {
-    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
-    TGenericObjectReference result(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
-    if (auto consumerName = richYPath.GetQueueConsumerName()) {
-        result.SetQueueConsumerName(consumerName.value());
-    }
-    return result;
+    return TGenericObjectReference(
+        richYPath.GetPath(),
+        *FilterAttributes<ClusterAttributeKey, QueueConsumerNameAttributeKey>(richYPath.Attributes()));
 }
 
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs)
@@ -83,6 +95,11 @@ std::weak_ordering operator<=>(const TGenericObjectReference& lhs, const TGeneri
 TTablePath ToTablePath(const TGenericObjectReference& genericRef)
 {
     return TTablePath(genericRef.GetPath(), *MakeAttributesWithCluster(genericRef.GetCluster().value()));
+}
+
+TTablePath ToTablePath(const TNamedConsumerReference& namedRef)
+{
+    return TTablePath(namedRef.GetPath(), *MakeAttributesWithCluster(namedRef.GetCluster().value()));
 }
 
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
@@ -111,10 +128,43 @@ void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref
     FormatValue(builder, ToCrossClusterReference(ref), spec);
 }
 
+void FormatValue(TStringBuilderBase* builder, const TNamedConsumerReference& ref, TStringBuf spec)
+{
+    FormatValue(builder, TGenericObjectReference(ref), spec);
+}
+
+void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer)
+{
+    Serialize(ToCrossClusterReference(path), consumer);
+}
+
+void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consumer)
+{
+    if (ref.GetQueueConsumerName().has_value()) {
+        Serialize(TRichYPath(ref), consumer);
+        return;
+    }
+    Serialize(ToCrossClusterReference(ref), consumer);
+}
+
+void Serialize(const TNamedConsumerReference& ref, NYson::IYsonConsumer* consumer)
+{
+    Serialize(TGenericObjectReference(ref), consumer);
+}
+
 IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(ClusterAttributeKey, cluster);
+    return attributes;
+}
+
+IAttributeDictionaryPtr MakeConsumerAttributes(const std::string& cluster, const std::optional<std::string>& queueConsumerName)
+{
+    auto attributes = MakeAttributesWithCluster(cluster);
+    if (queueConsumerName) {
+        attributes->Set(QueueConsumerNameAttributeKey, *queueConsumerName);
+    }
     return attributes;
 }
 

@@ -20,6 +20,11 @@ NSecurityClient::ESecurityAction FastCheckPermission(const TUserDescriptorPtr& u
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPermissionValidationResult
+{
+    bool HasRowLevelAce = false;
+};
+
 NSecurityServer::TPermissionCheckResponse CheckPermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
@@ -27,7 +32,7 @@ NSecurityServer::TPermissionCheckResponse CheckPermissionForNode(
     const NSecurityServer::TPermissionCheckBasicOptions& options,
     TUserDirectoryPtr userDirectory);
 
-void ValidatePermissionForNode(
+TPermissionValidationResult ValidatePermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
     NYTree::EPermission permission,

@@ -25,7 +25,7 @@ struct ISimulatorOperationController
 
     virtual bool IsOperationCompleted() const = 0;
 
-    virtual TString GetLoggingProgress() const = 0;
+    virtual std::string GetLoggingProgress() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISimulatorOperationController)

@@ -61,7 +61,7 @@ int TDataSliceDescriptor::GetRangeIndex() const
         : ChunkSpecs.front().range_index();
 }
 
-TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
+std::string ToString(const TDataSliceDescriptor& dataSliceDescriptor)
 {
     TStringBuilder stringBuilder;
     stringBuilder.AppendChar('{');

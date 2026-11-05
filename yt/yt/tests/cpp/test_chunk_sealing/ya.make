@@ -11,6 +11,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/yt/library/profiling/solomon
     yt/yt/library/query/engine
     yt/yt/tests/cpp/test_base
     yt/yt/ytlib
@@ -28,7 +29,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/cpp/test_chunk_sealing/config.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

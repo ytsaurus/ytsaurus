@@ -90,7 +90,7 @@ TUnversionedValue MakeUnversionedValue(
 {
     if (const auto* stringPayloadPtr = std::get_if<TStringBuf>(&payload)) {
         THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::String,
-            "Values of type %Qlv can not be parsed from TStringBuf payload",
+            "Values of type %Qlv cannot be parsed from TStringBuf payload",
             valueType);
         return MakeUnversionedStringValue(*stringPayloadPtr);
     }
@@ -99,7 +99,7 @@ TUnversionedValue MakeUnversionedValue(
     auto ysonPayloadBuf = ysonPayload.AsStringBuf();
     if (!ysonPayloadBuf) {
         THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::Any,
-            "Values of type %Qlv can not be parsed from empty payload",
+            "Values of type %Qlv cannot be parsed from empty payload",
             valueType);
         return MakeUnversionedAnyValue(ysonPayloadBuf);
     }
@@ -179,8 +179,8 @@ public:
                 rowBuffer);
         } catch (const std::exception& ex) {
             return TError("Error evaluating query")
-                << TErrorAttribute("query", ParsedQuery_->Source)
-                << ex;
+                .With("query", ParsedQuery_->Source)
+                .With(ex);
         }
     }
 
@@ -265,7 +265,7 @@ TExpressionPtr CreateFakeTableAttributeSelector(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
             queryAttributePath)
-            << ex;
+            .With(ex);
     }
 }
 

@@ -36,4 +36,10 @@ TFuture<NYTree::IAttributeDictionaryPtr> FetchAttributesForNode(
     NCypressClient::TNodeId rootId,
     TNodeAncestry rootAncestry);
 
+TFuture<NYTree::INodePtr> FetchValueForNode(
+    const TSequoiaSessionPtr& sequoiaSession,
+    const NYTree::TAttributeFilter& attributeFilter,
+    NCypressClient::TNodeId rootId,
+    TNodeAncestry rootAncestry);
+
 } // namespace NYT::NCypressServer

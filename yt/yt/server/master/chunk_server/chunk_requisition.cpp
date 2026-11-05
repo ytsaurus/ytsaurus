@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -189,6 +191,7 @@ int TChunkReplication::GetSize() const
 
 bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const
 {
+    int totalReplicationFactor = 0;
     for (auto entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
         if (medium->IsOffshore()) {
@@ -196,12 +199,16 @@ bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isE
         }
 
         YT_VERIFY(medium->IsDomestic());
-        if (!medium->AsDomestic()->GetTransient() && (entry.Policy().GetReplicationFactor() > 1 || isErasureChunk)) {
-            return true;
+        if (!medium->AsDomestic()->GetTransient()) {
+            if (isErasureChunk) {
+                return true;
+            }
+
+            totalReplicationFactor += entry.Policy().GetReplicationFactor();
         }
     }
 
-    return false;
+    return totalReplicationFactor >= MinVitalReplicationFactor;
 }
 
 bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const
@@ -498,10 +505,9 @@ void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkMa
         if (isErasureChunk || medium->IsOffshore()) {
             auto& replicationPolicy = entry.ReplicationPolicy;
             if (!replicationPolicy) {
-                YT_LOG_ALERT(
-                    "Medium is disabled for requisition entry, ignore replication factor set (Requisition: %v, RequisitionEntry: %v)",
-                    *this,
-                    entry);
+                YT_TLOG_ALERT("Medium is disabled for requisition entry, ignore replication factor set")
+                    .With("Requisition", *this)
+                    .With("RequisitionEntry", entry);
                 continue;
             }
             replicationPolicy.SetReplicationFactor(1);
@@ -736,6 +742,26 @@ void TChunkRequisitionRegistry::Clear()
 }
 
 void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
+    TTestingTag,
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount)
+{
+    DoEnsureBuiltinRequisitionsInitialized(
+        chunkWiseAccountingMigrationAccount,
+        /*objectManager*/ nullptr);
+}
+
+void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
+    const NObjectServer::IObjectManagerPtr& objectManager)
+{
+    YT_VERIFY(objectManager);
+
+    DoEnsureBuiltinRequisitionsInitialized(
+        chunkWiseAccountingMigrationAccount,
+        objectManager);
+}
+
+void TChunkRequisitionRegistry::DoEnsureBuiltinRequisitionsInitialized(
     NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
@@ -860,15 +886,19 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     YT_VERIFY(IndexToItem_.emplace(index, item).second);
     YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);
 
-    // Since requisitions are sometimes created by aggregating other requisitions,
-    // there's no guarantee that accounts are alive (not to mention active).
-    for (const auto& entry : requisition.AllEntries()) {
-        objectManager->WeakRefObject(entry.Account);
+    // TODO(danilalexeev): YT-28820. Remove the test-only support for a null object manager once
+    // `Migration*RequisitionIndex` values are dropped.
+    if (objectManager) {
+        // Since requisitions are sometimes created by aggregating other requisitions,
+        // there's no guarantee that accounts are alive (not to mention active).
+        for (const auto& entry : requisition.AllEntries()) {
+            objectManager->WeakRefObject(entry.Account);
+        }
     }
 
-    YT_LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
-        index,
-        requisition);
+    YT_TLOG_DEBUG("Requisition created")
+        .With("RequisitionIndex", index)
+        .With("Requisition", requisition);
 
     return index;
 }
@@ -882,9 +912,9 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
-    YT_LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
-        index,
-        requisition);
+    YT_TLOG_DEBUG("Requisition removed")
+        .With("RequisitionIndex", index)
+        .With("Requisition", requisition);
 
     YT_VERIFY(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
@@ -898,9 +928,9 @@ void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
     auto& item = GetOrCrash(IndexToItem_, index);
     ++item.RefCount;
-    YT_LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
-        index,
-        item.RefCount);
+    YT_TLOG_TRACE("Requisition referenced")
+        .With("RequisitionIndex", index)
+        .With("RefCount", item.RefCount);
 }
 
 void TChunkRequisitionRegistry::Unref(
@@ -911,9 +941,9 @@ void TChunkRequisitionRegistry::Unref(
     YT_VERIFY(item.RefCount != 0);
     --item.RefCount;
 
-    YT_LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
-        index,
-        item.RefCount);
+    YT_TLOG_TRACE("Requisition unreferenced")
+        .With("RequisitionIndex", index)
+        .With("RefCount", item.RefCount);
 
     if (item.RefCount == 0) {
         Erase(index, objectManager);

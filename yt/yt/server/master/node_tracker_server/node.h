@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 #include <yt/yt/server/master/chunk_server/chunk_replication_queue.h>
 
@@ -21,9 +23,15 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/test_framework/testing_tag.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 
@@ -65,6 +73,29 @@ struct TIncrementalHeartbeatCounters
     NProfiling::TCounter AddedDestroyedReplicas;
 
     explicit TIncrementalHeartbeatCounters(const NProfiling::TProfiler& profiler);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellSlot
+{
+    NCellServer::TCellBaseRawPtr Cell;
+    NHydra::EPeerState PeerState = NHydra::EPeerState::None;
+    int PeerId = NHydra::InvalidPeerId;
+
+    //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
+    int PreloadPendingStoreCount = 0;
+
+    //! Sum of `PreloadCompletedStoreCount` over all tablets in slot.
+    int PreloadCompletedStoreCount = 0;
+
+    //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
+    int PreloadFailedStoreCount = 0;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+    // Used in cell balancer to check peer state.
+    bool IsWarmedUp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +210,7 @@ public:
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, LeaseTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LastSeenLeaseTransactionTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LeaseTransactionTimeoutBeforeExtension);
 
     // Exec Node stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
@@ -232,28 +263,6 @@ public:
     using TChunkPullReplicationSet = THashMap<TChunkId, TMediumMap<int>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
 
-    // Cell Manager stuff.
-    struct TCellSlot
-    {
-        NCellServer::TCellBaseRawPtr Cell;
-        NHydra::EPeerState PeerState = NHydra::EPeerState::None;
-        int PeerId = NHydra::InvalidPeerId;
-
-        //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
-        int PreloadPendingStoreCount = 0;
-
-        //! Sum of `PreloadCompletedStoreCount` over all tablets in slot.
-        int PreloadCompletedStoreCount = 0;
-
-        //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
-        int PreloadFailedStoreCount = 0;
-
-        void Persist(const NCellMaster::TPersistenceContext& context);
-
-        // Used in cell balancer to check peer state.
-        bool IsWarmedUp() const;
-    };
-
     using TCellar = TCompactVector<TCellSlot, NCellarClient::TypicalCellarSize>;
     using TCellarMap = THashMap<NCellarClient::ECellarType, TCellar>;
     DEFINE_BYREF_RW_PROPERTY(TCellarMap, Cellars);
@@ -281,6 +290,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastJobHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStateChangeTime);
 
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, RegistrationRevision);
+
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 
@@ -306,14 +317,17 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
+    //! For testing purposes only; in production the host is assigned by the node tracker.
+    void SetHost(TTestingTag, THost* host);
+
     bool HasTag(const std::optional<std::string>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
     void InitializeStates(
         NObjectClient::TCellTag selfCellTag,
-        const std::set<NObjectClient::TCellTag>& secondaryCellTags,
-        const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags,
+        const NObjectClient::TCellTagSet& secondaryCellTags,
+        const NObjectClient::TCellTagSet& dynamicallyPropagatedMastersCellTags,
         bool allowMasterCellRemoval);
 
     //! Recomputes node IO weights and write session count limits from statistics.

@@ -8,6 +8,20 @@ from yt.environment.init_cluster import get_default_resource_limits
 
 from yt.environment.migrationlib import TableInfo, Conversion, Migration
 
+# DO NOT EDIT SPECIAL "# __IF_OS:" MARKERS
+
+try:
+    pass
+    # __IF_NOT_OS:
+    from yt.environment import init_operations_archive_config_yandex as archive_config
+except ImportError:
+    pass
+    # __IF_NOT_OS:
+    from yt.environment import init_operations_archive_config_opensource as archive_config
+
+# __IF_OS:
+# from yt.environment import init_operations_archive_config_opensource as archive_config
+
 import argparse
 import logging
 import time
@@ -63,19 +77,26 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
 
 
 def table_init_callback(client, table_path):
-    one_day = 1000 * 3600 * 24
-    one_week = one_day * 7
-    one_month = one_day * 30
-    two_years = one_month * 12 * 2
-
     _, table_name = ypath_split(table_path)
     if not client.exists(table_path):
         return
 
     if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces", "job_profiles"]:
-        set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
+        set_table_ttl(
+            client,
+            table_path,
+            ttl=archive_config.JOB_TABLES_TTL,
+            auto_compaction_period=archive_config.JOB_TABLES_AUTO_COMPACTION_PERIOD,
+            forbid_obsolete_rows=True,
+        )
     if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
-        set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
+        set_table_ttl(
+            client,
+            table_path,
+            ttl=archive_config.OPERATION_TABLES_TTL,
+            auto_compaction_period=archive_config.OPERATION_TABLES_AUTO_COMPACTION_PERIOD,
+            forbid_obsolete_rows=True,
+        )
 
 
 def update_tablet_cell_bundle(client, tablet_cell_bundle):
@@ -1233,6 +1254,168 @@ TRANSFORMS[66] = [
                 "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
             })),
 ]
+
+TRANSFORMS[67] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo(
+            [
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("interruption_info", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+                ("statistics_lz4", "string"),
+                ("brief_statistics", "any"),
+                ("pool_tree", "string"),
+                ("monitoring_descriptor", "string"),
+                ("probing_job_competition_id", "string"),
+                ("has_probing_competitors", "boolean"),
+                ("job_cookie", "int64"),
+                ("controller_state", "string"),
+                ("archive_features", "any"),
+                ("$ttl", "uint64"),
+                ("operation_incarnation", "string"),
+                ("allocation_id_hi", "uint64"),
+                ("allocation_id_lo", "uint64"),
+                ("addresses", "any"),
+                ("controller_start_time", "int64"),
+                ("controller_finish_time", "int64"),
+                ("gang_rank", "int64"),
+                # COMPAT(pogorelov): Next six columns are not used anymore.
+                # Remove them when it is possible.
+                ("job_cookie_group_index", "int64"),
+                ("main_job_id_hi", "uint64"),
+                ("main_job_id_lo", "uint64"),
+                ("distributed_group_job_index", "int64"),
+                ("distributed_group_main_job_id_hi", "uint64"),
+                ("distributed_group_main_job_id_lo", "uint64"),
+                ("collective_member_rank", "int64"),
+                ("collective_id_hi", "uint64"),
+                ("collective_id_lo", "uint64"),
+                ("controller_error", "any"),
+            ],
+            default_lock="operations_cleaner",
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
+TRANSFORMS[68] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo(
+            [
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any", {"lock": "controller_agent"}),
+                ("provided_spec", "any"),
+                ("spec", "any"),
+                ("full_spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any", {"lock": "controller_agent"}),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any", {"lock": "controller_features"}),
+                ("alert_events", "any", {"lock": "alert_events"}),
+                ("scheduling_attributes_per_pool_tree", "any"),
+            ],
+            in_memory=False,
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
+TRANSFORMS[69] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo(
+            [
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any", {"lock": "controller_agent"}),
+                ("provided_spec", "any"),
+                ("spec", "any"),
+                ("full_spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any", {"lock": "controller_agent"}),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any", {"lock": "controller_features"}),
+                ("alert_events", "any", {"lock": "alert_events"}),
+                ("scheduling_attributes_per_pool_tree", "any"),
+                ("cumulative_spec_patch", "any"),
+            ],
+            in_memory=False,
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 
@@ -1242,10 +1425,18 @@ def are_hunks_enabled(client):
 
 
 def is_ttl_column_available(client):
-    host = client.list("//sys/primary_masters")[0]
-    version = client.get(f"//sys/primary_masters/{host}/orchid/build_info/binary_version")
-    version = float(version[:4])
-    return version >= 24.1
+    hosts = client.list("//sys/primary_masters")
+    if not hosts:
+        raise RuntimeError("No primary masters found")
+
+    for index, host in enumerate(hosts):
+        try:
+            version = client.get(f"//sys/primary_masters/{host}/orchid/build_info/binary_version")
+            version = float(version[:4])
+            return version >= 24.1
+        except Exception:
+            if index == len(hosts) - 1:
+                raise
 
 
 def check_operations_archive_version(client, target_version):
@@ -1376,6 +1567,10 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
+    logging.info(
+        "Using %s configuration",
+        "opensource" if archive_config.IS_OPENSOURCE else "internal",
+    )
     client = YtClient(proxy=args.proxy, config=get_client_config())
 
     run(

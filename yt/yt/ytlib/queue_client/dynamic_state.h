@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/queue_client/records/consumer_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
+#include <yt/yt/ytlib/queue_client/records/multi_consumer_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h>
 #include <yt/yt/ytlib/queue_client/records/queue_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h>
@@ -29,7 +30,21 @@
 
 #include <yt/yt/client/ypath/public.h>
 
+#include <yt/yt/core/actions/current_invoker.h>
+#include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/core/misc/config.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
+
 namespace NYT::NQueueClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! \note Tables of the dynamic state are configured via TQueueAgentDynamicStateConfig instead.
+inline constexpr TExponentialBackoffOptions NoRetriesBackoffOptions{
+    .InvocationCount = 0,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +63,12 @@ public:
     using TRecord = TRecordDescriptor::TRecord;
     using TRecordKey = TRecordDescriptor::TKey;
 
-    TTableBase(NYPath::TYPath path, NApi::IClientPtr client);
+    TTableBase(
+        NYPath::TYPath path,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
+
+    void ReconfigureRetryBackoff(const TExponentialBackoffOptions& retryBackoffOptions);
 
     //! Lookup rows by keys.
     //!
@@ -67,6 +87,13 @@ public:
 private:
     const NYPath::TYPath Path_;
     const NApi::IClientPtr Client_;
+
+    TAtomicObject<TExponentialBackoffOptions> RetryBackoffOptions_;
+
+    template <typename R>
+    TFuture<R> RetryCallback(
+        TCallback<TFuture<R>()> callback,
+        IInvokerPtr invoker = GetCurrentInvoker()) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +110,7 @@ struct TQueueTableRow
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
     TQueueAutoTrimConfig AutoTrimConfig;
-    std::optional<THashMap<TString, TQueueStaticExportConfigPtr>> StaticExportConfig;
+    std::optional<THashMap<std::string, TQueueStaticExportConfigPtr>> StaticExportConfig;
     std::optional<std::string> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;
@@ -93,7 +120,7 @@ struct TQueueTableRow
 
     std::optional<std::string> GetProfilingTag() const;
 
-    static std::vector<TString> GetCypressAttributeNames();
+    static std::vector<std::string> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
         const TTablePath& queue,
@@ -111,7 +138,10 @@ class TQueueTable
     : public TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>
 {
 public:
-    TQueueTable(NYPath::TYPath root, NApi::IClientPtr client);
+    TQueueTable(
+        NYPath::TYPath root,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueTable)
@@ -119,7 +149,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
-struct TConsumerTableRow
+struct TConsumerTableRow final
 {
     TTablePath Path;
     std::optional<TRowRevision> RowRevision;
@@ -135,7 +165,7 @@ struct TConsumerTableRow
 
     std::optional<std::string> GetProfilingTag() const;
 
-    static std::vector<TString> GetCypressAttributeNames();
+    static std::vector<std::string> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
         const TTablePath& consumer,
@@ -154,10 +184,40 @@ class TConsumerTable
     : public TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>
 {
 public:
-    TConsumerTable(NYPath::TYPath root, NApi::IClientPtr client);
+    TConsumerTable(
+        NYPath::TYPath root,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
+struct TMultiConsumerNameTableRow
+{
+    TNamedConsumerReference Ref;
+    std::optional<std::string> QueueAgentStage;
+
+    bool operator==(const TMultiConsumerNameTableRow& rhs) const = default;
+};
+
+void Serialize(const TMultiConsumerNameTableRow& row, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMultiConsumerNameTable
+    : public TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>
+{
+public:
+    TMultiConsumerNameTable(
+        NYPath::TYPath root,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiConsumerNameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,9 +233,12 @@ class TQueueAgentObjectMappingTable
     : public TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>
 {
 public:
-    TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
+    TQueueAgentObjectMappingTable(
+        NYPath::TYPath root,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 
-    static THashMap<TGenericObjectReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+    static THashMap<TGenericObjectReference, std::string> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
@@ -202,7 +265,10 @@ class TConsumerRegistrationTable
 public:
     // NB: The constructor takes the full path, instead of the root path.
     // The registration table can be located on a remote cluster, which should be handled by passing the correct client.
-    TConsumerRegistrationTable(NYPath::TYPath path, NApi::IClientPtr client);
+    TConsumerRegistrationTable(
+        NYPath::TYPath path,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerRegistrationTable)
@@ -306,7 +372,10 @@ class TReplicatedTableMappingTable
 public:
     // NB: The constructor takes the full path, instead of the root path.
     // The registration table can be located on a remote cluster, which should be handled by passing the correct client.
-    TReplicatedTableMappingTable(NYPath::TYPath path, NApi::IClientPtr client);
+    TReplicatedTableMappingTable(
+        NYPath::TYPath path,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableMappingTable)
@@ -325,7 +394,10 @@ class TReplicaMappingTable
     : public TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>
 {
 public:
-    TReplicaMappingTable(NYPath::TYPath path, NApi::IClientPtr client);
+    TReplicaMappingTable(
+        NYPath::TYPath path,
+        NApi::IClientPtr client,
+        const TExponentialBackoffOptions& retryBackoffOptions = NoRetriesBackoffOptions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicaMappingTable)
@@ -335,18 +407,23 @@ DEFINE_REFCOUNTED_TYPE(TReplicaMappingTable)
 struct TDynamicState
     : public TRefCounted
 {
+    const TQueueAgentDynamicStateConfigPtr Config;
+
     TQueueTablePtr Queues;
     TConsumerTablePtr Consumers;
+    TMultiConsumerNameTablePtr MultiConsumerNames;
     TQueueAgentObjectMappingTablePtr QueueAgentObjectMapping;
     TConsumerRegistrationTablePtr Registrations;
-
-    //! Might be null for queue agents that are not supposed to fill this table.
     TReplicatedTableMappingTablePtr ReplicatedTableMapping;
 
     TDynamicState(
         const TQueueAgentDynamicStateConfigPtr& config,
         const NApi::IClientPtr& localClient,
         const NHiveClient::TClientDirectoryPtr& clientDirectory);
+
+    //! Applies the dynamic part of the dynamic state config to all state tables.
+    //! \note Options omitted in #config fall back to the ones from #Config.
+    void Reconfigure(const TQueueAgentDynamicStateDynamicConfigPtr& config);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicState)
@@ -354,3 +431,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicState)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient
+
+#define DYNAMIC_STATE_INL_H_
+#include "dynamic_state-inl.h"
+#undef DYNAMIC_STATE_INL_H_

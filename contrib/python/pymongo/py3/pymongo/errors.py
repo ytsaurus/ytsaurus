@@ -16,10 +16,12 @@
 
 .. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from ssl import SSLCertVerificationError as _CertificateError  # noqa: F401
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from bson.errors import InvalidDocument
 
@@ -188,12 +190,15 @@ class OperationFailure(PyMongoError):
         max_wire_version: Optional[int] = None,
     ) -> None:
         error_labels = None
+        base_backoff_ms = None
         if details is not None:
             error_labels = details.get("errorLabels")
+            base_backoff_ms = details.get("baseBackoffMS")
         super().__init__(_format_detailed_error(error, details), error_labels=error_labels)
         self.__code = code
         self.__details = details
         self.__max_wire_version = max_wire_version
+        self.__base_backoff_ms = base_backoff_ms
 
     @property
     def _max_wire_version(self) -> Optional[int]:
@@ -219,6 +224,10 @@ class OperationFailure(PyMongoError):
     @property
     def timeout(self) -> bool:
         return self.__code in (50,)
+
+    @property
+    def _base_backoff_ms(self) -> Optional[float]:
+        return self.__base_backoff_ms
 
 
 class CursorNotFound(OperationFailure):
@@ -304,9 +313,7 @@ class BulkWriteError(OperationFailure):
             return True
 
         werrs = self.details.get("writeErrors", [])
-        if werrs and werrs[-1].get("code") == 50:
-            return True
-        return False
+        return bool(werrs and werrs[-1].get("code") == 50)
 
 
 class ClientBulkWriteException(OperationFailure):

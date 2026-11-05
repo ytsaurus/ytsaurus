@@ -57,6 +57,7 @@ target_link_options(unittester-server-lib-io PRIVATE
 target_sources(unittester-server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/erasure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/gentle_loader_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/huge_page_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/chunk_file_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_engine_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_tracker_ut.cpp

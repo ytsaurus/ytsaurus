@@ -6,18 +6,17 @@ SRCS(
     configs.go
     controller.go
     fancy.go
+    jdbc.go
+    odbc.go
     resources.go
     runtime.go
     speclet.go
 )
 
-IF (NOT OPENSOURCE)
-    SRCS(discovery_client.go)
-ELSE()
-    SRCS(static_discovery_client.go)
-ENDIF()
-
-GO_TEST_SRCS(resources_test.go)
+GO_TEST_SRCS(
+    controller_test.go
+    resources_test.go
+)
 
 END()
 

@@ -57,6 +57,11 @@ func getClusterFromRequest(r *http.Request) (string, error) {
 
 func (a *AccessChecker) UserAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if a.conf.DebugLogin != "" {
+			onAuthSuccess(w, r, next, a.l, ytmsvc.AuthInfo{UserLogin: a.conf.DebugLogin})
+			return
+		}
+
 		ctx := r.Context()
 		cookie, err := r.Cookie(a.conf.AuthCookieName)
 		if err != nil || cookie == nil {
@@ -104,9 +109,8 @@ func (a *AccessChecker) UserAuthMiddleware(next http.Handler) http.Handler {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Authentication failed [whoami]: " + err.Error()})
 			return
 		}
-		authInfo := AuthInfo{
-			Login:     user.Login,
-			IsService: false,
+		authInfo := ytmsvc.AuthInfo{
+			UserLogin: user.Login,
 		}
 
 		// TODO(ilyaibraev): implement view_as_login check

@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -13,6 +14,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
 
@@ -24,22 +26,34 @@ class TBusEchoMessageHandler
 public:
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
 
-        YT_LOG_INFO("Received message with %v parts (Peer: %v, MessageId: %v)", message.Size(), peer, id);
+        YT_TLOG_INFO("Received message")
+            .With("PartCount", message.Size())
+            .With("Peer", peer)
+            .With("MessageId", id);
         for (size_t i = 0; i < message.Size(); ++i) {
-            YT_LOG_INFO("parts[%v] = %Qv (Size: %v, MessageId: %v)", i, message[i], message[i].Size(), id);
+            YT_TLOG_INFO("Received message part")
+                .With("PartIndex", i)
+                .With("Part", message[i])
+                .With("Size", message[i].Size())
+                .With("MessageId", id);
         }
 
         auto future = replyBus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
         future.Subscribe(BIND([id] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_INFO("Message was echoed successfully (MessageId: %v)", id);
+                YT_TLOG_INFO("Message was echoed successfully")
+                    .With("MessageId", id);
             } else {
-                YT_LOG_ERROR(error, "Failed to echo message (MessageId: %v)", id);
+                YT_TLOG_ERROR("Failed to echo message")
+                    .With("MessageId", id)
+                    .With(error);
             }
         }));
     }
@@ -89,13 +103,15 @@ protected:
             config->PrivateKey->FileName = PrivateKeyFile_;
         }
 
-        YT_LOG_INFO("Starting echo server on port %v", Port_);
+        YT_TLOG_INFO("Starting echo server")
+            .With("Port", Port_);
 
         auto server = CreateBusServer(config);
         auto handler = New<TBusEchoMessageHandler>();
 
         server->Start(handler);
 
+        // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
         TString line;
         for (;;) {
             if (!Cin.ReadLine(line)) {
@@ -108,10 +124,10 @@ protected:
 
 private:
     int Port_;
-    TString EncryptionMode_;
-    TString CertChainFile_;
-    TString PrivateKeyFile_;
-    TString CipherList_;
+    std::string EncryptionMode_;
+    std::string CertChainFile_;
+    std::string PrivateKeyFile_;
+    std::string CipherList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

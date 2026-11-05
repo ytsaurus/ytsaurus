@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "detailed_master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -10,6 +9,8 @@
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_resources.h>
+
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 
 #include <library/cpp/yt/yson/public.h>
 
@@ -49,7 +50,7 @@ public:
     //! Sets master memory usage to zero.
     void ClearMasterMemory();
 
-    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
+    const NChunkClient::TCompactMediumMap<i64>& DiskSpace() const;
 
     i64 GetTotalMasterMemory() const;
 
@@ -93,6 +94,8 @@ public:
     void Save(NCypressServer::TSerializeNodeContext& context) const;
     void Load(NCypressServer::TMaterializeNodeContext& context);
 
+    bool IsPersistentlyEmpty() const;
+
 private:
     //! Space occupied on data nodes in bytes per medium.
     /*!
@@ -103,7 +106,7 @@ private:
      *  missing an entry in this map. In particular, setting zero disk space for
      *  a medium leads to erasing it from the map altogether.
      */
-    NChunkClient::TMediumMap<i64> DiskSpace_;
+    NChunkClient::TCompactMediumMap<i64> DiskSpace_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

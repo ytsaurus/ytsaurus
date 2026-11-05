@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/s3/crypto_helpers.h>
 
+#include <string>
+
 namespace NYT::NS3::NCrypto {
 namespace {
 
@@ -43,8 +45,34 @@ TEST(TS3CryptoHelpersTest, Trim)
 
 TEST(TS3CryptoHelpersTest, UriEncode)
 {
-    EXPECT_EQ("abAb19-._~\%20\%2B\%2F\%0A", UriEncode("abAb19-._~ +/\n\0\t@!%", /*isObjectPath*/ false));
-    EXPECT_EQ("abAb19-._~\%20\%2B/\%0A", UriEncode("abAb19-._~ +/\n\0\t@!%", /*isObjectPath*/ true));
+    const char bytes[] = "abAb19-._~ +/\n\0\t@!%";
+    const std::string value(bytes, sizeof(bytes) - 1);
+    EXPECT_EQ("abAb19-._~%20%2B%2F%0A%00%09%40%21%25", UriEncode(value, /*isObjectPath*/ false));
+    EXPECT_EQ("abAb19-._~%20%2B/%0A%00%09%40%21%25", UriEncode(value, /*isObjectPath*/ true));
+}
+
+TEST(TS3CryptoHelpersTest, UriEncodeUtf8Bytes)
+{
+    EXPECT_EQ("%D0%90%D1%8F", UriEncode("Ая", /*isObjectPath*/ false));
+    EXPECT_EQ("caf%C3%A9", UriEncode("café", /*isObjectPath*/ false));
+    EXPECT_EQ("%F0%9F%98%80", UriEncode("😀", /*isObjectPath*/ false));
+}
+
+TEST(TS3CryptoHelpersTest, UriEncodeObjectPathSlashes)
+{
+    EXPECT_EQ("/%D0%90/caf%C3%A9/%F0%9F%98%80", UriEncode("/А/café/😀", /*isObjectPath*/ true));
+}
+
+TEST(TS3CryptoHelpersTest, UriEncodeQuerySlashes)
+{
+    EXPECT_EQ("%2F%D0%90%2Fcaf%C3%A9%2F%F0%9F%98%80", UriEncode("/А/café/😀", /*isObjectPath*/ false));
+    EXPECT_EQ("next%2Bpage%2Fa%3D%26%25", UriEncode("next+page/a=&%", /*isObjectPath*/ false));
+}
+
+TEST(TS3CryptoHelpersTest, UriEncodeLiteralPercent)
+{
+    EXPECT_EQ("photo%25201.jpeg", UriEncode("photo%201.jpeg", /*isObjectPath*/ true));
+    EXPECT_EQ("100%25", UriEncode("100%", /*isObjectPath*/ false));
 }
 
 TEST(TS3CryptoHelpersTest, FormatTimeIso8601)

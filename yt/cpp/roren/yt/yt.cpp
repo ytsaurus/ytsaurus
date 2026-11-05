@@ -40,15 +40,15 @@ public:
         try {
             IClientBasePtr tx = Tx_ ? static_cast<IClientBasePtr>(Tx_) : static_cast<IClientBasePtr>(Client_);
 
-            YT_LOG_DEBUG("Transforming Roren pipeline to YT graph");
+            YT_TLOG_DEBUG("Transforming Roren pipeline to YT graph");
 
             std::shared_ptr<IYtGraph> ytGraph = BuildYtGraphV2(pipeline, Config_);
 
-            YT_LOG_DEBUG("Optimizing YT graph");
+            YT_TLOG_DEBUG("Optimizing YT graph");
 
             ytGraph->Optimize();
 
-            YT_LOG_DEBUG("Starting execution of YT graph");
+            YT_TLOG_DEBUG("Starting execution of YT graph");
 
             TStartOperationContext context;
             context.Config = std::make_shared<TYtPipelineConfig>(Config_);
@@ -57,7 +57,7 @@ public:
             auto runner = MakeDependencyRunner(tx, std::dynamic_pointer_cast<TYtGraphV2>(ytGraph), concurrencyLimit);
             runner->RunOperations(context);
 
-            YT_LOG_DEBUG("All operations was completed");
+            YT_TLOG_DEBUG("All operations completed");
         } catch (...) {
             // just to make sure that tx is aborted
             throw;

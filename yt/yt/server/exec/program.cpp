@@ -43,7 +43,7 @@ public:
 
 private:
     TFile ExecutorStderr_;
-    TString JobId_;
+    std::string JobId_;
 
     std::vector<int> GetReservedDescriptors()
     {
@@ -99,7 +99,7 @@ private:
         }
 
         try {
-            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirrectToDevNull) {
+            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirectToDevNull) {
                 TFile devNull("/dev/null", EOpenModeFlag::WrOnly);
                 SafeDup2(devNull.GetHandle(), STDOUT_FILENO);
             }
@@ -133,7 +133,7 @@ private:
             auto rv = setrlimit(RLIMIT_CORE, &rlimit);
             if (rv) {
                 THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
-                    << TError::FromSystem();
+                    .With(TError::FromSystem());
             }
 
             for (const auto& pipe : config->Pipes) {
@@ -148,8 +148,8 @@ private:
                     auto fd = HandleEintr(::open, path.c_str(), flags);
                     if (fd == -1) {
                         THROW_ERROR_EXCEPTION("Failed to open named pipe")
-                            << TErrorAttribute("path", path)
-                            << TError::FromSystem();
+                            .With("path", path)
+                            .With(TError::FromSystem());
                     }
 
                     if (streamFd != fd) {
@@ -158,9 +158,9 @@ private:
                     }
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
-                        << TErrorAttribute("path", path)
-                        << TErrorAttribute("fd", streamFd)
-                        << ex;
+                        .With("path", path)
+                        .With("fd", streamFd)
+                        .With(ex);
                 }
             }
         } catch (const std::exception& ex) {
@@ -185,10 +185,10 @@ private:
 
         if (config->Pty) {
             if (HandleEintr(setsid) == -1) {
-                THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
+                THROW_ERROR_EXCEPTION("Failed to create a new session").With(TError::FromSystem());
             }
             if (HandleEintr(::ioctl, *config->Pty, TIOCSCTTY, 1) == -1) {
-                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal") << TError::FromSystem();
+                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal").With(TError::FromSystem());
             }
             SafeDup2(*config->Pty, 0);
             SafeDup2(*config->Pty, 1);
@@ -208,7 +208,7 @@ private:
         std::vector<const char*> args;
         args.push_back("/bin/bash");
 
-        TString command;
+        std::string command;
         if (!config->Command.empty()) {
             // :; is added avoid fork/exec (one-shot) optimization.
             command = ":; " + config->Command;
@@ -238,12 +238,12 @@ private:
         Exit(ToUnderlying(EProgramExitCode::ExecveError));
     }
 
-    void OnError(const TString& message) noexcept
+    void OnError(const std::string& message) noexcept
     {
         LogToStderr(message);
     }
 
-    void LogToStderr(const TString& message)
+    void LogToStderr(const std::string& message)
     {
         auto logRecord = Format("%v (JobId: %v)\n", message, JobId_);
 

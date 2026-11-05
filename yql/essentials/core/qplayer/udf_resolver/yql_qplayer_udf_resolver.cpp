@@ -128,7 +128,7 @@ private:
             ("FileAlias", NYT::TNode(import->FileAlias))
             ("PosColumn", NYT::TNode(import->Pos.Column))
             ("PosRow", NYT::TNode(import->Pos.Row))
-            ("PosFile", NYT::TNode(import->Pos.File));
+            ("PosFile", NYT::TNode(TStringBuf(import->Pos.File)));
         // clang-format on
 
         return MakeHash(NYT::NodeToCanonicalYsonString(node, NYT::NYson::EYsonFormat::Binary));
@@ -234,7 +234,6 @@ private:
         }
     }
 
-private:
     const IUdfResolver::TPtr Inner_;
     const TQContext QContext_;
 };

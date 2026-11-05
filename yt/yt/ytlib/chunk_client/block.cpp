@@ -57,9 +57,9 @@ TError TBlock::CheckChecksum() const
         return TError(
             EErrorCode::InvalidBlockChecksum,
             "Invalid checksum detected in block")
-            << TErrorAttribute("expected_checksum", Checksum)
-            << TErrorAttribute("actual_checksum", actualChecksum)
-            << TErrorAttribute("recalculated_checksum", GetChecksum(Data));
+            .With("expected_checksum", Checksum)
+            .With("actual_checksum", actualChecksum)
+            .With("recalculated_checksum", GetChecksum(Data));
     }
 }
 

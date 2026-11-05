@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NCellarNode {
@@ -36,11 +38,16 @@ private:
 
     const NConcurrency::TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
 
+    std::optional<std::string> ExpectedTag_;
+    TFuture<void> ConfigUpdatePipelineFuture_;
+
     TError SendHeartbeat();
 
     void PrepareHeartbeatRequest(const TReqClientHeartbeatPtr& request);
 
     void ProcessHeartbeatResponse(const TRspClientHeartbeatPtr& response);
+
+    void DoFullyUpdateBundlesDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleControllerConnector)

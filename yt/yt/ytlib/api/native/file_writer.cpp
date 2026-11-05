@@ -75,9 +75,9 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
-            Path_.GetPath(),
-            Options_.TransactionId))
+        , Logger(ApiLogger()
+            .WithTag("Path", Path_.GetPath())
+            .WithTag("TransactionId", Options_.TransactionId))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
@@ -138,12 +138,12 @@ private:
     {
         if (Path_.GetAppend() && Path_.GetCompressionCodec()) {
             THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
-                << TErrorAttribute("path", Path_);
+                .With("path", Path_);
         }
 
         if (Path_.GetAppend() && Path_.GetErasureCodec()) {
             THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
-                << TErrorAttribute("path", Path_);
+                .With("path", Path_);
         }
 
         if (Options_.TransactionId) {
@@ -176,7 +176,7 @@ private:
         auto objectIdPath = FromObjectId(ObjectId_);
 
         {
-            YT_LOG_INFO("Requesting extended file attributes");
+            YT_TLOG_INFO("Requesting extended file attributes");
 
             auto proxy = CreateObjectServiceReadProxy(
                 Client_,
@@ -205,12 +205,12 @@ private:
 
             writerOptions = GetWriterOptions(attributes, Path_, MemoryUsageTracker_);
 
-            YT_LOG_INFO("Extended file attributes received (Account: %v)",
-                writerOptions->Account);
+            YT_TLOG_INFO("Extended file attributes received")
+                .With("Account", writerOptions->Account);
         }
 
         {
-            YT_LOG_INFO("Starting file upload");
+            YT_TLOG_INFO("Starting file upload");
 
             auto proxy = CreateObjectServiceWriteProxy(
                 Client_,
@@ -259,15 +259,15 @@ private:
                     UploadTransaction_,
                     TError(NYT::EErrorCode::Canceled, "Upload transaction aborted"));
 
-                YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
-                    uploadTransactionId);
+                YT_TLOG_INFO("File upload started")
+                    .With("UploadTransactionId", uploadTransactionId);
             }
         }
 
         TChunkListId chunkListId;
 
         {
-            YT_LOG_INFO("Requesting file upload parameters");
+            YT_TLOG_INFO("Requesting file upload parameters");
 
             auto proxy = CreateObjectServiceReadProxy(
                 Client_,
@@ -299,8 +299,8 @@ private:
                 }
             }
 
-            YT_LOG_INFO("File upload parameters received (ChunkListId: %v)",
-                chunkListId);
+            YT_TLOG_INFO("File upload parameters received")
+                .With("ChunkListId", chunkListId);
         }
 
         NChunkClient::TDataSink dataSink;
@@ -324,14 +324,14 @@ private:
             /*trafficMetter*/ nullptr,
             std::move(throttler));
 
-        YT_LOG_INFO("File opened");
+        YT_TLOG_INFO("File opened");
     }
 
     void DoClose()
     {
         ValidateAborted();
 
-        YT_LOG_INFO("Closing file");
+        YT_TLOG_INFO("Closing file");
 
         {
             auto result = WaitFor(Writer_->Close());
@@ -385,7 +385,7 @@ private:
 
         UploadTransaction_->Detach();
 
-        YT_LOG_INFO("File closed");
+        YT_TLOG_INFO("File closed");
     }
 };
 

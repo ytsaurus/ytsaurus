@@ -59,6 +59,15 @@ AnyIPAddressFamily = Literal[
 IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 
 
+def idna2008_resolve(host: str) -> bytes:
+    try:
+        return host.encode("ascii")
+    except UnicodeEncodeError:
+        import idna
+
+        return idna.encode(host, uts46=True)
+
+
 # tls_hostname given
 @overload
 async def connect_tcp(
@@ -66,6 +75,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
+    local_port: int | None = ...,
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
     tls_hostname: str,
@@ -80,6 +90,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
+    local_port: int | None = ...,
     ssl_context: ssl.SSLContext,
     tls_standard_compatible: bool = ...,
     tls_hostname: str | None = ...,
@@ -94,6 +105,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
+    local_port: int | None = ...,
     tls: Literal[True],
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
@@ -109,6 +121,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
+    local_port: int | None = ...,
     tls: Literal[False],
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
@@ -124,6 +137,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
+    local_port: int | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> SocketStream: ...
 
@@ -133,6 +147,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = None,
+    local_port: int | None = None,
     tls: bool = False,
     ssl_context: ssl.SSLContext | None = None,
     tls_standard_compatible: bool = True,
@@ -156,6 +171,8 @@ async def connect_tcp(
     :param remote_port: port on the target host to connect to
     :param local_host: the interface address or name to bind the socket to before
         connecting
+    :param local_port: the local port to bind to (requires ``local_host`` to also be
+        set)
     :param tls: ``True`` to do a TLS handshake with the connected stream and return a
         :class:`~anyio.streams.tls.TLSStream` instead
     :param ssl_context: the SSL context object to use (if omitted, a default context is
@@ -196,7 +213,7 @@ async def connect_tcp(
     local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
     if local_host:
-        gai_res = await getaddrinfo(str(local_host), None)
+        gai_res = await getaddrinfo(str(local_host), local_port)
         family, *_, local_address = gai_res[0]
 
     target_host = str(remote_host)
@@ -636,16 +653,7 @@ async def getaddrinfo(
 
     """
     # Handle unicode hostnames
-    if isinstance(host, str):
-        try:
-            encoded_host: bytes | None = host.encode("ascii")
-        except UnicodeEncodeError:
-            import idna
-
-            encoded_host = idna.encode(host, uts46=True)
-    else:
-        encoded_host = host
-
+    encoded_host = idna2008_resolve(host) if isinstance(host, str) else host
     gai_res = await get_async_backend().getaddrinfo(
         encoded_host, port, family=family, type=type, proto=proto, flags=flags
     )
@@ -830,7 +838,7 @@ def convert_ipv6_sockaddr(
     """
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        host, port, flowinfo, scope_id = sockaddr
+        host, port, _flowinfo, scope_id = sockaddr
         if scope_id:
             # PyPy (as of v7.3.11) leaves the interface name in the result, so
             # we discard it and only get the scope ID from the end

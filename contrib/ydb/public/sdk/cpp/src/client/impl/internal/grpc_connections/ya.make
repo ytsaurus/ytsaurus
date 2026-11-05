@@ -1,4 +1,10 @@
 LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
+
+# Avoid llvm-symbolizer cache thrashing for large line-table-only ASan binaries.
+IF (SANITIZER_TYPE == "address" AND DEBUGINFO_LINES_ONLY == "yes")
+    NO_DEBUG_INFO()
+ENDIF()
 
 SRCS(
     actions.cpp
@@ -11,6 +17,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/impl/internal/db_driver_state
     contrib/ydb/public/sdk/cpp/src/client/impl/internal/plain_status
     contrib/ydb/public/sdk/cpp/src/client/impl/internal/rpc_request_settings
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/sdk_runtime
     contrib/ydb/public/sdk/cpp/src/client/impl/stats
     contrib/ydb/public/sdk/cpp/src/client/resources
     contrib/ydb/public/sdk/cpp/src/client/types/exceptions

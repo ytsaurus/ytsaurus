@@ -23,8 +23,7 @@ s3proxy.endpoint={}
 s3proxy.identity={}
 s3proxy.credential={}
 s3proxy.ignore-unknown-headers=true
-jclouds.provider=filesystem-nio2
-jclouds.filesystem.basedir={}
+jclouds.provider=transient
 jclouds.identity=
 jclouds.credential=
 """
@@ -84,18 +83,14 @@ def start(_: List[str]) -> None:
     access_key_id = get_env_value("AWS_ACCESS_KEY_ID")
     secret_access_key = get_env_value("AWS_SECRET_ACCESS_KEY")
 
-    # Directory for S3 data.
-    tmp_path = os.path.join(get_tests_sandbox(), "s3_runtime")
-    os.makedirs(tmp_path, exist_ok=True)
-
-    # Create a configuration file.
+    # Create a configuration file. The transient (in-memory) provider is used so the
+    # mock does not depend on extended-attribute support, which the CI filesystem lacks.
     s3_conf_path = os.path.join(get_tests_sandbox(), "s3proxy.conf")
     with open(s3_conf_path, "w") as s3_conf_file:
         s3_conf_file.write(S3_CONFIG.format(
             endpoint_url,
             access_key_id,
             secret_access_key,
-            tmp_path,
         ))
 
     # Declare an S3 log file.

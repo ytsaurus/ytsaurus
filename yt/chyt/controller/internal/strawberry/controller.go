@@ -37,6 +37,9 @@ type Controller interface {
 	// GetControllerSnapshot returns snapshot of controller state for tracking oplet coherence.
 	GetControllerSnapshot() (yson.RawValue, error)
 
+	// IsControllerSnapshotOutdated compares a stored snapshot with the current state using the oplet's restart policy.
+	IsControllerSnapshotOutdated(snapshot yson.RawValue, oplet *Oplet) (bool, error)
+
 	// DescribeOptions returns human-readable descriptors for controller-related speclet options.
 	// Some options can be missing in the result if they are not intended to be visible through user interfaces.
 	//
@@ -49,7 +52,7 @@ type Controller interface {
 	//
 	// Given speclet should have suitable type for the specific controller.
 	// Otherwise, GetOpBriefAttributes may panic.
-	GetOpBriefAttributes(parsedSpeclet any) map[string]any
+	GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any
 
 	// GetScalerTarget checks whether YT operation should be scaled and returns required scaling parameters.
 	// Returns `nil` if scaling is not required.
@@ -63,9 +66,27 @@ type Controller interface {
 	CheckState(ctx context.Context, oplet *Oplet) (ControllerOpletState, error)
 }
 
+// Metric is a gauge sample provided by a controller for export by its agent.
+// The agent adds the oplet alias to its tags.
+type Metric struct {
+	Name  string
+	Tags  map[string]string
+	Value float64
+}
+
+// MetricsProvider is an optional controller extension for custom metrics.
+type MetricsProvider interface {
+	// GetMetrics may be called concurrently for different oplets.
+	// The agent takes ownership of returned metrics and may mutate their tags.
+	// Metric names in the returned slice must be unique, and label names for
+	// each metric must be consistent across oplets and calls.
+	GetMetrics(oplet *Oplet) []Metric
+}
+
 type ControllerFactory struct {
-	Ctor   func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
-	Config yson.RawValue
+	Ctor       func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+	Config     yson.RawValue
+	Deprecated bool
 	// TODO(max): extra commands is actually of type []api.CmdDescriptor, but we can't import it here
 	// without creating a circular dependency. Come up with a better solution.
 	ExtraCommands any

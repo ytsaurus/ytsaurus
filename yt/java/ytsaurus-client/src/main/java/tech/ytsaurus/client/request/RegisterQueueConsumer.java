@@ -57,6 +57,12 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
+        sb.append("ConsumerPath: ").append(consumerPath).append("; ");
+        sb.append("QueuePath: ").append(queuePath).append("; ");
+        sb.append("Vital: ").append(vital).append("; ");
+        if (registrationPartitions != null) {
+            sb.append("RegistrationPartitions: ").append(registrationPartitions.getPartitions()).append("; ");
+        }
         super.writeArgumentsLogString(sb);
     }
 
@@ -89,11 +95,31 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
         private Builder() {
         }
 
+        /**
+         * Set consumer path.
+         * <p>
+         * Path is a rich {@link YPath} and may specify a cluster via additional attribute.
+         * For example:
+         * {@code YPath.simple("//tmp/consumer").plusAdditionalAttribute("cluster", "my-cluster")}.
+         * If cluster is not specified, the client's cluster is used.
+         *
+         * @return self
+         */
         public RegisterQueueConsumer.Builder setConsumerPath(YPath consumerPath) {
             this.consumerPath = consumerPath;
             return self();
         }
 
+        /**
+         * Set queue path.
+         * <p>
+         * Path is a rich {@link YPath} and may specify a cluster via additional attribute.
+         * For example:
+         * {@code YPath.simple("//tmp/queue").plusAdditionalAttribute("cluster", "my-cluster")}.
+         * If cluster is not specified, the client's cluster is used.
+         *
+         * @return self
+         */
         public RegisterQueueConsumer.Builder setQueuePath(YPath queuePath) {
             this.queuePath = queuePath;
             return self();

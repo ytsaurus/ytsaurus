@@ -64,8 +64,8 @@ class TObject
     , public TPoolAllocator::TObjectBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision, NHydra::NullRevision);
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision, NHydra::NullRevision);
+    DECLARE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision);
+    DECLARE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision);
 
 public:
     explicit TObject(TObjectId id);
@@ -258,6 +258,9 @@ public:
 
 protected:
     TObjectId Id_;
+
+    NHydra::TRevision AttributeRevision_ = NHydra::NullRevision;
+    NHydra::TRevision ContentRevision_ = NHydra::NullRevision;
 
     int RefCounter_ = 0;
     TEpochRefCounter EphemeralRefCounter_;
@@ -488,4 +491,3 @@ TObjectId GetObjectId(const TObjectPtr<T, C>& ptr);
 #define OBJECT_INL_H_
 #include "object-inl.h"
 #undef OBJECT_INL_H_
-

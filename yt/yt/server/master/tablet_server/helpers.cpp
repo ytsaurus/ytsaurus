@@ -2,8 +2,14 @@
 
 #include "config.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
+
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 namespace NYT::NTabletServer {
 
@@ -176,7 +182,7 @@ std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
     };
 
     std::vector<TCellKey> cellKeys;
-    for (auto* cellBase : GetValuesSortedByKey(table->TabletCellBundle()->Cells())) {
+    for (auto* cellBase : GetValuesSortedByKey(table->GetTabletCellBundle()->Cells())) {
         if (cellBase->GetType() != EObjectType::TabletCell) {
             continue;
         }
@@ -186,7 +192,7 @@ std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
             continue;
         }
 
-        if (cell->CellBundle() == table->TabletCellBundle()) {
+        if (cell->CellBundle() == table->GetTabletCellBundle()) {
             cellKeys.push_back(TCellKey{getCellSize(cell), cell});
         }
     }

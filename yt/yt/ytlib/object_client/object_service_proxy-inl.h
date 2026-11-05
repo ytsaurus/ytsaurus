@@ -81,17 +81,20 @@ std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> TObjec
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
 TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
-    using TTypedResponse = typename TTypedRequest::TTypedResponse;
+    return ExecuteAs(NRpc::RootUserName, std::move(innerRequest));
+}
 
-    auto outerRequest = ExecuteBatch();
-    outerRequest->AddRequest(innerRequest);
-    return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
-        return outerResponse->GetResponse<TTypedResponse>(0)
-            .ValueOrThrow();
-    }));
+template <class TTypedRequest>
+TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
+TObjectServiceProxy::ExecuteAs(const std::string& user, TIntrusivePtr<TTypedRequest> innerRequest)
+{
+    return ExecuteManyAs(user, std::move(innerRequest))
+        .Apply(BIND([] (const std::tuple<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>& rsp) {
+            return std::get<0>(rsp);
+        }));
 }
 
 template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
@@ -99,7 +102,16 @@ template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
 TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
 TObjectServiceProxy::ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests)
 {
+    return ExecuteManyAs(NRpc::RootUserName, std::move(innerRequests)...);
+}
+
+template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+    requires (sizeof...(TTypedRequests) > 0)
+TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+TObjectServiceProxy::ExecuteManyAs(const std::string& user, TIntrusivePtr<TTypedRequests>... innerRequests)
+{
     auto outerRequest = ExecuteBatch();
+    outerRequest->SetUser(user);
     (outerRequest->AddRequest(innerRequests), ...);
     return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
         int index = -1;

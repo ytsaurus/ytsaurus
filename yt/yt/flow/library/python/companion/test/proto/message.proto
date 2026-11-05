@@ -1,0 +1,19 @@
+package NYT.NFlow.NCompanion.NTest;
+
+// Test-only messages for exercising the proto state accessors. Kept in the core
+// (open-source) tree so the companion tests do not depend on yandex examples.
+
+message TJoinedAction {
+    required string hit_id = 1;
+    required uint64 hit_time = 2;
+    required bool is_click = 3;
+    required uint64 show_time = 4;
+    required uint64 click_time = 5;
+    required string hit_payload = 6;
+}
+
+message TJoinState {
+    optional uint64 show_time = 1;
+    optional uint64 click_time = 2;
+    optional string hit_payload = 3;
+}

@@ -26,19 +26,22 @@ public:
     using TCompactionHintFetchPipeline::TCompactionHintFetchPipeline;
 
 protected:
-    virtual NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
+    NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
     {
         return NLsm::EStoreCompactionHintKind::VersionedRowDigest;
     }
 
 private:
-    virtual void DoFetch() override
+    void DoFetch() override
     {
         SubscribeWithErrorHandling(
             Store_->GetBackendReaders(EWorkloadCategory::SystemTabletCompaction).ChunkReader->GetMeta(
-                /*options*/ {},
+                IChunkReader::TGetMetaOptions{
+                    .ClientOptions = CreateChunkReadOptions(),
+                    .MetaSize = GetEstimatedChunkMetaSize(),
+                },
                 /*partitionTags*/ {},
-                /*extentionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
+                /*extensionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
             std::bind_front(&TRowDigestFetchPipeline::OnRowDigestMetaReceived, this));
     }
 
@@ -62,9 +65,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TRowDigestFetchPipeline>(store);
+    return New<TRowDigestFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

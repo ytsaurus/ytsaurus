@@ -12,6 +12,7 @@ import (
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/client/table_client"
 	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/proto/core/ytree"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -297,8 +298,9 @@ func convertAccessTrackingOptions(opts *yt.AccessTrackingOptions) *rpc_proxy.TSu
 	}
 
 	return &rpc_proxy.TSuppressableAccessTrackingOptions{
-		SuppressAccessTracking:       &opts.SuppressAccessTracking,
-		SuppressModificationTracking: &opts.SuppressModificationTracking,
+		SuppressAccessTracking:           &opts.SuppressAccessTracking,
+		SuppressModificationTracking:     &opts.SuppressModificationTracking,
+		SuppressExpirationTimeoutRenewal: &opts.SuppressExpirationTimeoutRenewal,
 	}
 }
 
@@ -1323,6 +1325,24 @@ func convertTimestamp(ts *yt.Timestamp) *uint64 {
 		return nil
 	}
 	return ptr.Uint64(uint64(*ts))
+}
+
+func convertVersionedReadOptions(opts *yt.VersionedReadOptions) (*table_client.TVersionedReadOptions, error) {
+	if opts == nil {
+		return nil, nil
+	}
+
+	var readMode int32
+	switch opts.ReadMode {
+	case "", yt.VersionedReadModeDefault:
+		readMode = 0
+	case yt.VersionedReadModeLatestTimestamp:
+		readMode = 1
+	default:
+		return nil, xerrors.Errorf("unexpected versioned read mode %q", opts.ReadMode)
+	}
+
+	return &table_client.TVersionedReadOptions{ReadMode: &readMode}, nil
 }
 
 func intPtrToInt32Ptr(i *int) *int32 {

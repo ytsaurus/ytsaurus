@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-#include "job_registry.h"
+#include "private.h"
 
 namespace NYT::NChunkServer {
 

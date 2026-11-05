@@ -21,6 +21,9 @@ class TMultiChunkReaderMock
 public:
     explicit TMultiChunkReaderMock(IMultiReaderManagerPtr multiReaderManager)
         : MultiReaderManager_(std::move(multiReaderManager))
+    { }
+
+    void InitializeRefCounted()
     {
         MultiReaderManager_->SubscribeReaderSwitched(BIND(&TMultiChunkReaderMock::OnReaderSwitched, MakeWeak(this)));
         MultiReaderManager_->Open();
@@ -103,7 +106,7 @@ public:
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    NTableClient::TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         return MultiReaderManager_->GetTimingStatistics();
     }
@@ -136,4 +139,3 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderMock)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

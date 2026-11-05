@@ -282,7 +282,7 @@ private:
 
             case EInternedAttributeKey::IOStatistics:
                 BuildYsonFluently(consumer)
-                    .DoMap(std::bind(&TVirtualNodeMapBase::BuildIOStatisticsYson, this, statistics.TotalIO, std::placeholders::_1));
+                    .DoMap(std::bind_front(&TVirtualNodeMapBase::BuildIOStatisticsYson, this, statistics.TotalIO));
                 return true;
 
             case EInternedAttributeKey::AvailableSpacePerMedium:

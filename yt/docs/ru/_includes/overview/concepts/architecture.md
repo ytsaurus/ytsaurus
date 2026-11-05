@@ -1,3 +1,3 @@
 # Архитектура 
 
-![](../../../../images/architecture.png)
+![](../../../../_images/architecture.png)

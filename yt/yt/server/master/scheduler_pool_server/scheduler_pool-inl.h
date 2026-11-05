@@ -16,7 +16,8 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
 {
     auto parentResource = getResource(this->FullConfig());
     if (!parentResource || !this->FullConfig()->AllowChildrenGuarantees) {
-        for (const auto& [_, child] : KeyToChild_) {
+        for (auto it : GetSortedIterators(KeyToChild_)) {
+            auto child = it->second;
             if (auto childResource = getResource(child->FullConfig())) {
                 if (!parentResource) {
                     THROW_ERROR_EXCEPTION(
@@ -24,20 +25,20 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
                         guaranteeName,
                         child->GetName(),
                         GetName())
-                        << TErrorAttribute("pool_name", child->GetName())
-                        << TErrorAttribute("parent_name", GetName())
-                        << TErrorAttribute("resource_type", resourceType)
-                        << TErrorAttribute("resource_guarantee", *childResource);
+                        .With("pool_name", child->GetName())
+                        .With("parent_name", GetName())
+                        .With("resource_type", resourceType)
+                        .With("resource_guarantee", *childResource);
                 } else {
                     THROW_ERROR_EXCEPTION(
                         "%v is explicitly configured at child pool %Qv but parent %Qv does not allow children guarantees",
                         guaranteeName,
                         child->GetName(),
                         GetName())
-                        << TErrorAttribute("pool_name", child->GetName())
-                        << TErrorAttribute("parent_name", GetName())
-                        << TErrorAttribute("resource_type", resourceType)
-                        << TErrorAttribute("resource_guarantee", *childResource);
+                        .With("pool_name", child->GetName())
+                        .With("parent_name", GetName())
+                        .With("resource_type", resourceType)
+                        .With("resource_guarantee", *childResource);
                 }
             }
         }
@@ -51,10 +52,10 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
 
     if (*parentResource < childrenResourceSum) {
         THROW_ERROR_EXCEPTION("%v of resource for pool %Qv is less than the sum of children guarantees", guaranteeName, GetName())
-            << TErrorAttribute("resource_type", resourceType)
-            << TErrorAttribute("pool_name", GetName())
-            << TErrorAttribute("parent_resource", *parentResource)
-            << TErrorAttribute("children_resource_sum", childrenResourceSum);
+            .With("resource_type", resourceType)
+            .With("pool_name", GetName())
+            .With("parent_resource", *parentResource)
+            .With("children_resource_sum", childrenResourceSum);
     }
 }
 

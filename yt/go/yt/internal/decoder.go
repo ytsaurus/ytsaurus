@@ -82,4 +82,10 @@ var (
 	GetQueryResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
 	ListQueriesResultDecoder                AnyValueResultDecoder       = newValueResultDecoder()
 	GetQueryResultQueryResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
+
+	StartDistributedWriteSessionResultDecoder AnyValueResultDecoder = newValueResultDecoder()
+	WriteTableFragmentResultDecoder           AnyValueResultDecoder = newValueResultDecoder()
+
+	StartDistributedWriteFileSessionResultDecoder AnyValueResultDecoder = newValueResultDecoder()
+	WriteFileFragmentResultDecoder                AnyValueResultDecoder = newValueResultDecoder()
 )

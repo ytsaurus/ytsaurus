@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include "chunk_reader_statistics.h"
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -26,6 +28,7 @@ struct TClientChunkReadOptions
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
     NTableClient::TKeyFilterStatisticsPtr KeyFilterStatistics;
+    TJobIoMeterPtr JobIoMeter;
 
     // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is
     // performed, relevant statistics will be updated within
@@ -43,6 +46,9 @@ struct TClientChunkReadOptions
 
     //! Additional request data, e.g. NBD request id.
     std::optional<ui64> Cookie;
+
+    //! Reuse the session invoker for decompression in wrapped unversioned readers.
+    bool ReuseSessionInvokerForDecompression = false;
 
     void ResetStatistics();
     void AddStatisticsFrom(const TClientChunkReadOptions& from) const;

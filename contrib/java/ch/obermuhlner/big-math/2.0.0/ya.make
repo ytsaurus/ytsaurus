@@ -1,0 +1,13 @@
+JAVA_CONTRIB(big-math-2.0.0)
+
+VERSION(2.0.0)
+
+LICENSE(MIT)
+
+JAR_RESOURCE(1236783046)
+
+SRC_RESOURCE(1236782974)
+
+ORIGINAL_SOURCE(https://github.com/eobermuhlner/big-math/)
+
+END()

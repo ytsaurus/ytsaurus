@@ -80,11 +80,11 @@ Bulk insert конфликтует только с теми таблетными
 `EUnversionedUpdateDataFlags::Missing`| 1| Если бит установлен, значение будет проигнорировано, иначе перезаписано (если значение отсутствует, в таблицу будет записан Null).
 `EUnversionedUpdateDataFlags::Aggregate`| 2| Если бит установлен, будет применена агрегация, иначе значение обновится.
 
-{% cut Пример %}
+{% cut "Пример" %}
 
 Предположим, у нас есть таблица с ключевой колонкой _user_name_ (string), колонкой _age_ (uint64) и агрегирующей колонкой _balance_ (int64). Тогда расширенная схема будет выглядеть так:
 
-```
+```yson
 {name="user_name"; type=string; sort_order=ascending}
 {name="$change_type"; type=uint64; required=%true}
 {name="$value:age"; type=uint64}
@@ -94,7 +94,7 @@ Bulk insert конфликтует только с теми таблетными
 ```
 
 Тогда для удаления строки нужна запись вида
-```
+```yson
 {
   "user_name"="vasya";
   "$change_type"=1; // delete
@@ -103,7 +103,7 @@ Bulk insert конфликтует только с теми таблетными
 
 А для обновления баланса (и сохранения возраста) — запись вида
 
-```
+```yson
 {
   "user_name"="vasya";
   "$change_type"=0; // write

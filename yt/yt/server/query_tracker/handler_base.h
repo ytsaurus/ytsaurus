@@ -41,8 +41,7 @@ public:
         const NYPath::TYPath& stateRoot,
         const IInvokerPtr controlInvoker,
         const TEngineConfigBasePtr& config,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const TDuration notIndexedQueriesTTL);
+        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery);
 
     //! Starts a transaction and validates that by the moment of its start timestamp,
     //! incarnation of a query is still the same. Context switch happens inside.
@@ -53,20 +52,21 @@ protected:
     const NYPath::TYPath StateRoot_;
     const IInvokerPtr ControlInvoker_;
     const TEngineConfigBasePtr Config_;
-    const TString Query_;
+    const std::string Query_;
     const TQueryId QueryId_;
     const i64 Incarnation_;
     const std::string User_;
     const EQueryEngine Engine_;
+    const std::optional<NYson::TYsonString> AccessControlObjects_;
     const NYTree::INodePtr SettingsNode_;
+    const bool IsIndexed_;
     const TInstant AcquisitionTime_;
 
     const NLogging::TLogger Logger;
 
     const NConcurrency::TPeriodicExecutorPtr ProgressWriter_;
-    const TDuration NotIndexedQueriesTTL_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProgressSpinLock_);
     NYson::TYsonString Progress_ = NYson::TYsonString(TString("{}"));
     int ProgressVersion_ = 0;
     int LastSavedProgressVersion_ = 0;
@@ -77,7 +77,7 @@ protected:
     std::optional<std::string> AssignedEngine_;
 
     void StartProgressWriter();
-    void StopProgressWriter();
+    TFuture<void> StopProgressWriter();
 
     void OnProgress(NYson::TYsonString progress);
 
@@ -88,7 +88,9 @@ protected:
     void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
     void OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
-    void TryWriteProgress();
+    void WriteProgress();
+    virtual bool TryWriteProgress();
+    bool OnProgressWriteFailed(const std::exception& ex);
     bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
     NYson::TYsonString SetYsonAttribute(const NYson::TYsonString& to, const std::string& key, const NYson::TYsonString& value);

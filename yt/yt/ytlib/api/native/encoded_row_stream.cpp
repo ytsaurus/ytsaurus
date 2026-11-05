@@ -7,8 +7,16 @@
 
 #include <yt/yt/client/api/formatted_table_reader.h>
 #include <yt/yt/client/api/row_batch_reader.h>
+#include <yt/yt/client/api/table_reader.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 namespace NYT::NApi::NNative {
 
@@ -28,7 +36,8 @@ public:
         TFormat format,
         TTableSchemaPtr tableSchema,
         std::optional<std::vector<std::string>> columns,
-        TControlAttributesConfigPtr controlAttributesConfig)
+        TControlAttributesConfigPtr controlAttributesConfig,
+        NProfiling::TWallTimer totalTimer)
         : OutputStream_(Data_)
         , AsyncOutputStream_(CreateAsyncAdapter(&OutputStream_))
         , FormatWriter_(CreateStaticTableWriterForFormat(
@@ -41,39 +50,99 @@ public:
             controlAttributesConfig,
             /*keyColumnCount*/ 0))
         , RowReader_(std::move(batchReader))
+        , TableReader_(DynamicPointerCast<ITableReader>(RowReader_))
+        , TotalTimer_(std::move(totalTimer))
     { }
 
     TFuture<TSharedRef> Read() override
     {
-        auto batch = RowReader_->Read();
+        auto promise = NewPromise<TSharedRef>();
+        auto context = New<TCancelableContext>();
+        promise.OnCanceled(BIND(&TCancelableContext::Cancel, context));
+        ContinueRead(promise, context, TError());
+        return promise.ToFuture();
+    }
 
-        if (batch && !batch->IsEmpty()) {
-            Data_.clear();
-
-            FormatWriter_->WriteBatch(batch);
-
-            return FormatWriter_->Flush().Apply(
-                BIND([=, this, this_ = MakeStrong(this)] {
-                    return TSharedRef::FromString(Data_);
-                }));
+    TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        TTableReaderTimingStatistics statistics{
+            .TotalTime = TotalTimer_.GetElapsedTime(),
+        };
+        // Table partition readers do not track timing, so only the total time is reported for them.
+        if (TableReader_) {
+            auto readerStatistics = TableReader_->GetTimingStatistics();
+            statistics.MasterFetchTime = readerStatistics.MasterFetchTime;
+            statistics.DataReadTiming = readerStatistics.DataReadTiming;
         }
-
-        if (batch) {
-            return RowReader_->GetReadyEvent().Apply(
-                BIND(&TEncodedRowStream::Read, MakeStrong(this)));
-        }
-
-        return MakeFuture(TSharedRef());
+        return statistics;
     }
 
 private:
+    void ContinueRead(
+        const TPromise<TSharedRef>& promise,
+        const TCancelableContextPtr& context,
+        const TError& error)
+    {
+        if (!error.IsOK()) {
+            promise.TrySet(error);
+            return;
+        }
+
+        try {
+            while (true) {
+                if (context->IsCanceled()) {
+                    promise.TrySet(TError(NYT::EErrorCode::Canceled, "Read canceled")
+                        .With(context->GetCancelationError()));
+                    return;
+                }
+
+                auto batch = RowReader_->Read();
+                if (!batch) {
+                    promise.TrySet(TSharedRef());
+                    return;
+                }
+
+                if (!batch->IsEmpty()) {
+                    Data_.clear();
+                    FormatWriter_->WriteBatch(batch);
+                    promise.SetFrom(FormatWriter_->Flush().Apply(
+                        BIND([this, this_ = MakeStrong(this)] {
+                            return TSharedRef::FromString(Data_);
+                        })));
+                    return;
+                }
+
+                auto readyEvent = RowReader_->GetReadyEvent();
+                auto readyError = readyEvent.TryGet();
+                if (!readyError) {
+                    context->PropagateTo(readyEvent);
+                    readyEvent.Subscribe(BIND(
+                        &TEncodedRowStream::ContinueRead,
+                        MakeStrong(this),
+                        promise,
+                        context)
+                        .Via(GetSyncInvoker()));
+                    return;
+                }
+                if (!readyError->IsOK()) {
+                    promise.TrySet(*readyError);
+                    return;
+                }
+            }
+        } catch (const std::exception& ex) {
+            promise.TrySet(TError(ex));
+        }
+    }
+
     /// NB(achains): Non-const members come first because async stream and format writer depends on them.
-    TString Data_;
-    TStringOutput OutputStream_;
+    std::string Data_;
+    TStdStringOutput OutputStream_;
 
     const IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
     const ISchemalessFormatWriterPtr FormatWriter_;
     const IRowBatchReaderPtr RowReader_;
+    const ITableReaderPtr TableReader_;
+    const NProfiling::TWallTimer TotalTimer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +153,8 @@ IFormattedTableReaderPtr CreateEncodedRowStream(
     NFormats::TFormat format,
     NTableClient::TTableSchemaPtr tableSchema,
     std::optional<std::vector<std::string>> columns,
-    NFormats::TControlAttributesConfigPtr controlAttributesConfig)
+    NFormats::TControlAttributesConfigPtr controlAttributesConfig,
+    NProfiling::TWallTimer totalTimer)
 {
     return New<TEncodedRowStream>(
         std::move(batchReader),
@@ -92,7 +162,8 @@ IFormattedTableReaderPtr CreateEncodedRowStream(
         std::move(format),
         std::move(tableSchema),
         std::move(columns),
-        std::move(controlAttributesConfig));
+        std::move(controlAttributesConfig),
+        std::move(totalTimer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

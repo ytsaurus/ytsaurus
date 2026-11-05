@@ -217,7 +217,7 @@ struct TFormattedQuantum
     : public NYTree::TYsonStruct
 {
     TFormattedRusagePtr Rusage;
-    THashMap<TString, TFormattedOperationTypePtr> Operations;
+    THashMap<std::string, TFormattedOperationTypePtr> Operations;
 
     static TFormattedQuantumPtr From(const TQuantumStatistics& quantum);
 

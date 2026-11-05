@@ -66,7 +66,7 @@ Below is a list of attributes of {{product-name}} system objects:
 - [Attributes of transactions](../../../user-guide/storage/transactions.md#attributes).
 - [Attributes of links](../../../user-guide/storage/links.md#attributes).
 - [Attributes of accounts](../../../user-guide/storage/accounts.md#account_attributes).
-- [Attributes of media](../../../user-guide/storage/media.md#atributy).
+- [Attributes of media](../../../user-guide/storage/media.md#attributes).
 
 ## User attributes { #user_attr }
 

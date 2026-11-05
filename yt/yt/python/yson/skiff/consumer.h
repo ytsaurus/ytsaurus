@@ -21,7 +21,7 @@ class TPythonSkiffRecordBuilder
 public:
     TPythonSkiffRecordBuilder(
         const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& schemas,
-        const std::optional<TString>& encoding);
+        const std::optional<std::string>& encoding);
 
     void OnBeginRow(ui16 schemaIndex);
     void OnEndRow();
@@ -40,7 +40,7 @@ public:
 
 private:
     std::vector<Py::PythonClassObject<TSkiffSchemaPython>> Schemas_;
-    std::optional<TString> Encoding_;
+    std::optional<std::string> Encoding_;
 
     std::queue<Py::Object> Objects_;
 

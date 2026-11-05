@@ -128,6 +128,12 @@ struct TDynamicNodeTrackerConfig
 
     TDuration PendingRestartLeaseTimeout;
 
+    //! Lease timeout floor for data nodes in temporarily unavailable storage data centers.
+    TDuration TemporarilyUnavailableDataCenterLeaseTimeout;
+
+    //! Upper bound for the deterministic per-node offset added to the timeout floor.
+    TDuration TemporarilyUnavailableDataCenterLeaseTimeoutSplay;
+
     TDuration ResetNodePendingRestartMaintenancePeriod;
 
     int MaxLocationsBeingDisposed;
@@ -141,13 +147,9 @@ struct TDynamicNodeTrackerConfig
     TDuration NodeJobHeartbeatOutdateDuration;
 
     TDuration MaxNodeIncompleteStateDuration;
+    TDuration MaxNodeDisposeStateDuration;
 
     bool NoRestartingNodesDisposal;
-
-    // COMPAT(cherepashka)
-    bool ReturnMasterCellsConnectionConfigsOnNodeRegistration;
-    // COMPAT(cherepashka)
-    bool ReturnMasterCellsConnectionConfigsOnNodeHeartbeat;
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 

@@ -34,7 +34,7 @@ public:
     using TCompactionHintFetchPipeline::TCompactionHintFetchPipeline;
 
 protected:
-    virtual NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
+    NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
     {
         return NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow;
     }
@@ -108,9 +108,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateChunkViewSizeFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateChunkViewSizeFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TChunkViewSizeFetchPipeline>(store);
+    return New<TChunkViewSizeFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

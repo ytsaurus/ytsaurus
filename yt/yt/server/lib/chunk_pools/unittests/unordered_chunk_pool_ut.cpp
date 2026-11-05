@@ -7,15 +7,16 @@
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <util/generic/xrange.h>
 
@@ -74,7 +75,8 @@ protected:
             InputSliceRowCount_,
             /*batchRowCount*/ {},
             /*foreignSliceDataWeight*/ 0,
-            SamplingRate_);
+            SamplingRate_,
+            SamplingSeed_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -124,11 +126,10 @@ protected:
             }));
     }
 
-    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateKeylessInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
-        dataSlice->TransformToNewKeyless();
         dataSlice->Tag = chunk->GetChunkId().Parts64[0] ^ chunk->GetChunkId().Parts64[1];
         return dataSlice;
     }
@@ -143,7 +144,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = BuildDataSliceByChunk(chunk);
             dataSlices.emplace_back(std::move(dataSlice));
@@ -288,13 +289,17 @@ protected:
             std::sort(chunkSlices.begin(), chunkSlices.end(), CompareChunkSlicesByLowerLimit);
 
             for (const auto& chunkSlice : chunkSlices) {
-                TLegacyKey chunkSliceLowerKey = chunkSlice->LegacyLowerLimit().Key;
-                TLegacyKey chunkSliceUpperKey = chunkSlice->LegacyUpperLimit().Key;
-                i64 chunkSliceLowerRowIndex = chunkSlice->LegacyLowerLimit().RowIndex
-                    ? *chunkSlice->LegacyLowerLimit().RowIndex
+                TLegacyKey chunkSliceLowerKey = chunkSlice->LowerLimit().KeyBound.IsUniversal()
+                    ? TLegacyKey()
+                    : KeyBoundToLegacyRow(chunkSlice->LowerLimit().KeyBound, RowBuffer_);
+                TLegacyKey chunkSliceUpperKey = chunkSlice->UpperLimit().KeyBound.IsUniversal()
+                    ? TLegacyKey()
+                    : KeyBoundToLegacyRow(chunkSlice->UpperLimit().KeyBound, RowBuffer_);
+                i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
+                    ? *chunkSlice->LowerLimit().RowIndex
                     : chunkLowerRowIndex;
-                i64 chunkSliceUpperRowIndex = chunkSlice->LegacyUpperLimit().RowIndex
-                    ? *chunkSlice->LegacyUpperLimit().RowIndex
+                i64 chunkSliceUpperRowIndex = chunkSlice->UpperLimit().RowIndex
+                    ? *chunkSlice->UpperLimit().RowIndex
                     : chunkUpperRowIndex;
 
                 bool keysCoincide = lastUpperKey == chunkSliceLowerKey;
@@ -382,6 +387,8 @@ protected:
     i64 InputSliceRowCount_;
 
     std::optional<double> SamplingRate_;
+
+    std::optional<ui64> SamplingSeed_;
 
     i64 JobCount_;
 
@@ -1060,6 +1067,51 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
     EXPECT_LE(stripeLists.size(), 2u);
 
     CheckEverything(stripeLists, /*chunksRestored*/ true);
+}
+
+TEST_F(TUnorderedChunkPoolTest, SamplingWithSeedIsDeterministic)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_KB;
+    JobCount_ = 0;
+    SamplingRate_ = 0.5;
+
+    std::vector<TInputChunkPtr> chunks;
+    for (int index = 0; index < 100; ++index) {
+        chunks.push_back(CreateChunk(0));
+    }
+
+    auto collectSampledChunkIds = [&] (std::optional<ui64> samplingSeed) {
+        SamplingSeed_ = samplingSeed;
+        InitJobConstraints();
+        CreateChunkPool();
+        for (const auto& chunk : chunks) {
+            AddChunk(chunk);
+        }
+        ChunkPool_->Finish();
+
+        THashSet<TChunkId> chunkIds;
+        while (ChunkPool_->GetJobCounter()->GetPending() > 0) {
+            auto cookie = ExtractCookie();
+            YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
+            for (const auto& stripe : ChunkPool_->GetStripeList(cookie)->Stripes()) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
+                    InsertOrCrash(chunkIds, dataSlice->GetSingleUnversionedChunk()->GetChunkId());
+                }
+            }
+        }
+        return chunkIds;
+    };
+
+    auto firstSampledChunkIds = collectSampledChunkIds(/*samplingSeed*/ 42);
+    EXPECT_GT(std::ssize(firstSampledChunkIds), 0);
+    EXPECT_LT(std::ssize(firstSampledChunkIds), std::ssize(chunks));
+
+    EXPECT_EQ(collectSampledChunkIds(/*samplingSeed*/ 42), firstSampledChunkIds);
+    EXPECT_NE(collectSampledChunkIds(/*samplingSeed*/ 43), firstSampledChunkIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

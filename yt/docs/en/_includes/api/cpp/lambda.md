@@ -29,13 +29,13 @@ This library's functions have good compatibility with the use of records in [pro
 
 All of the operations in this library take as input lambda-expressed operators on a single record, which are then repeatedly applied. In general, an operation can also be viewed as a chain of conversions of types:
 
-![](../../../../images/lambda-normal-op.png){ .center}
+![](../../../../_images/lambda-normal-op.png){ .center}
 
 ### Additive operations
 
 A variant of ordinary operations where [Reduce](../../../user-guide/data-processing/operations/reduce.md) has the same input and output type and is associative. In this case, you can further simplify the implementation of the Reduce transformation and use it as a combiner for free.
 
-![](../../../../images/lambda-additive-op.png){ .center}
+![](../../../../_images/lambda-additive-op.png){ .center}
 
 ## CopyIf
 

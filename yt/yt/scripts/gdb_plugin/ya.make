@@ -1,0 +1,5 @@
+IF (NOT YT_TEAMCITY AND NOT SANITIZER_TYPE)
+    RECURSE(
+        tests
+    )
+ENDIF()

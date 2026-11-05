@@ -239,10 +239,12 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (PathLetters)
 );
 
+// You should also update NYT::NTabletNode::TStoreFlusher::ScanTabletForMemoryUsage while changing this enum.
 DEFINE_ENUM(ETabletDynamicMemoryType,
     (Active)
     (Passive)
     (Backing)
+    (WriteLogs)
     (Other)
 );
 
@@ -279,7 +281,6 @@ DECLARE_REFCOUNTED_STRUCT(TTableIOConfigPatch)
 DECLARE_REFCOUNTED_STRUCT(TTableConfigPatch)
 DECLARE_REFCOUNTED_STRUCT(TTableConfigExperiment)
 DECLARE_REFCOUNTED_STRUCT(TClusterTableConfigPatchSet)
-DECLARE_REFCOUNTED_STRUCT(TOverloadReactiveBalancingConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStorageMountConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStoreWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStoreWriterOptions)

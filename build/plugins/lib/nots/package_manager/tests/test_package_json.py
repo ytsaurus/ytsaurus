@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -119,7 +120,7 @@ def test_get_workspace_dep_paths_with_custom_base_path():
     ]
 
 
-def test_get_workspace_deps_ok():
+def test_get_workspace_deps_ok(monkeypatch):
     pj = PackageJson("/packages/foo/package.json")
     pj.data = {
         "dependencies": {
@@ -137,7 +138,7 @@ def test_get_workspace_deps_ok():
         }
         return p
 
-    PackageJson.load = classmethod(load_mock)
+    monkeypatch.setattr(PackageJson, "load", classmethod(load_mock))
 
     ws_deps = pj.get_workspace_deps()
 
@@ -146,7 +147,7 @@ def test_get_workspace_deps_ok():
     assert ws_deps[1].path == "/packages/baz/package.json"
 
 
-def test_get_workspace_deps_with_wrong_name():
+def test_get_workspace_deps_with_wrong_name(monkeypatch):
     pj = PackageJson("/packages/foo/package.json")
     pj.data = {
         "dependencies": {
@@ -161,7 +162,7 @@ def test_get_workspace_deps_with_wrong_name():
         }
         return p
 
-    PackageJson.load = classmethod(load_mock)
+    monkeypatch.setattr(PackageJson, "load", classmethod(load_mock))
 
     with pytest.raises(PackageJsonWorkspaceError) as e:
         pj.get_workspace_deps()
@@ -172,7 +173,7 @@ def test_get_workspace_deps_with_wrong_name():
     )
 
 
-def test_get_workspace_map_ok():
+def test_get_workspace_map_ok(monkeypatch):
     pj = PackageJson("/packages/foo/package.json")
     pj.data = {
         "dependencies": {
@@ -189,7 +190,7 @@ def test_get_workspace_map_ok():
         }
         return p
 
-    PackageJson.load = classmethod(load_mock)
+    monkeypatch.setattr(PackageJson, "load", classmethod(load_mock))
 
     ws_map = pj.get_workspace_map()
 
@@ -236,3 +237,77 @@ def test_get_bin_path_custom_bin_name():
 
     # act + assert
     assert pj.get_bin_path("tsc") == "./bin/tsc"
+
+
+@pytest.mark.parametrize("selector", ["foo", "foo@^1", "parent>foo@^1", "@scope/parent@^1>@scope/foo@^2"])
+@pytest.mark.parametrize("marker", ["ya.make", "output.tar.uuid"])
+def test_file_override_workspace_map_uses_manifest_names(tmp_path, selector, marker):
+    app = tmp_path / "app"
+    peer = tmp_path / "peer"
+    leaf = tmp_path / "leaf"
+    for directory in (app, peer, leaf):
+        directory.mkdir()
+    (peer / marker).write_text("")
+    (leaf / marker).write_text("")
+    (app / "package.json").write_text(json.dumps({"name": "app", "pnpm": {"overrides": {selector: "file:../peer"}}}))
+    (peer / "package.json").write_text(
+        json.dumps({"name": "replacement", "dependencies": {"leaf-alias": "file:../leaf"}})
+    )
+    (leaf / "package.json").write_text(json.dumps({"name": "leaf"}))
+    pj = PackageJson.load(str(app / "package.json"))
+
+    assert pj.get_workspace_dep_paths() == [str(peer)]
+    assert [dep.get_name() for dep in pj.get_workspace_deps()] == ["replacement"]
+    assert pj.get_dep_paths_by_names() == {"app": str(app), "replacement": str(peer), "leaf": str(leaf)}
+    assert pj.get_workspace_map()[str(leaf)][1] == 2
+
+
+@pytest.mark.parametrize("section", ["dependencies", "devDependencies", "optionalDependencies"])
+def test_direct_file_peer_with_dollar_override_uses_manifest_name(tmp_path, section):
+    app = tmp_path / "app"
+    peer = tmp_path / "peer"
+    app.mkdir()
+    peer.mkdir()
+    (peer / "ya.make").write_text("")
+    (peer / "package.json").write_text(json.dumps({"name": "replacement"}))
+    (app / "package.json").write_text(
+        json.dumps({"name": "app", section: {"alias": "file:../peer"}, "pnpm": {"overrides": {"alias": "$alias"}}})
+    )
+    pj = PackageJson.load(str(app / "package.json"))
+    assert pj.get_dep_paths_by_names() == {"app": str(app), "replacement": str(peer)}
+
+
+@pytest.mark.parametrize("selector", ["foo@^1", "parent>foo@^1"])
+def test_file_override_without_manifest_uses_directory_name(tmp_path, selector):
+    app = tmp_path / "app"
+    peer = tmp_path / "peer"
+    app.mkdir()
+    peer.mkdir()
+    (peer / "ya.make").write_text("")
+    (app / "package.json").write_text(json.dumps({"name": "app", "pnpm": {"overrides": {selector: "file:../peer"}}}))
+    pj = PackageJson.load(str(app / "package.json"))
+    assert pj.get_dep_paths_by_names() == {"app": str(app), "peer": str(peer)}
+
+
+@pytest.mark.parametrize("indent", ["  ", "    ", "\t"])
+def test_write_preserves_indent(tmp_path, indent):
+    source = tmp_path / "package.json"
+    data = {"name": "example", "engines": {"pnpm": "10"}}
+    original = json.dumps(data, indent=indent) + "\n"
+    source.write_text(original)
+    package_json = PackageJson.load(str(source))
+    package_json.data["engines"]["pnpm"] = "11.27.0"
+    output = tmp_path / "generated.json"
+    package_json.write(str(output))
+    assert output.read_text() == original.replace('"10"', '"11.27.0"')
+    assert source.read_text() == original
+
+
+def test_read_redetects_indent(tmp_path):
+    source = tmp_path / "package.json"
+    package_json = PackageJson(str(source))
+    for indent in ("\t", "    ", None):
+        source.write_text(json.dumps({"name": "example"}, indent=indent))
+        package_json.read()
+        package_json.write()
+        assert source.read_text() == json.dumps({"name": "example"}, indent=indent or "  ") + "\n"

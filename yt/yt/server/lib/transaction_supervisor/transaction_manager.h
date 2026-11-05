@@ -20,18 +20,19 @@ struct TTransactionPrepareOptions
 
     bool LatePrepare = false;
 
-    bool StronglyOrdered = false;
-
     TTimestamp PrepareTimestamp = NHiveClient::NullTimestamp;
     NApi::TClusterTag PrepareTimestampClusterTag = NObjectClient::InvalidCellTag;
 
     std::vector<TTransactionId> PrerequisiteTransactionIds;
+    NTransactionClient::TTransactionSignature ExpectedPrepareSignature = NTransactionClient::FinalTransactionSignature;
+    int TargetCommitApprovalCount = 0;
 };
 
 struct TTransactionCommitOptions
 {
     TTimestamp CommitTimestamp = NHiveClient::NullTimestamp;
     NApi::TClusterTag CommitTimestampClusterTag = NObjectClient::InvalidCellTag;
+    NTransactionClient::TTransactionSignature ExpectedPrepareSignature = NTransactionClient::FinalTransactionSignature;
 
     void Persist(const TStreamPersistenceContext& context);
 };

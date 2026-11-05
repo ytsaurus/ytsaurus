@@ -42,8 +42,8 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
                 NChunkClient::EErrorCode::AutoRepairFailed,
                 "Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
                 ChunkId_)
-                << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
-                << innerErrors;
+                .With("banned_part_indexes", bannedPartIndicesList)
+                .With(innerErrors);
         }
 
         metaFetchFailure = false;
@@ -55,8 +55,8 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
                 NChunkClient::EErrorCode::AutoRepairFailed,
                 "Not enough parts to read chunk %v with repair",
                 ChunkId_)
-                << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
-                << innerErrors;
+                .With("banned_part_indexes", bannedPartIndicesList)
+                .With(innerErrors);
         }
 
         // Figure out which indices are available for read.
@@ -113,7 +113,7 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
     THROW_ERROR_EXCEPTION(
         NChunkClient::EErrorCode::AutoRepairFailed,
         "Max attempt count exceeded")
-        << TErrorAttribute("max_attempt_count", MaxAttemptCount);
+        .With("max_attempt_count", MaxAttemptCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

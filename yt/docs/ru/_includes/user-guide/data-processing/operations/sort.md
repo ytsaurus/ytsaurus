@@ -39,7 +39,7 @@
 
 Пример спецификации Sort операции:
 
-```yaml
+```yson
 {
   data_weight_per_partition_job = 1000000;
   sort_by = ["key"; "subkey" ];

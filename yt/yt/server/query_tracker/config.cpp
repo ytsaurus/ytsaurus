@@ -23,6 +23,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
         .Default(10'000);
     registrar.Parameter("resulting_rowset_value_length_limit", &TThis::ResultingRowsetValueLengthLimit)
         .Default(1_GB);
+    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTtl)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,17 +84,16 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
     registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
-        .Default(TDuration::Minutes(20));
-    registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Hours(24));
     registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
 
     registrar.Postprocessor([&] (TSpytEngineConfig* config) {
-        if (!(config->SparkVersion.empty() || config->SparkVersion.starts_with("3.5"))) {
-            THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x is supported");
+        const auto& sparkVersion = config->SparkVersion;
+        if (!(sparkVersion.empty() || sparkVersion.starts_with("3.5") || sparkVersion.starts_with("4."))) {
+            THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x and 4.x are supported");
         }
     });
 }
@@ -117,6 +118,8 @@ void TQueryTrackerProxyConfig::Register(TRegistrar registrar)
         .Default(1_KB);
     registrar.Parameter("max_query_file_content_size_bytes", &TThis::MaxQueryFileContentSizeBytes)
         .Default(2_KB);
+    registrar.Parameter("queries_by_mutation_id_ttl", &TThis::QueriesByMutationIdTtl)
+        .Default(TDuration::Hours(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +136,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTTL)
+    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTtl)
         .Default(TDuration::Hours(1));
     registrar.Parameter("ql_engine", &TThis::QLEngine)
         .DefaultNew();
@@ -147,6 +150,21 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto engines = std::vector<TEngineConfigBasePtr>{
+            config->MockEngine,
+            config->QLEngine,
+            config->YqlEngine,
+            config->ChytEngine,
+            config->SpytEngine,
+        };
+        for (const auto& engine : engines) {
+            if (!engine->NotIndexedQueriesTtl) {
+                engine->NotIndexedQueriesTtl = config->NotIndexedQueriesTtl;
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +172,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
-        .Default(21);
+        .Default(23);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)

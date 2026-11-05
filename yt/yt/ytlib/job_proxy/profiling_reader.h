@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,7 @@ DEFINE_REFCOUNTED_TYPE(IProfilingMultiChunkReader)
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
     NTableClient::ISchemalessMultiChunkReaderPtr underlying,
-    TInstant start);
+    TCpuInstant start);
 
 ////////////////////////////////////////////////////////////////////////////////
 

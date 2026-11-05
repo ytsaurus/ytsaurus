@@ -95,7 +95,9 @@ public:
             }
 
             builder.AppendChar(TAbsolutePath::Separator);
-            builder.AppendString(tokenizer.GetToken());
+            // NB: ToYPathLiteral escapes non-ASCII bytes to \xNN sequences, so every
+            // TAbsolutePath built here has YPath-literal-escaped components.
+            builder.AppendString(ToYPathLiteral(tokenizer.GetLiteralValue()));
             recordPrefixAndSuffix();
             tokenizer.Advance();
 
@@ -152,9 +154,10 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, bool pathIsAdditional, TString
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
 
-    YT_LOG_ALERT_IF(pathIsAdditional && method != "Copy",
-        "Attempting to resolve path as additional for an unexpected method (Method: %v)",
-        method);
+    YT_TLOG_ALERT_IF(
+        pathIsAdditional && method != "Copy",
+        "Attempting to resolve path as additional for an unexpected method")
+        .With("Method", method);
 
     if (method == "Copy" && pathIsAdditional) {
         return true;
@@ -289,9 +292,8 @@ TResolveIterationResult ResolveByObjectId(
         }
 
         const auto& pathAttribute = NServer::EInternedAttributeKey::Path.Unintern();
-        auto asyncNodeAttributes = FetchSingleObjectAttributes(
-            session->GetNativeAuthenticatedClient(),
-            TVersionedObjectId{rootDesignator, session->GetCurrentCypressTransactionId()},
+        auto asyncNodeAttributes = session->FetchSingleObjectAttributes(
+            rootDesignator,
             TAttributeFilter({pathAttribute}));
 
         auto nodeAttributes = WaitFor(asyncNodeAttributes)
@@ -299,8 +301,8 @@ TResolveIterationResult ResolveByObjectId(
 
         auto rewrittenPath = nodeAttributes->Get<TYPath>(pathAttribute);
         if (CheckStartsWithObjectIdOrThrow(rewrittenPath)) [[unlikely]] {
-            YT_LOG_ALERT("Failed to rewrite root object path (ObjectId: %v)",
-                rootDesignator);
+            YT_TLOG_ALERT("Failed to rewrite root object path")
+                .With("ObjectId", rootDesignator);
             return TForwardToMaster{std::move(path)};
         }
 
@@ -329,11 +331,16 @@ TResolveIterationResult ResolveByObjectId(
             };
         }
 
+        if (TypeFromId(rootDesignator) == EObjectType::Scion && StartsWithAmpersand(pathSuffix)) {
+            pathSuffix.SkipPrefix("&"_sb);
+        }
+
         if (resolvedNode->IsSnapshot) {
             auto resolvedPath = ResolveByPath(
                 session,
                 method,
-                resolvedNode->Path.Underlying(),
+                // TODO(babenko): think about proper cast
+                TYPath(resolvedNode->Path.Underlying()),
                 pathIsAdditional);
 
             auto* resolveHere = std::get_if<TResolveHere>(&resolvedPath);
@@ -501,6 +508,13 @@ TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
     TStringBuf method)
 {
     return DoResolvePath(session, path, /*pathIsAdditional*/ false, service, method, /*history*/ nullptr);
+}
+
+TNodeId TryParseTargetObjectId(NYPath::TYPath path)
+{
+    return Visit(GetRootDesignator(path).first,
+        [] (TNodeId id) { return id; },
+        [] (auto) { return NullObjectId; });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,33 +13,16 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortedChunkPoolStatistics final
-{
-    i64 ForeignSlicesCheckCountInDecideRowSliceability = 0;
-
-    PHOENIX_DECLARE_TYPE(TSortedChunkPoolStatistics, 0x71181524);
-};
-
-using TSortedChunkPoolStatisticsPtr = TIntrusivePtr<TSortedChunkPoolStatistics>;
-
-void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf spec);
-
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
 
-    // Used only in legacy pool. Refer to a commentary in legacy pool's StripeList implementation.
-    bool ReturnNewDataSlices = true;
-
-    // Used only in legacy pool.
-    i64 MinTeleportChunkSize = 0;
     bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TLogger Logger;
     NLogging::TLogger StructuredLogger;
 
-    // Only for new pool.
     std::optional<i64> MinManiacDataWeight;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
     TSortedChunkPoolStatisticsPtr ChunkPoolStatistics;
@@ -73,6 +56,13 @@ IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
     TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISortedChunkPoolPtr CreateSortedChunkPool(
+    const TSortedChunkPoolOptions& options,
+    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
+    TInputStreamDirectory inputStreamDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

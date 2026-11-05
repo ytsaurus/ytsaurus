@@ -4,10 +4,10 @@
 #include <yql/essentials/core/yql_opt_utils.h>
 #include <yql/essentials/core/yql_join.h>
 
-
 namespace NYql::NTypeAnnImpl {
 
 namespace {
+
 void FilterColumnOrderByType(TColumnOrder& columnOrder, const TTypeAnnotationNode& type) {
     TSet<TStringBuf> typeColumns = GetColumnsOfStructOrSequenceOfStruct(type);
     columnOrder.EraseIf([&](const TColumnOrder::TOrderedItem& col) { return !typeColumns.contains(col.PhysicalName); });
@@ -41,7 +41,83 @@ void AddPrefix(TColumnOrder& columnOrder, const TString& prefix) {
 
 } // namespace
 
-IGraphTransformer::TStatus OrderForPgSetItem(const TExprNode::TPtr& node, TExprNode::TPtr& output, TExtContext& ctx) {
+IGraphTransformer::TStatus ColumnOrderOfWrapper(const TExprNode::TPtr& node, TExprNode::TPtr& output, TExtContext& ctx) {
+    if (!EnsureArgsCount(*node, 1, ctx.Expr)) {
+        return IGraphTransformer::TStatus::Error;
+    }
+    if (node->Head().GetTypeAnn() && node->Head().GetTypeAnn()->GetKind() == ETypeAnnotationKind::Universal) {
+        node->SetTypeAnn(node->Head().GetTypeAnn());
+        return IGraphTransformer::TStatus::Ok;
+    }
+    const auto* stringType = ctx.Expr.MakeType<TDataExprType>(EDataSlot::String);
+    const auto* pairType = ctx.Expr.MakeType<TTupleExprType>(TTypeAnnotationNode::TListType{stringType, stringType});
+    const auto* listType = ctx.Expr.MakeType<TListExprType>(pairType);
+    const auto order = ctx.Types.LookupColumnOrder(node->Head());
+    if (!order) {
+        const auto* optionalType = ctx.Expr.MakeType<TOptionalExprType>(listType);
+        output = ctx.Expr.NewCallable(node->Pos(), "Nothing", {ExpandType(node->Pos(), *optionalType, ctx.Expr)});
+    } else {
+        TExprNode::TListType items{ExpandType(node->Pos(), *listType, ctx.Expr)};
+        for (const auto& [logical, physical] : *order) {
+            items.push_back(ctx.Expr.NewList(node->Pos(), {ctx.Expr.NewCallable(node->Pos(), "String", {ctx.Expr.NewAtom(node->Pos(), logical)}),
+                                                           ctx.Expr.NewCallable(node->Pos(), "String", {ctx.Expr.NewAtom(node->Pos(), physical)})}));
+        }
+        output = ctx.Expr.NewCallable(node->Pos(), "Just", {ctx.Expr.NewCallable(node->Pos(), "List", std::move(items))});
+    }
+    return IGraphTransformer::TStatus::Repeat;
+}
+
+TMaybe<TColumnOrder> InferOrderForUnionAll(
+    const TTypeAnnotationNode* resultType,
+    const TExprNode::TListType& children,
+    TTypeAnnotationContext& ctx)
+{
+    YQL_ENSURE(!children.empty());
+
+    auto common = ctx.LookupColumnOrder(*children[0]);
+    if (!common) {
+        return Nothing();
+    }
+
+    for (ui32 i = 1; i < children.size(); i++) {
+        const auto& input = children[i];
+        auto current = ctx.LookupColumnOrder(*input);
+        if (!current) {
+            return Nothing();
+        }
+
+        bool truncated = false;
+        for (size_t i = 0; i < Min(common->Size(), current->Size()); ++i) {
+            if (current->at(i).LogicalName != common->at(i).LogicalName) {
+                common->Shrink(i);
+                truncated = true;
+                break;
+            }
+        }
+        if (!truncated && current->Size() > common->Size()) {
+            common = current;
+        }
+    }
+
+    if (common->Size() > 0) {
+        auto allColumns = GetColumnsOfStructOrSequenceOfStruct(*resultType);
+        for (auto& [col, gen_col] : *common) {
+            auto it = allColumns.find(gen_col);
+            YQL_ENSURE(it != allColumns.end());
+            allColumns.erase(it);
+        }
+
+        for (auto& remain : allColumns) {
+            common->AddColumn(TString(remain));
+        }
+
+        return *common;
+    }
+
+    return Nothing();
+}
+
+IGraphTransformer::TStatus OrderForSqlSetItem(const TExprNode::TPtr& node, TExprNode::TPtr& output, TExtContext& ctx) {
     Y_UNUSED(output);
     if (node->GetTypeAnn()->GetKind() == ETypeAnnotationKind::Unit) {
         return IGraphTransformer::TStatus::Ok;
@@ -59,8 +135,7 @@ IGraphTransformer::TStatus OrderForPgSetItem(const TExprNode::TPtr& node, TExprN
                 if (!emitPgStar) {
                     columnOrder.AddColumn(alias);
                 }
-            }
-            else {
+            } else {
                 YQL_ENSURE(col->Head().IsList());
                 for (const auto& x : col->Head().Children()) {
                     if (x->IsList()) {
@@ -85,6 +160,8 @@ IGraphTransformer::TStatus OrderForPgSetItem(const TExprNode::TPtr& node, TExprN
         }
     }
 
+    FilterColumnOrderByType(columnOrder, *node->GetTypeAnn());
+
     return ctx.Types.SetColumnOrder(*node, columnOrder, ctx.Expr);
 }
 
@@ -106,7 +183,7 @@ IGraphTransformer::TStatus OrderForSqlProject(const TExprNode::TPtr& node, TExpr
 
     auto inputOrder = ctx.Types.LookupColumnOrder(node->Head());
     const bool hasStar = AnyOf(node->Child(1)->ChildrenList(),
-        [](const TExprNode::TPtr& node) { return node->IsCallable("SqlProjectStarItem"); });
+                               [](const TExprNode::TPtr& node) { return node->IsCallable("SqlProjectStarItem"); });
 
     if (hasStar && !inputOrder) {
         return IGraphTransformer::TStatus::Ok;
@@ -142,7 +219,7 @@ IGraphTransformer::TStatus OrderForSqlProject(const TExprNode::TPtr& node, TExpr
         }
 
         FilterColumnOrderByType(starOutput, *item->GetTypeAnn());
-        for (auto&e : starOutput) {
+        for (auto& e : starOutput) {
             resultColumnOrder.AddColumn(e.LogicalName);
         }
     }
@@ -169,44 +246,14 @@ IGraphTransformer::TStatus OrderForMergeExtend(const TExprNode::TPtr& node, TExp
 
 IGraphTransformer::TStatus OrderForUnionAll(const TExprNode::TPtr& node, TExprNode::TPtr& output, TExtContext& ctx) {
     Y_UNUSED(output);
-    YQL_ENSURE(node->ChildrenSize());
-    auto common = ctx.Types.LookupColumnOrder(node->Head());
-    if (!common) {
-        return IGraphTransformer::TStatus::Ok;
-    }
 
-    for (ui32 i = 1; i < node->ChildrenSize(); i++) {
-        auto input = node->Child(i);
-        auto current = ctx.Types.LookupColumnOrder(*input);
-        if (!current) {
-            return IGraphTransformer::TStatus::Ok;
-        }
+    auto columnOrder = InferOrderForUnionAll(
+        node->GetTypeAnn(),
+        node->ChildrenList(),
+        ctx.Types);
 
-        bool truncated = false;
-        for (size_t i = 0; i < Min(common->Size(), current->Size()); ++i) {
-            if (current->at(i).LogicalName != common->at(i).LogicalName) {
-                common->Shrink(i);
-                truncated = true;
-                break;
-            }
-        }
-        if (!truncated && current->Size() > common->Size()) {
-            common = current;
-        }
-    }
-
-    if (common->Size() > 0) {
-        auto allColumns = GetColumnsOfStructOrSequenceOfStruct(*node->GetTypeAnn());
-        for (auto& [col, gen_col] : *common) {
-            auto it = allColumns.find(gen_col);
-            YQL_ENSURE(it != allColumns.end());
-            allColumns.erase(it);
-        }
-
-        for (auto& remain : allColumns) {
-            common->AddColumn(TString(remain));
-        }
-        return ctx.Types.SetColumnOrder(*node, *common, ctx.Expr);
+    if (columnOrder) {
+        return ctx.Types.SetColumnOrder(*node, *columnOrder, ctx.Expr);
     }
 
     return IGraphTransformer::TStatus::Ok;
@@ -216,14 +263,15 @@ IGraphTransformer::TStatus OrderForEquiJoin(const TExprNode::TPtr& node, TExprNo
     Y_UNUSED(output);
     const size_t numLists = node->ChildrenSize() - 2;
     const auto joinTree = node->Child(numLists);
-    const auto optionsNode = node->Child(numLists + 1);;
+    const auto optionsNode = node->Child(numLists + 1);
+    ;
     TVector<TMaybe<TColumnOrder>> inputColumnOrder;
     TJoinLabels labels;
     for (size_t i = 0; i < numLists; ++i) {
         auto& list = node->Child(i)->Head();
         inputColumnOrder.push_back(ctx.Types.LookupColumnOrder(list));
         if (auto err = labels.Add(ctx.Expr, *node->Child(i)->Child(1),
-            list.GetTypeAnn()->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>()))
+                                  list.GetTypeAnn()->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>()))
         {
             ctx.Expr.AddError(*err);
             return IGraphTransformer::TStatus::Error;
@@ -316,4 +364,3 @@ IGraphTransformer::TStatus OrderFromFirstAndOutputType(const TExprNode::TPtr& no
 }
 
 } // namespace NYql::NTypeAnnImpl
-

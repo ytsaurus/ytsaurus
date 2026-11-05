@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 

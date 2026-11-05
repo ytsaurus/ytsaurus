@@ -5,15 +5,39 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/authentication.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
+
+#include <yt/yt/flow/library/cpp/native_client/public.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/signature.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt_proto/yt/client/misc/proto/signature.pb.h>
+
+#include <yt/yt/core/rpc/channel_detail.h>
+
+#include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
+
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NSignature;
+using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -24,6 +48,65 @@ using namespace NFlow::NController;
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Signs each request with the cluster key so the Flow Controller can verify it was
+//! forwarded by an authorized RPC proxy and is addressed to this exact pipeline and
+//! controller. Guards against source spoofing / direct endpoint access (SSRF).
+//! See yt/yt/flow/library/cpp/client/authentication.md for the signing scheme and threat model.
+class TFlowSignatureInjectingChannel
+    : public TChannelWrapper
+{
+public:
+    TFlowSignatureInjectingChannel(
+        IChannelPtr underlying,
+        ISignatureGeneratorPtr generator,
+        TObjectId pipelineObjectId,
+        std::string controllerAddress)
+        : TChannelWrapper(std::move(underlying))
+        , Generator_(std::move(generator))
+        , SerializedControllerRequestMetadata_(BuildSerializedControllerRequestMetadata(pipelineObjectId, controllerAddress))
+    { }
+
+    IClientRequestControlPtr Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        const TSendOptions& options) override
+    {
+        auto signature = Generator_->Sign(SerializedControllerRequestMetadata_);
+
+        NSignature::NProto::TSignature protoSignature;
+        ToProto(&protoSignature, *signature);
+
+        auto* ext = request->Header().MutableExtension(
+            NRpc::NProto::TCustomMetadataExt::custom_metadata_ext);
+        auto& entries = *ext->mutable_entries();
+        entries[ControllerRequestMetadataSignatureKey] = protoSignature.SerializeAsString();
+
+        return TChannelWrapper::Send(
+            std::move(request),
+            std::move(responseHandler),
+            options);
+    }
+
+private:
+    const ISignatureGeneratorPtr Generator_;
+    const std::string SerializedControllerRequestMetadata_;
+
+    static std::string BuildSerializedControllerRequestMetadata(
+        TObjectId pipelineObjectId,
+        std::string controllerAddress)
+    {
+        auto metadata = New<TControllerRequestMetadata>();
+        metadata->Method = std::string(ControllerRequestMetadataMethod);
+        metadata->PipelineObjectId = pipelineObjectId;
+        metadata->ControllerAddress = std::move(controllerAddress);
+        return ToString(ConvertToYsonString(metadata, EYsonFormat::Binary));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TOptions>
 TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
 {
@@ -32,59 +115,114 @@ TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
     return executeOptions;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
+TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 {
-    YT_LOG_DEBUG("Started discovering pipeline controller leader (PipelinePath: %v)",
-        pipelinePath);
+    YT_TLOG_DEBUG("Started discovering pipeline controller leader")
+        .With("PipelinePath", pipelinePath);
 
     TGetNodeOptions options{
         .Attributes = TAttributeFilter(
             {
                 PipelineFormatVersionAttribute,
                 LeaderControllerAddressAttribute,
+                IdAttribute,
             }),
     };
+    auto nodeFuture = GetNode(pipelinePath, options);
 
-    auto str = WaitFor(GetNode(pipelinePath, options))
+    auto key = MakeUnversionedOwningRow(LeaderControllerKey);
+    auto nameTable = TNameTable::FromKeyColumns({"key", "value"});
+    TLookupRowsOptions lookupOptions;
+    lookupOptions.ColumnFilter = TColumnFilter({nameTable->GetIdOrThrow("value")});
+    auto flowControlPath = YPathJoin(pipelinePath, FlowControlTableName);
+    auto lookupFuture = LookupRows(
+        flowControlPath,
+        std::move(nameTable),
+        MakeSharedRange(std::vector<TLegacyKey>{key}, key),
+        lookupOptions);
+
+    auto str = WaitFor(nodeFuture)
         .ValueOrThrow();
 
     auto node = ConvertToNode(str);
     const auto& attributes = node->Attributes();
 
     if (!attributes.Contains(PipelineFormatVersionAttribute)) {
-        THROW_ERROR_EXCEPTION("%v is not a valid pipeline; missing attribute %Qv",
+        THROW_ERROR_EXCEPTION(
+            "%v is not a valid pipeline; missing attribute %Qv",
             pipelinePath,
             PipelineFormatVersionAttribute);
     }
 
-    if (auto version = attributes.Get<int>(PipelineFormatVersionAttribute); version != CurrentPipelineFormatVersion) {
-        THROW_ERROR_EXCEPTION("Invalid pipeline format version: expected %v, got %v",
+    if (auto version = attributes.Get<int>(PipelineFormatVersionAttribute);
+        version != CurrentPipelineFormatVersion)
+    {
+        THROW_ERROR_EXCEPTION(
+            "Invalid pipeline format version: expected %v, got %v",
             CurrentPipelineFormatVersion,
             version);
     }
 
-    if (!attributes.Contains(LeaderControllerAddressAttribute)) {
-        THROW_ERROR_EXCEPTION("Cannot discover pipeline controller because attribute %Qv is not set on pipeline. "
-            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
-            LeaderControllerAddressAttribute);
+    auto pipelineObjectId = attributes.Get<TObjectId>(IdAttribute);
+
+    std::string address;
+    auto lookupResultOrError = WaitFor(lookupFuture);
+    if (lookupResultOrError.IsOK() && !lookupResultOrError.Value().Rowset->GetRows().Empty()) {
+        auto [leaderInfo] = FromUnversionedRow<TYsonString>(lookupResultOrError.Value().Rowset->GetRows()[0]);
+        if (leaderInfo) {
+            address = TryGetString(leaderInfo.AsStringBuf(), Format("/%v", LeaderControllerRpcAddressField)).value_or("");
+        }
     }
-    auto address = attributes.Get<std::string>(LeaderControllerAddressAttribute);
 
-    YT_LOG_DEBUG("Finished discovering pipeline controller leader (PipelinePath: %v, Address: %v)",
-        pipelinePath,
-        address);
+    if (address.empty()) {
+        if (lookupResultOrError.IsOK()) {
+            YT_TLOG_DEBUG("Leader controller is not found in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath);
+        } else {
+            YT_TLOG_DEBUG("Error looking up leader controller in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath)
+                .With(lookupResultOrError);
+        }
+        address = attributes.Get<std::string>(LeaderControllerAddressAttribute, "");
+    }
 
-    return address;
+    if (address.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot discover pipeline controller because neither table %v nor attribute %Qv contains the leader address. "
+            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
+            flowControlPath,
+            LeaderControllerAddressAttribute)
+            .WithIf(!lookupResultOrError.IsOK(), lookupResultOrError);
+    }
+
+    YT_TLOG_DEBUG("Finished discovering pipeline controller leader")
+        .With("PipelinePath", pipelinePath)
+        .With("Address", address)
+        .With("PipelineObjectId", pipelineObjectId);
+
+    return TPipelineLeaderDescriptor{
+        .Address = std::move(address),
+        .PipelineObjectId = pipelineObjectId,
+    };
 }
 
-TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const std::string& address)
+TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TPipelineLeaderDescriptor& descriptor)
 {
     // Cannot use ChannelFactory_ here because it injects internal TVM ticket.
-    auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
+    auto rawChannel = Connection_->GetChannelFactory()->CreateChannel(descriptor.Address);
+    auto channel = Connection_->GetConfig()->FlowProxySignatureEnabled
+        ? New<TFlowSignatureInjectingChannel>(
+            std::move(rawChannel),
+            Connection_->GetSignatureGenerator(),
+            descriptor.PipelineObjectId,
+            descriptor.Address)
+        : std::move(rawChannel);
     TControllerServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(Connection_->GetConfig()->FlowPipelineControllerRpcTimeout);
     return proxy;
@@ -235,18 +373,18 @@ TFlowExecuteResult TClient::DoFlowExecute(
     const TFlowExecuteOptions& options)
 {
     ValidatePipelinePermission(pipelinePath, EPermission::Read);
-    auto controllerAddress = DiscoverPipelineControllerLeader(pipelinePath);
-    auto proxy = CreatePipelineControllerLeaderProxy(controllerAddress);
+    auto descriptor = DiscoverPipelineControllerLeader(pipelinePath);
+    auto proxy = CreatePipelineControllerLeaderProxy(descriptor);
 
     auto executeRequest = [&](auto& req) {
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.GetCode() == NRpc::EErrorCode::TransportError) {
             THROW_ERROR_EXCEPTION("Cannot connect to pipeline controller leader. "
                 "Probably controller is stopped or it is failing")
-                << TErrorAttribute("flow_execute_command", req->command())
-                << TErrorAttribute("pipeline_path", pipelinePath)
-                << TErrorAttribute("pipeline_controller_leader_address", controllerAddress)
-                << rspOrError;
+                .With("flow_execute_command", req->command())
+                .With("pipeline_path", pipelinePath)
+                .With("pipeline_controller_leader_address", descriptor.Address)
+                .With(rspOrError);
         }
         return rspOrError.ValueOrThrow();
     };

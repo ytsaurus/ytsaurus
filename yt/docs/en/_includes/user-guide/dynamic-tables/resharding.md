@@ -2,7 +2,7 @@
 
 This section describes ways of sharding dynamic tables. A description of the automatic sharding algorithm is given.
 
-Dynamic tables are divided into [tablets](../../../user-guide/dynamic-tables/overview.md#tablets) (shards), which are the unit of concurrency.
+Dynamic tables are divided into [tablets](../../../user-guide/dynamic-tables/concepts.md#tablets) (shards), which are the unit of concurrency.
 
 #### Sorted tables
 
@@ -19,7 +19,7 @@ Each tablet of an [ordered table](../../../user-guide/dynamic-tables/ordered-dyn
 #### Replicated tables
 Physically, each tablet of a [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) is a queue and stores the replication log. Despite this, the sharding logic is the same as for regular tables.
 - Each tablet of a sorted replicated table is responsible for a particular key range and stores the replication log of keys from that range.
-- Each tablet of an ordered replicated table is an independent queue. For the tablets of a replicated table and the replicas to match, use the [preserve_tablet_index](../../../user-guide/dynamic-tables/replicated-dynamic-tables#sohranenie-indeksa-tableta-pri-replikacii-uporyadochennoj-tablicy) attribute.
+- Each tablet of an ordered replicated table is an independent queue. For the tablets of a replicated table and the replicas to match, use the [preserve_tablet_index](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#preserve_tablet_index) attribute.
 
 The sharding of a sorted replicated table doesn't have to match the sharding of replicas. Different replicas of the same table can also be sharded in different ways.
 
@@ -78,6 +78,12 @@ You can find out the number of tablets via the `@tablet_count` attribute.
 To distribute the load evenly, you can use the standard approach: prepend an auxiliary key column that contains the hash of the part of the key to perform sharding for (for example, the hash from the first column). The resulting table will have its keys evenly distributed in the [0, 2<sup>64</sup> – 1] range.
 
 To split it into *k* tablets, simply split the [0, 2<sup>64</sup>-1] range into *k* parts. To do this, you can use the "reshard-table" command with the `--uniform` flag: when `tablet_count` is specified, the system will set the boundary keys [], [2<sup>64</sup> / *k*], [2<sup>64</sup> * 2 / *k*], and so on.
+
+The `--uniform` flag uses only the first key column, which must have an integer type and ascending sort order. It selects boundary keys from that column's range without inspecting the table data or splitting by subsequent key columns.
+
+For a computed column whose expression is `expression % divisor`, where the divisor is a positive integer literal, the range is narrowed to the possible remainders within the column's type. For example, `farm_hash(key) % 100u` uses the range [0, 99]; requesting 10 tablets produces the boundary keys [], [10], [20], ..., [90].
+
+The requested `tablet_count` is an upper bound: if the range contains fewer integer values, fewer tablets are created. For example, a first key column of type `uint8` with no expression has 256 values, so requesting 300 tablets with `--uniform` creates 256 tablets with boundary keys [], [1], ..., [255]. Actual data may occupy only part of the range, so some tablets may be empty.
 
 The value of the key column can be calculated on the client side and transmitted when writing to the table, but computed columns can be used as an alternative.
 

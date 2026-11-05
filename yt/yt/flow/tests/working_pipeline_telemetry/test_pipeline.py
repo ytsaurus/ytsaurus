@@ -1,0 +1,1386 @@
+import copy
+import math
+import os
+import re
+
+import pytest
+import yatest.common
+
+from yt.common import wait
+
+from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
+from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
+from yt.yt.flow.tests.test_telemetry.common.jobtruck import (
+    JOBTRUCK_TABLE_NAMES,
+    assert_jobtruck_tables,
+    check_jobtruck_logs,
+    read_jobtruck_logs,
+)
+
+from yt.yt.flow.library.python.integration_test_base.yt_sync_preset import run_yt_sync
+
+##################################################################
+
+PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline/pipeline.yson")
+
+FAIL_COMMENT = "TELEMETRY_TEST_INTENTIONAL_FAIL"
+
+##################################################################
+
+
+def processing_rates(status):
+    observation = status.get("processing_observation")
+    if not observation or observation["processed_count"] <= 0 or observation["processing_time"] <= 0:
+        return None
+    assert "rates" not in observation
+    assert "processing_rates" not in status.get("from_partition_traverse_data", {}).get("node", {})
+    # Check work/time accounting from the committed totals, not a worker-side rate estimator.
+    processing = float(observation["processing_time"]) / 1000
+    wall = (
+        sum(
+            float(observation[name])
+            for name in ("processing_time", "input_waiting_time", "output_waiting_time", "other_waiting_time")
+        )
+        / 1000
+    )
+    return {
+        kind: {
+            "processed_messages_per_second": observation["processed_count"] / seconds,
+            "processed_bytes_per_second": observation["processed_byte_size"] / seconds,
+        }
+        for kind, seconds in (("processed", wall), ("capacity", processing))
+    }
+
+
+class Test(FlowTestBase):
+    FLOW_BINARY_PATH = yatest.common.binary_path(f"{yatest.common.context.project_path}/pipeline/pipeline")
+
+    def setup_method(self, method):
+        super(Test, self).setup_method(method)
+
+    def prepare_pipeline_config(
+        self,
+        fail_comment=None,
+        commit_gate=None,
+        worker_lease_timeout=None,
+        reader_class=None,
+        consumer_class=None,
+        fixed_input=False,
+        fail_before_commit=False,
+        broken_queue_computation=False,
+        buffer_state_manager=None,
+    ):
+        pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
+
+        if reader_class is not None:
+            pipeline_config["spec"]["computations"]["reader"]["computation_class_name"] = reader_class
+        if consumer_class is not None:
+            pipeline_config["spec"]["computations"]["consumer"]["computation_class_name"] = consumer_class
+        if fail_comment is not None:
+            pipeline_config["spec"]["computations"]["reader"]["parameters"]["fail_comment"] = fail_comment
+        pipeline_config["spec"]["computations"]["reader"]["parameters"]["fail_before_commit"] = fail_before_commit
+        if fixed_input:
+            parameters = pipeline_config["dynamic_spec"]["computations"]["reader"]["source_streams"]["random"][
+                "parameters"
+            ]
+            parameters["message_size_mean"] = 0
+            parameters["message_key_range"] = 0
+        if broken_queue_computation:
+            pipeline_config["spec"]["computations"]["broken_reader"] = {
+                "computation_class_name": "TTransformReader",
+                "output_stream_ids": ["missing_queue_data"],
+                "source_streams": {
+                    "missing_queue": {
+                        "source_class_name": "NYT::NFlow::TQueueSource",
+                        "parameters": {
+                            "queue_path": f"<cluster={self.primary_cluster_name}>{self.work_yt_path}/missing_queue",
+                            "consumer_path": (
+                                f"<cluster={self.primary_cluster_name}>{self.work_yt_path}/missing_consumer"
+                            ),
+                            "update_partition_count_period": "100ms",
+                            "update_partition_count_retry_min_backoff": "50ms",
+                        },
+                    }
+                },
+                "parameters": {},
+            }
+            pipeline_config["spec"]["streams"]["missing_queue_data"] = copy.deepcopy(
+                pipeline_config["spec"]["streams"]["data"]
+            )
+            pipeline_config["dynamic_spec"]["computations"]["broken_reader"] = {"parameters": {}}
+        if commit_gate is not None:
+            ready_path, release_path = commit_gate
+            reader_parameters = pipeline_config["spec"]["computations"]["reader"]["parameters"]
+            reader_parameters["commit_gate_ready_path"] = ready_path
+            reader_parameters["commit_gate_release_path"] = release_path
+            reader_parameters["lineage_observation_path"] = ready_path + ".reader"
+            pipeline_config["spec"]["computations"]["processor"]["parameters"]["lineage_observation_path"] = (
+                ready_path + ".processor"
+            )
+            if consumer_class is not None:
+                processor_parameters = pipeline_config["spec"]["computations"]["processor"]["parameters"]
+                processor_parameters["commit_gate_ready_path"] = ready_path + ".service"
+                processor_parameters["commit_gate_release_path"] = release_path + ".service"
+        self.patch_config(pipeline_config)
+        if worker_lease_timeout is not None:
+            pipeline_config["dynamic_spec"]["job_manager"]["lost_job_timeout"] = worker_lease_timeout
+        if buffer_state_manager is not None:
+            pipeline_config["dynamic_spec"].setdefault("job_tracker", {})["buffer_state_manager"] = buffer_state_manager
+
+        return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
+
+    @pytest.mark.authors(["mikari"])
+    def test_fully_filtered_input_lineage(self):
+        run_yt_sync("primary", self.work_yt_path)
+        observation_path = os.path.join(self.path_to_flow_logs, "filtered_lineage_observation")
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        config["spec"]["computations"]["processor"]["parameters"]["lineage_observation_path"] = observation_path
+        processor = config["dynamic_spec"]["computations"]["processor"]
+        processor["skip_if_expression"] = "true"
+        processor["parameters"]["desired_partition_count"] = 1
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            # Observe the actual processing delta, without waiting for the lineage EMA to mature.
+            wait(lambda: os.path.exists(observation_path), timeout=120)
+            with open(observation_path) as observation:
+                output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+            assert input_count > 0
+            assert input_bytes > 0
+            assert output_count == 0
+            assert output_bytes == 0
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_controller_logs_without_jobtruck_tables(self):
+        run_yt_sync(
+            self.primary_cluster_name,
+            self.work_yt_path,
+            tablet_cell_bundle=self.tablet_cell_bundle,
+            primary_medium=self.primary_medium,
+        )
+        for table in JOBTRUCK_TABLE_NAMES:
+            self.client.unmount_table(f"{self.pipeline_path}/{table}", sync=True)
+        self.client.remove(f"{self.pipeline_path}/logs", recursive=True)
+        assert not list(self.client.select_rows(f"* from [{self.pipeline_path}/controller_logs] limit 1"))
+        pipeline_config_path = self.prepare_pipeline_config()
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False, "logging": {"flush_period": "100ms"}},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_pipeline_state("working")
+
+            def has_fresh_jobs_status():
+                for row in self.client.select_rows(f"* from [{self.pipeline_path}/controller_logs] limit 100"):
+                    fields = row["data"].split("\t", 3)
+                    if (
+                        len(fields) == 4
+                        and fields[1:3] == ["I", "PublicFlowController"]
+                        and fields[3].startswith("Jobs status")
+                    ):
+                        return True
+                return False
+
+            wait(has_fresh_jobs_status, timeout=180, ignore_exceptions=True)
+
+            def jobtruck_errors():
+                description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                return [
+                    message
+                    for message in description["messages"]
+                    if "/jobtruck_log_writer" in str(message.get("text", ""))
+                ]
+
+            wait(jobtruck_errors, timeout=180, ignore_exceptions=True)
+            assert not self.client.exists(f"{self.pipeline_path}/logs")
+            run_yt_sync(
+                self.primary_cluster_name,
+                self.work_yt_path,
+                tablet_cell_bundle=self.tablet_cell_bundle,
+                primary_medium=self.primary_medium,
+            )
+            assert_jobtruck_tables(self.client, self.pipeline_path, "table")
+            check_jobtruck_logs(self.client, self.pipeline_path)
+            wait(lambda: not jobtruck_errors(), timeout=180, ignore_exceptions=True)
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_controller_logs_on_leader_change(self):
+        run_yt_sync(
+            self.primary_cluster_name,
+            self.work_yt_path,
+            tablet_cell_bundle=self.tablet_cell_bundle,
+            primary_medium=self.primary_medium,
+        )
+        assert_jobtruck_tables(self.client, self.pipeline_path, "table")
+        pipeline_config_path = self.prepare_pipeline_config()
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False, "logging": {"flush_period": "100ms"}},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=2,
+            problems=False,
+        ) as federation:
+            self.wait_pipeline_state("working")
+
+            def capture_published_leader(result, expected_controller=None):
+                flow_control_rows = list(
+                    self.client.select_rows(
+                        f'* from [{self.pipeline_path}/flow_control] where key = "leader_controller"'
+                    )
+                )
+                if len(flow_control_rows) != 1:
+                    return False
+                leader_info = flow_control_rows[0]["value"]
+                leader_address = self.client.get(f"{self.pipeline_path}/@leader_controller_address")
+                if leader_info["rpc_address"] != leader_address:
+                    return False
+                leader_port = int(leader_address.rsplit(":", 1)[1])
+                matching_controllers = [
+                    controller for controller in federation.controllers if controller.rpc_port == leader_port
+                ]
+                if len(matching_controllers) != 1:
+                    return False
+                controller = matching_controllers[0]
+                if expected_controller is not None and controller is not expected_controller:
+                    return False
+                result.clear()
+                result.update(
+                    controller=controller,
+                    incarnation_id=str(leader_info["incarnation_id"]),
+                    node_info=leader_info,
+                )
+                return True
+
+            first_leader = {}
+            wait(
+                lambda: all(controller.is_running() for controller in federation.controllers)
+                and capture_published_leader(first_leader),
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            leader_controller = first_leader["controller"]
+            follower_controller = next(
+                controller for controller in federation.controllers if controller is not leader_controller
+            )
+            leader_controller.ensure_running()
+            follower_controller.ensure_running()
+            check_jobtruck_logs(self.client, self.pipeline_path, [first_leader["node_info"]])
+            confirmed_leader = {}
+            wait(
+                lambda: all(controller.is_running() for controller in federation.controllers)
+                and capture_published_leader(confirmed_leader, leader_controller)
+                and confirmed_leader["incarnation_id"] == first_leader["incarnation_id"],
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            leader_controller.stop()
+            follower_controller.ensure_running()
+
+            second_leader = {}
+            wait(
+                lambda: capture_published_leader(second_leader, follower_controller),
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            assert second_leader["incarnation_id"] != first_leader["incarnation_id"]
+            check_jobtruck_logs(
+                self.client,
+                self.pipeline_path,
+                [first_leader["node_info"], second_leader["node_info"]],
+                check_progress=False,
+            )
+
+    @pytest.mark.authors(["pechatnov"])
+    @pytest.mark.parametrize("consumer_class", ["TConsumer", "TSwiftConsumer"])
+    def test_telemetry(self, consumer_class):
+        run_yt_sync("primary", self.work_yt_path)
+        assert self.client.get(f"{self.pipeline_path}/logs/@yt_logs_format_version") == 1
+        logs_meta_schema = self.client.get(f"{self.pipeline_path}/logs/logs_meta/@schema")
+        creation_time_column = next(column for column in logs_meta_schema if column["name"] == "creation_time")
+        assert creation_time_column["type_v3"] == "timestamp64"
+        commit_gate_ready_path = os.path.join(self.path_to_flow_logs, "lineage_commit_gate_ready")
+        commit_gate_release_path = os.path.join(self.path_to_flow_logs, "lineage_commit_gate_release")
+        pipeline_config_path = self.prepare_pipeline_config(
+            commit_gate=(commit_gate_ready_path, commit_gate_release_path),
+            consumer_class=consumer_class,
+            fixed_input=True,
+            broken_queue_computation=True,
+            buffer_state_manager={
+                "enable_v2": True,
+                "manage_period": "100ms",
+                "output_buffer": {"job_overrides": {"processor": {"processed_data": 16 * 1024 * 1024}}},
+            },
+        )
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_pipeline_state("working")
+
+            selected_partitions = {}
+            job_status_log_rows = []
+            source_id = "itflow_v0:controller_leader"
+
+            def find_job_status_log():
+                jobtruck_rows = read_jobtruck_logs(self.client, self.pipeline_path, log_limit=100)
+                source_meta_by_instance = {
+                    (row["source_id"], row["instance_id"]): row["meta"] for row in jobtruck_rows["sources_meta"]
+                }
+                log_descriptors = {
+                    (row["source_id"], row["instance_id"], row["log_name"], row["file_path"]): (
+                        row["creation_time"],
+                        row["log_config"],
+                    )
+                    for row in jobtruck_rows["logs_meta"]
+                }
+                rows = jobtruck_rows["logs"]
+                for row in rows:
+                    fields = row["line"].split("\t", 3)
+                    instance = (row["source_id"], row["instance_id"])
+                    source_meta = source_meta_by_instance.get(instance, {})
+                    node_info = source_meta.get("node_info", {})
+                    descriptor = (row["source_id"], row["instance_id"], row["log_name"], row["file_path"])
+                    creation_time, log_config = log_descriptors.get(descriptor, (None, None))
+                    if (
+                        row["source_id"] == source_id
+                        and creation_time is not None
+                        and log_config == {"log_level": "INFO"}
+                        and row["log_name"] == "controller"
+                        and row["file_path"] == "/logs/controller.log"
+                        and source_meta.get("kind") == "yt_flow_controller"
+                        and source_meta.get("display_name") == "Flow controller leader"
+                        and "creation_time" not in source_meta
+                        and str(node_info.get("incarnation_id")) == row["instance_id"]
+                        and node_info.get("name")
+                        and node_info.get("build_version")
+                        and len(fields) == 4
+                        and fields[1] == "I"
+                        and fields[2] == "PublicFlowController"
+                        and fields[3].startswith("Jobs status")
+                    ):
+                        job_status_log_rows.append((row, creation_time, log_config, source_meta))
+                        return True
+                return False
+
+            wait(find_job_status_log, timeout=180, ignore_exceptions=True)
+            assert len(job_status_log_rows) == 1
+            job_status_log_row, creation_time, log_config, source_meta = job_status_log_rows[0]
+            assert 0 < creation_time < 2**63
+            assert log_config == {"log_level": "INFO"}
+            assert job_status_log_row["source_id"] == source_id
+            assert job_status_log_row["instance_id"] == str(source_meta["node_info"]["incarnation_id"])
+            assert job_status_log_row["log_name"] == "controller"
+            assert job_status_log_row["file_path"] == "/logs/controller.log"
+            job_status_log_fields = job_status_log_row["line"].split("\t", 3)
+            assert job_status_log_fields[1:3] == ["I", "PublicFlowController"]
+            assert job_status_log_fields[3].startswith("Jobs status")
+
+            def find_job_status(computation_id, filter_func):
+                flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                partitions = flow_view["state"]["execution_spec"]["layout"]["partitions"]
+                partition_job_statuses = flow_view["feedback"]["partition_job_statuses"]
+                for partition_id, partition in partitions.items():
+                    if partition["computation_id"] != computation_id:
+                        continue
+                    if computation_id in selected_partitions and selected_partitions[computation_id] != str(
+                        partition_id
+                    ):
+                        continue
+                    job_status = partition_job_statuses.get(partition_id, {}).get("current_job_status")
+                    if not job_status:
+                        continue
+                    if filter_func(job_status):
+                        return job_status
+                return None
+
+            def check_epoch_part_times(job_status):
+                return sum(job_status.get("epoch_part_times", {}).values()) > 0
+
+            wait(lambda: os.path.exists(commit_gate_ready_path), timeout=60)
+
+            def get_lineage_ratios():
+                flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                return flow_view.get("ephemeral_state", {}).get("lineage_ratios", {})
+
+            def has_lineage_edge(output_stream, parent_stream):
+                rate = get_lineage_ratios().get(output_stream, {}).get(parent_stream, {})
+                return rate.get("count", {}).get("weight", 0) > 0 and rate["count"]["ratio"] > 0
+
+            # Lineage is visible before the first source commit; processing observations are not.
+            wait(lambda: os.path.exists(commit_gate_ready_path + ".reader"), timeout=60)
+            wait(lambda: has_lineage_edge("data", "reader/random"), timeout=120)
+            wait(lambda: find_job_status("reader", lambda status: status.get("inited_time")), timeout=60)
+            pending_status = find_job_status("reader", lambda status: status.get("inited_time"))
+            assert not pending_status.get("processing_observation")
+
+            with open(commit_gate_release_path, "w"):
+                pass
+
+            wait(lambda: find_job_status("reader", check_epoch_part_times), timeout=180)
+
+            # The processor has selected inputs and completed DoProcess, but its epoch is not committed.
+            wait(lambda: os.path.exists(commit_gate_ready_path + ".service"), timeout=60)
+            with open(commit_gate_ready_path + ".service.cycle") as gate:
+                selected_partitions["processor"], _ = gate.read().split()
+            wait(lambda: find_job_status("processor", lambda status: status.get("inited_time")), timeout=60)
+            pending_processor = find_job_status("processor", lambda status: status.get("inited_time"))
+            # Empty epochs may have committed while waiting for the source heartbeat.
+            pending_observation = pending_processor.get("processing_observation")
+            if pending_observation:
+                assert pending_observation["processed_count"] == 0
+                assert pending_observation["processed_byte_size"] == 0
+            with open(commit_gate_release_path + ".service", "w"):
+                pass
+
+            # Read the real processing deltas without waiting for the lineage EMA to mature.
+            for computation in ("reader", "processor"):
+                observation_path = commit_gate_ready_path + "." + computation
+                wait(lambda: os.path.exists(observation_path), timeout=180)
+                with open(observation_path) as observation:
+                    output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+                assert output_count == input_count > 0
+                assert output_bytes > 0
+                assert input_bytes > 0
+
+            def check_buffer_demand(job_status, computation_id, enabled):
+                observed = set()
+                for side in ("input", "output"):
+                    for name, streams in job_status.get(side + "_limits", {}).items():
+                        for stream_id, limit in streams.items():
+                            managed = name in ("input_buffer_bytes", "output_buffer_bytes")
+                            overridden = (
+                                computation_id == "processor"
+                                and name == "output_buffer_bytes"
+                                and stream_id == "processed_data"
+                            )
+                            if enabled and managed and not overridden:
+                                if limit.get("demand") is None or limit["demand"] < 0:
+                                    return False
+                            elif "demand" in limit:
+                                return False
+                            observed.add((name, stream_id))
+                return {
+                    "reader": {
+                        ("output_buffer_bytes", "data"),
+                    },
+                    "processor": {("input_buffer_bytes", "data"), ("output_buffer_bytes", "processed_data")},
+                    "consumer": {("input_buffer_bytes", "processed_data")},
+                }[computation_id] <= observed
+
+            def check_input_limits(job_status):
+                input_buffer = job_status.get("input_limits", {}).get("input_buffer_bytes", {})
+                return sum(v.get("used", 0) for v in input_buffer.values()) > 0 and check_buffer_demand(
+                    job_status, "processor", True
+                )
+
+            wait(lambda: find_job_status("processor", check_input_limits), timeout=180)
+
+            def get_output_limits_checker(name):
+                def checker(job_status, name=name):
+                    return sum(
+                        v.get("used", 0) for v in job_status.get("output_limits", {}).get(name, {}).values()
+                    ) > 0 and check_buffer_demand(job_status, "reader", True)
+
+                return checker
+
+            wait(lambda: find_job_status("reader", get_output_limits_checker("output_buffer_bytes")), timeout=180)
+
+            def get_cycle(job_status):
+                return job_status["from_partition_traverse_data"]["node"]["iteration_cycle"]
+
+            def check_processing_observation(job_status):
+                rate = processing_rates(job_status)
+                return rate and all(
+                    math.isfinite(rate[kind][name]) and rate[kind][name] > 0
+                    for kind in ("processed", "capacity")
+                    for name in ("processed_messages_per_second", "processed_bytes_per_second")
+                )
+
+            # Verify the runtime-to-heartbeat path, including a consumer that emits nothing.
+            for computation in ("reader", "processor", "consumer"):
+                wait(
+                    lambda: find_job_status(
+                        computation,
+                        lambda status: check_processing_observation(status)
+                        and check_buffer_demand(status, computation, True),
+                    ),
+                    timeout=180,
+                )
+                status = find_job_status(computation, check_processing_observation)
+                assert set(status.get("output_limits", {})) <= {"output_buffer_bytes", "controller"}
+                observation = status["processing_observation"]
+                assert observation["sequence"] > 0
+                assert observation["processed_count"] > 0
+                assert observation["processed_byte_size"] > 0
+                rate = processing_rates(status)
+                if computation == "processor":
+                    # Message IDs grow even for fixed payloads. The cumulative byte/count ratio must
+                    # stay within the observed processing batch averages, not the first epoch alone.
+                    with open(commit_gate_ready_path + "." + computation + ".input_bytes") as bounds:
+                        minimum, maximum = map(float, bounds.read().split())
+                    processed = rate["processed"]
+                    ratio = processed["processed_bytes_per_second"] / processed["processed_messages_per_second"]
+                    assert minimum - 1e-6 <= ratio <= maximum + 1e-6, (computation, ratio, minimum, maximum)
+                if computation == "consumer":
+                    assert rate["capacity"]["processed_messages_per_second"] <= 1100
+                previous = get_cycle(find_job_status(computation, check_processing_observation))
+                wait(
+                    lambda: find_job_status(
+                        computation,
+                        lambda status: check_processing_observation(status) and get_cycle(status) > previous,
+                    ),
+                    timeout=180,
+                )
+
+            service_ready_path = commit_gate_ready_path + ".service"
+            service_release_path = commit_gate_release_path + ".service"
+            # Hold a later epoch before commit; job status must retain the last committed observation.
+            before_gate = find_job_status("processor", check_processing_observation)
+            previous_cycle = get_cycle(before_gate)
+            os.remove(service_ready_path)
+            os.remove(service_release_path)
+            wait(lambda: os.path.exists(service_ready_path), timeout=60)
+            with open(service_ready_path + ".cycle") as gate:
+                partition_id, cycle = gate.read().split()
+                assert partition_id == selected_partitions["processor"]
+                published_cycle = int(cycle)
+            assert published_cycle >= previous_cycle
+
+            def is_pending_epoch(status):
+                node = status.get("from_partition_traverse_data", {}).get("node", {})
+                return node.get("iteration_cycle") == published_cycle
+
+            wait(lambda: find_job_status("processor", is_pending_epoch), timeout=60)
+            pending = find_job_status("processor", is_pending_epoch)
+            retained_observation = pending["processing_observation"]
+            assert get_cycle(pending) == published_cycle
+            wait(
+                lambda: find_job_status("processor", lambda status: status["update_time"] > pending["update_time"]),
+                timeout=60,
+            )
+            refreshed = find_job_status("processor", is_pending_epoch)
+            assert refreshed["processing_observation"] == retained_observation
+
+            # The status envelope may advance before the computation applies the new spec.
+            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+            dynamic_spec["spec"]["computations"]["processor"]["skip_if_expression"] = "false"
+            dynamic_spec["spec"]["job_tracker"]["buffer_state_manager"]["enable_v2"] = False
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                dynamic_spec["spec"],
+                expected_version=dynamic_spec["version"],
+            )
+            wait(
+                lambda: find_job_status("processor", lambda status: status["epoch"] > pending["epoch"]),
+                timeout=60,
+            )
+            reconfigured = find_job_status("processor", lambda status: status["epoch"] > pending["epoch"])
+            assert reconfigured["processing_observation"] == retained_observation
+            assert reconfigured["processing_observation"]["spec_generation"] < reconfigured["epoch"]
+            with open(service_release_path, "w"):
+                pass
+            wait(
+                lambda: find_job_status(
+                    "processor",
+                    lambda status: check_processing_observation(status)
+                    and check_buffer_demand(status, "processor", False)
+                    and get_cycle(status) > published_cycle
+                    and status["processing_observation"]["sequence"] > retained_observation["sequence"]
+                    and status["processing_observation"]["spec_generation"] >= reconfigured["epoch"],
+                ),
+                timeout=180,
+            )
+            wait(
+                lambda: all(
+                    find_job_status(
+                        computation,
+                        lambda status: check_buffer_demand(status, computation, False),
+                    )
+                    for computation in ("reader", "consumer")
+                ),
+                timeout=60,
+            )
+
+            # Lineage statistics are sent independently from regular job status heartbeats.
+            wait(lambda: has_lineage_edge("data", "reader/random"), timeout=180)
+            wait(lambda: has_lineage_edge("processed_data", "data"), timeout=180)
+
+            flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+            assert all(
+                not worker_status.get("statistics")
+                for worker_status in flow_view.get("feedback", {}).get("worker_statuses", {}).values()
+            )
+
+            controller_component = (
+                "/job_manager/computation_controllers/broken_reader/"
+                "sources/missing_queue/queue_info/update_partition_count"
+            )
+
+            def matching_controller_errors(messages):
+                return [
+                    message
+                    for message in messages
+                    if str(message.get("text", "")).startswith("Retryable error in component")
+                    and controller_component in str(message.get("text", ""))
+                    and "Failed to update partition count" in str(message)
+                ]
+
+            pipeline_description = None
+
+            def controller_error_is_routed():
+                nonlocal pipeline_description
+                pipeline_description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                assert pipeline_description["status"] == "working", (
+                    "Pipeline stopped while waiting for the intentional queue-controller error",
+                    pipeline_description,
+                )
+                broken_reader_description = pipeline_description["computations"]["broken_reader"]
+                return broken_reader_description["status"] == "warning" and bool(
+                    matching_controller_errors(broken_reader_description["messages"])
+                )
+
+            wait(
+                controller_error_is_routed,
+                timeout=120,
+                error_message=lambda: (
+                    f"Queue-controller error {controller_component!r} was not routed to broken_reader: "
+                    f"{pipeline_description!r}"
+                ),
+            )
+            broken_reader_description = pipeline_description["computations"]["broken_reader"]
+            assert broken_reader_description["status"] == "warning", broken_reader_description
+            assert matching_controller_errors(broken_reader_description["messages"]), broken_reader_description
+            assert matching_controller_errors(pipeline_description["messages"]), pipeline_description["messages"]
+
+            computation_description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-computation",
+                flow_argument={"computation_id": "broken_reader"},
+            )
+            assert computation_description["status"] == "warning", computation_description
+            assert matching_controller_errors(computation_description["messages"]), computation_description
+
+            computations_description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-computations",
+            )
+            listed_broken_reader = next(
+                computation
+                for computation in computations_description["computations"]
+                if computation["name"] == "broken_reader"
+            )
+            assert listed_broken_reader["status"] == "warning", listed_broken_reader
+            assert matching_controller_errors(listed_broken_reader["messages"]), listed_broken_reader
+
+            # TODO: Test metrics.
+
+    @pytest.mark.authors(["pechatnov"])
+    @pytest.mark.parametrize(
+        "computation_class", ["TProcessor", "TFilteringSwiftProcessor", "TReader", "TTransformReader"]
+    )
+    @pytest.mark.parametrize("skip_all", [False, True])
+    def test_filter_processing_observations(self, computation_class, skip_all):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        computation = "reader" if computation_class in ("TReader", "TTransformReader") else "processor"
+        if computation == "reader":
+            config["spec"]["computations"]["reader"]["source_streams"]["random"][
+                "source_class_name"
+            ] = "TFilteringTelemetrySource"
+        else:
+            config["spec"]["computations"]["reader"]["computation_class_name"] = "TFilteringTestReader"
+        config["spec"]["computations"][computation]["computation_class_name"] = computation_class
+        config["dynamic_spec"]["computations"][computation]["skip_if_expression"] = (
+            "true" if skip_all else 'key = "drop"'
+        )
+        observation_path = os.path.join(self.path_to_flow_logs, "filter_lineage")
+        config["spec"]["computations"][computation]["parameters"]["lineage_observation_path"] = observation_path
+        self.patch_config(config)
+        for downstream in ("processor", "consumer"):
+            config["dynamic_spec"]["computations"][downstream]["parameters"]["desired_partition_count"] = 1
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def check_rates():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                if not os.path.exists(observation_path + ".totals"):
+                    return False
+                with open(observation_path + ".totals") as observation:
+                    output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+                if input_count < 1000:
+                    return False
+                count_ratio = output_count / input_count
+                byte_ratio = output_bytes / input_bytes
+                if skip_all:
+                    assert count_ratio == byte_ratio == 0
+                elif not (0.095 < count_ratio < 0.105 and 0 < byte_ratio < 0.02):
+                    return False
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != computation:
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    rate = processing_rates(status)
+                    if not rate or not rate.get("capacity"):
+                        return False
+                    for kind in ("processed", "capacity"):
+                        count = rate[kind]["processed_messages_per_second"]
+                        byte_size = rate[kind]["processed_bytes_per_second"]
+                        if count <= 0 or not math.isfinite(count) or not math.isfinite(byte_size):
+                            return False
+                        # Most input bytes belong to dropped rows, not the small kept payloads.
+                        if byte_size / count < 3000:
+                            return False
+                    return True
+                return False
+
+            wait(check_rates, timeout=240)
+
+            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+            dynamic_spec["spec"]["computations"][computation]["skip_if_expression"] = "false"
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                dynamic_spec["spec"],
+                expected_version=dynamic_spec["version"],
+            )
+            with open(observation_path + ".totals") as observation:
+                before = list(map(float, observation.read().split()))
+
+            def check_reconfigured_filter():
+                with open(observation_path + ".totals") as observation:
+                    after = list(map(float, observation.read().split()))
+                output_count, input_count, output_bytes, input_bytes = [
+                    current - previous for current, previous in zip(after, before)
+                ]
+                return (
+                    input_count >= 1000
+                    and output_count / input_count > 0.9
+                    and input_bytes > 0
+                    and output_bytes / input_bytes > 0.9
+                )
+
+            wait(check_reconfigured_filter, timeout=120)
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("custom_config", [True, False])
+    def test_source_read_delay_offered(self, custom_config):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TTransformReader"
+        clock["output_stream_ids"] = ["clock"]
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        reader["source_streams"]["random"]["source_class_name"] = "TReadDelayTelemetrySource"
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "1h"}}}
+        if custom_config:
+            config["dynamic_spec"]["computations"]["reader"]["source_read_delay_estimator"] = {"smoothing_period": "5s"}
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ) as federation:
+
+            def check_offered(previous_jobs=()):
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    if partition.get("current_job_id") in previous_jobs:
+                        return False
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    streams = status.get("from_partition_traverse_data", {}).get("node", {}).get("streams", {})
+                    metrics = streams.get("random", {}).get("inflight_metrics", {})
+                    if not any("read_delay_estimate" in name for name in status.get("retryable_errors", {})):
+                        return False
+                    held = status.get("partition_status", {}).get("read_delay", {})
+                    if held.get("held_count") != 0 or held.get("held_byte_size") != 0:
+                        return False
+                    ratios = []
+                    for axis in ("count", "bytes"):
+                        offered = metrics.get(f"offered_{axis}_per_sec")
+                        new = metrics.get(f"new_{axis}_per_sec")
+                        if offered is None or new is None or new <= 0:
+                            return False
+                        ratios.append(offered / new)
+                    # A 20-minute timestamp offset translates the 1h delay to a 40-minute delay.
+                    # At a 2h system lag, interpolation gives roughly two thirds of New.
+                    ready_ratios = []
+                    for ready_name, total_name in (("ready_count", "count"), ("ready_byte_size", "byte_size")):
+                        ready = metrics.get(ready_name)
+                        total = metrics.get(total_name)
+                        if ready is None or total is None or total <= 0:
+                            return False
+                        ready_ratios.append(ready / total)
+                    return all(0.4 < ratio < 0.9 for ratio in ratios) and all(
+                        0.60 < ratio < 0.75 for ratio in ready_ratios
+                    )
+                return False
+
+            wait(check_offered, timeout=180)
+
+            def has_persisted_estimator():
+                states = self.client.read_states(self.pipeline_path, computation_id="reader", limit=100)
+                return any(
+                    state.get("read_delay_estimator", {}).get("last_density_observation_time")
+                    for key in states["key_states"]
+                    for state in key["states"].values()
+                    if isinstance(state, dict)
+                )
+
+            wait(has_persisted_estimator, timeout=60)
+
+            if custom_config:
+                dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+                dynamic_spec["spec"]["computations"]["reader"]["source_read_delay_estimator"]["smoothing_period"] = "1s"
+                self.client.set_pipeline_dynamic_spec(
+                    self.pipeline_path, dynamic_spec["spec"], expected_version=dynamic_spec["version"]
+                )
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                previous_jobs = {
+                    partition.get("current_job_id")
+                    for partition in view["state"]["execution_spec"]["layout"]["partitions"].values()
+                    if partition["computation_id"] == "reader"
+                }
+                federation.workers[0].restart()
+                wait(lambda: check_offered(previous_jobs), timeout=180)
+                wait(has_persisted_estimator, timeout=60)
+
+    @pytest.mark.authors(["mikari"])
+    def test_source_read_delay_held_status(self):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TTransformReader"
+        clock["output_stream_ids"] = ["clock"]
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        reader["source_streams"]["random"]["source_class_name"] = "TReadDelayTelemetrySource"
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "3h"}}}
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def has_blocked_batch():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    held = status.get("partition_status", {}).get("read_delay", {})
+                    threshold = held.get("event_threshold", 0)
+                    required = held.get("required_event_threshold", 0)
+                    # This input is 2h20m old; the 3h gate holds its sole raw batch.
+                    return (
+                        held.get("held_count") == 1
+                        and held.get("held_byte_size", 0) > 0
+                        and held.get("held_batch_count") == 1
+                        and held.get("first_blocking_message_id")
+                        and not held.get("draining")
+                        and threshold > 0
+                        and 2200 < required - threshold < 2600
+                    )
+                return False
+
+            wait(has_blocked_batch, timeout=180)
+
+    @pytest.mark.authors(["pechatnov"])
+    @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader", "TDelayedReader"])
+    def test_source_processing_observations(self, reader_class):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        reader["computation_class_name"] = reader_class
+        if reader_class == "TReader":
+            reader["source_streams"]["other"] = copy.deepcopy(reader["source_streams"]["random"])
+            sources = config["dynamic_spec"]["computations"]["reader"]["source_streams"]
+            sources["other"] = copy.deepcopy(sources["random"])
+        observation_path = os.path.join(self.path_to_flow_logs, "source_processed_lineage")
+        if reader_class == "TDelayedReader":
+            clock = copy.deepcopy(reader)
+            clock["computation_class_name"] = "TTransformReader"
+            clock["output_stream_ids"] = ["clock"]
+            config["spec"]["computations"]["clock"] = clock
+            config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+            config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+                config["dynamic_spec"]["computations"]["reader"]
+            )
+            reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "1h"}}}
+            reader["parameters"]["lineage_observation_path"] = observation_path
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def get_rates():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    rate = processing_rates(status)
+                    if rate:
+                        return rate
+                return None
+
+            if reader_class == "TReader":
+
+                def check_source_metrics():
+                    view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                    active_streams = set()
+                    for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                        if partition["computation_id"] != "reader":
+                            continue
+                        status = (
+                            view["feedback"]["partition_job_statuses"]
+                            .get(partition_id, {})
+                            .get("current_job_status", {})
+                        )
+                        if not processing_rates(status):
+                            return False
+                        streams = status["from_partition_traverse_data"]["node"]["streams"]
+                        active = [
+                            name
+                            for name in ("random", "other")
+                            if streams[name]["inflight_metrics"].get("offered_count_per_sec", 0) > 0
+                        ]
+                        if len(active) != 1:
+                            return False
+                        active_streams.add(active[0])
+                        inactive = streams["other" if active[0] == "random" else "random"]["inflight_metrics"]
+                        for name in (
+                            "count",
+                            "byte_size",
+                            "ready_count",
+                            "ready_byte_size",
+                            "offered_count_per_sec",
+                            "offered_bytes_per_sec",
+                        ):
+                            assert name in inactive, (partition_id, name, inactive)
+                            assert float(inactive[name]) == 0, (partition_id, name, inactive)
+                    return active_streams == {"random", "other"}
+
+                wait(check_source_metrics, timeout=180)
+
+            wait(get_rates, timeout=180)
+            rate = get_rates()
+            for kind in ("processed", "capacity"):
+                for name in ("processed_messages_per_second", "processed_bytes_per_second"):
+                    assert math.isfinite(rate[kind][name]) and rate[kind][name] > 0
+            if reader_class == "TDelayedReader":
+                wait(lambda: os.path.exists(observation_path), timeout=60)
+                with open(observation_path) as observation:
+                    output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+                assert output_count == input_count > 0
+                assert output_bytes > 0 and input_bytes > 0
+                # Read delays block publication, not logical lineage.
+                with open(os.path.join(self.path_to_flow_logs, "Worker_0_FilteredDebug.log")) as worker_log:
+                    publications = re.findall(
+                        r"Publishing batch \([^\n]*ComputationId: reader,[^\n]*SourceBatches: ([0-9]+)",
+                        worker_log.read(),
+                    )
+                assert publications and all(int(count) == 0 for count in publications)
+
+    @pytest.mark.authors(["mikari"])
+    def test_delayed_publication_does_not_recount_lineage(self):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TPublicationClockReader"
+        clock["output_stream_ids"] = ["clock"]
+        release_path = os.path.join(self.path_to_flow_logs, "release_publication")
+        clock["parameters"]["publication_release_path"] = release_path
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        reader["computation_class_name"] = "TDelayedReader"
+        reader["source_streams"]["random"]["source_class_name"] = "TSingleBatchTelemetrySource"
+        reader["parameters"]["output_event_timestamp"] = 10000
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "1h"}}}
+        observation_path = os.path.join(self.path_to_flow_logs, "single_batch_lineage")
+        reader["parameters"]["lineage_observation_path"] = observation_path
+        downstream_path = observation_path + ".downstream"
+        config["spec"]["computations"]["processor"]["parameters"]["lineage_observation_path"] = downstream_path
+        self.patch_config(config)
+        config["dynamic_spec"]["computations"]["processor"]["parameters"]["desired_partition_count"] = 1
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def reader_cycle():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] == "reader":
+                        status = (
+                            view["feedback"]["partition_job_statuses"]
+                            .get(partition_id, {})
+                            .get("current_job_status", {})
+                        )
+                        return status.get("from_partition_traverse_data", {}).get("node", {}).get("iteration_cycle", 0)
+                return 0
+
+            wait(lambda: os.path.exists(observation_path), timeout=60)
+            with open(observation_path) as observation:
+                before = list(map(float, observation.read().split()))
+            assert before[0] == before[1] == 1
+            assert before[2] > 0 and before[3] > 0
+            cycle = reader_cycle()
+            wait(lambda: reader_cycle() > cycle + 1, timeout=60)
+            assert not os.path.exists(downstream_path)
+
+            with open(release_path, "w"):
+                pass
+            wait(lambda: os.path.exists(downstream_path), timeout=120)
+
+            cycle = reader_cycle()
+            wait(lambda: reader_cycle() > cycle, timeout=60)
+            with open(observation_path + ".totals") as observation:
+                after = list(map(float, observation.read().split()))
+            assert after == before
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader"])
+    @pytest.mark.parametrize("slow_phase", ["fetch", "user_processing"])
+    def test_source_work_limits_capacity(self, reader_class, slow_phase):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        reader["computation_class_name"] = reader_class
+        if slow_phase == "fetch":
+            reader["source_streams"]["random"]["source_class_name"] = "TSlowTelemetrySource"
+        else:
+            reader["parameters"]["processing_delay"] = "200ms"
+            config["dynamic_spec"]["computations"]["reader"]["source_streams"]["random"]["parameters"][
+                "message_count_mean"
+            ] = 1
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def get_rate():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    return processing_rates(status)
+                return None
+
+            wait(get_rate, timeout=180)
+            rate = get_rate()
+            capacity = rate["capacity"]["processed_messages_per_second"]
+            processed = rate["processed"]["processed_messages_per_second"]
+            # Each input requires 200 ms of the selected phase, not merely incidental commit work.
+            assert 0 < processed <= capacity <= 5.01, rate
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_source_replay_lineage(self):
+        run_yt_sync("primary", self.work_yt_path)
+        ready_path = os.path.join(self.path_to_flow_logs, "replay_ready")
+        release_path = os.path.join(self.path_to_flow_logs, "replay_release")
+        pipeline_config_path = self.prepare_pipeline_config(
+            commit_gate=(ready_path, release_path), reader_class="TReplayReader"
+        )
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: os.path.exists(ready_path), timeout=60)
+            assert os.path.exists(ready_path + ".reader")
+            with open(release_path, "w"):
+                pass
+            wait(lambda: os.path.exists(ready_path + ".reader"), timeout=60)
+            with open(ready_path + ".reader") as observation:
+                output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+            assert output_count == input_count > 0
+            assert output_bytes > 0 and input_bytes > 0
+
+            def has_replay_publication():
+                with open(os.path.join(self.path_to_flow_logs, "Worker_0_FilteredDebug.log")) as worker_log:
+                    publications = re.findall(
+                        r"Publishing batch \([^\n]*ComputationId: reader,[^\n]*SourceBatches: ([0-9]+), Parsed: [0-9]+, Outputs: ([0-9]+)",
+                        worker_log.read(),
+                    )
+                assert all(int(outputs) == 0 for _, outputs in publications)
+                return any(int(inputs) > 0 for inputs, _ in publications)
+
+            wait(has_replay_publication, timeout=60)
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_worker_backtraces(self):
+        if yatest.common.context.sanitize is not None:
+            pytest.skip("Backtrace introspection is not supported with sanitizers")
+
+        run_yt_sync("primary", self.work_yt_path)
+        # Symbolization may block heartbeats beyond the default five-second test lease.
+        pipeline_config_path = self.prepare_pipeline_config(worker_lease_timeout="30s")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: self.client.flow_execute(self.pipeline_path, "describe-workers")["workers"])
+            workers = self.client.flow_execute(self.pipeline_path, "describe-workers")
+            assert len(workers["workers"]) > 0
+            worker_address = workers["workers"][0]["address"]
+            res = self.client.flow_execute(self.pipeline_path, "get-worker-backtraces", {"worker": worker_address})
+            with open(os.path.join(self.path_to_flow_logs, "get_worker_backtraces.txt"), "w") as f:
+                f.write(res["text"])
+            assert isinstance(res["text"], str) and len(res["text"]) > 0
+
+    @pytest.mark.authors(["timoninmaxim"])
+    @pytest.mark.parametrize("fail_before_commit", [False, True])
+    @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader"])
+    def test_job_failure(self, fail_before_commit, reader_class):
+        run_yt_sync("primary", self.work_yt_path)
+        ready_path = os.path.join(self.path_to_flow_logs, "failed_commit_ready")
+        release_path = os.path.join(self.path_to_flow_logs, "failed_commit_release")
+        pipeline_config_path = self.prepare_pipeline_config(
+            fail_comment=FAIL_COMMENT,
+            reader_class=reader_class,
+            fail_before_commit=fail_before_commit,
+            commit_gate=(ready_path, release_path) if fail_before_commit else None,
+        )
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_pipeline_state("working")
+
+            if fail_before_commit:
+                wait(lambda: os.path.exists(ready_path), timeout=60)
+                assert os.path.exists(ready_path + ".reader")
+                with open(release_path, "w"):
+                    pass
+
+            def check_job_fail_error():
+                description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                # Only a real job failure counts; the "Spec" message echoes fail_comment unconditionally.
+                job_fail_messages = [
+                    message
+                    for message in description["computations"]["reader"]["messages"]
+                    if str(message.get("text", "")).startswith("Job failed")
+                ]
+                assert any(FAIL_COMMENT in str(message) for message in job_fail_messages)
+                return True
+
+            wait(lambda: check_job_fail_error(), timeout=180, ignore_exceptions=True)
+            assert os.path.exists(ready_path + ".reader") == fail_before_commit
+            flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+            for partition_id, partition in flow_view["state"]["execution_spec"]["layout"]["partitions"].items():
+                if partition["computation_id"] == "reader":
+                    status = flow_view["feedback"]["partition_job_statuses"].get(partition_id, {})
+                    job = status.get("current_job_status", {})
+                    assert not job.get("processing_observation")
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize(
+        "computation_class", ["TReader", "TTransformReader", "TFilteringSwiftProcessor", "TProcessor"]
+    )
+    @pytest.mark.parametrize("fail_commit", [False, True])
+    def test_processing_observation_commit_boundary(self, computation_class, fail_commit):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        computation = "reader" if computation_class in ("TReader", "TTransformReader") else "processor"
+        ready_path = os.path.join(self.path_to_flow_logs, "processing_ready")
+        release_path = os.path.join(self.path_to_flow_logs, "processing_release")
+        observation_path = os.path.join(self.path_to_flow_logs, "processing_lineage")
+        target = config["spec"]["computations"][computation]
+        target["computation_class_name"] = computation_class
+        target["parameters"].update(
+            {
+                "commit_gate_ready_path": ready_path,
+                "commit_gate_release_path": release_path,
+                "lineage_observation_path": observation_path,
+            }
+        )
+        if fail_commit:
+            target["parameters"]["fail_comment"] = FAIL_COMMENT
+            if computation == "reader":
+                target["parameters"]["fail_before_commit"] = True
+        self.patch_config(config)
+        config["dynamic_spec"]["computations"]["processor"]["parameters"]["desired_partition_count"] = 1
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: os.path.exists(ready_path), timeout=90)
+            with open(ready_path + ".cycle") as gate:
+                partition_id, _ = gate.read().split()
+
+            def get_status():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                return view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status")
+
+            wait(get_status, timeout=60)
+            status = get_status()
+            assert not status.get("processing_observation") or status["processing_observation"]["processed_count"] == 0
+            with open(observation_path) as observation:
+                output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+            assert output_count == input_count > 0
+            assert output_bytes > 0 and input_bytes > 0
+            with open(release_path, "w"):
+                pass
+            if fail_commit:
+
+                def has_failure():
+                    description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                    return any(
+                        str(message.get("text", "")).startswith("Job failed") and FAIL_COMMENT in str(message)
+                        for message in description["computations"][computation]["messages"]
+                    )
+
+                wait(has_failure, timeout=180)
+                assert os.path.exists(observation_path)
+                status = get_status()
+                if status:
+                    assert (
+                        not status.get("processing_observation")
+                        or status["processing_observation"]["processed_count"] == 0
+                    )
+            else:
+                wait(lambda: os.path.exists(observation_path), timeout=90)
+
+                def has_rates():
+                    status = get_status()
+                    if not status:
+                        return False
+                    rate = processing_rates(status)
+                    return rate and rate["processed"]["processed_messages_per_second"] > 0 and rate.get("capacity")
+
+                wait(has_rates, timeout=180)
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize(
+        "computation_class", ["TReader", "TTransformReader", "TProcessor", "TFilteringSwiftProcessor"]
+    )
+    def test_input_throttle_limits_capacity(self, computation_class):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        computation = "reader" if computation_class in ("TReader", "TTransformReader") else "processor"
+        config["spec"]["computations"][computation]["computation_class_name"] = computation_class
+        config["spec"]["computations"][computation]["parameters"]["lineage_observation_path"] = os.path.join(
+            self.path_to_flow_logs, "throttled_lineage"
+        )
+        self.patch_config(config)
+        dynamic = config["dynamic_spec"]["computations"][computation]
+        dynamic["input_rows_throttler_id"] = "input_quota"
+        dynamic["max_rows_per_batch"] = 1
+        config["dynamic_spec"]["computations"]["processor"]["parameters"]["desired_partition_count"] = 1
+        config["dynamic_spec"]["throttlers"] = {
+            "input_quota": {"limit": 10.0, "period": 1000, "request_period": 100, "max_grant_amount": 1}
+        }
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def get_rate():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != computation:
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    if (
+                        status.get("epoch_part_times", {}).get("Input.Throttle", 0) <= 0
+                        or status.get("processing_observation", {}).get("processing_time", 0) < 10000
+                    ):
+                        continue
+                    return processing_rates(status)
+                return None
+
+            wait(get_rate, timeout=180)
+            rate = get_rate()
+            # Quota waits are processing time in the current effective-capacity contract.
+            assert (
+                0
+                < rate["processed"]["processed_messages_per_second"]
+                <= rate["capacity"]["processed_messages_per_second"]
+                <= 15
+            ), rate

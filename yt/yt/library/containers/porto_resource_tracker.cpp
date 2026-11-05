@@ -14,7 +14,6 @@
 
 #include <yt/yt/library/process/process.h>
 
-#include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
@@ -230,6 +229,10 @@ TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResour
         .RxPackets = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxPackets),
         .RxDrops = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxDrops),
         .RxLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxLimit),
+
+        .SoftLimitBytesForcedToFb = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitBytesForcedToFb),
+        .SoftLimitBytesUntouched = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitBytesUntouched),
+        .SoftLimitPacketsAboveGuarantee = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitPacketsAboveGuarantee),
     };
 }
 
@@ -237,7 +240,7 @@ TVolumeStatistics TPortoResourceTracker::ExtractVolumeStatistics(const TResource
 {
     auto volumeCounts = GetFieldOrError(resourceUsage.ContainerTaggedStats, EStatField::VolumeCounts).ValueOrDefault({});
 
-    std::vector<std::pair<TString, i64>> convertedVolumeCounts;
+    std::vector<std::pair<std::string, i64>> convertedVolumeCounts;
     convertedVolumeCounts.reserve(volumeCounts.size());
 
     for (const auto& [deviceName, value] : volumeCounts) {
@@ -321,7 +324,7 @@ TTotalStatistics TPortoResourceTracker::GetTotalStatistics() const
 template <class T, class F>
 T TPortoResourceTracker::GetStatistics(
     std::optional<T>& cachedStatistics,
-    const TString& statisticsKind,
+    const std::string& statisticsKind,
     F extractor) const
 {
     UpdateResourceUsageStatisticsIfExpired();
@@ -334,9 +337,11 @@ T TPortoResourceTracker::GetStatistics(
     } catch (const std::exception& ex) {
         if (!cachedStatistics) {
             THROW_ERROR_EXCEPTION("Unable to get %v statistics", statisticsKind)
-                << ex;
+                .With(ex);
         }
-        YT_LOG_WARNING(ex, "Unable to get %v statistics; using the last one", statisticsKind);
+        YT_TLOG_WARNING("Unable to get statistics; using the last one")
+            .With("StatisticsKind", statisticsKind)
+            .With(ex);
         return *cachedStatistics;
     }
 }
@@ -436,7 +441,11 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::NetTxDrops ||
         statistic == EStatField::NetRxBytes ||
         statistic == EStatField::NetRxPackets ||
-        statistic == EStatField::NetRxDrops;
+        statistic == EStatField::NetRxDrops ||
+
+        statistic == EStatField::NetSoftLimitBytesForcedToFb ||
+        statistic == EStatField::NetSoftLimitBytesUntouched ||
+        statistic == EStatField::NetSoftLimitPacketsAboveGuarantee;
 }
 
 void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newResourceUsage) const
@@ -453,7 +462,7 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
 
             if (auto newValueIt = (newResourceUsage.*containerStats).find(stat); newValueIt.IsEnd()) {
                 newValue = TError("Missing property %Qlv in Porto response", stat)
-                    << TErrorAttribute("container", Instance_->GetName());
+                    .With("container", Instance_->GetName());
             } else {
                 newValue = newValueIt->second;
             }
@@ -495,9 +504,8 @@ void TPortoResourceTracker::DoUpdateResourceUsage() const
     try {
         ReCalculateResourceUsage(Instance_->GetResourceUsage());
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(
-            ex,
-            "Couldn't get metrics from Porto");
+        YT_TLOG_ERROR("Couldn't get metrics from Porto")
+            .With(ex);
     }
 }
 
@@ -515,7 +523,9 @@ TPortoResourceProfiler::TPortoResourceProfiler(
         BIND(&TPortoResourceProfiler::DoUpdateBuffer, MakeWeak(this)),
         ResourceUsageUpdatePeriod))
 {
-    profiler.AddProducer("", MakeStrong(this));
+    profiler
+        .WithSparse()
+        .AddProducer("", MakeStrong(this));
 }
 
 void TPortoResourceProfiler::InitializeRefCounted()
@@ -530,7 +540,7 @@ TPortoResourceProfiler::~TPortoResourceProfiler()
 
 static void WriteGaugeIfOk(
     ISensorWriter* writer,
-    const TString& path,
+    const std::string& path,
     TErrorOr<i64> valueOrError)
 {
     if (valueOrError.IsOK()) {
@@ -544,7 +554,7 @@ static void WriteGaugeIfOk(
 
 static void WriteCumulativeGaugeIfOk(
     ISensorWriter* writer,
-    const TString& path,
+    const std::string& path,
     TErrorOr<i64> valueOrError,
     i64 timeDeltaUsec)
 {
@@ -838,6 +848,22 @@ void TPortoResourceProfiler::WriteNetworkMetrics(
         writer,
         "/network/tx_limit",
         totalStatistics.NetworkStatistics.TxLimit);
+
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/bytes_forced_to_fb",
+        totalStatistics.NetworkStatistics.SoftLimitBytesForcedToFb,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/bytes_untouched",
+        totalStatistics.NetworkStatistics.SoftLimitBytesUntouched,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/packets_above_guarantee",
+        totalStatistics.NetworkStatistics.SoftLimitPacketsAboveGuarantee,
+        timeDeltaUsec);
 }
 
 void TPortoResourceProfiler::DoUpdateBuffer()
@@ -867,7 +893,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 
 TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
     const IInstancePtr& instance,
-    const TString containerCategory,
+    const std::string& containerCategory,
     const TPodSpecConfigPtr& podSpec)
 {
     auto portoResourceTracker = New<TPortoResourceTracker>(
@@ -894,7 +920,8 @@ void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
         auto executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "porto-tracker");
 
         executor->SubscribeFailed(BIND([=] (const TError& error) {
-            YT_LOG_ERROR(error, "Fatal error during Porto polling");
+            YT_TLOG_ERROR("Fatal error during Porto polling")
+                .With(error);
         }));
 
         LeakyRefCountedSingleton<TPortoProfilers>(
@@ -903,13 +930,14 @@ void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
     }).AsyncVia(GetCurrentInvoker())
     .Run()
     .Subscribe(BIND([] (const TError& error) {
-        YT_LOG_ERROR_IF(!error.IsOK(), error, "Failed to enable Porto profiler");
+        YT_TLOG_ERROR_IF(!error.IsOK(), "Failed to enable Porto profiler")
+            .With(error);
     }));
 }
 #else
 void EnablePortoResourceTracker(const TPodSpecConfigPtr& /*podSpec*/)
 {
-    YT_LOG_WARNING("Porto resource tracker not supported");
+    YT_TLOG_WARNING("Porto resource tracker not supported");
 }
 #endif
 

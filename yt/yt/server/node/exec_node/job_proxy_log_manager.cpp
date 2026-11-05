@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -25,11 +27,15 @@
 
 #include <yt/yt/core/logging/config.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/datetime/base.h>
 
 #include <util/generic/ymath.h>
+
+#include <util/system/fs.h>
 
 #include <util/system/fstat.h>
 
@@ -37,6 +43,7 @@ namespace NYT::NExecNode {
 
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,45 +59,89 @@ public:
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecNode->JobProxyLogManager)
         , DynamicConfig_(New<TJobProxyLogManagerDynamicConfig>())
-        , Directory_(Config_->Directory)
         , ShardingKeyLength_(Config_->ShardingKeyLength)
         , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency))
-    { }
+    {
+        LocationHealthCheckers_.reserve(Config_->Locations.size());
+        AliveLocationIndices_.resize(Config_->Locations.size());
+        for (int idx = 0; idx < std::ssize(Config_->Locations); ++idx) {
+            AliveLocationIndices_[idx] = true;
+            LocationHealthCheckers_.push_back(New<TDiskHealthChecker>(
+                New<TDiskHealthCheckerConfig>(),
+                Config_->Locations[idx]->Path,
+                Bootstrap_->GetStorageHeavyInvoker(),
+                Logger()));
+        }
+        LocationAlerts_.resize(Config_->Locations.size());
+    }
 
     void Initialize() final
     {
         const auto& logWriterName = Config_->LogDump->LogWriterName;
 
-        // GetLogFileNameToDump may throw.
         LogFileName_.Store(GetNewLogFileNameToDump(logWriterName));
 
         Bootstrap_->GetJobController()->SubscribeJobCompletelyRemoved(
             BIND_NO_PROPAGATE(&TJobProxyLogManager::OnJobCompletelyRemoved, MakeStrong(this)));
+
+        Bootstrap_->SubscribePopulateAlerts(
+            BIND_NO_PROPAGATE(&TJobProxyLogManager::PopulateAlerts, MakeWeak(this)));
     }
 
     void Start() final
     {
         CreateShardingDirectories();
 
+        CheckAllLocations();
+
+        LocationCheckExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetStorageHeavyInvoker(),
+            BIND_NO_PROPAGATE(&TJobProxyLogManager::CheckAllLocations, MakeWeak(this)),
+            DynamicConfig_.Acquire()->LocationCheckPeriod.value_or(Config_->LocationCheckPeriod));
+        LocationCheckExecutor_->Start();
+
         Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
             [this, this_ = MakeStrong(this)] {
                 TraverseJobDirectoriesAndScheduleRemovals();
+            }));
+
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
+            [this, this_ = MakeStrong(this)] {
+                FindAndRemoveBrokenSymlinks();
             }));
     }
 
     void OnJobCompletelyRemoved(TJobId jobId)
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-
         auto logsStoragePeriod = dynamicConfig->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
 
-        YT_LOG_DEBUG(
-            "Job proxy log removal scheduled (JobId: %v, Delay: %v)",
-            jobId,
-            logsStoragePeriod);
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(
+            BIND_NO_PROPAGATE(&TJobProxyLogManager::ScheduleJobDirectoryRemoval, MakeStrong(this), jobId, logsStoragePeriod));
+    }
+
+    void ScheduleJobDirectoryRemoval(TJobId jobId, TDuration logsStoragePeriod)
+    {
+        std::string jobLogsPath;
+        try {
+            jobLogsPath = GetExistingJobLogsPathOrThrow(jobId);
+        } catch (const std::exception& ex) {
+            YT_TLOG_DEBUG("Job log directory is not found, skipping removal")
+                .With("JobId", jobId)
+                .With(ex);
+            return;
+        }
+
+        YT_TLOG_DEBUG("Job proxy log removal scheduled")
+            .With("JobId", jobId)
+            .With("Delay", logsStoragePeriod);
 
         TDelayedExecutor::Submit(
-            BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), JobIdToLogsPath(jobId)),
+            BIND_NO_PROPAGATE(
+                &TJobProxyLogManager::RemoveJobDirectory,
+                MakeStrong(this),
+                std::move(jobLogsPath),
+                ToString(jobId)),
             logsStoragePeriod,
             Bootstrap_->GetStorageHeavyInvoker());
     }
@@ -116,12 +167,27 @@ public:
 
         AsyncSemaphore_->SetTotal(newConfig->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency));
 
+        const auto locationCheckPeriod = newConfig->LocationCheckPeriod.value_or(Config_->LocationCheckPeriod);
+        if (LocationCheckExecutor_) {
+            LocationCheckExecutor_->SetPeriod(locationCheckPeriod);
+            YT_TLOG_INFO("Updated location check period")
+                .With("Prev", Config_->LocationCheckPeriod)
+                .With("Current", locationCheckPeriod);
+        }
+
         DynamicConfig_.Store(std::move(newConfig));
     }
 
-    TString AdjustLogPath(TJobId jobId, const TString& logFilePath) final
+    std::string AdjustLogPath(TJobId jobId, const std::string& logFilePath) final
     {
-        return NFS::CombinePaths(JobIdToLogsPath(jobId), NFS::GetFileName(logFilePath));
+        try {
+            return NFS::CombinePaths(CreateJobLogDirectory(jobId), NFS::GetFileName(logFilePath));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to adjust job log file path")
+                .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                .With("log_file", logFilePath)
+                .With(std::move(ex));
+        }
     }
 
     TFuture<void> DumpJobProxyLog(
@@ -134,6 +200,12 @@ public:
             .Run();
     }
 
+    bool IsEnabled() const final
+    {
+        auto guard = Guard(AliveLocationsLock_);
+        return NoAliveLocationsAlert_.IsOK();
+    }
+
 private:
     IBootstrap* const Bootstrap_;
 
@@ -141,76 +213,169 @@ private:
 
     TAtomicIntrusivePtr<TJobProxyLogManagerDynamicConfig> DynamicConfig_;
 
-    TString Directory_;
+    std::vector<TDiskHealthCheckerPtr> LocationHealthCheckers_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AliveLocationsLock_);
+    std::vector<bool> AliveLocationIndices_;
+
+    std::vector<TError> LocationAlerts_;
+    TError NoAliveLocationsAlert_;
+
     int ShardingKeyLength_;
 
-    NThreading::TAtomicObject<TString> LogFileName_;
+    TAtomicObject<std::string> LogFileName_;
 
     TAsyncSemaphorePtr AsyncSemaphore_;
 
+    NConcurrency::TPeriodicExecutorPtr LocationCheckExecutor_;
+
     void CreateShardingDirectories() noexcept
     {
-        YT_LOG_INFO("Start creating job proxy sharding key directories");
-
-        try {
+        auto createShardingDir = [&](const std::string& prefixPath) {
             auto formatString = Format("%%0%dx", ShardingKeyLength_);
+
             for (int i = 0; i < Power(16, ShardingKeyLength_); ++i) {
                 auto dirName = Format(TRuntimeFormat{formatString}, i);
 
-                auto dirPath = NFS::CombinePaths(Directory_, dirName);
+                auto dirPath = NFS::CombinePaths(prefixPath, dirName);
 
-                YT_LOG_INFO("Creating job proxy logs sharding key directory (DirPath: %v)", dirPath);
+                YT_TLOG_INFO("Creating job proxy logs sharding key directory")
+                    .With("DirPath", dirPath);
+
                 NFS::MakeDirRecursive(dirPath);
             }
+        };
 
-            YT_LOG_INFO("Finish creating job proxy sharding key directories");
+        try {
+            YT_TLOG_INFO("Started creating job proxy sharding key directories");
+
+            for (const auto& location : Config_->Locations) {
+                createShardingDir(location->Path);
+            }
+
+            createShardingDir(Config_->JobProxyLogSymlinksPath);
+
+            YT_TLOG_INFO("Finished creating job proxy sharding key directories");
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to create sharding key directories");
+            YT_TLOG_ERROR("Failed to create sharding key directories")
+                .With(ex);
         }
     }
 
     void TraverseJobDirectoriesAndScheduleRemovals() noexcept
     {
         auto currentTime = Now();
-
-        for (const auto& shardingDirName : NFS::EnumerateDirectories(Directory_)) {
-            auto shardingDirPath = NFS::CombinePaths(Directory_, shardingDirName);
-            Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
-                &TJobProxyLogManager::TraverseShardingDirectoryAndScheduleRemovals,
-                MakeStrong(this),
-                currentTime,
-                std::move(shardingDirPath)));
+        for (const auto& location : Config_->Locations) {
+            for (const auto& shardingDirName : NFS::EnumerateDirectories(location->Path)) {
+                const auto targetDirForTraverse = NFS::CombinePaths(location->Path, shardingDirName);
+                Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
+                    &TJobProxyLogManager::TraverseShardingDirectoryAndScheduleRemovals,
+                    MakeStrong(this),
+                    currentTime,
+                    std::move(targetDirForTraverse)));
+            }
         }
+    }
+
+    void FindAndRemoveBrokenSymlinks() noexcept
+    {
+        auto cleanupShard = [] (const std::string& shardPath) {
+            for (const auto& shardDirEntry : std::filesystem::directory_iterator(shardPath)) {
+                if (!shardDirEntry.is_symlink()) {
+                    YT_TLOG_WARNING("Unexpected non-symlink entry in symlinks sharding directory")
+                        .With("Path", shardDirEntry.path().string());
+
+                    continue;
+                }
+
+                auto symlinkPath = shardDirEntry.path().string();
+                bool isBroken = false;
+                TString targetPath;
+
+                try {
+                    // TODO(babenko): drop cast once NFs::ReadLink accepts std::string.
+                    targetPath = NFs::ReadLink(TString(symlinkPath));
+                    isBroken = !NFs::Exists(targetPath);
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Failed to read job log symlink")
+                        .With("Path", symlinkPath)
+                        .With(ex);
+                    isBroken = true;
+                }
+
+                if (!isBroken) {
+                    continue;
+                }
+
+                try {
+                    NFS::Remove(symlinkPath);
+                    YT_TLOG_INFO("Removed broken job log symlink")
+                        .With("Path", symlinkPath)
+                        .With("Target", targetPath);
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Failed to remove broken job log symlink")
+                        .With("Path", symlinkPath)
+                        .With("Target", targetPath)
+                        .With(ex);
+                }
+            }
+        };
+
+        YT_TLOG_INFO("Started cleaning broken job log symlinks")
+            .With("Root", Config_->JobProxyLogSymlinksPath);
+
+        try {
+            for (const auto& shardDirKey : NFS::EnumerateDirectories(Config_->JobProxyLogSymlinksPath)) {
+                const auto symlinksShardingDirPath = NFS::CombinePaths(Config_->JobProxyLogSymlinksPath, shardDirKey);
+
+                try {
+                    cleanupShard(symlinksShardingDirPath);
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Failed to clean up symlinks sharding directory")
+                        .With("Path", symlinksShardingDirPath)
+                        .With(ex);
+                }
+            }
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to enumerate symlinks sharding directories")
+                .With("Root", Config_->JobProxyLogSymlinksPath)
+                .With(ex);
+        }
+
+        YT_TLOG_INFO("Finished cleaning broken job log symlinks");
     }
 
     void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
-            .WithTag("ShardingDirPath: %v", shardingDirPath);
+            .WithTag("ShardingDirPath", shardingDirPath);
 
         auto guard = TAsyncSemaphoreGuard();
         if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {
-            YT_LOG_INFO("Waiting semaphore to traverse job directory");
+            YT_TLOG_INFO("Waiting semaphore to traverse job directory");
             guard = WaitFor(AsyncSemaphore_->AsyncAcquire().AsUnique()).ValueOrThrow();
         }
 
         auto logsStoragePeriod = DynamicConfig_.Acquire()->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
 
-        YT_LOG_INFO(
-            "Start traversing job directory (LogsStoragePeriod: %v)",
-            logsStoragePeriod);
+        YT_TLOG_INFO("Start traversing job directory")
+            .With("LogsStoragePeriod", logsStoragePeriod);
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
+            // TODO(babenko): drop cast once TFileStat accepts std::string.
             auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(TString(jobDirPath)).MTime);
-            auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
+            auto removeJobDirectory = BIND(
+                &TJobProxyLogManager::RemoveJobDirectory,
+                MakeStrong(this),
+                Passed(std::move(jobDirPath)),
+                jobDirName);
             if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));
             } else {
-                YT_LOG_DEBUG(
-                    "Job proxy log removal scheduled (DirectoryName: %v, Time: %v)",
-                    jobDirName,
-                    jobLogsDirModificationTime + logsStoragePeriod);
+                YT_TLOG_DEBUG("Job proxy log removal scheduled")
+                    .With("DirectoryName", jobDirName)
+                    .With("Time", jobLogsDirModificationTime + logsStoragePeriod);
 
                 TDelayedExecutor::Submit(
                     std::move(removeJobDirectory),
@@ -219,23 +384,159 @@ private:
             }
         }
 
-        YT_LOG_INFO("Finish traversing job directory");
+        YT_TLOG_INFO("Finish traversing job directory");
     }
 
-    void RemoveJobDirectory(const TString& path) noexcept
+    void RemoveJobDirectory(const std::string& targetDirectory, const std::string& jobDirectoryName) noexcept
     {
+        TGuid guid;
+        if (!TGuid::FromString(jobDirectoryName, &guid)) {
+            YT_TLOG_ERROR("Failed to parse job directory name as job ID, skipping symlink removal")
+                .With("DirectoryName", jobDirectoryName);
+            return;
+        }
+
+        const auto symlinkPath = NFS::CombinePaths({
+            Config_->JobProxyLogSymlinksPath,
+            GetShardingKey(TJobId(guid)),
+            jobDirectoryName
+        });
+
         try {
-            NFS::RemoveRecursive(path);
-            YT_LOG_INFO("Job directory removed (Path: %v)", path);
+            NFS::Remove(symlinkPath);
+            YT_TLOG_INFO("Symlink for job removed")
+                .With("Path", symlinkPath);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to remove job directory (Path: %v)", path);
+            YT_TLOG_ERROR("Failed to remove symlink for job directory")
+                .With("Path", symlinkPath)
+                .With(ex);
+        }
+
+        try {
+            NFS::RemoveRecursive(targetDirectory);
+            YT_TLOG_INFO("Job directory removed")
+                .With("Path", targetDirectory);
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to remove job directory")
+                .With("Path", targetDirectory)
+                .With(ex);
+            return;
         }
     }
 
-    TString JobIdToLogsPath(TJobId jobId)
+    int PickLogStorageIndexFromLocationList(TJobId jobId, const std::vector<bool>& locationIndices) const
+    {
+        if (std::find(locationIndices.begin(), locationIndices.end(), true) == locationIndices.end()) {
+            THROW_ERROR_EXCEPTION("No healthy job proxy log locations available");
+        }
+
+        const auto jobHash = THash<TJobId>()(jobId);
+        auto bestIndex = -1;
+        for (auto it = locationIndices.begin(); it != locationIndices.end(); ++it) {
+            ++bestIndex;
+            if (*it) {
+                break;
+            }
+        }
+
+        auto bestScore = jobHash;
+        HashCombine(bestScore, THash<std::string>()(Config_->Locations[bestIndex]->Path));
+
+        for (int idx = bestIndex; idx < std::ssize(locationIndices); ++idx) {
+            if (!locationIndices[idx]) {
+                continue;
+            }
+
+            auto score = jobHash;
+            HashCombine(score, THash<std::string>()(Config_->Locations[idx]->Path));
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = idx;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    std::string CreateJobLogDirectory(TJobId jobId)
     {
         auto shardingKey = GetShardingKey(jobId);
-        return NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+
+        std::vector<bool> alive;
+        {
+            auto guard = Guard(AliveLocationsLock_);
+            alive = AliveLocationIndices_;
+        }
+
+        int index = PickLogStorageIndexFromLocationList(jobId, alive);
+
+        const std::string jobLogPath = NFS::CombinePaths({Config_->Locations[index]->Path, shardingKey, ToString(jobId)});
+
+        NFS::MakeDirRecursive(jobLogPath);
+
+        return jobLogPath;
+    }
+
+    void BindJobLogDirectoryWithSymlink(TJobId jobId) final
+    {
+        auto shardingKey = GetShardingKey(jobId);
+
+        const auto symlinkPath = NFS::CombinePaths({Config_->JobProxyLogSymlinksPath, shardingKey, ToString(jobId)});
+        if (!NFS::Exists(symlinkPath)) {
+            try {
+                const auto targetJobLogPath = CreateJobLogDirectory(jobId);
+
+                NFS::MakeSymbolicLink(targetJobLogPath, symlinkPath);
+
+                YT_TLOG_INFO("Created symlink for job directory")
+                    .With("SymlinkPath", symlinkPath)
+                    .With("Target", targetJobLogPath);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to bind job log directory")
+                    .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                    .With("symlink_path", symlinkPath)
+                    .With(std::move(ex));
+            }
+        }
+    }
+
+    std::string GetExistingJobLogsPathOrThrow(TJobId jobId) const
+    {
+        auto shardingKey = GetShardingKey(jobId);
+
+        std::vector<bool> aliveLocationsIndices;
+        {
+            auto guard = Guard(AliveLocationsLock_);
+            aliveLocationsIndices = AliveLocationIndices_;
+        }
+
+        std::vector<bool> pretendedAliveIndices(aliveLocationsIndices.size(), true);
+        int index = PickLogStorageIndexFromLocationList(jobId, pretendedAliveIndices);
+
+        auto path = NFS::CombinePaths({Config_->Locations[index]->Path, shardingKey, ToString(jobId)});
+        if (NFS::Exists(path)) {
+            if (!aliveLocationsIndices[index]) {
+                YT_TLOG_WARNING("Job's log directory is located in a damaged location")
+                    .With("JobId", jobId)
+                    .With("Location", Config_->Locations[index]->Path);
+            }
+            return path;
+        }
+
+        for (int location = 0; location < std::ssize(Config_->Locations); ++location) {
+            auto path = NFS::CombinePaths({Config_->Locations[location]->Path, shardingKey, ToString(jobId)});
+            if (NFS::Exists(path)) {
+                if (!aliveLocationsIndices[location]) {
+                    YT_TLOG_WARNING("Job's log directory is located in a damaged location")
+                        .With("JobId", jobId)
+                        .With("Location", Config_->Locations[location]->Path);
+                }
+                return path;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Job directory is not found")
+            .With("job_id", jobId);
     }
 
     void DoDumpJobProxyLog(
@@ -243,13 +544,7 @@ private:
         const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId)
     {
-        auto logsPath = JobIdToLogsPath(jobId);
-
-        if (!NFS::Exists(logsPath)) {
-            THROW_ERROR_EXCEPTION("Job directory is not found")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("path", logsPath);
-        }
+        auto logsPath = GetExistingJobLogsPathOrThrow(jobId);
 
         auto dynamicConfig = DynamicConfig_.Acquire();
 
@@ -259,22 +554,22 @@ private:
 
         auto logFileName = LogFileName_.Load();
 
-        YT_LOG_DEBUG(
-            "Dumping job proxy log file (JobId: %v, LogFileName: %v)",
-            jobId,
-            logFileName);
+        YT_TLOG_DEBUG("Dumping job proxy log file")
+            .With("JobId", jobId)
+            .With("LogFileName", logFileName);
 
+        auto logFilePath = NFS::CombinePaths(logsPath, NFS::GetFileName(logFileName));
         auto logFile = [&] {
             try {
-                return TFile(AdjustLogPath(jobId, logFileName), OpenExisting | RdOnly);
+                return TFile(logFilePath, OpenExisting | RdOnly);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open log file")
-                    << TErrorAttribute("log_file_name", logFileName)
-                    << ex;
+                    .With("log_file_name", logFileName)
+                    .With(ex);
             }
         }();
 
-        auto buffer = TSharedMutableRef::Allocate(dumpJobProxyLogBufferSize);
+        auto buffer = TSharedMutableRef::Allocate(dumpJobProxyLogBufferSize, {.InitializeStorage = false});
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
@@ -299,7 +594,7 @@ private:
             .ThrowOnError();
     }
 
-    TString GetNewLogFileNameToDump(TStringBuf newLogWriterName)
+    std::string GetNewLogFileNameToDump(TStringBuf newLogWriterName)
     {
         auto jobProxyConfigTemplate = Bootstrap_->GetJobProxyConfigTemplate();
         auto jobProxyLoggingConfig = jobProxyConfigTemplate->GetSingletonConfig<NLogging::TLogManagerConfig>();
@@ -315,19 +610,82 @@ private:
 
         if (typedWriterConfig->Type != TFileLogWriterConfig::WriterType) {
             THROW_ERROR_EXCEPTION("Log writer %Qv configured for dump must have “file” type", newLogWriterName)
-                << TErrorAttribute("log_writer_type", typedWriterConfig->Type);
+                .With("log_writer_type", typedWriterConfig->Type);
         }
 
         auto fileLogWriterConfig = ConvertTo<TFileLogWriterConfigPtr>(logWriterConfigNode);
         return fileLogWriterConfig->FileName;
     }
 
-    TString GetShardingKey(TJobId jobId)
+    std::string GetShardingKey(TJobId jobId) const
     {
         auto entropy = NScheduler::EntropyFromAllocationId(
             NScheduler::AllocationIdFromJobId(jobId));
         auto entropyHex = Format("%016lx", entropy);
         return entropyHex.substr(0, ShardingKeyLength_);
+    }
+
+    void CheckAllLocations() noexcept
+    {
+        YT_TLOG_DEBUG("Location liveness check started");
+
+        std::vector<TError> results(LocationHealthCheckers_.size());
+        for (int idx = 0; idx < std::ssize(LocationHealthCheckers_); ++idx) {
+            try {
+                LocationHealthCheckers_[idx]->RunCheck();
+            } catch (const std::exception& ex) {
+                results[idx] = TError(ex);
+            }
+        }
+
+        std::vector<bool> oldAlive;
+        {
+            auto guard = Guard(AliveLocationsLock_);
+            oldAlive = AliveLocationIndices_;
+            for (int idx = 0; idx < std::ssize(results); ++idx) {
+                AliveLocationIndices_[idx] = results[idx].IsOK();
+                if (results[idx].IsOK()) {
+                    LocationAlerts_[idx] = TError();
+                } else {
+                    LocationAlerts_[idx] = TError("Location disabled").With(results[idx]);
+                }
+            }
+
+            const bool anyAlive = std::any_of(
+                AliveLocationIndices_.begin(),
+                AliveLocationIndices_.end(),
+                [] (bool v) { return v; });
+
+            NoAliveLocationsAlert_ = anyAlive
+                ? TError()
+                : TError("All job proxy log locations are disabled");
+        }
+
+        for (int idx = 0; idx < std::ssize(results); ++idx) {
+            if (oldAlive[idx] && !results[idx].IsOK()) {
+                YT_TLOG_ERROR("Job proxy log location disabled")
+                    .With("Path", Config_->Locations[idx]->Path)
+                    .With(results[idx]);
+            } else if (!oldAlive[idx] && results[idx].IsOK()) {
+                YT_TLOG_INFO("Job proxy log location recovered")
+                    .With("Path", Config_->Locations[idx]->Path);
+            }
+        }
+
+        YT_TLOG_DEBUG("Location liveness check finished");
+    }
+
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        auto guard = Guard(AliveLocationsLock_);
+        for (const auto& alert : LocationAlerts_) {
+            if (!alert.IsOK()) {
+                alerts->push_back(alert);
+            }
+        }
+        if (!NoAliveLocationsAlert_.IsOK()) {
+            alerts->push_back(NoAliveLocationsAlert_);
+        }
     }
 };
 
@@ -343,9 +701,9 @@ public:
     void Start() override
     { }
 
-    TString AdjustLogPath(TJobId /*jobId*/, const TString& /*logFilePath*/) override
+    std::string AdjustLogPath(TJobId /*jobId*/, const std::string& /*logFilePath*/) override
     {
-        THROW_ERROR_EXCEPTION("Dumping job proxy logs is not supported in simple logging mode");
+        THROW_ERROR_EXCEPTION("Method is not implemented in simple logging mode");
     }
 
     void OnDynamicConfigChanged(
@@ -359,6 +717,16 @@ public:
         NObjectClient::TTransactionId /*transactionId*/) override
     {
         THROW_ERROR_EXCEPTION("Dumping job proxy logs is not supported in simple logging mode");
+    }
+
+    bool IsEnabled() const override
+    {
+        THROW_ERROR_EXCEPTION("Method is not implemented in simple logging mode");
+    }
+
+    void BindJobLogDirectoryWithSymlink(TJobId /*jobId*/) override
+    {
+        THROW_ERROR_EXCEPTION("Method is not implemented in simple logging mode");
     }
 };
 

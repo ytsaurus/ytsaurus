@@ -48,12 +48,17 @@ func doOneShotRun() error {
 	}
 	specletYson := readConfig(flagSpecletPath)
 	var ctor func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller
-	if flagFamily == "chyt" {
+	switch flagFamily {
+	case "chyt":
 		ctor = chyt.NewController
-	} else if flagFamily == "jupyt" {
+	case "jupyt":
 		ctor = jupyt.NewController
-	} else {
-		panic(fmt.Errorf("unknown strawberry family %v", flagFamily))
+	default:
+		if isDQFamily(flagFamily) {
+			ctor = dqControllerCtor()
+		} else {
+			panic(fmt.Errorf("unknown strawberry family %v", flagFamily))
+		}
 	}
 	runner := app.NewOneShotRunner(&config, &options, strawberry.ControllerFactory{Ctor: ctor, Config: config.Controller})
 	return runner.Run(flagCliqueAlias, specletYson)

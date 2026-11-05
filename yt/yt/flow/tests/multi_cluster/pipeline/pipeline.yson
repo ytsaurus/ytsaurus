@@ -1,0 +1,53 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue_one_cluster" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncMultiClusterQueueSink";
+                        "input_stream_ids" = ["data"];
+                        "parameters" = {
+                            "queue_path" = "<cluster=remote0>//tmp/t_output_one";
+                            "producer_path" = "clusters=[remote0]>//tmp/t_output_producer";
+                            "use_clusters" = true;
+                        };
+                    };
+                    "queue_multi_cluster" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncMultiClusterQueueSink";
+                        "input_stream_ids" = ["data"];
+                        "parameters" = {
+                            "queue_path" = "<clusters=[remote0;remote1]>//tmp/t_output_multi";
+                            "producer_path" = "<clusters=[remote0;remote1]>//tmp/t_output_producer";
+                            "use_clusters" = true;
+                        };
+                    }
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}

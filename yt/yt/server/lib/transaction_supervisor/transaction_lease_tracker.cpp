@@ -94,7 +94,7 @@ public:
             shard.Requests.Enqueue(TStartRequest{});
         }
 
-        YT_LOG_INFO("Lease Tracker started");
+        YT_TLOG_INFO("Lease Tracker started");
     }
 
     void Stop() override
@@ -105,7 +105,7 @@ public:
             shard.Requests.Enqueue(TStopRequest{});
         }
 
-        YT_LOG_INFO("Lease Tracker stopped");
+        YT_TLOG_INFO("Lease Tracker stopped");
     }
 
     void RegisterTransaction(
@@ -334,18 +334,18 @@ private:
 
         RegisterDeadline(shard, &it->second);
 
-        YT_LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
-            request.TransactionId,
-            request.Timeout,
-            request.Deadline);
+        YT_TLOG_DEBUG("Transaction lease registered")
+            .With("TransactionId", request.TransactionId)
+            .With("Timeout", request.Timeout)
+            .With("Deadline", request.Deadline);
     }
 
     void ProcessUnregisterRequest(TShard* shard, const TUnregisterRequest& request)
     {
         auto it = shard->IdMap.find(request.TransactionId);
         if (it == shard->IdMap.end()) {
-            YT_LOG_DEBUG("Requested to unregister non-existent transaction lease, ignored (TransactionId: %v)",
-                request.TransactionId);
+            YT_TLOG_DEBUG("Requested to unregister non-existent transaction lease, ignored")
+                .With("TransactionId", request.TransactionId);
             return;
         }
 
@@ -355,8 +355,8 @@ private:
         }
         shard->IdMap.erase(it);
 
-        YT_LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
-            request.TransactionId);
+        YT_TLOG_DEBUG("Transaction lease unregistered")
+            .With("TransactionId", request.TransactionId);
     }
 
     void ProcessSetTimeoutRequest(TShard* shard, const TSetTimeoutRequest& request)
@@ -367,9 +367,9 @@ private:
             descriptor->Timeout = request.Timeout;
             DoRenewLease(shard, descriptor);
 
-            YT_LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
-                request.TransactionId,
-                request.Timeout);
+            YT_TLOG_DEBUG("Transaction timeout set")
+                .With("TransactionId", request.TransactionId)
+                .With("Timeout", request.Timeout);
         }
     }
 
@@ -377,8 +377,8 @@ private:
     {
         descriptor->LastPingTime = TInstant::Now();
         if (DoRenewLease(shard, descriptor)) {
-            YT_LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
-                descriptor->TransactionId);
+            YT_TLOG_DEBUG("Transaction lease renewed")
+                .With("TransactionId", descriptor->TransactionId);
         }
     }
 
@@ -447,8 +447,8 @@ private:
                 break;
             }
 
-            YT_LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
-                descriptor->TransactionId);
+            YT_TLOG_DEBUG("Transaction lease expired")
+                .With("TransactionId", descriptor->TransactionId);
 
             // NB: It's important to erase deadline before calling handler since
             // handler may want to register this transaction again.

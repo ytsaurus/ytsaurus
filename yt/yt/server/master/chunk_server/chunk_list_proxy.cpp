@@ -1,9 +1,8 @@
 #include "chunk_list_proxy.h"
-#include "private.h"
+
+#include "chunk_list.h"
 #include "chunk_view.h"
 #include "dynamic_store.h"
-#include "chunk_list.h"
-#include "chunk_manager.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -84,7 +83,7 @@ private:
                         .DoIf(readRange.UpperLimit().HasLegacyKey(), [&] (TFluentMap fluent) {
                             fluent.Item("upper_limit").Value(readRange.UpperLimit().GetLegacyKey());
                         })
-                        .DoIf(chunkView->GetMaxClipTimestamp(), [&] (TFluentMap fluent) {
+                        .DoIf(chunkView->GetMaxClipTimestamp() != NTransactionClient::NullTimestamp, [&] (TFluentMap fluent) {
                             fluent.Item("max_clip_timestamp").Value(chunkView->GetMaxClipTimestamp());
                         })
                     .EndAttributes()
@@ -118,7 +117,7 @@ private:
                 BuildYsonFluently(consumer)
                     .BeginAttributes()
                         .Item("id").Value(chunkList->GetId())
-                        .Item("rank").Value(chunkList->Statistics().Rank)
+                        .Item("rank").Value(chunkList->GetRank())
                         .Item("type").Value("chunk_list")
                     .EndAttributes()
                     .DoListFor(chunkList->Children(), [&] (TFluentList fluent, const TChunkTree* child) {
@@ -164,13 +163,17 @@ private:
 
             case EInternedAttributeKey::ParentIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
-                        fluent.Item().Value(chunkList->GetId());
+                    .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkTree* chunkTree) {
+                        fluent.Item().Value(chunkTree->GetId());
                     });
                 return true;
 
             case EInternedAttributeKey::Statistics: {
-                Serialize(chunkList->Statistics(), consumer);
+                if (chunkList->IsHunkRelated()) {
+                    Serialize(chunkList->HunkStatistics(), consumer);
+                } else {
+                    Serialize(chunkList->Statistics(), consumer);
+                }
                 return true;
             }
             case EInternedAttributeKey::CumulativeStatistics: {

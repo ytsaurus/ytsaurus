@@ -1,0 +1,1 @@
+{% include [Pipeline object in {{product-name}}](../../_includes/flow/concepts/pipeline-object.md) %}

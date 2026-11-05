@@ -95,3 +95,34 @@ class TestForJson(unittest.TestCase):
     def test_raises_typeerror_if_for_json_not_true_with_object(self):
         self.assertRaises(TypeError, json.dumps, ForJson())
         self.assertRaises(TypeError, json.dumps, ForJson(), for_json=False)
+
+    def test_getattr_exception_propagates(self):
+        # Regression: _call_json_method used to PyErr_Clear() unconditionally
+        # after PyObject_GetAttr() failed, swallowing MemoryError,
+        # KeyboardInterrupt, and any other non-AttributeError raised by a
+        # user __getattr__. Same bug class as commit d3ecab5 (iterable_as_array).
+        class BadAttr(object):
+            def __init__(self, attr, exc):
+                self.attr = attr
+                self.exc = exc
+            def __getattr__(self, name):
+                if name == self.attr:
+                    raise self.exc('from __getattr__: ' + name)
+                raise AttributeError(name)
+
+        for exc_type in (MemoryError, RuntimeError):
+            self.assertRaises(
+                exc_type,
+                json.dumps, BadAttr('for_json', exc_type), for_json=True)
+            self.assertRaises(
+                exc_type,
+                json.dumps, BadAttr('_asdict', exc_type),
+                namedtuple_as_object=True)
+
+        # AttributeError from __getattr__ must still be treated as
+        # "method not present" and fall through silently.
+        class NoJsonMethods(object):
+            def __getattr__(self, name):
+                raise AttributeError(name)
+        self.assertRaises(
+            TypeError, json.dumps, NoJsonMethods(), for_json=True)

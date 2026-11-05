@@ -22,6 +22,7 @@ type Call struct {
 
 	RequestedProxy string
 	SelectedProxy  string
+	FixedProxy     bool
 	Backoff        backoff.BackOff
 	DisableRetries bool
 }
@@ -43,6 +44,7 @@ type ProtoMultiLookupSubresp interface {
 	ProtoRowset
 
 	GetAttachmentCount() int32
+	GetUnavailableKeyIndexes() []int32
 }
 
 type ProtoRowset interface {

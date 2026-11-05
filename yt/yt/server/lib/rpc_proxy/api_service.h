@@ -39,6 +39,22 @@ using TPooledInvokerProvider = std::function<IInvokerPtr(
     const std::string& pool,
     const std::string& executionTag)>;
 
+//! Creates the public ApiService with a master metadata and control-plane method subset.
+IApiServicePtr CreateMasterMetadataApiService(
+    TApiServiceConfigPtr config,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::IAuthenticatorPtr authenticator,
+    IProxyCoordinatorPtr proxyCoordinator,
+    IAccessCheckerPtr accessChecker,
+    NTracing::TSamplerPtr traceSampler,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler,
+    INodeMemoryTrackerPtr memoryUsageTracker = {},
+    NApi::IStickyTransactionPoolPtr stickyTransactionPool = {},
+    NRpc::IChannelPtr cypressProxyChannelOverride = {});
+
 //! Custom #stickyTransactionPool is useful for sharing transactions
 //! between services (e.g.: ORM and RPC proxy).
 IApiServicePtr CreateApiService(

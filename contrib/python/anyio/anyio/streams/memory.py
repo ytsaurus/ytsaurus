@@ -12,14 +12,15 @@ from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Generic, NamedTuple, TypeVar
 
-from .. import (
+from .._core._exceptions import (
     BrokenResourceError,
     ClosedResourceError,
     EndOfStream,
     WouldBlock,
 )
+from .._core._synchronization import Event
 from .._core._testing import TaskInfo, get_current_task
-from ..abc import Event, ObjectReceiveStream, ObjectSendStream
+from ..abc import ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
 T_Item = TypeVar("T_Item")
@@ -76,7 +77,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 
 
 @dataclass(eq=False)
-class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
+class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
     _state: _MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
 
@@ -195,7 +196,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
 
 
 @dataclass(eq=False)
-class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
+class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
     _state: _MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
 

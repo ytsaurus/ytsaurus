@@ -3,6 +3,7 @@
 #include <yt/yt/core/yson/unittests/proto/protobuf_yson_ut.pb.h>
 #include <yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ut.pb.h>
 #include <yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ext_ut.pb.h>
+#include <yt/yt/core/yson/unittests/proto/protobuf_scalar_type_ut.pb.h>
 
 #include <yt/yt/core/yson/config.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
@@ -132,7 +133,7 @@ REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NYT::NYson::NProt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToHex(const TString& data)
+TString ToHex(const std::string& data)
 {
     TStringBuilder builder;
     for (char ch : data) {
@@ -894,7 +895,7 @@ TEST(TYsonToProtobufTest, ErrorProto)
 
     auto attribute = message.attributes().attributes()[0];
     EXPECT_EQ(attribute.key(), "host");
-    EXPECT_EQ(ConvertTo<TString>(TYsonString(attribute.value())), "localhost");
+    EXPECT_EQ(ConvertTo<std::string>(TYsonString(attribute.value())), "localhost");
 }
 
 TEST(TYsonToProtobufTest, SkipUnknownFields)
@@ -1011,6 +1012,23 @@ TEST(TYsonToProtobufTest, KeepUnknownFields)
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(ysonString)));
 }
 
+TEST(TYsonToProtobufTest, RejectWireTypeMismatch)
+{
+    // Field 2 is length-delimited in TNestedMessage and varint in TMessage.
+    NYT::NYson::NProto::TNestedMessage message;
+    message.mutable_nested_message()->set_int32_field(42);
+    TString protobufString = message.SerializeAsString();
+
+    TString ysonString;
+    TStringOutput ysonOutputStream(ysonString);
+    TYsonWriter ysonWriter(&ysonOutputStream, EYsonFormat::Pretty);
+    ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>()),
+        EErrorCode::InvalidProtobufWireFormat);
+}
+
 TEST(TYsonToProtobufTest, Entities)
 {
     TProtobufWriterOptions options;
@@ -1035,7 +1053,7 @@ TEST(TYsonToProtobufTest, ValidUtf8StringCheck)
             SetProtobufInteropConfig(config);
             auto effectiveOption = option.value_or(configOption);
 
-            TString invalidUtf8 = "\xc3\x28";
+            std::string invalidUtf8 = "\xc3\x28";
             auto checkWrite = [&] {
                 TEST_PROLOGUE_WITH_OPTIONS(TMessage, TProtobufWriterOptions{.Utf8Check = option})
                     .BeginMap()
@@ -1073,7 +1091,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
         // Basic usage of custom resolver with state.
         TProtobufWriterOptions options;
         int unknownKeyCount = 0;
-        options.UnknownYsonFieldModeResolver = [&unknownKeyCount] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [&unknownKeyCount] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/nested_message1/nested_message/unknown_map") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             } else if (path == "/nested_message1/nested_message/unknown_map/first_unknown_key" || path == "/nested_message1/nested_message/unknown_map/second_unknown_key") {
@@ -1146,7 +1164,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
         TString protobufString;
         StringOutputStream protobufOutput(&protobufString);
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/unknown_map1") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1202,7 +1220,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
     }
     {
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/nested_message1/unknown_map") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1230,7 +1248,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
     {
         // Don't fail if Forward is returned on empty map or empty list.
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/nested_message1/unknown_map") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1263,7 +1281,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
         // Fail if leaf is scalar and returns Forward.
         {
             TProtobufWriterOptions options;
-            options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
                 if (path == "/nested_message1/unknown_map") {
                     return NYson::EUnknownYsonFieldsMode::Forward;
                 }
@@ -1287,7 +1305,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
         {
             // Fail on forwarded scalar value on the top level.
             TProtobufWriterOptions options;
-            options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
                 if (path == "/nested_message1/unknown_map") {
                     return NYson::EUnknownYsonFieldsMode::Forward;
                 }
@@ -1315,7 +1333,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
     }
     {
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/nested_message1/unknown_map") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1383,7 +1401,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
         TString protobufString;
         StringOutputStream protobufOutput(&protobufString);
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) -> NYson::EUnknownYsonFieldsMode {
             if (path == "/nested_message1/unknown_map1") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1442,7 +1460,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
     }
     {
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) {
             if (path == "/forwarded_attr") {
                 return NYson::EUnknownYsonFieldsMode::Forward;
             }
@@ -1499,7 +1517,7 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
     }
     {
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+        options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) {
             if (path == R"(/nested_message1/unknown_field\x01)") {
                 return EUnknownYsonFieldsMode::Forward;
             }
@@ -2208,6 +2226,8 @@ void TestRepeatedByYPath(const TYPath& path)
 {
     auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>(), path);
     EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufRepeatedElement>>(result.Element));
+    EXPECT_EQ(nullptr, GetProtobufElementOrThrow<TProtobufRepeatedElement>(result.Element).YsonListMessage);
+    EXPECT_EQ(static_cast<TProtobufElementType>(FieldDescriptor::TYPE_INT32), GetProtobufElementType(result.Element));
     EXPECT_EQ(path, result.HeadPath);
     EXPECT_EQ("", result.TailPath);
 }
@@ -2573,6 +2593,303 @@ void CopyToProto(const TNodeList& from, TRepeated& rep)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TMessage>
+void TestYsonProtobufRoundtrip(TStringBuf yson, TStringBuf normalizedYson = {})
+{
+    SCOPED_TRACE(yson);
+    auto node = ConvertToNode(TYsonStringBuf(yson));
+    auto message = ConvertTo<TMessage>(node);
+    auto expected = normalizedYson.empty()
+        ? node :
+        ConvertToNode(TYsonStringBuf(normalizedYson));
+    EXPECT_TRUE(AreNodesEqual(expected, ConvertToNode(message)));
+}
+
+template <class TMessage, class TValue>
+void TestYsonList(TStringBuf yson, std::initializer_list<TValue> values)
+{
+    auto node = ConvertToNode(TYsonStringBuf(yson));
+    TMessage expected;
+    for (const auto& value : values) {
+        expected.add_values(value);
+    }
+    EXPECT_THAT(ConvertTo<TMessage>(node), NGTest::EqualsProto(expected));
+    EXPECT_TRUE(AreNodesEqual(node, ConvertToNode(expected)));
+    EXPECT_THAT(ConvertTo<TMessage>(TYsonStringBuf("[]")), NGTest::EqualsProto(TMessage()));
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("[]")), ConvertToNode(TMessage())));
+}
+
+TEST(TYsonListTest, ScalarTypes)
+{
+    TestYsonList<NProto::TDoubleList>("[0.;1.5;-2.5]", {0., 1.5, -2.5});
+    TestYsonList<NProto::TFloatList>("[0.;1.5;-2.5]", {0.f, 1.5f, -2.5f});
+    TestYsonList<NProto::TInt32List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TInt64List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TUint32List>("[0u;42u;123u]", {0u, 42u, 123u});
+    TestYsonList<NProto::TUint64List>("[0u;42u;123u]", {0u, 42u, 123u});
+    TestYsonList<NProto::TSint32List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TSint64List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TFixed32List>("[0u;42u;123u]", {0u, 42u, 123u});
+    TestYsonList<NProto::TFixed64List>("[0u;42u;123u]", {0u, 42u, 123u});
+    TestYsonList<NProto::TSfixed32List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TSfixed64List>("[0;-42;123]", {0, -42, 123});
+    TestYsonList<NProto::TBoolList>("[%true;%false]", {true, false});
+    TestYsonList<NProto::TStringList>("[\"hello\";\"\"]", {"hello", ""});
+    TestYsonList<NProto::TBytesList>("[\"hello\";\"\"]", {"hello", ""});
+    TestYsonList<NProto::TPackedYsonList>("[0;-42;123]", {0, -42, 123});
+}
+
+TEST(TYsonListTest, OptionalPresenceYsonToProtobuf)
+{
+    auto message = ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{}"));
+    EXPECT_FALSE(message.has_list());
+
+    message = ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=#}"));
+    EXPECT_FALSE(message.has_list());
+
+    message = ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=[]}"));
+    EXPECT_TRUE(message.has_list());
+    EXPECT_TRUE(message.list().values().empty());
+
+    message = ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=[1;2]}"));
+    EXPECT_TRUE(message.has_list());
+    ASSERT_EQ(2, message.list().values_size());
+    EXPECT_EQ(1, message.list().values(0));
+    EXPECT_EQ(2, message.list().values(1));
+}
+
+TEST(TYsonListTest, OptionalPresenceProtobufToYson)
+{
+    NProto::TMessageWithYsonLists message;
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("{}")), ConvertToNode(message)));
+
+    message.mutable_list();
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("{list=[]}")), ConvertToNode(message)));
+
+    message.mutable_list()->add_values(1);
+    message.mutable_list()->add_values(2);
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("{list=[1;2]}")), ConvertToNode(message)));
+}
+
+TEST(TYsonListTest, RecursiveListRoundtrip)
+{
+    TestYsonProtobufRoundtrip<NProto::TRecursiveYsonList>("[[[]];[]]");
+}
+
+TEST(TYsonListTest, NestedListsAndMessagesRoundtrip)
+{
+    TestYsonProtobufRoundtrip<NProto::TMessageWithYsonLists>(
+        "{list=[];sibling=42;lists=[[];[1;2];[]];list_map={empty=[];full=[3]};messages=[{};{int32_field=7}]}");
+    TestYsonProtobufRoundtrip<NProto::TMessageWithYsonLists>(
+        "{list=[1;2];sibling=42;lists=[[]];list_map={empty=[]};messages=[]}");
+    TestYsonProtobufRoundtrip<NProto::TNestedYsonList>("[[];[1;2];[]]");
+}
+
+TEST(TYsonListTest, NormalizeMapEntriesInsideList)
+{
+    TestYsonProtobufRoundtrip<NProto::TMessageYsonList>(
+        "[{nested_message_map=[{key=k;value={int32_field=7}}]}]",
+        /*normalizedYson*/ "[{nested_message_map={k={int32_field=7}}}]");
+}
+
+TEST(TYsonListTest, ParseFromMap)
+{
+    auto oldConfig = GetProtobufInteropConfig();
+    Y_DEFER {
+        SetProtobufInteropConfig(oldConfig);
+    };
+
+    auto config = ConvertTo<TProtobufInteropConfigPtr>(TYsonStringBuf("{allow_yson_list_from_map=%true}"));
+    SetProtobufInteropConfig(config);
+
+    TestYsonProtobufRoundtrip<NProto::TInt64List>("{}", "[]");
+    TestYsonProtobufRoundtrip<NProto::TInt64List>("{values=[1;2]}", "[1;2]");
+    TestYsonProtobufRoundtrip<NProto::TMessageWithYsonLists>(
+        "{list={values=[1;2]};lists=[{values=[]};[3]];list_map={key={values=[4]}};sibling=42}",
+        "{list=[1;2];lists=[[];[3]];list_map={key=[4]};sibling=42}");
+
+    auto dynamicConfig = ConvertTo<TProtobufInteropDynamicConfigPtr>(TYsonStringBuf("{allow_yson_list_from_map=%false}"));
+    SetProtobufInteropConfig(config->ApplyDynamic(dynamicConfig));
+    EXPECT_THROW(ConvertTo<NProto::TInt64List>(TYsonStringBuf("{values=[1;2]}")), TErrorException);
+}
+
+TEST(TYsonListTest, InvalidValues)
+{
+    EXPECT_YPATH({
+        ConvertTo<NProto::TInt64List>(TYsonStringBuf("{}"));
+    }, "");
+
+    EXPECT_YPATH({
+        ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list={values=[1]}}"));
+    }, "/list");
+
+    EXPECT_YPATH({
+        ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=1}"));
+    }, "/list");
+
+    EXPECT_YPATH({
+        ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=[1;\"bad\"]}"));
+    }, "/list/1");
+
+    EXPECT_YPATH({
+        ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{list=[[1]]}"));
+    }, "/list/0");
+
+    EXPECT_YPATH({
+        ConvertTo<NProto::TMessageWithYsonLists>(TYsonStringBuf("{lists=[[1];[\"bad\"]]}"));
+    }, "/lists/1/0");
+}
+
+TEST(TYsonListTest, MismatchedEndMap)
+{
+    EXPECT_YPATH({
+        TString str;
+        StringOutputStream output(&str);
+        auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NProto::TInt64List>());
+        BuildYsonFluently(protobufWriter.get())
+            .BeginList()
+                .Item().Value(1)
+                .Item().Value(2);
+        protobufWriter->OnEndMap();
+    }, "");
+
+    EXPECT_YPATH({
+        TString str;
+        StringOutputStream output(&str);
+        auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NProto::TMessageWithYsonLists>());
+        BuildYsonFluently(protobufWriter.get())
+            .BeginMap()
+                .Item("list").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2);
+        protobufWriter->OnEndMap();
+    }, "/list");
+}
+
+TEST(TYsonListTest, Schema)
+{
+    TString yson;
+    TStringOutput output(yson);
+    TYsonWriter writer(&output);
+    WriteSchema(ReflectProtobufMessageType<NProto::TInt64List>(), &writer);
+    EXPECT_TRUE(AreNodesEqual(
+        ConvertToNode(TYsonStringBuf("{type_name=list;item=int64}")),
+        ConvertToNode(TYsonStringBuf(yson))));
+}
+
+TEST(TYsonListTest, InvalidMessagesErrors)
+{
+    auto invalidStructure = "must have exactly one repeated field with number 1 and must not declare extension ranges";
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TYsonListWithExtraField>(),
+        invalidStructure);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TYsonListWithExtensionRange>(),
+        invalidStructure);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TYsonListWithWrongFieldNumber>(),
+        invalidStructure);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TYsonListWithSingularField>(),
+        invalidStructure);
+
+    const auto* invalidOptions = "must not have \"required\" or \"yson_map\" options";
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TYsonListWithYsonMap>(),
+        invalidOptions);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ReflectProtobufMessageType<NProto::TRequiredYsonList>(),
+        invalidOptions);
+}
+
+TEST(TYsonListTest, MixedPackedAndUnpackedItems)
+{
+    NProto::TInt64List first;
+    first.add_values(1);
+
+    NProto::TPackedYsonList packed;
+    packed.add_values(2);
+    packed.add_values(3);
+
+    NProto::TInt64List last;
+    last.add_values(4);
+
+    TString wire = first.SerializeAsString() + packed.SerializeAsString() + last.SerializeAsString();
+    auto node = BuildYsonNodeFluently().Do([&] (TFluentAny fluent) {
+        ArrayInputStream input(wire.data(), wire.size());
+        ParseProtobuf(fluent.GetConsumer(), &input, ReflectProtobufMessageType<NProto::TInt64List>());
+    });
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("[1;2;3;4]")), node));
+}
+
+TEST(TYsonListTest, UnknownProtobufFields)
+{
+    NProto::TInt64List message;
+    message.add_values(1);
+    auto* unknownFields = message.GetReflection()->MutableUnknownFields(&message);
+    unknownFields->AddLengthDelimited(3005, "ignored");
+
+    EXPECT_THROW(ConvertToNode(message), TErrorException);
+
+    auto node = BuildYsonNodeFluently().Do([&] (TFluentAny fluent) {
+        WriteProtobufMessage(fluent.GetConsumer(), message, {.SkipUnknownFields = true});
+    });
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonStringBuf("[1]")), node));
+}
+
+template <class TMessage, class TList>
+void TestYsonListByYPath(const TYPath& path)
+{
+    SCOPED_TRACE(path);
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<TMessage>(), path);
+    const auto* repeated = std::get_if<std::unique_ptr<TProtobufRepeatedElement>>(&result.Element);
+    ASSERT_NE(nullptr, repeated);
+    EXPECT_EQ(ReflectProtobufMessageType<TList>(), (*repeated)->YsonListMessage);
+    EXPECT_EQ(static_cast<TProtobufElementType>(FieldDescriptor::TYPE_MESSAGE), GetProtobufElementType(result.Element));
+    EXPECT_EQ(path, result.HeadPath);
+    EXPECT_TRUE(result.TailPath.empty());
+}
+
+TEST(TYsonListTest, ResolveYPath)
+{
+    TestYsonListByYPath<NProto::TInt64List, NProto::TInt64List>("");
+    TestYsonListByYPath<NProto::TMessageYsonList, NProto::TMessageYsonList>("");
+    TestYsonListByYPath<NProto::TNestedYsonList, NProto::TNestedYsonList>("");
+    TestYsonListByYPath<NProto::TMessageWithYsonLists, NProto::TInt64List>("/list");
+    TestYsonListByYPath<NProto::TMessageWithYsonLists, NProto::TInt64List>("/lists/0");
+    TestYsonListByYPath<NProto::TMessageWithYsonLists, NProto::TInt64List>("/list_map/key");
+
+    auto item = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NProto::TInt64List>(), "/0");
+    EXPECT_EQ(static_cast<TProtobufElementType>(FieldDescriptor::TYPE_INT64), GetProtobufElementType(item.Element));
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufScalarElement>>(item.Element));
+    EXPECT_TRUE(item.TailPath.empty());
+
+    for (auto path : {"/list/0", "/lists/0/1", "/list_map/key/2", "/messages/0/int32_field"}) {
+        SCOPED_TRACE(path);
+        auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NProto::TMessageWithYsonLists>(), path);
+        EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufScalarElement>>(result.Element));
+        EXPECT_EQ(path, result.HeadPath);
+        EXPECT_TRUE(result.TailPath.empty());
+    }
+
+    auto repeated = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NProto::TMessageWithYsonLists>(), "/lists");
+    const auto& outerList = GetProtobufElementOrThrow<TProtobufRepeatedElement>(repeated.Element);
+    EXPECT_EQ(nullptr, outerList.YsonListMessage);
+    EXPECT_EQ(ReflectProtobufMessageType<NProto::TInt64List>(), GetProtobufElementOrThrow<TProtobufMessageElement>(outerList.Element).Type);
+    EXPECT_EQ(static_cast<TProtobufElementType>(FieldDescriptor::TYPE_MESSAGE), GetProtobufElementType(repeated.Element));
+}
+
+TEST(TYsonListTest, ResolveRecursiveYPath)
+{
+    auto* recursiveType = ReflectProtobufMessageType<NProto::TRecursiveYsonList>();
+    for (auto path : {"", "/0", "/0/0"}) {
+        TestYsonListByYPath<NProto::TRecursiveYsonList, NProto::TRecursiveYsonList>(path);
+        auto result = ResolveProtobufElementByYPath(recursiveType, path);
+        const auto& repeated = GetProtobufElementOrThrow<TProtobufRepeatedElement>(result.Element);
+        EXPECT_EQ(recursiveType, GetProtobufElementOrThrow<TProtobufMessageElement>(repeated.Element).Type);
+    }
+}
 
 TEST(TPackedRepeatedProtobufTest, TestSerializeDeserialize)
 {
@@ -3082,7 +3399,7 @@ TEST(TStrictEnumValueCheckTest, ProtoToYsonUnknownChecked)
 TEST(TProtobufWriterOptionsTest, CreateChildOptions)
 {
     TProtobufWriterOptions options{
-        .UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+        .UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) {
             return path.StartsWith("/foo")
                 ? EUnknownYsonFieldsMode::Keep
                 : EUnknownYsonFieldsMode::Fail;
@@ -3103,6 +3420,111 @@ TEST(TProtobufWriterOptionsTest, CreateChildOptions)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+YT_STATIC_INITIALIZER(
+    RegisterCustomProtobufIntFieldConverter(
+        NProto::TExampleMessage::descriptor(),
+        1,
+        {.Serializer = [] (IYsonConsumer* consumer, int64_t value) {
+            consumer->OnInt64Scalar(value * 2);
+        }})
+);
+
+TEST(TCustomIntFieldConverterTest, Basic)
+{
+    NProto::TExampleMessage message;
+    message.set_int32_field(21);
+
+    TString protobufString;
+    ASSERT_TRUE(message.SerializeToString(&protobufString));
+
+    TString ysonString;
+    TStringOutput ysonOutput(ysonString);
+    TYsonWriter ysonWriter(&ysonOutput, EYsonFormat::Text);
+
+    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TExampleMessage>());
+    EXPECT_EQ("{\"int32_field\"=42;}", ysonString);
+}
+
+TEST(TCustomIntFieldConverterTest, OtherFieldsWorkingDefault)
+{
+    NProto::TExampleMessage message;
+    message.set_uint64_field(73);
+
+    TString protobufString;
+    ASSERT_TRUE(message.SerializeToString(&protobufString));
+
+    TString ysonString;
+    TStringOutput ysonOutput(ysonString);
+    TYsonWriter ysonWriter(&ysonOutput, EYsonFormat::Text);
+
+    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TExampleMessage>());
+    EXPECT_EQ("{\"uint64_field\"=73u;}", ysonString);
+}
+
+TEST(TCustomEnumFieldConverterTest, Basic)
+{
+    auto oldConfig = GetProtobufInteropConfig();
+    Y_DEFER {
+        SetProtobufInteropConfig(oldConfig);
+    };
+
+    auto newConfig = CloneYsonStruct(oldConfig);
+    newConfig->ForceEnumStringType = true;
+    SetProtobufInteropConfig(newConfig);
+
+    NProto::TExampleMessage message;
+    message.set_enum_int(NProto::TExampleMessage::EEnum::TExampleMessage_EEnum_VALUE0);
+
+    TString protobufString;
+    ASSERT_TRUE(message.SerializeToString(&protobufString));
+
+    TString ysonString;
+    TStringOutput ysonOutput(ysonString);
+    TYsonWriter ysonWriter(&ysonOutput, EYsonFormat::Text);
+
+    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TExampleMessage>());
+    EXPECT_EQ("{\"enum_int\"=\"VALUE0\";}", ysonString);
+}
+
+TEST(TCustomEnumFieldConverterTest, OtherEnumsWorkingDefault)
+{
+    auto oldConfig = GetProtobufInteropConfig();
+    Y_DEFER {
+        SetProtobufInteropConfig(oldConfig);
+    };
+
+    auto newConfig = CloneYsonStruct(oldConfig);
+    newConfig->ForceEnumStringType = true;
+    SetProtobufInteropConfig(newConfig);
+
+    NProto::TExampleMessage message;
+    message.set_enum_string(NProto::TExampleMessage::EAnotherEnum::TExampleMessage_EAnotherEnum_ANOTHER_VALUE1);
+
+    TString protobufString;
+    ASSERT_TRUE(message.SerializeToString(&protobufString));
+
+    TString ysonString;
+    TStringOutput ysonOutput(ysonString);
+    TYsonWriter ysonWriter(&ysonOutput, EYsonFormat::Text);
+
+    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TExampleMessage>());
+    EXPECT_EQ("{\"enum_string\"=\"ANOTHER_VALUE1\";}", ysonString);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+TEST(TProtobufFormatterTest, Format)
+{
+    EXPECT_EQ("blue", Format("%v", NProto::EColor::Color_Blue));
+    EXPECT_EQ("42", Format("%v", static_cast<NProto::EColor>(42)));
+}
+
+//////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NYson

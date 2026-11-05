@@ -25,15 +25,15 @@
 ------
 #### **Q: Reading a table or a file produces the following message: "Chunk ... is unavailable." What should I do?** {#unavailable-chunk-error}
 
-See the answer to this question [below](#lostintermediatechunks).
+See the answer to this question [below](#lost-intermediate-chunks).
 
 ------
-#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some input chunks are not available." What should I do?** { #lostinputchunks }
+#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some input chunks are not available." What should I do?** { #lost-input-chunks }
 
-See the answer to this question [below](#lostintermediatechunks).
+See the answer to this question [below](#lost-intermediate-chunks).
 
 ------
-#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some intermediate outputs were lost and will be regenerated." What should I do?** { #lostintermediatechunks }
+#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some intermediate outputs were lost and will be regenerated." What should I do?** { #lost-intermediate-chunks }
 
 **A:** This means that some input table chunks used by the operation are unavailable. It may be caused by the disappearance of a data replica (with erasure coding) or the complete disappearance of all replicas (without erasure coding) due to cluster node failure or overloading. By default, the operation waits until the chunks are available again. You can:
 
@@ -43,7 +43,11 @@ See the answer to this question [below](#lostintermediatechunks).
 
 - Terminate an operation waiting on missing data early and get some intermediate output. To do this, use the `complete-op` command in the CLI or the **Complete** button on the operation page in the web interface.
 
-To change the system behavior when chunks are unavailable, set the `unavailable_chunk_tactics` and `unavailable_chunk_strategy` options in the [operation specification](../../user-guide/data-processing/operations/overview.md#chunk_strategy). You cannot change options "on the fly", because they are set before an operation starts.
+To change the system behavior when chunks are unavailable, set the `unavailable_chunk_tactics` and `unavailable_chunk_strategy` options in the [operation specification](../../user-guide/data-processing/operations/overview.md#chunk_strategy). You cannot change options "on the fly", because they are set before an operation starts. If you need to read data from a table with unavailable chunks, you can extract a part of the table consisting of available chunks:
+
+```bash
+yt merge --src table --dst table --spec "{unavailable_chunk_strategy=skip}"
+```
 
 If erasure chunks are unavailable, you can configure the system behavior using the `chunk_availability_policy` option. For more information, see [Operation types](../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
 
@@ -184,7 +188,7 @@ An alternative way of solving the problem is by using the `pivot_keys` option ex
 ------
 #### **Q: When I launch a Reduce or a MapReduce, I can see that the amount of data coming in to the reduce jobs varies greatly. What is the reason, and how do I make the split more uniform?** {#different-data-volume}
 
-The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/reduce.md#rabota-s-bolshimi-klyuchami-—-reduce_combiner).
+The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner).
 
 If the error arises in a [Reduce](../../user-guide/data-processing/operations/reduce.md) whose input includes more than one table (normally, dozens or hundreds), the scheduler may not have enough samples to break input data down more precisely and achieve uniformity. It is a good idea to utilize [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) instead of [Reduce](../../user-guide/data-processing/operations/reduce.md) in this case.
 
@@ -320,3 +324,15 @@ If you wish to disable this warning, use the `enable_legacy_live_preview = %fals
 #### **Q: What causes the error "Too many dynamic store locate retries failed"?** {#over-dynamic-store-retries}
 
 **A:** If the operation contains a dynamic table with the set `enable_dynamic_store_read` attribute as input, jobs will read data directly from tablet nodes that host the dynamic table. For more information about this option, see [Running operations on dynamic tables](../../user-guide/dynamic-tables/mapreduce.md). If tablet nodes are unavailable for a long time, the above error occurs. Check if the cluster undergoes any maintenance works that affect dynamic tables. Besides that, check that the bundle the table refers to is in a healthy state (the **Good** bar in the interface).
+
+------
+
+#### **Q: A running operation produces the following warning: "Some jobs have too many threads". What does it mean?** {#highjobthreadcount}
+
+**A:** The warning means that for some of the operation's jobs the total number of threads exceeds the limit calculated by the formula `cpu_limit * 100 + 100`, where `cpu_limit` is the CPU limit requested by the job. The warning attributes include `thread_count`, `threshold`, and `task` for each job. Having a large number of threads in a job is undesirable for several reasons:
+
+* When there are many runnable threads, each of them spends a long time waiting for CPU. If one of such threads holds a lock in the Linux kernel and the scheduler preempts it, it keeps holding that lock for a long time, interfering with other processes on the host.
+
+* A large number of threads can also hurt the job itself: job proxy may start starving for CPU, which can lead to job interruption for various reasons. Additionally, a large number of threads increases the load on the operating system scheduler.
+
+Since limiting the number of runnable threads specifically is a nontrivial task, the total number of threads in a job is currently limited. If you get this warning, we recommend reducing the number of threads created by the job process, for example by capping the thread pool sizes of your service with regard to the job's `cpu_limit`.

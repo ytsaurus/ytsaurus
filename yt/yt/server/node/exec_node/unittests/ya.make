@@ -14,6 +14,10 @@ PEERDIR(
     yt/yt/core/test_framework
 )
 
+SRCS(
+    pending_downloads_tracker_ut.cpp
+)
+
 DEPENDS(
     yt/yt/server/tools/bin
 )
@@ -32,7 +36,7 @@ TAG(
 
 ENV(ASAN_OPTIONS="detect_leaks=0")
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 SIZE(LARGE)
 

@@ -124,7 +124,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         writeTimestampIdsView.UnpackTo(ids.data());
 
         for (size_t index = 0; index < ids.size(); ++index) {
-            WriteTimestamps_[index] = meta->BaseTimestamp + timestampsDict[ids[index]];
+            WriteTimestamps_[index] = TTimestamp(meta->BaseTimestamp + timestampsDict[ids[index]]);
         }
     }
 
@@ -151,7 +151,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         deleteTimestampIdsView.UnpackTo(ids.data());
 
         for (size_t index = 0; index < ids.size(); ++index) {
-            DeleteTimestamps_[index] = meta->BaseTimestamp + timestampsDict[ids[index]];
+            DeleteTimestamps_[index] = TTimestamp(meta->BaseTimestamp + timestampsDict[ids[index]]);
         }
     }
 }
@@ -392,7 +392,7 @@ void TScanTimestampExtractor::InitSegment(
         slice.GetSpans());
 
     WriteTimestamps_.Resize(writeTimestampCount);
-    auto writeTimestamps = TMutableRange(WriteTimestamps_.GetData(), writeTimestampCount);
+    auto writeTimestamps = TMutableRange(reinterpret_cast<ui64*>(WriteTimestamps_.GetData()), writeTimestampCount);
 
     InitDictValues(
         writeTimestamps,
@@ -414,7 +414,7 @@ void TScanTimestampExtractor::InitSegment(
         slice.GetSpans());
 
     DeleteTimestamps_.Resize(deleteTimestampCount);
-    auto deleteTimestamps = TMutableRange(DeleteTimestamps_.GetData(), deleteTimestampCount);
+    auto deleteTimestamps = TMutableRange(reinterpret_cast<ui64*>(DeleteTimestamps_.GetData()), deleteTimestampCount);
 
     InitDictValues(
         deleteTimestamps,

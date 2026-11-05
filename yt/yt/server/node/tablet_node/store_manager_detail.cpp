@@ -40,7 +40,6 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 
 using NLsm::EStoreRotationReason;
-
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +62,9 @@ TStoreManagerBase::TStoreManagerBase(
 {
     YT_VERIFY(StructuredLogger_);
 
-    Logger.AddTag("%v, CellId: %v",
-        Tablet_->GetLoggingTag(),
-        TabletContext_->GetCellId());
+    Logger
+        .AddTags(Tablet_->GetLoggingTags())
+        .AddTag("CellId", TabletContext_->GetCellId());
 }
 
 bool TStoreManagerBase::HasActiveLocks() const
@@ -157,7 +156,8 @@ void TStoreManagerBase::ScheduleRotation(EStoreRotationReason reason)
 
     RotationScheduled_ = true;
 
-    YT_LOG_INFO("Tablet store rotation scheduled (Reason: %v)", reason);
+    YT_TLOG_INFO("Tablet store rotation scheduled")
+        .With("Reason", reason);
 
     auto* activeStore = GetActiveStore();
     if (reason == EStoreRotationReason::None || !activeStore) {
@@ -172,7 +172,7 @@ void TStoreManagerBase::ScheduleRotation(EStoreRotationReason reason)
 
 void TStoreManagerBase::UnscheduleRotation()
 {
-    YT_LOG_DEBUG("Tablet store rotation allowed after unsuccessful rotation attempt");
+    YT_TLOG_DEBUG("Tablet store rotation allowed after unsuccessful rotation attempt");
     RotationScheduled_ = false;
 }
 
@@ -197,7 +197,8 @@ void TStoreManagerBase::AddStore(
             }
 
             if (shouldSchedulePreload) {
-                YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_TLOG_INFO("Scheduled preload of in-memory store")
+                    .With("StoreId", store->GetId());
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
             }
         }
@@ -355,37 +356,38 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     TInMemoryChunkDataPtr chunkData)
 {
     if (!chunkData) {
-        YT_LOG_WARNING(
-            "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
-            store->GetId());
+        YT_TLOG_WARNING("Intercepted chunk data for in-memory store is missing")
+            .With("StoreId", store->GetId());
         return false;
     }
 
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     auto mode = mountConfig->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
-        YT_LOG_WARNING(
-            "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
-            store->GetId(),
-            mode,
-            chunkData->InMemoryMode);
+        YT_TLOG_WARNING("Intercepted chunk data for in-memory store has invalid mode")
+            .With("StoreId", store->GetId())
+            .With("ExpectedMode", mode)
+            .With("ActualMode", chunkData->InMemoryMode);
         return false;
     }
+
+    YT_VERIFY(chunkData->StartBlockIndex == 0);
+    YT_VERIFY(ssize(chunkData->Blocks) >= chunkData->ChunkMeta->DataBlockMeta()->data_blocks_size());
 
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
     StructuredLogger_->OnStorePreloadStateChanged(store);
 
-    YT_LOG_INFO("In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
-        store->GetId(),
-        mode);
+    YT_TLOG_INFO("In-memory store preloaded from intercepted chunk data")
+        .With("StoreId", store->GetId())
+        .With("Mode", mode);
 
     return true;
 }
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    YT_LOG_TRACE("Peeking store for preload");
+    YT_TLOG_TRACE("Peeking store for preload");
 
     for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
@@ -394,16 +396,19 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 if (chunkStore->IsPreloadAllowed()) {
-                    YT_LOG_DEBUG("Peeked store for preload (StoreId: %v)", chunkStore->GetId());
+                    YT_TLOG_DEBUG("Peeked store for preload")
+                        .With("StoreId", chunkStore->GetId());
                     return chunkStore;
                 } else {
-                    YT_LOG_DEBUG("Store preload is not allowed (StoreId: %v)", chunkStore->GetId());
+                    YT_TLOG_DEBUG("Store preload is not allowed")
+                        .With("StoreId", chunkStore->GetId());
                 }
                 Tablet_->PreloadStoreIds().pop_front();
                 Tablet_->PreloadStoreIds().push_back(id);
                 continue;
             } else {
-                YT_LOG_DEBUG("Store preload is not scheduled (StoreId: %v)", chunkStore->GetId());
+                YT_TLOG_DEBUG("Store preload is not scheduled")
+                    .With("StoreId", chunkStore->GetId());
             }
         }
         Tablet_->PreloadStoreIds().pop_front();
@@ -496,7 +501,7 @@ void TStoreManagerBase::Mount(
         const auto& extensions = descriptor->chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
         if (miscExt.has_max_timestamp()) {
-            Tablet_->UpdateLastCommitTimestamp(miscExt.max_timestamp());
+            Tablet_->UpdateLastCommitTimestamp(FromProto<NTransactionClient::TTimestamp>(miscExt.max_timestamp()));
         }
     }
 
@@ -652,9 +657,9 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
 
     if (activeStore) {
         if (createNewStore && activeStore->GetRowCount() == 0 && reason != EStoreRotationReason::Discard) {
-            YT_LOG_ALERT_UNLESS(allowEmptyStore, "Empty dynamic store rotated (StoreId: %v, Reason: %v)",
-                activeStore->GetId(),
-                reason);
+            YT_TLOG_ALERT_UNLESS(allowEmptyStore, "Empty dynamic store rotated")
+                .With("StoreId", activeStore->GetId())
+                .With("Reason", reason);
         }
 
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
@@ -663,23 +668,23 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
 
         StructuredLogger_->OnStoreStateChanged(activeStore);
 
-        YT_LOG_INFO("Rotating store (StoreId: %v, Reason: %v, DynamicMemoryUsage: %v, RowCount: %v, TimestampCount: %v, AllowEmptyStore: %v)",
-            activeStore->GetId(),
-            reason,
-            activeStore->GetDynamicMemoryUsage(),
-            activeStore->GetRowCount(),
-            activeStore->GetTimestampCount(),
-            allowEmptyStore);
+        YT_TLOG_INFO("Rotating store")
+            .With("StoreId", activeStore->GetId())
+            .With("Reason", reason)
+            .With("DynamicMemoryUsage", activeStore->GetDynamicMemoryUsage())
+            .With("RowCount", activeStore->GetRowCount())
+            .With("TimestampCount", activeStore->GetTimestampCount())
+            .With("AllowEmptyStore", allowEmptyStore);
 
         if (activeStore->GetLockCount() > 0) {
-            YT_LOG_INFO("Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
-                activeStore->GetId(),
-                activeStore->GetLockCount());
+            YT_TLOG_INFO("Active store is locked and will be kept")
+                .With("StoreId", activeStore->GetId())
+                .With("LockCount", activeStore->GetLockCount());
             YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
         } else {
-            YT_LOG_INFO("Active store is not locked and will be dropped (StoreId: %v, LockCount: %v)",
-                activeStore->GetId(),
-                activeStore->GetLockCount());
+            YT_TLOG_INFO("Active store is not locked and will be dropped")
+                .With("StoreId", activeStore->GetId())
+                .With("LockCount", activeStore->GetLockCount());
         }
 
         OnActiveStoreRotated();
@@ -699,7 +704,7 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
 
     StructuredLogger_->OnStoreRotated(activeStore, Tablet_->GetActiveStore());
 
-    YT_LOG_INFO("Tablet stores rotated");
+    YT_TLOG_INFO("Tablet stores rotated");
 }
 
 bool TStoreManagerBase::IsStoreLocked(IStorePtr store) const
@@ -738,33 +743,33 @@ TError TStoreManagerBase::CheckOverflow() const
 
     if (activeStore->GetRowCount() >= mountConfig->MaxDynamicStoreRowCount) {
         return TError("Dynamic store row count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("row_count", activeStore->GetRowCount())
-            << TErrorAttribute("row_count_limit", mountConfig->MaxDynamicStoreRowCount);
+            .With("store_id", activeStore->GetId())
+            .With("row_count", activeStore->GetRowCount())
+            .With("row_count_limit", mountConfig->MaxDynamicStoreRowCount);
     }
 
     if (activeStore->GetValueCount() >= mountConfig->MaxDynamicStoreValueCount) {
         return TError("Dynamic store value count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("value_count", activeStore->GetValueCount())
-            << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
+            .With("store_id", activeStore->GetId())
+            .With("value_count", activeStore->GetValueCount())
+            .With("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
     auto clampedMaxDynamicStoreTimestampCount = activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount);
 
     if (activeStore->GetTimestampCount() >= clampedMaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
-            << TErrorAttribute("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
+            .With("store_id", activeStore->GetId())
+            .With("timestamp_count", activeStore->GetTimestampCount())
+            .With("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
+            .With("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
     if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
         return TError("Dynamic store pool size limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("pool_size", activeStore->GetPoolSize())
-            << TErrorAttribute("pool_size_limit", mountConfig->MaxDynamicStorePoolSize);
+            .With("store_id", activeStore->GetId())
+            .With("pool_size", activeStore->GetPoolSize())
+            .With("pool_size_limit", mountConfig->MaxDynamicStorePoolSize);
     }
 
     return TError();
@@ -859,15 +864,13 @@ TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
             // the master.
 
             if (Tablet_->IsPhysicallyOrdered()) {
-                YT_LOG_FATAL("Dynamic store id pool is empty, cannot fall back to "
-                    "local dynamic store id generation for an ordered tablet");
+                YT_TLOG_FATAL("Dynamic store id pool is empty, cannot fall back to local dynamic store id generation for an ordered tablet");
             }
 
             auto storeId = doGenerateId();
-            YT_LOG_ALERT("Dynamic store id pool is empty, falling back to local "
-                "dynamic store id generation. Reads from map-reduce may not see "
-                "some recent data (NewStoreId: %v)",
-                storeId);
+            YT_TLOG_ALERT("Dynamic store id pool is empty, falling back to local dynamic store id generation; "
+                "reads from map-reduce may not see some recent data")
+                .With("NewStoreId", storeId);
 
             return storeId;
         }
@@ -884,8 +887,8 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
         return;
     }
 
-    YT_LOG_INFO("Store unlocked and will be dropped (StoreId: %v)",
-        store->GetId());
+    YT_TLOG_INFO("Store unlocked and will be dropped")
+        .With("StoreId", store->GetId());
     YT_VERIFY(LockedStores_.erase(store) == 1);
 }
 
@@ -910,7 +913,8 @@ void TStoreManagerBase::UpdateInMemoryMode()
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 chunkStore->UpdatePreloadAttempt(/*isBackoff*/ false);
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_TLOG_INFO("Scheduled preload of in-memory store")
+                    .With("StoreId", store->GetId());
             }
         }
     }
@@ -931,7 +935,7 @@ bool TStoreManagerBase::IsRecovery() const
 TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timestampHint)
 {
     auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
-    auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
+    auto monotonicTimestamp = std::max(NTransactionClient::TTimestamp(lastCommitTimestamp.Underlying() + 1), timestampHint);
     Tablet_->UpdateLastCommitTimestamp(monotonicTimestamp);
     return monotonicTimestamp;
 }

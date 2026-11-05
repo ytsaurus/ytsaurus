@@ -1,7 +1,7 @@
 package solomon
 
 import (
-	"encoding/json"
+	"io"
 	"time"
 
 	"go.uber.org/atomic"
@@ -16,96 +16,47 @@ var (
 
 // Timer measures gauge duration.
 type Timer struct {
-	name       string
-	metricType metricType
-	tags       map[string]string
-	value      atomic.Duration
-	timestamp  *time.Time
+	baseMetric
 
-	useNameTag bool
-	memOnly    bool
+	value atomic.Duration
+}
+
+func NewTimer(name string, value time.Duration, opts ...MetricOpt) Timer {
+	mOpts := MetricsOpts{}
+	for _, op := range opts {
+		op(&mOpts)
+	}
+	mType := typeGauge
+	if mOpts.rated {
+		mType = typeRated
+	}
+	return Timer{
+		baseMetric: newBaseMetric(name, mType, opts...),
+		value:      *atomic.NewDuration(value),
+	}
 }
 
 func (t *Timer) RecordDuration(value time.Duration) {
 	t.value.Store(value)
 }
 
-func (t *Timer) getID() string {
-	if t.timestamp != nil {
-		return t.name + "(" + t.timestamp.Format(time.RFC3339) + ")"
-	}
-	return t.name
-}
-
-func (t *Timer) Name() string {
-	return t.name
-}
-
-func (t *Timer) getType() metricType {
-	return t.metricType
-}
-
-func (t *Timer) Labels() map[string]string {
-	return t.tags
-}
-
-func (t *Timer) Value() interface{} {
+func (t *Timer) Value() any {
 	return t.value.Load().Seconds()
 }
 
-func (t *Timer) getTimestamp() *time.Time {
-	return t.timestamp
-}
-
-func (t *Timer) getNameTag() string {
-	if t.useNameTag {
-		return "name"
-	} else {
-		return "sensor"
-	}
-}
-
-func (t *Timer) isMemOnly() bool {
-	return t.memOnly
-}
-
-func (t *Timer) setMemOnly() {
-	t.memOnly = true
+func (t *Timer) writeSpackValue(w io.Writer) error {
+	return writeFloat64LE(w, t.value.Load().Seconds())
 }
 
 // MarshalJSON implements json.Marshaler.
 func (t *Timer) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type      string            `json:"type"`
-		Labels    map[string]string `json:"labels"`
-		Value     float64           `json:"value"`
-		Timestamp *int64            `json:"ts,omitempty"`
-		MemOnly   bool              `json:"memOnly,omitempty"`
-	}{
-		Type:  t.metricType.String(),
-		Value: t.value.Load().Seconds(),
-		Labels: func() map[string]string {
-			labels := make(map[string]string, len(t.tags)+1)
-			labels[t.getNameTag()] = t.name
-			for k, v := range t.tags {
-				labels[k] = v
-			}
-			return labels
-		}(),
-		Timestamp: tsAsRef(t.timestamp),
-		MemOnly:   t.memOnly,
-	})
+	return marshalScalarMetric(&t.baseMetric, t.value.Load().Seconds())
 }
 
 // Snapshot returns independent copy on metric.
 func (t *Timer) Snapshot() Metric {
 	return &Timer{
-		name:       t.name,
-		metricType: t.metricType,
-		tags:       t.tags,
+		baseMetric: t.copy(),
 		value:      *atomic.NewDuration(t.value.Load()),
-
-		useNameTag: t.useNameTag,
-		memOnly:    t.memOnly,
 	}
 }

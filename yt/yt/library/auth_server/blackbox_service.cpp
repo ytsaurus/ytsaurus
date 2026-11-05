@@ -56,26 +56,26 @@ public:
     { }
 
     TFuture<INodePtr> Call(
-        const TString& method,
-        const THashMap<TString, TString>& params) override
+        const std::string& method,
+        const THashMap<std::string, std::string>& params) override
     {
         auto callId = TGuid::Create();
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        YT_LOG_DEBUG("Blackbox call scheduled (CallId: %v, Deadline: %v)",
-            callId,
-            deadline);
+        YT_TLOG_DEBUG("Blackbox call scheduled")
+            .With("CallId", callId)
+            .With("Deadline", deadline);
 
         return BIND(&TBlackboxService::DoCall, MakeStrong(this), method, params, callId, deadline)
             .AsyncVia(Invoker_)
             .Run();
     }
 
-    TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    TErrorOr<std::string> GetLogin(const NYTree::INodePtr& reply) const override
     {
         if (Config_->UseLowercaseLogin) {
-            return GetByYPath<TString>(reply, "/attributes/1008");
+            return GetByYPath<std::string>(reply, "/attributes/1008");
         } else {
-            return GetByYPath<TString>(reply, "/login");
+            return GetByYPath<std::string>(reply, "/login");
         }
     }
 
@@ -93,8 +93,8 @@ private:
 
 private:
     INodePtr DoCall(
-        const TString& method,
-        const THashMap<TString, TString>& params,
+        const std::string& method,
+        const THashMap<std::string, std::string>& params,
         TGuid callId,
         TInstant deadline)
     {
@@ -154,15 +154,14 @@ private:
                     deadline);
             } catch (const std::exception& ex) {
                 BlackboxCallErrors_.Increment();
-                YT_LOG_WARNING(
-                    ex,
-                    "Blackbox call attempt failed, backing off (CallId: %v, Attempt: %v)",
-                    callId,
-                    attempt);
+                YT_TLOG_WARNING("Blackbox call attempt failed, backing off")
+                    .With("CallId", callId)
+                    .With("Attempt", attempt)
+                    .With(ex);
                 auto error = TError("Blackbox call attempt %v failed", attempt)
-                    << ex
-                    << TErrorAttribute("call_id", callId)
-                    << TErrorAttribute("attempt", attempt);
+                    .With(ex)
+                    .With("call_id", callId)
+                    .With("attempt", attempt);
                 accumulatedErrors.push_back(std::move(error));
             }
 
@@ -183,7 +182,7 @@ private:
                 auto errorNode = result->AsMap()->FindChild("error");
                 auto blackboxError =
                     errorNode && errorNode->GetType() == ENodeType::String
-                    ? TError(errorNode->GetValue<TString>(), TError::DisableFormat)
+                    ? TError(errorNode->GetValue<std::string>(), TError::DisableFormat)
                     : TError("Blackbox did not provide any human-readable error details");
 
                 switch (static_cast<EBlackboxException>(exceptionIdNode->GetValue<i64>())) {
@@ -191,21 +190,21 @@ private:
                         return result;
                     case EBlackboxException::DBFetchFailed:
                     case EBlackboxException::DBException:
-                        YT_LOG_WARNING(blackboxError,
-                            "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
-                            callId,
-                            attempt);
+                        YT_TLOG_WARNING("Blackbox has raised an exception, backing off")
+                            .With("CallId", callId)
+                            .With("Attempt", attempt)
+                            .With(blackboxError);
                         break;
                     default:
-                        YT_LOG_WARNING(blackboxError,
-                            "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
-                            callId,
-                            attempt);
+                        YT_TLOG_WARNING("Blackbox has raised an exception")
+                            .With("CallId", callId)
+                            .With("Attempt", attempt)
+                            .With(blackboxError);
                         BlackboxCallFatalErrors_.Increment();
                         THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
-                            << TErrorAttribute("call_id", callId)
-                            << TErrorAttribute("attempt", attempt)
-                            << blackboxError;
+                            .With("call_id", callId)
+                            .With("attempt", attempt)
+                            .With(blackboxError);
                 }
             }
 
@@ -219,8 +218,8 @@ private:
 
         BlackboxCallFatalErrors_.Increment();
         THROW_ERROR_EXCEPTION("Blackbox call failed")
-            << std::move(accumulatedErrors)
-            << TErrorAttribute("call_id", callId);
+            .With(std::move(accumulatedErrors))
+            .With("call_id", callId);
     }
 
     static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
@@ -233,28 +232,29 @@ private:
     INodePtr DoCallOnce(
         TGuid callId,
         int attempt,
-        const TString& realUrl,
-        const TString& safeUrl,
-        const TString& realParams,
-        const TString& safeParams,
+        const std::string& realUrl,
+        const std::string& safeUrl,
+        const std::string& realParams,
+        const std::string& safeParams,
         const THeadersPtr& headers,
         TInstant deadline)
     {
         auto onError = [&] (TError error) {
-            error <<= TErrorAttribute("call_id", callId);
-            YT_LOG_DEBUG(error);
+            error.Add("call_id", callId);
+            YT_TLOG_DEBUG("Blackbox call failed")
+                .With(error);
             THROW_ERROR(error);
         };
 
         NProfiling::TWallTimer timer;
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        YT_LOG_DEBUG("Calling Blackbox (Url: %v, Params: %v, CallId: %v, Attempt: %v, Timeout: %v)",
-            safeUrl,
-            safeParams,
-            callId,
-            attempt,
-            timeout);
+        YT_TLOG_DEBUG("Calling Blackbox")
+            .With("Url", safeUrl)
+            .With("Params", safeParams)
+            .With("CallId", callId)
+            .With("Attempt", attempt)
+            .With("Timeout", timeout);
 
         TErrorOr<IResponsePtr> rspOrError;
         if (Config_->UsePostRequests) {
@@ -264,7 +264,7 @@ private:
         }
         if (!rspOrError.IsOK()) {
             onError(TError("Blackbox call failed")
-                << rspOrError);
+                .With(rspOrError));
         }
 
         const auto& rsp = rspOrError.Value();
@@ -275,15 +275,15 @@ private:
 
         INodePtr rootNode;
         try {
-            YT_LOG_DEBUG("Started reading response body from Blackbox (CallId: %v, Attempt: %v)",
-                callId,
-                attempt);
+            YT_TLOG_DEBUG("Started reading response body from Blackbox")
+                .With("CallId", callId)
+                .With("Attempt", attempt);
 
             auto body = rsp->ReadAll();
 
-            YT_LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)",
-                callId,
-                attempt);
+            YT_TLOG_DEBUG("Finished reading response body from Blackbox")
+                .With("CallId", callId)
+                .With("Attempt", attempt);
 
             TMemoryInput stream(body.Begin(), body.Size());
             auto factory = NYTree::CreateEphemeralNodeFactory();
@@ -293,19 +293,19 @@ private:
             rootNode = builder->EndTree();
 
             BlackboxCallTime_.Record(timer.GetElapsedTime());
-            YT_LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
-                callId,
-                attempt);
+            YT_TLOG_DEBUG("Parsed Blackbox daemon reply")
+                .With("CallId", callId)
+                .With("Attempt", attempt);
         } catch (const std::exception& ex) {
             onError(TError(
                 "Error parsing Blackbox response")
-                << ex);
+                .With(ex));
         }
 
         if (rootNode->GetType() != ENodeType::Map) {
             THROW_ERROR_EXCEPTION("Blackbox has returned an improper result")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rootNode->GetType());
+                .With("expected_result_type", ENodeType::Map)
+                .With("actual_result_type", rootNode->GetType());
         }
 
         return rootNode;

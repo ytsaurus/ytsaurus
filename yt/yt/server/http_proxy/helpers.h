@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/driver/public.h>
+
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -18,7 +20,7 @@ NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
 void FixupNodesWithAttributes(const NYTree::IMapNodePtr& node);
 
-NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters);
+NYTree::IMapNodePtr HideSecretParameters(const std::string& commandName, NYTree::IMapNodePtr parameters);
 
 struct TPythonWrapperVersion
 {
@@ -56,6 +58,12 @@ void RedirectToDataProxy(
     const NHttp::IRequestPtr& request,
     const NHttp::IResponseWriterPtr& response,
     const TCoordinatorPtr& coordinator);
+
+i64 ResolveHeavyRequestMemoryReservation(
+    const NDriver::TCommandDescriptor& descriptor,
+    const NYTree::IMapNodePtr& parameters,
+    const NDriver::TDriverConfigPtr& driverConfig,
+    const THeavyRequestMemoryReservationConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

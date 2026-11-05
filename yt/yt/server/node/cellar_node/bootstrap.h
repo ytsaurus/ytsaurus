@@ -13,11 +13,11 @@ namespace NYT::NCellarNode {
 struct IBootstrapDryRunBase
 {
     virtual void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         NHydra::NProto::TSnapshotMeta meta = {},
         ESerializationDumpMode dumpMode = ESerializationDumpMode::None,
         bool checkInvariants = true) = 0;
-    virtual void ReplayChangelogs(std::vector<TString> changelogFileNames) = 0;
+    virtual void ReplayChangelogs(std::vector<std::string> changelogFileNames) = 0;
     virtual void BuildSnapshot() = 0;
     virtual void FinishDryRun() = 0;
 };

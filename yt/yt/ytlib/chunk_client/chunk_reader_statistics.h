@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h>
 
-#include <yt/yt/ytlib/table_client/timing_statistics.h>
+#include <yt/yt/client/chunk_client/timing_statistics.h>
 
 #include <yt/yt/core/profiling/public.h>
 
@@ -86,7 +86,7 @@ void DumpChunkReaderStatistics(
 void DumpTimingStatistics(
     TStatistics* jobStatistics,
     const NStatisticPath::TStatisticPath& path,
-    const NTableClient::TTimingStatistics& timingStatistics);
+    const TTimingStatistics& timingStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

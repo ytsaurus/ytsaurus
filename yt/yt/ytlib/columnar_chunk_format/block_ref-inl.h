@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "block_ref.h"
 #endif
-#undef BLOCK_REF_INL_H_
 
 namespace NYT::NColumnarChunkFormat {
 

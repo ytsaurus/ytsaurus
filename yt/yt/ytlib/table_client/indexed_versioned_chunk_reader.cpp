@@ -133,8 +133,8 @@ private:
             TFuture<IChunkFragmentReader::TReadFragmentsResponse> fragmentsFuture;
             if (!request.FragmentSubrequests.empty()) {
                 fragmentsFuture = ChunkFragmentReader_->ReadFragments(
-                    Options_,
-                    std::move(request.FragmentSubrequests));
+                    std::move(request.FragmentSubrequests),
+                    Options_);
                 readFutures.push_back(fragmentsFuture.AsVoid());
             }
 

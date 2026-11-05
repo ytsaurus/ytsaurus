@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -25,7 +27,7 @@
 
 #include <yt/yt/core/misc/id_generator.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NSequoiaServer {
 
@@ -97,11 +99,11 @@ public:
             auto* transactionFeatures = response.mutable_sequoia_transaction_features();
             ToProto(transactionFeatures, sequoiaManager->GetSequoiaTransactionFeatures());
         } else {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT(
                 Logger,
                 SequoiaEnabled_.load(std::memory_order::acquire) ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
-                error,
-                "Failed to register Cypress proxy");
+                "Failed to register Cypress proxy")
+                .With(error);
         }
         context->Reply(error);
 
@@ -210,16 +212,17 @@ private:
     void RegisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EmplaceOrCrash(CypressProxyByAddress_, proxyObject->GetAddress(), proxyObject);
-        YT_LOG_DEBUG("Cypress proxy registered (Address: %v, SequoiaReign: %v, Version: %v)",
-            proxyObject->GetAddress(),
-            proxyObject->GetSequoiaReign(),
-            proxyObject->GetVersion());
+        YT_TLOG_DEBUG("Cypress proxy registered")
+            .With("Address", proxyObject->GetAddress())
+            .With("SequoiaReign", proxyObject->GetSequoiaReign())
+            .With("Version", proxyObject->GetVersion());
     }
 
     void UnregisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EraseOrCrash(CypressProxyByAddress_, proxyObject->GetAddress());
-        YT_LOG_DEBUG("Cypress proxy unregistered (Address: %v)", proxyObject->GetAddress());
+        YT_TLOG_DEBUG("Cypress proxy unregistered")
+            .With("Address", proxyObject->GetAddress());
     }
 
     TCypressProxyObject* CreateCypressProxy(const std::string& address)

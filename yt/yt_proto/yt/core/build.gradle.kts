@@ -21,6 +21,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
 
@@ -47,6 +55,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/core/tracing/proto/tracing_ext.proto")
         include("yt/yt_proto/yt/core/bus/proto/bus.proto")
         include("yt/yt_proto/yt/core/rpc/proto/rpc.proto")
+        include("yt/yt_proto/yt/core/yson/proto/list_types.proto")
         include("yt/yt_proto/yt/core/yson/proto/protobuf_interop.proto")
         include("yt/yt_proto/yt/core/ytree/proto/attributes.proto")
         include("yt/yt_proto/yt/core/ytree/proto/request_complexity_limits.proto")

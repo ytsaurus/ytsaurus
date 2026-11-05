@@ -1,0 +1,23 @@
+[
+  {
+    "file": "tablet.error.log.2026-08-11_05-40.zst",
+    "returncode": 0,
+    "stdout": "2026-08-11 05:35:10,810204 E Hydra Requesting follower restart (CellId: 316-10cb61-43002bc-c56e7a90)\n",
+    "stderr": "",
+    "expected": "matched"
+  },
+  {
+    "file": "tablet.error.log.2026-08-11_05-30.zst",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "",
+    "expected": "no_match"
+  },
+  {
+    "file": "tablet.error.log.2026-08-11_05-20.zst",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "ERROR: zstd decompression failed",
+    "expected": "failed"
+  }
+]

@@ -23,7 +23,7 @@
 
 В данном режиме планировщик выделяют ресурсы экзекьюторам напрямую в рамках отдельной Vanilla операции на кластере {{product-name}}. Джоба в составе операции соответствует одному экзекьютору Spark. Спецификация экзекьюторов (количество CPU, объем памяти, тип диска и т.п.) описаны в разделе Task в спецификации операции. Возможно описание разных профилей ресурсов для экзекьюторов Spark для задач с неоднородной нагрузкой в течение жизенного цикла.
 
-![](../../../../../../images/spyt-direct-submit-operation-concept.png){ .center }
+![](../../../../../../_images/spyt-direct-submit-operation-concept.png){ .center }
 
 ### Конфигурирование {{product-name}} операции  { #operation-config }
 
@@ -36,7 +36,29 @@
 ```
 Полный список параметров можно посмотреть в разделе [опции операции](../../../../../user-guide/data-processing/operations/operations-options.md).
 
-### Преимущества подхода { #advantages }
+### Использование Docker-образов и Porto-слоёв { #images }
+
+При прямом сабмите Spark-приложений в {{product-name}} для задач драйвера и экзекьюторов можно использовать как Docker-образы, так и Porto-слои. Это позволяет подготовить окружение выполнения с нужными системными библиотеками, Python-пакетами и другими зависимостями.
+
+Информацию о сборке собственного Docker-образа можно найти в [разделе про конфигурирование кластера](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#build-image).
+
+Передача Docker-образа или Porto-слоёв выполняется через дополнительные параметры:
+
+```bash
+OP_SPEC='{"docker_image"="[REGISTRY/]IMAGE:TAG";}'
+
+spark-submit --master "ytsaurus://<cluster-host>:<port>" \
+             --deploy-mode cluster \
+             --num-executors 1 \
+             --queue <pool> \
+             --conf spark.ytsaurus.executor.task.parameters="$OP_SPEC" \
+             --conf spark.ytsaurus.driver.task.parameters="$OP_SPEC" \
+             ./spark-job.py
+```
+
+Подробнее можно прочитать в разделе [образы корневой файловой системы](../../../../../user-guide/data-processing/layers/layer-paths.md).
+
+## Преимущества подхода { #advantages }
 
 - **Эффективное использование ресурсов** — выделение по требованию, минимум простоя.
 - **Простое управление** — единый уровень контроля вместо дублирования (YTsaurus + Standalone).

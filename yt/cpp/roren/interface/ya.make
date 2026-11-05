@@ -40,7 +40,7 @@ PEERDIR(
     library/cpp/yson/node
     library/cpp/yt/misc
     library/cpp/yt/string
-    yt/yt/flow/lib/serializer
+    yt/yt/flow/library/cpp/serializer
     yt/cpp/roren/library/bind
     yt/cpp/roren/library/timers/timer
     yt/yt/core

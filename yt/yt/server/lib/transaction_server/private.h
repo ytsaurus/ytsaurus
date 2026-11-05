@@ -10,8 +10,8 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TransactionServerLogger, "TransactionServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TransactionServerProfiler, "/transaction_server");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TransactionServerLogger, "TransactionServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TransactionServerProfiler, "/transaction_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

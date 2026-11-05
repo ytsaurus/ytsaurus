@@ -15,6 +15,8 @@ TObjectBase::TObjectBase(TObjectId id)
     : Id_(id)
 { }
 
+TObjectBase::~TObjectBase() = default;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

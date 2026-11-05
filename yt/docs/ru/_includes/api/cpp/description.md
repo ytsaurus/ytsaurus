@@ -690,7 +690,7 @@ Join-Reduce:
       const TOperationOptions& options = TOperationOptions())
   ```
 
-В качестве `mapper` можно указать нулевой указатель, тогда операция запустится без стадии Map, вторая версия функции дополнительно запустит стадию [reduce_combiner](../../../user-guide/data-processing/operations/reduce.md#reduce_combiner).
+В качестве `mapper` можно указать нулевой указатель, тогда операция запустится без стадии Map, вторая версия функции дополнительно запустит стадию [reduce_combiner](../../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner).
 
 В параметры вызова запуска операции обычно входят:
 
@@ -832,7 +832,7 @@ TOperationAttributes GetOperation(
 
 ### ListOperations
 
-Получить список операций, [удовлетворяющих фильтрам](../../../api/commands.md#list_operation).
+Получить список операций, [удовлетворяющих фильтрам](../../../api/commands.md#list_operations).
 
 ```c++
 TListOperationsResult ListOperations(
@@ -1025,6 +1025,8 @@ TMaybe<TYPath> GetFileFromCache(
 ## Переменные окружения
 
 Сейчас эти настройки доступны только из переменных окружения и одни и те же для всех экземпляров `IClient`. однако мы собираемся переработать эту функциональность, чтобы можно было почти всё настраивать непосредственно из кода и менять на уровне отдельных `IClient`.
+
+В таблице нет `YT_USER`, потому что описанный на этой странице клиент `yt/cpp/mapreduce` не использует эту переменную: пользователя определяет токен. `GetClientOptionsFromEnv` относится к C++ NApi и обрабатывает `YT_USER` по [другим правилам](../../../user-guide/storage/auth.md#user-selection).
 
 | *Переменная*                          | *Тип*   | *Значение*                                                   |
 | ------------------------------------- | ------- | ------------------------------------------------------------ |

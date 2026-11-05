@@ -540,6 +540,28 @@ func (rut *ResourceUsageTable) GetMediums(ctx context.Context) ([]string, error)
 	return mediums, nil
 }
 
+func (rut *ResourceUsageTable) GetVersionedFields(ctx context.Context) (map[string]string, error) {
+	allFields, err := rut.GetFields(ctx)
+	if err != nil {
+		ctxlog.Error(ctx, rut.l.Logger(), "error getting fields", log.Error(err))
+		return nil, err
+	}
+	fieldsSet := make(map[string]struct{}, len(allFields))
+	for _, field := range allFields {
+		fieldsSet[field] = struct{}{}
+	}
+	fieldsVersioned := make(map[string]string)
+	for _, field := range allFields {
+		if strings.HasPrefix(field, "versioned:") {
+			committedName := strings.TrimPrefix(field, "versioned:")
+			if _, ok := fieldsSet[committedName]; ok {
+				fieldsVersioned[committedName] = field
+			}
+		}
+	}
+	return fieldsVersioned, nil
+}
+
 func (rut *ResourceUsageTable) CountRowsDiff(ctx context.Context, input countRowsDiffInput) (int, error) {
 	if input.pageSelector != nil && input.pageSelector.EnableContinuationToken || input.pageSelector.ContinuationToken != "" {
 		return 0, nil

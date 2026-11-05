@@ -9,7 +9,8 @@
 #include <util/generic/bitops.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/tscp.h>
+
+#include <library/cpp/yt/system/access_spreader.h>
 
 #include <library/cpp/histogram/hdr/histogram.h>
 
@@ -220,7 +221,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModelLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ModelLock_);
     TRequestSizes RequestSizes_;
     TRequestLatencies RequestLatencies_;
 };
@@ -230,13 +231,13 @@ class TPerCpuWorkloadModel
 public:
     void RegisterRead(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
     {
-        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        auto& shard = Shards_[GetCurrentAccessStripe(ShardCount)].Holder;
         shard.RegisterRead(requestSize, category, requestTime);
     }
 
     void RegisterWrite(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
     {
-        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        auto& shard = Shards_[GetCurrentAccessStripe(ShardCount)].Holder;
         shard.RegisterWrite(requestSize, category, requestTime);
     }
 
@@ -265,12 +266,14 @@ public:
     }
 
 private:
+    static constexpr int ShardCount = 64;
+
     struct alignas(2 * CacheLineSize) TShard
     {
         TThreadSafeWorkloadModel Holder;
     };
 
-    std::array<TShard, TTscp::MaxProcessorId> Shards_;
+    std::array<TShard, ShardCount> Shards_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,7 +282,7 @@ class TWorkloadModelManager
     : public virtual TRefCounted
 {
 public:
-    TWorkloadModelManager(TString locationId, NLogging::TLogger logger)
+    TWorkloadModelManager(std::string locationId, NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
         , Logger(std::move(logger))
         , ActionQueue_(New<TActionQueue>(Format("IOWM:%v", LocationId_)))
@@ -299,7 +302,7 @@ public:
     {
         ModelCreationRoundExecutor_->Start();
         LatenciesMeasuringExecutor_->Start();
-        YT_LOG_DEBUG("Initialized workload model manager");
+        YT_TLOG_DEBUG("Initialized workload model manager");
     }
 
     ~TWorkloadModelManager()
@@ -322,7 +325,7 @@ public:
     DEFINE_SIGNAL(void(const TRequestLatencies&), RequestLatenciesSignal);
 
 private:
-    const TString LocationId_;
+    const std::string LocationId_;
     const NLogging::TLogger Logger;
 
     const TActionQueuePtr ActionQueue_;
@@ -339,9 +342,9 @@ private:
 
         auto model = Model_->ReleaseSizes();
 
-        YT_LOG_DEBUG("Observed IO request sizes (Reads: %v, Writes: %v)",
-            model.Reads,
-            model.Writes);
+        YT_TLOG_DEBUG("Observed IO request sizes")
+            .With("Reads", model.Reads)
+            .With("Writes", model.Writes);
 
         RequestSizesSignal_.Fire(model);
     }
@@ -364,7 +367,7 @@ class TIOModelInterceptor
     : public IIOEngineWorkloadModel
 {
 public:
-    TIOModelInterceptor(TString locationId, IIOEnginePtr underlying, NLogging::TLogger logger)
+    TIOModelInterceptor(std::string locationId, IIOEnginePtr underlying, NLogging::TLogger logger)
         : Underlying_(std::move(underlying))
         , Logger(std::move(logger))
         , ModelManager_(New<TWorkloadModelManager>(std::move(locationId), Logger))
@@ -522,6 +525,11 @@ public:
         return Underlying_->UseDirectIOForReads();
     }
 
+    EDirectIOPolicy UseDirectIOForWrites() const override
+    {
+        return Underlying_->UseDirectIOForWrites();
+    }
+
     bool IsInFlightRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightRequestLimitExceeded();
@@ -577,7 +585,7 @@ private:
     const NLogging::TLogger Logger;
     const TWorkloadModelManagerPtr ModelManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StatsLock_);
     std::optional<TRequestSizes> RequestSizeStats_;
     std::optional<TRequestLatencies> RequestLatencyStats_;
 
@@ -597,7 +605,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
-    TString locationId,
+    std::string locationId,
     IIOEnginePtr underlying,
     NLogging::TLogger logger)
 {

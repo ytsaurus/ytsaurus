@@ -167,9 +167,7 @@ public:
             predicateFragments.end(),
             [&] (const TReferencingExpression& refExpr) {
                 if (IsColumnSubset(refExpr.References, AvailableColumns)) {
-                    predicate = predicate
-                        ? MakeAndExpression(predicate, refExpr.Expression)
-                        : refExpr.Expression;
+                    predicate = MakeAndExpression(predicate, refExpr.Expression);
                     return true;
                 }
                 return false;
@@ -488,11 +486,7 @@ IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& p
         newJoin->CommonKeyPrefix = joinClause->ForeignKeyPrefix;
         newJoin->ForeignKeyPrefix = joinClause->ForeignKeyPrefix;
 
-        if (joinClause->Predicate) {
-            totalPredicate  = totalPredicate
-                ? MakeAndExpression(totalPredicate, joinClause->Predicate)
-                : joinClause->Predicate;
-        }
+        totalPredicate  = MakeAndExpression(totalPredicate, joinClause->Predicate);
 
         newJoin->ForeignEquations = joinClause->ForeignEquations;
         newJoin->SelfEquations = joinClause->SelfEquations;

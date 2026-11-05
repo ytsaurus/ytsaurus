@@ -46,7 +46,10 @@ class WireTypeUtil {
             if (precision <= 18) {
                 return WireType.INT_64;
             }
-            return WireType.INT_128;
+            if (precision <= 38) {
+                return WireType.INT_128;
+            }
+            return WireType.INT_256;
         }
         return WireType.TUPLE;
     }

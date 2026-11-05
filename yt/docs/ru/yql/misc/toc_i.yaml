@@ -1,4 +1,6 @@
   items:
+  - name: Обзор
+    href: index.md
   - name: Схематизация данных в {{product-name}}
     href: schema.md
     when: audience == "internal"

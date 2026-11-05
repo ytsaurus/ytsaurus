@@ -39,9 +39,9 @@ public:
 
     TFuture<IChangelogPtr> Run()
     {
-        YT_LOG_INFO("Starting acquiring changelog (ChangelogId: %v, Priority: %v)",
-            ChangelogId_,
-            Priority_);
+        YT_TLOG_INFO("Starting acquiring changelog")
+            .With("ChangelogId", ChangelogId_)
+            .With("Priority", Priority_);
 
         DoAcquireChangelog();
 
@@ -55,7 +55,7 @@ private:
     const std::optional<TPeerPriority> Priority_;
     const NLogging::TLogger Logger;
 
-    int SuccessCount_ = 0;
+    int SuccessWeight_ = 0;
     bool LocalSucceeded_ = false;
 
     const TPromise<IChangelogPtr> NewChangelogPromise_ = NewPromise<IChangelogPtr>();
@@ -75,10 +75,10 @@ private:
                 continue;
             }
 
-            YT_LOG_INFO("Acquiring changelog from follower (PeerId: %v, ChangelogId: %v, Term: %v)",
-                peerId,
-                ChangelogId_,
-                EpochContext_->Term);
+            YT_TLOG_INFO("Acquiring changelog from follower")
+                .With("PeerId", peerId)
+                .With("ChangelogId", ChangelogId_)
+                .With("Term", EpochContext_->Term);
 
             TInternalHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
@@ -141,20 +141,21 @@ private:
     void OnRemoteChangelogAcquired(int id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error acquiring changelog at follower (PeerId: %v, ChangelogId: %v)",
-                id,
-                ChangelogId_);
+            YT_TLOG_INFO("Error acquiring changelog at follower")
+                .With("PeerId", id)
+                .With("ChangelogId", ChangelogId_)
+                .With(rspOrError);
             return;
         }
 
         auto voting = EpochContext_->CellManager->GetPeerConfig(id)->Voting;
-        YT_LOG_INFO("Remote changelog acquired by follower (PeerId: %v, Voting: %v, ChangelogId: %v)",
-            id,
-            voting,
-            ChangelogId_);
+        YT_TLOG_INFO("Remote changelog acquired by follower")
+            .With("PeerId", id)
+            .With("Voting", voting)
+            .With("ChangelogId", ChangelogId_);
 
         if (voting) {
-            ++SuccessCount_;
+            SuccessWeight_ += EpochContext_->CellManager->GetPeerWeight(id);
             CheckQuorum();
         }
     }
@@ -162,13 +163,15 @@ private:
     void OnLocalChangelogAcquired(const TError& error)
     {
         if (!error.IsOK()) {
-            NewChangelogPromise_.TrySet(TError("Error acquiring local changelog") << error);
+            NewChangelogPromise_.TrySet(TError("Error acquiring local changelog").With(error));
             return;
         }
 
-        YT_LOG_INFO("Local changelog acquired (ChangelogId: %v)", ChangelogId_);
+        YT_TLOG_INFO("Local changelog acquired")
+            .With("ChangelogId", ChangelogId_);
 
-        ++SuccessCount_;
+        const auto& cellManager = EpochContext_->CellManager;
+        SuccessWeight_ += cellManager->GetPeerWeight(cellManager->GetSelfPeerId());
         LocalSucceeded_ = true;
         CheckQuorum();
     }
@@ -179,7 +182,7 @@ private:
             return;
         }
 
-        if (SuccessCount_ < EpochContext_->CellManager->GetQuorumPeerCount()) {
+        if (SuccessWeight_ < EpochContext_->CellManager->GetQuorumWeight()) {
             return;
         }
 
@@ -193,9 +196,9 @@ private:
     void OnFailed(const TError& /*error*/)
     {
         NewChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
-            SuccessCount_,
-            EpochContext_->CellManager->GetTotalPeerCount())
-            << TErrorAttribute("local_changelog_acquisition_succeeded", LocalSucceeded_));
+            SuccessWeight_,
+            EpochContext_->CellManager->GetQuorumWeight())
+            .With("local_changelog_acquisition_succeeded", LocalSucceeded_));
     }
 };
 

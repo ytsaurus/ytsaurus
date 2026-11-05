@@ -39,9 +39,13 @@ DEFINE_REFCOUNTED_TYPE(IQueryHandler)
 struct IQueryEngine
     : public TRefCounted
 {
+    //! Returns whether restarting a query is safe when the outcome of its previous
+    //! execution is unknown, i.e. duplicate execution cannot cause visible side effects.
+    virtual bool IsSafeToRestartQuery() const = 0;
+
     virtual IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) = 0;
 
-    virtual void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) = 0;
+    virtual void Reconfigure(const TEngineConfigBasePtr& config) = 0;
 
     virtual std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() = 0;
 };

@@ -634,9 +634,17 @@ THttpIncomingResponsePtr THttpIncomingResponse::Duplicate(THttpOutgoingRequestPt
     response->Append('\n');
     THeadersBuilder headers(Headers);
     headers.Erase("Transfer-Encoding"); // we do not want to copy chunked encoding
+    headers.Erase("Content-Encoding"); // body is already decompressed during parsing
+    if (ContentLength || ContentEncoding || TransferEncoding) {
+        headers.Set("Content-Length", ToString(Body.Size())); // update to match actual (decompressed) body size
+    }
     for (const auto& [key, value] : extraHeaders.Headers) {
         if (value) {
-            headers.Set(key, value);
+            if (TEqNoCase()(key, "Set-Cookie")) {
+                headers.Add(key, value);
+            } else {
+                headers.Set(key, value);
+            }
         } else {
             headers.Erase(key);
         }
@@ -661,7 +669,11 @@ THttpOutgoingResponsePtr THttpOutgoingResponse::Duplicate(THttpIncomingRequestPt
     }
     for (const auto& [key, value] : extraHeaders.Headers) {
         if (value) {
-            headers.Set(key, value);
+            if (TEqNoCase()(key, "Set-Cookie")) {
+                headers.Add(key, value);
+            } else {
+                headers.Set(key, value);
+            }
         } else {
             headers.Erase(key);
         }
@@ -689,6 +701,8 @@ THttpOutgoingResponsePtr THttpOutgoingResponse::Duplicate(THttpIncomingRequestPt
         if (!response->ContentLength) {
             response->Set<&THttpResponse::ContentLength>("0");
         }
+        response->FinishHeader();
+        response->FinishBody();
     }
     return response;
 }

@@ -216,7 +216,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                         type,
                         type,
                         aggregateName,
-                        EExecutionBackend::Native),
+                        {.ExecutionBackend = EExecutionBackend::Native}),
                     {wireType},
                     wireType,
                     EExecutionBackend::Native,
@@ -278,8 +278,8 @@ public:
 
         auto cachedEvaluator = TSyncSlruCacheBase::Find(id);
         if (!cachedEvaluator) {
-            YT_LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
-                *schema);
+            YT_TLOG_DEBUG("Codegen cache miss: generating column evaluator")
+                .With("Schema", *schema);
 
             auto evaluator = TColumnEvaluator::Create(
                 schema,
@@ -296,6 +296,11 @@ public:
     void Configure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
     {
         TSyncSlruCacheBase::Reconfigure(config->CGCache);
+    }
+
+    i64 GetSize() const override
+    {
+        return TSyncSlruCacheBase::GetSize();
     }
 
 private:

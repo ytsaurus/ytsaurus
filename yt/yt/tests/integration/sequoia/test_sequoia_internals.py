@@ -6,7 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
-    create_account, remove_account,
+    create_cypress_proxy_bypass_driver, create_tablet_cell_bundle, remove_tablet_cell_bundle,
 )
 
 from yt_sequoia_helpers import (
@@ -17,13 +17,15 @@ from yt_sequoia_helpers import (
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
 
+from yt_driver_bindings import Driver
+
 import yt_error_codes
 
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
 
-from yt_driver_bindings import Driver
+from yt.common import YT_DATETIME_FORMAT_STRING
 
 import yt.yson as yson
 
@@ -33,7 +35,7 @@ from flaky import flaky
 import builtins
 from collections import namedtuple
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import itertools
 from random import randint
 from time import sleep
@@ -48,7 +50,6 @@ except ImportError:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -73,12 +74,12 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaInternals(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 2
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -181,6 +182,10 @@ class TestSequoiaInternals(YTEnvSetup):
         id = create("document", "//tmp/d")
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
+        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_resource_usage"])
+        assert rsp["id"] == id
+        assert rsp["effective_acl"]
+        assert rsp["recursive_resource_usage"]["node_count"] == 1
 
     @authors("danilalexeev")
     def test_get_recursive_limits(self):
@@ -276,7 +281,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
         remove("//tmp/some_node")
-        with raises_yt_error("Node //tmp has no child with key \"some_node\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get("//tmp/some_node")
         assert ls("//tmp") == []
 
@@ -460,7 +465,7 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("danilalexeev")
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
-        with raises_yt_error("Node //tmp has no child with key \"a\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             create("map_node", "//tmp/a/b")
 
     @authors("danilalexeev")
@@ -504,7 +509,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_set_map_force(self):
         create("map_node", "//tmp/m/m", recursive=True)
         node_id = get("//tmp/m/@id")
-        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden"):
             set("//tmp/m", {"a": 0})
         set("//tmp/m", {"a": 0}, force=True)
         assert ls("//tmp/m") == ["a"]
@@ -532,7 +537,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_escaped_symbols(self):
-        with raises_yt_error("Unexpected token \"{\" of type Left-brace"):
+        with raises_yt_error("Unexpected token .*"):
             create("map_node", "//tmp/special@&*[{symbols")
         path = r"//tmp/special\\\/\@\&\*\[\{symbols"
         create("map_node", path + "/m", recursive=True)
@@ -543,7 +548,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
-        with raises_yt_error("is internal type and should not be used directly"):
+        with raises_yt_error(".* is internal type and should not be used directly; use .* instead"):
             create("sequoia_map_node", "//tmp/m")
 
     @authors("danilalexeev")
@@ -568,7 +573,8 @@ class TestSequoiaInternals(YTEnvSetup):
         with raises_yt_error():
             get_batch_output(results[1])
 
-    @authors("danilalexeev")
+    @authors("h0pless")
+    @pytest.mark.skip("TODO(h0pless): YT-28786")
     @flaky(max_runs=3)
     @with_additional_threads
     def test_request_throttling(self):
@@ -591,10 +597,7 @@ class TestSequoiaInternals(YTEnvSetup):
             }
         })
 
-        BASE_REQUEST_COUNT = 10
-        REQUEST_COUNT_FACTOR = 1 + self.NUM_SECONDARY_MASTER_CELLS
-        REQUEST_COUNT = BASE_REQUEST_COUNT * REQUEST_COUNT_FACTOR
-        set("//sys/cypress_proxies/@config/object_service/request_rate_limit_factor", REQUEST_COUNT_FACTOR)
+        REQUEST_COUNT = 10
         sleep(1)
 
         def measure_read_time():
@@ -622,7 +625,7 @@ class TestSequoiaInternals(YTEnvSetup):
                                                target=wait_for_counter_to_change)
 
         # Last request empties the throttler, but we don't wait for it to be replenished.
-        expected_time = BASE_REQUEST_COUNT - 1
+        expected_time = REQUEST_COUNT - 1
 
         # Since requests are very quick and throttlers take time to synchronize,
         # add the multiplier to the expected time.
@@ -672,7 +675,8 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
-        set("//tmp/a/@annotation", "test")
+        annotation = "test"
+        set("//tmp/a/@annotation", annotation)
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -743,15 +747,18 @@ class TestSequoiaInternals(YTEnvSetup):
                 assert child.attributes["recursive_resource_usage"]["node_count"] == 3
                 assert child.attributes["resource_usage"]["node_count"] == 1
 
-        # TODO(grphil): Implement ls in attributes
-        # assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert exists("//tmp/a/@recursive_resource_usage/node_count")
+        assert not exists("//tmp/a/@recursive_resource_usage/non_existing")
 
-        # TODO(grphil): Implement attributes in get for non map node
-        # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+        c_attr = get("//tmp/a/b/c", attributes=["recursive_resource_usage", "annotation"]).attributes
+        assert c_attr["recursive_resource_usage"]["node_count"] == 1
+        assert c_attr["annotation"] == annotation
 
     @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):
         set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        set("//sys/cypress_proxies/@config/vectorized_subbatch_size_overrides/descendants", 50)
         sleep(0.5)
         MAP_SIZE = 123
         yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}
@@ -769,12 +776,14 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_barrier_delay(self):
-        set("//sys/@config/transaction_manager/testing/sequoia_transaction_barrier_delay", 2000)
+        set("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay", 2000)
 
         start = datetime.now()
         get("//@owner")
         finish = datetime.now()
         assert finish - start >= timedelta(seconds=2)
+        # Remove this option or teardown will take forever.
+        remove("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay")
 
     @authors("kvk1920")
     def test_sequoia_tx_start_failure(self):
@@ -787,23 +796,63 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("shakurov")
     def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
-        create_account("a")
+        create_tablet_cell_bundle("b")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
 
-        create("table", "//tmp/t1", attributes={"account": "a"})
-        remove_account("a", sync=False)
+        create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
 
-        with raises_yt_error("Account \"a\" cannot be used") as err:
-            create("table", "//tmp/t2", attributes={"account": "a"})
+        remove_tablet_cell_bundle("b")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with raises_yt_error("Tablet cell bundle .* cannot be used") as err:
+            copy("//tmp/p1/t", "//tmp/p2/t")
         assert len(err) == 1
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
-        print_debug(err.inner_errors[0])
         # Not using contains_code here - we're checking the outermost error.
         assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
+    @authors("kvk1920")
+    def test_ground_connection_synchronization(self):
+        sequoia_connection_reconfiguration_time_paths = [
+            f"//sys/cypress_proxies/{cp}/orchid/sequoia_connection_reconfiguration_time"
+            for cp in ls("//sys/cypress_proxies")
+        ]
 
-@pytest.mark.enabled_multidaemon
+        driver = None
+        if self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG.get("object_service", {}).get("allow_bypass_master_resolve", False):
+            driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
+
+        now = datetime.now(timezone.utc).strftime(YT_DATETIME_FORMAT_STRING)
+
+        clusters = get("//sys/clusters")
+        remove("//sys/clusters/primary_ground")
+
+        for p in sequoia_connection_reconfiguration_time_paths:
+            wait(lambda: get(p, driver=driver) > now)
+
+        with raises_yt_error() as error:
+            create("map_node", "//tmp/m")
+
+        assert 'Cannot find cluster with name "primary_ground"' in str(error) \
+            or error.contains_code(yt_error_codes.UnknownCell)
+
+        now = datetime.now(timezone.utc).strftime(YT_DATETIME_FORMAT_STRING)
+
+        set("//sys/clusters", clusters, driver=driver)
+
+        for p in sequoia_connection_reconfiguration_time_paths:
+            wait(lambda: get(p, driver=driver) > now)
+
+        # Should not fail.
+        create("map_node", "//tmp/m")
+
+        remove("//tmp/*")
+        assert not ls("//tmp")
+
+
 class TestSequoiaResolve(TestSequoiaInternals):
     ENABLE_MULTIDAEMON = True
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
@@ -816,7 +865,6 @@ class TestSequoiaResolve(TestSequoiaInternals):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1220,6 +1268,30 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
             else:
                 assert records == []
 
+    @authors("shakurov")
+    @pytest.mark.skip(reason="Enable after Cypress proxy stop retrying SequoiaTransactionService.StartTransaction")
+    def test_prerequisite_transactions_when_tx_coordinator_is_down(self):
+        ptx = start_transaction(timeout=180000)
+
+        create("rootstock", "//tmp/scion")
+        create("map_node", "//tmp/scion/d")
+
+        set("//tmp/scion/d/@foo", "foo", prerequisite_transaction_ids=[ptx])
+
+        no_retry_driver_config = deepcopy(self.Env.configs["driver"])
+        no_retry_driver_config["cypress_proxy"]["retry_backoff"]["invocation_count"] = 1
+        no_retry_driver_config["api_version"] = 4
+        no_retry_driver = Driver(no_retry_driver_config)
+
+        with Restarter(self.Env, MASTERS_SERVICE, cell_indexes=[2]):
+            with raises_yt_error("Failed to issue leases for prerequisite transactions") as err:
+                set("//tmp/scion/d/@bar", "bar", prerequisite_transaction_ids=[ptx],
+                    suppress_transaction_coordinator_sync=True,
+                    suppress_strongly_ordered_transaction_barrier=True,
+                    driver=no_retry_driver)
+        assert len(err) == 1
+        assert not err[0].contains_code(yt_error_codes.PrerequisiteCheckFailed)
+
     @authors("kvk1920")
     def test_timeout(self):
         before = datetime.now()
@@ -1260,7 +1332,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         for table in DESCRIPTORS.get_group("transaction_tables"):
             clear_table_in_ground(table)
 
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             # "transactions" table is empty so there is no active transactions
             # from Sequoia point of view.
             commit_transaction(t4)
@@ -1326,7 +1398,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
-        print_debug(err.inner_errors[0])
         # Not using contains_text here - we're checking the outermost error.
         assert err.inner_errors[0]["message"] == f"Error committing transaction {tx}"
 
@@ -1334,7 +1405,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1389,7 +1459,6 @@ class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2340,7 +2409,6 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
@@ -2390,7 +2458,6 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -2511,22 +2578,22 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         assert read_table("//tmp/s/tab") == a
         assert read_table("//tmp/s/tab", tx=tx1) == a + b + c
 
-        with raises_yt_error("by concurrent"):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             remove("//tmp/s/tab")
 
         remove("//tmp/s/tab", tx=tx1)
 
         assert read_table("//tmp/s/tab") == a
 
-        with raises_yt_error("no child with key \"tab\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             read_table("//tmp/s/tab", tx=tx1)
 
         commit_transaction(tx1)
 
-        with raises_yt_error("no child with key \"tab\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             read_table("//tmp/s/tab")
 
-        with raises_yt_error("No such"):
+        with raises_yt_error("No such object .*"):
             read_table(f"#{tab_id}")
 
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -2589,7 +2656,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         tx = start_transaction()
 
         set("//tmp/t/@my_attribute", 123, tx=tx)
-        with raises_yt_error("Attribute \"my_attribute\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/t/@my_attribute")
 
         assert get("//tmp/t/@my_attribute", tx=tx) == 123
@@ -2602,7 +2669,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         if finish_tx is commit_transaction:
             assert get("//tmp/t/@my_attribute") == 123
         else:
-            with raises_yt_error("Attribute \"my_attribute\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get("//tmp/t/@my_attribute")
 
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -2868,7 +2935,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             child_node_source + child_node_destination,
             tx_mapping)
 
-        with raises_yt_error("Node //tmp/scion/e already exists"):
+        with raises_yt_error("Node .* already exists"):
             do_copy("//tmp/scion/a", "//tmp/scion/e", tx=tx2)
 
         do_copy("//tmp/scion/a", "//tmp/scion/e", tx=tx2, force=True)
@@ -3015,7 +3082,6 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3102,10 +3168,7 @@ class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
         # GUQM cannot be unpaused via regular driver since every request to
         # Cypress waits for sync with GUQM on Cypress proxy. Therefore, request
         # has to be sent to master directly.
-        config_without_cypress_proxy = deepcopy(self.Env.configs["driver"])
-        config_without_cypress_proxy["api_version"] = 4
-        del config_without_cypress_proxy["cypress_proxy"]
-        cypress_proxy_bypass_driver = Driver(config=config_without_cypress_proxy)
+        cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
 
         def try_reset_guqm_config():
             print_debug("Trying to remove GUQM config...")
@@ -3118,6 +3181,17 @@ class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
         # From this point requests to Cypress should work as usual.
 
         self.Env.synchronize()
+
+        def check_path(path):
+            def do_check_path():
+                set(path + "/@my_attr", 1)
+                return True
+
+            return do_check_path
+
+        # Ensure that all of cells are started (they were restarted with sync=False).
+        wait(check_path("/"), ignore_exceptions=True)
+        wait(check_path("//tmp"), ignore_exceptions=True)
 
         # Just check that Sequoia resolve works.
         assert get("//tmp/m/@acl")[0]["subjects"] == ["u-1"]

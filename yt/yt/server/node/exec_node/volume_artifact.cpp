@@ -5,13 +5,9 @@
 
 #include <yt/yt/core/actions/bind.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
-
-using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +15,7 @@ class TVolumeArtifactAdapter
     : public IVolumeArtifact
 {
 public:
-    TVolumeArtifactAdapter(TArtifactPtr artifact)
+    explicit TVolumeArtifactAdapter(TArtifactPtr artifact)
         : Artifact_(std::move(artifact))
     { }
 
@@ -29,12 +25,8 @@ public:
     }
 
 private:
-    TArtifactPtr Artifact_;
+    const TArtifactPtr Artifact_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,22 +34,23 @@ class TVolumeArtifactCacheAdapter
     : public IVolumeArtifactCache
 {
 public:
-    TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
+    explicit TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
         : ArtifactCache_(artifactCache)
     { }
 
     TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType) override
     {
-        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadOptions);
+        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadContext, cacheEventType);
         return artifact.Apply(BIND([] (TArtifactPtr artifact) {
             return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
         }));
     }
 
 private:
-    TArtifactCachePtr ArtifactCache_;
+    const TArtifactCachePtr ArtifactCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

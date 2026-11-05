@@ -1,9 +1,33 @@
 #include "push_down_group_by.h"
+#include "ast_visitors.h"
 #include "query_visitors.h"
 
 namespace NYT::NQueryClient {
 
 using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubqueryDetector
+    : public NAst::TAstVisitor<TSubqueryDetector>
+{
+    bool Found = false;
+
+    void OnAlias(const NAst::TAliasExpressionPtr expression)
+    {
+        Visit(expression->Expression);
+    }
+
+    void OnReference(const NAst::TReferenceExpressionPtr expression)
+    {
+        Visit(expression->Reference.CompositeTypeAccessor.DictOrListItemAccessor);
+    }
+
+    void OnQuery(const NAst::TQueryExpressionPtr /*expression*/)
+    {
+        Found = true;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,8 +121,8 @@ bool IsGroupKeyTooSelective(const TNamedItemList& groupKey, const TJoinClause& j
     const auto& originalSchema = joinClause.Schema.Original;
 
     THashMap<std::string, int> nameToIndex;
-    for (const auto& descriptor : joinClause.Schema.GetOrderedSchemaMapping()) {
-        InsertOrCrash(nameToIndex, std::pair{descriptor.Name, descriptor.Index});
+    for (auto& descriptor : joinClause.Schema.GetOrderedSchemaMapping()) {
+        InsertOrCrash(nameToIndex, std::pair{std::move(descriptor.Name), descriptor.Index});
     }
 
     auto keyPresenceMap = std::vector<bool>(originalSchema->GetKeyColumnCount(), false);
@@ -159,6 +183,7 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
             foreignJoinedColumns.erase(reference->ColumnName);
         }
     }
+
     for (const auto& columnName : foreignJoinedColumns) {
         const auto& column = joinRenamedSchema.GetColumn(columnName);
         groupItems.push_back(TNamedItem(
@@ -268,7 +293,7 @@ int GetPushDownJoinCount(const NAst::TQuery& ast)
 
     for (int index = 0; index < std::ssize(ast.Joins); ++index) {
         if (auto* tableJoin = std::get_if<NAst::TJoin>(&ast.Joins[index]);
-            tableJoin && tableJoin->Table.Hint->PushDownGroupBy)
+            tableJoin && tableJoin->Table.Hint.PushDownGroupBy)
         {
             count++;
         }
@@ -296,6 +321,24 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
         THROW_ERROR_EXCEPTION("Found \"push_down_group_by\" hint, but no group clause");
     }
 
+    auto subqueryDetector = TSubqueryDetector();
+    subqueryDetector.Visit(ast.SelectExprs);
+    subqueryDetector.Visit(ast.WherePredicate);
+    subqueryDetector.Visit(ast.GroupExprs);
+    subqueryDetector.Visit(ast.HavingPredicate);
+    for (const auto& orderExpression : ast.OrderExpressions) {
+        subqueryDetector.Visit(orderExpression.Expressions);
+    }
+
+    const auto& tableJoin = std::get<NAst::TJoin>(ast.Joins[0]);
+    subqueryDetector.Visit(tableJoin.Lhs);
+    subqueryDetector.Visit(tableJoin.Rhs);
+    subqueryDetector.Visit(tableJoin.Predicate);
+    if (subqueryDetector.Found) {
+        YT_TLOG_DEBUG("\"push_down_group_by\" disabled for scalar subqueries");
+        return;
+    }
+
     const auto& joinClause = query->JoinClauses[0];
 
     auto joinRenamedSchema = joinClause->Schema.GetRenamedSchema();
@@ -306,13 +349,13 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
         *joinRenamedSchema);
 
     if (!newJoinClause) {
-        YT_LOG_DEBUG("\"push_down_group_by\" considered ineffective");
+        YT_TLOG_DEBUG("\"push_down_group_by\" considered ineffective");
         return;
     }
 
-    YT_LOG_DEBUG("\"push_down_group_by\" complete (JoinClause: %v, GroupByClause: %v)",
-        MakeDebugString(*newJoinClause),
-        MakeDebugString(*newGroupClause));
+    YT_TLOG_DEBUG("\"push_down_group_by\" complete")
+        .With("JoinClause", MakeDebugString(*newJoinClause))
+        .With("GroupByClause", MakeDebugString(*newGroupClause));
 
     query->JoinClauses[0] = newJoinClause;
 

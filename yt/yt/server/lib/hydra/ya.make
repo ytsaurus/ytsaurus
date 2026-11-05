@@ -14,6 +14,7 @@ SRCS(
     checkpointable_stream.cpp
     composite_automaton.cpp
     config.cpp
+    config_wrapper.cpp
     decorated_automaton.cpp
     distributed_hydra_manager.cpp
     dry_run_hydra_manager.cpp
@@ -59,6 +60,7 @@ PEERDIR(
     library/cpp/yt/logging/backends/stream
     library/cpp/streams/lz/lz4
     library/cpp/streams/lz/snappy
+    library/cpp/containers/absl
 )
 
 END()

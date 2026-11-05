@@ -59,7 +59,7 @@ If you read this table in YQL, the `newColumn` field will be available in the `_
 SELECT * FROM `//tmp/table_not_strict` AS t;
 ```
 
-![](../../../images/yql_other_field.png)
+![](../../../_images/yql_other_field.png)
 
 There are multiple methods for retrieving the value of new `newColumn`:
 
@@ -101,7 +101,7 @@ SELECT * FROM as_table(ListCreate(ListItemType(TypeOf($s))))
 ```
 
 ## How to work with a string without unpacking protobuf?
-YQL can unpack protobuf messages. We recommend setting up <!--[automatic unpacking](../misc/schema.md#_yql_proto_field)--> automatic unpacking by using table metadata. In some cases, in case of an unpacked message, you need to work with a source row. For this purpose, it makes sense to use a special [raw](../syntax/select/index.md#view) view:
+YQL can unpack protobuf messages. We recommend setting up <!--[automatic unpacking](../misc/schema.md#_yql_proto_field)--> automatic unpacking by using table metadata. In some cases, in case of an unpacked message, you need to work with a source row. For this purpose, it makes sense to use a special [raw](../syntax/select/view.md) view:
 
 ```yql
 SELECT *

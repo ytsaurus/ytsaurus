@@ -37,6 +37,8 @@ IChaosCellDirectorySynchronizerPtr CreateChaosCellDirectorySynchronizer(
     NObjectClient::TCellIdList sourceOfTruthCellIds,
     NLogging::TLogger logger);
 
+IChaosCellDirectorySynchronizerPtr CreateDummyChaosCellDirectorySynchronizer();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient

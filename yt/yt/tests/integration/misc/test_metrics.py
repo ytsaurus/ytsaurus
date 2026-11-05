@@ -17,12 +17,9 @@ from yt_commands import (
 import yt.packages.requests as requests
 import yt.yson as yson
 
-import pytest
-
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class MetricsTestBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -176,6 +173,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_drops",
             "porto/network/tx_packets",
             "porto/network/tx_limit",
+            "porto/network/softlimit/bytes_forced_to_fb",
+            "porto/network/softlimit/bytes_untouched",
+            "porto/network/softlimit/packets_above_guarantee",
 
             "porto/volume/count",
 
@@ -203,6 +203,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_drops",
             "porto/network/tx_packets",
             "porto/network/tx_limit",
+            "porto/network/softlimit/bytes_forced_to_fb",
+            "porto/network/softlimit/bytes_untouched",
+            "porto/network/softlimit/packets_above_guarantee",
 
             "porto/volume/count",
 

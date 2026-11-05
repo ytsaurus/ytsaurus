@@ -15,14 +15,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Process");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Process");
 
 static constexpr pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortoProcess::TPortoProcess(
-    const TString& path,
+    const std::string& path,
     IInstanceLauncherPtr containerLauncher,
     bool copyEnv)
     : TProcessBase(path)
@@ -59,7 +59,7 @@ void TPortoProcess::DoSpawn()
     try {
         // TPortoProcess doesn't support running processes inside rootFS.
         YT_VERIFY(!ContainerLauncher_->HasRoot());
-        std::vector<TString> args(Args_.begin() + 1, Args_.end());
+        std::vector<std::string> args(Args_.begin() + 1, Args_.end());
         auto instance = WaitFor(ContainerLauncher_->Launch(ResolvedPath_, args, DecomposeEnv()))
             .ValueOrThrow();
         ContainerInstance_.Store(instance);
@@ -71,33 +71,35 @@ void TPortoProcess::DoSpawn()
             // This could happen if Porto container has already died or pid namespace of
             // parent container is not a parent of pid namespace of child container.
             // It's not a problem, since for Porto process pid is used for logging purposes only.
-            YT_LOG_DEBUG(ex, "Failed to get pid of root process (Container: %v)",
-                instance->GetName());
+            YT_TLOG_DEBUG("Failed to get pid of root process")
+                .With("Container", instance->GetName())
+                .With(ex);
         }
 
-        YT_LOG_DEBUG("Process inside Porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
-            ResolvedPath_,
-            ProcessId_,
-            instance->GetName());
+        YT_TLOG_DEBUG("Process inside Porto spawned successfully")
+            .With("Path", ResolvedPath_)
+            .With("ExternalPid", ProcessId_)
+            .With("Container", instance->GetName());
 
         FinishedPromise_.ToFuture().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& exitStatus) {
             Finished_ = true;
             if (exitStatus.IsOK()) {
-                YT_LOG_DEBUG("Process inside Porto exited gracefully (ExternalPid: %v, Container: %v)",
-                    ProcessId_,
-                    instance->GetName());
+                YT_TLOG_DEBUG("Process inside Porto exited gracefully")
+                    .With("ExternalPid", ProcessId_)
+                    .With("Container", instance->GetName());
             } else {
-                YT_LOG_DEBUG(exitStatus, "Process inside Porto exited with an error (ExternalPid: %v, Container: %v)",
-                    ProcessId_,
-                    instance->GetName());
+                YT_TLOG_DEBUG("Process inside Porto exited with an error")
+                    .With("ExternalPid", ProcessId_)
+                    .With("Container", instance->GetName())
+                    .With(exitStatus);
             }
         }));
     } catch (const std::exception& ex) {
         Finished_ = true;
         THROW_ERROR_EXCEPTION("Failed to start child process inside Porto")
-            << TErrorAttribute("path", ResolvedPath_)
-            << TErrorAttribute("container", ContainerLauncher_->GetName())
-            << ex;
+            .With("path", ResolvedPath_)
+            .With("container", ContainerLauncher_->GetName())
+            .With(ex);
     }
 }
 
@@ -106,13 +108,13 @@ IInstancePtr TPortoProcess::GetInstance()
     return ContainerInstance_.Acquire();
 }
 
-THashMap<TString, TString> TPortoProcess::DecomposeEnv() const
+THashMap<std::string, std::string> TPortoProcess::DecomposeEnv() const
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
     for (const auto& env : Env_) {
         TStringBuf name, value;
         TStringBuf(env).TrySplit('=', name, value);
-        result[name] = value;
+        result[std::string(name)] = value;
     }
     return result;
 }

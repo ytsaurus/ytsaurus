@@ -15,7 +15,7 @@ namespace NYT::NTabletBalancer::NDryRun {
 struct TTabletHolder
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, i64> Statistics;
+    THashMap<std::string, i64> Statistics;
     TString PerformanceCounters;
 
     TTabletId TabletId;

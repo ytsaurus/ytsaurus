@@ -2,6 +2,8 @@
 
 #include "serialize.h"
 
+#include <yt/yt/client/chaos_client/chaos_lease.h>
+
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,8 +18,40 @@ bool TChaosLease::IsNormalState() const
     return State_ == EChaosLeaseState::Normal;
 }
 
+NChaosClient::TChaosLeasePtr TChaosLease::ConvertToClientLease() const
+{
+    auto clientLease = New<NChaosClient::TChaosLease>();
+    clientLease->Timeout = GetTimeout();
+    clientLease->CoordinatorCellIds.reserve(Coordinators().size());
+    for (const auto& [cellId, info] : Coordinators()) {
+        if (info.State == EShortcutState::Granted) {
+            clientLease->CoordinatorCellIds.push_back(cellId);
+        }
+    }
+
+    return clientLease;
+}
+
+void TChaosLease::SetState(EChaosLeaseState newState)
+{
+    State_ = newState;
+
+    if (State_ == EChaosLeaseState::RevokingShortcutsForRemoval) {
+        if (!RemovePromise_) {
+            RemovePromise_ = NewPromise<void>();
+        }
+    }
+}
+
+EChaosLeaseState TChaosLease::GetState() const
+{
+    return State_;
+}
+
 void TChaosLease::Save(TSaveContext& context) const
 {
+    TChaosObjectBase::Save(context);
+
     using NYT::Save;
 
     Save(context, RootId_);
@@ -29,6 +63,10 @@ void TChaosLease::Save(TSaveContext& context) const
 
 void TChaosLease::Load(TLoadContext& context)
 {
+    if (context.GetVersion() >= EChaosReign::FixChaosLeasePersist) {
+        TChaosObjectBase::Load(context);
+    }
+
     using NYT::Load;
 
     if (context.GetVersion() >= EChaosReign::IntroduceChaosLeaseManager) {
@@ -38,7 +76,9 @@ void TChaosLease::Load(TLoadContext& context)
     Load(context, ParentId_);
     Load(context, NestedLeaseIds_);
     Load(context, Timeout_);
-    Load(context, State_);
+
+    auto state = Load<EChaosLeaseState>(context);
+    SetState(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

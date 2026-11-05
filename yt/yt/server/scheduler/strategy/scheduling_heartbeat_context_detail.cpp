@@ -31,13 +31,14 @@ TSchedulingHeartbeatContextBase::TSchedulingHeartbeatContextBase(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
+    IInvokerPtr backgroundInvoker,
     const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     const TJobResources& defaultMinSpareAllocationResources)
     : NodeShardId_(nodeShardId)
     , Config_(std::move(config))
     , Node_(std::move(node))
-    , NodeDescriptor_(Node_->BuildExecDescriptor())
+    , NodeDescriptor_(Node_->BuildExecDescriptorWithOffloadedDtor(std::move(backgroundInvoker)))
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
     , DefaultMinSpareAllocationResources_(defaultMinSpareAllocationResources)
@@ -140,8 +141,11 @@ bool TSchedulingHeartbeatContextBase::CanStartAllocation(
             diskRequest.DiskSpaceWithoutMedium.reset();
         }
 
-        i64 totalDiskQuotaDiscount = Discount_.DiscountMediumDiskQuota;
-        diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] = std::max(diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] - totalDiskQuotaDiscount, 0l);
+        auto it = diskRequest.DiskSpacePerMedium.find(*DiscountMediumIndex_);
+        if (it != diskRequest.DiskSpacePerMedium.end()) {
+            i64& diskSpace = it->second;
+            diskSpace = std::max(diskSpace - Discount_.DiscountMediumDiskQuota, i64{0});
+        }
     }
 
     std::vector<TDiskQuota> diskRequests(DiskRequests_);
@@ -277,12 +281,12 @@ TDiskResources TSchedulingHeartbeatContextBase::GetNodeFreeDiskResourcesWithDisc
     return diskResources;
 }
 
-TScheduleAllocationsStatistics TSchedulingHeartbeatContextBase::GetSchedulingStatistics() const
+TScheduleAllocationsStatisticsPtr TSchedulingHeartbeatContextBase::GetSchedulingStatistics() const
 {
     return SchedulingStatistics_;
 }
 
-void TSchedulingHeartbeatContextBase::SetSchedulingStatistics(TScheduleAllocationsStatistics statistics)
+void TSchedulingHeartbeatContextBase::SetSchedulingStatistics(TScheduleAllocationsStatisticsPtr statistics)
 {
     SchedulingStatistics_ = statistics;
 }

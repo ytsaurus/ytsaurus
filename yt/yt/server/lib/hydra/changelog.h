@@ -52,7 +52,21 @@ struct IChangelog
     /*!
      *  Thread affinity: any
      */
-    virtual i64 EstimateChangelogSize(i64 payloadSize) const = 0;
+    virtual i64 EstimateWriteSize(i64 payloadSize) const = 0;
+
+    //! Estimates the number of bytes that will be read when reading the
+    //! specified range of records with the given limits.
+    /*!
+     *  \param firstRecordId The record id to start from.
+     *  \param maxRecords A hint limiting the number of records to read.
+     *  \param maxBytes A hint limiting the number of bytes to read.
+     *
+     *  Thread affinity: any
+     */
+    virtual i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const = 0;
 
     //! Asynchronously appends a record to the changelog.
     /*!

@@ -1,7 +1,5 @@
 #include "storage_system_clique.h"
 
-#include <yt/yt/library/clickhouse_discovery/discovery.h>
-
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
 #include <DataTypes/DataTypeDateTime64.h>

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/logging/tag.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,11 +42,14 @@ struct IPollable
     //! Returns the attached (type-erased) cookie.
     virtual void* GetCookie() const = 0;
 
-    //! Returns a human-readable string used for diagnostic purposes.
-    virtual const std::string& GetLoggingTag() const = 0;
+    //! Returns tags identifying this pollable, used for diagnostic purposes.
+    virtual const NLogging::TLoggingTagList& GetLoggingTags() const = 0;
 
     //! Called by the poller when the appropriate event is triggered for the FD.
     virtual void OnEvent(EPollControl control) = 0;
+
+    //! Signals the pollable that it might need to reacquire invoker.
+    virtual void ResetInvoker() = 0;
 
     //! Called by the poller when the pollable entity is unregistered.
     virtual void OnShutdown() = 0;
@@ -71,10 +76,10 @@ struct IPoller
 
     //! Tries to register a pollable entity but does not arm the poller yet.
     //! Returns |false| if the poller is already shutting down.
-    virtual bool TryRegister(const IPollablePtr& pollable, const std::string poolName = "default") = 0;
+    virtual bool TryRegister(const IPollablePtr& pollable, std::string poolName = "default") = 0;
 
     //! Method must be called inside OnEvent.
-    virtual void SetExecutionPool(const IPollablePtr& pollable, const std::string& poolName) = 0;
+    virtual void SetExecutionPool(const IPollablePtr& pollable, std::string poolName) = 0;
 
     //! Unregisters the previously registered entity.
     /*!
@@ -111,6 +116,12 @@ struct IPoller
 
     //! Returns internal thread pool.
     virtual ITwoLevelFairShareThreadPoolPtr GetFairShareThreadPool() const
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    //! Reconfigures thread pool poller to use provided worker pool or fall back to its own pool if null.
+    virtual void SetWorkerPool(ITwoLevelFairShareThreadPoolPtr /*workerPool*/)
     {
         YT_UNIMPLEMENTED();
     }

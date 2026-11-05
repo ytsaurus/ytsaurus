@@ -20,6 +20,7 @@ const (
 	MethodSelectRows                 Method = "SelectRows"
 	MethodLookupRows                 Method = "LookupRows"
 	MethodMultiLookup                Method = "MultiLookup"
+	MethodGetTableMountInfo          Method = "GetTableMountInfo"
 	MethodModifyRows                 Method = "ModifyRows"
 	MethodDeleteRows                 Method = "DeleteRows"
 	MethodMountTable                 Method = "MountTable"
@@ -62,4 +63,8 @@ const (
 	MethodPushQueueProducer          Method = "PushQueueProducer"
 	MethodCreateQueueProducerSession Method = "CreateQueueProducerSession"
 	MethodRemoveQueueProducerSession Method = "RemoveQueueProducerSession"
+	MethodPullQueueConsumer          Method = "PullQueueConsumer"
+	MethodAdvanceQueueConsumer       Method = "AdvanceQueueConsumer"
+	MethodRegisterQueueConsumer      Method = "RegisterQueueConsumer"
+	MethodUnregisterQueueConsumer    Method = "UnregisterQueueConsumer"
 )

@@ -6,6 +6,10 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -84,10 +88,14 @@ private:
                 auto exitCellTag = node->GetExitCellTag();
                 auto portalExitNodeId = MakePortalExitNodeId(node->GetId(), exitCellTag);
 
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                     multicellManager->GetMasterChannelOrThrow(exitCellTag, NHydra::EPeerKind::Follower));
                 auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetUser(userNameToForward);
 
                 auto req = TYPathProxy::Get(FromObjectId(portalExitNodeId) + "/@" + key.Unintern());
                 batchReq->AddRequest(req);

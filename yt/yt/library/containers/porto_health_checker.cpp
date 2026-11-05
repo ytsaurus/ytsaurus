@@ -33,7 +33,7 @@ TPortoHealthChecker::TPortoHealthChecker(
 
 void TPortoHealthChecker::Start()
 {
-    YT_LOG_DEBUG("Porto health checker started");
+    YT_TLOG_DEBUG("Porto health checker started");
 
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         CheckInvoker_,
@@ -44,17 +44,16 @@ void TPortoHealthChecker::Start()
 
 void TPortoHealthChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
 {
-    YT_LOG_DEBUG(
-        "Porto health checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
-        Config_->EnableTestPortoFailures,
-        Config_->StubErrorCode);
+    YT_TLOG_DEBUG("Porto health checker dynamic config changed")
+        .With("EnableTestPortoFailures", Config_->EnableTestPortoFailures)
+        .With("StubErrorCode", Config_->StubErrorCode);
 
     Executor_->OnDynamicConfigChanged(newConfig);
 }
 
 void TPortoHealthChecker::OnCheck()
 {
-    YT_LOG_DEBUG("Run Porto health check");
+    YT_TLOG_DEBUG("Run Porto health check");
 
     auto result = WaitFor(Executor_->ListVolumePaths().AsVoid());
     if (result.IsOK()) {

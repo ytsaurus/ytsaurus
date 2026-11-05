@@ -555,6 +555,8 @@ PROCESS $sorted($source, AsList("name"), true);
 PROCESS $sorted($source, ListCreate(TypeOf("")), true);
 ```
 
+The same functionality can be achieved using [SubqueryOrderBy](../syntax/subquery.md#subquery-order-by).
+
 Links to documentation:
 
 
@@ -564,5 +566,6 @@ Links to documentation:
 * [Member]({{yql.s-expressions-link}}/functions#member)
 * [Sort]({{yql.s-expressions-link}}/functions#sort)
 {% endif %}
+* [SubqueryOrderBy](../syntax/subquery.md#subquery-order-by)
 * [Lambda functions](../syntax/expressions.md#lambda)
 * [Subquery templates](../syntax/subquery.md)

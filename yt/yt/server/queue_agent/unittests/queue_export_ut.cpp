@@ -30,8 +30,8 @@ TEST_P(TAggregateQueueProgressTest, BasicAggregation)
     progress.MergeWith(TAggregatedQueueExportsProgress::FromQueueExportProrgess(rhs));
 
     auto aggregateProgress = AggregateQueueExports(THashMap{
-        std::pair{TString("lhs"), lhs},
-        std::pair{TString("rhs"), rhs},
+        std::pair{std::string("lhs"), lhs},
+        std::pair{std::string("rhs"), rhs},
     });
     EXPECT_EQ(progress, aggregateProgress);
 

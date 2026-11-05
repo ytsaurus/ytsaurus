@@ -3,6 +3,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Awaitable,
     Dict,
     Iterable,
     Iterator,
@@ -11,6 +12,7 @@ from typing import (
     Mapping,
     NoReturn,
     Optional,
+    Sequence,
     Union,
 )
 
@@ -25,6 +27,7 @@ from redis.typing import (
     PatternT,
     ResponseT,
 )
+from redis.utils import deprecated_function
 
 from .core import (
     ACLCommands,
@@ -36,6 +39,7 @@ from .core import (
     AsyncScriptCommands,
     DataAccessCommands,
     FunctionCommands,
+    HotkeysMetricsTypes,
     ManagementCommands,
     ModuleCommands,
     PubSubCommands,
@@ -755,6 +759,124 @@ class ClusterManagementCommands(ManagementCommands):
         self.read_from_replicas = False
         return self.execute_command("READWRITE", target_nodes=target_nodes)
 
+    @deprecated_function(
+        version="7.2.0",
+        reason="Use client-side caching feature instead.",
+    )
+    def client_tracking_on(
+        self,
+        clientid: Optional[int] = None,
+        prefix: Sequence[KeyT] = [],
+        bcast: bool = False,
+        optin: bool = False,
+        optout: bool = False,
+        noloop: bool = False,
+        target_nodes: Optional["TargetNodesT"] = "all",
+    ) -> ResponseT:
+        """
+        Enables the tracking feature of the Redis server, that is used
+        for server assisted client side caching.
+
+        When clientid is provided - in target_nodes only the node that owns the
+        connection with this id should be provided.
+        When clientid is not provided - target_nodes can be any node.
+
+        For more information see https://redis.io/commands/client-tracking
+        """
+        return self.client_tracking(
+            True,
+            clientid,
+            prefix,
+            bcast,
+            optin,
+            optout,
+            noloop,
+            target_nodes=target_nodes,
+        )
+
+    @deprecated_function(
+        version="7.2.0",
+        reason="Use client-side caching feature instead.",
+    )
+    def client_tracking_off(
+        self,
+        clientid: Optional[int] = None,
+        prefix: Sequence[KeyT] = [],
+        bcast: bool = False,
+        optin: bool = False,
+        optout: bool = False,
+        noloop: bool = False,
+        target_nodes: Optional["TargetNodesT"] = "all",
+    ) -> ResponseT:
+        """
+        Disables the tracking feature of the Redis server, that is used
+        for server assisted client side caching.
+
+        When clientid is provided - in target_nodes only the node that owns the
+        connection with this id should be provided.
+        When clientid is not provided - target_nodes can be any node.
+
+        For more information see https://redis.io/commands/client-tracking
+        """
+        return self.client_tracking(
+            False,
+            clientid,
+            prefix,
+            bcast,
+            optin,
+            optout,
+            noloop,
+            target_nodes=target_nodes,
+        )
+
+    def hotkeys_start(
+        self,
+        metrics: List[HotkeysMetricsTypes],
+        count: Optional[int] = None,
+        duration: Optional[int] = None,
+        sample_ratio: Optional[int] = None,
+        slots: Optional[List[int]] = None,
+        **kwargs,
+    ) -> Union[str, bytes]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-start
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    def hotkeys_stop(self, **kwargs) -> Union[str, bytes]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-stop
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    def hotkeys_reset(self, **kwargs) -> Union[str, bytes]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-reset
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    def hotkeys_get(self, **kwargs) -> list[dict[Union[str, bytes], Any]]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-get
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
 
 class AsyncClusterManagementCommands(
     ClusterManagementCommands, AsyncManagementCommands
@@ -780,6 +902,126 @@ class AsyncClusterManagementCommands(
                 asyncio.create_task(self.execute_command("CLUSTER DELSLOTS", slot))
                 for slot in slots
             )
+        )
+
+    @deprecated_function(
+        version="7.2.0",
+        reason="Use client-side caching feature instead.",
+    )
+    async def client_tracking_on(
+        self,
+        clientid: Optional[int] = None,
+        prefix: Sequence[KeyT] = [],
+        bcast: bool = False,
+        optin: bool = False,
+        optout: bool = False,
+        noloop: bool = False,
+        target_nodes: Optional["TargetNodesT"] = "all",
+    ) -> ResponseT:
+        """
+        Enables the tracking feature of the Redis server, that is used
+        for server assisted client side caching.
+
+        When clientid is provided - in target_nodes only the node that owns the
+        connection with this id should be provided.
+        When clientid is not provided - target_nodes can be any node.
+
+        For more information see https://redis.io/commands/client-tracking
+        """
+        return await self.client_tracking(
+            True,
+            clientid,
+            prefix,
+            bcast,
+            optin,
+            optout,
+            noloop,
+            target_nodes=target_nodes,
+        )
+
+    @deprecated_function(
+        version="7.2.0",
+        reason="Use client-side caching feature instead.",
+    )
+    async def client_tracking_off(
+        self,
+        clientid: Optional[int] = None,
+        prefix: Sequence[KeyT] = [],
+        bcast: bool = False,
+        optin: bool = False,
+        optout: bool = False,
+        noloop: bool = False,
+        target_nodes: Optional["TargetNodesT"] = "all",
+    ) -> ResponseT:
+        """
+        Disables the tracking feature of the Redis server, that is used
+        for server assisted client side caching.
+
+        When clientid is provided - in target_nodes only the node that owns the
+        connection with this id should be provided.
+        When clientid is not provided - target_nodes can be any node.
+
+        For more information see https://redis.io/commands/client-tracking
+        """
+        return await self.client_tracking(
+            False,
+            clientid,
+            prefix,
+            bcast,
+            optin,
+            optout,
+            noloop,
+            target_nodes=target_nodes,
+        )
+
+    async def hotkeys_start(
+        self,
+        metrics: List[HotkeysMetricsTypes],
+        count: Optional[int] = None,
+        duration: Optional[int] = None,
+        sample_ratio: Optional[int] = None,
+        slots: Optional[List[int]] = None,
+        **kwargs,
+    ) -> Awaitable[Union[str, bytes]]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-start
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    async def hotkeys_stop(self, **kwargs) -> Awaitable[Union[str, bytes]]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-stop
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    async def hotkeys_reset(self, **kwargs) -> Awaitable[Union[str, bytes]]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-reset
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
+        )
+
+    async def hotkeys_get(
+        self, **kwargs
+    ) -> Awaitable[list[dict[Union[str, bytes], Any]]]:
+        """
+        Cluster client does not support hotkeys command. Please use the non-cluster client.
+
+        For more information see https://redis.io/commands/hotkeys-get
+        """
+        raise NotImplementedError(
+            "HOTKEYS commands are not supported in cluster mode. Please use the non-cluster client."
         )
 
 

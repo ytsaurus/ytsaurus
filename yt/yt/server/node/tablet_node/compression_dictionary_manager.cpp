@@ -49,15 +49,14 @@ public:
             ->ValueDictionaryCompression->MaxAcceptableCompressionRatio)
         , ElectRandomPolicy_(tabletSnapshot->Settings.MountConfig
             ->ValueDictionaryCompression->ElectRandomPolicy)
-        , Logger(TabletNodeLogger().WithTag("%v",
-            tabletSnapshot->LoggingTag))
+        , Logger(TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags))
         , RowDictionaryCompressors_(std::move(rowDictionaryCompressors))
     {
         if (presetPolicy) {
             ElectedPolicy_ = presetPolicy;
-            YT_LOG_DEBUG("Dictionary compression session elected policy is predefined (Policy: %v, ChunkId: %v)",
-                ElectedPolicy_,
-                RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId);
+            YT_TLOG_DEBUG("Dictionary compression session elected policy is predefined")
+                .With("Policy", ElectedPolicy_)
+                .With("ChunkId", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId);
         }
     }
 
@@ -131,14 +130,19 @@ public:
             TMutableRef decompressedValue(output, value.Length);
             columnDecompressor->Decompress(compressedValue, decompressedValue);
             if (!TRef::AreBitwiseEqual(initialValue, decompressedValue)) {
-                auto error = TError("Value decompression double-check failed")
-                    << TErrorAttribute("policy", *ElectedPolicy_)
-                    << TErrorAttribute("dictonary_id", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
-                    << TErrorAttribute("value_id", value.Id)
-                    << TErrorAttribute("row", ToString(*row))
-                    << TErrorAttribute("value", ToString(value));
-                YT_LOG_ALERT(error);
-                THROW_ERROR(error);
+                static constexpr auto Message = "Value decompression double-check failed"_sb;
+                YT_TLOG_ALERT(Message)
+                    .With("Policy", *ElectedPolicy_)
+                    .With("DictionaryId", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
+                    .With("ValueId", value.Id)
+                    .With("Row", ToString(*row))
+                    .With("Value", ToString(value));
+                THROW_ERROR_EXCEPTION(Message)
+                    .With("policy", *ElectedPolicy_)
+                    .With("dictonary_id", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
+                    .With("value_id", value.Id)
+                    .With("row", ToString(*row))
+                    .With("value", ToString(value));
             }
             pool->Free(output, output + value.Length);
 
@@ -213,15 +217,13 @@ private:
             ElectedPolicy_ = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()[randomIndex];
         }
 
-        YT_LOG_DEBUG("Dictionary compression session elected best policy "
-            "(Policy: %v, ChunkId: %v, ProcessedSampleCount: %v, ProcessedSamplesSize: %v, "
-            "PolicyToCompressedSize: %v, ElectRandomPolicy: %v)",
-            ElectedPolicy_,
-            RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId,
-            ProcessedSampleCount_,
-            ProcessedSamplesSize_,
-            policyToCompressedSize,
-            ElectRandomPolicy_);
+        YT_TLOG_DEBUG("Dictionary compression session elected best policy")
+            .With("Policy", ElectedPolicy_)
+            .With("ChunkId", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
+            .With("ProcessedSampleCount", ProcessedSampleCount_)
+            .With("ProcessedSamplesSize", ProcessedSamplesSize_)
+            .With("PolicyToCompressedSize", policyToCompressedSize)
+            .With("ElectRandomPolicy", ElectRandomPolicy_);
     }
 
     bool IsValueCompressable(const TVersionedValue& value) const
@@ -326,8 +328,7 @@ public:
         return NTableClient::CreateDictionaryDecompressionSession(
             MakeWeak(this),
             tabletSnapshot->Settings.HunkReaderConfig,
-            TabletNodeLogger().WithTag("%v",
-                tabletSnapshot->LoggingTag));
+            TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags));
     }
 
     TFuture<THashMap<TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
@@ -386,6 +387,14 @@ void FormatValue(TStringBuilderBase* builder, const TCompressionDictionaryCacheK
         key.ChunkId,
         key.IsDecompression ? "Decompression" : "Compression",
         key.SchemaId);
+}
+
+NLogging::TLoggingTagList MakeCompressionDictionaryCacheKeyTags(const TCompressionDictionaryCacheKey& key)
+{
+    return NLogging::TLoggingTagList()
+        .With("ChunkId", key.ChunkId)
+        .With("Mode", key.IsDecompression ? "Decompression" : "Compression")
+        .With("SchemaId", key.SchemaId);
 }
 
 void Serialize(const TCompressionDictionaryCacheKey& key, NYT::NYson::IYsonConsumer* consumer)
@@ -661,8 +670,7 @@ private:
         TCookie cookie,
         EDictionaryCompressionPolicy policy)
     {
-        auto Logger = TabletNodeLogger().WithTag("%v",
-            tabletSnapshot->LoggingTag);
+        auto Logger = TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags);
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
@@ -690,9 +698,11 @@ private:
                 [=, cookie = std::move(cookie)] (TErrorOr<TRowDigestedDictionary>&& digestedDictionaryOrError) mutable
             {
                 if (!digestedDictionaryOrError.IsOK()) {
-                    auto error = TError("Compression dictionary manager failed to read digested dictionary")
-                        << digestedDictionaryOrError;
-                    YT_LOG_DEBUG(error);
+                    static constexpr auto Message = "Compression dictionary manager failed to read digested dictionary"_sb;
+                    YT_TLOG_DEBUG(Message)
+                        .With(digestedDictionaryOrError);
+                    auto error = TError(Message)
+                        .With(digestedDictionaryOrError);
                     cookie.Cancel(error);
                     return;
                 };
@@ -702,11 +712,10 @@ private:
                     std::move(digestedDictionaryOrError.Value()),
                     policy);
 
-                YT_LOG_DEBUG("Compression dictionary manager successfully read digested dictionary "
-                    "(%v, MemoryUsage: %v, EffectiveMemoryUsage: %v)",
-                    cookie.GetKey(),
-                    entry->GetMemoryUsage(),
-                    entry->GetEffectiveMemoryUsage());
+                YT_TLOG_DEBUG("Compression dictionary manager successfully read digested dictionary")
+                    .With(MakeCompressionDictionaryCacheKeyTags(cookie.GetKey()))
+                    .With("MemoryUsage", entry->GetMemoryUsage())
+                    .With("EffectiveMemoryUsage", entry->GetEffectiveMemoryUsage());
 
                 cookie.EndInsert(std::move(entry));
             }));

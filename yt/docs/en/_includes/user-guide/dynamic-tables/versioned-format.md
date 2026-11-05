@@ -23,6 +23,9 @@ yt.select_rows("* from [//path/to/table]", with_timestamps=True)
 
 # Read select columns and timestamps.
 yt.select_rows("col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]", with_timestamps=True)
+
+# From CLI.
+yt select-rows 'col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]' --params '{versioned_read_options = {read_mode = latest_timestamp}}' --format='<format=text>yson'
 ```
 
 ## Versioned map-reduce
@@ -33,7 +36,7 @@ To read timestamp columns in map-reduce operations, add the following attribute 
 
 ### Writing
 
-To write data in map-reduce operations in versioned format, add the following attribute to [rich YPath](../../../user-guide/storage/ypath#rich_ypath) of the output table: `<versioned_write_options = {read_mode = latest_timestamp}>`. Timestamp will be written for all columns where it is specified. For columns without a specified timestamp, the commit timestamp of the bulk insert transaction will be written instead.
+To write data in map-reduce operations in versioned format, add the following attribute to [rich YPath](../../../user-guide/storage/ypath#rich_ypath) of the output table: `<versioned_write_options = {write_mode = latest_timestamp}>`. Timestamp will be written for all columns where it is specified. For columns without a specified timestamp, the commit timestamp of the bulk insert transaction will be written instead.
 
 {% note warning "Attention" %}
 

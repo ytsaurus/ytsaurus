@@ -238,7 +238,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
         request, callback, timeout_handle = self.waiting[key]
         self.queue.remove((key, request, callback))
 
-        error_message = "Timeout {0}".format(info) if info else "Timeout"
+        error_message = f"Timeout {info}" if info else "Timeout"
         timeout_response = HTTPResponse(
             request,
             599,
@@ -250,9 +250,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
 
 
 class _HTTPConnection(httputil.HTTPMessageDelegate):
-    _SUPPORTED_METHODS = set(
-        ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-    )
+    _SUPPORTED_METHODS = {"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}
 
     def __init__(
         self,
@@ -401,7 +399,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             if self.request.user_agent:
                 self.request.headers["User-Agent"] = self.request.user_agent
             elif self.request.headers.get("User-Agent") is None:
-                self.request.headers["User-Agent"] = "Tornado/{}".format(version)
+                self.request.headers["User-Agent"] = f"Tornado/{version}"
             if not self.request.allow_nonstandard_methods:
                 # Some HTTP methods nearly always have bodies while others
                 # almost never do. Fail in this case unless the user has
@@ -487,7 +485,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
         :info string key: More detailed timeout information.
         """
         self._timeout = None
-        error_message = "Timeout {0}".format(info) if info else "Timeout"
+        error_message = f"Timeout {info}" if info else "Timeout"
         if self.final_callback is not None:
             self._handle_exception(
                 HTTPTimeoutError, HTTPTimeoutError(error_message), None
@@ -607,7 +605,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             # Reassemble the start line.
             self.request.header_callback("%s %s %s\r\n" % first_line)
             for k, v in self.headers.get_all():
-                self.request.header_callback("%s: %s\r\n" % (k, v))
+                self.request.header_callback(f"{k}: {v}\r\n")
             self.request.header_callback("\r\n")
 
     def _should_follow_redirect(self) -> bool:
@@ -633,6 +631,42 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             new_request.url = urllib.parse.urljoin(
                 self.request.url, self.headers["Location"]
             )
+            new_request.headers = self.request.headers.copy()
+            parsed_orig_url = urllib.parse.urlsplit(original_request.url)
+            parsed_new_url = urllib.parse.urlsplit(new_request.url)
+            if (
+                parsed_orig_url.scheme != parsed_new_url.scheme
+                or parsed_orig_url.netloc != parsed_new_url.netloc
+            ):
+                # Cross-origin redirect: strip auth headers.
+                # Note that while there is no formal specification of headers that should be
+                # stripped here, libcurl strips the Authorization and Cookie headers, so we
+                # do the same.
+                # Reference:
+                # https://github.com/curl/curl/blob/01d8191b25a05e8fa91553a6c0d48acb99907d26/lib/http.c#L1827-L1828
+                #
+                # Note that checking for cross-origin redirects is a crude heuristic. It is both
+                # too weak (e.g. cookies that have a path attribute may need to be stripped even on
+                # same-origin redirects) and too strong (e.g. cookies may be kept on cross-host
+                # redirects within the same domain). However, we cannot know the full details of
+                # the cookie policy at this layer, so we use the same heuristic as libcurl.
+                # Applications that need more control over behavior on redirects can set
+                # follow_redirects=False and handle 3xx responses themselves.
+                new_request.auth_username = None
+                new_request.auth_password = None
+                if "@" in parsed_new_url.netloc:
+                    if parsed_new_url.port is not None:
+                        new_netloc = f"{parsed_new_url.hostname}:{parsed_new_url.port}"
+                    else:
+                        assert parsed_new_url.hostname is not None
+                        new_netloc = parsed_new_url.hostname
+                    parsed_new_url = parsed_new_url._replace(netloc=new_netloc)
+                new_request.url = urllib.parse.urlunsplit(parsed_new_url)
+                for h in ["Authorization", "Cookie"]:
+                    try:
+                        del new_request.headers[h]
+                    except KeyError:
+                        pass
             assert self.request.max_redirects is not None
             new_request.max_redirects = self.request.max_redirects - 1
             del new_request.headers["Host"]
@@ -657,7 +691,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
                     "Transfer-Encoding",
                 ]:
                     try:
-                        del self.request.headers[h]
+                        del new_request.headers[h]
                     except KeyError:
                         pass
             new_request.original_request = original_request  # type: ignore

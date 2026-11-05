@@ -93,19 +93,17 @@ private:
         const auto& name = request->name();
         auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Name: %v, IgnoreExisting: %v",
-            name,
-            ignoreExisting);
+        context->AnnotateRequest()
+            .With("Name", name)
+            .With("IgnoreExisting", ignoreExisting);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
         if (member->IsUser()) {
-            YT_LOG_ALERT_IF(
-                member->AsUser()->GetPendingRemoval(),
-                "User pending for removal joined group (User: %v, Group: %v)",
-                member->GetName(),
-                group->GetName());
+            YT_TLOG_ALERT_IF(member->AsUser()->GetPendingRemoval(), "User pending for removal joined group")
+                .With("User", member->GetName())
+                .With("Group", group->GetName());
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -127,9 +125,9 @@ private:
         const auto& name = request->name();
         bool ignoreMissing = request->ignore_missing();
 
-        context->SetRequestInfo("Name: %v, IgnoreMissing: %v",
-            name,
-            ignoreMissing);
+        context->AnnotateRequest()
+            .With("Name", name)
+            .With("IgnoreMissing", ignoreMissing);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();

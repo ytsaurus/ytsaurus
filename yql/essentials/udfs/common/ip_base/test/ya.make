@@ -1,9 +1,11 @@
-YQL_UDF_TEST()
+YQL_UDF_MINITEST()
 
 TIMEOUT(300)
 
 SIZE(MEDIUM)
 
-DEPENDS(yql/essentials/udfs/common/ip_base)
+DEPENDS(
+    yql/essentials/udfs/common/ip_base/impl
+)
 
 END()

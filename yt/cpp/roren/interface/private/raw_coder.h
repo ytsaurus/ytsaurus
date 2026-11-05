@@ -1,10 +1,10 @@
 #pragma once
 
 #include "fwd.h"
-
 #include "serializable.h"
-#include "../key_value.h"
-#include "../noncodable.h"
+
+#include <yt/cpp/roren/interface/key_value.h>
+#include <yt/cpp/roren/interface/noncodable.h>
 
 #include <library/cpp/yt/memory/new.h>
 

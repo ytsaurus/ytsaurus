@@ -2,7 +2,6 @@
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_async_compute_actor.h>
 
 #include <contrib/ydb/library/yql/providers/dq/api/protos/service.pb.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_proxy.h>
 
 #include <util/generic/size_literals.h>
 
@@ -37,7 +36,6 @@ IActor* CreateComputeActor(
     memoryLimits.MinMemFreeSize = options.MkqlMinAllocSize;
 
     auto computeRuntimeSettings = NDq::TComputeRuntimeSettings();
-    computeRuntimeSettings.ExtraMemoryAllocationPool = 3;
     computeRuntimeSettings.FailOnUndelivery = false;
     computeRuntimeSettings.StatsMode = (statsMode != NDqProto::DQ_STATS_MODE_UNSPECIFIED) ? statsMode : NDqProto::DQ_STATS_MODE_FULL;
     computeRuntimeSettings.AsyncInputPushLimit = 64_MB;

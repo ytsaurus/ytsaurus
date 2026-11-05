@@ -102,7 +102,7 @@ struct IIOEngineWorkloadModel
 DEFINE_REFCOUNTED_TYPE(IIOEngineWorkloadModel)
 
 IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
-    TString locationId,
+    std::string locationId,
     IIOEnginePtr underlying,
     NLogging::TLogger logger);
 

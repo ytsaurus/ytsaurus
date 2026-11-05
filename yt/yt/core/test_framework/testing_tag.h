@@ -4,8 +4,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This tag is passed to constructors that are used
-//! for testing purposes
+//! This tag is passed to APIs that are only used for testing purposes.
 struct TTestingTag
 { };
 

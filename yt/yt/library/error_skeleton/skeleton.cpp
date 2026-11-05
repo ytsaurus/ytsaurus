@@ -1,8 +1,8 @@
 #include "skeleton.h"
 
-#include <yt/yt/core/misc/string_builder.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
@@ -14,21 +14,22 @@ using namespace re2;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const RE2, GuidPattern, "[0-9a-f]+-[0-9a-f]+-[0-9a-f]+-[0-9a-f]+");
-YT_DEFINE_GLOBAL(const RE2, PathPattern, "//[^ ]*");
-YT_DEFINE_GLOBAL(const RE2, AddressPattern, "[a-z0-9-.]+.yp-c.yandex.net:[0-9]+");
-YT_DEFINE_GLOBAL(const RE2, SemicolonPattern, ";");
-YT_DEFINE_GLOBAL(const RE2, KeyPattern, "([Kk]ey) \"[\\w-]+\"");
-YT_DEFINE_GLOBAL(const RE2, TimestampPattern, "([Tt]imestamp) [[:xdigit:]]+");
-YT_DEFINE_GLOBAL(const RE2, AccountPattern, "([Aa]ccount) \"[\\w-]+\"");
-YT_DEFINE_GLOBAL(const RE2, AttributePattern, "([Aa]ttribute) \"[\\w-]+\"");
-YT_DEFINE_GLOBAL(const RE2, ReferencePattern, "([Rr]eference) \"[\\w-.]+\"");
-YT_DEFINE_GLOBAL(const RE2, ColumnPattern, "([Cc]olumn) \"[\\w-.]+\"");
-YT_DEFINE_GLOBAL(const RE2, UserPattern, "([Uu]ser) \"[\\w-.]+\"");
-YT_DEFINE_GLOBAL(const RE2, HexPattern, "[[:xdigit:]]{8,}");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, GuidPattern, "[0-9a-f]+-[0-9a-f]+-[0-9a-f]+-[0-9a-f]+");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, PathPattern, "//[^ ]*");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, AddressPattern, "[a-z0-9-.]+.yp-c.yandex.net:[0-9]+");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, SemicolonPattern, ";");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, KeyPattern, "([Kk]ey) \"[\\w-]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, TimestampPattern, "([Tt]imestamp) [[:xdigit:]]+");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, AccountPattern, "([Aa]ccount) \"[\\w-]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, AttributePattern, "([Aa]ttribute) \"[\\w-]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, ReferencePattern, "([Rr]eference) \"[\\w-.]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, ColumnPattern, "([Cc]olumn) \"[\\w-.]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, UserPattern, "([Uu]ser) \"[\\w-.]+\"");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, EraMismatchPattern, "([Ee]ra mismatch: expected) [0-9]+, got [0-9]+");
+YT_DEFINE_LEAKY_GLOBAL(const RE2, HexPattern, "[[:xdigit:]]{8,}");
 
 using TReplacements = std::vector<std::pair<const RE2*, std::string>>;
-YT_DEFINE_GLOBAL(const TReplacements, Replacements, {
+YT_DEFINE_LEAKY_GLOBAL(const TReplacements, Replacements, {
     {&GuidPattern(), "<guid>"},
     {&PathPattern(), "<path>"},
     {&AddressPattern(), "<address>"},
@@ -40,6 +41,7 @@ YT_DEFINE_GLOBAL(const TReplacements, Replacements, {
     {&ReferencePattern(), "\\1 <reference>"},
     {&ColumnPattern(), "\\1 <column>"},
     {&UserPattern(), "\\1 <user>"},
+    {&EraMismatchPattern(), "\\1 <era>, got <era>"},
     {&HexPattern(), "<hex>"},
 });
 

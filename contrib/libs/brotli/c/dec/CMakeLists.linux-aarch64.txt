@@ -18,7 +18,6 @@ add_library(brotli-c-dec)
 
 
 target_compile_options(brotli-c-dec PRIVATE
-  -DBROTLI_HAVE_LOG2=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -35,7 +34,9 @@ target_sources(brotli-c-dec PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/bit_reader.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/decode.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/huffman.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/prefix.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/state.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/static_init.c
 )
 
 
@@ -65,7 +66,23 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/prefix.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/state.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/static_init.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

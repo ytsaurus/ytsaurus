@@ -11,8 +11,8 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type Retrier struct {
@@ -26,16 +26,16 @@ type ReadRetryParams interface {
 	ReadRetryOptions() **yt.ReadRetryOptions
 }
 
-const (
-	CodeBalancerServiceUnavailable = 1000000
-)
-
-func isNetError(err error) bool {
-	var netErr net.Error
-	return errors.As(err, &netErr)
+func hasMutationID(params Params) bool {
+	mutating, ok := params.(MutatingParams)
+	return ok && *mutating.MutatingOptions() != nil
 }
 
 func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool {
+	if retry.IsProxyBannedError(err) {
+		return !hasStickyProxy
+	}
+
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" {
 		var lookupErr *net.DNSError
@@ -54,57 +54,30 @@ func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool 
 		return true
 	}
 
-	if isRead && isNetError(err) && !hasStickyProxy {
-		return true
+	if isRead && !hasStickyProxy {
+		return retry.IsRetriableError(err)
 	}
 
-	if yterrors.ContainsErrorCode(err, CodeBalancerServiceUnavailable) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodeRetriableArchiveError) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodeRequestQueueSizeLimitExceeded) ||
-		yterrors.ContainsErrorCode(err, yterrors.CodeRPCRequestQueueSizeLimitExceeded) {
-		return true
-	}
-
-	if isProxyBannedError(err) && !hasStickyProxy {
-		return true
-	}
-
-	return false
-}
-
-func isProxyBannedError(err error) bool {
-	// COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
-	if yterrors.ContainsErrorCode(err, yterrors.CodeProxyBanned) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodePeerBanned) {
-		return true
-	}
-
-	return false
+	return retry.IsRetriableHTTPResponseError(err)
 }
 
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	var cancel func()
-	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 && !call.Params.HTTPVerb().IsHeavy() {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
 	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
 		res, err = invoke(ctx, call)
 		if err == nil || call.DisableRetries {
+			return
+		}
+
+		if hasMutationID(call.Params) {
 			return
 		}
 
@@ -135,12 +108,15 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker)
 
 func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	var cancel func()
-	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 && !call.Params.HTTPVerb().IsHeavy() {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
 	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
 		res, err = invoke(ctx, call)
 		if err == nil || call.DisableRetries {
 			return
@@ -172,6 +148,9 @@ func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvo
 
 func (r *Retrier) Read(ctx context.Context, call *Call, invoke ReadInvoker) (rc io.ReadCloser, err error) {
 	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
 		rc, err = invoke(ctx, call)
 		if err == nil || call.DisableRetries {
 			return
@@ -203,6 +182,9 @@ func (r *Retrier) Read(ctx context.Context, call *Call, invoke ReadInvoker) (rc 
 
 func (r *Retrier) Write(ctx context.Context, call *Call, invoke WriteInvoker) (w io.WriteCloser, err error) {
 	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
 		w, err = invoke(ctx, call)
 		if err == nil || call.DisableRetries {
 			return

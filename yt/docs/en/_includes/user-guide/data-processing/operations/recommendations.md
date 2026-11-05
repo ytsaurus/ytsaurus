@@ -60,7 +60,7 @@ The right thing to do in this case is to sort the table and then run Reduce with
 
 ## Large number of records with identical keys during reduce phase
 
-To solve this problem, {{product-name}} has [Reduce combiners](../../../../user-guide/data-processing/operations/mapreduce#reduce_combiner.md) that help process large keys in several jobs in the reduce phase.
+To solve this problem, {{product-name}} has [Reduce combiners](../../../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner) that help process large keys in several jobs in the reduce phase.
 
 ### Map combiners
 

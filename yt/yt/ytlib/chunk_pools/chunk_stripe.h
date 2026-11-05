@@ -15,10 +15,10 @@ class TChunkStripe
     : public TRefCounted
 {
 public:
-    using TDataSlices = TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1>;
+    using TDataSlices = TCompactVector<NChunkClient::TDataSlicePtr, 1>;
 
     explicit TChunkStripe(bool foreign = false);
-    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice);
+    explicit TChunkStripe(NChunkClient::TDataSlicePtr dataSlice);
 
     DEFINE_BYREF_RW_PROPERTY(TDataSlices, DataSlices);
 
@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 struct TPersistentChunkStripeStatistics
     : public NTableClient::TChunkStripeStatistics
 {
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TPersistentChunkStripeStatistics, 0xb4c5d6e7);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

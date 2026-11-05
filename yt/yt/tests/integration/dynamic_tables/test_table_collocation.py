@@ -14,7 +14,6 @@ from yt.test_helpers import assert_items_equal
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -41,7 +40,6 @@ class TestReplicatedTablesCollocationBase(DynamicTablesBase):
         return create_dynamic_table(path, **attributes)
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
     ENABLE_MULTIDAEMON = True
 
@@ -52,39 +50,39 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         sync_create_cells(1)
         id0 = self._create_replicated_table("//tmp/t0", external_cell_tag=11)
 
-        with raises_yt_error("non-empty"):
+        with raises_yt_error("Collocated table set must be non-empty"):
             create_table_collocation(table_ids=[])
-        with raises_yt_error("Cannot specify both"):
+        with raises_yt_error("Cannot specify"):
             create_table_collocation(table_ids=[], table_paths=[])
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             create_table_collocation(table_paths=["//tmp/no_such_table"])
-        with raises_yt_error("Duplicate table"):
+        with raises_yt_error("Duplicate table .*"):
             create_table_collocation(table_ids=[id0, id0])
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             corrupted_id = list(id0)
             corrupted_id[0] = '2'
             corrupted_id = "".join(corrupted_id)
             create_table_collocation(table_ids=[id0, corrupted_id])
 
         doc_id = create("document", "//tmp/d")
-        with raises_yt_error("is expected to be a table"):
+        with raises_yt_error("Object .* is expected to be a table, actual type is .*"):
             create_table_collocation(table_ids=[id0, doc_id])
-        with raises_yt_error("is expected to be a table"):
+        with raises_yt_error("Object .* is expected to be a table, actual type is .*"):
             create_table_collocation(table_paths=["//tmp/d"])
 
         table_id = self._create_sorted_table("//tmp/simple")
-        with raises_yt_error("Unexpected type of table"):
+        with raises_yt_error("Unexpected type of table .*"):
             create_table_collocation(table_ids=[id0, table_id])
 
         id1 = self._create_replicated_table("//tmp/t1", external_cell_tag=11)
 
         create_table_collocation(table_ids=[id0])
-        with raises_yt_error("already belongs to replication collocation"):
+        with raises_yt_error("Table .* already belongs to replication collocation"):
             create_table_collocation(table_ids=[id0, id1])
         other_collocation_id = create_table_collocation(table_ids=[id1])
-        with raises_yt_error("already belongs to replication collocation"):
+        with raises_yt_error("Table .* already belongs to replication collocation"):
             set("#{}/@replication_collocation_id".format(id0), other_collocation_id)
-        with raises_yt_error("cannot be set"):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("#{}/@replication_collocation_id".format(table_id), other_collocation_id)
         remove("#{}/@replication_collocation_id".format(id0))
 
@@ -203,7 +201,6 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -243,7 +240,6 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -268,17 +264,17 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
             id0 = self._create_replicated_table("//sys/t", external_cell_tag=external_cell_tag)
             id1 = self._create_replicated_table("//tmp/t", external_cell_tag=external_cell_tag)
 
-        with raises_yt_error("No such object"):
+        with raises_yt_error("No such object .*"):
             create_table_collocation(table_paths=["//sys/t", "//tmp/t"])
-        with raises_yt_error("No such object"):
+        with raises_yt_error("No such object .*"):
             create_table_collocation(table_ids=[id0, id1])
-        with raises_yt_error("No such object"):
+        with raises_yt_error("No such object .*"):
             create_table_collocation(table_paths=["//tmp/t"])
-        with raises_yt_error("No such object"):
+        with raises_yt_error("No such object .*"):
             create_table_collocation(table_ids=[id1])
 
         collocation_id = create_table_collocation(table_paths=["//sys/t"])
-        with raises_yt_error("Unexpected native cell tag"):
+        with raises_yt_error("Unexpected native cell tag for table .*"):
             set("//tmp/t/@replication_collocation_id", collocation_id)
 
         remove("//sys/t")

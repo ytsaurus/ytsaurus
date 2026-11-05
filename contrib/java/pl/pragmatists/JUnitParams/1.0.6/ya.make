@@ -9,6 +9,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(212914830)
+
 SRC_RESOURCE(212914589)
+
+ORIGINAL_SOURCE(https://github.com/Pragmatists/JUnitParams)
 
 END()

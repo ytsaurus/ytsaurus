@@ -37,11 +37,11 @@ TBlobTableWriter::TBlobTableWriter(
     IThroughputThrottlerPtr throttler,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
-    , Logger(TableClientLogger().WithTag("TransactionId: %v, ChunkListId: %v",
-        transactionId,
-        chunkListId))
+    , Logger(TableClientLogger()
+        .WithTag("TransactionId", transactionId)
+        .WithTag("ChunkListId", chunkListId))
 {
-    YT_LOG_INFO("Creating blob writer");
+    YT_TLOG_INFO("Creating blob writer");
 
     Buffer_.Reserve(PartSize_);
 
@@ -131,7 +131,8 @@ void TBlobTableWriter::DoFlush()
         auto error = WaitFor(MultiChunkWriter_->GetReadyEvent());
         if (!error.IsOK()) {
             Failed_ = true;
-            YT_LOG_WARNING(error, "Blob table writer failed");
+            YT_TLOG_WARNING("Blob table writer failed")
+                .With(error);
             error.ThrowOnError();
         }
     }
@@ -150,11 +151,12 @@ void TBlobTableWriter::DoFinish()
     auto error = WaitFor(MultiChunkWriter_->Close());
     if (!error.IsOK()) {
         Failed_ = true;
-        YT_LOG_WARNING(error, "Blob table writer failed");
+        YT_TLOG_WARNING("Blob table writer failed")
+            .With(error);
         error.ThrowOnError();
     }
 
-    YT_LOG_DEBUG("Blob table writer finished");
+    YT_TLOG_DEBUG("Blob table writer finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

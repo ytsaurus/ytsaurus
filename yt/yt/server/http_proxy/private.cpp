@@ -34,6 +34,7 @@ inline const auto HttpStructuredProxyLoggerSchema = New<TTableSchema>(std::vecto
     TColumnSchema("start_time", ESimpleLogicalValueType::String).SetRequired(true),
     TColumnSchema("in_bytes", ESimpleLogicalValueType::Int64).SetRequired(true),
     TColumnSchema("out_bytes", ESimpleLogicalValueType::Int64).SetRequired(true),
+    TColumnSchema("debug_info", ESimpleLogicalValueType::Any).SetRequired(false),
 });
 
 const auto HttpStructuredProxyLogger = NLogging::CreateSchemafulLogger("HttpStructuredProxy", HttpStructuredProxyLoggerSchema);

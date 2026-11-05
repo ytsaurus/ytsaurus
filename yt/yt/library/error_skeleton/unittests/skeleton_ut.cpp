@@ -10,12 +10,12 @@ TEST(TSkeletonTest, TestSimple)
 {
     auto error =
         TError(TErrorCode(1), "foo")
-            << TError(TErrorCode(2), "bar")
-            << TError(TErrorCode(3), "baz")
-            << TError(TErrorCode(2), "bar")
-            << (TError(TErrorCode(4), "qux")
-                << TError(TErrorCode(5), "quux"))
-            << TError(TErrorCode(3), "baz");
+            .With(TError(TErrorCode(2), "bar"))
+            .With(TError(TErrorCode(3), "baz"))
+            .With(TError(TErrorCode(2), "bar"))
+            .With(TError(TErrorCode(4), "qux")
+                .With(TError(TErrorCode(5), "quux")))
+            .With(TError(TErrorCode(3), "baz"));
 
     TStringBuf expectedSkeleton = "#1: foo @ [#2: bar; #3: baz; #4: qux @ [#5: quux]]";
     EXPECT_EQ(
@@ -71,6 +71,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{
             "Access denied for user \"robot-yt\"",
             "Access denied for user <user>",
+        },
+        std::tuple{
+            "Replication era mismatch: expected 1201, got 1300",
+            "Replication era mismatch: expected <era>, got <era>",
         }
     )
 );

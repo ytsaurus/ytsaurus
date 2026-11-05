@@ -12,9 +12,9 @@
 #define LIBDIVIDE_H
 
 // *** Version numbers are auto generated - do not edit ***
-#define LIBDIVIDE_VERSION "5.3.0"
+#define LIBDIVIDE_VERSION "5.4.0"
 #define LIBDIVIDE_VERSION_MAJOR 5
-#define LIBDIVIDE_VERSION_MINOR 3
+#define LIBDIVIDE_VERSION_MINOR 4
 #define LIBDIVIDE_VERSION_PATCH 0
 
 #include <stdint.h>
@@ -42,6 +42,14 @@
 
 #if defined(LIBDIVIDE_NEON)
 #include <arm_neon.h>
+#endif
+
+#if defined(LIBDIVIDE_SVE2) && !defined(LIBDIVIDE_SVE)
+#define LIBDIVIDE_SVE
+#endif
+
+#if defined(LIBDIVIDE_SVE)
+#include <arm_sve.h>
 #endif
 
 // Clang-cl prior to Visual Studio 2022 doesn't include __umulh/__mulh intrinsics
@@ -561,8 +569,15 @@ static LIBDIVIDE_INLINE uint64_t libdivide_128_div_64_to_64(
     uint32_t q1;
     uint32_t q0;
 
+    // The whole quotient (i.e. q1 * b + q0).
+    uint64_t q;
+
     // The normalization shift factor.
     int shift;
+
+    // Original values used for the remainder computation (before normalizing).
+    uint64_t den10 = den;
+    uint64_t num10 = numlo;
 
     // The high and low digits of our denominator (after normalizing).
     // Also the low 2 digits of our numerator (after normalizing).
@@ -629,9 +644,11 @@ static LIBDIVIDE_INLINE uint64_t libdivide_128_div_64_to_64(
     if (c1 > c2) qhat -= (c1 - c2 > den) ? 2 : 1;
     q0 = (uint32_t)qhat;
 
+    q = ((uint64_t)q1 << 32) | q0;
+
     // Return remainder if requested.
-    if (r) *r = (rem * b + num0 - q0 * den) >> shift;
-    return ((uint64_t)q1 << 32) | q0;
+    if (r) *r = num10 - q * den10;
+    return q;
 #endif
 }
 
@@ -2083,6 +2100,352 @@ int64x2_t libdivide_s64_branchfree_do_vec128(
 
 #endif
 
+#if defined(LIBDIVIDE_SVE)
+
+static LIBDIVIDE_INLINE svuint16_t libdivide_u16_do_sve(
+    svuint16_t numers, const struct libdivide_u16_t *denom);
+static LIBDIVIDE_INLINE svint16_t libdivide_s16_do_sve(
+    svint16_t numers, const struct libdivide_s16_t *denom);
+static LIBDIVIDE_INLINE svuint32_t libdivide_u32_do_sve(
+    svuint32_t numers, const struct libdivide_u32_t *denom);
+static LIBDIVIDE_INLINE svint32_t libdivide_s32_do_sve(
+    svint32_t numers, const struct libdivide_s32_t *denom);
+static LIBDIVIDE_INLINE svuint64_t libdivide_u64_do_sve(
+    svuint64_t numers, const struct libdivide_u64_t *denom);
+static LIBDIVIDE_INLINE svint64_t libdivide_s64_do_sve(
+    svint64_t numers, const struct libdivide_s64_t *denom);
+
+static LIBDIVIDE_INLINE svuint16_t libdivide_u16_branchfree_do_sve(
+    svuint16_t numers, const struct libdivide_u16_branchfree_t *denom);
+static LIBDIVIDE_INLINE svint16_t libdivide_s16_branchfree_do_sve(
+    svint16_t numers, const struct libdivide_s16_branchfree_t *denom);
+static LIBDIVIDE_INLINE svuint32_t libdivide_u32_branchfree_do_sve(
+    svuint32_t numers, const struct libdivide_u32_branchfree_t *denom);
+static LIBDIVIDE_INLINE svint32_t libdivide_s32_branchfree_do_sve(
+    svint32_t numers, const struct libdivide_s32_branchfree_t *denom);
+static LIBDIVIDE_INLINE svuint64_t libdivide_u64_branchfree_do_sve(
+    svuint64_t numers, const struct libdivide_u64_branchfree_t *denom);
+static LIBDIVIDE_INLINE svint64_t libdivide_s64_branchfree_do_sve(
+    svint64_t numers, const struct libdivide_s64_branchfree_t *denom);
+
+//////// Internal Utility Functions
+
+// logical shift right
+static LIBDIVIDE_INLINE svuint16_t libdivide_u16_sve_srl(svuint16_t v, uint8_t amt) {
+    return svlsr_wide_u16_x(svptrue_b16(), v, svdup_n_u64(amt));
+}
+
+static LIBDIVIDE_INLINE svuint32_t libdivide_u32_sve_srl(svuint32_t v, uint8_t amt) {
+    return svlsr_wide_u32_x(svptrue_b32(), v, svdup_n_u64(amt));
+}
+
+static LIBDIVIDE_INLINE svuint64_t libdivide_u64_sve_srl(svuint64_t v, uint8_t amt) {
+    return svlsr_n_u64_x(svptrue_b64(), v, amt);
+}
+
+// arithmetic shift right
+static LIBDIVIDE_INLINE svint16_t libdivide_s16_sve_sra(svint16_t v, uint8_t amt) {
+    return svasr_wide_s16_x(svptrue_b16(), v, svdup_n_u64(amt));
+}
+
+static LIBDIVIDE_INLINE svint32_t libdivide_s32_sve_sra(svint32_t v, uint8_t amt) {
+    return svasr_wide_s32_x(svptrue_b32(), v, svdup_n_u64(amt));
+}
+
+static LIBDIVIDE_INLINE svint64_t libdivide_s64_sve_sra(svint64_t v, uint8_t amt) {
+    return svasr_n_s64_x(svptrue_b64(), v, amt);
+}
+
+// unsigned halving add: (x + y) >> 1
+static LIBDIVIDE_INLINE svuint16_t libdivide_u16_sve_hadd(svuint16_t x, svuint16_t y) {
+    svbool_t pg = svptrue_b16();
+#if defined(LIBDIVIDE_SVE2)
+    return svhadd_u16_x(pg, x, y);
+#else
+    return svadd_u16_x(pg, svlsr_n_u16_x(pg, svsub_u16_x(pg, x, y), 1), y);
+#endif
+}
+
+static LIBDIVIDE_INLINE svuint32_t libdivide_u32_sve_hadd(svuint32_t x, svuint32_t y) {
+    svbool_t pg = svptrue_b32();
+#if defined(LIBDIVIDE_SVE2)
+    return svhadd_u32_x(pg, x, y);
+#else
+    return svadd_u32_x(pg, svlsr_n_u32_x(pg, svsub_u32_x(pg, x, y), 1), y);
+#endif
+}
+
+static LIBDIVIDE_INLINE svuint64_t libdivide_u64_sve_hadd(svuint64_t x, svuint64_t y) {
+    svbool_t pg = svptrue_b64();
+    // SVE2 has svhadd_u64_x, but it was neutral to slower on Graviton4.
+    // Keep the base SVE sequence for the 64-bit add-marker path.
+    return svadd_u64_x(pg, svlsr_n_u64_x(pg, svsub_u64_x(pg, x, y), 1), y);
+}
+
+// sign mask: 0 for non-negative lanes, -1 for negative lanes
+static LIBDIVIDE_INLINE svint16_t libdivide_s16_sve_signbits(svint16_t v) {
+    return svasr_n_s16_x(svptrue_b16(), v, 15);
+}
+
+static LIBDIVIDE_INLINE svint32_t libdivide_s32_sve_signbits(svint32_t v) {
+    return svasr_n_s32_x(svptrue_b32(), v, 31);
+}
+
+static LIBDIVIDE_INLINE svint64_t libdivide_s64_sve_signbits(svint64_t v) {
+    return svasr_n_s64_x(svptrue_b64(), v, 63);
+}
+
+////////// UINT16
+
+svuint16_t libdivide_u16_do_sve(svuint16_t numers, const struct libdivide_u16_t *denom) {
+    svbool_t pg = svptrue_b16();
+    uint8_t more = denom->more;
+
+    // power of 2 path
+    if (!denom->magic) {
+        return libdivide_u16_sve_srl(numers, more);
+    }
+
+    svuint16_t q = svmulh_n_u16_x(pg, numers, denom->magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // t = (numers + q) >> 1
+        uint8_t shift = more & LIBDIVIDE_16_SHIFT_MASK;
+        svuint16_t t = libdivide_u16_sve_hadd(numers, q);
+        return libdivide_u16_sve_srl(t, shift);
+    }
+
+    return libdivide_u16_sve_srl(q, more);
+}
+
+svuint16_t libdivide_u16_branchfree_do_sve(
+    svuint16_t numers, const struct libdivide_u16_branchfree_t *denom) {
+    svbool_t pg = svptrue_b16();
+    // branchfree always uses the add-marker correction
+    svuint16_t q = svmulh_n_u16_x(pg, numers, denom->magic);
+    svuint16_t t = libdivide_u16_sve_hadd(numers, q);
+    return libdivide_u16_sve_srl(t, denom->more);
+}
+
+////////// UINT32
+
+svuint32_t libdivide_u32_do_sve(svuint32_t numers, const struct libdivide_u32_t *denom) {
+    svbool_t pg = svptrue_b32();
+    uint8_t more = denom->more;
+
+    // power of 2 path
+    if (!denom->magic) {
+        return libdivide_u32_sve_srl(numers, more);
+    }
+
+    svuint32_t q = svmulh_n_u32_x(pg, numers, denom->magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // t = (numers + q) >> 1
+        uint8_t shift = more & LIBDIVIDE_32_SHIFT_MASK;
+        svuint32_t t = libdivide_u32_sve_hadd(numers, q);
+        return libdivide_u32_sve_srl(t, shift);
+    }
+
+    return libdivide_u32_sve_srl(q, more);
+}
+
+svuint32_t libdivide_u32_branchfree_do_sve(
+    svuint32_t numers, const struct libdivide_u32_branchfree_t *denom) {
+    svbool_t pg = svptrue_b32();
+    // branchfree always uses the add-marker correction
+    svuint32_t q = svmulh_n_u32_x(pg, numers, denom->magic);
+    svuint32_t t = libdivide_u32_sve_hadd(numers, q);
+    return libdivide_u32_sve_srl(t, denom->more);
+}
+
+////////// UINT64
+
+svuint64_t libdivide_u64_do_sve(svuint64_t numers, const struct libdivide_u64_t *denom) {
+    svbool_t pg = svptrue_b64();
+    uint8_t more = denom->more;
+
+    // power of 2 path
+    if (!denom->magic) {
+        return libdivide_u64_sve_srl(numers, more);
+    }
+
+    svuint64_t q = svmulh_n_u64_x(pg, numers, denom->magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // t = (numers + q) >> 1
+        uint8_t shift = more & LIBDIVIDE_64_SHIFT_MASK;
+        svuint64_t t = libdivide_u64_sve_hadd(numers, q);
+        return libdivide_u64_sve_srl(t, shift);
+    }
+
+    return libdivide_u64_sve_srl(q, more);
+}
+
+svuint64_t libdivide_u64_branchfree_do_sve(
+    svuint64_t numers, const struct libdivide_u64_branchfree_t *denom) {
+    svbool_t pg = svptrue_b64();
+    // branchfree always uses the add-marker correction
+    svuint64_t q = svmulh_n_u64_x(pg, numers, denom->magic);
+    svuint64_t t = libdivide_u64_sve_hadd(numers, q);
+    return libdivide_u64_sve_srl(t, denom->more);
+}
+
+////////// SINT16
+
+svint16_t libdivide_s16_do_sve(svint16_t numers, const struct libdivide_s16_t *denom) {
+    svbool_t pg = svptrue_b16();
+    uint8_t more = denom->more;
+
+    // power of 2 path
+    if (!denom->magic) {
+        uint8_t shift = more & LIBDIVIDE_16_SHIFT_MASK;
+        uint16_t mask = ((uint16_t)1 << shift) - 1;
+
+        // q = (numers + ((numers < 0) ? mask : 0)) >> shift
+        svint16_t q =
+            svadd_s16_m(svcmplt_n_s16(pg, numers, 0), numers, svdup_n_s16((int16_t)mask));
+        q = libdivide_s16_sve_sra(q, shift);
+
+        // flip sign if divisor was negative
+        svint16_t sign = svdup_n_s16((int8_t)more >> 7);
+        return svneg_s16_m(q, svcmplt_n_s16(pg, sign, 0), q);
+    }
+
+    // magic multiply-high path
+    svint16_t q = svmulh_n_s16_x(pg, numers, denom->magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // add numers back, adjusted for divisor sign
+        svint16_t sign = svdup_n_s16((int8_t)more >> 7);
+        q = svadd_s16_x(pg, q, svneg_s16_m(numers, svcmplt_n_s16(pg, sign, 0), numers));
+    }
+    q = libdivide_s16_sve_sra(q, more & LIBDIVIDE_16_SHIFT_MASK);
+    // round toward zero
+    return svsub_s16_x(pg, q, libdivide_s16_sve_signbits(q));
+}
+
+svint16_t libdivide_s16_branchfree_do_sve(
+    svint16_t numers, const struct libdivide_s16_branchfree_t *denom) {
+    svbool_t pg = svptrue_b16();
+    int16_t magic = denom->magic;
+    uint8_t more = denom->more;
+    uint8_t shift = more & LIBDIVIDE_16_SHIFT_MASK;
+    svint16_t sign = svdup_n_s16((int8_t)more >> 7);
+    // branchfree starts with q = mullhi(numers, magic) + numers
+    svint16_t q = svmulh_n_s16_x(pg, numers, magic);
+    q = svadd_s16_x(pg, q, numers);
+    uint32_t is_power_of_2 = (magic == 0);
+    uint32_t mask = ((uint32_t)1 << shift) - is_power_of_2;
+    svint16_t mask_vec = svdup_n_s16((int16_t)mask);
+    // negative q needs a bias before arithmetic shift
+    q = svadd_s16_m(svcmplt_n_s16(pg, q, 0), q, mask_vec);
+    q = libdivide_s16_sve_sra(q, shift);
+    return svneg_s16_m(q, svcmplt_n_s16(pg, sign, 0), q);
+}
+
+////////// SINT32
+
+svint32_t libdivide_s32_do_sve(svint32_t numers, const struct libdivide_s32_t *denom) {
+    svbool_t pg = svptrue_b32();
+    uint8_t more = denom->more;
+
+    // power of 2 path
+    if (!denom->magic) {
+        uint8_t shift = more & LIBDIVIDE_32_SHIFT_MASK;
+        uint32_t mask = ((uint32_t)1 << shift) - 1;
+
+        // q = (numers + ((numers < 0) ? mask : 0)) >> shift
+        svint32_t q =
+            svadd_s32_m(svcmplt_n_s32(pg, numers, 0), numers, svdup_n_s32((int32_t)mask));
+        q = libdivide_s32_sve_sra(q, shift);
+
+        // flip sign if divisor was negative
+        svint32_t sign = svdup_n_s32((int8_t)more >> 7);
+        return svneg_s32_m(q, svcmplt_n_s32(pg, sign, 0), q);
+    }
+
+    // magic multiply-high path
+    svint32_t q = svmulh_n_s32_x(pg, numers, denom->magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // add numers back, adjusted for divisor sign
+        svint32_t sign = svdup_n_s32((int8_t)more >> 7);
+        q = svadd_s32_x(pg, q, svneg_s32_m(numers, svcmplt_n_s32(pg, sign, 0), numers));
+    }
+    q = libdivide_s32_sve_sra(q, more & LIBDIVIDE_32_SHIFT_MASK);
+    // round toward zero
+    return svsub_s32_x(pg, q, libdivide_s32_sve_signbits(q));
+}
+
+svint32_t libdivide_s32_branchfree_do_sve(
+    svint32_t numers, const struct libdivide_s32_branchfree_t *denom) {
+    svbool_t pg = svptrue_b32();
+    int32_t magic = denom->magic;
+    uint8_t more = denom->more;
+    uint8_t shift = more & LIBDIVIDE_32_SHIFT_MASK;
+    svint32_t sign = svdup_n_s32((int8_t)more >> 7);
+    // branchfree starts with q = mullhi(numers, magic) + numers
+    svint32_t q = svmulh_n_s32_x(pg, numers, magic);
+    q = svadd_s32_x(pg, q, numers);
+    uint32_t is_power_of_2 = (magic == 0);
+    uint32_t mask = ((uint32_t)1 << shift) - is_power_of_2;
+    svint32_t mask_vec = svdup_n_s32((int32_t)mask);
+    // negative q needs a bias before arithmetic shift
+    q = svadd_s32_m(svcmplt_n_s32(pg, q, 0), q, mask_vec);
+    q = libdivide_s32_sve_sra(q, shift);
+    return svneg_s32_m(q, svcmplt_n_s32(pg, sign, 0), q);
+}
+
+////////// SINT64
+
+svint64_t libdivide_s64_do_sve(svint64_t numers, const struct libdivide_s64_t *denom) {
+    svbool_t pg = svptrue_b64();
+    uint8_t more = denom->more;
+    int64_t magic = denom->magic;
+
+    // power of 2 path
+    if (magic == 0) {
+        uint8_t shift = more & LIBDIVIDE_64_SHIFT_MASK;
+        uint64_t mask = ((uint64_t)1 << shift) - 1;
+
+        // q = (numers + ((numers < 0) ? mask : 0)) >> shift
+        svint64_t q =
+            svadd_s64_m(svcmplt_n_s64(pg, numers, 0), numers, svdup_n_s64((int64_t)mask));
+        q = libdivide_s64_sve_sra(q, shift);
+
+        // flip sign if divisor was negative
+        svint64_t sign = svdup_n_s64((int8_t)more >> 7);
+        return svneg_s64_m(q, svcmplt_n_s64(pg, sign, 0), q);
+    }
+
+    // magic multiply-high path
+    svint64_t q = svmulh_n_s64_x(pg, numers, magic);
+    if (more & LIBDIVIDE_ADD_MARKER) {
+        // add numers back, adjusted for divisor sign
+        svint64_t sign = svdup_n_s64((int8_t)more >> 7);
+        q = svadd_s64_x(pg, q, svneg_s64_m(numers, svcmplt_n_s64(pg, sign, 0), numers));
+    }
+    q = libdivide_s64_sve_sra(q, more & LIBDIVIDE_64_SHIFT_MASK);
+    // round toward zero
+    return svsub_s64_x(pg, q, libdivide_s64_sve_signbits(q));
+}
+
+svint64_t libdivide_s64_branchfree_do_sve(
+    svint64_t numers, const struct libdivide_s64_branchfree_t *denom) {
+    svbool_t pg = svptrue_b64();
+    int64_t magic = denom->magic;
+    uint8_t more = denom->more;
+    uint8_t shift = more & LIBDIVIDE_64_SHIFT_MASK;
+    svint64_t sign = svdup_n_s64((int8_t)more >> 7);
+    // branchfree starts with q = mullhi(numers, magic) + numers
+    svint64_t q = svmulh_n_s64_x(pg, numers, magic);
+    q = svadd_s64_x(pg, q, numers);
+    uint64_t is_power_of_2 = (magic == 0);
+    svint64_t mask = svdup_n_s64((int64_t)(((uint64_t)1 << shift) - is_power_of_2));
+    // negative q needs a bias before arithmetic shift
+    q = svadd_s64_m(svcmplt_n_s64(pg, q, 0), q, mask);
+    q = libdivide_s64_sve_sra(q, shift);
+    return svneg_s64_m(q, svcmplt_n_s64(pg, sign, 0), q);
+}
+
+#endif
+
 #if defined(LIBDIVIDE_AVX512)
 
 static LIBDIVIDE_INLINE __m512i libdivide_u16_do_vec512(
@@ -3113,6 +3476,56 @@ struct NeonVecFor {
 #define LIBDIVIDE_DIVIDE_NEON(ALGO, INT_TYPE)
 #endif
 
+#if defined(LIBDIVIDE_SVE)
+// Helper to deduce SVE vector type for integral type.
+template <int _WIDTH, Signedness _SIGN>
+struct SveVec {};
+
+template <>
+struct SveVec<16, UNSIGNED> {
+    typedef svuint16_t type;
+};
+
+template <>
+struct SveVec<16, SIGNED> {
+    typedef svint16_t type;
+};
+
+template <>
+struct SveVec<32, UNSIGNED> {
+    typedef svuint32_t type;
+};
+
+template <>
+struct SveVec<32, SIGNED> {
+    typedef svint32_t type;
+};
+
+template <>
+struct SveVec<64, UNSIGNED> {
+    typedef svuint64_t type;
+};
+
+template <>
+struct SveVec<64, SIGNED> {
+    typedef svint64_t type;
+};
+
+template <typename T>
+struct SveVecFor {
+    // See 'class divider' for an explanation of these template parameters.
+    typedef typename SveVec<sizeof(T) * 8, (((T)0 >> 0) > (T)(-1) ? SIGNED : UNSIGNED)>::type type;
+};
+
+#define LIBDIVIDE_DIVIDE_SVE(ALGO, INT_TYPE)                    \
+    LIBDIVIDE_INLINE typename SveVecFor<INT_TYPE>::type divide( \
+        typename SveVecFor<INT_TYPE>::type n) const {           \
+        return libdivide_##ALGO##_do_sve(n, &denom);            \
+    }
+#else
+#define LIBDIVIDE_DIVIDE_SVE(ALGO, INT_TYPE)
+#endif
+
 #if defined(LIBDIVIDE_SSE2)
 #define LIBDIVIDE_DIVIDE_SSE2(ALGO)                     \
     LIBDIVIDE_INLINE __m128i divide(__m128i n) const {  \
@@ -3150,6 +3563,7 @@ struct NeonVecFor {
     LIBDIVIDE_INLINE T divide(T n) const { return libdivide_##ALGO##_do(n, &denom); } \
     LIBDIVIDE_INLINE T recover() const { return libdivide_##ALGO##_recover(&denom); } \
     LIBDIVIDE_DIVIDE_NEON(ALGO, T)                                                    \
+    LIBDIVIDE_DIVIDE_SVE(ALGO, T)                                                     \
     LIBDIVIDE_DIVIDE_SSE2(ALGO)                                                       \
     LIBDIVIDE_DIVIDE_AVX2(ALGO)                                                       \
     LIBDIVIDE_DIVIDE_AVX512(ALGO)
@@ -3217,6 +3631,14 @@ struct NeonVecFor {
 };
 #endif
 
+#if defined(LIBDIVIDE_SVE)
+// Allow SveVecFor outside of detail namespace.
+template <typename T>
+struct SveVecFor {
+    typedef typename detail::SveVecFor<T>::type type;
+};
+#endif
+
 // This is the main divider class for use by the user (C++ API).
 // The actual division algorithm is selected using the dispatcher struct
 // based on the integer width and algorithm template parameters.
@@ -3270,6 +3692,11 @@ class divider {
 #endif
 #if defined(LIBDIVIDE_NEON)
     LIBDIVIDE_INLINE typename NeonVecFor<T>::type divide(typename NeonVecFor<T>::type n) const {
+        return div.divide(n);
+    }
+#endif
+#if defined(LIBDIVIDE_SVE)
+    LIBDIVIDE_INLINE typename SveVecFor<T>::type divide(typename SveVecFor<T>::type n) const {
         return div.divide(n);
     }
 #endif
@@ -3340,6 +3767,21 @@ LIBDIVIDE_INLINE typename NeonVecFor<T>::type operator/(
 template <typename T, Branching ALGO>
 LIBDIVIDE_INLINE typename NeonVecFor<T>::type operator/=(
     typename NeonVecFor<T>::type &n, const divider<T, ALGO> &div) {
+    n = div.divide(n);
+    return n;
+}
+#endif
+
+#if defined(LIBDIVIDE_SVE)
+template <typename T, Branching ALGO>
+LIBDIVIDE_INLINE typename SveVecFor<T>::type operator/(
+    typename SveVecFor<T>::type n, const divider<T, ALGO> &div) {
+    return div.divide(n);
+}
+
+template <typename T, Branching ALGO>
+LIBDIVIDE_INLINE typename SveVecFor<T>::type operator/=(
+    typename SveVecFor<T>::type &n, const divider<T, ALGO> &div) {
     n = div.divide(n);
     return n;
 }

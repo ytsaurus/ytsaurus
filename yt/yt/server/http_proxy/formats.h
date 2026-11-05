@@ -32,7 +32,7 @@ NFormats::TFormat InferHeaderFormat(
     const NServer::TFormatManager& formatManager,
     const std::string* ytHeader);
 
-TString FormatToMime(const NFormats::TFormat& format);
+std::string FormatToMime(const NFormats::TFormat& format);
 
 NYTree::INodePtr ConvertBytesToNode(
     TStringBuf bytes,

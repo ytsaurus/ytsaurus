@@ -14,6 +14,7 @@ using namespace NHiveClient;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,32 +27,55 @@ public:
         IRegisterTransactionActionsRequestFactoryPtr requestFactory,
         TWeakPtr<TTransaction> transaction,
         TCellId cellId,
-        TLogger logger)
+        TLogger logger,
+        bool useUniformPrepareSignatures)
         : RequestFactory_(std::move(requestFactory))
         , Transaction_(std::move(transaction))
         , CellId_(cellId)
-        , PrepareSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
-        , CommitSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
-        , Logger(logger.WithTag("CellId: %v", cellId))
+        , PrepareSignatureGenerator_(
+            useUniformPrepareSignatures
+                ? std::make_unique<TUniformSignatureGenerator>()
+                : std::make_unique<TTransactionSignatureGenerator>(FinalTransactionSignature))
+        , Logger(logger.WithTag("CellId", cellId))
     { }
 
     TTransactionSignatureGenerator* GetPrepareSignatureGenerator() override
     {
-        return &PrepareSignatureGenerator_;
-    }
-
-    TTransactionSignatureGenerator* GetCommitSignatureGenerator() override
-    {
-        return &CommitSignatureGenerator_;
+        return PrepareSignatureGenerator_.get();
     }
 
     void RegisterAction(NTransactionClient::TTransactionActionData data) override
     {
         if (Actions_.empty()) {
-            PrepareSignatureGenerator_.RegisterRequest();
-            CommitSignatureGenerator_.RegisterRequest();
+            PrepareSignatureGenerator_->RegisterRequest();
         }
         Actions_.push_back(data);
+    }
+
+    bool HasRegisteredActions() const override
+    {
+        return !Actions_.empty();
+    }
+
+    void RegisterTabletCommitSession(TTabletId tabletId) override
+    {
+        auto guard = Guard(TabletsLock_);
+
+        EmplaceOrCrash(Tablets_, tabletId);
+    }
+
+    void UnregisterTabletCommitSession(TTabletId tabletId) override
+    {
+        auto guard = Guard(TabletsLock_);
+
+        EraseOrCrash(Tablets_, tabletId);
+    }
+
+    bool HasRegisteredTabletCommitSessions() const override
+    {
+        auto guard = Guard(TabletsLock_);
+
+        return !Tablets_.empty();
     }
 
     TFuture<void> Invoke() override
@@ -65,8 +89,8 @@ public:
             return MakeFuture(TError(NYT::EErrorCode::Canceled, "Transaction destroyed"));
         }
 
-        YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
-            Actions_.size());
+        YT_TLOG_DEBUG("Sending transaction actions")
+            .With("ActionCount", Actions_.size());
 
         TFuture<void> future;
         switch (TypeFromId(CellId_)) {
@@ -91,20 +115,23 @@ private:
     const TWeakPtr<TTransaction> Transaction_;
     const TCellId CellId_;
 
-    TTransactionSignatureGenerator PrepareSignatureGenerator_;
-    TTransactionSignatureGenerator CommitSignatureGenerator_;
+    std::unique_ptr<TTransactionSignatureGenerator> PrepareSignatureGenerator_;
 
     const TLogger Logger;
 
+    // NB: All accesses are non-concurrent by construction; add a lock if that ever changes.
     std::vector<TTransactionActionData> Actions_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TabletsLock_);
+    THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
     {
         auto req = RequestFactory_->CreateRegisterTransactionActionsTabletCellRequest(CellId_);
         ToProto(req->mutable_transaction_id(), owner->GetId());
-        req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+        req->set_transaction_start_timestamp(ToProto(owner->GetStartTimestamp()));
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
-        req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
+        req->set_prepare_signature(PrepareSignatureGenerator_->GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }
@@ -121,9 +148,9 @@ private:
     {
         auto req = RequestFactory_->CreateRegisterTransactionActionsChaosCellRequest(CellId_);
         ToProto(req->mutable_transaction_id(), owner->GetId());
-        req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+        req->set_transaction_start_timestamp(ToProto(owner->GetStartTimestamp()));
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
-        req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
+        req->set_signature(PrepareSignatureGenerator_->GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }
@@ -131,14 +158,16 @@ private:
     void OnResponse(const TError& result)
     {
         if (!result.IsOK()) {
-            auto error = TError("Error sending transaction actions")
-                << TErrorAttribute("cell_id", CellId_)
-                << result;
-            YT_LOG_DEBUG(error);
-            THROW_ERROR(error);
+            static constexpr auto Message = "Error sending transaction actions"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("CellId", CellId_)
+                .With(result);
+            THROW_ERROR_EXCEPTION(Message)
+                .With("cell_id", CellId_)
+                .With(result);
         }
 
-        YT_LOG_DEBUG("Transaction actions sent successfully");
+        YT_TLOG_DEBUG("Transaction actions sent successfully");
     }
 };
 
@@ -148,13 +177,15 @@ ICellCommitSessionPtr CreateCellCommitSession(
     IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<TTransaction> transaction,
     TCellId cellId,
-    TLogger logger)
+    TLogger logger,
+    bool useUniformPrepareSignatures)
 {
     return New<TCellCommitSession>(
         std::move(requestFactory),
         std::move(transaction),
         cellId,
-        std::move(logger));
+        std::move(logger),
+        useUniformPrepareSignatures);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,10 +197,12 @@ public:
     TCellCommitSessionProvider(
         IRegisterTransactionActionsRequestFactoryPtr requestFactory,
         TWeakPtr<TTransaction> transaction,
-        TLogger logger)
+        TLogger logger,
+        bool useUniformPrepareSignatures)
         : RequestFactory_(std::move(requestFactory))
         , Transaction_(std::move(transaction))
         , Logger(std::move(logger))
+        , UseUniformPrepareSignatures_(useUniformPrepareSignatures)
     { }
 
     ICellCommitSessionPtr GetCellCommitSession(TCellId cellId) override
@@ -189,7 +222,8 @@ public:
                 RequestFactory_,
                 Transaction_,
                 cellId,
-                Logger);
+                Logger,
+                UseUniformPrepareSignatures_);
             EmplaceOrCrash(CellIdToCommitSession_, cellId, session);
             if (auto transaction = Transaction_.Lock()) {
                 transaction->RegisterParticipant(cellId);
@@ -198,6 +232,23 @@ public:
         } else {
             return cellIt->second;
         }
+    }
+
+    void UnregisterUnusedParticipants() override
+    {
+        auto guard = Guard(Lock_);
+
+        THashSet<TCellId> usedCellIds;
+        auto transaction = Transaction_.Lock();
+        for (const auto& [cellId, session] : CellIdToCommitSession_) {
+            if (session->HasRegisteredTabletCommitSessions() || session->HasRegisteredActions()) {
+                InsertOrCrash(usedCellIds, cellId);
+            } else if (transaction) {
+                transaction->UnregisterParticipant(cellId);
+            }
+        }
+
+        DropMissingKeys(CellIdToCommitSession_, usedCellIds);
     }
 
     std::vector<TCellId> GetParticipantCellIds() const override
@@ -220,13 +271,20 @@ public:
         return AllSucceeded(std::move(futures));
     }
 
+    THashMap<TCellId, ICellCommitSessionPtr> GetCellCommitSessions() override
+    {
+        auto guard = Guard(Lock_);
+        return CellIdToCommitSession_;
+    }
+
 private:
     const IRegisterTransactionActionsRequestFactoryPtr RequestFactory_;
     const TWeakPtr<TTransaction> Transaction_;
 
     const TLogger Logger;
+    const bool UseUniformPrepareSignatures_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TCellId, ICellCommitSessionPtr> CellIdToCommitSession_;
 };
 
@@ -235,12 +293,14 @@ private:
 ICellCommitSessionProviderPtr CreateCellCommitSessionProvider(
     IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<TTransaction> transaction,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    bool useUniformPrepareSignatures)
 {
     return New<TCellCommitSessionProvider>(
         std::move(requestFactory),
         std::move(transaction),
-        std::move(logger));
+        std::move(logger),
+        useUniformPrepareSignatures);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

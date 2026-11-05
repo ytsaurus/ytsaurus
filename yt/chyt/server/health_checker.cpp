@@ -52,7 +52,8 @@ void ValidateQueryResult(DB::BlockIO& blockIO)
         totalRowCount += block.rows();
     }
 
-    YT_LOG_DEBUG("Health checker query result validated (TotalRowCount: %v)", totalRowCount);
+    YT_TLOG_DEBUG("Health checker query result validated")
+        .With("TotalRowCount", totalRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,9 +99,9 @@ THealthChecker::THealthChecker(
 
 void THealthChecker::Start()
 {
-    YT_LOG_DEBUG("Health checker started (Period: %v, QueryCount: %v)",
-        Config_->Period,
-        Config_->Queries.size());
+    YT_TLOG_DEBUG("Health checker started")
+        .With("Period", Config_->Period)
+        .With("QueryCount", Config_->Queries.size());
     PeriodicExecutor_->Start();
 }
 
@@ -108,7 +109,9 @@ void THealthChecker::ExecuteQueries()
 {
     for (size_t queryIndex = 0; queryIndex < Config_->Queries.size(); ++queryIndex) {
         const auto& query = Config_->Queries[queryIndex];
-        YT_LOG_DEBUG("Executing health checker query (Index: %v, Query: %v)", queryIndex, query);
+        YT_TLOG_DEBUG("Executing health checker query")
+            .With("Index", queryIndex)
+            .With("Query", query);
 
         auto error = WaitFor(BIND(&THealthChecker::ExecuteQuery, MakeWeak(this), query)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -116,14 +119,14 @@ void THealthChecker::ExecuteQueries()
             .WithTimeout(Config_->Timeout));
 
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Health checker query successfully executed (Index: %v, Query: %v)",
-                queryIndex,
-                query);
+            YT_TLOG_DEBUG("Health checker query successfully executed")
+                .With("Index", queryIndex)
+                .With("Query", query);
         } else {
-            YT_LOG_WARNING(error,
-                "Health checker query failed (Index: %v, Query: %v)",
-                queryIndex,
-                query);
+            YT_TLOG_WARNING("Health checker query failed")
+                .With("Index", queryIndex)
+                .With("Query", query)
+                .With(error);
         }
 
         QueryIndexToStatus_[queryIndex].Update(error.IsOK() ? 1.0 : 0.0);

@@ -10,7 +10,7 @@ namespace NYT::NContainers::NCri {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCriImageCacheEntry
-    : public TAsyncCacheValueBase<TString, TCriImageCacheEntry>
+    : public TAsyncCacheValueBase<std::string, TCriImageCacheEntry>
     , private TIntrusiveListItem<TCriImageCacheEntry>
 {
 public:
@@ -35,7 +35,7 @@ public:
 
 private:
     TIntrusiveList<TCriImageCacheEntry> Aliases_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriImageCacheEntry)
@@ -61,6 +61,7 @@ struct ICriImageCache
 
     virtual TFuture<TCriImageCacheEntryPtr> LookupImage(const TCriImageDescriptor& image) = 0;
 
+    //! Canceling the returned future stops this caller's wait while the shared pull continues.
     virtual TFuture<TCriImageCacheEntryPtr> PullImage(
         const TCriImageDescriptor& image,
         TCriAuthConfigPtr authConfig = nullptr,

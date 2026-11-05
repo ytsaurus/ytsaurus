@@ -2,15 +2,49 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/public.h>
+
+#include <yt/yt/server/lib/security_server/access_log.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
+#include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_map.h>
 
 namespace NYT::NCypressProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+struct TAccessLogTransactionEntry
+{
+    NCypressClient::TTransactionId Id;
+    NYson::TYsonString Attributes;
+};
+
+//! Access-log transaction info adapter over a flat, leaf-first transaction chain.
+class TAccessLogTransactionInfo
+    : public NSecurityServer::ITransactionAccessLogInfo
+{
+public:
+    explicit TAccessLogTransactionInfo(std::vector<TAccessLogTransactionEntry> entries);
+
+    void WriteTransactionInfo(NYson::IYsonConsumer* consumer) const override;
+
+    NCypressClient::TTransactionId GetTransactionId() const override;
+
+private:
+    const std::vector<TAccessLogTransactionEntry> Entries_;
+};
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +111,9 @@ public:
 
     NCypressClient::TTransactionId GetCurrentCypressTransactionId() const;
 
+    //! Returns the transaction info for access logging, or null info when disabled or no transaction.
+    const NSecurityServer::ITransactionAccessLogInfo& GetAccessLogTransactionInfo() const;
+
     //! Represents Cypress subtree selected from "path_to_node_id" Sequoia
     //! table. Used as strong typedef with some guarantees.
     struct TSubtree
@@ -113,6 +150,7 @@ public:
     static TSequoiaSessionPtr Start(
         IBootstrap* bootstrap,
         const NRpc::TAuthenticationIdentity& authenticationIdentity,
+        std::string description,
         NCypressClient::TTransactionId cypressTransactionId = NCypressClient::NullTransactionId,
         const std::vector<NCypressClient::TTransactionId>& cypressPrerequisiteTransactionIds = {});
 
@@ -358,7 +396,16 @@ public:
         TRange<NCypressClient::TNodeId> nodeIds,
         const NYTree::TAttributeFilter& attributeFilter) const;
 
+    TFuture<NYTree::IConstAttributeDictionaryPtr> FetchSingleObjectAttributes(
+        NCypressClient::TObjectId objectId,
+        const NYTree::TAttributeFilter& attributeFilter) const;
+
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
+
+    NObjectClient::TMasterYPathProxy::TVectorizedGetBatcher CreateGetBatcher(
+        const NYTree::TYPathProxy::TReqGetPtr& requestTemplate,
+        TRange<NObjectClient::TObjectId> objectIds,
+        std::optional<ETreeScope> scope = {}) const;
 
 private:
     IBootstrap* const Bootstrap_;
@@ -366,6 +413,7 @@ private:
     const TCypressTransactionDepths CypressTransactionDepths_;
     const NApi::NNative::IClientPtr NativeAuthenticatedClient_;
     const TUserDescriptorPtr AuthenticatedUser_;
+    const NDetail::TAccessLogTransactionInfo AccessLogTransactionInfo_;
 
     bool Finished_ = false;
 
@@ -394,7 +442,8 @@ private:
         NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction,
         std::vector<NCypressClient::TTransactionId> cypressTransactionIds,
         NApi::NNative::IClientPtr nativeAuthenticatedClient,
-        TUserDescriptorPtr authenticatedUser);
+        TUserDescriptorPtr authenticatedUser,
+        std::vector<NDetail::TAccessLogTransactionEntry> accessLogTransactionChain);
 
     //! Returns whether or not an object with a given ID _could_ be created in
     //! this session.

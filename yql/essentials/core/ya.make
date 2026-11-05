@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 ENABLE(SKIP_YQL_STYLE_CPP)
 
@@ -12,6 +12,8 @@ SRCS(
     yql_default_valid_value.h
     yql_execution.cpp
     yql_execution.h
+    yql_expr_constraint_streaming.cpp
+    yql_expr_constraint_streaming.h
     yql_expr_constraint.cpp
     yql_expr_constraint.h
     yql_expr_csee.cpp
@@ -53,6 +55,8 @@ SRCS(
     yql_opt_window.h
     yql_opt_window_stream_transformers.cpp
     yql_opt_window_stream_transformers.h
+    yql_sql_combine_expander.cpp
+    yql_sql_combine_expander.h
     yql_statistics.cpp
     yql_type_annotation.cpp
     yql_type_annotation.h
@@ -77,6 +81,7 @@ SRCS(
     yql_window_frames_collector_params_serializer.h
     yql_window_frame_settings_pg.cpp
     yql_window_frame_settings_pg.h
+    yql_sqlselect.cpp
 )
 
 PEERDIR(
@@ -95,6 +100,7 @@ PEERDIR(
     yql/essentials/core/url_lister/interface
     yql/essentials/core/url_preprocessing/interface
     yql/essentials/core/layers
+    yql/essentials/core/langver
     yql/essentials/minikql
     yql/essentials/minikql/jsonpath/parser
     yql/essentials/core/minsketch
@@ -108,6 +114,7 @@ PEERDIR(
     yql/essentials/utils/log
     yql/essentials/core/expr_nodes
     yql/essentials/providers/common/proto
+    yql/essentials/minikql/runtime_settings
 )
 
 GENERATE_ENUM_SERIALIZATION(yql_data_provider.h)
@@ -117,8 +124,6 @@ GENERATE_ENUM_SERIALIZATION(yql_user_data.h)
 GENERATE_ENUM_SERIALIZATION(yql_type_annotation.h)
 
 GENERATE_ENUM_SERIALIZATION(yql_cost_function.h)
-
-YQL_LAST_ABI_VERSION()
 
 END()
 
@@ -136,6 +141,7 @@ RECURSE(
     pg_ext
     pg_settings
     poly_args
+    spark_meta
     sql_types
     url_lister
     url_preprocessing

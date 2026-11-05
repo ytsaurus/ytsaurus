@@ -44,7 +44,7 @@ void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descrip
     }
 }
 
-static TError DecodeExitCode(int exitCode, const TString& reason)
+static TError DecodeExitCode(int exitCode, const std::string& reason)
 {
     if (exitCode == 0) {
         return TError();
@@ -57,9 +57,9 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
             EProcessErrorCode::Signal,
             "Process terminated by signal %v",
             signalNumber)
-            << TErrorAttribute("signal", signalNumber)
-            << TErrorAttribute("reason", reason)
-            << TErrorAttribute("oom_killed", reason == "OOMKilled");
+            .With("signal", signalNumber)
+            .With("reason", reason)
+            .With("oom_killed", reason == "OOMKilled");
     }
 
     // TODO(khkebnikov) check these
@@ -73,8 +73,8 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
         EProcessErrorCode::NonZeroExitCode,
         "Process exited with code %v",
         exitCode)
-        << TErrorAttribute("exit_code", exitCode)
-        << TErrorAttribute("reason", reason);
+        .With("exit_code", exitCode)
+        .With("reason", reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +84,7 @@ class TCriProcess
 {
 public:
     TCriProcess(
-        const TString& path,
+        const std::string& path,
         ICriExecutorPtr executor,
         TCriContainerSpecPtr containerSpec,
         TCriPodDescriptorPtr podDescriptor,
@@ -112,7 +112,7 @@ public:
             THROW_ERROR_EXCEPTION("Process is not started yet");
         }
 
-        YT_LOG_DEBUG("Killing process");
+        YT_TLOG_DEBUG("Killing process");
         WaitFor(Executor_->StopContainer(ContainerDescriptor_))
             .ThrowOnError();
     }
@@ -148,31 +148,32 @@ private:
     void DoSpawn() override
     {
         if (ContainerSpec_->Command.empty()) {
-            ContainerSpec_->Command = {Path_};
+            // TODO(dgolear): Switch to std::string.
+            ContainerSpec_->Command = {TString(Path_)};
         }
-        ContainerSpec_->Arguments = std::vector<TString>(Args_.begin() + 1, Args_.end());
+        ContainerSpec_->Arguments = std::vector<std::string>(Args_.begin() + 1, Args_.end());
         ContainerSpec_->WorkingDirectory = WorkingDirectory_;
 
         for (const auto& keyVal : Env_) {
             TStringBuf key, val;
             if (TStringBuf(keyVal).TrySplit('=', key, val)) {
-                ContainerSpec_->Environment[key] = val;
+                ContainerSpec_->Environment[std::string(key)] = val;
             }
         }
 
-        Logger.AddTag("Pod: %v", *PodDescriptor_);
+        Logger.AddTag("Pod", *PodDescriptor_);
 
-        YT_LOG_DEBUG("Creating container (Container: %v)",
-            ContainerSpec_->Name);
+        YT_TLOG_DEBUG("Creating container")
+            .With("Container", ContainerSpec_->Name);
 
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        Logger.AddTag("Container: %v", ContainerDescriptor_);
+        Logger.AddTag("Container", ContainerDescriptor_);
 
-        YT_LOG_DEBUG("Spawning process (Command: %v, Environment: %v)",
-            ContainerSpec_->Command[0],
-            ContainerSpec_->Environment);
+        YT_TLOG_DEBUG("Spawning process")
+            .With("Command", ContainerSpec_->Command[0])
+            .With("Environment", ContainerSpec_->Environment);
 
         YT_VERIFY(!Started_);
         Started_ = true;
@@ -204,13 +205,15 @@ private:
         if (!responseOrError.IsOK()) {
             // TODO(khlebnikov): Handle NotFound as abort, but gRPC code is not mapped yet.
             // TODO(khlebnikov): Maybe add common EProcessErrorCode::Lost.
-            auto error = TError("Cannot get container status")
-                << TErrorAttribute("container_name", ContainerDescriptor_.Name)
-                << TErrorAttribute("container_id", ContainerDescriptor_.Id)
-                << TErrorAttribute("pod_name", PodDescriptor_->Name)
-                << TErrorAttribute("pod_id", PodDescriptor_->Id)
-                << responseOrError;
-            YT_LOG_ERROR(error, "Process is lost");
+            static constexpr auto Message = "Cannot get container status"_sb;
+            auto error = TError(Message)
+                .With("container_name", ContainerDescriptor_.Name)
+                .With("container_id", ContainerDescriptor_.Id)
+                .With("pod_name", PodDescriptor_->Name)
+                .With("pod_id", PodDescriptor_->Id)
+                .With(responseOrError);
+            YT_TLOG_ERROR(Message)
+                .With(responseOrError);
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(std::move(error));
             return;
@@ -222,7 +225,8 @@ private:
         auto status = response->status();
         if (status.state() == NProto::CONTAINER_EXITED) {
             auto error = DecodeExitCode(status.exit_code(), status.reason());
-            YT_LOG_DEBUG(error, "Process finished");
+            YT_TLOG_DEBUG("Process finished")
+                .With(error);
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(error);
         }
@@ -249,13 +253,13 @@ public:
         , Attempt_(RandomNumber<ui32>())
     { }
 
-    TString GetPodCgroup(TString podName) const override
+    std::string GetPodCgroup(std::string podName) const override
     {
         TStringBuilder cgroup;
         cgroup.AppendString(Config_->BaseCgroup);
         cgroup.AppendString("/");
 
-        if (Config_->BaseCgroup.EndsWith(SystemdSliceSuffix)) {
+        if (Config_->BaseCgroup.ends_with(SystemdSliceSuffix)) {
             auto sliceName = podName;
 
             // Build name of nested slice in systemd notaion, see manpage systemd.slice.
@@ -289,7 +293,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace) {
+            if (const auto& namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
@@ -310,7 +314,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace) {
+            if (const auto& namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
@@ -370,7 +374,7 @@ public:
 
         FillPodSandboxConfig(req->mutable_config(), *podSpec);
 
-        if (Config_->RuntimeHandler) {
+        if (!Config_->RuntimeHandler.empty()) {
             req->set_runtime_handler(Config_->RuntimeHandler);
         }
 
@@ -445,7 +449,7 @@ public:
             device->set_container_path(deviceSpec.ContainerPath);
             device->set_host_path(deviceSpec.HostPath);
 
-            TString permissions;
+            std::string permissions;
             if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Read)) {
                 permissions += "r";
             }
@@ -537,7 +541,7 @@ public:
 
     void CleanNamespace() override
     {
-        YT_VERIFY(Config_->Namespace);
+        YT_VERIFY(!Config_->Namespace.empty());
         auto pods = WaitFor(ListPodSandbox())
             .ValueOrThrow();
 
@@ -638,7 +642,7 @@ public:
     }
 
     TProcessBasePtr CreateProcess(
-        const TString& path,
+        const std::string& path,
         TCriContainerSpecPtr containerSpec,
         TCriPodDescriptorPtr podDescriptor,
         TCriPodSpecPtr podSpec) override
@@ -699,7 +703,7 @@ private:
 
         {
             auto* linux = config->mutable_linux();
-            linux->set_cgroup_parent(GetPodCgroup(TString(spec.Name)));
+            linux->set_cgroup_parent(GetPodCgroup(spec.Name));
 
             auto* security = linux->mutable_security_context();
             auto* namespaces = security->mutable_namespace_options();
@@ -749,7 +753,7 @@ private:
                     }
                 }
                 if (config->RetryErrorPattern) {
-                    return NRe2::RE2::PartialMatch(message, *config->RetryErrorPattern);
+                    return re2::RE2::PartialMatch(message, *config->RetryErrorPattern);
                 }
             }
             return false;
@@ -763,7 +767,7 @@ ICriExecutorPtr CreateCriExecutor(TCriExecutorConfigPtr config)
 {
     return New<TCriExecutor>(
         std::move(config),
-        GetGrpcChannelFactory());
+        GetDefaultGrpcChannelFactory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

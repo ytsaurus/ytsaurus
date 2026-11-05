@@ -13,16 +13,23 @@ ENDIF()
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
+
 # Set REQUIREMENTS after INCLUDE for proper override
-IF (SANITIZER_TYPE)
+IF (SANITIZER_TYPE == "thread")
+    REQUIREMENTS(
+        cpu:50
+        ram:56
+    )
+ELSEIF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:46
         ram:56
     )
 ELSE()
     REQUIREMENTS(
-        cpu:22
-        ram:18
+        cpu:16
+        ram:14
     )
 ENDIF()
 

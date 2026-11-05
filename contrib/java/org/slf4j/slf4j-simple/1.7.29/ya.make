@@ -9,6 +9,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1260218732)
+
 SRC_RESOURCE(1260218802)
+
+ORIGINAL_SOURCE(https://github.com/qos-ch/slf4j)
 
 END()

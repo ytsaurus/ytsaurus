@@ -29,7 +29,9 @@ class TestHotSwap(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
 
     DELTA_MASTER_CONFIG = {
         "logging": {
@@ -390,7 +392,9 @@ class TestLocationDisabling(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
 
     DELTA_MASTER_CONFIG = {
         "logging": {

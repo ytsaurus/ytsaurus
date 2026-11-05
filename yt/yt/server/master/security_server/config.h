@@ -53,6 +53,7 @@ struct TDynamicSecurityManagerConfig
 
     // COMPAT(h0pless): This is a panic button, in case account profiling breaks.
     bool EnableAccountsProfiling;
+    bool EnableDetailedMasterMemoryProfiling;
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;
@@ -83,6 +84,14 @@ struct TDynamicSecurityManagerConfig
     //! Defines what to do when a user is altering table but lacks
     //! full_read permission on that table.
     EAllowAlterWithoutFullRead AllowAlterWithoutFullRead;
+
+    // COMPAT(danilalexeev): YT-28249.
+    bool CheckAllAceColumnsFullRead;
+
+    bool AllowChangeRequestLimitsForRoot;
+
+    // COMPAT(kvk1920): remove after 26.2.
+    bool ForwardAuthenticatedUser;
 
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 

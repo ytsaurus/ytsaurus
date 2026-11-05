@@ -1,0 +1,24 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IEventTimestampAssigner
+    : public TRefCounted
+{
+    virtual void Assign(TMessage& message) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IEventTimestampAssigner);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IEventTimestampAssignerPtr CreateEventTimestampAssigner(
+    TEventTimestampAssignerSpecPtr spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

@@ -245,12 +245,26 @@ func (r *CreateNodeRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
 }
 
+var _ MutatingRequest = (*CreateObjectRequest)(nil)
+
 type CreateObjectRequest struct {
 	*rpc_proxy.TReqCreateObject
 }
 
 func NewCreateObjectRequest(r *rpc_proxy.TReqCreateObject) *CreateObjectRequest {
 	return &CreateObjectRequest{TReqCreateObject: r}
+}
+
+func (r *CreateObjectRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *CreateObjectRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CreateObjectRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r CreateObjectRequest) Log() []log.Field {
@@ -681,6 +695,7 @@ func (r *LinkNodeRequest) SetRetry(retry bool) {
 
 var _ TransactionalRequest = (*StartTxRequest)(nil)
 var _ ReadRetryRequest = (*StartTxRequest)(nil)
+var _ MutatingRequest = (*StartTxRequest)(nil)
 
 type StartTxRequest struct {
 	*rpc_proxy.TReqStartTransaction
@@ -698,6 +713,18 @@ func (r StartTxRequest) Log() []log.Field {
 
 func (r StartTxRequest) Path() (string, bool) {
 	return "", false
+}
+
+func (r *StartTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *StartTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *StartTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r *StartTxRequest) SetTxOptions(opts *TransactionOptions) {
@@ -745,6 +772,8 @@ func (r PingTxRequest) Path() (string, bool) {
 	return "", false
 }
 
+var _ MutatingRequest = (*AbortTxRequest)(nil)
+
 type AbortTxRequest struct {
 	*rpc_proxy.TReqAbortTransaction
 }
@@ -763,6 +792,20 @@ func (r AbortTxRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *AbortTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *AbortTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AbortTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
+}
+
+var _ MutatingRequest = (*CommitTxRequest)(nil)
+
 type CommitTxRequest struct {
 	*rpc_proxy.TReqCommitTransaction
 }
@@ -779,6 +822,18 @@ func (r CommitTxRequest) Log() []log.Field {
 
 func (r CommitTxRequest) Path() (string, bool) {
 	return "", false
+}
+
+func (r *CommitTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *CommitTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CommitTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*WriteFileRequest)(nil)
@@ -1841,6 +1896,26 @@ func (r *MultiLookupRequest) SetTxOptions(opts *TransactionOptions) {
 	r.Timestamp = convertTimestamp(&opts.TxStartTimestamp)
 }
 
+var _ ReadRetryRequest = (*GetTableMountInfoRequest)(nil)
+
+type GetTableMountInfoRequest struct {
+	*rpc_proxy.TReqGetTableMountInfo
+}
+
+func NewGetTableMountInfoRequest(r *rpc_proxy.TReqGetTableMountInfo) *GetTableMountInfoRequest {
+	return &GetTableMountInfoRequest{TReqGetTableMountInfo: r}
+}
+
+func (r GetTableMountInfoRequest) Log() []log.Field {
+	return []log.Field{log.String("path", string(r.GetPath()))}
+}
+
+func (r GetTableMountInfoRequest) Path() (string, bool) {
+	return string(r.GetPath()), true
+}
+
+func (r *GetTableMountInfoRequest) ReadRetryOptions() {}
+
 var _ TransactionalRequest = (*LockRowsRequest)(nil)
 
 type LockRowsRequest struct {
@@ -1852,10 +1927,14 @@ func NewLockRowsRequest(r *rpc_proxy.TReqModifyRows) *LockRowsRequest {
 }
 
 func (r LockRowsRequest) Log() []log.Field {
+	rowLocks := r.GetRowLocks()
 	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
-		log.Any("locks", r.GetRowLocks()),
+		log.Int("row_count", len(rowLocks)),
 		// log.Any("lockType", r.LockType), // todo
+	}
+	if len(rowLocks) != 0 {
+		fields = append(fields, log.Any("lock_mask", rowLocks[0]))
 	}
 	fields = appendEmbeddedOptions(fields, r.TReqModifyRows)
 	return fields
@@ -1986,6 +2065,117 @@ func (r RemoveQueueProducerSessionRequest) Log() []log.Field {
 
 func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
 	return string(r.GetProducerPath()), false
+}
+
+type PullQueueConsumerRequest struct {
+	*rpc_proxy.TReqPullQueueConsumer
+}
+
+func NewPullQueueConsumerRequest(r *rpc_proxy.TReqPullQueueConsumer) *PullQueueConsumerRequest {
+	return &PullQueueConsumerRequest{TReqPullQueueConsumer: r}
+}
+
+func (r PullQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("consumer_path", string(r.GetConsumerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
+	}
+	if v := r.GetOffset(); v != 0 {
+		fields = append(fields, log.Int64("offset", v))
+	}
+	if v := r.GetPartitionIndex(); v != 0 {
+		fields = append(fields, log.Int32("partition_index", v))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqPullQueueConsumer)
+	return fields
+}
+
+func (r PullQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetConsumerPath()), false
+}
+
+var _ TransactionalRequest = (*AdvanceQueueConsumerRequest)(nil)
+
+type AdvanceQueueConsumerRequest struct {
+	*rpc_proxy.TReqAdvanceQueueConsumer
+}
+
+func NewAdvanceQueueConsumerRequest(r *rpc_proxy.TReqAdvanceQueueConsumer) *AdvanceQueueConsumerRequest {
+	return &AdvanceQueueConsumerRequest{TReqAdvanceQueueConsumer: r}
+}
+
+func (r AdvanceQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("consumer_path", string(r.GetConsumerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
+	}
+	if v := r.GetPartitionIndex(); v != 0 {
+		fields = append(fields, log.Int32("partition_index", v))
+	}
+	if v := r.GetOldOffset(); v != 0 {
+		fields = append(fields, log.Int64("old_offset", v))
+	}
+	if v := r.GetNewOffset(); v != 0 {
+		fields = append(fields, log.Int64("new_offset", v))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqAdvanceQueueConsumer)
+	return fields
+}
+
+func (r AdvanceQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetConsumerPath()), false
+}
+
+func (r *AdvanceQueueConsumerRequest) SetTxOptions(opts *TransactionOptions) {
+	if opts == nil {
+		return
+	}
+	r.TransactionId = convertTxID(opts.TransactionID)
+}
+
+type RegisterQueueConsumerRequest struct {
+	*rpc_proxy.TReqRegisterQueueConsumer
+}
+
+func NewRegisterQueueConsumerRequest(r *rpc_proxy.TReqRegisterQueueConsumer) *RegisterQueueConsumerRequest {
+	return &RegisterQueueConsumerRequest{TReqRegisterQueueConsumer: r}
+}
+
+func (r RegisterQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("consumer_path", string(r.GetConsumerPath())),
+	}
+	if r.GetVital() {
+		fields = append(fields, log.Bool("vital", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqRegisterQueueConsumer)
+	return fields
+}
+
+func (r RegisterQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetQueuePath()), false
+}
+
+type UnregisterQueueConsumerRequest struct {
+	*rpc_proxy.TReqUnregisterQueueConsumer
+}
+
+func NewUnregisterQueueConsumerRequest(r *rpc_proxy.TReqUnregisterQueueConsumer) *UnregisterQueueConsumerRequest {
+	return &UnregisterQueueConsumerRequest{TReqUnregisterQueueConsumer: r}
+}
+
+func (r UnregisterQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("consumer_path", string(r.GetConsumerPath())),
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqUnregisterQueueConsumer)
+	return fields
+}
+
+func (r UnregisterQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetQueuePath()), false
 }
 
 var _ TransactionalRequest = (*DeleteRowsRequest)(nil)
@@ -2247,12 +2437,26 @@ func (r *UnfreezeTableRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
 }
 
+var _ MutatingRequest = (*AlterTableReplicaRequest)(nil)
+
 type AlterTableReplicaRequest struct {
 	*rpc_proxy.TReqAlterTableReplica
 }
 
 func NewAlterTableReplicaRequest(r *rpc_proxy.TReqAlterTableReplica) *AlterTableReplicaRequest {
 	return &AlterTableReplicaRequest{TReqAlterTableReplica: r}
+}
+
+func (r *AlterTableReplicaRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *AlterTableReplicaRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AlterTableReplicaRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r AlterTableReplicaRequest) Log() []log.Field {

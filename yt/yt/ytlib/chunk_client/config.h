@@ -244,6 +244,9 @@ struct TChunkTeleporterConfig
     //! Maximum number of chunks to export/import per request.
     i64 MaxTeleportChunksPerRequest;
 
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
+
     REGISTER_YSON_STRUCT(TChunkTeleporterConfig);
 
     static void Register(TRegistrar registrar);
@@ -263,6 +266,9 @@ struct TS3MediumConfig
     std::string AccessKeyId;
     std::string SecretAccessKey;
 
+    //! The prefix to the S3 object key. A trailing slash will be added, unless present.
+    TString Prefix;
+
     REGISTER_YSON_STRUCT(TS3MediumConfig);
 
     static void Register(TRegistrar registrar);
@@ -272,11 +278,27 @@ DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumDirectorySynchronizerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    bool BypassCache;
+
+    REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMediumDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
+
+    TMediumDirectorySynchronizerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerConfig);
 

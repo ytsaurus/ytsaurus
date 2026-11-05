@@ -1,5 +1,6 @@
 package tech.ytsaurus.client;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -133,6 +134,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
                 builder.builder.proxyNetworkName,
+                builder.builder.httpConnectProxy,
                 builder.builder.config.getUseTLS(),
                 builder.builder.config.getTvmOnly(),
                 builder.builder.config.getIgnoreBalancers(),
@@ -283,6 +285,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
                 @Nullable String proxyNetworkName,
+                @Nullable InetSocketAddress httpConnectProxy,
                 boolean useTLS,
                 boolean tvmOnly,
                 boolean ignoreBalancers,
@@ -307,6 +310,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                 || curCluster.addresses.isEmpty())
                 ) {
                     // Use HTTP.
+                    if (httpConnectProxy == null && connector instanceof DefaultBusConnector
+                            && ((DefaultBusConnector) connector).getHttpConnectProxy() != null) {
+                        throw new IllegalArgumentException(
+                                "bus connections go through an http connect proxy, but rpc-proxy discovery "
+                                        + "does not, call ClientBuilder.setHttpConnectProxy as well");
+                    }
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
                                     .setDataCenterName(curCluster.getName())
@@ -318,6 +327,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                     .setTvmOnly(tvmOnly)
                                     .setIgnoreBalancers(ignoreBalancers)
                                     .setToken(auth.getToken().orElse(null))
+                                    .setHttpConnectProxy(httpConnectProxy)
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
                                     .setEventLoop(eventLoopGroup)
@@ -541,6 +551,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
         String proxyRole;
         @Nullable
         String proxyNetworkName;
+        @Nullable
+        InetSocketAddress httpConnectProxy;
 
         List<YTsaurusCluster> clusters = new ArrayList<>();
         boolean enableValidation = true;
@@ -684,6 +696,29 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             return self();
         }
 
+        /**
+         * Set a forward HTTP proxy to reach YTsaurus through.
+         *
+         * <p>
+         * Rpc/bus connections are tunneled with the HTTP CONNECT method, so the proxy has to allow
+         * CONNECT to the rpc-proxy port. RPC discovery uses that tunnel as well; HTTP discovery is
+         * relayed to the balancer port instead, or tunneled to it when TLS is enabled
+         * ({@link YTsaurusClientConfig.Builder#setUseTLS}); without TLS its authorization token is
+         * visible to the proxy.
+         *
+         * <p>
+         * A bus connector provided by {@link #setSharedBusConnector} is never reconfigured here, so for it
+         * the same proxy has to be set with {@link DefaultBusConnector#setHttpConnectProxy} as well.
+         */
+        public TBuilder setHttpConnectProxy(String host, int port) {
+            InetSocketAddress address = new InetSocketAddress(host, port);
+            if (address.isUnresolved()) {
+                throw new IllegalArgumentException("Cannot resolve http connect proxy host: " + host);
+            }
+            this.httpConnectProxy = address;
+            return self();
+        }
+
         protected <C, B extends ClientBuilder<C, B>> ClientBuilder<C, B> copyTo(ClientBuilder<C, B> builder) {
             builder.auth = auth;
             builder.compression = compression;
@@ -697,6 +732,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             builder.enableValidation = enableValidation;
             builder.heavyExecutor = heavyExecutor;
             builder.proxyNetworkName = proxyNetworkName;
+            builder.httpConnectProxy = httpConnectProxy;
 
             return builder;
         }
@@ -757,8 +793,36 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             this.builder = builder;
 
             busConnector = Objects.requireNonNullElseGet(builder.busConnector, DefaultBusConnector::new);
+            if (builder.httpConnectProxy != null) {
+                setUpHttpConnectProxy(busConnector, builder.httpConnectProxy, builder.isBusConnectorOwner);
+            }
             auth = Objects.requireNonNullElseGet(builder.auth,
                     YTsaurusClientAuth::loadUserAndTokenFromEnvironment);
+        }
+
+        private static void setUpHttpConnectProxy(BusConnector connector, InetSocketAddress proxy, boolean owned) {
+            if (!(connector instanceof DefaultBusConnector)) {
+                throw new IllegalArgumentException(
+                        "setHttpConnectProxy is supported only for DefaultBusConnector, got "
+                                + connector.getClass().getName());
+            }
+            DefaultBusConnector defaultConnector = (DefaultBusConnector) connector;
+            if (owned) {
+                defaultConnector.setHttpConnectProxy(proxy);
+                return;
+            }
+            InetSocketAddress connectorProxy = defaultConnector.getHttpConnectProxy();
+            if (connectorProxy == null) {
+                throw new IllegalArgumentException(
+                        "setHttpConnectProxy does not reconfigure a shared BusConnector, "
+                                + "call DefaultBusConnector.setHttpConnectProxy on it as well");
+            }
+            // Compared by host and port: equals would compare resolved addresses.
+            if (!connectorProxy.getHostString().equals(proxy.getHostString())
+                    || connectorProxy.getPort() != proxy.getPort()) {
+                throw new IllegalArgumentException(
+                        "shared BusConnector uses a different http connect proxy: " + connectorProxy);
+            }
         }
     }
 }

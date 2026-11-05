@@ -1,7 +1,7 @@
 # Slow table and file reads
 
 Pattern for moving data for reading:
-![](../../../../images/read.svg)
+![](../../../../_images/read.svg)
 
 ## How reading is performed.
 

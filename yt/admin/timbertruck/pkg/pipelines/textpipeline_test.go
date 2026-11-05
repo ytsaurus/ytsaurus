@@ -218,6 +218,38 @@ func TestFollowingPipelinesWithCompression(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFollowingPipelinesWithZstdSuffix(t *testing.T) {
+	filepath := path.Join(t.TempDir(), "logfile.zstd")
+
+	f, err := os.Create(filepath)
+	require.NoError(t, err)
+
+	e, err := zstd.NewWriter(nil)
+	require.NoError(t, err)
+
+	fileSize, err := f.Write(e.EncodeAll([]byte("foo\n"), nil))
+	require.NoError(t, err)
+	_, err = f.Write(zstdsync.WriteSyncTag(int64(fileSize)))
+	require.NoError(t, err)
+
+	p, lineCh := newTestTextPipeline(t, filepath, pipelines.FilePosition{})
+
+	runComplete := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		runComplete <- p.Run(ctx)
+	}()
+
+	currentLine := stringLine{}
+	require.True(t, receive(&currentLine, lineCh))
+	require.Equal(t, "foo\n", currentLine.String)
+
+	p.NotifyComplete()
+	require.NoError(t, <-runComplete)
+}
+
 func newTestTextPipeline(t *testing.T, filepath string, filePosition pipelines.FilePosition) (*pipelines.Pipeline, <-chan stringLine) {
 	t.Helper()
 
@@ -307,4 +339,35 @@ func TestOversizedLineSkippedRowsContent(t *testing.T) {
 	require.NotContains(t, skippedContent, "short1", "skipped_rows should not contain 'short1'")
 	require.NotContains(t, skippedContent, "short2", "skipped_rows should not contain 'short2'")
 	require.NotContains(t, skippedContent, "short3", "skipped_rows should not contain 'short3'")
+}
+
+func TestCarriageReturnSplitting(t *testing.T) {
+	tempDir := t.TempDir()
+	filepath := path.Join(tempDir, "logfile")
+	require.NoError(t, os.WriteFile(filepath, []byte("a\rb\nc\r\nd"), 0644))
+
+	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+		LineLimit:             1024,
+		BufferLimit:           4096,
+		SplitByCarriageReturn: true,
+		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
+			_, _ = data.WriteTo(io.Discard)
+		},
+	})
+	require.NoError(t, err)
+
+	lineCh := make(chan stringLine, 128)
+	pipelines.ApplyOutputFunc(func(ctx context.Context, meta pipelines.RowMeta, line pipelines.TextLine) {
+		lineCh <- stringLine{String: string(line.Bytes)}
+	}, s)
+
+	p.NotifyComplete()
+	require.NoError(t, p.Run(context.Background()))
+	close(lineCh)
+
+	var got []string
+	for line := range lineCh {
+		got = append(got, line.String)
+	}
+	require.Equal(t, []string{"a\r", "b\n", "c\r", "\n", "d"}, got)
 }

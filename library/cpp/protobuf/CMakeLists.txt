@@ -14,7 +14,3 @@
 
 add_subdirectory(runtime)
 add_subdirectory(interop)
-add_subdirectory(util)
-add_subdirectory(yql)
-add_subdirectory(dynamic_prototype)
-add_subdirectory(json)

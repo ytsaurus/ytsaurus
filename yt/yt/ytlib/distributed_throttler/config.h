@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 namespace NYT::NDistributedThrottler {
 
@@ -18,6 +18,8 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
+// It's not really a generator; it's generation policy.
+// TODO(h0pless): rename.
 DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
     (StartTime)
     (Random)

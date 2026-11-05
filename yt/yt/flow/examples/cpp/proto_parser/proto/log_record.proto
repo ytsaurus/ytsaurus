@@ -1,0 +1,6 @@
+package NYT.NFlow.NExample;
+
+message TLogRecordProto {
+    optional string level = 1;
+    optional string text = 2;
+};

@@ -15,15 +15,12 @@ from yt.common import YtError
 
 from yt import yson
 
-import pytest
-
 import builtins
 import time
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolTreeOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -35,6 +32,14 @@ class TestSchedulerPoolTreeOrchid(YTEnvSetup):
             "fair_share_update_period": 100,
         },
     }
+
+    @authors("bystrovserg")
+    def test_allocations_attributes_unsupported(self):
+        for attribute_path in ("@", "@count"):
+            with raises_yt_error("Getting allocation count is not supported"):
+                get(f"//sys/scheduler/orchid/scheduler/allocations/{attribute_path}")
+
+        assert get("//sys/scheduler/orchid/scheduler/service/connected")
 
     @authors("pogorelov")
     def test_exists(self):
@@ -179,7 +184,7 @@ class TestSchedulerPoolTreeOrchid(YTEnvSetup):
         assert ls(scheduler_new_orchid_pool_tree_path("default") + "/pools/@") == []
         with raises_yt_error("\"CheckPermission\" method is not supported"):
             check_permission("root", "read", scheduler_new_orchid_pool_tree_path("default") + "/pools")
-        with raises_yt_error("Error parsing attribute \"fields\""):
+        with raises_yt_error("Error parsing attribute"):
             get(scheduler_new_orchid_pool_tree_path("default") + "/pools", fields=10)
 
     @authors("pogorelov")

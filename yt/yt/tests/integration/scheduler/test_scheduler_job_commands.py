@@ -65,7 +65,7 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         abandon_job(jobs[0])
 
         release_breakpoint()
@@ -86,7 +86,7 @@ class TestJobProber(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         abandon_job(jobs[0])
 
         op.track()
@@ -149,9 +149,9 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
             authenticated_user="u1",
         )
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             abandon_job(jobs[0], authenticated_user="u2")
 
         release_breakpoint()
@@ -198,7 +198,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("BREAKPOINT ; cat"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(job_id, operation="spawn", term="dumb", height=50, width=132)
@@ -213,7 +213,7 @@ class TestJobProber(YTEnvSetup):
         assert output.startswith(expected)
 
         poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Shell exited"):
             self._poll_until_prompt(job_id, shell_id)
 
         abandon_job(job_id)
@@ -234,7 +234,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -249,7 +249,7 @@ class TestJobProber(YTEnvSetup):
         assert output == expected
 
         poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Shell exited"):
             self._poll_until_prompt(job_id, shell_id)
 
         abandon_job(job_id)
@@ -260,7 +260,8 @@ class TestJobProber(YTEnvSetup):
     @authors("bystrovserg")
     def test_run_job_shell_command(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         output1 = run_job_shell_command(
             job_id,
@@ -294,7 +295,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -321,7 +322,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -359,7 +360,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -390,10 +391,10 @@ class TestJobProber(YTEnvSetup):
             authenticated_user="u1",
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             poll_job_shell(
                 job_id,
                 operation="spawn",
@@ -428,7 +429,7 @@ class TestJobProber(YTEnvSetup):
                 "enable_secure_vault_variables_in_job_shell": enable_secure_vault_variables_in_job_shell,
             },
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -465,7 +466,7 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         abort_job(jobs[0])
 
         release_breakpoint()
@@ -507,7 +508,7 @@ class TestJobProber(YTEnvSetup):
     @authors("krasovav")
     def test_job_shell_try_change_yt_runtime(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -524,7 +525,7 @@ class TestJobProber(YTEnvSetup):
     @authors("krasovav")
     def test_write_job_shell(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"enable_porto": "isolate"})
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(job_id, operation="spawn")
@@ -550,6 +551,7 @@ class TestJobProberCri(TestJobProber):
 
 class TestJobShellInSubcontainer(TestJobProber):
     ENABLE_MULTIDAEMON = False  # Use profiling counters.
+    NUM_TEST_PARTITIONS = 3
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_proxy": {
@@ -633,7 +635,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             authenticated_user="taxi_dev",
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False
@@ -650,9 +652,9 @@ class TestJobShellInSubcontainer(TestJobProber):
         assert get_subcontainer_name(None) == ""
         assert get_subcontainer_name("nirvana") == "N"
 
-        with raises_yt_error(yt_error_codes.ContainerDoesNotExist):
+        with raises_yt_error(code=yt_error_codes.ContainerDoesNotExist):
             poll_shell("non_existent", "echo $PORTO_NAME", job_id, authenticated_user="root")
-        with raises_yt_error(yt_error_codes.NoSuchJobShell):
+        with raises_yt_error(code=yt_error_codes.NoSuchJobShell):
             poll_shell("brrr", "echo hi", job_id, authenticated_user="root")
 
         # Check job shell permissions.
@@ -661,7 +663,7 @@ class TestJobShellInSubcontainer(TestJobProber):
                 output = poll_shell(shell_name, "echo hi", job_id, user)
                 assert output == "hi\r\n"
             else:
-                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+                with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                     poll_shell(shell_name, "echo hi", job_id, user)
 
         check_job_shell_permission("default", "nirvana_boss", allowed=True)
@@ -698,7 +700,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             task_patch={"enable_porto": "isolate"},
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False
@@ -727,7 +729,7 @@ class TestJobShellInSubcontainer(TestJobProber):
 
     @authors("gritukan")
     def test_job_shell_in_subcontainer_invalid(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Job shell names should be distinct"):
             run_test_vanilla(
                 with_breakpoint("portoctl create N ; BREAKPOINT"),
                 spec={
@@ -741,6 +743,28 @@ class TestJobShellInSubcontainer(TestJobProber):
                         {
                             "name": "x",
                             "subcontainer": "/B",
+                            "owners": [],
+                        },
+                    ],
+                },
+                task_patch={"enable_porto": "isolate"},
+            )
+
+    @authors("krasovav")
+    @pytest.mark.parametrize(
+        "subcontainer",
+        ["/../../js", "/..", "/N/../../js", "/N/.", "N", "-evil"],
+    )
+    def test_job_shell_invalid_subcontainer(self, subcontainer):
+        with raises_yt_error("Container subpath"):
+            run_test_vanilla(
+                with_breakpoint("BREAKPOINT"),
+                spec={
+                    "enable_porto": "isolate",
+                    "job_shells": [
+                        {
+                            "name": "evil",
+                            "subcontainer": subcontainer,
                             "owners": [],
                         },
                     ],
@@ -787,7 +811,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             authenticated_user="taxi_dev",
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False
@@ -824,7 +848,7 @@ class TestJobShellInSubcontainer(TestJobProber):
                 output = self._poll_until_shell_exited(job_id, r["shell_id"])
                 assert output == "hi\r\n"
             else:
-                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+                with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                     poll_job_shell(
                         job_id,
                         shell_name=shell_name,
@@ -855,7 +879,7 @@ class TestJobShellInSubcontainer(TestJobProber):
         check_job_shell_permission("nirvana", "taxi_dev", allowed=False)
         check_job_shell_permission("nirvana", "market_dev", allowed=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* is not allowed to run job shell .*"):
             update_op_parameters(
                 op.id,
                 parameters={

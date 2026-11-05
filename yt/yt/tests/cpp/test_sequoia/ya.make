@@ -41,7 +41,7 @@ SET(NO_STRIP yes)
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 
 IF (CLANG_COVERAGE)

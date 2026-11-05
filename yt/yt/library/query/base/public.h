@@ -10,6 +10,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using NTransactionClient::TTimestamp;
 
 using NTableClient::TRowRange;
@@ -30,6 +32,7 @@ class TGroupClause;
 class TProjectClause;
 class TWhenThenExpression;
 class TJoinClause;
+class THierarchicalJoinClause;
 class TQuery;
 class TQueryOptions;
 class TFeatureFlags;
@@ -52,6 +55,9 @@ using TConstArrayJoinClausePtr = TIntrusivePtr<const TArrayJoinClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
 using TConstJoinClausePtr = TIntrusivePtr<const TJoinClause>;
+
+DECLARE_REFCOUNTED_STRUCT(THierarchicalJoinClause)
+using TConstHierarchicalJoinClausePtr = TIntrusivePtr<const THierarchicalJoinClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TGroupClause)
 using TConstGroupClausePtr = TIntrusivePtr<const TGroupClause>;
@@ -78,6 +84,8 @@ using TConstFrontQueryPtr = TIntrusivePtr<const TFrontQuery>;
 
 DECLARE_REFCOUNTED_STRUCT(TQuery)
 using TConstQueryPtr = TIntrusivePtr<const TQuery>;
+
+DECLARE_REFCOUNTED_STRUCT(TUnionAllQuery)
 
 struct IPrepareCallbacks;
 
@@ -117,6 +125,11 @@ DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
 DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
 
 DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
+
+DECLARE_REFCOUNTED_STRUCT(IJoinProfiler)
+DECLARE_REFCOUNTED_STRUCT(IJoinRowsProducer)
+
+class TJoinProfilerRegistry;
 
 using NTableClient::ISchemafulUnversionedReader;
 using NTableClient::ISchemafulUnversionedReaderPtr;
@@ -167,8 +180,7 @@ using NTableClient::ESimpleLogicalValueType;
 
 namespace NAst {
 
-DECLARE_REFCOUNTED_STRUCT(TTableHint);
-DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
+using NQueryClient::TTableHint;
 
 } // namespace NAst
 

@@ -83,7 +83,7 @@ private:
 
     void OnBeginSlotScan()
     {
-        YT_LOG_DEBUG("LSM interop begins slot scan");
+        YT_TLOG_DEBUG("LSM interop begins slot scan");
 
         StoreCompactor_->OnBeginSlotScan();
 
@@ -96,11 +96,13 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("LSM interop scans slot (CellId: %v)", slot->GetCellId());
+        YT_TLOG_DEBUG("LSM interop scans slot")
+            .With("CellId", slot->GetCellId());
 
         const auto& tabletManager = slot->GetTabletManager();
 
         std::vector<NLsm::TTabletPtr> lsmTablets;
+        lsmTablets.reserve(tabletManager->Tablets().size());
 
         {
             TForbidContextSwitchGuard guard;
@@ -113,9 +115,13 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Tablets collected (CellId: %v, TabletCount: %v)",
-            slot->GetCellId(),
-            lsmTablets.size());
+        YT_TLOG_DEBUG("Tablets collected")
+            .With("CellId", slot->GetCellId())
+            .With("TabletCount", lsmTablets.size());
+
+        if (Bootstrap_->GetTabletNodeDynamicConfig()->TabletManager->YieldBeforeBuildingLsmActions) {
+            Yield();
+        }
 
         auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
@@ -126,6 +132,8 @@ private:
                 tablet->LsmStatistics() = lsmTablet->LsmStatistics();
             }
         }
+
+        GetFinalizerInvoker()->Invoke(BIND([lsmTablets = std::move(lsmTablets)] { }));
     }
 
     void OnEndSlotScan()
@@ -224,7 +232,7 @@ private:
         lsmTablet->SetMounted(tablet->GetState() == ETabletState::Mounted);
         lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
-        lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
+        lsmTablet->LoggingTags() = tablet->GetLoggingTags();
         lsmTablet->SetIsOutOfBandRotationRequested(tablet->GetOutOfBandRotationRequested());
 
         lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
@@ -237,6 +245,7 @@ private:
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());
+            lsmTablet->Partitions().reserve(tablet->PartitionList().size());
             for (const auto& partition : tablet->PartitionList()) {
                 lsmTablet->Partitions().push_back(ScanPartition(partition.get(), lsmTablet.Get()));
             }
@@ -248,6 +257,7 @@ private:
             lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
             lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
         } else {
+            lsmTablet->Stores().reserve(tablet->StoreIdMap().size());
             for (const auto& [id, store] : tablet->StoreIdMap()) {
                 lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));
             }
@@ -279,6 +289,7 @@ private:
             lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
         }
 
+        lsmPartition->Stores().reserve(partition->Stores().size());
         for (const auto& store : partition->Stores()) {
             lsmPartition->Stores().push_back(ScanStore(
                 store,

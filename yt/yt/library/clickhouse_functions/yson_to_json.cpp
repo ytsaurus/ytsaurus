@@ -7,10 +7,12 @@
 #include <library/cpp/json/yson/json2yson.h>
 #include <library/cpp/json/json_writer.h>
 
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
+
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeString.h>
+
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
@@ -34,7 +36,8 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionConvertYsonToJson : public IFunction
+class TFunctionConvertYsonToJson
+    : public IFunction
 {
 public:
     static constexpr auto name = "ConvertYsonToJson";
@@ -58,7 +61,7 @@ public:
         return true;
     }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override
     {
         return false;
     }
@@ -68,7 +71,7 @@ public:
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                "Illegal type {} of first argument of function ,{}",
+                "Illegal type {} of first argument of function {}",
                 arguments[0]->getName(),
                 getName());
         }
@@ -80,7 +83,7 @@ public:
         }
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr &, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& /*resultType*/, size_t inputRowCount) const override
     {
         const IColumn* columnYson = arguments[0].column.get();
 

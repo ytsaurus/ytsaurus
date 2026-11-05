@@ -1,10 +1,14 @@
 #include "helpers.h"
 #include "shutdown.h"
 
+#include <util/generic/hash.h>
+
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/ytree/attributes.h>
+
+#include <library/cpp/yt/system/thread_id.h>
 
 namespace Py {
 
@@ -41,7 +45,7 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString)
     return ConvertToStringBuf(pyString.ptr());
 }
 
-TString ConvertStringObjectToString(const Object& obj)
+std::string ConvertStringObjectToString(const Object& obj)
 {
     Object pyString = obj;
     if (!PyBytes_Check(pyString.ptr())) {
@@ -54,7 +58,7 @@ TString ConvertStringObjectToString(const Object& obj)
     char* stringData;
     Py_ssize_t length;
     PyBytes_AsStringAndSize(pyString.ptr(), &stringData, &length);
-    return TString(stringData, length);
+    return std::string(stringData, length);
 }
 
 Bytes ConvertToPythonString(TStringBuf string)
@@ -93,10 +97,9 @@ std::string Repr(const Object& obj)
     return obj.repr().as_std_string("utf-8", "replace");
 }
 
-TString Str(const Object& obj)
+std::string Str(const Object& obj)
 {
-    auto stdString = obj.str().as_std_string("utf-8", "replace");
-    return TString(stdString);
+    return obj.str().as_std_string("utf-8", "replace");
 }
 
 Object CreateIterator(const Object& obj)
@@ -138,14 +141,14 @@ TError BuildErrorFromPythonException(bool clear)
         return TError();
     }
 
-    TString message = errorValue.isNone()
-        ? "No message"
+     auto message = errorValue.isNone()
+        ? std::string("No message")
         : Str(errorValue);
     auto error = TError(std::move(message), TError::DisableFormat)
-        << TErrorAttribute("exception_type", Str(errorType));
+        .With("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
-        error <<= TErrorAttribute("backtrace", Str(errorBacktrace));
+        error.Add("backtrace", Str(errorBacktrace));
     }
 
     return error;
@@ -184,6 +187,18 @@ bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::strin
     }
 }
 
+std::optional<Py::Object> GetOptional(const Py::Mapping& mapping, const std::string& key)
+{
+    if (!mapping.hasKey(key)) {
+        return std::nullopt;
+    }
+    auto value = mapping.getItem(key);
+    if (value.isNone()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
 {
     if (args.length() > 0) {
@@ -204,12 +219,12 @@ bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
 
 TGilGuard::TGilGuard()
     : State_(PyGILState_Ensure())
-    , ThreadId_(GetCurrentThreadId())
+    , ThreadId_(GetSystemThreadId())
 { }
 
 TGilGuard::~TGilGuard()
 {
-    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetSystemThreadId());
     PyGILState_Release(State_);
 }
 
@@ -217,7 +232,7 @@ TGilGuard::~TGilGuard()
 
 TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
     : State_(PyEval_SaveThread())
-    , ThreadId_(GetCurrentThreadId())
+    , ThreadId_(GetSystemThreadId())
 {
     EnterReleaseAcquireGuard();
 }
@@ -237,7 +252,7 @@ TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
     // if (!Py_IsInitialized()) {
     //     return;
     // }
-    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetSystemThreadId());
     PyEval_RestoreThread(State_);
 
     LeaveReleaseAcquireGuard();
@@ -259,7 +274,7 @@ Py::Callable TPythonClassObject::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName)
+PyObject* FindModuleAttribute(const std::string& moduleName, const std::string& attributeName)
 {
 #if PY_MAJOR_VERSION < 3
     auto module = PyObjectPtr(PyImport_ImportModuleNoBlock(moduleName.c_str()));
@@ -275,7 +290,7 @@ PyObject* FindModuleAttribute(const TString& moduleName, const TString& attribut
     return PyObject_GetAttrString(module.get(), attributeName.c_str());
 }
 
-PyObject* GetModuleAttribute(const TString& moduleName, const TString& attributeName)
+PyObject* GetModuleAttribute(const std::string& moduleName, const std::string& attributeName)
 {
     auto attribute = FindModuleAttribute(moduleName, attributeName);
     if (!attribute) {
@@ -288,35 +303,27 @@ PyObject* GetModuleAttribute(const TString& moduleName, const TString& attribute
 
 PyObject* FindYsonTypeClass(const std::string& name)
 {
-    return FindModuleAttribute("yt.yson.yson_types", TString(name));
+    static THashMap<std::string, PyObject*> TypesCache;
+    auto it = TypesCache.find(name);
+    if (it != TypesCache.end()) {
+        Py_INCREF(it->second);
+        return it->second;
+    }
+    auto* typeClass = FindModuleAttribute("yt.yson.yson_types", name);
+    if (typeClass) {
+        Py_INCREF(typeClass);
+        TypesCache.emplace(name, typeClass);
+    }
+    return typeClass;
 }
 
 PyObject* GetYsonTypeClass(const std::string& name)
 {
-    auto klass = FindYsonTypeClass(name);
-    if (!klass) {
+    auto* typeClass = FindYsonTypeClass(name);
+    if (!typeClass) {
         throw Py::RuntimeError("Class " + name + " not found in module yt.yson.yson_types");
     }
-    return klass;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool WaitForSettingFuture(TFuture<void> future)
-{
-    while (true) {
-        if (future.BlockingWait(TDuration::MilliSeconds(100))) {
-            return true;
-        }
-
-        {
-            TGilGuard guard;
-            auto signals = PyErr_CheckSignals();
-            if (signals == -1) {
-                return false;
-            }
-        }
-    }
+    return typeClass;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

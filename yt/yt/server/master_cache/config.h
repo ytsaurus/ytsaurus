@@ -8,9 +8,13 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
+
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 
@@ -25,7 +29,7 @@ struct TMasterCacheBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
@@ -61,6 +65,10 @@ struct TMasterCacheDynamicConfig
     : public TSingletonsDynamicConfig
 {
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
+
+    NRpc::TServerDynamicConfigPtr RpcServer;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     REGISTER_YSON_STRUCT(TMasterCacheDynamicConfig);
 

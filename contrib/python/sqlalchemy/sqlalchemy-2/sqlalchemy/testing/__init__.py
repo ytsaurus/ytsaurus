@@ -52,6 +52,7 @@ from .config import combinations
 from .config import combinations_list
 from .config import db
 from .config import fixture
+from .config import fixture_classmethod
 from .config import requirements as requires
 from .config import skip_test
 from .config import Variation
@@ -85,6 +86,7 @@ from .util import rowset
 from .util import run_as_contextmanager
 from .util import skip_if_timeout
 from .util import teardown_events
+from .util import unpickle_in_subprocess
 from .warnings import assert_warnings
 from .warnings import warn_test_suite
 

@@ -125,7 +125,7 @@ class TestOperationsArchiveTransformation(YTEnvSetup):
         )
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         def check_commands(state):
             # Operations
@@ -217,7 +217,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         release_breakpoint(job_id=jobs[0])
         wait(lambda: op.get_job_count("running") == 1)
@@ -245,7 +245,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
         assert debug_transaction_id == "0-0-0-0"
@@ -269,7 +269,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
         assert debug_transaction_id != "0-0-0-0"
@@ -440,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -463,7 +463,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot write stderr table in append mode"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -481,7 +481,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row weight is too large"):
             # We set max_part_size to 10MB and max_row_weight to 5MB and write 20MB of stderr.
             map(
                 in_="//tmp/t_input",
@@ -620,7 +620,7 @@ class TestStderrTable(YTEnvSetup):
             spec=spec,
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
         release_breakpoint(job_id=jobs[0])
 
         operation_path = op.get_path()
@@ -713,7 +713,7 @@ class TestStderrTable(YTEnvSetup):
             spec=spec,
         )
 
-        jobs = wait_breakpoint(job_count=1)
+        jobs = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=jobs[0])
 
         wait(lambda: op.get_job_count("completed") == 1)
@@ -737,7 +737,7 @@ class TestStderrTable(YTEnvSetup):
             assert len(schema) == 1
             assert schema[0]["name"] == "a"
 
-        with raises_yt_error("specified multiple times"):
+        with raises_yt_error("Output table .* is specified multiple times"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -746,7 +746,7 @@ class TestStderrTable(YTEnvSetup):
             )
         _validate_output_table_left_intact()
 
-        with raises_yt_error("specified multiple times"):
+        with raises_yt_error("Output table .* is specified multiple times"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -896,7 +896,7 @@ class TestCoreTable(YTEnvSetup):
         )
 
         if get_job_id:
-            job_ids = wait_breakpoint(job_count=job_count)
+            job_ids = wait_breakpoint(op, job_count=job_count)
         else:
             job_ids = []
         return op, job_ids
@@ -1138,7 +1138,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
 
         if fail_job_on_core_dump:
-            with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+            with raises_yt_error(code=yt_error_codes.UserJobProducedCoreFiles):
                 op.track()
         else:
             op.track()
@@ -1173,7 +1173,7 @@ class TestCoreTable(YTEnvSetup):
 
         # First running job is discarded with is core, so we repeat the process with
         # a newly scheduled job.
-        job_ids = wait_breakpoint(job_count=1)
+        job_ids = wait_breakpoint(op, job_count=1)
 
         q = Queue()
         ret_dict2 = {}
@@ -1289,10 +1289,9 @@ class TestCoreTable(YTEnvSetup):
         assert "error" in core_info
 
     @authors("max42", "gritukan")
+    @pytest.mark.skip(reason="This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
     @skip_if_porto
     def test_core_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
-
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -1303,24 +1302,23 @@ class TestCoreTable(YTEnvSetup):
         t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("max42", "gritukan")
+    @pytest.mark.skip(reason="This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
     @skip_if_porto
     def test_core_timeout_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
-
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
 
         time.sleep(7)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         core_infos = self._get_core_infos(op)
@@ -1410,13 +1408,10 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("gritukan")
+    @pytest.mark.skipif(YT_CUDA_CORE_DUMP_SIMULATOR is None, reason="This test requires cuda_core_dump_simulator being built")
+    @pytest.mark.skipif(YT_LIB_CUDA_CORE_DUMP_INJECTION is None, reason="This test requires lib_cuda_core_dump_injection being built")
     @skip_if_porto
     def test_cuda_gpu_core_dump(self):
-        if YT_CUDA_CORE_DUMP_SIMULATOR is None:
-            pytest.skip("This test requires cuda_core_dump_simulator being built")
-        if YT_LIB_CUDA_CORE_DUMP_INJECTION is None:
-            pytest.skip("This test requires lib_cuda_core_dump_injection being built")
-
         op, job_ids = self._start_operation(1, enable_cuda_gpu_core_dump=True)
 
         ret_dict = {}
@@ -1453,7 +1448,6 @@ class TestCoreTable(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
 class TestCoreTablePorto(TestCoreTable):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -1470,7 +1464,7 @@ class TestCoreTablePorto(TestCoreTable):
             enable_cuda_gpu_core_dump=True,
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User job produced core files"):
             op.track()
 
         core_infos = list(self._get_core_infos(op).values())
@@ -1485,13 +1479,6 @@ class TestCoreTablePorto(TestCoreTable):
         assert not core_info["cuda"]
 
 
-@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
-class TestCoreTablePortoRootfs(TestCoreTablePorto):
-    ENABLE_MULTIDAEMON = True
-    USE_CUSTOM_ROOTFS = True
-
-
 def get_profiles_from_table(operation_id):
     operation_hash = uuid_hash_pair(operation_id)
     return list(
@@ -1504,7 +1491,6 @@ def get_profiles_from_table(operation_id):
     )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1654,7 +1640,6 @@ class TestJobProfiling(YTEnvSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobTraceEvents(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1945,7 +1930,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
     @authors("ignat")
     def test_get_job_trace_on_missing_operation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("No such operation .*"):
             # Missing/incorrect op_id
             get_job_trace("1-1-1-1", "2-2-2-2")
 
@@ -2028,7 +2013,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .add_complete_trace(trace_id=trace_id, pid=2, count=2)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         time.sleep(5)
         release_breakpoint()
         wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 4)
@@ -2048,7 +2033,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .drop_trace(pid=2, trace_id=trace_id2)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id1)) == 1)
         wait(lambda: self._get_trace_state(op.id, job_id, trace_id1)[0] == "started")
         release_breakpoint()
@@ -2082,7 +2067,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .breakpoint() \
 
         op = self._start_vanilla_operation(should_sleep=False, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         wait(lambda: len(self._get_job_traces(op.id, job_id)) == 1)
         trace_id = self._get_job_traces(op.id, job_id)[0]
@@ -2111,7 +2096,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .end_trace(pid=1, trace_id=trace_id3)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         def check_traces(use_per_process):
             if use_per_process:
@@ -2193,7 +2178,6 @@ class TestJobTraceEvents(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobReporterInProgressLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

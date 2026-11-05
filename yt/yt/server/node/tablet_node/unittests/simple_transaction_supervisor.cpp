@@ -8,8 +8,8 @@ using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,8 @@ TSimpleTransactionSupervisor::TSimpleTransactionSupervisor(
 TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
-    TTimestamp prepareTimestamp)
+    TTimestamp prepareTimestamp,
+    int targetCommitApprovalCount)
 {
     if (!persistent) {
         return BIND([=, this, this_ = MakeStrong(this)] {
@@ -60,6 +61,7 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
                 .Persistent = persistent,
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = TCellTag(0x42),
+                .TargetCommitApprovalCount = targetCommitApprovalCount,
             };
             TransactionManager_->PrepareTransactionCommit(transactionId, options);
         })
@@ -70,7 +72,8 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     NProto::TReqPrepareTransactionCommit request;
     ToProto(request.mutable_transaction_id(), transactionId);
     request.set_persistent(persistent);
-    request.set_prepare_timestamp(prepareTimestamp);
+    request.set_prepare_timestamp(ToProto(prepareTimestamp));
+    request.set_target_commit_approval_count(targetCommitApprovalCount);
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
@@ -83,7 +86,7 @@ TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
 {
     NProto::TReqCommitTransaction request;
     ToProto(request.mutable_transaction_id(), transactionId);
-    request.set_commit_timestamp(commitTimestamp);
+    request.set_commit_timestamp(ToProto(commitTimestamp));
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
@@ -108,6 +111,7 @@ void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(NProto::TReqPre
     TTransactionPrepareOptions options{
         .Persistent = request->persistent(),
         .PrepareTimestamp = FromProto<TTimestamp>(request->prepare_timestamp()),
+        .TargetCommitApprovalCount = request->target_commit_approval_count(),
     };
     TransactionManager_->PrepareTransactionCommit(
         FromProto<TGuid>(request->transaction_id()),

@@ -8,23 +8,7 @@ using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConfigWrapper::TConfigWrapper(TDistributedHydraManagerConfigPtr config)
-    : Config_(config)
-{ }
-
-void TConfigWrapper::Set(TDistributedHydraManagerConfigPtr config)
-{
-    Config_.Store(config);
-}
-
-TDistributedHydraManagerConfigPtr TConfigWrapper::Get() const
-{
-    return Config_.Acquire();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsSystemMutationType(const TString& mutationType)
+bool IsSystemMutationType(const std::string& mutationType)
 {
     return mutationType == NHydra::HeartbeatMutationType ||
         mutationType == ExitReadOnlyMutationType ||

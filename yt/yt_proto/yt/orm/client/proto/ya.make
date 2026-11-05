@@ -1,5 +1,7 @@
 PROTO_LIBRARY()
 
+ENABLE(KOTLIN_PROTO)
+
 PROTO_NAMESPACE(yt)
 
 PY_NAMESPACE(yt_proto.yt.orm.client.proto)

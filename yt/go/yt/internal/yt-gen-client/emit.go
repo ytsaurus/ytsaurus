@@ -163,7 +163,8 @@ func emit(f file, out io.Writer) error {
 			write("func (p *%sParams) Log() []log.Field {", m.name)
 			write("fields := []log.Field{")
 			for i := 0; i < len(m.httpParams); i++ {
-				if m.params[i].name == "spec" {
+				switch m.params[i].name {
+				case "spec", "cookie", "session", "results":
 					continue
 				}
 

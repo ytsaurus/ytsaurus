@@ -18,6 +18,8 @@
 
 ### Пример
 
+#### Microsoft Identity Platform
+
 Ниже приведён пример — как настроить SSO-аутентификацию в {{product-name}} с помощью сервиса [Microsoft Identity Platform](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow).
 
 1. Сначала необходимо завести OAuth-приложение в MS Identity Platform. В качестве RedirectURIs следует задать `https://<HOST_NAME_OF_YOUR_YT_CLUSTER>/api/oauth/callback`.
@@ -63,6 +65,89 @@
         scope: "openid offline_access" # offline_access scope is required for api to respond with refresh_token
         buttonLabel: "Login via SSO"
     ```
+
+#### Keycloak
+
+Ниже приведён пример настройки SSO-аутентификации с помощью [Keycloak](https://www.keycloak.org/).
+
+В примере используются realm `ytsaurus.tech`, адрес Keycloak `https://keycloak.example.com` и адрес веб-интерфейса `https://ui.example.com`. Keycloak должен быть доступен как из браузера пользователя, так и из HTTP-прокси.
+
+1. Создайте в Keycloak клиент OpenID Connect. Включите **Client authentication** и **Standard flow** и задайте следующие параметры:
+
+    ```text
+    Valid redirect URIs: https://ui.example.com/api/oauth/callback
+    Valid post logout redirect URIs: https://ui.example.com/api/oauth/logout/callback
+    Web origins: https://ui.example.com
+    ```
+
+    Сохраните полученные `CLIENT_ID` и `CLIENT_SECRET` в Kubernetes Secret:
+
+    ```bash
+    kubectl create secret generic ytsaurus-ui-keycloak \
+      --from-literal=client-id='<CLIENT_ID>' \
+      --from-literal=client-secret='<CLIENT_SECRET>'
+    ```
+
+2. Настройте сервер:
+
+    ```yaml
+    # ytsaurus.yaml
+    apiVersion: cluster.ytsaurus.tech/v1
+    kind: Ytsaurus
+    metadata:
+      name: ytdemo
+    spec:
+      oauthService:
+        host: keycloak.example.com
+        port: 443
+        secure: true
+        userInfoHandler:
+          endpoint: "realms/ytsaurus.tech/protocol/openid-connect/userinfo"
+          loginField: "preferred_username"
+          errorField: "error"
+        disableUserCreation: false
+      # ...
+    ```
+
+    При `disableUserCreation: false` пользователь будет автоматически создан в `//sys/users` после первого успешного входа. Права пользователю необходимо выдать отдельно.
+
+3. Настройте веб-интерфейс:
+
+    ```yaml
+    # ui-helm.values.yaml
+    ui:
+      clusterConfig:
+        clusters:
+          - id: my-cluster
+            # Остальные параметры кластера опущены.
+            authentication: basic
+      env:
+        - name: KEYCLOAK_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: ytsaurus-ui-keycloak
+              key: client-id
+        - name: KEYCLOAK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ytsaurus-ui-keycloak
+              key: client-secret
+    settings:
+      oauth:
+        enabled: true
+        baseURL: "https://keycloak.example.com"
+        authPath: "realms/ytsaurus.tech/protocol/openid-connect/auth"
+        logoutPath: "realms/ytsaurus.tech/protocol/openid-connect/logout"
+        tokenPath: "realms/ytsaurus.tech/protocol/openid-connect/token"
+        clientIdEnvName: "KEYCLOAK_CLIENT_ID"
+        clientSecretEnvName: "KEYCLOAK_CLIENT_SECRET"
+        scope: "openid profile"
+        buttonLabel: "Login via Keycloak"
+    ```
+
+    Значение `authentication: basic` разрешает веб-интерфейсу передавать данные аутентификации HTTP-прокси и не требует включения входа по паролю. Secret с OAuth client secret не заменяет [interface secret](https://github.com/ytsaurus/ytsaurus-ui/blob/main/packages/ui-helm-chart/values.yaml): в interface secret хранится токен {{product-name}} для служебных запросов веб-интерфейса.
+
+4. Примените спецификацию кластера и установите или обновите веб-интерфейс с подготовленным `values.yaml`. После входа Keycloak вернёт пользователя на `/api/oauth/callback`, а HTTP-прокси запросит `userinfo` и возьмёт имя пользователя из `preferred_username`.
 
 ## Детали реализации
 

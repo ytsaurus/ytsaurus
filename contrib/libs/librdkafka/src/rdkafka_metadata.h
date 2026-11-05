@@ -147,7 +147,13 @@ rd_kafka_metadata_refresh_topics(rd_kafka_t *rk,
                                  rd_bool_t force,
                                  rd_bool_t allow_auto_create,
                                  rd_bool_t cgrp_update,
+                                 int32_t cgrp_subscription_version,
                                  const char *reason);
+rd_kafka_resp_err_t
+rd_kafka_metadata_refresh_topic_ids(rd_kafka_t *rk,
+                                    rd_kafka_broker_t *rkb,
+                                    const rd_list_t *topic_ids,
+                                    const char *reason);
 rd_kafka_resp_err_t
 rd_kafka_metadata_refresh_known_topics(rd_kafka_t *rk,
                                        rd_kafka_broker_t *rkb,
@@ -170,6 +176,7 @@ rd_kafka_metadata_request(rd_kafka_t *rk,
                           const rd_list_t *topics,
                           rd_bool_t allow_auto_create_topics,
                           rd_bool_t cgrp_update,
+                          int32_t cgrp_subscription_version,
                           const char *reason,
                           rd_kafka_op_t *rko);
 
@@ -281,9 +288,7 @@ int rd_kafka_metadata_cache_topic_update(
     const rd_kafka_metadata_topic_internal_t *mdit,
     rd_bool_t propagate,
     rd_bool_t include_metadata,
-    rd_kafka_metadata_broker_internal_t *brokers,
-    size_t broker_cnt,
-    rd_bool_t only_existing);
+    rd_bool_t has_reliable_leader_epochs);
 void rd_kafka_metadata_cache_propagate_changes(rd_kafka_t *rk);
 struct rd_kafka_metadata_cache_entry *
 rd_kafka_metadata_cache_find(rd_kafka_t *rk, const char *topic, int valid);
@@ -298,21 +303,23 @@ void rd_kafka_metadata_cache_purge_hints_by_id(rd_kafka_t *rk,
 int rd_kafka_metadata_cache_hint(rd_kafka_t *rk,
                                  const rd_list_t *topics,
                                  rd_list_t *dst,
-                                 rd_kafka_resp_err_t err,
-                                 rd_bool_t replace);
+                                 rd_kafka_resp_err_t err);
 
 int rd_kafka_metadata_cache_hint_rktparlist(
     rd_kafka_t *rk,
     const rd_kafka_topic_partition_list_t *rktparlist,
-    rd_list_t *dst,
-    int replace);
+    rd_list_t *dst);
 
-const rd_kafka_metadata_topic_t *
-rd_kafka_metadata_cache_topic_get(rd_kafka_t *rk, const char *topic, int valid);
+const rd_kafka_metadata_topic_t *rd_kafka_metadata_cache_topic_get(
+    rd_kafka_t *rk,
+    const char *topic,
+    const rd_kafka_metadata_topic_internal_t **mdtip,
+    int valid);
 int rd_kafka_metadata_cache_topic_partition_get(
     rd_kafka_t *rk,
     const rd_kafka_metadata_topic_t **mtopicp,
     const rd_kafka_metadata_partition_t **mpartp,
+    const rd_kafka_metadata_partition_internal_t **mdpip,
     const char *topic,
     int32_t partition,
     int valid);
@@ -321,7 +328,7 @@ int rd_kafka_metadata_cache_topics_count_exists(rd_kafka_t *rk,
                                                 const rd_list_t *topics,
                                                 int *metadata_agep);
 
-void rd_kafka_metadata_fast_leader_query(rd_kafka_t *rk);
+void rd_kafka_metadata_fast_leader_query(rd_kafka_t *rk, rd_bool_t force);
 
 void rd_kafka_metadata_cache_init(rd_kafka_t *rk);
 void rd_kafka_metadata_cache_destroy(rd_kafka_t *rk);
@@ -329,7 +336,9 @@ void rd_kafka_metadata_cache_purge(rd_kafka_t *rk, rd_bool_t purge_observers);
 int rd_kafka_metadata_cache_wait_change(rd_kafka_t *rk, int timeout_ms);
 void rd_kafka_metadata_cache_dump(FILE *fp, rd_kafka_t *rk);
 
-int rd_kafka_metadata_cache_topics_to_list(rd_kafka_t *rk, rd_list_t *topics);
+int rd_kafka_metadata_cache_topics_to_list(rd_kafka_t *rk,
+                                           rd_list_t *topics,
+                                           rd_bool_t exclude_valid);
 
 void rd_kafka_metadata_cache_wait_state_change_async(
     rd_kafka_t *rk,

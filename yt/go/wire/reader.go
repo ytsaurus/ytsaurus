@@ -31,7 +31,9 @@ func (r *reader) readValue() (v Value, err error) {
 	}
 
 	v.ID = binary.LittleEndian.Uint16(r.buf[r.pos : r.pos+2])
-	v.Type = ValueType(r.buf[r.pos+2] - typeOffset)
+	if v.Type, err = ValueTypeFromCode(r.buf[r.pos+2]); err != nil {
+		return
+	}
 	v.Aggregate = r.buf[r.pos+3] != 0
 	rawLength := binary.LittleEndian.Uint32(r.buf[r.pos+4 : r.pos+8])
 
@@ -60,8 +62,7 @@ func (r *reader) readValue() (v Value, err error) {
 		r.pos += paddedLength
 	case TypeNull:
 	default:
-		err = fmt.Errorf("invalid wire type 0x%02x", int(v.Type)+typeOffset)
-		return
+		panic(fmt.Sprintf("wire: value type 0x%02x accepted by ValueTypeFromCode but not handled in readValue", v.Type.Code()))
 	}
 
 	return
@@ -69,7 +70,7 @@ func (r *reader) readValue() (v Value, err error) {
 
 // UnmarshalRowset decodes rowset from YT wire format.
 //
-// Returned values of type Bytes and Any point directly into the input buffer.
+// Returned values of type Bytes, Any, and Composite point directly into the input buffer.
 func UnmarshalRowset(b []byte) (rows []Row, err error) {
 	r := reader{buf: b}
 

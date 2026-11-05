@@ -77,7 +77,7 @@ size_t TReferenceHasher::operator()(const TReference& reference) const
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
         if (std::ssize(*reference.CompositeTypeAccessor.DictOrListItemAccessor) != 1) {
             THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
-                << TErrorAttribute("source", FormatReference(reference));
+                .With("source", FormatReference(reference));
         }
         HashCombine(result, reference.CompositeTypeAccessor.DictOrListItemAccessor->front());
     }
@@ -230,16 +230,6 @@ TStringBuf TExpression::GetSource(TStringBuf source) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableHint::Register(TRegistrar registrar)
-{
-    registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
-        .Default(true);
-    registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
 {
     auto begin = sourceLocation.first;
@@ -248,23 +238,11 @@ TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
     return source.substr(begin, end - begin);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
-{
-    builder->AppendString("\"{");
-    if (hint.PushDownGroupBy) {
-        builder->AppendString("push_down_group_by=%true;");
-    }
-    if (!hint.RequireSyncReplica) {
-        builder->AppendString("require_sync_replica=%false;");
-    }
-    builder->AppendString("}\"");
-}
-
 bool operator==(const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
-        std::tie(lhs.Path, lhs.Alias, *lhs.Hint) ==
-        std::tie(rhs.Path, rhs.Alias, *rhs.Hint);
+        std::tie(lhs.Path, lhs.Alias, lhs.Hint) ==
+        std::tie(rhs.Path, rhs.Alias, rhs.Hint);
 }
 
 bool operator==(const TJoin& lhs, const TJoin& rhs)
@@ -272,6 +250,68 @@ bool operator==(const TJoin& lhs, const TJoin& rhs)
     return
         std::tie(lhs.IsLeft, lhs.Table, lhs.Fields, lhs.Lhs, lhs.Rhs, lhs.Predicate) ==
         std::tie(rhs.IsLeft, rhs.Table, rhs.Fields, rhs.Lhs, rhs.Rhs, rhs.Predicate);
+}
+
+bool TQuery::operator==(const TQuery& other) const
+{
+    if (FromClause.index() != other.FromClause.index()) {
+        return false;
+    }
+
+    auto areAstHeadEqual = [] (const TQueryAstHeadPtr& lhs, const TQueryAstHeadPtr& rhs) {
+        if (!lhs || !rhs) {
+            return lhs == rhs;
+        }
+        return
+            lhs->Ast == rhs->Ast &&
+            lhs->Alias == rhs->Alias;
+    };
+
+    auto fromClauseEqual = Visit(FromClause,
+        [&] (const TTableDescriptor& table) {
+            return table == std::get<TTableDescriptor>(other.FromClause);
+        },
+        [&] (TQueryAstHeadPtr subquery) {
+            return areAstHeadEqual(subquery, std::get<TQueryAstHeadPtr>(other.FromClause));
+        },
+        [&] (const TExpressionList& expressions) {
+            return expressions == std::get<TExpressionList>(other.FromClause);
+        },
+        [&] (const TUnionAllClause& unionAllClause) {
+            const auto& otherUnionAllClause = std::get<TUnionAllClause>(other.FromClause);
+
+            if (unionAllClause.Alias != otherUnionAllClause.Alias) {
+                return false;
+            }
+
+            if (unionAllClause.Subqueries.size() != otherUnionAllClause.Subqueries.size()) {
+                return false;
+            }
+
+            for (int index = 0; index < std::ssize(unionAllClause.Subqueries); ++index) {
+                if (!areAstHeadEqual(
+                    unionAllClause.Subqueries[index],
+                    otherUnionAllClause.Subqueries[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+    return
+        fromClauseEqual &&
+        WithIndex == other.WithIndex &&
+        Joins == other.Joins &&
+        SelectExprs == other.SelectExprs &&
+        WherePredicate == other.WherePredicate &&
+        GroupExprs == other.GroupExprs &&
+        TotalsMode == other.TotalsMode &&
+        HavingPredicate == other.HavingPredicate &&
+        OrderExpressions == other.OrderExpressions &&
+        Offset == other.Offset &&
+        Limit == other.Limit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,6 +414,8 @@ std::vector<TStringBuf> GetKeywords()
     XX(false)
     XX(true)
     XX(inf)
+    XX(union)
+    XX(all)
 
 #undef XX
 
@@ -490,23 +532,27 @@ void FormatReference(TStringBuilderBase* builder, const TReference& ref, int dep
     }
 
     if (ref.CompositeTypeAccessor.DictOrListItemAccessor) {
+        // Preserving existing behavior, see YT-28316.
+        auto compatOptions = options;
+        compatOptions.IsFinal = false;
         builder->AppendChar('[');
-        FormatExpressions(builder, *ref.CompositeTypeAccessor.DictOrListItemAccessor, depth + 1, options);
+        FormatExpressions(builder, *ref.CompositeTypeAccessor.DictOrListItemAccessor, depth + 1, compatOptions);
         builder->AppendChar(']');
     }
 }
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor, const TFormatOptions& options)
 {
-    static const TTableHintPtr DefaultHint = New<TTableHint>();
-
-    FormatId(builder, descriptor.Path, options);
+    // Preserving existing behavior, see YT-28316.
+    auto compatOptions = options;
+    compatOptions.IsFinal = false;
+    FormatId(builder, descriptor.Path, compatOptions);
     if (descriptor.Alias) {
         builder->AppendString(" AS ");
-        FormatId(builder, *descriptor.Alias, options);
+        FormatId(builder, *descriptor.Alias, compatOptions);
     }
-    if (*descriptor.Hint != *DefaultHint) {
-        Format(builder, " WITH HINT %v", *descriptor.Hint);
+    if (descriptor.Hint != TTableHint()) {
+        Format(builder, " WITH HINT %v", descriptor.Hint);
     }
 }
 
@@ -514,8 +560,11 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 {
     if (depth >= MaxExpressionDepth) {
         THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
-            << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+            .With("max_expression_depth", MaxExpressionDepth);
     }
+    // Preserving existing behavior, see YT-28316.
+    auto compatOptions = options;
+    compatOptions.IsFinal = false;
     auto printTuple = [&] (TStringBuilderBase* builder, const TLiteralValueTuple& tuple) {
         bool needParens = tuple.size() > 1;
         if (needParens) {
@@ -571,7 +620,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
     } else if (auto* typedExpr = expr.As<TAliasExpression>()) {
         if (options.ExpandAliases) {
             builder->AppendChar('(');
-            FormatExpression(builder, *typedExpr->Expression, depth + 1, options);
+            FormatExpression(builder, *typedExpr->Expression, depth + 1, compatOptions);
             builder->AppendString(" as ");
             FormatId(builder, typedExpr->Name, options);
             builder->AppendChar(')');
@@ -581,30 +630,30 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
     } else if (auto* typedExpr = expr.As<TFunctionExpression>()) {
         builder->AppendString(typedExpr->FunctionName);
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Arguments, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Arguments, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TUnaryOpExpression>()) {
         builder->AppendString(GetUnaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Operand, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Operand, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBinaryOpExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Lhs, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Lhs, depth + 1, compatOptions);
         builder->AppendChar(')');
         builder->AppendString(GetBinaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Rhs, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Rhs, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TInExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         builder->AppendString(") IN (");
         printTuples(builder, typedExpr->Values);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBetweenExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         builder->AppendString(") BETWEEN (");
         printRanges(builder, typedExpr->Values);
         builder->AppendChar(')');
@@ -615,7 +664,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
         if (needParenthesis) {
             builder->AppendChar('(');
         }
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         if (needParenthesis) {
             builder->AppendChar(')');
         }
@@ -627,7 +676,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 
         if (typedExpr->DefaultExpr) {
             builder->AppendString(", ");
-            FormatExpression(builder, *typedExpr->DefaultExpr, depth + 1, options);
+            FormatExpression(builder, *typedExpr->DefaultExpr, depth + 1, compatOptions);
         }
 
         builder->AppendChar(')');
@@ -636,39 +685,39 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 
         if (typedExpr->OptionalOperand) {
             builder->AppendChar(' ');
-            FormatExpression(builder, *typedExpr->OptionalOperand, depth + 1, options);
+            FormatExpression(builder, *typedExpr->OptionalOperand, depth + 1, compatOptions);
         }
 
         for (const auto& item : typedExpr->WhenThenExpressions) {
             builder->AppendString(" WHEN ");
-            FormatExpression(builder, item.Condition, depth + 1, options);
+            FormatExpression(builder, item.Condition, depth + 1, compatOptions);
             builder->AppendString(" THEN ");
-            FormatExpression(builder, item.Result, depth + 1, options);
+            FormatExpression(builder, item.Result, depth + 1, compatOptions);
         }
 
         if (typedExpr->DefaultExpression) {
             builder->AppendString(" ELSE ");
-            FormatExpression(builder, *typedExpr->DefaultExpression, depth + 1, options);
+            FormatExpression(builder, *typedExpr->DefaultExpression, depth + 1, compatOptions);
         }
 
         builder->AppendString(" END");
     } else if (auto* typedExpr = expr.As<TLikeExpression>()) {
-        FormatExpressions(builder, typedExpr->Text, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Text, depth + 1, compatOptions);
 
         builder->AppendChar(' ');
         builder->AppendString(GetStringMatchOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar(' ');
 
-        FormatExpressions(builder, typedExpr->Pattern, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Pattern, depth + 1, compatOptions);
 
         if (typedExpr->EscapeCharacter) {
             builder->AppendString(" ESCAPE ");
-            FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, options);
+            FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, compatOptions);
         }
     } else if (auto* typedExpr = expr.As<TQueryExpression>()) {
         builder->AppendChar('(');
         builder->AppendString(" SELECT ");
-        FormatQuery(builder, typedExpr->Query, options);
+        FormatQuery(builder, typedExpr->Query, compatOptions);
         builder->AppendChar(')');
     } else {
         YT_ABORT();
@@ -735,8 +784,9 @@ void FormatJoin(TStringBuilderBase* builder, const TJoin& join, const TFormatOpt
             formatter);
     }
     if (join.Predicate) {
-        builder->AppendString(" AND ");
+        builder->AppendString(" AND (");
         FormatExpression(builder, *join.Predicate, /*depth*/ 0, options);
+        builder->AppendChar(')');
     }
 }
 
@@ -771,9 +821,28 @@ void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join, const 
             formatter);
     }
     if (join.Predicate) {
-        builder->AppendString(" AND ");
+        builder->AppendString(" AND (");
         FormatExpression(builder, *join.Predicate, /*depth*/ 0, options);
+        builder->AppendChar(')');
     }
+}
+
+void FormatUnionAllSubqueries(
+    TStringBuilderBase* builder,
+    const TUnionAllClause& unionAll,
+    const TFormatOptions& options)
+{
+    builder->AppendChar('(');
+    bool first = true;
+    for (const auto* subquery : unionAll.Subqueries) {
+        if (!first) {
+            builder->AppendString(" UNION ALL ");
+        }
+        first = false;
+        builder->AppendString("SELECT ");
+        FormatQuery(builder, subquery->Ast, options);
+    }
+    builder->AppendChar(')');
 }
 
 void FormatQuery(TStringBuilderBase* builder, const TQuery& query, const TFormatOptions& options)
@@ -820,6 +889,13 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query, const TFormat
             builder->AppendChar('(');
             FormatExpression(builder, expression, /*depth*/ 0, options);
             builder->AppendChar(')');
+        },
+        [&] (const TUnionAllClause& unionAll) {
+            FormatUnionAllSubqueries(builder, unionAll, options);
+            if (unionAll.Alias) {
+                builder->AppendString(" AS ");
+                FormatId(builder, *unionAll.Alias, options);
+            }
         });
 
     if (query.WithIndex) {
@@ -969,6 +1045,12 @@ NYPath::TYPath GetMainTablePath(const TQuery& query)
         },
         [] (const TExpressionList& /*expression*/) -> NYPath::TYPath {
             THROW_ERROR_EXCEPTION("Unknown main table path");
+        },
+        [] (const TUnionAllClause& unionAll) -> NYPath::TYPath {
+            if (unionAll.Subqueries.empty()) {
+                THROW_ERROR_EXCEPTION("UNION ALL clause has no subqueries");
+            }
+            return GetMainTablePath(unionAll.Subqueries.front()->Ast);
         });
 }
 

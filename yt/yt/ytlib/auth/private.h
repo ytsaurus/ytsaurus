@@ -8,8 +8,8 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TvmBridgeLogger, "TvmBridge");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, NativeAuthLogger, "NativeAuth");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TvmBridgeLogger, "TvmBridge");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, NativeAuthLogger, "NativeAuth");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,3 @@
-
 JAVA_CONTRIB()
 
 VERSION(1.2.17)
@@ -6,6 +5,9 @@ VERSION(1.2.17)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(52979532)
+
 SRC_RESOURCE(52979531)
+
+ORIGINAL_SOURCE(http://svn.apache.org/viewvc/logging/log4j/tags/v1_2_17_rc3)
 
 END()

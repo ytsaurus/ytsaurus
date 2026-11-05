@@ -8,9 +8,43 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.4.1**" %}
+
+**Release date:** 2026-08-10
+
+
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.4.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.4.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/1123897735?tag=stable-0.4.1)
+
+
+YQL:
+- Added row-level security support for YT tables.
+- Extended `QLFilter` with Boolean, floating-point, string, and UTF-8 types, plus per-cluster activation.
+- Added partial CBO execution.
+- Improved descending-sort handling and compatibility with older tables under the yt.UseNativeDescSort pragma.
+- Supported dynamic-table writes by REPLACE INTO (https://ytsaurus.tech/docs/ru/yql/syntax/replace_into)
+- Fixed the behavior of the yt.FuseMapToMapReduce pragma with horizontal joins.
+- Supported YQL language version 2025.05 (https://ytsaurus.tech/docs/ru/yql/changelog/2025.05)
+
+СHYT:
+- Fixed chyt queries starts with fresh ytsaurus clients
+
+NB! Аvailable only with ytsaurus server version [25.4.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.4.0) and later.
+
+{% endcut %}
+
+
 {% cut "**0.1.2**" %}
 
 **Release date:** 2026-01-27
+
+
+**Release page:** [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.1.2](https://github.com/orgs/ytsaurus/packages/container/query-tracker/659176566?tag=stable-0.1.2)
 
 
 **Features**
@@ -29,6 +63,12 @@ Is released as a docker image.
 {% cut "**0.1.1**" %}
 
 **Release date:** 2025-12-18
+
+
+**Release page:** [0.1.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.1.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/617510568?tag=0.1.1)
 
 
 This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
@@ -55,6 +95,12 @@ This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/y
 **Release date:** 2025-09-08
 
 
+**Release page:** [0.0.11](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.11)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.11](https://github.com/orgs/ytsaurus/packages/container/query-tracker/509269551?tag=0.0.11)
+
+
 **Features**
 - Added "sort_order" flag for list_queries API
 - Added the "assigned_engine" meta for YQL queries.
@@ -79,6 +125,12 @@ https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
 **Release date:** 2025-06-23
 
 
+**Release page:** [0.0.10](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.10)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.10](https://github.com/orgs/ytsaurus/packages/container/query-tracker/448865204?tag=0.0.10)
+
+
 **Features:**
 - Added clickhouse UDF.
 - Added the "assigned_tracker" meta for queries that are in the "finished" state.
@@ -92,6 +144,12 @@ https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
 {% cut "**0.0.9**" %}
 
 **Release date:** 2025-04-08
+
+
+**Release page:** [0.0.9](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.9)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.9](https://github.com/orgs/ytsaurus/packages/container/query-tracker/393209556?tag=0.0.9)
 
 
 **Features**
@@ -127,6 +185,12 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 **Release date:** 2024-08-26
 
 
+**Release page:** [0.0.8](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.8)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.8](https://github.com/orgs/ytsaurus/packages/container/query-tracker/264406046?tag=0.0.8)
+
+
 - Optimized Query Tracker API performance by adding system tables indexes. Issue: #653
 - Added support of SystemPython udfs in YQL queries. Issue: #265
 - Fixed broken logs compression in YQL agent. Issue: #623
@@ -141,6 +205,12 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 {% cut "**0.0.7**" %}
 
 **Release date:** 2024-08-01
+
+
+**Release page:** [0.0.7](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.7)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.7](https://github.com/orgs/ytsaurus/packages/container/query-tracker/252093623?tag=0.0.7)
 
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
@@ -164,6 +234,12 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.10.0
 {% cut "**0.0.6**" %}
 
 **Release date:** 2024-04-11
+
+
+**Release page:** [0.0.6](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.6)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.6](https://github.com/orgs/ytsaurus/packages/container/query-tracker/223408391?tag=0.0.6)
 
 
 - Fixed authorization in complex cluster-free YQL queries
@@ -192,6 +268,9 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 {% cut "**0.0.5**" %}
 
 **Release date:** 2024-03-19
+
+
+**Release page:** [0.0.5](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.5)
 
 
 - Added access control to queries
@@ -233,6 +312,9 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 **Release date:** 2023-12-03
 
 
+**Release page:** [0.0.4](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.4)
+
+
 - Applied YQL defaults from the documentation
 - Fixed a bag in YQL queries that don't use YT tables
 - Fixed a bag in YQL queries that use aggregate functions
@@ -251,6 +333,9 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
+**Release page:** [0.0.3](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.3)
+
+
 - Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
 - System query_tracker tables have been moved to sys bundle
 
@@ -261,6 +346,9 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 {% cut "**0.0.1**" %}
 
 **Release date:** 2023-10-19
+
+
+**Release page:** [0.0.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.1)
 
 
 - Added authentication, now all requests are run on behalf of the user that initiated them.

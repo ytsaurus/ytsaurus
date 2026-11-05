@@ -15,7 +15,7 @@ namespace NYT::NIO {
 IIOEnginePtr CreateIOEngineUring(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId,
+    std::string locationId,
     IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger);

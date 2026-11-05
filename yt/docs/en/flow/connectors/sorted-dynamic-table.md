@@ -1,0 +1,1 @@
+{% include [Sorted Dynamic Table Sink in {{product-name}} Flow](../../_includes/flow/connectors/sorted-dynamic-table.md) %}

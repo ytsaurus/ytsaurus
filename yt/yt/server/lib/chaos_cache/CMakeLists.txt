@@ -14,6 +14,8 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(unittests)
+
 add_library(server-lib-chaos_cache)
 
 
@@ -31,6 +33,7 @@ target_link_libraries(server-lib-chaos_cache PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  server-lib-chaos_node
   yt_proto-yt-client
   yt-yt-ytlib
 )

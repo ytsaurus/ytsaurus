@@ -76,7 +76,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         auto tablet = std::make_unique<TTablet>(
             NullTabletId,
             TTableSettings::CreateNew(),
-            NHydra::NullRevision,
+            /*mountRevision*/ NHydra::NullRevision,
             NullObjectId,
             "ut",
             &TabletContext_,
@@ -183,6 +183,11 @@ const TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
     return TabletMap_;
 }
 
+NHiveClient::ICellDirectoryPtr TSimpleTabletManager::GetCellDirectory() const
+{
+    return nullptr;
+}
+
 ITransactionManagerPtr TSimpleTabletManager::GetTransactionManager() const
 {
     return TransactionManager_;
@@ -246,7 +251,8 @@ TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const
 {
     auto config = New<TTabletNodeDynamicConfig>();
     YT_VERIFY(config->TabletCellWriteManager);
-    YT_VERIFY(!config->TabletCellWriteManager->WriteFailureProbability);
+    YT_VERIFY(!config->TabletCellWriteManager->FailureProbabilityBeforeWrite);
+    YT_VERIFY(!config->TabletCellWriteManager->FailureProbabilityAfterWrite);
     return config;
 }
 

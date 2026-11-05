@@ -7,15 +7,32 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/generic/hash_set.h>
+
 #include <util/random/random.h>
+
+#include <atomic>
+#include <optional>
 
 namespace NYT::NCppTests {
 
 using namespace NApi;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -44,6 +61,7 @@ protected:
 
     TCellId EnabledCell_;
     TCellId DisabledCell_;
+    std::optional<TCellId> SuspendedCoordinator_;
 
     static void SetUpTestCase()
     {
@@ -59,12 +77,19 @@ protected:
     {
         ResumeBothCells();
         std::tie(EnabledCell_, DisabledCell_) = FindEnabledAndDisabledCells();
-        YT_LOG_INFO("Test starting (EnabledCell: %v, DisabledCell: %v, Migrate: %v)",
-            EnabledCell_, DisabledCell_, GetParam());
+        YT_TLOG_INFO("Test starting")
+            .With("EnabledCell", EnabledCell_)
+            .With("DisabledCell", DisabledCell_)
+            .With("Migrate", GetParam());
     }
 
     void TearDown() override
     {
+        if (SuspendedCoordinator_) {
+            WaitFor(Client_->ResumeCoordinator(*SuspendedCoordinator_))
+                .ThrowOnError();
+        }
+
         ResumeBothCells();
     }
 
@@ -83,7 +108,8 @@ protected:
             {.Timeout = TDuration::Seconds(120), .IgnoreExceptions = true});
 
         std::swap(EnabledCell_, DisabledCell_);
-        YT_LOG_INFO("Migrated lease manager (NewEnabledCell: %v)", EnabledCell_);
+        YT_TLOG_INFO("Migrated lease manager")
+            .With("NewEnabledCell", EnabledCell_);
     }
 
     static IPrerequisitePtr CreateLease(
@@ -146,7 +172,7 @@ protected:
         WaitFor(Client_->CreateObject(EObjectType::ChaosCellBundle, options))
             .ValueOrThrow();
 
-        YT_LOG_INFO("Chaos cell bundle created");
+        YT_TLOG_INFO("Chaos cell bundle created");
     }
 
     static TCellId SyncCreateChaosCell(TCellTag cellTag)
@@ -166,13 +192,14 @@ protected:
 
         WaitUntilEqual(Format("#%v/@health", cellId), "good");
 
-        YT_LOG_INFO("Chaos cell created and healthy (CellId: %v)", cellId);
+        YT_TLOG_INFO("Chaos cell created and healthy")
+            .With("CellId", cellId);
         return cellId;
     }
 
     static TYPath GetCellOrchidPath(TCellId cellId)
     {
-        auto address = ConvertTo<TString>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
+        auto address = ConvertTo<std::string>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
             .ValueOrThrow());
         return Format("//sys/cluster_nodes/%v/orchid/chaos_cells/%v", address, cellId);
     }
@@ -234,7 +261,8 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
 {
     auto lease = CreateLease(EnabledCell_, TDuration::Seconds(5));
 
-    YT_LOG_INFO("Lease created (LeaseId: %v)", lease->GetId());
+    YT_TLOG_INFO("Lease created")
+        .With("LeaseId", lease->GetId());
 
     MaybeMigrate();
 
@@ -242,7 +270,8 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
         Sleep(TDuration::Seconds(1));
         WaitFor(lease->Ping())
             .ThrowOnError();
-        YT_LOG_INFO("Ping %v succeeded", i);
+        YT_TLOG_INFO("Ping succeeded")
+            .With("Index", i);
     }
 
     ASSERT_TRUE(LeaseExists(lease->GetId()));
@@ -251,7 +280,7 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
         [&] { return !LeaseExists(lease->GetId()); },
         "lease did not expire after pinging stopped");
 
-    YT_LOG_INFO("Lease expired after pinging stopped");
+    YT_TLOG_INFO("Lease expired after pinging stopped");
 }
 
 TEST_P(TChaosLeaseTest, RemoveParentCascadesToChildren)
@@ -262,8 +291,10 @@ TEST_P(TChaosLeaseTest, RemoveParentCascadesToChildren)
     auto child1 = CreateLease(EnabledCell_, TDuration::Seconds(120), parent->GetId());
     auto child2 = CreateLease(EnabledCell_, TDuration::Seconds(120), parent->GetId());
 
-    YT_LOG_INFO("Lease tree created (Parent: %v, Child1: %v, Child2: %v)",
-        parent->GetId(), child1->GetId(), child2->GetId());
+    YT_TLOG_INFO("Lease tree created")
+        .With("Parent", parent->GetId())
+        .With("Child1", child1->GetId())
+        .With("Child2", child2->GetId());
 
     ASSERT_TRUE(LeaseExists(parent->GetId()));
     ASSERT_TRUE(LeaseExists(child1->GetId()));
@@ -289,7 +320,8 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
     WaitFor(lease->Ping())
         .ThrowOnError();
 
-    YT_LOG_INFO("Initial ping succeeded (LeaseId: %v)", lease->GetId());
+    YT_TLOG_INFO("Initial ping succeeded")
+        .With("LeaseId", lease->GetId());
 
     MaybeMigrate();
 
@@ -297,10 +329,96 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
         [&] { return !LeaseExists(lease->GetId()); },
         "lease did not expire");
 
+    std::atomic<bool> aborted = false;
+    lease->SubscribeAborted(BIND([&] (const TError& /*error*/) {
+        aborted.store(true);
+    }));
+
     auto result = WaitFor(lease->Ping());
     ASSERT_FALSE(result.IsOK());
-    YT_LOG_INFO("Ping after expiration failed as expected (Error: %v)",
-        result.GetCode());
+    ASSERT_TRUE(aborted.load());
+    YT_TLOG_INFO("Ping after expiration failed as expected")
+        .With("Error", result.GetCode());
+}
+
+TEST_P(TChaosLeaseTest, WatchCoordinatorChange)
+{
+    auto lease = CreateLease(EnabledCell_, TDuration::Seconds(120));
+    auto leaseId = lease->GetId();
+
+    auto connectionConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(
+        WaitFor(Client_->GetNode("//sys/@cluster_connection"))
+            .ValueOrThrow());
+    auto nativeConnection = NNative::CreateConnection(std::move(connectionConfig));
+    auto terminateConnectionGuard = Finally([&] {
+        nativeConnection->Terminate();
+    });
+
+    auto watchCellId = EnabledCell_;
+    auto invokeWatch = [&] (TTimestamp cacheTimestamp) {
+        TChaosNodeServiceProxy proxy(nativeConnection->GetChaosChannelByCellId(watchCellId));
+        proxy.SetDefaultTimeout(TDuration::Seconds(120));
+
+        auto request = proxy.WatchChaosLease();
+        ToProto(request->mutable_chaos_lease_id(), leaseId);
+        request->set_chaos_lease_cache_timestamp(ToProto(cacheTimestamp));
+        return request->Invoke();
+    };
+
+    THashSet<TCellId> expectedInitialCoordinatorCellIds{ChaosCell1_, ChaosCell2_};
+
+    auto cacheTimestamp = NullTimestamp;
+    auto watchFuture = invokeWatch(cacheTimestamp);
+    auto waitForCoordinators = [&] (const THashSet<TCellId>& expectedCoordinatorCellIds) {
+        WaitUntil(
+            [&] {
+                auto response = WaitFor(watchFuture)
+                    .ValueOrThrow();
+                if (response->has_chaos_lease_not_changed()) {
+                    watchFuture = invokeWatch(cacheTimestamp);
+                    return false;
+                }
+
+                if (!response->has_chaos_lease_changed()) {
+                    THROW_ERROR_EXCEPTION("Unexpected WatchChaosLease response")
+                        .With("response_case", static_cast<int>(response->chaos_lease_state_case()));
+                }
+
+                const auto& changedLease = response->chaos_lease_changed();
+                cacheTimestamp = FromProto<TTimestamp>(changedLease.chaos_lease_cache_timestamp());
+
+                auto coordinatorCellIds = FromProto<THashSet<TCellId>>(changedLease.coordinator_cell_ids());
+                if (coordinatorCellIds == expectedCoordinatorCellIds) {
+                    return true;
+                }
+
+                watchFuture = invokeWatch(cacheTimestamp);
+                return false;
+            },
+            "lease did not acquire expected coordinators",
+            {.Timeout = TDuration::Seconds(120)});
+    };
+
+    waitForCoordinators(expectedInitialCoordinatorCellIds);
+
+    MaybeMigrate();
+    if (GetParam()) {
+        watchCellId = EnabledCell_;
+        ResumeBothCells();
+        watchFuture = invokeWatch(cacheTimestamp);
+        waitForCoordinators(expectedInitialCoordinatorCellIds);
+    }
+
+    watchFuture = invokeWatch(cacheTimestamp);
+
+    auto expectedUpdatedCoordinatorCellIds = expectedInitialCoordinatorCellIds;
+    auto coordinatorToSuspend = ChaosCell2_;
+    expectedUpdatedCoordinatorCellIds.erase(coordinatorToSuspend);
+    WaitFor(Client_->SuspendCoordinator(coordinatorToSuspend))
+        .ThrowOnError();
+    SuspendedCoordinator_ = coordinatorToSuspend;
+
+    waitForCoordinators(expectedUpdatedCoordinatorCellIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

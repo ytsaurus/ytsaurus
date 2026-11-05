@@ -42,7 +42,8 @@ using TStoreCompactionHintArray = TEnumIndexedArray<
     EStoreCompactionHintKind,
     T,
     EStoreCompactionHintKind::ChunkViewTooNarrow,
-    EStoreCompactionHintKind::MinHashDigest>;
+    EStoreCompactionHintKind::MinHashDigest
+>;
 
 template <class T>
 using TCalculatableStoreCompactionHintArray = TEnumIndexedArray<
@@ -96,7 +97,7 @@ public:
 
     operator bool() const;
 
-    // Lsm methods.
+    // LSM methods.
 
     bool IsRelevantLsmResponse() const;
 
@@ -136,15 +137,15 @@ class TStoreCompactionHint
         : public TCompactionHintRecalculationFinalizerBase
     {
     public:
-        explicit TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
+        TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
 
         ~TStoreCompactionHintRecalculationFinalizer();
 
         bool TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
 
     private:
-        TStore* Store_;
-        TStoreCompactionHint* Hint_;
+        TStore* const Store_;
+        TStoreCompactionHint* const Hint_;
     };
 
     friend TStoreCompactionHintRecalculationFinalizer;
@@ -208,15 +209,17 @@ class TPartitionCompactionHint
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
+        i64 CalculateStoreSubsetDataSize(ui64 storeSubset) const;
+
         void TryApplyRecalculationByPrefix(TInstant timestamp, EStoreCompactionReason reason, int storePrefixLength);
         void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
     private:
-        TPartition* Partition_;
-        TPartitionCompactionHint* Hint_;
+        TPartition* const Partition_;
+        TPartitionCompactionHint* const Hint_;
         ui64 StoreSubset_ = 0;
 
-        bool StoreSubsetContains(int index) const;
+        static bool StoreSubsetContains(ui64 storeSubset, int index);
 
         std::vector<TStoreId> GetStoreIds() const;
     };
@@ -244,7 +247,7 @@ void DoRecalculatePartitionCompactionHint(TPartition* partition) = delete;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manage interaction with all kinds of partition compaction hints.
-//! Lives temporarily in LSM partitionss created in interop.
+//! Lives temporarily in LSM partitions created in interop.
 class TPartitionCompactionHints
 {
 public:
@@ -255,7 +258,7 @@ public:
 
 public:
     TPartitionCompactionHints() = default;
-    TPartitionCompactionHints(THints hints);
+    explicit TPartitionCompactionHints(THints hints);
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>> GetStoresForCompaction(
         TInstant currentTime,

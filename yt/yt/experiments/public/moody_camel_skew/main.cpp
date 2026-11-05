@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/yt/threading/count_down_latch.h>
+#include <library/cpp/yt/system/count_down_latch.h>
 
 #include <util/system/spinlock.h>
 

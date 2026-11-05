@@ -1,19 +1,31 @@
-from _common import sort_by_keywords
+import json
+
 import ymake
 
 
-def get_or_default(kv, name, default):
-    if name in kv:
-        return kv[name][0]
-    return default
+@ymake.macro
+def REGISTER_YQL_PYTHON_UDF(
+    unit: ymake.Unit, *, NAME: str = 'CustomPython', RESOURCE_NAME: str = '', ADD_LIBRA_MODULES: str = 'no'
+):
+    if (
+        NAME not in ('Python3', 'Python2', 'ArcPython2')
+        and not NAME.startswith('SystemPython')
+        and 'CustomPython' not in NAME
+    ):
+        ymake.report_configure_error('Invalid python UDF module name')
+
+    if not RESOURCE_NAME:
+        RESOURCE_NAME = NAME
+    if unit.get('_YQL_PREBUILT_KIND') == 'PYTHON_UDF':
+        registrations = json.loads(unit.get('_YQL_PYTHON_REGISTRATIONS') or '[]')
+        registrations.append([NAME, RESOURCE_NAME, ADD_LIBRA_MODULES])
+        unit.set(['_YQL_PYTHON_REGISTRATIONS', json.dumps(registrations)])
+    else:
+        register_python_udf(unit, NAME, RESOURCE_NAME, ADD_LIBRA_MODULES)
 
 
-def onregister_yql_python_udf(unit, *args):
-    flat, kv = sort_by_keywords({'NAME': 1, 'RESOURCE_NAME': 1, 'ADD_LIBRA_MODULES': 1}, args)
-    assert len(flat) == 0
-    name = get_or_default(kv, 'NAME', 'CustomPython')
-    resource_name = get_or_default(kv, 'RESOURCE_NAME', name)
-    add_libra_modules = get_or_default(kv, 'ADD_LIBRA_MODULES', 'no') == 'yes'
+def register_python_udf(unit, name, resource_name, add_libra_modules):
+    add_libra_modules = add_libra_modules == 'yes'
 
     use_arcadia_python = unit.get('USE_ARCADIA_PYTHON') == 'yes'
     py3 = unit.get('PYTHON3') == 'yes'
@@ -68,3 +80,13 @@ def onregister_yql_python_udf(unit, *args):
         ]
         + output_includes
     )
+
+
+@ymake.macro
+def _YQL_PYTHON_UDF_SOURCE_FINALIZE(unit: ymake.Unit):
+    if unit.get('_YQL_PREBUILT_PYTHON_VERSION') == '3':
+        unit.on_make_yql_python3_udf([])
+    else:
+        unit.on_make_yql_python_udf([])
+    for registration in json.loads(unit.get('_YQL_PYTHON_REGISTRATIONS') or '[]'):
+        register_python_udf(unit, *registration)

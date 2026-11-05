@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 from typing import Any, Callable, Sequence
 from typing_extensions import override
 import uuid
@@ -11,10 +12,20 @@ from yt.environment import migrationlib
 import yt.sequoia_tools as yt_sequoia
 import yt.wrapper as yt
 
-from . import actions, app as sequoia_app, config as cfg, helpers, utils
+from . import actions, app as sequoia_app, config as cfg, descriptors, helpers, pivots, utils
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _get_sequoia_table_descriptors(
+    scope: cfg.Scope,
+    version: int,
+) -> dict[str, descriptors.TableDescriptor]:
+    """Return table descriptors from the parsed versioned registry."""
+    group_names = cfg.SCOPE_GROUPS[scope]
+    tds = descriptors.get_table_descriptors(version).as_dict()
+    return {k: v for k, v in tds.items() if v.group in group_names}
 
 
 class ComponentContext:
@@ -32,7 +43,7 @@ class ComponentContext:
 
     def get_table_attributes(self, table_descriptor: yt_sequoia.TableDescriptor) -> dict[str, Any]:
         """Build standard table attributes for this component."""
-        attributes = self.config.get_table_group_attributes(table_descriptor.group)
+        attributes = self.config.get_table_attributes(table_descriptor.name)
         attributes.update(
             account=self.ground_config.account,
             tablet_cell_bundle=self.config.tablet_cell_bundle)
@@ -49,6 +60,7 @@ class TableContext:
         attributes: dict[str, Any],
         component_context: ComponentContext,
         version: int,
+        pivot_keys: list | None = None,
     ):
         self.name = descriptor.name
         self.parent_path = parent_path
@@ -56,6 +68,7 @@ class TableContext:
         self.attributes = attributes
         self.component_context = component_context
         self.version = version
+        self.pivot_keys = pivot_keys
 
     @property
     def path(self) -> str:
@@ -110,6 +123,10 @@ class ActionBuilder:
         self._actions: list[actions.Action] = []
         self._ground_config = app.config_provider.get_ground_config()
 
+    @functools.cached_property
+    def _cell_tags(self) -> list[str]:
+        return helpers.list_master_cell_tags(self._app.remote_client)
+
     def _maybe_expand_bundled_table(self, ctx: TableContext) -> list[TableContext] | None:
         """Expand bundled table into multiple tables."""
         def from_template(ctx: TableContext, tag: str):
@@ -118,8 +135,7 @@ class ActionBuilder:
             return ctx
 
         if ctx.logical_name == "chunk_refresh_queue":
-            cell_tags = helpers.list_master_cell_tags(self._app.remote_client)
-            return [from_template(ctx, tag) for tag in cell_tags]
+            return [from_template(ctx, tag) for tag in self._cell_tags]
 
         return None
 
@@ -138,12 +154,20 @@ class ActionBuilder:
             component_context = ComponentContext(scope, component_config, self._ground_config)
             root_dir = self._ground_config.sequoia_root_cypress_path
 
-            group_names = [d.name for d in component_config.table_groups]
-            table_descriptors = helpers.get_sequoia_table_descriptors(group_names, self._version)
+            table_descriptors = _get_sequoia_table_descriptors(scope, self._version)
 
             for descriptor in table_descriptors.values():
                 attributes = component_context.get_table_attributes(descriptor)
-                table_context = TableContext(root_dir, descriptor, attributes, component_context, self._version)
+
+                pivot_fn = pivots.get_pivot_function(descriptor.name)
+                shard_count = attributes.get("tablet_count")
+                pivot_keys = (
+                    pivot_fn(shard_count, self._cell_tags, self._version)
+                    if pivot_fn is not None and shard_count is not None
+                    else None)
+
+                table_context = TableContext(
+                    root_dir, descriptor, attributes, component_context, self._version, pivot_keys)
                 expanded = self._maybe_expand_bundled_table(table_context)
                 if expanded is not None:
                     table_contexts.extend(expanded)
@@ -205,20 +229,6 @@ class ActionBuilder:
         self._actions.append(action)
         return self
 
-    def promote_reign(
-        self,
-        initialize: bool = False,
-    ) -> ActionBuilder:
-        """Add reign promotion action."""
-        path = helpers.make_ground_reign_path(
-            self._ground_config.sequoia_root_cypress_path)
-        old_reign = (self._version - 1 if not initialize
-                     else actions.SetAttributeAction.NON_EXISTING_KEY)
-
-        action = actions.SetAttributeAction(path, self._version, old_reign)
-        self._actions.append(action)
-        return self
-
     def build(self) -> actions.ActionPlan:
         """Build the final action plan."""
         return actions.ActionPlan(self._actions, self._name)
@@ -231,13 +241,11 @@ class ConversionAction(actions.Action):
         self,
         table_context: TableContext,
         source: str | list[str],
-        shard_count: int | None = None,
         pool: str | None = None,
         **conversion_kwargs,
     ) -> None:
         self._table_context = table_context
         self._source = source
-        self._shard_count = shard_count
         self._pool = pool
         self._conversion_kwargs = conversion_kwargs
 
@@ -248,20 +256,30 @@ class ConversionAction(actions.Action):
 
     @override
     def execute(self, app: sequoia_app.SequoiaTool) -> None:
-        def convert_to_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+        # TODO(danilalexeev): Use dict in `migrationlib.TableInfo`.
+        def convert_to_key_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
             return (
                 column["name"],
                 column["type"],
-                column.get("expression"))
+                column.get("expression"),
+                column)
+
+        def convert_to_value_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+            return (
+                column["name"],
+                column["type"],
+                column)
+
+        tablet_count = self._table_context.attributes.pop("tablet_count", None)
 
         table_info = migrationlib.TableInfo(
             key_columns=[
-                convert_to_tuple(c)
+                convert_to_key_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is not None
             ],
             value_columns=[
-                convert_to_tuple(c)
+                convert_to_value_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is None
             ],
@@ -283,9 +301,16 @@ class ConversionAction(actions.Action):
             target_table=tmp_table_path,
             source_table=self._source,
             tables_path=self._table_context.parent_path,
-            shard_count=self._shard_count,
+            shard_count=tablet_count,
             pool=self._pool,
             version=self._table_context.version)
+
+        # TODO(danilalexeev): Support uniform pivot-keys generation.
+        if tablet_count is not None:
+            app.ground_client.reshard_table(
+                self._table_context.path,
+                tablet_count=tablet_count,
+                sync=True)
 
     @override
     def dry_run(self, app: sequoia_app.SequoiaTool) -> None:

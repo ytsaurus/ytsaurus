@@ -4,7 +4,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames{
+const TEnumIndexedArray<ESandboxKind, std::string> SandboxDirectoryNames{
     {ESandboxKind::User, "sandbox"},
     {ESandboxKind::Udf, "udf"},
     {ESandboxKind::Home, "home"},
@@ -13,6 +13,8 @@ const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames{
     {ESandboxKind::Cores, "cores"},
     {ESandboxKind::Logs, "logs"},
     {ESandboxKind::PortoPlace, "porto_place"},
+    {ESandboxKind::Private, "private"},
+    {ESandboxKind::Empty, "empty"},
 };
 
 const std::string EmptyCpuSet("");

@@ -28,6 +28,7 @@ void FillTableSettings(TRequest* request, const TSerializedTableSettings& serial
     tableSettings->set_hunk_writer_options(ToProto(serializedTableSettings.HunkWriterOptions));
     tableSettings->set_global_patch(ToProto(serializedTableSettings.GlobalPatch));
     tableSettings->set_experiments(ToProto(serializedTableSettings.Experiments));
+    tableSettings->set_tablet_balancer_config(ToProto(serializedTableSettings.TabletBalancerConfig));
 }
 
 template <class TRequest>

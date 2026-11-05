@@ -71,7 +71,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     YT_VERIFY(Config_);
     YT_VERIFY(Options_);
 
-    Logger.AddTag("TransactionId: %v", TransactionId_);
+    Logger.AddTag("TransactionId", TransactionId_);
 }
 
 void TNontemplateMultiChunkWriterBase::InitializeRefCounted()
@@ -85,7 +85,9 @@ TFuture<void> TNontemplateMultiChunkWriterBase::Close()
     YT_VERIFY(ReadyEvent_.GetOrCrash().IsOK());
 
     Closing_ = true;
-    ReadyEvent_ = BIND(&TNontemplateMultiChunkWriterBase::FinishSession, MakeWeak(this))
+    // ThrowOnDestroyed: fail ReadyEvent_ on teardown instead of a weak no-op's spurious OK, which
+    // would silently drop the last chunk.
+    ReadyEvent_ = BIND(ThrowOnDestroyed(&TNontemplateMultiChunkWriterBase::FinishSession), MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
@@ -134,8 +136,9 @@ TCodecStatistics TNontemplateMultiChunkWriterBase::GetCompressionStatistics() co
 void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
     YT_VERIFY(!SwitchingSession_.exchange(true));
+    // ThrowOnDestroyed: fail on teardown instead of a spurious OK (see Close()).
     ReadyEvent_ =
-        BIND(&TNontemplateMultiChunkWriterBase::DoSwitchSession, MakeWeak(this))
+        BIND(ThrowOnDestroyed(&TNontemplateMultiChunkWriterBase::DoSwitchSession), MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
 }
@@ -216,28 +219,28 @@ void TNontemplateMultiChunkWriterBase::InitSession()
 bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 {
     if (CurrentTemplateWriter_->IsCloseDemanded()) {
-        YT_LOG_DEBUG("Switching to next chunk due to chunk writer demand (ChunkId: %v)",
-            CurrentTemplateWriter_->GetChunkId());
+        YT_TLOG_DEBUG("Switching to next chunk due to chunk writer demand")
+            .With("ChunkId", CurrentTemplateWriter_->GetChunkId());
 
         SwitchSession();
         return true;
     }
 
     if (CurrentTemplateWriter_->GetMetaSize() > Config_->MaxMetaSize) {
-        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkId: %v, CurrentSessionMetaSize: %v, MaxMetaSize: %v)",
-            CurrentTemplateWriter_->GetChunkId(),
-            CurrentTemplateWriter_->GetMetaSize(),
-            Config_->MaxMetaSize);
+        YT_TLOG_DEBUG("Switching to next chunk: meta is too large")
+            .With("ChunkId", CurrentTemplateWriter_->GetChunkId())
+            .With("CurrentSessionMetaSize", CurrentTemplateWriter_->GetMetaSize())
+            .With("MaxMetaSize", Config_->MaxMetaSize);
 
         SwitchSession();
         return true;
     }
 
     if (IsLargeEnoughChunkWeight(CurrentTemplateWriter_->GetDataWeight(), Config_->DesiredChunkWeight)) {
-        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (ChunkId: %v, CurrentSessionDataWeight: %v, DesiredChunkWeight: %v)",
-            CurrentTemplateWriter_->GetChunkId(),
-            CurrentTemplateWriter_->GetDataWeight(),
-            Config_->DesiredChunkWeight);
+        YT_TLOG_DEBUG("Switching to next chunk: data weight is too large")
+            .With("ChunkId", CurrentTemplateWriter_->GetChunkId())
+            .With("CurrentSessionDataWeight", CurrentTemplateWriter_->GetDataWeight())
+            .With("DesiredChunkWeight", Config_->DesiredChunkWeight);
 
         SwitchSession();
         return true;
@@ -247,10 +250,10 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         if (Options_->ErasureCodec != ECodec::None ||
             IsLargeEnoughChunkSize(CurrentTemplateWriter_->GetCompressedDataSize(), 2 * Config_->DesiredChunkSize))
         {
-            YT_LOG_DEBUG("Switching to next chunk: compressed data size is too large (ChunkId: %v, CurrentSessionSize: %v, DesiredChunkSize: %v)",
-                CurrentTemplateWriter_->GetChunkId(),
-                CurrentTemplateWriter_->GetCompressedDataSize(),
-                Config_->DesiredChunkSize);
+            YT_TLOG_DEBUG("Switching to next chunk: compressed data size is too large")
+                .With("ChunkId", CurrentTemplateWriter_->GetChunkId())
+                .With("CurrentSessionSize", CurrentTemplateWriter_->GetCompressedDataSize())
+                .With("DesiredChunkSize", Config_->DesiredChunkSize);
 
             SwitchSession();
             return true;

@@ -6,6 +6,9 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -43,18 +46,18 @@ void SerializeJobResourcesWithQuota(
 
 void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /*format*/);
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-TString FormatResources(const TJobResourcesWithQuota& resources);
+std::string FormatResources(const TJobResourcesWithQuota& resources);
 
-TString FormatResourcesConfig(const TJobResourcesConfigPtr& config);
+std::string FormatResourcesConfig(const TJobResourcesConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,45 +83,8 @@ private:
 void ProfileResources(
     NProfiling::ISensorWriter* writer,
     const TJobResources& resources,
-    const TString& prefix,
+    const std::string& prefix,
     NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobResourcesSerializer
-{
-    template <class C>
-    static void Save(C& context, const TJobResources& value)
-    {
-        NYT::Save(context, value.GetUserSlots());
-        NYT::Save(context, value.GetCpu());
-        NYT::Save(context, value.GetGpu());
-        NYT::Save(context, value.GetMemory());
-        NYT::Save(context, value.GetNetwork());
-    }
-
-    template <class C>
-    static void Load(C& context, TJobResources& value)
-    {
-        i64 userSlots;
-        TCpuResource cpu;
-        int gpu;
-        i64 memory;
-        i64 network;
-
-        NYT::Load(context, userSlots);
-        NYT::Load(context, cpu);
-        NYT::Load(context, gpu);
-        NYT::Load(context, memory);
-        NYT::Load(context, network);
-
-        value.SetUserSlots(userSlots);
-        value.SetCpu(cpu);
-        value.SetGpu(gpu);
-        value.SetMemory(memory);
-        value.SetNetwork(network);
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,14 +107,10 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 } // namespace NScheduler
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <class C>
-struct TSerializerTraits<NScheduler::TJobResources, C, void>
-{
-    using TSerializer = NScheduler::TJobResourcesSerializer;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
+
+PHOENIX_DECLARE_EXTERNAL_TYPE(
+    NYT::NScheduler::TJobResources,
+    0xf84d3e2a,
+    NYT::NPhoenix::TSaveContext,
+    NYT::NPhoenix::TLoadContext);

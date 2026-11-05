@@ -1,14 +1,11 @@
 RECURSE(
+    codec
+    common
+    comp_nodes
     expr_nodes
+    gateway
     integration
+    job
+    lambda_builder
+    provider
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        codec
-        gateway
-        job
-        lambda_builder
-        provider
-    )
-ENDIF()

@@ -1,5 +1,6 @@
 #include "ticket_authenticator.h"
 
+#include "auth_cache.h"
 #include "blackbox_service.h"
 #include "config.h"
 #include "credentials.h"
@@ -8,11 +9,17 @@
 
 #include <yt/yt/core/rpc/authenticator.h>
 
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <yt/yt/library/tvm/service/tvm_service.h>
+
+#include <util/digest/multi.h>
 
 namespace NYT::NAuth {
 
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,57 +41,86 @@ public:
     { }
 
     TFuture<TAuthenticationResult> Authenticate(
-        const TTicketCredentials& credentials) override
+        const TUserTicketCredentials& credentials) override
     {
-        const auto& ticket = credentials.Ticket;
-        auto ticketHash = GetCryptoHash(ticket);
+        const auto& userTicket = credentials.UserTicket;
+        auto userTicketHash = GetCryptoHash(userTicket);
+        auto userTicketAuthenticationConfig = UserTicketAuthenticationConfig_.Acquire();
+
+        YT_TLOG_DEBUG("Validating user ticket")
+            .With("UserTicketHash", userTicketHash);
+
+        if (userTicketAuthenticationConfig && userTicketAuthenticationConfig->CheckServiceTickets) {
+            if (!credentials.ServiceTicket) {
+                return MakeFuture<TAuthenticationResult>(TError(NRpc::EErrorCode::InvalidCredentials,
+                    "Service ticket is required to authorize with user ticket"));
+            }
+            const auto& serviceTicket = *credentials.ServiceTicket;
+            auto serviceTicketHash = GetCryptoHash(serviceTicket);
+
+            auto errorOrTvmId = ParseServiceTicket(serviceTicket, serviceTicketHash);
+            if (!errorOrTvmId.IsOK()) {
+                return MakeFuture<TAuthenticationResult>(TError(errorOrTvmId));
+            }
+
+            auto tvmId = errorOrTvmId.Value();
+            if (!userTicketAuthenticationConfig->AllowedServiceTvmIds.contains(tvmId)) {
+                YT_TLOG_DEBUG("Service is not allowed to authorize using user ticket")
+                    .With("UserTicketHash", userTicketHash)
+                    .With("ServiceTicketHash", serviceTicketHash)
+                    .With("TvmId", tvmId);
+
+                return MakeFuture<TAuthenticationResult>(TError(NRpc::EErrorCode::InvalidCredentials,
+                    "Service is not allowed to authorize using user ticket"));
+            }
+        }
 
         if (Config_->EnableScopeCheck && TvmService_) {
-            auto result = CheckScope(ticket, ticketHash);
+            auto result = CheckScope(userTicket, userTicketHash);
             if (!result.IsOK()) {
                 return MakeFuture<TAuthenticationResult>(result);
             }
         }
 
-        YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
-            ticketHash);
+        YT_TLOG_DEBUG("Validating user ticket via Blackbox")
+            .With("UserTicketHash", userTicketHash);
 
-        return BlackboxService_->Call("user_ticket", {{"user_ticket", ticket}})
+        return BlackboxService_->Call("user_ticket", {{"user_ticket", userTicket}})
             .Apply(BIND(
                 &TBlackboxTicketAuthenticator::OnBlackboxCallResult,
                 MakeStrong(this),
-                ticket,
-                ticketHash));
+                userTicket,
+                userTicketHash));
     }
 
     TFuture<TAuthenticationResult> Authenticate(
         const TServiceTicketCredentials& credentials) override
     {
-        const auto& ticket = credentials.Ticket;
+        const auto& ticket = credentials.ServiceTicket;
         auto ticketHash = GetCryptoHash(ticket);
 
-        YT_LOG_DEBUG("Validating service ticket (TicketHash: %v)",
-            ticketHash);
+        YT_TLOG_DEBUG("Validating service ticket")
+            .With("ServiceTicketHash", ticketHash);
 
-        try {
-            auto parsedTicket = TvmService_->ParseServiceTicket(ticket);
-
-            TAuthenticationResult result;
-            result.Login = GetLoginForTvmId(parsedTicket.TvmId);
-            result.Realm = "tvm:service-ticket";
-
-            YT_LOG_DEBUG("Ticket authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
-                ticketHash,
-                result.Login,
-                result.Realm);
-
-            return MakeFuture(result);
-        } catch (const std::exception& ex) {
-            TError error(ex);
-            YT_LOG_DEBUG(error, "Parsing service ticket failed (TicketHash: %v)",
-                ticketHash);
-            return MakeFuture<TAuthenticationResult>(error);
+        auto errorOrTvmId = ParseServiceTicket(ticket, ticketHash);
+        if (!errorOrTvmId.IsOK()) {
+            return MakeFuture<TAuthenticationResult>(TError(errorOrTvmId));
         }
+
+        TAuthenticationResult result;
+        result.Login = GetLoginForTvmId(errorOrTvmId.Value());
+        result.Realm = "tvm:service-ticket";
+
+        return MakeFuture(result);
+    }
+
+    bool Reconfigure(const TUserTicketAuthenticationConfigPtr& userTicketAuthenticationConfig) override
+    {
+        auto oldConfig = UserTicketAuthenticationConfig_.Acquire();
+        UserTicketAuthenticationConfig_.Store(userTicketAuthenticationConfig);
+        return !oldConfig || !AreNodesEqual(
+            ConvertToNode(oldConfig),
+            ConvertToNode(userTicketAuthenticationConfig));
     }
 
 private:
@@ -92,15 +128,37 @@ private:
     const IBlackboxServicePtr BlackboxService_;
     const ITvmServicePtr TvmService_;
 
+    TAtomicIntrusivePtr<TUserTicketAuthenticationConfig> UserTicketAuthenticationConfig_;
+
 private:
-    TError CheckScope(const TString& ticket, const TString& ticketHash)
+    TErrorOr<TTvmId> ParseServiceTicket(const std::string& ticket, const std::string& ticketHash) const
     {
-        YT_LOG_DEBUG("Validating ticket scopes (TicketHash: %v)",
-            ticketHash);
+        try {
+            auto parsedTicket = TvmService_->ParseServiceTicket(ticket);
+            YT_TLOG_DEBUG("Parsing service ticket succeeded")
+                .With("ServiceTicketHash", ticketHash)
+                .With("TvmId", parsedTicket.TvmId);
+
+            return parsedTicket.TvmId;
+        } catch (const std::exception& ex) {
+            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "Failed to parse service ticket")
+                .With(ex);
+            YT_TLOG_DEBUG("Parsing service ticket failed")
+                .With("ServiceTicketHash", ticketHash)
+                .With(ex);
+            return error;
+        }
+    }
+
+    TError CheckScope(const std::string& ticket, const std::string& ticketHash)
+    {
+        YT_TLOG_DEBUG("Validating user ticket scopes")
+            .With("UserTicketHash", ticketHash);
         try {
             const auto result = TvmService_->ParseUserTicket(ticket);
             const auto& scopes = result.Scopes;
-            YT_LOG_DEBUG("Got user ticket (Scopes: %v)", scopes);
+            YT_TLOG_DEBUG("Got user ticket")
+                .With("Scopes", scopes);
 
             const auto& allowedScopes = Config_->Scopes;
             for (const auto& scope : scopes) {
@@ -111,48 +169,49 @@ private:
 
             return TError(NRpc::EErrorCode::InvalidCredentials,
                 "Ticket does not provide an allowed scope")
-                << TErrorAttribute("provided_scopes", scopes)
-                << TErrorAttribute("allowed_scopes", allowedScopes);
+                .With("provided_scopes", scopes)
+                .With("allowed_scopes", allowedScopes);
         } catch (const std::exception& ex) {
             TError error(ex);
-            YT_LOG_DEBUG(error, "Parsing user ticket failed (TicketHash: %v)",
-                ticketHash);
-            return error << TErrorAttribute("ticket_hash", ticketHash);
+            YT_TLOG_DEBUG("Parsing user ticket failed")
+                .With("UserTicketHash", ticketHash)
+                .With(error);
+            return error.With("user_ticket_hash", ticketHash);
         }
     }
 
     TAuthenticationResult OnBlackboxCallResult(
-        const TString& ticket,
-        const TString& ticketHash,
+        const std::string& ticket,
+        const std::string& ticketHash,
         const INodePtr& data)
     {
         auto errorOrResult = OnCallResultImpl(data);
         if (!errorOrResult.IsOK()) {
-            YT_LOG_DEBUG(errorOrResult, "Blackbox authentication failed (TicketHash: %v)",
-                ticketHash);
+            YT_TLOG_DEBUG("Blackbox authentication failed")
+                .With("UserTicketHash", ticketHash)
+                .With(errorOrResult);
             THROW_ERROR errorOrResult
-                << TErrorAttribute("ticket_hash", ticketHash);
+                .With("user_ticket_hash", ticketHash);
         }
 
         auto result = errorOrResult.Value();
         result.UserTicket = ticket;
 
-        YT_LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
-            ticketHash,
-            result.Login,
-            result.Realm);
+        YT_TLOG_DEBUG("Blackbox authentication successful")
+            .With("UserTicketHash", ticketHash)
+            .With("Login", result.Login)
+            .With("Realm", result.Realm);
         return result;
     }
 
     TErrorOr<TAuthenticationResult> OnCallResultImpl(const INodePtr& data)
     {
-        static const TString ErrorPath("/error");
-        auto errorNode = FindNodeByYPath(data, ErrorPath);
-        if (errorNode) {
-            return TError(errorNode->GetValue<TString>(), TError::DisableFormat);
+        static const TYPath ErrorPath("/error");
+        if (auto errorNode = FindNodeByYPath(data, ErrorPath)) {
+            return TError(errorNode->GetValue<std::string>(), TError::DisableFormat);
         }
 
-        static const TString UserPath("/users/0");
+        static const std::string UserPath("/users/0");
         auto userNode = GetNodeByYPath(data, UserPath);
 
         auto login = BlackboxService_->GetLogin(userNode);
@@ -160,7 +219,7 @@ private:
         // Sanity checks.
         if (!login.IsOK()) {
             return TError("Blackbox returned invalid response")
-                << login;
+                .With(login);
         }
 
         TAuthenticationResult result;
@@ -179,6 +238,95 @@ ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
         std::move(config),
         std::move(blackboxService),
         std::move(tvmService));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTicketAuthenticatorCacheKey
+{
+    std::optional<std::string> UserTicket;
+    std::optional<std::string> ServiceTicket;
+
+    operator size_t() const
+    {
+        return MultiHash(UserTicket, ServiceTicket);
+    }
+
+    bool operator==(const TTicketAuthenticatorCacheKey&) const = default;
+};
+
+class TCachingTicketAuthenticator
+    : public ITicketAuthenticator
+    , public TAuthCache<TTicketAuthenticatorCacheKey, TAuthenticationResult, std::monostate>
+{
+public:
+    TCachingTicketAuthenticator(
+        TCachingTicketAuthenticatorConfigPtr config,
+        ITicketAuthenticatorPtr underlying,
+        TProfiler profiler)
+        : TAuthCache(config->Cache, std::move(profiler))
+        , Underlying_(std::move(underlying))
+    { }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TUserTicketCredentials& credentials) override
+    {
+        return Get(
+            TTicketAuthenticatorCacheKey{
+                .UserTicket = credentials.UserTicket,
+                .ServiceTicket = credentials.ServiceTicket,
+            },
+            std::monostate{});
+    }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TServiceTicketCredentials& credentials) override
+    {
+        return Get(
+            TTicketAuthenticatorCacheKey{
+                .ServiceTicket = credentials.ServiceTicket,
+            },
+            std::monostate{});
+    }
+
+    bool Reconfigure(const TUserTicketAuthenticationConfigPtr& userTicketAuthenticationConfig) override
+    {
+        bool changed = Underlying_->Reconfigure(userTicketAuthenticationConfig);
+        if (changed) {
+            Clear();
+        }
+        return changed;
+    }
+
+private:
+    const ITicketAuthenticatorPtr Underlying_;
+
+    TFuture<TAuthenticationResult> DoGet(
+        const TTicketAuthenticatorCacheKey& key,
+        const std::monostate& /*context*/) noexcept override
+    {
+        if (!key.UserTicket) {
+            return Underlying_->Authenticate(TServiceTicketCredentials{
+                .ServiceTicket = *key.ServiceTicket,
+            });
+        } else {
+            return Underlying_->Authenticate(TUserTicketCredentials{
+                .UserTicket = *key.UserTicket,
+                .ServiceTicket = key.ServiceTicket,
+            });
+        }
+    }
+};
+
+ITicketAuthenticatorPtr CreateCachingTicketAuthenticator(
+    TCachingTicketAuthenticatorConfigPtr config,
+    ITicketAuthenticatorPtr underlying,
+    TProfiler profiler)
+{
+    return New<TCachingTicketAuthenticator>(
+        std::move(config),
+        std::move(underlying),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,8 +355,11 @@ public:
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
 
         if (ext.has_user_ticket()) {
-            TTicketCredentials credentials;
-            credentials.Ticket = ext.user_ticket();
+            TUserTicketCredentials credentials;
+            credentials.UserTicket = ext.user_ticket();
+            if (ext.has_service_ticket()) {
+                credentials.ServiceTicket = ext.service_ticket();
+            }
             return Underlying_->Authenticate(credentials).Apply(
                 BIND([=] (const TAuthenticationResult& authResult) {
                     NRpc::TAuthenticationResult rpcResult;
@@ -221,7 +372,7 @@ public:
 
         if (ext.has_service_ticket()) {
             TServiceTicketCredentials credentials;
-            credentials.Ticket = ext.service_ticket();
+            credentials.ServiceTicket = ext.service_ticket();
             return Underlying_->Authenticate(credentials).Apply(
                 BIND([=] (const TAuthenticationResult& authResult) {
                     NRpc::TAuthenticationResult rpcResult;

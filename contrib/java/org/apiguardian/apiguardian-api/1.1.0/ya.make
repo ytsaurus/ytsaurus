@@ -5,6 +5,9 @@ VERSION(1.1.0)
 LICENSE(Apache-2.0)
 
 LOCAL_JAR(apiguardian-api-1.1.0.jar)
+
 LOCAL_SOURCES_JAR(apiguardian-api-1.1.0-sources.jar)
+
+ORIGINAL_SOURCE(https://github.com/apiguardian-team/apiguardian)
 
 END()

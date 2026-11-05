@@ -7,7 +7,8 @@ from yt_commands import (
     create_pool, run_sleeping_vanilla, print_debug,
     update_controller_agent_config, get_allocation_id_from_job_id,
     lookup_rows, write_table, map, vanilla, run_test_vanilla,
-    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells)
+    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells,
+    update_nodes_dynamic_config, extract_statistic_v2, get_operation)
 
 import yt_error_codes
 
@@ -121,7 +122,96 @@ class _TestGetJobBase(YTEnvSetup):
             wait_no_assert(check_has_spec)
 
 
-@pytest.mark.enabled_multidaemon
+class TestJobStatisticsWireArchive(_TestGetJobBase):
+    NUM_NODES = 1
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("omit_data_statistics_from_yson", [False, True])
+    def test_data_statistics_in_archive(self, omit_data_statistics_from_yson):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "omit_data_statistics_from_yson": omit_data_statistics_from_yson,
+                },
+                "job_controller": {
+                    "job_common": {"statistics_output_table_count_limit": 1},
+                },
+            },
+        })
+        for path in ("//tmp/wire_input", "//tmp/wire_output_0", "//tmp/wire_output_1"):
+            create("table", path, attributes={"replication_factor": 1})
+        write_table("//tmp/wire_input", [{"key": 1}, {"key": 2}])
+        op = map(
+            track=False,
+            in_="//tmp/wire_input",
+            out=["//tmp/wire_output_0", "//tmp/wire_output_1"],
+            command=with_breakpoint("cat; BREAKPOINT; echo '{key=3}'; echo '{key=4}' >&4"),
+        )
+        job_id = wait_breakpoint(op, job_count=1)[0]
+
+        def check_archive(output_row_count, finished=False):
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            assert isinstance(job.get("statistics"), dict)
+            statistics = job["statistics"]
+            assert "data" in statistics
+            assert "input" in statistics["data"] and "output" in statistics["data"]
+            assert "row_count" in statistics["data"]["input"]
+            assert "0" in statistics["data"]["output"]
+            for summary, expected in (
+                (statistics["data"]["input"]["row_count"], 2),
+                (statistics["data"]["output"]["0"]["row_count"], output_row_count),
+            ):
+                assert summary["count"] == 1
+                for field in ("sum", "min", "max", "last"):
+                    assert summary[field] == expected, (field, summary, expected)
+            assert "1" not in statistics["data"]["output"]
+            assert statistics["data"]["input"]["not_fully_consumed"]["sum"] == 0
+            if finished:
+                assert job.get("finish_time")
+
+        wait_no_assert(lambda: check_archive(0))
+        release_breakpoint(job_id=job_id)
+        op.track()
+        wait_no_assert(lambda: check_archive(3, finished=True))
+
+        def check_controller_statistics():
+            operation = get_operation(op.id, attributes=["progress"])
+            assert "progress" in operation
+            progress = operation["progress"]
+            assert "job_statistics_v2" in progress and "data_flow_graph" in progress
+            statistics = progress["job_statistics_v2"]
+            assert extract_statistic_v2(statistics, "data.input.row_count") == 2
+            assert extract_statistic_v2(statistics, "data.output.0.row_count") == 3
+            assert extract_statistic_v2(statistics, "data.output.1.row_count") is None
+            data_flow = progress["data_flow_graph"]
+            assert data_flow["edges"]["map"]["sink"]["statistics"]["row_count"] == 4
+
+        wait_no_assert(check_controller_statistics)
+
+    @authors("pogorelov")
+    def test_vanilla_statistics_have_no_input(self):
+        update_nodes_dynamic_config({
+            "exec_node": {"controller_agent_connector": {"omit_data_statistics_from_yson": True}},
+        })
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint(op, job_count=1)[0]
+
+        def check_archive(finished=False):
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            assert isinstance(job.get("statistics"), dict)
+            assert "job_proxy" in job["statistics"]
+            assert "input" not in job["statistics"].get("data", {})
+            if finished:
+                assert job.get("finish_time")
+
+        wait_no_assert(check_archive)
+        release_breakpoint(job_id=job_id)
+        op.track()
+        wait_no_assert(lambda: check_archive(finished=True))
+
+
 class _TestGetJobCommon(_TestGetJobBase):
     ENABLE_MULTIDAEMON = True
 
@@ -160,7 +250,7 @@ class _TestGetJobCommon(_TestGetJobBase):
             ),
             fail_fast=False,
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None,
                             pool="my_pool", pool_tree="default")
@@ -199,7 +289,7 @@ class _TestGetJobCommon(_TestGetJobBase):
             out="//tmp/t2",
             command=with_breakpoint("cat; BREAKPOINT"),
         )
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
         release_breakpoint()
         op.track()
 
@@ -267,8 +357,8 @@ class TestGetJob(_TestGetJobCommon):
             },
         )
 
-        master_job_ids = wait_breakpoint(breakpoint_name="master", job_count=1)
-        slave_job_ids = wait_breakpoint(breakpoint_name="slave", job_count=2)
+        master_job_ids = wait_breakpoint(op, breakpoint_name="master", job_count=1)
+        slave_job_ids = wait_breakpoint(op, breakpoint_name="slave", job_count=2)
 
         def check_task_names():
             for job_id in master_job_ids:
@@ -298,7 +388,7 @@ class TestGetJob(_TestGetJobCommon):
             out="//tmp/t2",
             command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job_from_archive(op.id, job_id) is not None)
         job_from_archive = get_job_from_archive(op.id, job_id)
@@ -342,7 +432,7 @@ class TestGetJob(_TestGetJobCommon):
     def test_get_controller_state_from_archive(self, should_abort):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
 
@@ -385,7 +475,7 @@ class TestGetJob(_TestGetJobCommon):
     def test_abort_vanished_jobs_in_archive(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
 
@@ -407,7 +497,7 @@ class TestGetJob(_TestGetJobCommon):
         create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
-        job_id = wait_breakpoint(job_count=1)[0]
+        job_id = wait_breakpoint(op1, job_count=1)[0]
 
         op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
 
@@ -431,16 +521,16 @@ class TestGetJob(_TestGetJobCommon):
 
     @authors("omgronny")
     def test_not_found(self):
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_job("1-2-3-4", "5-6-7-8")
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=1,
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
-        with raises_yt_error(yt_error_codes.NoSuchJob):
+        with raises_yt_error(code=yt_error_codes.NoSuchJob):
             get_job(op.id, "5-6-7-8")
 
         release_breakpoint()
@@ -454,13 +544,13 @@ class TestGetJob(_TestGetJobCommon):
             job_count=1,
             spec={"testing": {"delay_inside_revive": 5000}},
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+        with raises_yt_error(code=yt_error_codes.UncertainOperationControllerState):
             get_job(op.id, job_id)
 
         job_info = retry(lambda: get_job(op.id, job_id))
@@ -474,7 +564,7 @@ class TestGetJob(_TestGetJobCommon):
         time.sleep(1)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
             pass
@@ -503,7 +593,7 @@ class TestGetJob(_TestGetJobCommon):
                 "archive_ttl": 10000000,
             },
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         release_breakpoint()
 
         time.sleep(5)
@@ -515,7 +605,7 @@ class TestGetJob(_TestGetJobCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         def check_addresses(job_info):
             return "address" in job_info and "addresses" in job_info
@@ -537,7 +627,7 @@ class TestGetJob(_TestGetJobCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         self._compare_time_from_archive_with_api(op.id, job_id, "start_time")
         release_breakpoint()
@@ -551,7 +641,7 @@ class TestGetJob(_TestGetJobCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -576,7 +666,7 @@ class TestGetJob(_TestGetJobCommon):
             },
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         jobs_with_rank = {}
         jobs_without_rank = []
@@ -609,8 +699,31 @@ class TestGetJob(_TestGetJobCommon):
 
         wait_no_assert(lambda: check_job_ranks())
 
+    @authors("bystrovserg")
+    def test_controller_error(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id, ) = wait_breakpoint(op)
 
-@pytest.mark.enabled_multidaemon
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait_for_cells()
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_error():
+            job = get_job(op.id, job_id)
+            assert job["state"] == "aborted"
+            assert job.get("abort_reason") == "node_offline"
+            error = job.get("error")
+            assert error is not None
+            assert error["message"] == "Job aborted by controller agent"
+
+
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
     ENABLE_MULTIDAEMON = True
 
@@ -618,7 +731,6 @@ class TestGetJobStatisticsLz4(_TestGetJobCommon):
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobMonitoring(_TestGetJobBase):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -635,7 +747,7 @@ class TestGetJobMonitoring(_TestGetJobBase):
                 },
             },
         )
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
 
@@ -684,7 +796,7 @@ class TestGetJobAllocationBase(_TestGetJobBase):
             with_breakpoint("BREAKPOINT"),
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         self._check_allocation_id(op.id, job_id, include_archive=False)
         release_breakpoint(job_id=job_id)
         op.track()
@@ -728,7 +840,7 @@ class TestGetJobAllocation(TestGetJobAllocationBase):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id1 = job_ids[0]
@@ -738,7 +850,7 @@ class TestGetJobAllocation(TestGetJobAllocationBase):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id2 = job_ids[0]
@@ -766,7 +878,6 @@ class TestGetJobRpcProxy(TestGetJob):
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

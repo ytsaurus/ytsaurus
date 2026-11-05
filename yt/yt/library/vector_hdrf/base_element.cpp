@@ -34,6 +34,11 @@ bool TBaseCompositeElement::IsStepFunctionForGangOperationsEnabled() const
     return false;
 }
 
+bool TBaseCompositeElement::IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const
+{
+    return false;
+}
+
 bool TBaseCompositeElement::CanAcceptFreeVolume() const
 {
     return false;
@@ -90,4 +95,4 @@ bool TBaseOperationElement::IsGangLike() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NVectorHdrf
+} // namespace NYT::NVectorHdrf

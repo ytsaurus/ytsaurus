@@ -73,7 +73,9 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout) override;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId) override;
 
     void UpdateGroupedNeededResources() override;
 
@@ -95,7 +97,7 @@ private:
     TControllerRuntimeDataPtr ControllerRuntimeData_;
     TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;

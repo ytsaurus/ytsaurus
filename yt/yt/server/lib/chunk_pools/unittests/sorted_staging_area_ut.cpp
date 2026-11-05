@@ -1,12 +1,10 @@
 #include "chunk_pools_helpers.h"
-#include "chunk_pools_helpers.h"
 
-#include <yt/yt/server/lib/chunk_pools/new_job_manager.h>
+#include <yt/yt/server/lib/chunk_pools/job_manager.h>
 #include <yt/yt/server/lib/chunk_pools/sorted_staging_area.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -70,15 +68,14 @@ protected:
         return chunk;
     }
 
-    TLegacyDataSlicePtr CreateDataSlice(
+    TDataSlicePtr CreateDataSlice(
         TInputChunkPtr chunk,
         TKeyBound lowerBound = TKeyBound::MakeEmpty(false),
         TKeyBound upperBound = TKeyBound::MakeEmpty(true),
         int tableIndex = 0)
     {
-        auto chunkSlice = CreateInputChunkSlice(chunk);
+        auto chunkSlice = CreateKeylessInputChunkSlice(chunk);
 
-        chunkSlice->TransformToNewKeyless();
 
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
         dataSlice->SetInputStreamIndex(tableIndex);
@@ -115,7 +112,7 @@ protected:
         FlushAndValidateStatistics({.ExpectedJobCount = 0, .ExpectedDataSliceCount = 0});
     }
 
-    std::vector<TNewJobStub> FinishAndValidateStatistics(const TFlushExpectations& expectations)
+    std::vector<TJobStub> FinishAndValidateStatistics(const TFlushExpectations& expectations)
     {
         auto [preparedJobs, finalStatistics] = std::move(*StagingArea_).Finish();
 
@@ -127,7 +124,7 @@ protected:
     }
 
     void ValidateJob(
-        TNewJobStub& job,
+        TJobStub& job,
         const TJobExpectations& expectations)
     {
         job.Finalize();

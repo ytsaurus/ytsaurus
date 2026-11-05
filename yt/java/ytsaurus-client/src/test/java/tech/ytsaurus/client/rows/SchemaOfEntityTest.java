@@ -2,14 +2,18 @@ package tech.ytsaurus.client.rows;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.SkiffSchema;
 import tech.ytsaurus.skiff.WireType;
+import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.Assert.assertEquals;
 
@@ -65,5 +69,20 @@ public class SchemaOfEntityTest {
                 ));
 
         assertEquals(entitySchema, expectedSchema);
+    }
+
+    @Test
+    public void testDecimalWireTypes() {
+        var schema = SchemaConverter.toSkiffSchema(TableSchema.builder()
+                .add(ColumnSchema.builder("int32", TiType.decimal(9, 2)).build())
+                .add(ColumnSchema.builder("int64", TiType.decimal(18, 2)).build())
+                .add(ColumnSchema.builder("int128", TiType.decimal(38, 2)).build())
+                .add(ColumnSchema.builder("int256", TiType.decimal(39, 2)).build())
+                .build());
+
+        assertEquals(
+                List.of(WireType.INT_32, WireType.INT_64, WireType.INT_128, WireType.INT_256),
+                schema.getChildren().stream().map(SkiffSchema::getWireType).collect(Collectors.toList())
+        );
     }
 }

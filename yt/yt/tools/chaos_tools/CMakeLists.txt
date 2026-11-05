@@ -13,4 +13,5 @@
 # changes in this file.
 
 add_subdirectory(chaos_force_remove_coordinator)
+add_subdirectory(chaos_remove_mailbox)
 add_subdirectory(force_remove_coordinator_shortcut)

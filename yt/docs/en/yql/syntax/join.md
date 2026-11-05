@@ -146,7 +146,7 @@ results in:
 
 
 
-## JOIN execution strategies in {{product-name}}
+## JOIN execution strategies in {{product-name}} {#join-execution-strategies-in-ytsaurus} {#join_strategy}
 
 ### Introduction
 
@@ -387,7 +387,7 @@ Sharded MapJoin is only possible for certain `JOIN` types (`INNER`,`CROSS`, and 
 
 `yt.MapJoinLimit` set to 0 disables the MapJoin strategy.
 
-### StarJoin strategy
+### StarJoin strategy {#starjoin-strategy} {#starjoin}
 
 This strategy makes it possible to perform several subsequent `JOIN`s at once through a single Reduce operation.
 
@@ -395,6 +395,21 @@ This strategy is possible when dictionary tables are subsequently appended to on
 1) identical keys are used in all `JOIN`s from the main table
 2) all tables are sorted by `JOIN` keys
 3) dictionary tables are also unique in terms of `JOIN` keys
+
+The StarJoin strategy can be forced using an [SQL hint](lexer.md#sql-hints):
+
+```yql
+SELECT
+	...
+FROM T1 AS a
+    JOIN /*+ star() */ T2 AS b ON a.key = b.key
+    JOIN T3 AS c ON a.key = c.key
+```
+
+When you specify the hint:
+- as the main table the _left side_ of the JOIN is forced for which the hint is specified
+- an additional sorting by keys is inserted for all inputs where necessary
+- in cases where the StarJoin strategy is not applicable, a warning with the reason is issued
 
 
 (PRAGMA) settings for the strategy:

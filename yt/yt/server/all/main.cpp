@@ -21,6 +21,7 @@
 #include <yt/yt/server/tcp_proxy/program.h>
 #include <yt/yt/server/kafka_proxy/program.h>
 #include <yt/yt/server/replicated_table_tracker/program.h>
+#include <yt/yt/server/offshore_data_gateway/program.h>
 #include <yt/yt/server/multidaemon/program.h>
 #include <yt/yt/server/sequoia_reconstructor/program.h>
 
@@ -41,6 +42,7 @@ namespace NYT {
 
 constexpr auto CommandPrefix = TStringBuf("ytserver-");
 constexpr auto AllCommand = TStringBuf("ytserver-all");
+constexpr auto ComponentFlag = TStringBuf("--component");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +145,7 @@ const TProgramMap& GetProgramMap()
             .Add(NTcpProxy::RunTcpProxyProgram, "tcp-proxy")
             .Add(NKafkaProxy::RunKafkaProxyProgram, "kafka-proxy")
             .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
+            .Add(NOffshoreDataGateway::RunOffshoreDataGatewayProgram, "offshore-data-gateway")
             .Add(NMultidaemon::RunMultidaemonProgram, "multi")
             .Add(NSequoiaReconstructor::RunSequoiaReconstructorProgram, "sequoia-reconstructor")
             .Finish();
@@ -173,7 +176,7 @@ public:
     }
 
 private:
-    TString ProgramName_;
+    std::string ProgramName_;
 
     void DoRun() override
     {
@@ -189,6 +192,17 @@ private:
 int main(int argc, const char** argv)
 {
     using namespace NYT;
+
+    // Handle launching with arbitrary program name (for example in yt operations).
+    // Example: ./cppbinary --component ytserver-sequoia-reconstructor
+    if (argc >= 3 &&
+        !TStringBuf(argv[0]).Contains(CommandPrefix) &&
+        TStringBuf(argv[1]) == ComponentFlag &&
+        TStringBuf(argv[2]).StartsWith(CommandPrefix))
+    {
+        argc -= 2;
+        argv += 2;
+    }
 
     // Shift arguments to handle "program-name" specified in the first argument.
     // Example: ./ytserver-all ytserver-master --help

@@ -6,9 +6,9 @@ LICENSE(Public-Domain)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2024-11-14)
+VERSION(2026-06-25)
 
-ORIGINAL_SOURCE(https://github.com/aappleby/smhasher/archive/0ff96f7835817a27d0487325b6c16033e2992eb5.tar.gz)
+ORIGINAL_SOURCE(https://github.com/aappleby/smhasher/archive/07bb4de10a63e8cc2e1724865454eba635742383.tar.gz)
 
 NO_COMPILER_WARNINGS()
 

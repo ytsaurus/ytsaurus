@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -28,6 +30,7 @@ public:
 private:
     TClickHouseServerBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    NApi::NNative::IConnectionPtr Connection_;
     THostPtr Host_;
     IClickHouseServerPtr ClickHouseServer_;
 
@@ -43,6 +46,7 @@ private:
     std::atomic<int> SigintCounter_ = {0};
 
     void DoRun();
+    void InitializeConnection();
 
     void HandleSigint();
     void HandleCrashSignal();

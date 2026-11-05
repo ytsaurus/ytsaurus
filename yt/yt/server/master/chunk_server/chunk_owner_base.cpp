@@ -1,6 +1,6 @@
 #include "chunk_owner_base.h"
+
 #include "chunk_list.h"
-#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -76,11 +76,11 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     if (!IsTrunk()) {
         Save(context, DeltaStatistics());
     } else {
-        YT_LOG_ALERT_IF(DeltaStatistics() != TChunkOwnerDataStatistics(),
-            "Trunk node has non empty delta statistics, which will be lost during snapshot save "
-            "(ChunkOwnerNodeId: %v, DeltaStatistics: %v)",
-            GetVersionedId(),
-            DeltaStatistics());
+        YT_TLOG_ALERT_IF(
+            DeltaStatistics() != TChunkOwnerDataStatistics(),
+            "Trunk node has non empty delta statistics, which will be lost during snapshot save")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("DeltaStatistics", DeltaStatistics());
     }
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
@@ -89,8 +89,12 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, DeltaSecurityTags_);
     Save(context, ChunkMergerMode_);
     Save(context, EnableSkynetSharing_);
-    Save(context, UpdatedSinceLastMerge_);
-    Save(context, ChunkMergerTraversalInfo_);
+    if (ChunkMergerInfo_) {
+        Save(context, true);
+        Save(context, *ChunkMergerInfo_);
+    } else {
+        Save(context, false);
+    }
     Save(context, HunkReplication_);
     Save(context, HunkPrimaryMediumIndex_);
 }
@@ -105,9 +109,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
 
     // Initial migration is done in OnAfterSnapshotLoaded in CypressManager.
-    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure && context.GetVersion() < EMasterReign::Start_25_4 ||
-        context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4)
-    {
+    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4) {
         Load(context, SecurityTagsUpdateMode_);
     }
 
@@ -124,29 +126,45 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaSecurityTags_);
     Load(context, ChunkMergerMode_);
     Load(context, EnableSkynetSharing_);
-    Load(context, UpdatedSinceLastMerge_);
-    Load(context, ChunkMergerTraversalInfo_);
+    if (context.GetVersion() >= EMasterReign::ChunkMergerInfo) {
+        if (Load<bool>(context)) {
+            Load(context, *MutableChunkMergerInfo());
+        }
+    } else {
+        // COMPAT(aleksandra-zh).
+        auto updatedSinceLastMerge = Load<bool>(context);
+        TChunkMergerTraversalInfo traversalInfo;
+        Load(context, traversalInfo);
+        if (updatedSinceLastMerge || traversalInfo.ChunkCount > 0) {
+            auto* info = MutableChunkMergerInfo();
+            info->UpdatedSinceLastMerge = updatedSinceLastMerge;
+            info->TraversalInfo = traversalInfo;
+        }
+    }
+
     Load(context, HunkReplication_);
     Load(context, HunkPrimaryMediumIndex_);
 
     // Check invariant: null hunk primary medium index <=> empty hunk replication.
     if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
         if (HunkReplication().GetSize() == 0) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetVersionedId(),
-                hunkPrimaryMediumIndex);
+            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered")
+                .With("ChunkOwnerNodeId", GetVersionedId())
+                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
         } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetVersionedId(),
-                hunkPrimaryMediumIndex);
+            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered")
+                .With("ChunkOwnerNodeId", GetVersionedId())
+                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
         }
     } else if (HunkReplication().GetSize() != 0) {
-        YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
-            "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
-            GetVersionedId(),
-            HunkReplication());
+        YT_TLOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("HunkReplication", HunkReplication());
+    }
+
+    // COMPAT(babenko)
+    if (context.GetVersion() < EMasterReign::DropHasHunkChunkListUserAttribute && GetAttributes()) {
+        GetMutableAttributes()->TryRemove("has_hunk_chunk_list");
     }
 }
 
@@ -213,6 +231,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType ty
             return chunkList;
 
         case EUpdateMode::Append:
+            YT_VERIFY(type == EChunkListContentType::Main);
             if (GetType() == EObjectType::Journal) {
                 return chunkList;
             } else {
@@ -226,7 +245,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType ty
     }
 }
 
-const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
+const TChunkList* TChunkOwnerBase::GetAppendDeltaChunkList() const
 {
     const auto* chunkList = GetChunkList();
     if (!chunkList) {
@@ -313,11 +332,12 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
     if (HunkPrimaryMediumIndex_ == GenericMediumIndex) {
         return Replication_;
     } else {
-        YT_LOG_ALERT_UNLESS(HunkReplication_.IsValid(),
-            "Chunk owner node has invalid hunk replication despite having non-null hunk primary medium index (ChunkOwnerNodeId: %v, HunkReplication: %v, HunkPrimaryMediumIndex: %v)",
-            GetId(),
-            HunkReplication_,
-            HunkPrimaryMediumIndex_);
+        YT_TLOG_ALERT_UNLESS(
+            HunkReplication_.IsValid(),
+            "Chunk owner node has invalid hunk replication despite having non-null hunk primary medium index")
+            .With("ChunkOwnerNodeId", GetId())
+            .With("HunkReplication", HunkReplication_)
+            .With("HunkPrimaryMediumIndex", HunkPrimaryMediumIndex_);
         return HunkReplication_;
     }
 }
@@ -346,12 +366,10 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     }
 
     if (context.Statistics && updateStatistics) {
-        YT_LOG_ALERT_IF(*context.Statistics != *updateStatistics,
-            "Statistics mismatch detected while ending upload "
-            "(ChunkOwnerNodeId: %v, ContextStatistics: %v, UpdateStatistics: %v)",
-            GetVersionedId(),
-            *context.Statistics,
-            *updateStatistics);
+        YT_TLOG_ALERT_IF(*context.Statistics != *updateStatistics, "Statistics mismatch detected while ending upload")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("ContextStatistics", *context.Statistics)
+            .With("UpdateStatistics", *updateStatistics);
     }
 
     switch (UpdateMode_) {
@@ -410,16 +428,15 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
     TChunkOwnerDataStatistics updateStatistics;
     switch (UpdateMode_) {
         case EUpdateMode::Append:
-            if (auto* chunkList = GetDeltaChunkList()) {
+            if (auto* chunkList = GetAppendDeltaChunkList()) {
                 updateStatistics = chunkList->Statistics().ToDataStatistics();
             }
             break;
 
         case EUpdateMode::Overwrite:
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* chunkList = GetSnapshotChunkList(contentType)) {
-                    updateStatistics += chunkList->Statistics().ToDataStatistics();
-                }
+            updateStatistics += GetSnapshotChunkList()->Statistics().ToDataStatistics();
+            if (auto* hunkChunkList = GetSnapshotHunkChunkList()) {
+                updateStatistics += hunkChunkList->HunkStatistics().ToDataStatistics();
             }
             break;
 
@@ -473,6 +490,25 @@ TClusterResources TChunkOwnerBase::GetDiskUsage(const TChunkOwnerDataStatistics&
     }
     result.SetChunkCount(statistics.ChunkCount);
     return result;
+}
+
+bool TChunkOwnerBase::HasChunkMergerInfo() const
+{
+    return ChunkMergerInfo_.operator bool();
+}
+
+const TChunkMergerInfo& TChunkOwnerBase::ChunkMergerInfo() const
+{
+    static const TChunkMergerInfo Empty;
+    return ChunkMergerInfo_ ? *ChunkMergerInfo_ : Empty;
+}
+
+TChunkMergerInfo* TChunkOwnerBase::MutableChunkMergerInfo()
+{
+    if (!ChunkMergerInfo_) {
+        ChunkMergerInfo_ = std::make_unique<TChunkMergerInfo>();
+    }
+    return ChunkMergerInfo_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

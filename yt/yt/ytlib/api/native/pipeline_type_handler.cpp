@@ -3,7 +3,7 @@
 #include "client_impl.h"
 #include "type_handler_detail.h"
 
-#include <yt/yt/flow/lib/native_client/pipeline_init.h>
+#include <yt/yt/flow/library/cpp/native_client/pipeline_init.h>
 
 namespace NYT::NApi::NNative {
 

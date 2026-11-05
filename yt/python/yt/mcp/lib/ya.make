@@ -9,7 +9,9 @@ PY_SRCS(
 
     __init__.py
     tool_runner_mcp.py
+    server.py
     tools/helpers.py
+    tools/security.py
     # tools
     tools/__init__.py
     tools/list_dir.py
@@ -18,10 +20,14 @@ PY_SRCS(
     tools/admin.py
     tools/account.py
     tools/common_client.py
+    tools/query_tracker.py
+    tools/table.py
+    tools/cypress.py
 )
 
 PEERDIR(
     yt/python/client
+    contrib/deprecated/python/starlette  # contrib/python/mcp
     contrib/python/mcp
     contrib/python/pydantic/pydantic-2
 )

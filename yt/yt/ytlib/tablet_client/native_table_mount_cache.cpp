@@ -27,6 +27,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/tablet_client/index_info.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
@@ -66,6 +67,9 @@ using namespace NApi::NNative;
 using NNative::IConnection;
 using NNative::IConnectionPtr;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTableMountCache)
@@ -83,7 +87,7 @@ public:
         : TTableMountCacheBase(std::move(config), logger, profiler.WithPrefix("/table_mount_cache"))
         , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
-        , Invoker_(connection->GetInvoker())
+        , Invoker_(Connection_.Lock()->GetInvoker())
         , TableMountInfoUpdateInvoker_(CreateSerializedInvoker(Invoker_))
     { }
 
@@ -115,7 +119,8 @@ private:
         if (reason == EUpdateReason::PeriodicUpdate) {
             guard.emplace(TTraceContext::NewRoot("PeriodicUpdate"));
 
-            YT_LOG_DEBUG("Running periodic mount info update (TablePath: %v)", key);
+            YT_TLOG_DEBUG("Running periodic mount info update")
+                .With("TablePath", key);
         }
 
         auto session = New<TGetSession>(
@@ -156,9 +161,9 @@ private:
             , RefreshPrimaryRevision_(refreshPrimaryRevision)
             , RefreshSecondaryRevision_(refreshSecondaryRevision)
             , IsPeriodicUpdate_(isPeriodicUpdate)
-            , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
-                Path_,
-                TGuid::Create()))
+            , Logger(logger
+                .WithTag("Path", Path_)
+                .WithTag("CacheSessionId", TGuid::Create()))
         { }
 
         TTableMountInfoPtr Run()
@@ -180,10 +185,11 @@ private:
 
                 return mountInfoOrError.ValueOrThrow();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Error getting table mount info");
+                YT_TLOG_DEBUG("Error getting table mount info")
+                    .With(ex);
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Path_)
-                    << ex;
+                    .With(ex);
             }
         }
 
@@ -222,8 +228,8 @@ private:
                 return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %x)",
-                refreshPrimaryRevision);
+            YT_TLOG_DEBUG("Requesting table mount info from primary master")
+                .WithFormat("RefreshPrimaryRevision", "%x", refreshPrimaryRevision);
 
             auto options = GetMasterReadOptions();
 
@@ -292,10 +298,10 @@ private:
                 return MakeFuture<TTableMountInfoPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %x)",
-                TableId_,
-                CellTag_,
-                refreshSecondaryRevision);
+            YT_TLOG_DEBUG("Requesting table mount info from secondary master")
+                .With("TableId", TableId_)
+                .With("CellTag", CellTag_)
+                .WithFormat("RefreshSecondaryRevision", "%x", refreshSecondaryRevision);
 
             auto options = GetMasterReadOptions();
 
@@ -367,6 +373,7 @@ private:
             tableInfo->NeedKeyEvaluation = primarySchema->HasMaterializedComputedColumns();
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
             tableInfo->SerializationType = FromProto<ETabletTransactionSerializationType>(rsp->serialization_type());
+            tableInfo->CommitOrdering = FromProto<NTransactionClient::ECommitOrdering>(rsp->commit_ordering());
             tableInfo->ReplicationCardId = FromProto<TReplicationCardId>(rsp->replication_card_id());
             tableInfo->PhysicalPath = PhysicalPath_;
 
@@ -378,6 +385,11 @@ private:
                 tabletInfo->State = FromProto<ETabletState>(protoTabletInfo.state());
                 tabletInfo->UpdateTime = Now();
                 tabletInfo->InMemoryMode = FromProto<EInMemoryMode>(protoTabletInfo.in_memory_mode());
+
+                // COMPAT(alexelexa): remove when 26.1 is deployed (IntroduceLogicalMountRevision reign).
+                tabletInfo->LogicalMountRevision = protoTabletInfo.has_logical_mount_revision()
+                    ? FromProto<NHydra::TRevision>(protoTabletInfo.logical_mount_revision())
+                    : tabletInfo->MountRevision;
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.
@@ -416,26 +428,20 @@ private:
 
             tableInfo->Indices.reserve(rsp->indices_size());
             for (const auto& protoIndexInfo : rsp->indices()) {
-                auto indexInfo = TIndexInfo{
-                    .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
-                    .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
-                    .Predicate = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, predicate),
-                    .Correspondence = protoIndexInfo.has_index_correspondence()
-                        ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
-                        : ETableToIndexCorrespondence::Unknown,
-                };
+                TIndexInfo indexInfo;
+                indexInfo.IndexObjectId = FromProto<TObjectId>(protoIndexInfo.index_table_id());
+                indexInfo.Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind());
+                indexInfo.Predicate = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, predicate);
+                indexInfo.Correspondence = protoIndexInfo.has_index_correspondence()
+                    ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
+                    : ETableToIndexCorrespondence::Unknown;
 
-                if (protoIndexInfo.has_unfolded_columns()) {
-                    indexInfo.UnfoldedColumns = {
-                        .TableColumn = protoIndexInfo.unfolded_columns().table_column(),
-                        .IndexColumn = protoIndexInfo.unfolded_columns().index_column(),
-                    };
-                } else if (protoIndexInfo.has_unfolded_column()) {
-                    // COMPAT(sabdenovch)
-                    indexInfo.UnfoldedColumns = {
-                        .TableColumn = protoIndexInfo.unfolded_column(),
-                        .IndexColumn = protoIndexInfo.unfolded_column(),
-                    };
+                indexInfo.UnfoldedColumns = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, unfolded_columns, TUnfoldedColumns);
+                // COMPAT(sabdenovch)
+                if (protoIndexInfo.has_unfolded_column()) {
+                    indexInfo.UnfoldedColumns = TUnfoldedColumns(
+                        protoIndexInfo.unfolded_column(),
+                        protoIndexInfo.unfolded_column());
                 }
 
                 if (protoIndexInfo.has_evaluated_columns_schema()) {
@@ -464,12 +470,12 @@ private:
                 Owner_->TabletInfoOwnerCache_.Insert(tabletInfo->TabletId, MakeWeak(tableInfo));
             }
 
-            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
-                tableInfo->TableId,
-                tabletCount,
-                tableInfo->Dynamic,
-                tableInfo->PrimaryRevision,
-                tableInfo->SecondaryRevision);
+            YT_TLOG_DEBUG("Table mount info received")
+                .With("TableId", tableInfo->TableId)
+                .With("TabletCount", tabletCount)
+                .With("Dynamic", tableInfo->Dynamic)
+                .WithFormat("PrimaryRevision", "%x", tableInfo->PrimaryRevision)
+                .WithFormat("SecondaryRevision", "%x", tableInfo->SecondaryRevision);
 
             return tableInfo;
         }
@@ -482,12 +488,14 @@ private:
 
     void OnAdded(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info added to cache (Path: %v)", key);
+        YT_TLOG_DEBUG("Table mount info added to cache")
+            .With("Path", key);
     }
 
     void OnRemoved(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v)", key);
+        YT_TLOG_DEBUG("Table mount info removed from cache")
+            .With("Path", key);
     }
 
     void RegisterCell(INodePtr cellDescriptor) override

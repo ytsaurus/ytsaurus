@@ -59,6 +59,7 @@ struct ISecretVaultService
         std::string Signature;
         std::string Comment;
         std::optional<TTvmId> TvmId;
+        std::optional<TTvmId> ConsumerTvmId;
     };
 
     struct TDelegationTokenResponse

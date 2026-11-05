@@ -10,7 +10,7 @@ Tutorial — это набор данных и примеры запросов �
 
 * Helm 3.x;
 * запущенный кластер {{product-name}} и адрес HTTP прокси (`http_proxy`);
-* специальный пользователь с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management));
+* специальный пользователь с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#{% if audience == "internal" %}getting_token{% else %}token-management{% endif %}));
 * работающие Query Tracker и YQL Agent.
 
 > Типично, адрес http-proxy имеет шаблонный вид: http://http-proxies.<namespace>.svc.cluster.local

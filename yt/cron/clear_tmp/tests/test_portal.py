@@ -30,13 +30,15 @@ def test_clear_tmp_location(yt_env):  # noqa
     portal_path = "//tmp/yt_wrapper"
     create_portal(client, portal_path)
 
-    client.create("map_node", portal_path + "/home")
-    assert client.exists(portal_path + "/home")
+    client.create("map_node", portal_path + "/subdir_1")
+    assert client.exists(portal_path + "/subdir_1")
+    client.create("map_node", portal_path + "/subdir_2")
+    assert client.exists(portal_path + "/subdir_2")
 
     subdirs = 10
     for i in range(subdirs):
-        client.create("table", portal_path + f"/{i}")
-        assert client.exists(portal_path + f"/{i}")
+        client.create("table", portal_path + f"/table_{i}")
+        assert client.exists(portal_path + f"/table_{i}")
 
     proxy_address = yt_env.yt_instance.get_proxy_address()
     run_clear_tmp(
@@ -60,10 +62,11 @@ def test_clear_tmp_location(yt_env):  # noqa
             "--verbose",
         ])
 
-    assert not client.exists(portal_path + "/home")
+    assert not client.exists(portal_path + "/subdir_1")
+    assert not client.exists(portal_path + "/subdir_2")
 
     for i in range(subdirs):
-        assert client.exists(portal_path + f"/{i}")
+        assert client.exists(portal_path + f"/table_{i}")
 
     assert client.exists(portal_path)
     assert client.get(portal_path + "&/@type") == "portal_entrance"

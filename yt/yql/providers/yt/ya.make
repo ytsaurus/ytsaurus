@@ -1,7 +1,9 @@
 RECURSE(
+    actors
     codec
     common
     comp_nodes
+    dq_task_preprocessor
     expr_nodes
     fmr
     gateway

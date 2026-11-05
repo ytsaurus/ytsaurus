@@ -34,12 +34,18 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TProfilingOptions
+{
+    bool EnablePathAggregation = false;
+    bool AddObjectType = false;
+    std::optional<bool> Leading;
+    std::optional<std::string> Name;
+};
+
 template <EObjectKind Kind, typename TRow>
 NProfiling::TTagSet CreateObjectProfilingTags(
     const TRow& row,
-    bool enablePathAggregation = false,
-    bool addObjectType = false,
-    std::optional<bool> leading = std::nullopt);
+    const TProfilingOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +80,7 @@ IQueueProfileManagerPtr CreateQueueProfileManager(
 IConsumerProfileManagerPtr CreateConsumerProfileManager(
     const NProfiling::TProfiler& profiler,
     const NLogging::TLogger& logger,
+    const std::optional<std::string>& consumerName,
     const NQueueClient::TConsumerTableRow& row,
     bool leading);
 

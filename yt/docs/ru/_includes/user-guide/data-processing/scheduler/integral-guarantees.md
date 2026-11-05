@@ -80,11 +80,11 @@ $ yt set //sys/pools/root-pool/burst/@integral-guarantees/resource_flow "{cpu=10
 
 На рисунке приведён график потребления (usage) и потребности (demand) в CPU для burst пула, для которого `burst_integral` гарантия равна 500 CPU, а `resource_flow` равен 100 CPU.
 
-![](../../../../../images/pool_consumption.png)
+![](../../../../../_images/pool_consumption.png)
 
 На рисунке ниже приведён график объёма накопленного ресурса для того же пула. Видно, как объём виртуального ресурса уменьшается при запущенных операциях в пуле, а после ресурс вновь накапливается до заданного предела.
 
-![](../../../../../images/pool_accumulated_resource_ratio_volume.png)
+![](../../../../../_images/pool_accumulated_resource_ratio_volume.png)
 
 ## Сочетание со строгими гарантиями
 

@@ -47,6 +47,9 @@ DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
 DECLARE_REFCOUNTED_STRUCT(TJobTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TGangManagerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TPushBasedShuffleRegistry)
+DECLARE_REFCOUNTED_STRUCT(TPushBasedShuffleConfig)
+
 DECLARE_REFCOUNTED_STRUCT(TDockerRegistryConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TRemoteOperationsConfig)
@@ -90,12 +93,12 @@ struct TLivePreviewTableBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerLogger, "Controller");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerAgentLogger, "ControllerAgent");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerEventLogger, NLogging::TLogger("ControllerEventLog").WithEssential());
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerFeatureStructuredLogger, NLogging::TLogger("ControllerFeatureStructuredLog").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ControllerLogger, "Controller");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ControllerAgentLogger, "ControllerAgent");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ControllerEventLogger, NLogging::TLogger("ControllerEventLog").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ControllerFeatureStructuredLogger, NLogging::TLogger("ControllerFeatureStructuredLog").WithEssential());
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerAgentProfiler, "/controller_agent");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ControllerAgentProfiler, "/controller_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +111,7 @@ using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControl
 //! Returns TraceContextGuard with the trace context.
 
 NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
-    TString spanName,
+    std::string spanName,
     TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,12 +119,12 @@ NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
 struct TCompositePendingJobCount
 {
     int DefaultCount = 0;
-    THashMap<TString, int> CountByPoolTree = {};
+    THashMap<std::string, int> CountByPoolTree = {};
 
-    int GetJobCountFor(const TString& tree) const;
+    int GetJobCountFor(const std::string& tree) const;
     bool IsZero() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TCompositePendingJobCount, 0x7ba21384);
 };
 
 void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);

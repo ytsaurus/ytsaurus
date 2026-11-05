@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     task_runner_actor.cpp
@@ -13,7 +13,5 @@ PEERDIR(
     contrib/ydb/library/yql/utils/actors
     contrib/ydb/library/yql/providers/dq/task_runner
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

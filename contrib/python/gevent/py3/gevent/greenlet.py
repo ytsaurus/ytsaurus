@@ -391,6 +391,8 @@ class Greenlet(greenlet):
             # pylint:disable=no-member
             if self._greenlet__main:
                 return False
+            if getcurrent() is self: # pylint:disable=undefined-variable
+                return False
             if self.__start_cancelled_by_kill() or self.__started_but_aborted():
                 return True
 
@@ -409,6 +411,16 @@ class Greenlet(greenlet):
             3. We have run and terminated (by raising an exception out of the
                started function or by reaching the end of the started function).
             """
+            # The currently running greenlet cannot be dead. This guard is
+            # needed because __started_but_aborted() can return a false True
+            # during the bootstrap phase: the event loop sets the start
+            # callback's pending to False before invoking the callback (which
+            # does the C-level switch), but run() only sets _start_event =
+            # _start_completed_event after the switch completes. During that
+            # window __started_but_aborted() incorrectly concludes the
+            # greenlet was aborted.
+            if getcurrent() is self: # pylint:disable=undefined-variable
+                return False
             return (
                 self.__start_cancelled_by_kill()
                 or self.__started_but_aborted()
@@ -1060,6 +1072,12 @@ def joinall(greenlets, timeout=None, raise_error=False, count=None):
 
     :param greenlets: A sequence (supporting :func:`len`) of greenlets to wait for.
     :keyword float timeout: If given, the maximum number of seconds to wait.
+    :keyword bool raise_error: If True, immediately raise the first exception
+        encountered in any greenlet. If False (default), exceptions are
+        stored in the greenlet and not raised.
+    :keyword int count: If not `None`, then a number specifying the maximum number
+        of greenlets to wait for. If ``None`` (the default), all greenlets
+        are waited for.
     :return: A sequence of the greenlets that finished before the timeout (if any)
         expired.
     """

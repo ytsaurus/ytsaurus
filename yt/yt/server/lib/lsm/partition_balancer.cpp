@@ -35,14 +35,14 @@ public:
         const std::vector<TTabletPtr>& tablets,
         const std::string& /*bundleName*/) override
     {
-        YT_LOG_DEBUG("Started building partition balancer action batch");
+        YT_TLOG_DEBUG("Started building partition balancer action batch");
 
         TLsmActionBatch batch;
         for (const auto& tablet : tablets) {
             batch.MergeWith(ScanTablet(tablet.Get()));
         }
 
-        YT_LOG_DEBUG("Finished building partition balancer action batch");
+        YT_TLOG_DEBUG("Finished building partition balancer action batch");
 
         return batch;
     }
@@ -94,10 +94,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
-            tablet->GetLoggingTag(),
-            currentMaxOverlappingStoreCount);
+        YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Partition balancer started tablet scan for splits")
+            .With(tablet->LoggingTags())
+            .With("CurrentMosc", currentMaxOverlappingStoreCount);
 
         int largestPartitionStoreCount = 0;
         int secondLargestPartitionStoreCount = 0;
@@ -126,12 +125,10 @@ private:
         int maxAllowedOverlappingStoreCount = mountConfig->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Partition balancer started tablet scan for merges (%v, "
-            "EstimatedMosc: %v, MaxAllowedOsc: %v)",
-            tablet->GetLoggingTag(),
-            estimatedMaxOverlappingStoreCount,
-            maxAllowedOverlappingStoreCount);
+        YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Partition balancer started tablet scan for merges")
+            .With(tablet->LoggingTags())
+            .With("EstimatedMosc", estimatedMaxOverlappingStoreCount)
+            .With("MaxAllowedOsc", maxAllowedOverlappingStoreCount);
 
         for (const auto& partition : tablet->Partitions()) {
             auto request = ScanPartitionToMerge(partition.get(), maxAllowedOverlappingStoreCount);
@@ -156,32 +153,29 @@ private:
         i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = mountConfig->EnableLsmVerboseLogging
+            ? BuildLogger(partition)
+            : NLogging::TLogger();
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to split (PartitionIndex: %v of %v, "
-            "EstimatedMosc: %v, EstimatedEdenDataSize: %v, AtLeastOneSplitScheduled: %v, "
-            "DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
-            partition->GetIndex(),
-            partitionCount,
-            *estimatedMaxOverlappingStoreCount,
-            *estimatedEdenDataSize,
-            *atLeastOneSplitScheduled,
-            actualDataSize,
-            partition->Stores().size(),
-            secondLargestPartitionStoreCount);
+        YT_TLOG_DEBUG("Scanning partition to split")
+            .WithFormat("PartitionIndex", "%v of %v", partition->GetIndex(), partitionCount)
+            .With("EstimatedMosc", *estimatedMaxOverlappingStoreCount)
+            .With("EstimatedEdenDataSize", *estimatedEdenDataSize)
+            .With("AtLeastOneSplitScheduled", *atLeastOneSplitScheduled)
+            .With("DataSize", actualDataSize)
+            .With("StoreCount", partition->Stores().size())
+            .With("SecondLargestPartitionStoreCount", secondLargestPartitionStoreCount);
 
         if (partition->GetState() != EPartitionState::Normal) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not split partition due to improper partition state (PartitionState: %v)",
-                partition->GetState());
+            YT_TLOG_DEBUG("Will not split partition due to improper partition state")
+                .With("PartitionState", partition->GetState());
             return {};
         }
 
         // TODO(ifsmirnov): validate that all stores are persistent.
 
         if (partition->GetIsImmediateSplitRequested()) {
-            if (ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, true)) {
+            if (ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, true, Logger)) {
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
                 *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
@@ -214,8 +208,11 @@ private:
                 actualDataSize / mountConfig->MinPartitionDataSize,
                 static_cast<i64>(mountConfig->MaxPartitionCount - partitionCount)});
 
-            if (splitFactor > 1 && ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, false)) {
-                YT_LOG_DEBUG("Partition is scheduled for split");
+            if (splitFactor > 1 && ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, false, Logger)) {
+                if (!Logger) {
+                    Logger = BuildLogger(partition);
+                }
+                YT_TLOG_DEBUG("Partition is scheduled for split");
                 *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
                 *estimatedEdenDataSize += partition->GetCompressedDataSize();
                 *atLeastOneSplitScheduled = true;
@@ -236,37 +233,33 @@ private:
         TPartition* partition,
         i64 estimatedEdenDataSize,
         bool atLeastOneSplitScheduled,
-        bool immediateSplit) const
+        bool immediateSplit,
+        const NLogging::TLogger& Logger) const
     {
         const auto* tablet = partition->GetTablet();
 
-        auto Logger = BuildLogger(partition);
-
         const auto& mountConfig = tablet->GetMountConfig();
         if (!immediateSplit && CurrentTime_ < partition->GetAllowedSplitTime()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not split partition: too early "
-                "(CurrentTime: %v, AllowedSplitTime: %v)",
-                CurrentTime_,
-                partition->GetAllowedSplitTime());
+            YT_TLOG_DEBUG("Will not split partition: too early")
+                .With("CurrentTime", CurrentTime_)
+                .With("AllowedSplitTime", partition->GetAllowedSplitTime());
             return false;
         }
 
         if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->Eden()->GetState() == EPartitionState::Partitioning)
         {
-            YT_LOG_DEBUG("Eden is partitioning, will not split partition (EdenPartitionId: %v)",
-                tablet->Eden()->GetId());
+            auto Logger = BuildLogger(partition);
+            YT_TLOG_DEBUG("Eden is partitioning, will not split partition")
+                .With("EdenPartitionId", tablet->Eden()->GetId());
             return false;
         }
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not split partition due to improper store state "
-                    "(StoreId: %v, StoreState: %v)",
-                    store->GetId(),
-                    store->GetStoreState());
+                YT_TLOG_DEBUG("Will not split partition due to improper store state")
+                    .With("StoreId", store->GetId())
+                    .With("StoreState", store->GetStoreState());
                 return false;
             }
         }
@@ -295,15 +288,14 @@ private:
             }
         }
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = mountConfig->EnableLsmVerboseLogging
+            ? BuildLogger(partition)
+            : NLogging::TLogger();
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to merge (PartitionIndex: %v of %v, "
-            "DataSize: %v, MaxPotentialDataSize: %v)",
-            partition->GetIndex(),
-            partitionCount,
-            actualDataSize,
-            maxPotentialDataSize);
+        YT_TLOG_DEBUG("Scanning partition to merge")
+            .WithFormat("PartitionIndex", "%v of %v", partition->GetIndex(), partitionCount)
+            .With("DataSize", actualDataSize)
+            .With("MaxPotentialDataSize", maxPotentialDataSize);
 
         if (maxPotentialDataSize < mountConfig->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
@@ -315,24 +307,30 @@ private:
             int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
                 tablet->Partitions()[firstPartitionIndex]->Stores().size() +
                 tablet->Partitions()[lastPartitionIndex]->Stores().size();
+            i64 mergedDataSize =
+                tablet->Partitions()[firstPartitionIndex]->GetCompressedDataSize() +
+                tablet->Partitions()[lastPartitionIndex]->GetCompressedDataSize();
+            bool willRunMerge =
+                mergedDataSize <= mountConfig->MaxPartitionDataSize &&
+                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount;
 
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Found candidate partitions to merge (FirstPartitionIndex: %v, "
-                "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
-                firstPartitionIndex,
-                lastPartitionIndex,
-                estimatedOverlappingStoreCount,
-                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount);
+            YT_TLOG_DEBUG("Found candidate partitions to merge")
+                .With("FirstPartitionIndex", firstPartitionIndex)
+                .With("LastPartitionIndex", lastPartitionIndex)
+                .With("MergedDataSize", mergedDataSize)
+                .With("MaxPartitionDataSize", mountConfig->MaxPartitionDataSize)
+                .With("EstimatedOsc", estimatedOverlappingStoreCount)
+                .With("WillRunMerge", willRunMerge);
 
             std::vector<TPartitionId> partitionIds;
             for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
                 partitionIds.push_back(tablet->Partitions()[index]->GetId());
-                if (!ValidateMerge(tablet->Partitions()[index].get())) {
+                if (!ValidateMerge(tablet->Partitions()[index].get(), Logger)) {
                     return {};
                 }
             }
 
-            if (estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount) {
+            if (willRunMerge) {
                 return TMergePartitionsRequest{
                     .Tablet = MakeStrong(tablet),
                     .FirstPartitionIndex = firstPartitionIndex,
@@ -344,16 +342,12 @@ private:
         return {};
     }
 
-    bool ValidateMerge(TPartition* partition) const
+    bool ValidateMerge(TPartition* partition, const NLogging::TLogger& Logger) const
     {
-        auto Logger = BuildLogger(partition);
-
-        const auto& mountConfig = partition->GetTablet()->GetMountConfig();
         if (CurrentTime_ < partition->GetAllowedMergeTime()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not merge partition: too early "
-                "(CurrentTime: %v, AllowedMergeTime: %v)",
-                CurrentTime_, partition->GetAllowedSplitTime());
+            YT_TLOG_DEBUG("Will not merge partition: too early")
+                .With("CurrentTime", CurrentTime_)
+                .With("AllowedMergeTime", partition->GetAllowedMergeTime());
             return false;
         }
         return true;
@@ -378,10 +372,10 @@ private:
     static NLogging::TLogger BuildLogger(TPartition* partition)
     {
         auto* tablet = partition->GetTablet();
-        return Logger().WithTag("%v, CellId: %v, PartitionId: %v",
-            tablet->GetLoggingTag(),
-            tablet->GetCellId(),
-            partition->GetId());
+        return Logger()
+            .WithTags(tablet->LoggingTags())
+            .WithTag("CellId", tablet->GetCellId())
+            .WithTag("PartitionId", partition->GetId());
     }
 };
 

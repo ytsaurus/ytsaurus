@@ -61,9 +61,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees") == {}
 
     def test_remove_with_force(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove_pool_tree("my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove("//sys/pool_trees/my_tree/nirvana")
 
         remove_pool_tree("my_tree", wait_for_orchid=False, force=True)
@@ -86,38 +86,38 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees") == {}
 
     def test_create_empty_names_validation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool_tree("", wait_for_orchid=False)
 
         create_pool_tree("my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool("", pool_tree="my_tree", wait_for_orchid=False)
 
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool("", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
     def test_duplicate_tree_names_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_pool_tree("my_tree", wait_for_orchid=False)
 
     def test_duplicate_names_forbidden_in_same_tree(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Scheduler pool tree .* already has a child .*"):
             create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_pool(
                 "prod",
                 pool_tree="my_tree",
                 parent_name="nirvana",
                 wait_for_orchid=False,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* already contains pool"):
             create_pool("prod", pool_tree="my_tree", wait_for_orchid=False)
 
     def test_duplicate_names_allowed_in_different_trees(self):
@@ -147,7 +147,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name cannot be equal to root pool name"):
             create_pool(
                 "<Root>",
                 parent_name="nirvana",
@@ -158,21 +158,21 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_dollar_in_name_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool("pool$name", pool_tree="my_tree", wait_for_orchid=False)
 
     def test_long_pool_name_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* is too long"):
             create_pool("abc" * 100, pool_tree="my_tree", wait_for_orchid=False)
 
     def test_create_checks_tree_and_parent_pool_existence(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* does not exist"):
             create_pool("nirvana", pool_tree="inexistent_tree", wait_for_orchid=False)
 
         create_pool_tree("my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool .* does not exist"):
             create_pool(
                 "prod",
                 pool_tree="my_tree",
@@ -190,7 +190,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
                 parent_name="pool" + str(i),
                 wait_for_orchid=False,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool .* does not exist"):
             create_pool(
                 "pool31",
                 pool_tree="my_tree",
@@ -263,7 +263,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object to its descendant"):
             set("//sys/pool_trees/my_tree/nirvana/@parent_name", "prod")
 
     def test_standard_move_to_descendant_is_forbidden2(self):
@@ -271,7 +271,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object to its descendant"):
             move(
                 "//sys/pool_trees/my_tree/nirvana",
                 "//sys/pool_trees/my_tree/nirvana/prod/nirvana",
@@ -282,14 +282,14 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("another_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="another_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change parent for a nameless"):
             set("//sys/pool_trees/my_tree/@parent_name", "nirvana")
 
     def test_standard_move_of_pool_trees_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool_tree("another_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* cannot be removed"):
             move("//sys/pool_trees/my_tree", "//sys/pool_trees/another_tree/nirvana")
 
     def test_move_via_attribute_to_another_pool_tree_is_forbidden(self):
@@ -299,7 +299,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("another_tree", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="another_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool .* does not exist"):
             set("//sys/pool_trees/my_tree/nirvana/@parent_name", "logfeller")
 
     def test_standard_move_to_another_pool_tree(self):
@@ -325,17 +325,17 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="another_tree", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="another_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             move(
                 "//sys/pool_trees/my_tree/nirvana",
                 "//sys/pool_trees/another_tree/nirvana",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* already contains pool with name"):
             move(
                 "//sys/pool_trees/my_tree/nirvana",
                 "//sys/pool_trees/another_tree/logfeller/nirvana",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* already contains pool with name"):
             move(
                 "//sys/pool_trees/my_tree/nirvana",
                 "//sys/pool_trees/another_tree/nirvana/logfeller",
@@ -353,7 +353,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/logfeller/@strong_guarantee_resources", {"cpu": 10})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             set("//sys/pool_trees/my_tree/logfeller/@parent_name", "nirvana")
 
         assert get("//sys/pool_trees") == {"my_tree": {"nirvana": {}, "logfeller": {}}}
@@ -365,7 +365,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/logfeller/@strong_guarantee_resources", {"cpu": 10})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             move(
                 "//sys/pool_trees/my_tree/logfeller",
                 "//sys/pool_trees/my_tree/nirvana/logfeller",
@@ -387,9 +387,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             set("//sys/pool_trees/my_tree/logfeller/@name", "logfeller$logfeller")
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* already contains pool with name"):
             set("//sys/pool_trees/my_tree/logfeller/@name", "prod")
 
     def test_move_with_rename(self):
@@ -448,9 +448,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_pool_tree("my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree .* already contains pool with name"):
             create_pool("prod", pool_tree="my_tree", wait_for_orchid=False)
 
     def test_creation_works_after_load_from_snapshot(self):
@@ -516,7 +516,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
-        with pytest.raises(YtError):
+        with raises_yt_error("\".*\" cannot be parsed from not integer"):
             set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", True)
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
 
@@ -524,7 +524,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
         set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot update .* node with .* value; types must match"):
             set("//sys/pool_trees/my_tree/@config/default_parent_pool", True)
         assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
 
@@ -533,14 +533,14 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected >= .*, found .*"):
             set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", -1)
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
 
     def test_pooltree_config_attribute_constraints_are_enforced_on_set(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         set("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user", 10)
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected >= .*, found .*"):
             set("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user", -1)
         assert get("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user") == 10
 
@@ -550,7 +550,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
         remove("//sys/pool_trees/my_tree/nirvana/@max_operation_count")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             get("//sys/pool_trees/my_tree/nirvana/@max_operation_count")
 
     def test_remove_known_pooltree_attribute(self):
@@ -559,7 +559,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
         remove("//sys/pool_trees/my_tree/@config/default_parent_pool")
-        with pytest.raises(YtError):
+        with raises_yt_error("Error resolving path"):
             get("//sys/pool_trees/my_tree/@config/default_parent_pool")
 
     def test_remove_composite_builtin_pool_attribute(self):
@@ -568,7 +568,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
         remove("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
 
     def test_remove_nested_pool_attribute(self):
@@ -586,7 +586,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
         set("//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources", {"cpu": 10})
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             remove("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
         assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources") == {"cpu": 10}
 
@@ -595,10 +595,10 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be greater than or equal to .*"):
             set("//sys/pool_trees/my_tree/nirvana/@max_running_operation_count", 11)
         set("//sys/pool_trees/my_tree/nirvana/@max_running_operation_count", 9)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be greater than or equal to .*"):
             set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 8)
 
     def test_subpools_of_fifo_pools_are_forbidden(self):
@@ -606,12 +606,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool cannot have subpools since it is in FIFO mode"):
             set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
 
         remove("//sys/pool_trees/my_tree/nirvana/prod")
         set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool cannot have subpools since it is in FIFO mode"):
             create_pool(
                 "prod",
                 pool_tree="my_tree",
@@ -624,14 +624,14 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             set(
                 "//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources",
                 {"cpu": 100.0},
             )
 
         set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10.0})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* of resource for pool .* is less than the sum of children guarantees"):
             set(
                 "//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources",
                 {"cpu": 100.0},
@@ -651,11 +651,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             path = "//sys/pool_trees/my_tree/" + pool_path + "/@integral_guarantees"
             set(path, {"burst_guarantee_resources": {"cpu": cpu}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Burst guarantee is explicitly configured at child pool"):
             set_burst_guarantee("nirvana/prod", 100.0)
 
         set_burst_guarantee("nirvana", 10.0)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* of resource for pool .* is less than the sum of children guarantees"):
             set_burst_guarantee("nirvana/prod", 100.0)
 
         set_burst_guarantee("nirvana", 100.0)
@@ -672,11 +672,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             path = "//sys/pool_trees/my_tree/" + pool_path + "/@integral_guarantees"
             set(path, {"resource_flow": {"cpu": cpu}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Resource flow is explicitly configured at child pool"):
             set_resource_flow("nirvana/prod", 100.0)
 
         set_resource_flow("nirvana", 10.0)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* of resource for pool .* is less than the sum of children guarantees"):
             set_resource_flow("nirvana/prod", 100.0)
 
         set_resource_flow("nirvana", 100.0)
@@ -693,7 +693,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             "resource_flow": {"cpu": 50},
             "burst_guarantee_resources": {"cpu": 100},
         })
-        with pytest.raises(YtError):
+        with raises_yt_error("Integral pool .* cannot have children with integral resources"):
             set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {"resource_flow": {"cpu": 10}})
 
         # relaxed
@@ -701,7 +701,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             "guarantee_type": "relaxed",
             "resource_flow": {"cpu": 50},
         })
-        with pytest.raises(YtError):
+        with raises_yt_error("Integral pool .* cannot have children with integral resources"):
             set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {"resource_flow": {"cpu": 10}})
 
     def test_cant_make_parent_burst_or_relaxed_if_child_has_integral_resources(self):
@@ -719,18 +719,18 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {
             "resource_flow": {"cpu": 50},
         })
-        with pytest.raises(YtError):
+        with raises_yt_error("Resource flow is explicitly configured at child pool"):
             set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "burst"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Resource flow is explicitly configured at child pool"):
             set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "relaxed"})
 
         # child has burst guarantee resources
         set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {
             "burst_guarantee_resources": {"cpu": 50},
         })
-        with pytest.raises(YtError):
+        with raises_yt_error("Burst guarantee is explicitly configured at child pool"):
             set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "burst"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Burst guarantee is explicitly configured at child pool"):
             set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "relaxed"})
 
     @pytest.mark.skipif(True, reason="Not important yet(renadeen)")
@@ -746,7 +746,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
 
         set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 100})
@@ -759,7 +759,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* is not found"):
             set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count", 10)
         set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config", {"max_operation_count": 10})
         assert get("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count") == 10
@@ -798,18 +798,18 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         attribute_alias = "//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout"
 
         set(attribute_key, 5000)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attempt to set the same attribute with different alias"):
             set(attribute_alias, 10000)
 
         remove(attribute_key)
         set(attribute_alias, 10000)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attempt to set the same attribute with different alias"):
             set(attribute_key, 5000)
 
     def test_set_inexistent_path_fails_with_correct_error(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
 
     def test_pool_tree_and_pool_common_attributes(self):
@@ -825,9 +825,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_access_to_pool_attribute_on_pooltree_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//sys/pool_trees/my_tree/@weight", 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             get("//sys/pool_trees/my_tree/@weight")
 
     def test_get_root_returns_descendant_attributes(self):
@@ -880,7 +880,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_fail_on_create_pool_with_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             create_pool(
                 "nirvana",
                 pool_tree="my_tree",
@@ -890,7 +890,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert not exists("//sys/pool_trees/my_tree/nirvana")
 
     def test_fail_on_create_pool_tree_with_attributes(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\".*\" cannot be parsed from not integer"):
             create_pool_tree("my_tree", wait_for_orchid=False, config={"max_operation_count": "trash"})
         assert not exists("//sys/pool_trees/my_tree")
 
@@ -957,7 +957,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             attributes={"strong_guarantee_resources": {"cpu": 10}},
             wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             create_pool(
                 "pubsubpool",
                 parent_name="subpool",
@@ -977,7 +977,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             attributes={"strong_guarantee_resources": {"cpu": 10}},
             wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Strong guarantee is explicitly configured at child pool"):
             create_pool(
                 "pubsubpool",
                 parent_name="subpool",
@@ -997,12 +997,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 25}},
             wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Main resource guarantee must be specified in order to set"):
             set("//sys/pool_trees/default/pool/subpool1/@strong_guarantee_resources", {"user_slots": 5})
 
         set("//sys/pool_trees/default/pool/subpool1/@strong_guarantee_resources", {"cpu": 0, "user_slots": 5})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Main resource guarantee must be specified in order to set"):
             create_pool(
                 "subpool2",
                 parent_name="pool",
@@ -1022,7 +1022,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             attributes={"strong_guarantee_resources": {"cpu": 1}},
             wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Main resource guarantee must be specified in order to set"):
             set("//sys/pool_trees/default/@config/main_resource", "user_slots")
 
         remove("//sys/pool_trees/default/pool/subpool1")
@@ -1034,15 +1034,15 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 1)
         create_pool("a", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("b", pool_tree="my_tree", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             create_pool("ba", pool_tree="my_tree", parent_name="b", wait_for_orchid=False)
         set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 2)
         create_pool("ba", pool_tree="my_tree", parent_name="b", wait_for_orchid=False)
         create_pool("aa", pool_tree="my_tree", parent_name="a", wait_for_orchid=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             create_pool("ab", pool_tree="my_tree", parent_name="a", wait_for_orchid=False)
         set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             move("//sys/pool_trees/my_tree/b", "//sys/pool_trees/my_tree/a/ab")
         move("//sys/pool_trees/my_tree/b/ba", "//sys/pool_trees/my_tree/a/ab")
 
@@ -1067,7 +1067,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", False)
 
         # Try to set child guarantee - should fail.
-        with raises_yt_error("does not allow children guarantees"):
+        with raises_yt_error(".* is explicitly configured at child pool .* but parent .* does not allow children guarantees"):
             set("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources", {"cpu": 10.0})
 
         # Enable allow_children_guarantees flag.
@@ -1078,7 +1078,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources") == {"cpu": 10.0}
 
         # Disable flag again - should fail because child already has guarantee.
-        with raises_yt_error("does not allow children guarantees"):
+        with raises_yt_error(".* is explicitly configured at child pool .* but parent .* does not allow children guarantees"):
             set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", False)
 
         # Remove child guarantee first.
@@ -1099,12 +1099,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/grandparent/@allow_children_guarantees", False)
 
         # Try to set grandchild guarantee - should fail.
-        with raises_yt_error("is not configured at parent"):
+        with raises_yt_error(".* is explicitly configured at child pool .* but is not configured at parent .*"):
             set("//sys/pool_trees/my_tree/grandparent/parent/grandchild/@strong_guarantee_resources", {"cpu": 10.0})
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolAcls(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1138,7 +1137,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_pool(
                 "prod",
                 pool_tree="my_tree",
@@ -1165,7 +1164,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//sys/pool_trees/my_tree/nirvana/prod", authenticated_user="u")
 
         set(
@@ -1183,7 +1182,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set(
                 "//sys/pool_trees/my_tree/nirvana/@max_operation_count",
                 10,
@@ -1203,7 +1202,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         create_user("u")
         set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set(
                 "//sys/pool_trees/my_tree/nirvana/@enable_aggressive_starvation",
                 True,
@@ -1226,7 +1225,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         create_user("u")
         set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set(
                 "//sys/pool_trees/my_tree/nirvana/@non_system_attribute",
                 True,
@@ -1250,7 +1249,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         create_user("u")
         set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove(
                 "//sys/pool_trees/my_tree/nirvana/@non_system_attribute",
                 authenticated_user="u",
@@ -1270,7 +1269,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         create_user("u")
         set("//sys/pool_trees/my_tree/@acl", [make_ace("allow", "u", "write")])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool("abc:nirvana", pool_tree="my_tree", wait_for_orchid=False, authenticated_user="u")
 
         set("//sys/schemas/scheduler_pool/@acl/end", make_ace("allow", "u", "administer"))
@@ -1281,7 +1280,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         set("//sys/pool_trees/my_tree/@acl", [make_ace("allow", "u", "write")])
 
-        with raises_yt_error("must match regular expression"):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             create_pool(
                 "a+b",
                 pool_tree="my_tree",
@@ -1298,9 +1297,9 @@ class TestSchedulerPoolAcls(YTEnvSetup):
     def test_write_on_root_allows_to_create_remove_pool_trees(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_pool_tree("new_tree", wait_for_orchid=False, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_pool_tree("my_tree", wait_for_orchid=False, authenticated_user="u")
 
         set("//sys/pool_trees/@acl", [make_ace("allow", "u", ["write", "remove"])])
@@ -1310,7 +1309,6 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestTransferPoolResourcesCommand(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1355,7 +1353,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
         create_pool("from", wait_for_orchid=False)
         create_pool("to", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected >= .*, found .*"):
             transfer_pool_resources("from", "to", "default", {
                 "max_running_operation_count": 10,
             })
@@ -1367,7 +1365,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
         create_pool("from", wait_for_orchid=False)
         create_pool("to", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected >= .*, found .*"):
             transfer_pool_resources("from", "to", "default", {
                 "strong_guarantee_resources": {"cpu": 10},
             })
@@ -1662,11 +1660,11 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
                 "max_running_operation_count": 40,
                 "max_operation_count": 50,
             })
-        with pytest.raises(YtError):
+        with raises_yt_error("All provided resources must be non-negative"):
             transfer_pool_resources("ancestor", "child", "default", {
                 "max_running_operation_count": -1,
             })
-        with pytest.raises(YtError):
+        with raises_yt_error("Value .* cannot be serialized to YSON since it has unsupported type .*"):
             transfer_pool_resources("ancestor", "child", "default", {
                 "strong_guarantee_resources": {"cpu", -1},
             })
@@ -1715,7 +1713,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
                 "max_operation_count": 4,
             })
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be greater than or equal to .*"):
             transfer_pool_resources("from", "to", "default", {
                 "strong_guarantee_resources": {"cpu": 10},
                 "integral_guarantees": {
@@ -1797,7 +1795,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
                 "max_operation_count": 25,
             })
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Source and destination pools must differ"):
             transfer_pool_resources("target", "target", "default", {
                 "strong_guarantee_resources": {"cpu": 5},
                 "resource_flow": {"cpu": 10},
@@ -1816,7 +1814,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
         create_pool("intermediate", parent_name="from_ancestor", wait_for_orchid=False)
         create_pool("to_child", parent_name="intermediate", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* of resource for pool .* is less than the sum of children guarantees"):
             transfer_pool_resources("from_ancestor", "to_child", "default", {
                 "strong_guarantee_resources": {"cpu": 20},
             })
@@ -1827,7 +1825,6 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
 
 
 @authors("ignat")
-@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolConfigPresets(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

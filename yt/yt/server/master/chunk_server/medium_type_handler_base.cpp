@@ -36,7 +36,7 @@ void TMediumTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* medium) noexcept
 }
 
 template <class TImpl>
-TCellTagList TMediumTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*medium*/)
+TCellTagSet TMediumTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*medium*/)
 {
     return TConcreteObjectTypeHandlerBase<TImpl>::AllSecondaryCellTags();
 }

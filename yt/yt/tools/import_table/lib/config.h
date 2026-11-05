@@ -21,7 +21,7 @@ struct TImportConfig
     TSingletonsConfigPtr JobSingletons;
 
     //! Scheduling pool for YT operations.
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
 
     //! Memory limit for download operation.
     i64 MemoryLimit;

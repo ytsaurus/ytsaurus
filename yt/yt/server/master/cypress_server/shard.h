@@ -6,11 +6,11 @@
 
 #include <yt/yt/server/master/security_server/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NCypressServer {
 

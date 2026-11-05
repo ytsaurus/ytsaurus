@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
@@ -55,6 +57,25 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
         SchedulingOptions_);
 }
 
+TExecNodeDescriptorPtr TExecNode::BuildExecDescriptorWithOffloadedDtor(IInvokerPtr backgroundInvoker) const
+{
+    YT_VERIFY(backgroundInvoker);
+
+    return NewWithOffloadedDtor<TExecNodeDescriptor>(
+        std::move(backgroundInvoker),
+        Id_,
+        GetAddresses(),
+        NodeDescriptor_.GetDataCenter(),
+        IOWeight_,
+        MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,
+        ResourceUsage_,
+        ResourceLimits_,
+        DiskResources_,
+        Tags_,
+        InfinibandCluster_,
+        SchedulingOptions_);
+}
+
 void TExecNode::SetIOWeights(const THashMap<std::string, double>& mediumToWeight)
 {
     // NB: Surely, something smarter than this should be done with individual medium weights here.
@@ -93,4 +114,3 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

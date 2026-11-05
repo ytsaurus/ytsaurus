@@ -15,7 +15,7 @@ namespace NYT::NTabletNode {
 template <class TRequest>
 void TTabletAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback,
-    const std::vector<TString>& aliases,
+    const std::vector<std::string>& aliases,
     bool exceptionsAreNormal)
 {
     NHydra::TCompositeAutomatonPart::RegisterMethod(
@@ -73,11 +73,11 @@ void TTabletAutomatonPart::ForwardedMethodImpl(TCallback<void(TRequest*)> callba
         MutationForwarder_->MaybeForwardMutationToSiblingServant(tabletId, *request);
     } catch (const std::exception& ex) {
         const auto* context = NHydra::GetCurrentMutationContext();
-        YT_LOG_ALERT(ex, "Failed to forward mutation to sibling servant "
-            "(TabletId: %v, Version: %v, Type: %v)",
-            tabletId,
-            context->GetVersion(),
-            context->Request().Type);
+        YT_TLOG_ALERT("Failed to forward mutation to sibling servant")
+            .With("TabletId", tabletId)
+            .With("Version", context->GetVersion())
+            .With("Type", context->Request().Type)
+            .With(ex);
     }
 
     callback(request);

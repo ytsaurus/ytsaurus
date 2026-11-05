@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/string/ascii.h>
+
 namespace NYT::NElection {
 
 using namespace NYson;
@@ -20,6 +22,9 @@ void TCellPeerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("voting", &TThis::Voting)
         .Default(true);
+    registrar.Parameter("weight", &TThis::Weight)
+        .Default(1)
+        .GreaterThan(0);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCellPeerConfigPtr& config, TStringBuf /*spec*/)
@@ -39,6 +44,8 @@ void TCellConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_id", &TThis::CellId);
     registrar.Parameter("peers", &TThis::Peers);
+    registrar.Parameter("quorum_peer_count", &TThis::QuorumPeerCount)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         auto type = TypeFromId(config->CellId);
@@ -63,6 +70,19 @@ void TCellConfig::Register(TRegistrar registrar)
 
         if (votingPeerCount == 0) {
             THROW_ERROR_EXCEPTION("No voting peers found");
+        }
+
+        if (config->QuorumPeerCount) {
+            int minQuorumPeerCount = votingPeerCount / 2 + 1;
+            if (*config->QuorumPeerCount < minQuorumPeerCount) {
+                THROW_ERROR_EXCEPTION("\"quorum_peer_count\" cannot be less than %v for %v voting peers",
+                    minQuorumPeerCount,
+                    votingPeerCount);
+            }
+            if (*config->QuorumPeerCount > votingPeerCount) {
+                THROW_ERROR_EXCEPTION("\"quorum_peer_count\" cannot exceed the number of voting peers %v",
+                    votingPeerCount);
+            }
         }
     });
 }
@@ -90,12 +110,23 @@ int TCellConfig::CountVotingPeers() const
     return votingPeerCount;
 }
 
+int TCellConfig::CountVotingWeight() const
+{
+    int votingWeight = 0;
+    for (const auto& peer : Peers) {
+        if (peer->Voting) {
+            votingWeight += peer->Weight;
+        }
+    }
+
+    return votingWeight;
+}
+
 int TCellConfig::FindPeerId(const std::string& address) const
 {
-    auto canonicalAddress = to_lower(TString(address));
     for (int id = 0; id < std::ssize(Peers); ++id) {
         const auto& peerAddress = Peers[id]->Address;
-        if (peerAddress && to_lower(TString(*peerAddress)) == canonicalAddress) {
+        if (peerAddress && AsciiEqualsIgnoreCase(*peerAddress, address)) {
             return id;
         }
     }

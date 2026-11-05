@@ -8,7 +8,7 @@ namespace NYT {
 // Forward declarations.
 
 template <class T, size_t ChunkSize>
-struct TPersistentQueueChunk;
+class TPersistentQueueChunk;
 
 template <class T, size_t ChunkSize>
 class TPersistentQueueBase;
@@ -26,11 +26,28 @@ class TIndexedPersistentQueue;
 // Implementation.
 
 template <class T, size_t ChunkSize>
-struct TPersistentQueueChunk
+class TPersistentQueueChunk
     : public TRefCounted
 {
+public:
     TIntrusivePtr<TPersistentQueueChunk<T, ChunkSize>> Next;
-    T Elements[ChunkSize];
+
+    TPersistentQueueChunk();
+    ~TPersistentQueueChunk();
+
+    void Append(T&& value);
+    T& GetElement(size_t index);
+    const T& GetElement(size_t index) const;
+
+private:
+#ifdef NDEBUG
+    using TConstructedSize = size_t;
+#else
+    using TConstructedSize = std::atomic<size_t>;
+#endif
+
+    alignas(T) std::byte Storage_[ChunkSize][sizeof(T)];
+    TConstructedSize ConstructedSize_ = 0;
 };
 
 template <class T, size_t ChunkSize>
@@ -76,6 +93,7 @@ public:
     // STL interop.
     TIterator begin() const;
     TIterator end() const;
+    size_t size() const;
 
 protected:
     using TChunk = TPersistentQueueChunk<T, ChunkSize>;
@@ -116,6 +134,9 @@ public:
     virtual T Dequeue();
     virtual void Clear();
 
+    // NB: Chunks kept only by snapshots of the persistent queue do not get accounted here.
+    virtual i64 GetMemoryUsage() const;
+
     using TSnapshot = TPersistentQueueSnapshot<T, ChunkSize>;
     TSnapshot MakeSnapshot() const;
 
@@ -125,6 +146,12 @@ public:
 private:
     using TChunk = TPersistentQueueChunk<T, ChunkSize>;
     using TChunkPtr = TIntrusivePtr<TChunk>;
+
+    int ChunkCount_ = 0;
+    i64 ElementsByteSize_ = 0;
+
+    //! Returns the amount of memory referenced by #value, if the latter is able to report it.
+    static i64 GetElementByteSize(const T& value);
 };
 
 // Almost zero-cost until used extension over TPersistentQueue.
@@ -143,6 +170,8 @@ public:
     void Enqueue(T value) override;
     T Dequeue() override;
     void Clear() override;
+
+    i64 GetMemoryUsage() const override;
 
     void Freeze();
     const T& operator[](int index) const;

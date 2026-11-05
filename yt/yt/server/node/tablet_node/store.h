@@ -60,6 +60,7 @@ struct IStoreContext
     virtual const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() = 0;
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const TTabletManagerConfigPtr& GetTabletManagerConfig() = 0;
+    virtual bool GetAccountActiveStoreLookupHashTableToTabletStatic() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreContext)
@@ -168,6 +169,8 @@ struct IDynamicStore
     virtual void SetBackupCheckpointTimestamp(TTimestamp timestamp) = 0;
 
     virtual void LockHunkStores(const NTableClient::THunkChunksInfo& hunkChunksInfo) = 0;
+
+    virtual void OnDynamicMemoryUsageUpdated() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDynamicStore)

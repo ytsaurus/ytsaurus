@@ -5,6 +5,9 @@ VERSION(2.11.3)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(1786000934)
+
 SRC_RESOURCE(1786000947)
+
+ORIGINAL_SOURCE(http://github.com/FasterXML/jackson-annotations)
 
 END()

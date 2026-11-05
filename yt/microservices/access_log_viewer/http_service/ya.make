@@ -14,6 +14,7 @@ IF (OPENSOURCE)
         http_external.go
     )
 ELSE()
+    GO_TEST_SRCS(auth_internal_test.go)
     SRCS(
         args_internal.go
         auth_internal.go

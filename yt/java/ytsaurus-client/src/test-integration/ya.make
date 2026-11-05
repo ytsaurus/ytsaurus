@@ -14,7 +14,9 @@ IF(OS_LINUX AND NOT OPENSOURCE)
     INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
     REQUIREMENTS(
-        ram_disk:4
+        cpu:4
+        ram:16
+        ram_disk:16
     )
 ENDIF()
 

@@ -32,6 +32,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
@@ -69,7 +70,6 @@ using namespace NYson;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TMiscExt;
-
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ public:
         TTabletStoreReaderConfigPtr readerConfig)
         : Bootstrap_(bootstrap)
         , Client_(std::move(client))
-        , LocalNodeDescriptor_(std::move(localNodeDescriptor))
+        , LocalNodeDescriptor_(InternNodeDescriptor(std::move(localNodeDescriptor)))
         , ChunkRegistry_(std::move(chunkRegistry))
     {
         SetReaderConfig(readerConfig);
@@ -153,7 +153,7 @@ public:
                     std::move(blockCache),
                     /*blockMetaCache*/ nullptr));
 
-            YT_LOG_DEBUG("Local chunk reader created and cached");
+            YT_TLOG_DEBUG("Local chunk reader created and cached");
         };
 
         auto createRemoteReaders = [&] (IBlockCachePtr blockCache) {
@@ -183,15 +183,15 @@ public:
                     New<TRemoteReaderOptions>(),
                     std::move(chunkReaderHost)));
 
-            YT_LOG_DEBUG("Remote chunk reader created and cached");
+            YT_TLOG_DEBUG("Remote chunk reader created and cached");
         };
 
         auto getBlobMediumReadThrottler = [&] () -> IThroughputThrottlerPtr {
             const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
             auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(owner->GetTabletId());
             if (!tabletSnapshot) {
-                YT_LOG_WARNING("Cannot get medium throttler for the tablet (TabletId: %v)",
-                    owner->GetTabletId());
+                YT_TLOG_WARNING("Cannot get medium throttler for the tablet")
+                    .With("TabletId", owner->GetTabletId());
                 return GetUnlimitedThrottler();
             }
 
@@ -217,7 +217,8 @@ public:
                 workloadCategory,
                 std::move(backendReaders));
 
-            YT_LOG_DEBUG("Remote chunk reader adapter created and cached (WorkloadCategory: %v)", workloadCategory);
+            YT_TLOG_DEBUG("Remote chunk reader adapter created and cached")
+                .With("WorkloadCategory", workloadCategory);
         };
 
         auto now = NProfiling::GetCpuInstant();
@@ -233,7 +234,7 @@ public:
                 ChunkReader_.Reset();
                 OffloadingReader_.Reset();
                 CachedWeakChunk_.Reset();
-                YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
+                YT_TLOG_DEBUG("Cached local chunk reader is no longer valid");
             }
 
             if (ChunkRegistry_ && ReaderConfig_->PreferLocalReplicas) {
@@ -351,10 +352,10 @@ public:
 private:
     IBootstrap* const Bootstrap_;
     const NApi::NNative::IClientPtr Client_;
-    const TNodeDescriptor LocalNodeDescriptor_;
+    const TInternedNodeDescriptor LocalNodeDescriptor_;
     const IChunkRegistryPtr ChunkRegistry_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     IChunkReaderPtr ChunkReader_;
     IOffloadingReaderPtr OffloadingReader_;
@@ -365,12 +366,12 @@ private:
 
     void SetReaderConfig(const TTabletStoreReaderConfigPtr& readerConfig)
     {
-        if (readerConfig) {
-            ReaderConfig_ = CloneYsonStruct(readerConfig);
-        }
-        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
-            ->EnableCollocatedDatNodeThrottling;
-        ReaderConfig_->Postprocess();
+        auto baseConfig = readerConfig ? readerConfig : ReaderConfig_;
+        auto newConfig = CloneYsonStruct(baseConfig);
+        newConfig->EnableLocalThrottling = newConfig->EnableLocalThrottling ||
+            Bootstrap_->GetTabletNodeDynamicConfig()->EnableCollocatedDatNodeThrottling;
+        newConfig->Postprocess();
+        ReaderConfig_ = std::move(newConfig);
     }
 
     static bool IsLocalChunkValid(const IChunkPtr& chunk)
@@ -421,16 +422,16 @@ TStoreBase::TStoreBase(
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
     , LockIndexToName_(Tablet_->LockIndexToName())
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
-    , Logger(TabletNodeLogger().WithTag("StoreId: %v, TabletId: %v",
-        StoreId_,
-        TabletId_))
+    , Logger(TabletNodeLogger()
+        .WithTag("StoreId", StoreId_)
+        .WithTag("TabletId", TabletId_))
 {
     UpdateTabletDynamicMemoryUsage(+1);
 }
 
 TStoreBase::~TStoreBase()
 {
-    YT_LOG_DEBUG("Store destroyed");
+    YT_TLOG_DEBUG("Store destroyed");
     UpdateTabletDynamicMemoryUsage(-1);
 }
 
@@ -613,8 +614,8 @@ i64 TDynamicStoreBase::Lock()
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = ++StoreLockCount_;
-    YT_LOG_TRACE("Store locked (Count: %v)",
-        result);
+    YT_TLOG_TRACE("Store locked")
+        .With("Count", result);
     return result;
 }
 
@@ -624,8 +625,8 @@ i64 TDynamicStoreBase::Unlock()
     YT_ASSERT(StoreLockCount_ > 0);
 
     auto result = --StoreLockCount_;
-    YT_LOG_TRACE("Store unlocked (Count: %v)",
-        result);
+    YT_TLOG_TRACE("Store unlocked")
+        .With("Count", result);
     return result;
 }
 
@@ -648,6 +649,7 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
         OnSetRemoved();
     }
     TStoreBase::SetStoreState(state);
+    OnDynamicMemoryUsageUpdated();
 }
 
 i64 TDynamicStoreBase::GetDataWeight() const
@@ -753,6 +755,9 @@ void TDynamicStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* 
     meta->mutable_extensions();
 }
 
+void TDynamicStoreBase::OnDynamicMemoryUsageUpdated()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPreloadedBlockCache
@@ -847,17 +852,30 @@ TMinHashDigestBlockIndex::TMinHashDigestBlockIndex(int blockIndex)
     : BlockIndex_(blockIndex)
 { }
 
-bool TMinHashDigestBlockIndex::IsFetched()
+TMinHashDigestBlockIndex TMinHashDigestBlockIndex::FromChunkMeta(const TChunkMeta& chunkMeta)
+{
+    auto systemBlockMetaExt = FindProtoExtension<NTableClient::NProto::TSystemBlockMetaExt>(chunkMeta.extensions());
+    if (!systemBlockMetaExt) {
+        return NotFound;
+    }
+
+    auto dataBlockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(
+        chunkMeta.extensions());
+
+    return FindMinHashDigestBlockIndex(dataBlockMetaExt, *systemBlockMetaExt).value_or(NotFound);
+}
+
+bool TMinHashDigestBlockIndex::IsFetched() const
 {
     return BlockIndex_ != NotFetched;
 }
 
-bool TMinHashDigestBlockIndex::IsFound()
+bool TMinHashDigestBlockIndex::IsFound() const
 {
     return BlockIndex_ >= 0;
 }
 
-int TMinHashDigestBlockIndex::GetBlockIndex()
+int TMinHashDigestBlockIndex::GetBlockIndex() const
 {
     YT_VERIFY(IsFound());
     return BlockIndex_;
@@ -985,12 +1003,12 @@ NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
 {
-    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.min_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : FromProto<NTransactionClient::TTimestamp>(MiscExt_.min_timestamp());
 }
 
 TTimestamp TChunkStoreBase::GetMaxTimestamp() const
 {
-    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.max_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : FromProto<NTransactionClient::TTimestamp>(MiscExt_.max_timestamp());
 }
 
 bool TChunkStoreBase::IsStripedErasure() const
@@ -1072,7 +1090,9 @@ EStorePreloadState TChunkStoreBase::GetPreloadState() const
 
 void TChunkStoreBase::SetPreloadState(EStorePreloadState state)
 {
-    YT_LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
+    YT_TLOG_INFO("Set preload state")
+        .With("Current", PreloadState_)
+        .With("New", state);
     PreloadState_ = state;
 }
 
@@ -1194,7 +1214,9 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
 
             const auto& meta = entry->Meta();
 
-            MinHashDigestBlockIndex_.store(meta->GetMinHashDigestBlockIndex().value_or(TMinHashDigestBlockIndex::NotFound));
+            // NB(dave11ar): Optimization, does not affect correctness.
+            SetMinHashDigestBlockIndex(
+                meta->GetMinHashDigestBlockIndex().value_or(TMinHashDigestBlockIndex::NotFound));
 
             return meta;
         })
@@ -1256,9 +1278,9 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     auto guard = WriterGuard(SpinLock_);
 
     if (InMemoryMode_ != mode) {
-        YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
-            InMemoryMode_,
-            mode);
+        YT_TLOG_INFO("Changed in-memory mode")
+            .With("CurrentMode", InMemoryMode_)
+            .With("NewMode", mode);
 
         InMemoryMode_ = mode;
 
@@ -1344,6 +1366,12 @@ TMinHashDigestBlockIndex TChunkStoreBase::GetMinHashDigestBlockIndex() const
     return MinHashDigestBlockIndex_.load();
 }
 
+void TChunkStoreBase::SetMinHashDigestBlockIndex(TMinHashDigestBlockIndex blockIndex)
+{
+    YT_VERIFY(blockIndex.IsFetched());
+    MinHashDigestBlockIndex_.store(blockIndex);
+}
+
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
@@ -1365,10 +1393,10 @@ TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::ChunkIsNotPreloaded,
             "Chunk data is not preloaded yet")
-            << TErrorAttribute("tablet_id", TabletId_)
-            << TErrorAttribute("table_path", TablePath_)
-            << TErrorAttribute("store_id", StoreId_)
-            << TErrorAttribute("chunk_id", ChunkId_);
+            .With("tablet_id", TabletId_)
+            .With("table_path", TablePath_)
+            .With("store_id", StoreId_)
+            .With("chunk_id", ChunkId_);
     }
 
     YT_VERIFY(ChunkState_);

@@ -27,6 +27,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/MC/MCContext.h>
+#include <llvm/Object/Binary.h>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/raw_ostream.h>
@@ -122,6 +123,30 @@ MSAN_TLS_STUBS
         return address;
     }
 
+    void registerEHFrames(ui8* frameData, uint64_t loadAddress, size_t frameDataSize) override
+    {
+        const ui8* cursor = frameData;
+        const ui8* frameDataEnd = frameData + frameDataSize;
+        constexpr ui32 DwarfZeroLengthTerminator = 0;
+
+        while (cursor + sizeof(ui32) <= frameDataEnd) {
+            ui32 entryLength = 0;
+
+            ::memcpy(&entryLength, cursor, sizeof(entryLength));
+
+            if (entryLength == DwarfZeroLengthTerminator) {
+                break;
+            }
+
+            llvm::SectionMemoryManager::registerEHFrames(
+                const_cast<ui8*>(cursor),
+                loadAddress + static_cast<uint64_t>(cursor - frameData),
+                entryLength + sizeof(entryLength));
+
+            cursor += sizeof(entryLength) + entryLength;
+        }
+    }
+
 private:
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* const RoutineRegistry_;
@@ -198,19 +223,19 @@ public:
                 // NB: There are no helpers for distinguishing between <= 32 bit CPUs, let's just pray that nobody
                 // is running YT on 16 bit CPUs :)
                 if (!isCpuX86 || (llvmTriple.isArch64Bit() != isCpuX86And64Bit)) {
-                    YT_LOG_INFO(
-                        "Automatically detected CPU is incompatible with specified target triple, "
-                        "using generic CPU for llvm module configuration (DetectedCpu: %v, TargetTriple: %v)",
-                        std::string_view(cpu),
-                        triple);
+                    YT_TLOG_INFO(
+                        "Automatically detected CPU is incompatible with specified target triple; "
+                        "using generic CPU for llvm module configuration")
+                        .With("DetectedCpu", std::string_view(cpu))
+                        .With("TargetTriple", triple);
                     cpu = "generic";
                 }
             }
         }
 
-        YT_LOG_INFO("Initializing codegen module (Cpu: %v, TargetTriple: %v)",
-            std::string_view(cpu),
-            triple);
+        YT_TLOG_INFO("Initializing codegen module")
+            .With("Cpu", std::string_view(cpu))
+            .With("TargetTriple", triple);
 
         // Create module.
         auto cgModule = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
@@ -230,7 +255,8 @@ public:
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
 
-        YT_LOG_DEBUG("Compiling with codegen optimization (Level: %v)", OptimizationLevel_);
+        YT_TLOG_DEBUG("Compiling with codegen optimization")
+            .With("Level", OptimizationLevel_);
 
         builder.setOptLevel(OptimizationLevel_ == EOptimizationLevel::None
             ? llvm::CodeGenOptLevel::None
@@ -245,7 +271,7 @@ public:
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
-                << TError(std::move(what), TError::DisableFormat);
+                .With(TError(std::move(what), TError::DisableFormat));
         }
 
 #if !LLVM_VERSION_GE(3, 9)
@@ -290,10 +316,49 @@ public:
         return Engine_->getFunctionAddress(name.c_str());
     }
 
-    void AddObjectFile(
-        std::unique_ptr<llvm::object::ObjectFile> sharedObject)
+    void AddObjectFile(llvm::object::OwningBinary<llvm::object::ObjectFile> owningObject)
     {
-        Engine_->addObjectFile(std::move(sharedObject));
+        Engine_->addObjectFile(std::move(owningObject));
+    }
+
+    llvm::object::OwningBinary<llvm::object::ObjectFile> BuildNativeObjectCode()
+    {
+        YT_VERIFY(ExecutionBackend_ == EExecutionBackend::Native);
+        YT_VERIFY(!Compiled_);
+
+        ClearComdatSection();
+        YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
+        RunInternalizePass();
+        OptimizeIR();
+
+        llvm::SmallVector<char, 0> objectCode;
+        {
+            std::lock_guard locked(Engine_->lock);
+            llvm::cantFail(Module_->materializeAll());
+
+            llvm::legacy::PassManager passManager;
+            llvm::raw_svector_ostream stream(objectCode);
+
+            bool err = Engine_->getTargetMachine()->addPassesToEmitFile(
+                passManager,
+                stream,
+                /*DwoOut*/ nullptr,
+                llvm::CodeGenFileType::ObjectFile,
+                !Engine_->getVerifyModules());
+
+            THROW_ERROR_EXCEPTION_IF(err, "Target does not support object file emission for native backend");
+
+            passManager.run(*Module_);
+        }
+
+        auto buffer = std::make_unique<llvm::SmallVectorMemoryBuffer>(std::move(objectCode));
+        auto objectFileOrErr = llvm::object::ObjectFile::createObjectFile(buffer->getMemBufferRef());
+        if (!objectFileOrErr) {
+            THROW_ERROR_EXCEPTION("Failed to parse native object code: %v",
+                llvm::toString(objectFileOrErr.takeError()));
+        }
+
+        return llvm::object::OwningBinary<llvm::object::ObjectFile>(std::move(*objectFileOrErr), std::move(buffer));
     }
 
     bool IsSymbolLoaded(const std::string& symbol)
@@ -452,7 +517,7 @@ private:
         }
 #endif
 
-        YT_LOG_DEBUG("Started compiling module");
+        YT_TLOG_DEBUG("Started compiling module");
 
         ClearComdatSection();
 
@@ -466,13 +531,13 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        YT_LOG_DEBUG("Verifying IR");
+        YT_TLOG_DEBUG("Verifying IR");
         YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         RunInternalizePass();
 
         // Now, setup optimization pipeline and run actual optimizations.
-        YT_LOG_DEBUG("Optimizing IR");
+        YT_TLOG_DEBUG("Optimizing IR");
 
         OptimizeIR();
 
@@ -486,7 +551,7 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        YT_LOG_DEBUG("Finalizing module");
+        YT_TLOG_DEBUG("Finalizing module");
 
         if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
             BuildWebAssemblyImpl();
@@ -501,7 +566,7 @@ private:
         }
 #endif
 
-        YT_LOG_DEBUG("Finished compiling module");
+        YT_TLOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
 
@@ -541,10 +606,10 @@ private:
 
         info.print(printer);
 
-        YT_LOG_INFO("LLVM has triggered a message: %v/%v: %v",
-            DiagnosticSeverityToString(info.getSeverity()),
-            DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()),
-            os.str().c_str());
+        YT_TLOG_INFO("LLVM has triggered a message")
+            .With("Severity", DiagnosticSeverityToString(info.getSeverity()))
+            .With("Kind", DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()))
+            .With("Message", os.str().c_str());
     }
 
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
@@ -667,9 +732,14 @@ uint64_t TCGModule::GetFunctionAddress(const std::string& name)
 }
 
 void TCGModule::AddObjectFile(
-    std::unique_ptr<llvm::object::ObjectFile> sharedObject)
+    llvm::object::OwningBinary<llvm::object::ObjectFile> owningObject)
 {
-    Impl_->AddObjectFile(std::move(sharedObject));
+    Impl_->AddObjectFile(std::move(owningObject));
+}
+
+llvm::object::OwningBinary<llvm::object::ObjectFile> TCGModule::BuildNativeObjectCode()
+{
+    return Impl_->BuildNativeObjectCode();
 }
 
 bool TCGModule::IsSymbolLoaded(const std::string& symbol) const

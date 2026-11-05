@@ -7,14 +7,16 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/interned_attributes.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/exception_helpers.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <stack>
 
@@ -451,9 +453,7 @@ public:
                 internedKey == EInternedAttributeKey::Type ||
                 internedKey == EInternedAttributeKey::MemberCount)
             {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::NoSuchMethod,
-                    "Method List is not supported");
+                NYTree::ThrowMethodNotSupported("List");
             } else {
                 THROW_ERROR_EXCEPTION(
                     NYTree::EErrorCode::ResolveError,
@@ -515,7 +515,7 @@ public:
             memberAttributeKey == LastAttributesUpdateTimeAttribute)
         {
             THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::NoSuchMethod,
+                NYTree::EErrorCode::NoSuchYPathMethod,
                 "Attribute %Qv is not listable",
                 memberAttributeKey);
         }
@@ -869,12 +869,14 @@ public:
             const auto& config = groupManagerInfo.Config;
             for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
                 if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
-                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    YT_TLOG_WARNING("Invalid group id")
+                        .With("GroupId", id);
                     RemovePath(currentNode->GetPath(), currentNode);
                     return;
                 }
                 if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    YT_TLOG_WARNING("Invalid group id")
+                        .With("GroupId", id);
                     RemovePath(currentNode->GetPath(), currentNode);
                     return;
                 }
@@ -893,18 +895,18 @@ public:
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NodeLimitExceeded,
                         "Cannot create group %v: too many nodes in group tree",
                         id)
-                        << TErrorAttribute("node", currentPath)
-                        << TErrorAttribute("group_tree_size", groupManagerInfo.GroupTreeSize)
-                        << TErrorAttribute("max_group_tree_size", *config->MaxGroupTreeSize);
+                        .With("node", currentPath)
+                        .With("group_tree_size", groupManagerInfo.GroupTreeSize)
+                        .With("max_group_tree_size", *config->MaxGroupTreeSize);
                 }
 
                 if (exceedsLimit(currentDepth, config->MaxGroupTreeDepth)) {
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::DepthLimitExceeded,
                         "Cannot create group %v: group tree is too deep",
                         id)
-                        << TErrorAttribute("node", currentPath)
-                        << TErrorAttribute("group_tree_depth", currentDepth)
-                        << TErrorAttribute("max_group_tree_depth", *config->MaxGroupTreeDepth);
+                        .With("node", currentPath)
+                        .With("group_tree_depth", currentDepth)
+                        .With("max_group_tree_depth", *config->MaxGroupTreeDepth);
                 }
 
                 auto newNode = New<TGroupNode>(key, ToString(currentPath), MakeWeak(currentNode));
@@ -920,9 +922,9 @@ public:
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::GroupLimitExceeded,
                         "Cannot create group %v: too many groups already",
                         id)
-                        << TErrorAttribute("group", id)
-                        << TErrorAttribute("group_count", groupManagerInfo.GroupCount)
-                        << TErrorAttribute("max_group_count", *config->MaxGroupCount);
+                        .With("group", id)
+                        .With("group_count", groupManagerInfo.GroupCount)
+                        .With("max_group_count", *config->MaxGroupCount);
                 }
                 ++groupManagerInfo.GroupCount;
 
@@ -954,7 +956,7 @@ private:
     const TGroupNodePtr Root_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     THashMap<TGroupId, TGroupNodePtr> IdToNode_;
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)
@@ -1000,12 +1002,14 @@ private:
         auto guard = WriterGuard(Lock_);
 
         if (!DoFindGroup(groupId)) {
-            YT_LOG_WARNING("Empty group is already deleted (GroupId: %v)", groupId);
+            YT_TLOG_WARNING("Empty group is already deleted")
+                .With("GroupId", groupId);
             return;
         }
 
         if (GetMemberCount(node) != 0) {
-            YT_LOG_WARNING("Trying to delete not empty group (GroupId: %v)", groupId);
+            YT_TLOG_WARNING("Trying to delete not empty group")
+                .With("GroupId", groupId);
             return;
         }
 
@@ -1025,7 +1029,8 @@ private:
             auto key = node->GetKey();
             node = node->GetParent().Lock();
             if (!node) {
-                YT_LOG_WARNING("Parent node was already deleted (Path: %v)", path);
+                YT_TLOG_WARNING("Parent node was already deleted")
+                    .With("Path", path);
                 break;
             }
             node->RemoveChild(key);

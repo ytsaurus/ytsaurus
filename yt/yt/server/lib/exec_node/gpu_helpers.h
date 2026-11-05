@@ -12,13 +12,13 @@ namespace NYT::NExecNode {
 
 struct TGpuDeviceDescriptor
 {
-    TString DeviceName;
+    std::string DeviceName;
     int DeviceIndex;
 };
 
-std::vector<TGpuDeviceDescriptor> ListGpuDevices();
+std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices();
 
-TString GetGpuDeviceName(int deviceIndex);
+std::string GetNvidiaGpuDeviceName(int deviceIndex);
 
 void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpuInfo);
 
@@ -32,12 +32,12 @@ struct TGpuDriverVersion
 
 bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs);
 
-TString GetGpuDriverVersionString();
-TString GetDummyGpuDriverVersionString();
+std::string GetNvidiaGpuDriverVersionString();
+std::string GetDummyGpuDriverVersionString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> ListInfinibandDevices();
+std::vector<std::string> ListInfinibandDevices();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/lib/security_server/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
-
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
@@ -17,6 +15,8 @@
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
+
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/client/driver/config.h>
 
@@ -38,6 +38,8 @@ using namespace NAuth;
 void TProfilingEndpointProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("component_type", &TThis::ComponentType);
+    registrar.Parameter("name", &TThis::Name)
+        .Default();
     registrar.Parameter("monitoring_port", &TThis::MonitoringPort);
     registrar.Parameter("shards", &TThis::Shards)
         .Default({"all"});
@@ -45,10 +47,25 @@ void TProfilingEndpointProviderConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
+std::string TProfilingEndpointProviderConfig::GetName() const
+{
+    return Name.value_or(FormatEnum(ComponentType));
+}
+
 void TSolomonProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("endpoint_providers", &TThis::EndpointProviders)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        THashSet<std::string> names;
+        for (const auto& endpointProvider : config->EndpointProviders) {
+            auto name = endpointProvider->GetName();
+            if (!names.insert(name).second) {
+                THROW_ERROR_EXCEPTION("Duplicate endpoint provider name %Qv", name);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,11 +174,37 @@ void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
         for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
             if (value > 1 || value < 0) {
                 THROW_ERROR_EXCEPTION("User ratio must be in range [0, 1]")
-                    << TErrorAttribute("user_name", name)
-                    << TErrorAttribute("user_ratio", value);
+                    .With("user_name", name)
+                    .With("user_ratio", value);
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCommandMemoryReservationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reservation", &TThis::Reservation)
+        .Optional()
+        .GreaterThanOrEqual(0);
+}
+
+void THeavyRequestMemoryReservationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("overhead", &TThis::Overhead)
+        .Default(16_MB)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("default_reservation", &TThis::DefaultReservation)
+        .Default(16_MB)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("commands", &TThis::Commands)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,12 +264,15 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
         .Default();
 
+    registrar.Parameter("heavy_request_memory_reservation", &TThis::HeavyRequestMemoryReservation)
+        .DefaultNew();
+
     registrar.Postprocessor([&] (TApiDynamicConfig* config) {
         for (const auto& [name, value] : config->UserToConcurrencyLimitRatio) {
             if (value > 1 || value < 0) {
                 THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
-                    << TErrorAttribute("user_name", name)
-                    << TErrorAttribute("user_ratio", value);
+                    .With("user_name", name)
+                    .With("user_ratio", value);
             }
         }
     });
@@ -262,6 +308,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         .Default(80);
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(16);
+    registrar.Parameter("heavy_command_thread_pool_size", &TThis::HeavyCommandThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
     registrar.Parameter("http_server", &TThis::HttpServer)
         .DefaultNew();
     registrar.Parameter("https_server", &TThis::HttpsServer)
@@ -348,6 +397,7 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });
 
     registrar.Postprocessor([] (TThis* config) {
@@ -426,10 +476,17 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
         .DefaultNew();
+
+    registrar.Parameter("auth", &TThis::Auth)
+        .DefaultNew();
+
+    registrar.Parameter("heavy_command_thread_pool_size", &TThis::HeavyCommandThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

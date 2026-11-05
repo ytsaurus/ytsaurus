@@ -7,12 +7,12 @@ from yt_commands import (
     interrupt_job, update_nodes_dynamic_config, set_nodes_banned,
     abort_job, run_sleeping_vanilla, set_node_banned, extract_statistic_v2,
     get_allocation_id_from_job_id, alter_table, write_file, print_debug,
-    wait_no_assert,
+    wait_no_assert, get_driver, read_table, raises_yt_error,
 )
 
 from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
 
-from yt.common import YtError
+from yt import yson
 
 import pytest
 import builtins
@@ -35,7 +35,7 @@ class TestJobs(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
@@ -72,7 +72,7 @@ class TestJobs(YTEnvSetup):
             },
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         interrupt_job(job_id, interrupt_timeout=2000)
 
@@ -111,7 +111,7 @@ class TestJobsDisabled(YTEnvSetup):
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 100,
-                "user_slots": 100,
+                "user_slots": 10,
             },
         }
     }
@@ -220,7 +220,7 @@ class TestNodeBanned(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         set_node_banned(node, True)
 
@@ -431,7 +431,7 @@ class TestAllocationReuse(YTEnvSetup):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id1 = job_ids[0]
@@ -440,7 +440,7 @@ class TestAllocationReuse(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id2 = job_ids[0]
@@ -526,7 +526,7 @@ if job_index == 0:
                 "enable_multiple_jobs_in_allocation": True,
             })
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
 
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
@@ -551,7 +551,7 @@ if job_index == 0:
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         print_debug(f"Second job is {job_id2}")
 
@@ -577,6 +577,7 @@ class TestJobOomScore(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "footprint_memory": 0,
+            "exec_footprint_memory": 0,
         },
     }
 
@@ -613,6 +614,7 @@ class TestJobOomScore(YTEnvSetup):
                 "job_controller": {
                     "job_proxy": {
                         "oom_score_adj_on_exceeded_memory_reserve": target_score,
+                        "read_oom_score_adj_before_update": True,
                     },
                 },
             },
@@ -677,10 +679,12 @@ time.sleep(100500)
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
 
-        data_str = op.read_stderr(job_id).decode()
-        data = json.loads(data_str)
+        # Until job-proxy signals OnJobPrepared to the node, the node will return an empty string here.
+        wait(lambda: op.read_stderr(job_id) != b"")
+
+        data = json.loads(op.read_stderr(job_id).decode())
         pid = self._find_pid(data["pid"], data["cgroup"])
 
         # Check user job oom_score_adj.
@@ -689,8 +693,9 @@ time.sleep(100500)
         wait(lambda: self._get_oom_score_adj(pid) == 0)
 
         if not self.USE_PORTO:
-            # Check job proxy oom_score_adj.
-            assert self._get_oom_score_adj(self._get_ppid(pid)) == target_score
+            # Check job proxy oom_score_adj. We use wait instead of assert because there might be
+            # noise if we're currently running inside of another job that has this option enabled.
+            wait(lambda: self._get_oom_score_adj(self._get_ppid(pid)) == target_score)
 
 
 @authors("dann239")
@@ -821,7 +826,7 @@ breakpoint()
                 "sanity_check_delay": 600 * 1000,
             })
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         print_debug(f"First job ids are {job_ids}")
 
@@ -875,7 +880,7 @@ breakpoint()
                     print_debug(f"Job {job_id} is not waiting on breakpoint")
                     pass
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         print_debug(f"Killing node {node_to_kill}")
         self.Env.kill_nodes(addresses=[node_to_kill])
         release_breakpoint(job_id=new_job_id)
@@ -899,7 +904,7 @@ breakpoint()
             release_breakpoint(job_id=preserved_job_id)
             wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
 
-            second_job_id, = wait_breakpoint(job_count=1)
+            second_job_id, = wait_breakpoint(op, job_count=1)
 
             print_debug(f"Second job id is {second_job_id}")
             assert allocation_id == get_allocation_id_from_job_id(second_job_id)
@@ -996,7 +1001,7 @@ breakpoint()
                 "sanity_check_delay": 600 * 1000,
             })
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         print_debug(f"First job ids are {job_ids}")
 
@@ -1050,7 +1055,7 @@ breakpoint()
                     print_debug(f"Job {job_id} is not waiting on breakpoint")
                     pass
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         print_debug(f"Killing node {node_to_kill}")
         set_nodes_banned([node_to_kill], True, wait_for_scheduler=True)
         release_breakpoint(job_id=new_job_id)
@@ -1136,6 +1141,17 @@ class TestFreeUserJobsMemoryWatermark(YTEnvSetup):
             "job_resource_manager": {
                 "free_user_job_memory_watermark_multiplier": 0.9,
             },
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "job_proxy_peak_memory_profiler": {
+                            # NB(coteeq): JP will exceed estimated memory which will trigger profiler
+                            # which will eat even more memory (for the profiling itself).
+                            "enabled": False,
+                        },
+                    },
+                },
+            },
         },
     }
 
@@ -1157,7 +1173,7 @@ class TestFreeUserJobsMemoryWatermark(YTEnvSetup):
 
     @authors("pogorelov")
     def test_node_send_limits_to_scheduler_considering_watermark(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             run_test_vanilla("sleep 0.1", track=True, job_count=1, task_patch={
                 "memory_limit": 300 * 10 ** 6,
                 "user_job_memory_digest_lower_bound": 1.0,
@@ -1219,7 +1235,7 @@ breakpoint()
             "file_paths": ["//tmp/script.py"],
         })
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
 
         # op.track()
 
@@ -1265,7 +1281,7 @@ class TestNodeAddressResolveFailed(YTEnvSetup):
 
         update_nodes_dynamic_config(value=False, path="exec_node/job_controller/job_common/testing/fail_address_resolve")
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         release_breakpoint()
 
@@ -1381,5 +1397,81 @@ class TestExeNodeProfiling(YTEnvSetup):
         wait(lambda: profiler.get(sensor, tags=get_labels("<unknown>")) == 0.0)
         assert profiler.get(sensor, tags=get_labels("default")) is None
 
+
+class TestNodeDirectory(YTEnvSetup):
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+    NUM_NODES_REMOTE_0 = 9
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                }
+            }
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        # Hang node forever if it cannot resolve replica's node.
+                        "node_directory_prepare_retry_count": 1_000_000_000,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("use_local_table", [True, False], ids=["remote_and_local", "only_remote"])
+    def test_node_does_not_resolve_remote_nodes(self, use_local_table):
+        remote_driver = get_driver(cluster=self.REMOTE_CLUSTER_NAME)
+
+        def get_node_id(addr, driver=get_driver()):
+            id = get(f"//sys/cluster_nodes/{addr}/@id", driver=driver)
+            return int(id.split("-")[1], 16)
+
+        # Ban nodes whose ids can be seen on local cluster,
+        # so resolving a remote node will deterministically fail.
+        local_node_ids = [get_node_id(node) for node in ls("//sys/cluster_nodes")]
+        for node in ls("//sys/cluster_nodes", driver=remote_driver):
+            if get_node_id(node, remote_driver) in local_node_ids:
+                set_node_banned(node, True, driver=remote_driver)
+
+        if use_local_table:
+            create("table", "//tmp/t_local", attributes={"replication_factor": 1})
+            write_table("//tmp/t_local", {"a": "b"})
+        create("table", "//tmp/t1", driver=remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        in_ = [f"<cluster={self.REMOTE_CLUSTER_NAME}>//tmp/t1"]
+        if use_local_table:
+            in_.append("//tmp/t_local")
+
+        map(
+            in_=in_,
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "mapper": {
+                    "format": yson.loads(b"<line_prefix=tskv; enable_table_index=false>dsv"),
+                },
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}] * (1 + use_local_table)
 
 ##################################################################

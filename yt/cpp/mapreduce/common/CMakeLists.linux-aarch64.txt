@@ -32,7 +32,6 @@ target_link_libraries(cpp-mapreduce-common PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-json
-  library-cpp-svnversion
   cpp-threading-future
   library-cpp-yson
   cpp-yson-json
@@ -49,6 +48,7 @@ target_sources(cpp-mapreduce-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/halting_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/retry_lib.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/trace_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/wait_proxy.cpp
 )
 

@@ -125,7 +125,7 @@ Combining the subquery templates: `SubqueryExtend`, `SubqueryUnionAll`, `Subquer
 These functions combine the results of one or more subquery templates passed by arguments. The number of parameters in such subquery templates must be the same.
 
 * `SubqueryExtend` requires matching of subquery schemas.
-* `SubqueryUnionAll` follows the same rules as [ListUnionAll](../builtins/list.md#ListUnionAll).
+* `SubqueryUnionAll` follows the same rules as [ListUnionAll](../builtins/list.md#listunionall).
 * `SubqueryMerge` uses the same constraints as `SubqueryExtend` and also outputs a sorted result if all subqueries have the same sort order.
 * `SubqueryUnionMerge` uses the same constraints as `SubqueryUnionAll` and also outputs a sorted result if all subqueries have the same sort order.
 
@@ -156,7 +156,7 @@ The functions take the following arguments:
 They substitute each item from the list into the subquery template as a parameter and then combine the obtained subqueries.
 
 * `SubqueryExtendFor` requires matching of subquery schemas.
-* `SubqueryUnionAllFor` follows the same rules as [ListUnionAll](../builtins/list.md#ListUnionAll).
+* `SubqueryUnionAllFor` follows the same rules as [ListUnionAll](../builtins/list.md#listunionall).
 * `SubqueryMergeFor` uses the same constraints as `SubqueryExtendFor` and also outputs a sorted result if all subqueries have the same sort order.
 * `SubqueryUnionMergeFor` uses the same constraints as `SubqueryUnionAllFor` and also outputs a sorted result if all subqueries have the same sort order.
 
@@ -171,7 +171,7 @@ $s = SubqueryExtendFor([1,2,3],$sub);
 PROCESS $s();
 ```
 
-## SubqueryOrderBy, SubqueryAssumeOrderBy
+## SubqueryOrderBy, SubqueryAssumeOrderBy {#subqueryorderby,-subqueryassumeorderby} {#subquery-order-by}
 
 Adding sorting to the `SubqueryOrderBy` template or indicating the presence of this `SubqueryAssumeOrderBy`.
 

@@ -65,7 +65,7 @@ void TClusterResourceLimits::AddToMediumDiskSpace(int mediumIndex, i64 diskSpace
     }
 }
 
-const TDefaultMap<TMediumMap<TLimit64>>& TClusterResourceLimits::DiskSpace() const
+const TDefaultMap<NChunkClient::TCompactMediumMap<TLimit64>>& TClusterResourceLimits::DiskSpace() const
 {
     return DiskSpace_;
 }
@@ -99,7 +99,7 @@ TClusterResourceLimits TClusterResourceLimits::Infinity()
         .SetChunkCount(TLimit64::Infinity())
         .SetTabletStaticMemory(TLimit64::Infinity())
         .SetMasterMemory(TMasterMemoryLimits::Infinity());
-    resources.DiskSpace_ = TDefaultMap<TMediumMap<TLimit64>>(TLimit64::Infinity());
+    resources.DiskSpace_ = TDefaultMap<NChunkClient::TCompactMediumMap<TLimit64>>(TLimit64::Infinity());
     return resources;
 }
 
@@ -380,12 +380,12 @@ void TViolatedClusterResourceLimits::SetMasterMemory(TViolatedMasterMemoryLimits
     MasterMemory_ = std::move(masterMemoryLimits);
 }
 
-NChunkClient::TMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace()
+NChunkClient::TCompactMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace()
 {
     return DiskSpace_;
 }
 
-const TMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace() const
+const NChunkClient::TCompactMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace() const
 {
     return DiskSpace_;
 }

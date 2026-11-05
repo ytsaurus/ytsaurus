@@ -37,9 +37,9 @@ public:
         : TAsyncExpiringCache<TTabletId, void>(
             GetCacheConfig(tablet->GetSettings().MountConfig),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TabletNodeLogger().WithTag("%v, ReplicationCardId: %v",
-                tablet->GetLoggingTag(),
-                replicationCardId))
+            TabletNodeLogger()
+                .WithTags(tablet->GetLoggingTags())
+                .WithTag("ReplicationCardId", replicationCardId))
         , ExportSizeThreshold_(tablet->GetSettings().MountConfig->PullerReplicaCacheExportSizeThreshold)
         , SizeGauge_(tablet->GetTableProfiler()->GetProfiler()
             .WithPrefix("/tablet/puller_replica_cache")

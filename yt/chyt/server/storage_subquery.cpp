@@ -14,7 +14,25 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <Core/Settings.h>
+
+#include <Interpreters/InterpreterSelectQuery.h>
+
+#include <Processors/QueryPlan/QueryPlan.h>
+#include <Processors/QueryPlan/ReadFromPreparedSource.h>
+
 #include <QueryPipeline/Pipe.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool parallelize_output_from_storages;
+extern const SettingsBool distributed_aggregation_memory_efficient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -28,6 +46,31 @@ using namespace NTracing;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+// Core vanilla CH logic from IStorage::read(queryPlan, ...).
+void ParallelizePipeIfNeeded(
+    DB::Pipe& pipe,
+    const DB::ContextPtr& context,
+    DB::QueryProcessingStage::Enum processedStage,
+    size_t maxStreamCount)
+{
+    const size_t outputPorts = pipe.numOutputPorts();
+    const bool parallelizeOutput = context->getSettingsRef()[DB::Setting::parallelize_output_from_storages];
+
+    // For distributed_aggregation_memory_efficient with Two-Level-Hash aggregation, the `GroupingAggregatedTransform`
+    // need to receive buckets from Remote in order of bucket number, while resize here will break the buckets order
+    // return from `RemoteSource`. See https://github.com/ClickHouse/ClickHouse/issues/76934.
+    const bool shouldNotResize = context->getSettingsRef()[DB::Setting::distributed_aggregation_memory_efficient]
+        && processedStage == DB::QueryProcessingStage::Enum::WithMergeableState;
+
+    if (!shouldNotResize && parallelizeOutput && outputPorts > 0 && outputPorts < maxStreamCount) {
+        pipe.resize(maxStreamCount);
+    }
+}
+
+} // namespace
 
 std::vector<TColumnSchema> GetColumnSchemas(
     const TSubquerySpec& subquerySpec,
@@ -70,6 +113,31 @@ std::vector<TColumnSchema> GetColumnSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReadFromYTExecutorStep
+    : public DB::ReadFromPreparedSource
+{
+public:
+    TReadFromYTExecutorStep(DB::Pipe pipe, DB::SortDescription sortDescription)
+        : DB::ReadFromPreparedSource(std::move(pipe))
+        , SortDescription_(std::move(sortDescription))
+    { }
+
+    String getName() const override
+    {
+        return "ReadFromYTExecutor";
+    }
+
+    const DB::SortDescription& getSortDescription() const override
+    {
+        return SortDescription_;
+    }
+
+private:
+    const DB::SortDescription SortDescription_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStorageSubquery
     : public TYtStorageBase
 {
@@ -86,7 +154,7 @@ public:
         }
 
         DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Composite)));
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Conversion)));
         setInMemoryMetadata(storage_metadata);
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
@@ -112,6 +180,45 @@ public:
     bool supportsFiltersAnalysis() const override
     {
         return true;
+    }
+
+    void read(
+        DB::QueryPlan& queryPlan,
+        const DB::Names& columnNames,
+        const DB::StorageSnapshotPtr& storageSnapshot,
+        DB::SelectQueryInfo& queryInfo,
+        DB::ContextPtr context,
+        DB::QueryProcessingStage::Enum processedStage,
+        size_t maxBlockSize,
+        size_t maxStreamCount) override
+    {
+        auto pipe = read(
+            columnNames,
+            storageSnapshot,
+            queryInfo,
+            context,
+            processedStage,
+            maxBlockSize,
+            maxStreamCount);
+
+        auto sortDescription = SubquerySpec_.SubqueryOptions.SortDescription;
+        if (sortDescription.empty()) {
+            ParallelizePipeIfNeeded(pipe, context, processedStage, maxStreamCount);
+        }
+
+        if (pipe.empty()) {
+            // From IStorage::readFromPipe(...).
+            auto header = storageSnapshot->getSampleBlockForColumns(columnNames);
+            DB::InterpreterSelectQuery::addEmptySourceToQueryPlan(queryPlan, header, queryInfo);
+            return;
+        }
+
+        // From IStorage::readFromPipe(...) -> ReadFromStorageStep::ReadFromStorageStep(...).
+        for (const auto& processor : pipe.getProcessors()) {
+            processor->setStorageLimits(queryInfo.storage_limits);
+        }
+
+        queryPlan.addStep(std::make_unique<TReadFromYTExecutorStep>(std::move(pipe), std::move(sortDescription)));
     }
 
     DB::Pipe read(
@@ -144,16 +251,15 @@ public:
                 leakedMemory[index] = (index < 2) ? 1 : leakedMemory[index - 2] + leakedMemory[index - 1];
             }
             // Prevent optimization.
-            YT_LOG_DEBUG(
-                "Testing Fibbonacci number calculated (Index: %v, Value: %v)",
-                StorageContext_->Settings->Testing->SubqueryAllocationSize - 1,
-                leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
+            YT_TLOG_DEBUG("Testing Fibonacci number calculated")
+                .With("Index", StorageContext_->Settings->Testing->SubqueryAllocationSize - 1)
+                .With("Value", leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
         }
 
         Logger = StorageContext_->Logger;
-        Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v",
-            SubquerySpec_.SubqueryIndex,
-            SubquerySpec_.TableIndex);
+        Logger
+            .AddTag("SubqueryIndex", SubquerySpec_.SubqueryIndex)
+            .AddTag("SubqueryTableIndex", SubquerySpec_.TableIndex);
 
         const auto& traceContext = GetQueryContext(context)->TraceContext;
 
@@ -169,11 +275,10 @@ public:
                 ++totalDataSliceCount;
             }
         }
-        YT_LOG_DEBUG(
-            "Deserialized subquery spec (RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
-            totalRowCount,
-            totalDataWeight,
-            totalDataSliceCount);
+        YT_TLOG_DEBUG("Deserialized subquery spec")
+            .With("RowCount", totalRowCount)
+            .With("DataWeight", totalDataWeight)
+            .With("DataSliceCount", totalDataSliceCount);
 
 
         auto tableIndexSuffix = Format(".%v", SubquerySpec_.TableIndex);
@@ -184,11 +289,10 @@ public:
             traceContext->AddTag("chyt.subquery_index", SubquerySpec_.SubqueryIndex);
         }
 
-        YT_LOG_DEBUG(
-            "Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
-            maxStreamCount,
-            SubquerySpec_.InputSpecs.size(),
-            columnNames);
+        YT_TLOG_DEBUG("Creating table readers")
+            .With("MaxStreamCount", maxStreamCount)
+            .With("StripeCount", SubquerySpec_.InputSpecs.size())
+            .With("Columns", columnNames);
 
         DB::Pipes pipes;
 
@@ -196,7 +300,7 @@ public:
         if (StorageContext_->Settings->Execution->EnableMinMaxFiltering) {
             granuleMinMaxFilter = CreateGranuleMinMaxFilter(
                 queryInfo,
-                StorageContext_->Settings->Composite,
+                StorageContext_->Settings->Conversion,
                 SubquerySpec_.ReadSchema,
                 context,
                 realColumnNames);
@@ -219,7 +323,7 @@ public:
         } else {
             readPlan = BuildSimpleReadPlan(std::move(columnSchemas));
         }
-        SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
+        SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Conversion);
         QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization);
 
         if (SubquerySpec_.InputSpecsTruncated) {
@@ -296,10 +400,9 @@ public:
                 }
             }
 
-            YT_LOG_DEBUG(
-                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v)",
-                threadIndex,
-                SubquerySpec_.InputSpecsTruncated);
+            YT_TLOG_DEBUG("Thread table reader stream created")
+                .With("ThreadIndex", threadIndex)
+                .With("EnablePullInputSpecsMode", SubquerySpec_.InputSpecsTruncated);
 
             TStringBuilder debugString;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
@@ -307,15 +410,14 @@ public:
                 debugString.AppendString("\n");
             }
 
-            YT_LOG_DEBUG(
-                "Thread debug string (ThreadIndex: %v, DebugString: %v)",
-                threadIndex,
-                debugString.Flush());
+            YT_TLOG_DEBUG("Thread debug string")
+                .With("ThreadIndex", threadIndex)
+                .With("DebugString", debugString.Flush());
         }
 
         if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
             THROW_ERROR_EXCEPTION("Testing exception in subquery")
-                << TErrorAttribute("storage_index", StorageContext_->Index);
+                .With("storage_index", StorageContext_->Index);
         }
 
         return DB::Pipe::unitePipes(std::move(pipes));

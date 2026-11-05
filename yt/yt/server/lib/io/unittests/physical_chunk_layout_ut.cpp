@@ -19,13 +19,13 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TPhysicalChunkLayoutTest");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TPhysicalChunkLayoutTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomString(size_t size, TRandomGenerator* generator)
+std::string GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
-    TString result;
+    std::string result;
     result.reserve(size + sizeof(ui64));
     while (result.size() < size) {
         ui64 value = generator->Generate<ui64>();
@@ -50,13 +50,14 @@ std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* gene
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
+TEST(TPhysicalChunkLayoutTest, SerializeAndDeserializeBlocks)
 {
     constexpr int BlockCount = 100;
 
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto seed = TInstant::Now().GetValue();
-    YT_LOG_INFO("Test started (Seed: %v)", seed);
+    YT_TLOG_INFO("Test started")
+        .With("Seed", seed);
     auto generator = TRandomGenerator(seed);
 
     auto originalBlocks = CreateBlocks(BlockCount, &generator);
@@ -83,7 +84,7 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
     }
 }
 
-TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
+TEST(TPhysicalChunkLayoutTest, SerializeAndDeserializeMeta)
 {
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
 

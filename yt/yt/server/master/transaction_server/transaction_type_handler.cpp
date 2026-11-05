@@ -33,7 +33,7 @@ EObjectType TTransactionTypeHandler::GetType() const
     return ObjectType_;
 }
 
-TCellTagList TTransactionTypeHandler::DoGetReplicationCellTags(const TTransaction* transaction)
+TCellTagSet TTransactionTypeHandler::DoGetReplicationCellTags(const TTransaction* transaction)
 {
     return transaction->ReplicatedToCellTags();
 }

@@ -35,6 +35,8 @@ void TDynamicChaosManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_metadata_cells", &TThis::EnableMetadataCells)
         .Default(true);
+    registrar.Parameter("cell_directory_synchronizer_error_delay", &TThis::CellDirectorySynchronizerErrorDelay)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

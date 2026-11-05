@@ -13,11 +13,14 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("plugin_options", &TThis::PluginConfig)
         .DefaultNew();
 
-    registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
-
     registrar.Parameter("singletons_config", &TThis::SingletonsConfig);
 
-    registrar.Parameter("dynamic_gateways_config", &TThis::DynamicGatewaysConfig)
+    registrar.Parameter("plugin_dynamic_config", &TThis::PluginDynamicConfig)
+        .DefaultNew();
+
+    registrar.Parameter("use_token_resolver", &TThis::UseTokenResolver)
+        .Default(false);
+    registrar.Parameter("token_service_socket_path", &TThis::TokenServiceSocketPath)
         .Default();
 }
 

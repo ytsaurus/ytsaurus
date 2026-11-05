@@ -29,7 +29,7 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString ProxyConfigFileName;
+extern const std::string ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_STRUCT(IJobController)
 
@@ -58,16 +58,24 @@ DECLARE_REFCOUNTED_STRUCT(IJobDirectoryManager)
 DECLARE_REFCOUNTED_STRUCT(IJobInputCache)
 
 DECLARE_REFCOUNTED_STRUCT(IUserSlot)
+struct TUserSlotContext;
 DECLARE_REFCOUNTED_CLASS(TGpuSlot)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorPool)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
+struct TJobEnvironmentCapabilities;
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
+DECLARE_REFCOUNTED_STRUCT(IJobEnvironmentHealthChecker)
 
 DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
 DECLARE_REFCOUNTED_CLASS(IThrottlerManager)
+
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifactCache)
+
+DECLARE_REFCOUNTED_CLASS(TPendingDownloadsTracker)
 
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal

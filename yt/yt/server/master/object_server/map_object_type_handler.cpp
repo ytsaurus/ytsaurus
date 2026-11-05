@@ -1,4 +1,6 @@
 #include "map_object_type_handler.h"
+
+#include "helpers.h"
 #include "map_object_proxy.h"
 
 #include <yt/yt/server/master/security_server/account.h>
@@ -34,20 +36,7 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetPar
 template <class TObject>
 void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const std::string& name)
 {
-    if (name.empty()) {
-        THROW_ERROR_EXCEPTION("Name cannot be empty");
-    }
-
-    if (name.length() > MaxNameLength_) {
-        THROW_ERROR_EXCEPTION("Name is too long for an object of type %Qv", this->GetType())
-            << TErrorAttribute("length", name.length())
-            << TErrorAttribute("max_length", MaxNameLength_);
-    }
-
-    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(NameRegex_);
-    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(name), *regex)) {
-        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", NameRegex_);
-    }
+    NObjectServer::ValidateObjectName(name, this->GetType(), MaxNameLength_);
 }
 
 template <class TObject>

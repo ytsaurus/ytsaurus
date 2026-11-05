@@ -19,7 +19,7 @@ class TPortoProcess
 {
 public:
     TPortoProcess(
-        const TString& path,
+        const std::string& path,
         NContainers::IInstanceLauncherPtr containerLauncher,
         bool copyEnv = true);
     void Kill(int signal) override;
@@ -36,7 +36,7 @@ private:
     std::vector<NPipeIO::TNamedPipePtr> NamedPipes_;
 
     void DoSpawn() override;
-    THashMap<TString, TString> DecomposeEnv() const;
+    THashMap<std::string, std::string> DecomposeEnv() const;
 
     void CleanUpParent() override;
 };

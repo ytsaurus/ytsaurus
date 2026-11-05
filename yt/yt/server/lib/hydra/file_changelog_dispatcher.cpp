@@ -6,7 +6,7 @@
 #include "config.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -64,8 +64,8 @@ public:
 
     ~TFileChangelogQueue()
     {
-        YT_LOG_DEBUG("Changelog queue destroyed (Path: %v)",
-            Changelog_->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue destroyed")
+            .With("Path", Changelog_->GetFileName());
     }
 
     const IUnbufferedFileChangelogPtr& GetChangelog()
@@ -83,7 +83,7 @@ public:
             AppendQueue_.push_back(record);
         }
 
-        AppendQueueByteSize_ += byteSize;
+        AppendQueueByteSize_.fetch_add(byteSize, std::memory_order::relaxed);
         AppendQueueEmpty_.store(false);
 
         YT_VERIFY(FlushPromise_);
@@ -111,16 +111,16 @@ public:
 
         const auto& config = Changelog_->GetConfig();
 
-        if (AppendQueueByteSize_.load() >= config->DataFlushSize) {
-            return true;
-        }
-
         if (!AppendQueueEmpty_.load()) {
+            if (AppendQueueByteSize_.load(std::memory_order::relaxed) >= config->DataFlushSize) {
+                return true;
+            }
+
             if (config->FlushPeriod == TDuration::Zero()) {
                 return true;
             }
 
-            if (LastFlushed_.load() + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
+            if (LastFlushed_.load(std::memory_order::relaxed) + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
                 return true;
             }
         }
@@ -203,9 +203,8 @@ public:
                     readFromMemory(FlushQueue_, FlushedRecordCount_);
                     readFromMemory(AppendQueue_, FlushedRecordCount_ + std::ssize(FlushQueue_));
 
-                    YT_LOG_DEBUG_IF(firstCopiedRecordId, "Changelog records copied from memory (RecordIds: %v-%v)",
-                        *firstCopiedRecordId,
-                        *lastCopiedRecordId);
+                    YT_TLOG_DEBUG_IF(firstCopiedRecordId, "Changelog records copied from memory")
+                        .WithFormat("RecordIds", "%v-%v", *firstCopiedRecordId, *lastCopiedRecordId);
                 }
                 break;
             }
@@ -236,11 +235,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (ProcessQueueCallbackPending_.load(std::memory_order::relaxed)) {
+        // NB: seq_cst pairs with the store in #Process; a stale true here would lose the wakeup.
+        if (ProcessQueueCallbackPending_.load()) {
             return;
         }
 
         if (!HasPendingFlushes()) {
+            ScheduleFlushDeadlineWakeup();
             return;
         }
 
@@ -260,6 +261,9 @@ public:
         if (HasPendingFlushes()) {
             SyncFlush();
         }
+
+        // Wakeup skips arming while Process is pending.
+        Wakeup();
     }
 
 private:
@@ -277,7 +281,7 @@ private:
     //! True if #AppendQueue_ is empty.
     std::atomic<bool> AppendQueueEmpty_ = true;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     //! These records are currently being flushed to the underlying sync changelog and
     //! immediately follow the flushed part.
@@ -290,6 +294,7 @@ private:
     std::atomic<bool> FlushForced_ = false;
     std::atomic<NProfiling::TCpuInstant> LastFlushed_ = GetCpuInstant();
     std::atomic<bool> ProcessQueueCallbackPending_ = false;
+    std::atomic<bool> FlushDeadlineWakeupArmed_ = false;
 
     TEventTimer ChangelogReadIOTimer_;
     TEventTimer ChangelogReadCopyTimer_;
@@ -297,6 +302,36 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
+
+    void ScheduleFlushDeadlineWakeup()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (AppendQueueEmpty_.load() ||
+            FlushDeadlineWakeupArmed_.load() ||
+            FlushDeadlineWakeupArmed_.exchange(true))
+        {
+            return;
+        }
+
+        // LastFlushed_ only grows: the wakeup is never late, and an early one just rearms.
+        // The slack covers TDelayedExecutor firing up to its coalescing interval early.
+        constexpr auto DeadlineSlack = TDuration::MicroSeconds(100);
+        auto deadline = LastFlushed_.load(std::memory_order::relaxed) + DurationToCpuDuration(Changelog_->GetConfig()->FlushPeriod);
+        auto delay = CpuDurationToDuration(std::max<TCpuDuration>(deadline - GetCpuInstant(), 0)) + DeadlineSlack;
+        TDelayedExecutor::Submit(
+            BIND_NO_PROPAGATE(&TFileChangelogQueue::OnFlushDeadline, MakeWeak(this)),
+            delay,
+            Invoker_);
+    }
+
+    void OnFlushDeadline()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        FlushDeadlineWakeupArmed_.store(false);
+        Wakeup();
+    }
 
     void SyncFlush()
     {
@@ -309,7 +344,7 @@ private:
             YT_VERIFY(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
 
-            AppendQueueByteSize_.store(0);
+            AppendQueueByteSize_.store(0, std::memory_order::relaxed);
             AppendQueueEmpty_.store(true);
 
             YT_VERIFY(FlushPromise_);
@@ -325,7 +360,7 @@ private:
             try {
                 Changelog_->Append(FlushedRecordCount_, FlushQueue_);
                 Changelog_->Flush(/*withIndex*/ false);
-                LastFlushed_.store(NProfiling::GetCpuInstant());
+                LastFlushed_.store(NProfiling::GetCpuInstant(), std::memory_order::relaxed);
             } catch (const std::exception& ex) {
                 error = ex;
             }
@@ -351,18 +386,12 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         NIO::IIOEnginePtr ioEngine,
-        IMemoryUsageTrackerPtr memoryUsageTracker,
-        TFileChangelogDispatcherConfigPtr config,
+        IMemoryUsageTrackerPtr indexMemoryUsageTracker,
         std::string threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
-        , MemoryUsageTracker_(std::move(memoryUsageTracker))
-        , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
+        , IndexMemoryUsageTracker_(std::move(indexMemoryUsageTracker))
         , ActionQueue_(New<TActionQueue>(std::move(threadName)))
-        , PeriodicExecutor_(New<TPeriodicExecutor>(
-            ActionQueue_->GetInvoker(),
-            ProcessQueuesCallback_,
-            config->FlushQuantum))
         , Profiler_(std::move(profiler))
         , RecordCounter_(Profiler_.Counter("/records"))
         , ByteCounter_(Profiler_.Counter("/bytes"))
@@ -371,19 +400,11 @@ public:
         , ChangelogCloseIOTimer_(Profiler_.Timer("/changelog_close_io_time"))
         , ChangelogReadRecordCountGauge_(Profiler_.Gauge("/changelog_read_record_count"))
         , ChangelogReadSizeGauge_(Profiler_.Gauge("/changelog_read_size"))
-    {
-        PeriodicExecutor_->Start();
-    }
+    { }
 
     ~TFileChangelogDispatcher()
     {
-        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         ActionQueue_->Shutdown();
-    }
-
-    void Reconfigure(TFileChangelogDispatcherConfigPtr config) override
-    {
-        PeriodicExecutor_->SetPeriod(config->FlushQuantum);
     }
 
     IInvokerPtr GetInvoker() override
@@ -495,11 +516,9 @@ public:
 
 private:
     const NIO::IIOEnginePtr IOEngine_;
-    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TClosure ProcessQueuesCallback_;
+    const IMemoryUsageTrackerPtr IndexMemoryUsageTracker_;
 
     const TActionQueuePtr ActionQueue_;
-    const TPeriodicExecutorPtr PeriodicExecutor_;
 
     const TProfiler Profiler_;
 
@@ -513,20 +532,13 @@ private:
     TGauge ChangelogReadRecordCountGauge_;
     TGauge ChangelogReadSizeGauge_;
 
-    void ProcessQueues()
-    {
-        for (const auto& queue : Queues_) {
-            queue->Wakeup();
-        }
-    }
-
     void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
     {
         InsertOrCrash(Queues_, queue);
         ProfileQueues();
 
-        YT_LOG_DEBUG("Changelog queue registered (Path: %v)",
-            queue->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue registered")
+            .With("Path", queue->GetChangelog()->GetFileName());
 
         // See wakeup.
         queue->Process();
@@ -540,8 +552,8 @@ private:
         ShrinkHashTable(Queues_);
         ProfileQueues();
 
-        YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",
-            queue->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue unregistered")
+            .With("Path", queue->GetChangelog()->GetFileName());
     }
 
     void ProfileQueues()
@@ -555,15 +567,11 @@ private:
         int maxRecords,
         i64 maxBytes)
     {
-        auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, maxBytes);
         auto records = queue->Read(firstRecordId, maxRecords, maxBytes);
-
-        for (auto& record : records) {
-            record = TrackMemory(MemoryUsageTracker_, std::move(record));
-        }
 
         ChangelogReadRecordCountGauge_.Update(records.size());
         ChangelogReadSizeGauge_.Update(GetByteSize(records));
+
         return records;
     }
 
@@ -603,7 +611,7 @@ private:
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, IndexMemoryUsageTracker_, path, config);
         unbufferedChangelog->Create(meta);
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -613,7 +621,7 @@ private:
         const std::string& path,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, IndexMemoryUsageTracker_, path, config);
         unbufferedChangelog->Open();
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -621,10 +629,12 @@ private:
     TFuture<void> DoFlushChangelogs()
     {
         std::vector<TFuture<void>> flushResults;
+        flushResults.reserve(Queues_.size());
         for (const auto& queue : Queues_) {
             flushResults.push_back(queue->AsyncFlush());
+            queue->Wakeup();
         }
-        return AllSucceeded(flushResults);
+        return AllSucceeded(std::move(flushResults));
     }
 };
 
@@ -644,17 +654,17 @@ public:
         : Id_(id)
         , Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
-        , Queue_(Dispatcher_->CreateQueue(unbufferedChangelog))
-        , RecordCount_(unbufferedChangelog->GetRecordCount())
-        , DataSize_(unbufferedChangelog->GetDataSize())
+        , Queue_(Dispatcher_->CreateQueue(std::move(unbufferedChangelog)))
+        , RecordCount_(Queue_->GetChangelog()->GetRecordCount())
+        , DataSize_(Queue_->GetChangelog()->GetDataSize())
     {
         Dispatcher_->RegisterQueue(Queue_);
     }
 
     ~TFileChangelog()
     {
-        YT_LOG_DEBUG("Destroying changelog queue (Path: %v)",
-            Queue_->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Destroying changelog queue")
+            .With("Path", Queue_->GetChangelog()->GetFileName());
         YT_UNUSED_FUTURE(Close());
         Dispatcher_->UnregisterQueue(Queue_);
     }
@@ -674,9 +684,19 @@ public:
         return DataSize_;
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
         return static_cast<i64>(Queue_->GetChangelog()->GetWriteAmplificationRatio() * payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int /*firstRecordId*/,
+        int /*maxRecords*/,
+        i64 maxBytes) const override
+    {
+        // TODO(babenko): Provide a more precise estimate based on the requested record range.
+        // For now use the total changelog size as the read guess.
+        return std::min(maxBytes, GetDataSize());
     }
 
     const TChangelogMeta& GetMeta() const override
@@ -773,15 +793,13 @@ IFileChangelogPtr CreateFileChangelog(
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
-    IMemoryUsageTrackerPtr memoryUsageTracker,
-    TFileChangelogDispatcherConfigPtr config,
+    IMemoryUsageTrackerPtr indexMemoryUsageTracker,
     std::string threadName,
     TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(
         std::move(ioEngine),
-        std::move(memoryUsageTracker),
-        std::move(config),
+        std::move(indexMemoryUsageTracker),
         std::move(threadName),
         std::move(profiler));
 }

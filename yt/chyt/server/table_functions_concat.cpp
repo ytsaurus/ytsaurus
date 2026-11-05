@@ -172,8 +172,7 @@ private:
             queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        DB::StorageID storageId{"YT", BuildStorageName(tables)};
-        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     std::vector<TRichYPath> tablePaths;
@@ -246,7 +245,8 @@ private:
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/list_and_concat_yt_tables/execute"_SP);
         const auto& Logger = queryContext->Logger;
 
-        YT_LOG_INFO("Listing directory (Path: %v)", Directory_);
+        YT_TLOG_INFO("Listing directory")
+            .With("Path", Directory_);
 
         bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
 
@@ -289,7 +289,8 @@ private:
 
         if (auto breakpointFilename = queryContext->SessionSettings->Testing->ConcatTableRangeBreakpoint) {
             HandleBreakpoint(*breakpointFilename, queryContext->Client());
-            YT_LOG_DEBUG("Concat tables range function handled breakpoint (Breakpoint: %v)", breakpointFilename);
+            YT_TLOG_DEBUG("Concat tables range function handled breakpoint")
+                .With("Breakpoint", *breakpointFilename);
         }
 
         std::vector<TRichYPath> itemPaths;
@@ -314,8 +315,7 @@ private:
             return lhs->Path.GetPath() < rhs->Path.GetPath();
         });
 
-        DB::StorageID storageId{"YT", BuildStorageName(tables)};
-        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     TRichYPath Directory_;

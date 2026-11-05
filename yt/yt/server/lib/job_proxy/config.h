@@ -21,7 +21,7 @@
 
 #include <yt/yt/library/containers/cri/config.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/client/file_client/config.h>
 
@@ -112,7 +112,7 @@ struct TUserJobNetworkAddress
 {
     NNet::TIP6Address Address;
 
-    TString Name;
+    std::string Name;
 
     REGISTER_YSON_STRUCT(TUserJobNetworkAddress);
 
@@ -158,8 +158,8 @@ DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
 struct TBindConfig
     : public NYTree::TYsonStruct
 {
-    TString ExternalPath;
-    TString InternalPath;
+    std::string ExternalPath;
+    std::string InternalPath;
     bool ReadOnly;
 
     REGISTER_YSON_STRUCT(TBindConfig);
@@ -174,22 +174,22 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 struct TEnvironmentVariableConfig
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
 
     //! Load value from present variable, have priority if specified and defined.
-    std::optional<TString> EnvironmentVariable;
+    std::optional<std::string> EnvironmentVariable;
 
     //! Load value from file content.
-    std::optional<TString> FileName;
+    std::optional<std::string> FileName;
 
     //! Exact value, cannot be combined with file_name.
-    std::optional<TString> Value;
+    std::optional<std::string> Value;
 
     //! Forward or not this variable into user job environment.
     //! Default behavior is controlled by option "forward_all_environment_variables".
     std::optional<bool> ForwardToUserJob;
 
-    TString LoadValue() const;
+    std::string LoadValue() const;
 
     REGISTER_YSON_STRUCT(TEnvironmentVariableConfig);
 
@@ -312,7 +312,7 @@ struct TPortoJobEnvironmentConfig
 
     TDuration BlockIOWatchdogPeriod;
 
-    THashMap<TString, TString> ExternalBinds;
+    THashMap<std::string, std::string> ExternalBinds;
 
     double JobsIOWeight;
     std::optional<double> JobProxyCpuWeight;
@@ -346,7 +346,7 @@ struct TCriJobEnvironmentConfig
 
     NContainers::NCri::TCriImageCacheConfigPtr CriImageCache;
 
-    TString JobProxyImage;
+    std::string JobProxyImage;
 
     //! Bind mounts for job proxy container.
     //! For now works as "root_fs_binds" because user job runs in the same container.
@@ -385,6 +385,30 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentTyp
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobProxyPeakMemoryProfilerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+
+    //! NB(coteeq): This is probably what you want to get symbolized profiles,
+    //! but external symbolizer is very slow and consumes large amounts
+    //! of memory (this is a process, so think of 30M+ of additional memory).
+    //! Because of this, external symbolizer is disabled by default.
+    bool RunExternalSymbolizer;
+
+    //! If set, JP will synchronously wait for the last profile before reporting
+    //! result to exec node.
+    bool WaitLastProfile;
+
+    REGISTER_YSON_STRUCT(TJobProxyPeakMemoryProfilerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyPeakMemoryProfilerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobProxyInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
@@ -392,7 +416,7 @@ struct TJobProxyInternalConfig
     // Job-specific parameters.
     int SlotIndex = -1;
 
-    TString SlotPath;
+    std::string SlotPath;
 
     TTmpfsManagerConfigPtr TmpfsManager;
 
@@ -405,13 +429,13 @@ struct TJobProxyInternalConfig
     std::vector<int> GpuIndexes;
 
     //! Path for container root, if root volume is already prepared.
-    std::optional<TString> RootPath;
+    std::optional<std::string> RootPath;
 
     //! Docker image to build root volume as part of a container.
-    std::optional<TString> DockerImage;
+    std::optional<std::string> DockerImage;
 
     //! Docker image id in local cache.
-    std::optional<TString> DockerImageId;
+    std::optional<std::string> DockerImageId;
 
     // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
@@ -420,37 +444,43 @@ struct TJobProxyInternalConfig
     bool EnableFuse;
 
     //! Path to write job proxy stderr (for testing purposes).
-    std::optional<TString> StderrPath;
+    std::optional<std::string> StderrPath;
     //! Path to write executor stderr (for testing purposes).
-    std::optional<TString> ExecutorStderrPath;
+    std::optional<std::string> ExecutorStderrPath;
 
-    NBus::TBusClientConfigPtr SupervisorConnection;
+    NBus::NTcp::TBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    NBus::TBusClientConfigPtr TvmBridgeConnection;
+    NBus::NTcp::TBusClientConfigPtr TvmBridgeConnection;
     NAuth::TTvmBridgeConfigPtr TvmBridge;
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
+
+    //! Enables reporting per-job I/O statistics to data nodes.
+    //! When disabled, neither io_consumed nor io_fair_share_weight is sent,
+    //! including an explicitly configured reader or writer weight.
+    bool EnableJobIoStatistics;
+
+    //! Time span over which the job I/O meter retains accounted I/O history.
+    TDuration JobIoMeterMaxHistoryDuration;
 
     TJobEnvironmentConfig JobEnvironment;
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
     std::string LocalHostName;
-    std::optional<TString> Rack;
-    std::optional<TString> DataCenter;
+    std::optional<std::string> Rack;
+    std::optional<std::string> DataCenter;
 
     i64 AheadMemoryReserve;
 
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    bool TestRootFS;
-
     TJobThrottlerConfigPtr JobThrottler;
 
     //! Hostname to set in container.
-    std::optional<TString> HostName;
+    std::optional<std::string> HostName;
 
     bool EnableNat64;
     bool DisableNetwork;
@@ -502,6 +532,8 @@ struct TJobProxyInternalConfig
 
     std::optional<i64> SlotContainerMemoryLimit;
 
+    NRpc::TServerDynamicConfigPtr RpcServerDynamic;
+
     NYT::NRpcProxy::TApiServiceConfigPtr JobProxyApiServiceStatic;
     NYT::NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
@@ -530,12 +562,11 @@ struct TJobProxyInternalConfig
     i64 AdaptiveRowCountUpperBound;
 
     std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+    bool ReadOomScoreAdjBeforeUpdate;
 
     bool UseNewDeliveryFencedConnection;
 
-    //! Enable root volume disk quota.
-    //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
-    bool EnableRootVolumeDiskQuota;
+    bool DisableRbindRootVolume;
 
     //! Restrict places allowed for porto volumes and layers.
     bool RestrictPortoPlace;
@@ -551,6 +582,8 @@ struct TJobProxyInternalConfig
     bool EnableGrpcServer;
     bool EnableHttpServer;
 
+    NBus::NTcp::TBusServerConfigPtr PrivateBusServer;
+
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
     NHttp::TServerConfigPtr HttpServer;
@@ -558,6 +591,8 @@ struct TJobProxyInternalConfig
     int HttpServerPollerThreadCount;
 
     TJobApiServiceConfigPtr JobApiService;
+
+    TJobProxyPeakMemoryProfilerConfigPtr JobProxyPeakMemoryProfiler;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
@@ -572,6 +607,8 @@ struct TJobProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+
+    bool EnableJobIoStatistics;
 
     bool EnableJobShellSeccopm;
 
@@ -601,10 +638,13 @@ struct TJobProxyDynamicConfig
     i64 AdaptiveRowCountUpperBound;
 
     std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+    bool ReadOomScoreAdjBeforeUpdate;
 
     bool UseNewDeliveryFencedConnection;
 
-    std::optional<TString> MemoryProfileDumpPath;
+    std::optional<std::string> MemoryProfileDumpPath;
+
+    NRpc::TServerDynamicConfigPtr RpcServer;
 
     NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
@@ -613,6 +653,8 @@ struct TJobProxyDynamicConfig
 
     bool EnableGrpcServer;
     bool EnableHttpServer;
+
+    TJobProxyPeakMemoryProfilerConfigPtr JobProxyPeakMemoryProfiler;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

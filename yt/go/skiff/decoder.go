@@ -418,7 +418,13 @@ func (d *Decoder) decodeGenericValue(skiffSchema *Schema, tableSchemaType schema
 		// Conversion to string is required for compatibility with YSON.
 		return string(decimal), nil
 	case schema.Optional:
-		return d.decodeGenericValue(&skiffSchema.Children[d.r.readUint8()], t.Item)
+		// Optional is encoded as variant8<nothing; T>: tag 0 means null, tag 1 means the value is present.
+		// Do not decodeGenericValue since "nothing" child schema has no Children.
+		tag := d.r.readUint8()
+		if tag == 0 {
+			return nil, nil
+		}
+		return d.decodeGenericValue(&skiffSchema.Children[tag], t.Item)
 	case schema.List:
 		return d.decodeGenericList(t, skiffSchema)
 	case schema.Struct:
@@ -653,6 +659,8 @@ func (d *Decoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
 }
 
 // Scan unmarshals current record into the value.
+//
+// Scan into *RawRow copies the record bytes without decoding them.
 func (d *Decoder) Scan(value any) (err error) {
 	if !d.hasValue {
 		return xerrors.New("Scan() called out of sequence")
@@ -665,6 +673,19 @@ func (d *Decoder) Scan(value any) (err error) {
 	if d.valueRead {
 		d.r.backup()
 		d.valueRead = false
+	}
+
+	if raw, ok := value.(*RawRow); ok {
+		if err := d.skipValue(d.tables[d.tableIndex].schema); err != nil {
+			if err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
+			d.r.err = err
+			return err
+		}
+		*raw = append(RawRow(nil), d.r.buf[d.r.keep:d.r.pos]...)
+		d.valueRead = true
+		return nil
 	}
 
 	typ := reflect.TypeOf(value)
@@ -710,4 +731,63 @@ func (d *Decoder) Scan(value any) (err error) {
 
 	d.valueRead = true
 	return nil
+}
+
+func (d *Decoder) skipValue(s *Schema) error {
+	switch s.Type {
+	case TypeNothing:
+	case TypeBoolean, TypeInt8, TypeUint8:
+		d.r.pull(1)
+	case TypeInt16, TypeUint16:
+		d.r.pull(2)
+	case TypeInt32, TypeUint32:
+		d.r.pull(4)
+	case TypeInt64, TypeUint64, TypeDouble:
+		d.r.pull(8)
+	case TypeInt128:
+		d.r.pull(16)
+	case TypeInt256:
+		d.r.pull(32)
+	case TypeString32, TypeYSON32:
+		d.r.readBytes()
+	case TypeTuple:
+		for i := range s.Children {
+			if err := d.skipValue(&s.Children[i]); err != nil {
+				return err
+			}
+		}
+	case TypeVariant8, TypeVariant16:
+		return d.skipVariantItem(s, d.readVariantTag(s.Type == TypeVariant16))
+	case TypeRepeatedVariant8, TypeRepeatedVariant16:
+		wide := s.Type == TypeRepeatedVariant16
+		end := 0xff
+		if wide {
+			end = 0xffff
+		}
+		for tag := d.readVariantTag(wide); d.r.err == nil && tag != end; tag = d.readVariantTag(wide) {
+			if err := d.skipVariantItem(s, tag); err != nil {
+				return err
+			}
+		}
+	default:
+		return xerrors.Errorf("skiff: unexpected wire type %s", s.Type)
+	}
+	return d.r.err
+}
+
+func (d *Decoder) readVariantTag(wide bool) int {
+	if wide {
+		return int(d.r.readUint16())
+	}
+	return int(d.r.readUint8())
+}
+
+func (d *Decoder) skipVariantItem(s *Schema, tag int) error {
+	if d.r.err != nil {
+		return d.r.err
+	}
+	if tag >= len(s.Children) {
+		return xerrors.Errorf("skiff: variant tag %d is out of range of %d items", tag, len(s.Children))
+	}
+	return d.skipValue(&s.Children[tag])
 }

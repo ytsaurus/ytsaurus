@@ -170,7 +170,7 @@ def trim_and_update(registry, tablet_trimmed_row_count, tablet_count):
 
 def add_data(
     schema, data_table_schema, registry, tablet_count,
-    tablet_trimmed_row_count, spec, args
+    tablet_trimmed_row_count, spec, args, epoch
 ):
     tablet_sizes = get_tablet_sizes(registry.tablet_size, tablet_count)
     offsets = [x + y for x, y in zip(tablet_trimmed_row_count, tablet_sizes)]
@@ -195,7 +195,8 @@ def add_data(
             tablet_count,
             offsets,
             spec,
-            args)
+            args,
+            epoch)
 
 # XXX: revisit
 class UpdateIndexesMapper():
@@ -295,7 +296,8 @@ def test_ordered_tables(base_path, spec, attributes, args):
             current_tablet_count,
             tablet_trimmed_row_count,
             spec,
-            args)
+            args,
+            iteration)
 
         sync_flush_table(registry.base)
 

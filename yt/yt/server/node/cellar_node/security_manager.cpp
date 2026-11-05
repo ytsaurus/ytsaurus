@@ -87,7 +87,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TabletNodeLogger().WithTag("Cache: ResourceLimits"))
+            TabletNodeLogger().WithTag("Cache", "ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
 
@@ -96,8 +96,8 @@ private:
 
     TFuture<void> DoGet(const TResourceLimitsKey& key, bool /*isPeriodicUpdate*/) noexcept override
     {
-        YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
-            key);
+        YT_TLOG_DEBUG("Resource limits violation check started")
+            .With("Key", key);
 
         auto client = Bootstrap_->GetClient();
         auto options = TGetNodeOptions();
@@ -154,18 +154,19 @@ private:
         bool validateTabletStaticMemory)
     {
         if (!resultOrError.IsOK()) {
-            auto wrappedError = TError("Error getting resource limits for account %Qv",
+            YT_TLOG_WARNING("Error getting resource limits for account")
+                .With("Account", key.Account)
+                .With(resultOrError);
+            THROW_ERROR_EXCEPTION("Error getting resource limits for account %Qv",
                 key.Account)
-                << resultOrError;
-            YT_LOG_WARNING(wrappedError);
-            THROW_ERROR wrappedError;
+                .With(resultOrError);
         }
 
         const auto& node = ConvertToNode(resultOrError.Value());
 
-        YT_LOG_DEBUG("Account limits violation check completed (Key: %v, Result: %v)",
-            key.Account,
-            ConvertToYsonString(node, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Account limits violation check completed")
+            .With("Key", key.Account)
+            .With("Result", ConvertToYsonString(node, EYsonFormat::Text));
 
         if (node->AsMap()->GetChildValueOrThrow<bool>("chunk_count")) {
             THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
@@ -200,18 +201,19 @@ private:
         const TResourceLimitsKey& key)
     {
         if (!resultOrError.IsOK()) {
-            auto wrappedError = TError("Error getting resource limits for tablet cell bundle %Qv",
+            YT_TLOG_WARNING("Error getting resource limits for tablet cell bundle")
+                .With("TabletCellBundle", key.TabletCellBundle)
+                .With(resultOrError);
+            THROW_ERROR_EXCEPTION("Error getting resource limits for tablet cell bundle %Qv",
                 key.TabletCellBundle)
-                << resultOrError;
-            YT_LOG_WARNING(wrappedError);
-            THROW_ERROR wrappedError;
+                .With(resultOrError);
         }
 
         const auto& node = ConvertToNode(resultOrError.Value());
 
-        YT_LOG_DEBUG("Tablet cell bundle limits violation check completed (Key: %v, Result: %v)",
-            key.TabletCellBundle,
-            ConvertToYsonString(node, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Tablet cell bundle limits violation check completed")
+            .With("Key", key.TabletCellBundle)
+            .With("Result", ConvertToYsonString(node, EYsonFormat::Text));
 
         if (key.InMemoryMode != EInMemoryMode::None) {
             if (node->AsMap()->GetChildValueOrThrow<bool>("tablet_static_memory")) {

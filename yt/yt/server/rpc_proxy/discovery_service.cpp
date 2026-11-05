@@ -153,16 +153,16 @@ private:
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::NNative::IClientPtr RootClient_;
-    const TString ProxyPath_;
+    const NYPath::TYPath ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
     const std::optional<int> GrpcPort_;
-    const std::optional<TString> GrpcProxyPath_;
+    const std::optional<NYPath::TYPath> GrpcProxyPath_;
     TCompactVector<ICypressRegistrarPtr, 2> CypressRegistrars_;
 
     std::atomic<TInstant> LastSuccessTimestamp_ = Now();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxySpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProxySpinLock_);
 
     struct TProxy
     {
@@ -190,7 +190,7 @@ private:
         return port;
     }
 
-    std::optional<TString> BuildGrpcProxyPath()
+    std::optional<NYPath::TYPath> BuildGrpcProxyPath()
     {
         if (!GrpcPort_) {
             return std::nullopt;
@@ -202,7 +202,7 @@ private:
     struct TProxyDescriptor
     {
         TProxyAddressMap Addresses;
-        TString CypressPath;
+        NYPath::TYPath CypressPath;
         bool IsGrpc = false;
     };
 
@@ -237,9 +237,9 @@ private:
         return descriptors;
     }
 
-    std::vector<TString> GetCypressPaths() const
+    std::vector<NYPath::TYPath> GetCypressPaths() const
     {
-        std::vector<TString> paths = {ProxyPath_};
+        std::vector<NYPath::TYPath> paths = {ProxyPath_};
         if (GrpcProxyPath_) {
             paths.push_back(*GrpcProxyPath_);
         }
@@ -265,10 +265,11 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating proxy node %v", ProxyPath_)
-                << ex;
+                .With(ex);
         }
 
-        YT_LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
+        YT_TLOG_INFO("Proxy node created")
+            .With("Path", ProxyPath_);
     }
 
     bool IsAvailable() const
@@ -283,13 +284,15 @@ private:
             backoffDuration = Min(
                 backoffDuration + RandomDuration(Max(backoffDuration, Config_->DiscoveryService->LivenessUpdatePeriod)),
                 Config_->DiscoveryService->BackoffPeriod);
-            YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
+            YT_TLOG_WARNING("Failed to perform update, backing off")
+                .With("Duration", backoffDuration)
+                .With(ex);
         };
 
         auto setUnavaliable = [&] {
             if (!IsAvailable() && ProxyCoordinator_->SetAvailableState(false)) {
                 Initialized_ = false;
-                YT_LOG_WARNING("Connectivity lost");
+                YT_TLOG_WARNING("Connectivity lost");
             }
         };
 
@@ -300,7 +303,7 @@ private:
             } catch (const TErrorException& ex) {
                 setBackoff(ex);
                 if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                    YT_LOG_WARNING("Master is in read-only mode");
+                    YT_TLOG_WARNING("Master is in read-only mode");
                 } else {
                     setUnavaliable();
                 }
@@ -326,12 +329,12 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating proxy liveness")
-                << ex;
+                .With(ex);
         }
 
         LastSuccessTimestamp_.store(Now());
         if (ProxyCoordinator_->SetAvailableState(true)) {
-            YT_LOG_INFO("Connectivity restored");
+            YT_TLOG_INFO("Connectivity restored");
         }
     }
 
@@ -391,9 +394,11 @@ private:
             bool changed = ProxyCoordinator_->SetBannedState(banned);
             if (changed) {
                 if (banned) {
-                    ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
+                    ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, std::string()));
                 }
-                YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
+                YT_TLOG_INFO("Proxy ban state changed")
+                    .With("Banned", banned)
+                    .With("Path", ProxyPath_);
             }
 
             auto role = attributes->Find<std::string>(RoleAttributeName);
@@ -427,7 +432,8 @@ private:
                     proxies.push_back({addresses, role});
                 }
             }
-            YT_LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
+            YT_TLOG_DEBUG("Updated proxy list")
+                .With("ProxyCount", proxies.size());
 
             {
                 auto guard = Guard(ProxySpinLock_);
@@ -446,7 +452,8 @@ private:
             : DefaultAddressType;
         auto networkName = request->has_network_name() ? request->network_name() : DefaultNetworkName;
 
-        context->SetRequestInfo("Role: %v", roleFilter);
+        context->AnnotateRequest()
+            .With("Role", roleFilter);
 
         {
             auto guard = Guard(ProxySpinLock_);
@@ -462,7 +469,8 @@ private:
             }
         }
 
-        context->SetResponseInfo("ProxyCount: %v", response->addresses_size());
+        context->AnnotateResponse()
+            .With("ProxyCount", response->addresses_size());
         context->Reply();
     }
 };

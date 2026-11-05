@@ -5,19 +5,26 @@
 #include "public.h"
 #include "tablet_action.h"
 #include "tablet_action_manager.h"
+#include "tablet_base.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_base.h>
+
+#include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -129,9 +136,8 @@ private:
     {
         auto retiringCells = GetDecommissionedCellsUsedByActions();
 
-        YT_LOG_DEBUG_IF(!retiringCells.empty(),
-            "Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
-            retiringCells.size());
+        YT_TLOG_DEBUG_IF(!retiringCells.empty(), "Tablet cell decommissioner observes decommissioned cells with tablets")
+            .With("CellCount", retiringCells.size());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
@@ -182,9 +188,9 @@ private:
                 // When cell is decommissioned all tablet actions should be unlinked.
                 for (auto cell : action->TabletCells()) {
                     if (cell->IsDecommissionStarted()) {
-                        YT_LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
-                            action->GetId(),
-                            cell->GetId());
+                        YT_TLOG_ERROR("Tablet action target cell is decommissioned")
+                            .With("ActionId", action->GetId())
+                            .With("CellId", cell->GetId());
 
                         retiringCells.insert(cell);
                     }

@@ -97,7 +97,7 @@ TFileChunkWriter::TFileChunkWriter(
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
-    : Logger(FileClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
+    : Logger(FileClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
     , Config_(config)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,
@@ -120,7 +120,8 @@ TFileChunkWriter::TFileChunkWriter(
 
 bool TFileChunkWriter::Write(TRef data)
 {
-    YT_LOG_DEBUG("Writing data (Size: %v)", data.Size());
+    YT_TLOG_DEBUG("Writing data")
+        .With("Size", data.Size());
 
     if (data.Empty()) {
         return true;
@@ -161,7 +162,8 @@ void TFileChunkWriter::FlushBlock()
     TCurrentTraceContextGuard guard(TraceContext_);
 
     YT_VERIFY(!Buffer_.IsEmpty());
-    YT_LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
+    YT_TLOG_DEBUG("Flushing block")
+        .With("BlockSize", Buffer_.Size());
 
     auto* block = BlocksExt_.add_blocks();
     block->set_size(Buffer_.Size());

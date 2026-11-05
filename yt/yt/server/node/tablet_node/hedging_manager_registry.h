@@ -14,6 +14,7 @@ struct THedgingUnit
 {
     std::optional<std::string> UserTag;
     bool HunkChunk;
+    NTableClient::EInitialQueryKind QueryKind;
 
     bool operator==(const THedgingUnit& other) const;
 
@@ -56,4 +57,4 @@ IHedgingManagerRegistryPtr CreateHedgingManagerRegistry(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NTabletNode
+} // namespace NYT::NTabletNode

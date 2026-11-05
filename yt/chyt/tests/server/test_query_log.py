@@ -1,17 +1,25 @@
 from base import ClickHouseTestBase, Clique, enable_sequoia
 
-from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug,
-                         raises_yt_error)
+from yt_commands import (authors, abort_transaction, create, exists, lock, read_table, start_transaction,
+                         sync_unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
 
 from yt.common import wait, update
 
 import yt.yson as yson
 
+from pathlib import Path
+import time
+
 
 class TestQueryLog(ClickHouseTestBase):
     @staticmethod
-    def _get_query_log_patch(root_dir=None, max_rows_to_keep=None):
+    def _get_query_log_patch(root_dir=None, max_rows_to_keep=None, log_queries=True):
         return {
+            "clickhouse": {
+                "settings": {
+                    "log_queries": log_queries,
+                },
+            },
             "yt": {
                 "system_log_table_exporters": {
                     "cypress_root_directory": root_dir or "",
@@ -38,12 +46,21 @@ class TestQueryLog(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_query_log_exporter_simple(self):
         root_dir = "//tmp/exporter"
-        create("map_node", root_dir)
 
-        with Clique(1, config_patch=self._get_query_log_patch(root_dir)) as clique:
-            query_id = clique.make_query("select queryID() as query_id")[0]["query_id"]
+        with Clique(1, config_patch=self._get_query_log_patch(root_dir, log_queries=False)) as clique:
+            wait(lambda: any(
+                "Failed to prepare Cypress table during startup" in log.read_text()
+                for log in Path(clique.log_root).glob("*.log")
+            ))
             table_path = root_dir + "/query_log/0"
+            assert not exists(table_path)
+            create("map_node", root_dir)
+
+            query_id = clique.make_query(
+                "select queryID() as query_id", settings={"log_queries": 1},
+            )[0]["query_id"]
             wait(lambda: exists(table_path))
+            wait(lambda: get(table_path + "/@tablet_state") == "mounted")
             wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
 
     @authors("dakovalkov")
@@ -199,11 +216,19 @@ class TestQueryLog(ClickHouseTestBase):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
 
-        with Clique(2, config_patch=self._get_query_log_patch(root_dir)) as clique:
+        with Clique(2, config_patch=self._get_query_log_patch(root_dir, log_queries=False)) as clique:
             table_path = root_dir + "/query_log/0"
             wait(lambda: exists(table_path))
+            wait(lambda: get(table_path + "/@tablet_state") == "mounted")
+            assert not read_table(table_path)
 
-            result = clique.make_query('select a from "//tmp/t" order by a', full_response=True)
+            sync_unmount_table(table_path)
+
+            result = clique.make_query(
+                'select a from "//tmp/t" order by a',
+                settings={"log_queries": 1},
+                full_response=True,
+            )
             assert result.json()["data"] == [{"a": 1}, {"a": 2}]
 
             query_id = result.headers["X-ClickHouse-Query-Id"]
@@ -275,6 +300,36 @@ class TestQueryLog(ClickHouseTestBase):
             for key, value in expected_values.items():
                 assert key in secondary_rows[0]['chyt_query_runtime_variables']
                 assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value
+
+    @authors("buyval01")
+    def test_log_table_is_created_by_leader(self):
+        clique = Clique(
+            1,
+            export_query_log=True,
+            config_patch={"clickhouse": {"settings": {"log_queries": False}}},
+        )
+
+        create("map_node", clique.election_lock_path)
+        tx = start_transaction(timeout=180000)
+        lock(clique.election_lock_path, mode="exclusive", tx=tx)
+
+        with clique:
+            # The foreign transaction prevents this instance from becoming a leader.
+            time.sleep(3)
+            assert clique.get_leader_instance_cookie() is None
+            assert not exists(clique.query_log_table_path)
+
+            abort_transaction(tx)
+
+            wait(lambda: clique.get_leader_instance_cookie() == 0)
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: get(clique.query_log_table_path + "/@tablet_state") == "mounted")
+            assert not read_table(clique.query_log_table_path)
+
+            query_id = clique.make_query(
+                "select queryID() as query_id", settings={"log_queries": 1},
+            )[0]["query_id"]
+            wait(lambda: {"query_id": query_id} in read_table(clique.query_log_table_path + "{query_id}"))
 
     @authors("denmogilevec")
     def test_insert_statistics(self):

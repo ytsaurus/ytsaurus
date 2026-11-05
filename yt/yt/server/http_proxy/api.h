@@ -19,13 +19,13 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUserCommandPair = std::pair<std::string, TString>;
+using TUserCommandPair = std::pair<std::string, std::string>;
 using TUserCounterMap = NConcurrency::TSyncMap<std::pair<std::string, std::string>, NProfiling::TCounter>;
 
 class TSemaphoreGuard
@@ -72,8 +72,14 @@ public:
     void ValidateUser(const std::string& user);
     TError CheckAccess(const std::string& user);
 
-    std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
+    std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const std::string& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
+
+    i64 GetHeavyRequestMemoryReservation(
+        const NDriver::TCommandDescriptor& descriptor,
+        const NYTree::IMapNodePtr& parameters) const;
+    void UpdateHeavyRequestReservedMemory(const TUserCommandPair& key, i64 delta);
+    void IncrementHeavyRequestReservationRejectCount(const TUserCommandPair& key);
 
     void IncrementBytesOutProfilingCounters(
         const std::string& user,
@@ -91,7 +97,7 @@ public:
 
     void IncrementProfilingCounters(
         const std::string& user,
-        const TString& command,
+        const std::string& command,
         std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
         TDuration wallTime,
@@ -100,7 +106,7 @@ public:
 
     void IncrementCpuProfilingCounter(
         const std::string& user,
-        const TString& command,
+        const std::string& command,
         TDuration cpuTime);
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
@@ -113,6 +119,7 @@ public:
 
 private:
     const TApiConfigPtr Config_;
+    const NDriver::TDriverConfigPtr DriverConfig_;
     TAtomicIntrusivePtr<TApiDynamicConfig> DynamicConfig_;
 
     const NDriver::IDriverPtr DriverV3_;
@@ -132,13 +139,13 @@ private:
 
     const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
 
-    std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
-    TString DefaultNetworkName_;
+    std::vector<std::pair<NNet::TIP6Network, std::string>> Networks_;
+    std::string DefaultNetworkName_;
 
     std::string GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
-    THashMap<TString, TInstant> BanCache_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BanCacheLock_);
+    THashMap<std::string, TInstant> BanCache_;
 
     struct TProfilingCounters
     {
@@ -148,6 +155,9 @@ private:
         NProfiling::TCounter RequestCount;
         NProfiling::TEventTimer RequestWallTime;
         NProfiling::TTimeCounter CumulativeRequestCpuTime;
+        std::atomic<i64> HeavyRequestReservedMemory{0};
+        NProfiling::TGauge HeavyRequestReservedMemoryGauge;
+        NProfiling::TCounter HeavyRequestReservationRejectCount;
 
         NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ApiErrors;
     };
@@ -167,7 +177,7 @@ private:
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
     NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
-    NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
+    NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 

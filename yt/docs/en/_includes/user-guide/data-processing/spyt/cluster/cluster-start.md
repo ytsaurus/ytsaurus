@@ -58,7 +58,8 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--discovery-path` | yes | - | Path to the directory for service data on Cypress (Discovery path). | - |
 | `--proxy` | no | Value from the `YT_PROXY` environment variable. | {{product-name}} cluster address | - |
 | `--pool` | no | - | {{product-name}} compute pool that will be used to start the cluster. | - |
-| `--operation-alias` | no | - | Alias of a {{product-name}} operation with the Spark cluster. | - |
+| `--operation-title` | no | `spark_<username>` | The name of the {{product-name}} operation with a Spark cluster | 2.9.0 |
+| `--operation-alias` | no | - | Alias for the {{product-name}} operation with a Spark cluster. The operation alias must start with the `*` character | - |
 | `--params` | no | - | Additional {{product-name}} operation parameters specified as a YSON string. Learn more on the [configuration](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#add) page. | - |
 | `--spyt-version` | no | Version of the `ytsaurus-spyt` package on the client. | SPYT version that will be used to start the cluster. | - |
 | `--preemption-mode` | no | normal | Preemption mode used by the {{product-name}} scheduler. Possible values: "normal" or "graceful". | - |
@@ -72,6 +73,7 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--tcp-proxy-range-size` | no | 100 | Size of the range of ports used for the TCP proxy. | 1.72.0 |
 | `--enable-rpc-job-proxy`, `--disable-rpc-job-proxy` | no | `--enable-rpc-job-proxy` | Use an RPC proxy embedded in a job proxy. If this option is disabled, a general RPC proxy will be used, which may result in cluster performance degradation. | 1.77.0 |
 | `--enable-ytsaurus-shuffle`, `--disable-ytsaurus-shuffle` | no | `--disable-ytsaurus-shuffle` | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
+| `--enable-spark-shuffle`, `--disable-spark-shuffle` | no | `--enable-spark-shuffle` | Run the native external Spark shuffle service on the cluster (see [Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md#enabling-standalone)) | 2.9.3 |
 | `--rpc-job-proxy-thread-pool-size` | no | 4 | Size of a thread pool for the RPC job proxy. | 1.77.0 |
 | `--group-id` | no | - | Discovery group ID. Used when starting a cluster with multiple operations. | - |
 | `--enable-squashfs`, `--disable-squashfs` | no | `--disable-squashfs` | Use pre-configured SquashFS layers in {{product-name}} jobs. | 2.6.0 |
@@ -111,10 +113,10 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--driver-cores-overhead` | no | `--worker-cores-overhead` | Extra cores allocated to workers for drivers (see `--worker-cores-overhead`). | - |
 | `--driver-timeout` | no | `--worker-timeout` | The maximum time a worker will await registration on the Spark master. After this time, the worker process will terminate with an error. | - |
 | `--autoscaler-period`, `--autoscaler-metrics-port`, `--autoscaler-sliding-window`, `--autoscaler-max-free-workers`, `--autoscaler-slot-increment-step` | no | - | Parameters used for working with an [auto-scaler](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md#auto-scale). | - |
-| `--enable-livy` | no | false | Run the Livy server as part of the cluster. You can learn more about the Livy server [here](../../../../../user-guide/data-processing/spyt/cluster/livy.md). | 1.74.0 |
-| `--livy-driver-cores` | no | 1 | Number of CPU cores allocated to a driver started via Livy. | 1.74.0 |
-| `--livy-driver-memory` | no | 1G | Amount of CPU memory allocated to a driver started via Livy. | 1.74.0 |
-| `--livy-max-sessions` | no | 3 | Maximum number of sessions that can run on the Livy server simultaneously. | 1.74.0 |
+| `--enable-livy` | no | false | **Deprecated and unavailable starting with SPYT 2.10.0.** Run the Livy server as part of the cluster. You can learn more about the Livy server [here](../../../../../user-guide/data-processing/spyt/cluster/livy.md). | 1.74.0 |
+| `--livy-driver-cores` | no | 1 | **Deprecated and unavailable starting with SPYT 2.10.0.** Number of CPU cores allocated to a driver started via Livy. | 1.74.0 |
+| `--livy-driver-memory` | no | 1G | **Deprecated and unavailable starting with SPYT 2.10.0.** Amount of CPU memory allocated to a driver started via Livy. | 1.74.0 |
+| `--livy-max-sessions` | no | 3 | **Deprecated and unavailable starting with SPYT 2.10.0.** Maximum number of sessions that can run on the Livy server simultaneously. | 1.74.0 |
 | `--id` | no | - | Deprecated. Left for backward compatibility. | - |
 | `--discovery-dir` | no | - | Deprecated. Left for backward compatibility. | - |
 | `-h`, `--help` | no | - | Command parameter reference | - |

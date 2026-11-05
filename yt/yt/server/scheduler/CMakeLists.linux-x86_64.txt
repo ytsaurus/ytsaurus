@@ -35,6 +35,7 @@ target_link_libraries(yt-server-scheduler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-core-https
   server-scheduler-common
   server-scheduler-strategy
   library-cpp-getopt

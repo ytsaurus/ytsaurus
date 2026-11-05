@@ -129,7 +129,7 @@ private:
         options.ReadFrom = EMasterChannelKind::ClientSideCache;
         auto yson = WaitFor(Client_->GetNode("//sys/@cluster_name", options))
             .ValueOrThrow();
-        return ConvertTo<TString>(yson);
+        return ConvertTo<std::string>(yson);
     }
 
     template <class T>
@@ -137,7 +137,7 @@ private:
         const ITransactionPtr& transaction,
         const TYPath& path,
         const std::string& attributeKey,
-        const TString& errorMessage)
+        const std::string& errorMessage)
     {
         TGetNodeOptions options;
         options.Attributes = {attributeKey};

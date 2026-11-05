@@ -79,6 +79,12 @@ scenarios:
     components:
       ytsaurus:
         version_filter: "23.1"
+  scenario-upgrade:
+    type: upgrade
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 111
+    upgrade_config: configs/upgrades.yaml
 checks:
   test-check:
     type: ODIN

@@ -26,29 +26,23 @@ IInvoker* GetCurrentInvoker();
  *  different from the "truly synchronous" invoker that always invokes actions synchronously,
  *  which corresponds to DFS over the recursion tree.
  */
-IInvokerPtr GetSyncInvoker();
+const IInvokerPtr& GetSyncInvoker();
 
 //! Returns the null invoker, i.e. the invoker whose |Invoke|
 //! method does nothing.
-IInvokerPtr GetNullInvoker();
+const IInvokerPtr& GetNullInvoker();
 
 //! Returns a special per-process invoker that handles all asynchronous finalization
 //! activities (fiber unwinding, abandoned promise cancelation etc).
-IInvokerPtr GetFinalizerInvoker();
+const IInvokerPtr& GetFinalizerInvoker();
 
-//! Tries to invoke #onSuccess via #invoker.
-//! If the invoker discards the callback without executing it then
-//! #onCancel is run.
-template <CInvocable<void()> TOnSuccess, CInvocable<void()> TOnCancel>
-void GuardedInvoke(
-    const IInvokerPtr& invoker,
-    TOnSuccess onSuccess,
-    TOnCancel onCancel);
+//! Returns a callback that runs #onSuccess when invoked or #onCancel when
+//! destroyed without having been invoked (e.g. discarded by an invoker).
+//! Must be invoked at most once.
+TClosure MakeGuardedCallback(
+    TClosure onSuccess,
+    TClosure onCancel);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-#define INVOKER_UTIL_INL_H_
-#include "invoker_util-inl.h"
-#undef INVOKER_UTIL_INL_H_

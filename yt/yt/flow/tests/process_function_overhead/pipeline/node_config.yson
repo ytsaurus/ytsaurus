@@ -1,0 +1,30 @@
+{
+    "logging" = {
+        "rules" = [
+            {
+                "exclude_categories" = [
+                    "PublicFlowController";
+                ];
+                "min_level" = "info";
+                "writers" = [
+                    "AllError";
+                ];
+            };
+            {
+                "include_categories" = [
+                    "PublicFlowController";
+                ];
+                "min_level" = "info";
+                "writers" = [
+                    "AllError";
+                ];
+            };
+        ];
+        "writers" = {
+            "AllError" = {
+                "type" = "file";
+                "file_name" = "to_be_overwritten_by_test_framework";
+            };
+        };
+    };
+}

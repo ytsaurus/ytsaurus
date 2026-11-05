@@ -4,7 +4,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT, CONFIG_FORCED_SHORTCUTS
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -13,6 +13,7 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
 
+import functools
 import os
 import typing
 from copy import deepcopy
@@ -110,6 +111,7 @@ class DefaultConfigType(TypedDict, total=False):
         commands_with_framing: List[str]
 
     proxy: DefaultConfigProxyType
+    annotate_objects: Dict[str, Any]
     dynamic_table_retries: DefaultConfigRetriesType
     max_row_count_for_local_sampling: int
     tablets_ready_timeout: int
@@ -141,6 +143,7 @@ class DefaultConfigType(TypedDict, total=False):
     driver_config: Optional[Dict[str, Any]]
     enable_rpc_proxy_in_job_proxy: bool
     cluster_name_for_rpc_proxy_in_job_proxy: Optional[str]
+    driver_enable_fork_detection: bool
     driver_logging_config: Optional[Any]
     enable_driver_logging_to_stderr: Optional[Any]
     driver_address_resolver_config: Optional[Any]
@@ -157,7 +160,7 @@ class DefaultConfigType(TypedDict, total=False):
         module_filter: Optional[Any]
         force_using_py_instead_of_pyc: bool
         create_init_file_for_package_modules: bool
-        additional_files_to_archive: Optional[Any]
+        additional_files_to_archive: Optional[List[Tuple[str, str]]]
         create_modules_archive_function: Optional[Any]
         find_module_file_error_logging_level: str
         framework: str
@@ -189,6 +192,7 @@ class DefaultConfigType(TypedDict, total=False):
         ignore_system_modules: bool
         system_module_patterns: List[Any]
         encrypt_pickle_files: int
+        encryption_engine: str
 
     pickling: DefaultConfigPicklingType
     is_local_mode: Optional[Any]
@@ -373,6 +377,12 @@ class DefaultConfigType(TypedDict, total=False):
     dump_table_options: DefaultConfigDumpTableOptionsType
     enable_password_strength_validation: bool
 
+    class DefaultConfigAdminType(TypedDict, total=False):
+        prometheus_image: str
+        grafana_image: str
+
+    admin: DefaultConfigAdminType
+
 
 def retry_backoff_config(**kwargs) -> DefaultConfigRetriesBackoffType:
     config_dict = {
@@ -554,6 +564,9 @@ default_config = {
         ],
     },
 
+    # Annotate objects with attributes
+    "annotate_objects": {},
+
     # Parameters for dynamic table requests retries.
     "dynamic_table_retries": get_dynamic_table_retries(),
 
@@ -613,7 +626,7 @@ default_config = {
     "default_api_version_for_rpc": "v4",
 
     # Enables generating request id and passing it to native driver.
-    "enable_passing_request_id_to_driver": False,
+    "enable_passing_request_id_to_driver": True,
 
     # Username for native driver requests.
     "driver_user_name": None,
@@ -624,6 +637,8 @@ default_config = {
     "enable_rpc_proxy_in_job_proxy": False,
     # Target cluster name (in case it differs from proxy): None | str
     "cluster_name_for_rpc_proxy_in_job_proxy": None,
+    # Detect and prevent driver usage in forked process by throwing runtime error.
+    "driver_enable_fork_detection": False,
 
     # Logging configuration.
     "driver_logging_config": None,
@@ -669,7 +684,7 @@ default_config = {
         # In this case artificial __init__.py is added when modules archive is created.
         "create_init_file_for_package_modules": True,
         # The list of files to add into archive. File should be specified as tuple that
-        # consists of absolute file path and relative path in archive.
+        # consists of source file path (absolute) and relative path in archive.
         "additional_files_to_archive": None,
         # Function to replace standard py_wrapper.create_modules_archive.
         # If this function specified all previous options does not applied.
@@ -726,6 +741,7 @@ default_config = {
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
         # Enable modules filtering if client and server OS/python versions are different.
+        # Tries to ignore *.so, *.pyc (do not forget disable `encrypt_pickle_files` and `ignore_yson_bindings_for_incompatible_platforms`)
         "enable_modules_compatibility_filter": False,
         # Compression level of archive with modules (from 1 to 9)
         "modules_archive_compression_level": 6,
@@ -735,7 +751,8 @@ default_config = {
         "modules_chunk_size": 100 * common.MB,
         # Bypass artifacts cache for modules files.
         "modules_bypass_artifacts_cache": None,
-        # Ignore "system" python modules (installed on client's host and presented in YT runtime).
+        # Ignore all "system" python modules (installed on client's host and presented in YT runtime).
+        # "system" means - has __file__ and __file__ matches `system_module_patterns`
         "ignore_system_modules": RemotePatchableBoolean(False, "python_pickling_ignore_system_modules"),
         "system_module_patterns": [
             r"/lib/python[\d\.]+/(site|dist)-packages/",
@@ -743,6 +760,11 @@ default_config = {
         ],
         # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
         "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
+        # Pickle encryption engine: "cryptography_fernet" (default) or "native_chacha" (ctypes+OpenSSL with pure Python fallback).
+        "encryption_engine": RemotePatchableString(
+            "cryptography_fernet",
+            "python_pickling_encryption_engine",
+        ),
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -1115,6 +1137,11 @@ default_config = {
     # if enabled, the password strength will be verified by the client when performing
     # a set_user_password request
     "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
+
+    "admin": {
+        "prometheus_image": "prom/prometheus:v3.11.3",
+        "grafana_image": "grafana/grafana-oss:12.4.2",
+    },
 }
 
 # pydoc :: default_config :: end
@@ -1138,7 +1165,7 @@ def get_default_config() -> DefaultConfigType:
         transform_func=transform_value)
     config = VerifiedDict(
         template_dict=template_dict,
-        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
+        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults", "annotate_objects"],
         transform_func=transform_value)
 
     _update_from_env_vars(config, FORCED_SHORTCUTS)
@@ -1150,7 +1177,11 @@ FORCED_SHORTCUTS = {
     "YT_BASE_LAYER" : "operation_base_layer",
     "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
     "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+    "YT_ANNOTATE_OBJECTS": "annotate_objects",
 }
+
+
+FORCED_SHORTCUTS.update(CONFIG_FORCED_SHORTCUTS)
 
 
 SHORTCUTS = {
@@ -1159,6 +1190,7 @@ SHORTCUTS = {
     "YT_PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
     "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
     "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+    "YT_PREFER_HTTPS": "proxy/prefer_https",
 
     "YT_TOKEN": "token",
     "YT_TOKEN_PATH": "token_path",
@@ -1173,6 +1205,7 @@ SHORTCUTS = {
 
     "YT_DRIVER_CONFIG": "driver_config",
     "YT_DRIVER_CONFIG_PATH": "driver_config_path",
+    "YT_DRIVER_ENABLE_FORK_DETECTION": "driver_enable_fork_detection",
 
     "YT_USE_HOSTS": "proxy/enable_proxy_discovery",
     "YT_HOSTS": "proxy/proxy_discovery_url",
@@ -1235,6 +1268,10 @@ SHORTCUTS = {
     "YT_CONFIG_PROFILE": "config_profile",
 
     "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
+    "YT_ENCRYPTION_ENGINE": "pickling/encryption_engine",
+
+    "YT_ADMIN_PROMETHEUS_IMAGE": "admin/prometheus_image",
+    "YT_ADMIN_GRAFANA_IMAGE": "admin/grafana_image",
 }
 
 
@@ -1257,7 +1294,21 @@ def _update_from_env_vars(
     config: VerifiedDict,
     shortcuts: Optional[dict] = None
 ):
-    def _get_var_type(config_value, type_hint_value):
+
+    def _parse_string_to_struct(default_obj_type: Optional[typing.Callable[[], None]], obj: str):
+        if not obj:
+            if default_obj_type:
+                return default_obj_type()
+            else:
+                return None
+
+        try:
+            data = yson._loads_from_native_str(obj)
+        except yson.YsonError:
+            data = yson.json_to_yson(json.loads(obj))
+        return data
+
+    def _get_var_type(config_value, type_hint_value) -> typing.Callable[[str], Any]:
         var_type = type(config_value)
         # Using int we treat "0" as false, "1" as "true"
         if var_type == bool:
@@ -1272,14 +1323,13 @@ def _update_from_env_vars(
                 if get_origin(type_hint_value) == Union:
                     type_hint_value = get_args(type_hint_value)[0]
 
-                if type_hint_value in (int, str, float, bool, list, dict, tuple):
-                    var_type = type_hint_value
+                type_hint = typing.get_origin(type_hint_value) or type_hint_value
+                if type_hint in (int, str, float, bool, list, dict, tuple):
+                    var_type = type_hint
                 else:
                     var_type = str
             else:
                 var_type = str
-        elif var_type == dict or var_type == YsonMap:
-            var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
         elif isinstance(config_value, RemotePatchableValueBase):
             var_type = type(config_value.value)
 
@@ -1301,6 +1351,8 @@ def _update_from_env_vars(
     def _get(d, key):
         parts = key.split("/")
         for k in parts:
+            if typing.get_origin(d):
+                break
             d = d.get(k)
         return d
 
@@ -1316,19 +1368,22 @@ def _update_from_env_vars(
         shortcuts = SHORTCUTS
 
     for key, value in os.environ.items():
-        if not key.startswith("YT_"):
-            continue
-
         if key in shortcuts:
             name = shortcuts[key]
+            var_type = None
             if name == "driver_config":
-                var_type = yson.loads
+                var_type = yson._loads_from_native_str
             elif name == "proxy/aliases":
                 def parse_proxy_aliases(value):
                     return yson.yson_to_json(yson.loads(value.encode()))
                 var_type = parse_proxy_aliases
             else:
-                var_type = _get_var_type(_get(config, name), _get(config_type_hints, name))
+                var_type = _get_var_type(
+                    config_value=_get(config, name),
+                    type_hint_value=_get(config_type_hints, name),
+                )
+            if var_type in (list, dict, tuple, YsonMap):
+                var_type = functools.partial(_parse_string_to_struct, var_type)
             # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)

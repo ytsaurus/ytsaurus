@@ -10,7 +10,7 @@ Task-прокси предоставляет доступ к веб-сервис
 
 - Helm 3.x;
 - запущенный кластер {{product-name}} и внутренний адрес HTTP прокси;
-- специальный пользователь-робот `robot-task-proxy` с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)):
+- специальный пользователь-робот `robot-task-proxy` с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#{% if audience == "internal" %}getting_token_for_robot{% else %}token-management{% endif %})):
    ```sh
    yt create user --attr "{name=robot-task-proxy}"
    yt issue-token robot-task-proxy > token
@@ -190,3 +190,5 @@ tls:
 ```sh
 kubectl create secret tls yt-domain-cert -n yt --cert=cert.pem --key=key.pem
 ```
+
+Инструкция по обновлению Task-прокси подробно описана в статье [Обновление Task-прокси](../../admin-guide/update/update-task-proxy.md).

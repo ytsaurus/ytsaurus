@@ -242,6 +242,11 @@ TChunkTreeStatistics TChunkView::GetStatistics() const
     return GetChunkTreeStatistics(UnderlyingTree_);
 }
 
+THunkChunkTreeStatistics TChunkView::GetHunkStatistics() const
+{
+    return GetHunkChunkTreeStatistics(UnderlyingTree_);
+}
+
 int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
 {
     const auto& lhsChunkId = lhs->GetUnderlyingTree()->GetId();

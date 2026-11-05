@@ -101,7 +101,7 @@ class TestChunkLocations(YTEnvSetup):
 
         medium_override_path = "//sys/chunk_locations/{}/@medium_override".format(location_uuid)
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set(medium_override_path, "nonexisting")
 
         assert not exists(medium_override_path)

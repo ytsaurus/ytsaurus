@@ -14,24 +14,21 @@
 
 
 """Functions and classes common to multiple pymongo modules."""
+
 from __future__ import annotations
 
 import datetime
 import warnings
 from collections import OrderedDict, abc
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
 from difflib import get_close_matches
 from importlib.metadata import requires, version
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterator,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
-    Sequence,
-    Type,
     Union,
     overload,
 )
@@ -57,7 +54,7 @@ if TYPE_CHECKING:
     from pymongo.typings import _AgnosticClientSession
 
 
-ORDERED_TYPES: Sequence[Type[Any]] = (SON, OrderedDict)
+ORDERED_TYPES: Sequence[type[Any]] = (SON, OrderedDict)
 
 # Defaults until we connect to a server and get updated limits.
 MAX_BSON_SIZE = 16 * (1024**2)
@@ -67,10 +64,13 @@ MAX_WIRE_VERSION = 0
 MAX_WRITE_BATCH_SIZE = 100000
 
 # What this version of PyMongo supports.
-MIN_SUPPORTED_SERVER_VERSION = "4.2"
-MIN_SUPPORTED_WIRE_VERSION = 8
-# MongoDB 8.0
-MAX_SUPPORTED_WIRE_VERSION = 25
+MIN_SUPPORTED_SERVER_VERSION = "4.4"
+MIN_SUPPORTED_WIRE_VERSION = 9
+# MongoDB 9.0
+MAX_SUPPORTED_WIRE_VERSION = 29
+
+# MongoDB 7.1, the first release whose mongos continues an exhaust getMore stream.
+MONGOS_EXHAUST_WIRE_VERSION = 22
 
 # Frequency to call hello on servers, in seconds.
 HEARTBEAT_FREQUENCY = 10
@@ -139,6 +139,12 @@ SRV_SERVICE_NAME = "mongodb"
 
 # Default value for serverMonitoringMode
 SERVER_MONITORING_MODE = "auto"  # poll/stream/auto
+
+# Default value for max adaptive retries
+MAX_ADAPTIVE_RETRIES = 2
+
+# Default value for enableOverloadRetargeting
+ENABLE_OVERLOAD_RETARGETING = False
 
 # Auth mechanism properties that must raise an error instead of warning if they invalidate.
 _MECH_PROP_MUST_RAISE = ["CANONICALIZE_HOST_NAME"]
@@ -233,13 +239,6 @@ def validate_readable(option: str, value: Any) -> Optional[str]:
     return value
 
 
-def validate_positive_integer_or_none(option: str, value: Any) -> Optional[int]:
-    """Validate that 'value' is a positive integer or None."""
-    if value is None:
-        return value
-    return validate_positive_integer(option, value)
-
-
 def validate_non_negative_integer_or_none(option: str, value: Any) -> Optional[int]:
     """Validate that 'value' is a positive integer or 0 or None."""
     if value is None:
@@ -259,20 +258,6 @@ def validate_string_or_none(option: str, value: Any) -> Optional[str]:
     if value is None:
         return value
     return validate_string(option, value)
-
-
-def validate_int_or_basestring(option: str, value: Any) -> Union[int, str]:
-    """Validates that 'value' is an integer or string."""
-    if isinstance(value, int):
-        return value
-    elif isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return value
-    raise TypeError(
-        f"Wrong type for {option}, value must be an integer or a string, not {type(value)}"
-    )
 
 
 def validate_non_negative_int_or_basestring(option: Any, value: Any) -> Union[int, str]:
@@ -441,6 +426,31 @@ _MECHANISM_PROPS = frozenset(
 )
 
 
+_SAFE_AUTH_MECHANISM_PROPS_FOR_REPR = frozenset(
+    [
+        "ALLOWED_HOSTS",
+        "CANONICALIZE_HOST_NAME",
+        "ENVIRONMENT",
+        "SERVICE_HOST",
+        "SERVICE_NAME",
+        "SERVICE_REALM",
+        "TOKEN_RESOURCE",
+    ]
+)
+
+
+def redact_auth_mechanism_properties_for_repr(value: Any) -> Any:
+    """Redact sensitive auth mechanism properties before including them in repr."""
+    if not isinstance(value, dict):
+        return value
+
+    redacted = value.copy()
+    for key in redacted:
+        if str(key).upper() not in _SAFE_AUTH_MECHANISM_PROPS_FOR_REPR:
+            redacted[key] = "<redacted>"
+    return redacted
+
+
 def validate_auth_mechanism_properties(option: str, value: Any) -> dict[str, Union[bool, str]]:
     """Validate authMechanismProperties."""
     props: dict[str, Any] = {}
@@ -498,16 +508,18 @@ def validate_auth_mechanism_properties(option: str, value: Any) -> dict[str, Uni
 
 def validate_document_class(
     option: str, value: Any
-) -> Union[Type[MutableMapping[str, Any]], Type[RawBSONDocument]]:
+) -> Union[type[MutableMapping[str, Any]], type[RawBSONDocument]]:
     """Validate the document_class option."""
-    # issubclass can raise TypeError for generic aliases like SON[str, Any].
-    # In that case we can use the base class for the comparison.
-    is_mapping = False
+    # Generic aliases like SON[str, Any] or dict[str, Any] aren't classes, so
+    # resolve to their origin before the subclass check. Whether issubclass()
+    # raises TypeError or just returns False for such aliases is inconsistent
+    # across Python implementations (e.g. PyPy vs CPython), so check the
+    # origin proactively instead of relying on catching the error.
+    check_class = getattr(value, "__origin__", value)
     try:
-        is_mapping = issubclass(value, abc.MutableMapping)
+        is_mapping = issubclass(check_class, abc.MutableMapping)
     except TypeError:
-        if hasattr(value, "__origin__"):
-            is_mapping = issubclass(value.__origin__, abc.MutableMapping)
+        is_mapping = False
     if not is_mapping and not issubclass(value, RawBSONDocument):
         raise TypeError(
             f"{option} must be dict, bson.son.SON, "
@@ -647,7 +659,7 @@ def validate_unicode_decode_error_handler(dummy: Any, value: str) -> str:
 def validate_tzinfo(dummy: Any, value: Any) -> Optional[datetime.tzinfo]:
     """Validate the tzinfo option"""
     if value is not None and not isinstance(value, datetime.tzinfo):
-        raise TypeError("%s must be an instance of datetime.tzinfo" % value)
+        raise TypeError(f"{value} must be an instance of datetime.tzinfo")
     return value
 
 
@@ -736,8 +748,11 @@ URI_OPTIONS_VALIDATOR_MAP: dict[str, Callable[[Any, Any], Any]] = {
     "zlibcompressionlevel": validate_zlib_compression_level,
     "srvservicename": validate_string,
     "srvmaxhosts": validate_non_negative_integer,
+    "srvallowedhostssuffix": validate_string,
     "timeoutms": validate_timeoutms,
     "servermonitoringmode": validate_server_monitoring_mode,
+    "maxadaptiveretries": validate_non_negative_integer,
+    "enableoverloadretargeting": validate_boolean_or_string,
 }
 
 # Dictionary where keys are the names of URI options specific to pymongo,
@@ -771,6 +786,8 @@ KW_VALIDATORS: dict[str, Callable[[Any, Any], Any]] = {
     "server_selector": validate_is_callable_or_none,
     "auto_encryption_opts": validate_auto_encryption_opts_or_none,
     "authoidcallowedhosts": validate_list,
+    "max_adaptive_retries": validate_non_negative_integer,
+    "enable_overload_retargeting": validate_boolean_or_string,
 }
 
 # Dictionary where keys are any URI option name, and values are the
@@ -816,16 +833,6 @@ TIMEOUT_OPTIONS: list[str] = [
     "sockettimeoutms",
     "waitqueuetimeoutms",
 ]
-
-_AUTH_OPTIONS = frozenset(["authmechanismproperties"])
-
-
-def validate_auth_option(option: str, value: Any) -> tuple[str, Any]:
-    """Validate optional authentication parameters."""
-    lower, value = validate(option, value)
-    if lower not in _AUTH_OPTIONS:
-        raise ConfigurationError(f"Unknown option: {option}. Must be in {_AUTH_OPTIONS}")
-    return option, value
 
 
 def _get_validator(
@@ -971,6 +978,15 @@ class BaseObject:
             return DEFAULT_WRITE_CONCERN
         return self.write_concern
 
+    def _write_concern_for_cmd(
+        self, cmd: Mapping[str, Any], session: Optional[_AgnosticClientSession]
+    ) -> WriteConcern:
+        raw_wc = cmd.get("writeConcern")
+        if raw_wc is not None:
+            return WriteConcern(**raw_wc)
+        else:
+            return self._write_concern_for(session)
+
     @property
     def read_preference(self) -> _ServerMode:
         """Read only access to the read preference of this instance.
@@ -1039,6 +1055,8 @@ class _CaseInsensitiveDictionary(MutableMapping[str, Any]):
 
         return True
 
+    __hash__ = None  # type: ignore[assignment]
+
     def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.__data.get(key.lower(), default)
 
@@ -1057,12 +1075,10 @@ class _CaseInsensitiveDictionary(MutableMapping[str, Any]):
         self.__data.clear()
 
     @overload
-    def setdefault(self, key: str, default: None = None) -> Optional[Any]:
-        ...
+    def setdefault(self, key: str, default: None = None) -> Optional[Any]: ...
 
     @overload
-    def setdefault(self, key: str, default: Any) -> Any:
-        ...
+    def setdefault(self, key: str, default: Any) -> Any: ...
 
     def setdefault(self, key: str, default: Optional[Any] = None) -> Optional[Any]:
         lc_key = key.lower()

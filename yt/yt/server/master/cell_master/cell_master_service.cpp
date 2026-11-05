@@ -43,7 +43,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NCellMasterClient::NProto, ResetDynamicallyPropagatedMasterCells)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);

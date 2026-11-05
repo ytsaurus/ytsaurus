@@ -2,7 +2,9 @@
 
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_join_cbo_factory.h>
 
+#include <yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/file/yql_yt_file_coordinator_service.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
+#include <yt/yql/providers/yt/fmr/job_preparer/impl/yql_yt_job_preparer_impl.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 
@@ -26,6 +28,12 @@ TFmrRunTool::TFmrRunTool()
         opts.AddLongOption( "fmrjob-bin", "Path to fmrjob binary")
             .Optional()
             .StoreResult(&FmrJobBin_);
+        opts.AddLongOption("fmr-coordinator-yson-path", "Path to YSON file with coordinator settings")
+            .Optional()
+            .StoreResult(&CoordinatorYsonPath_);
+        opts.AddLongOption("fmr-worker-yson-path", "Path to YSON file with worker settings")
+            .Optional()
+            .StoreResult(&WorkerYsonPath_);
     });
 }
 
@@ -40,19 +48,21 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{
         .RunInSeparateProcess = true,
         .FmrJobBinaryPath = FmrJobBin_,
-        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_,
-        .GatewayType = "file"
+        .GatewayType = "file",
+        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_
     });
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
     fmrServices->YtJobService = NFmr::MakeFileYtJobService();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
     fmrServices->CoordinatorServerUrl = FmrCoordinatorServerUrl_;
     fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;
+    fmrServices->CoordinatorYsonPath = CoordinatorYsonPath_;
+    fmrServices->WorkerYsonPath = WorkerYsonPath_;
     fmrServices->NeedToTransformTmpTablePaths = false;
 
     fmrServices->FileStorage = GetFileStorage();
     if (!fmrServices->DisableLocalFmrWorker) {
-        auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), TableDataServiceDiscoveryFilePath_);
+        auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), NFmr::MakeFileTableDataServiceDiscovery({.Path = TableDataServiceDiscoveryFilePath_}));
         fmrServices->JobPreparer = jobPreparer;
     }
     fmrServices->CheckSpecDoesntUseNativeYtTypes = false;

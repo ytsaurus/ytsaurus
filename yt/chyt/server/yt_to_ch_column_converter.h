@@ -36,7 +36,7 @@ public:
     //! - optional<T> -> T' when Nullable(T') is not available in CH;
     TYTToCHColumnConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
-        TCompositeSettingsPtr settings,
+        TConversionSettingsPtr settings,
         bool isReadConversion = true);
 
     TYTToCHColumnConverter(TYTToCHColumnConverter&& other);

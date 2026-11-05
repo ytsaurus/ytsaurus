@@ -21,19 +21,21 @@ on:
         required: false
       S3_SECRET_KEY:
         required: false
-      BUILD_CACHE_BAZEL_USERNAME:
-        required: false
-      BUILD_CACHE_BAZEL_PASSWORD:
-        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+permissions:
+  contents: read
 
 jobs:
 
   notify-start:
     name: Notify PR start
     runs-on: trampoline
+    permissions:
+      issues: write
+      pull-requests: write
     outputs:
       comment-id: ${{ steps.notify-pr.outputs.comment-id }}
     steps:
@@ -63,9 +65,10 @@ jobs:
     steps:
       - name: Start YC runner
         id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: start
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: ${{ vars.YC_FOLDER_ID }}
@@ -76,7 +79,7 @@ jobs:
           memory: 64GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 558GB
+          disk-size: 744GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
@@ -90,71 +93,88 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout ytsaurus
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit-sha }}
           fetch-depth: 2
           path: ytsaurus
+          allow-unsafe-pr-checkout: true
 
   build-strawberry:
     name: Build Strawberry controller
-    needs:
-      - start-vm
-      - checkout
+    permissions:
+      contents: read
     with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
-      build-types: '["release"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+      runs-on-value: ubuntu-latest
+      checkout-ref: ${{ inputs.commit-sha }}
+    uses: ./.github/workflows/strawberry-action.yaml
 
-  build-cmake:
-    name: Build with cmake
+  build-check-cmake:
+    name: CMake build and check
     needs:
       - start-vm
       - checkout
-      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      build-types: '["release"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+      build-types: '["relwithdebinfo"]'
+      run-unittests: true
+    uses: ./.github/workflows/cmake-action.yaml
+
+  cleanup-cmake:
+    name: Clean CMake build artifacts
+    needs:
+      - start-vm
+      - checkout
+      - build-check-cmake
+    if: ${{ !cancelled() && needs.checkout.result == 'success' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 30
+    steps:
+      - name: Remove CMake build artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          df -h .
+          df -i .
+          for cleanup_dir in ../build_cmake_relwithdebinfo ../build_yql_cmake_relwithdebinfo ../venv; do
+            if [ -d "$cleanup_dir" ]; then
+              du -sh -- "$cleanup_dir"
+            fi
+            rm -rf -- "$cleanup_dir"
+          done
+          df -h .
+          df -i .
 
   build-ya-make:
     name: Build with ya-make
     needs:
       - start-vm
-      - checkout
+      - cleanup-cmake
+    if: ${{ !cancelled() && needs.cleanup-cmake.result == 'success' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
+      build-flow-tests: ${{ github.ref_name == 'main' }}
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
-      build-types: '["release"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+      build-types: '["relwithdebinfo"]'
     uses: ./.github/workflows/build-jobs.yaml
 
   run-tests:
     name: PR tests
     needs:
       - start-vm
-      - build-strawberry
       - build-ya-make
       - notify-start
-      - checkout
-    if: ${{ needs.build-ya-make.result == 'success' }}
+    if: ${{ !cancelled() && needs.build-ya-make.result == 'success' && needs.notify-start.result == 'success' }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/pr-tests.yaml
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -171,9 +191,13 @@ jobs:
       - run-tests
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
+      - cleanup-cmake
       - build-strawberry
     runs-on: trampoline
+    permissions:
+      issues: write
+      pull-requests: write
     if: ${{ always() }}
     steps:
       - name: Notify PR
@@ -183,7 +207,7 @@ jobs:
             const current_time = new Date().toLocaleString("ru-RU");
             const message = 'PR autocheck finished.\nStatuses:\n'
             const strawberry_status = 'Strawberry controller: ' + '${{ needs.build-strawberry.result }}' + '\n';
-            const cmake_status = 'CMake build: ' + '${{ needs.build-cmake.result }}' + '\n';
+            const cmake_status = 'CMake build+check: ' + '${{ needs.build-check-cmake.result }}' + '\n';
             const ya_make_status = 'Ya-make build: ' + '${{ needs.build-ya-make.result }}' + '\n';
             const tests_status = 'Tests: ' + '${{ needs.run-tests.result }}' + '\n';
             const comment = await github.rest.issues.getComment({
@@ -205,16 +229,18 @@ jobs:
     needs:
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
+      - cleanup-cmake
       - run-tests
       - notify-finish
     runs-on: trampoline
     if: ${{ always() }}
     steps:
       - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: stop
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}

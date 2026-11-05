@@ -67,12 +67,12 @@ void TCpuMonitor::DoCheck()
     auto decision = TryMakeDecision();
     if (decision) {
         if (!Config_->EnableCpuReclaim || JobProxy_->TrySetCpuGuarantee(*decision)) {
-            YT_LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
-                SoftLimit_,
-                *decision);
+            YT_TLOG_DEBUG("Soft limit changed")
+                .With("OldValue", SoftLimit_)
+                .With("NewValue", *decision);
             SoftLimit_ = *decision;
         } else {
-            YT_LOG_DEBUG("Unable to change soft limit: job proxy refused to change CPU share");
+            YT_TLOG_DEBUG("Unable to change soft limit: job proxy refused to change CPU share");
         }
     }
 
@@ -85,7 +85,8 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
     try {
         totalCpu = JobProxy_->GetSpentCpuTime();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to get CPU statistics");
+        YT_TLOG_ERROR("Failed to get CPU statistics")
+            .With(ex);
         return false;
     }
 
@@ -98,9 +99,9 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
         auto newSmoothedUsage = SmoothedUsage_
             ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * (*SmoothedUsage_)
             : HardLimit_;
-        YT_LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
-            SmoothedUsage_,
-            newSmoothedUsage);
+        YT_TLOG_DEBUG("Smoothed CPU usage updated")
+            .With("OldValue", SmoothedUsage_)
+            .With("NewValue", newSmoothedUsage);
         SmoothedUsage_ = newSmoothedUsage;
     }
     LastCheckTime_ = now;
@@ -172,7 +173,7 @@ bool TCpuMonitor::CheckStarted()
     }
     if (TInstant::Now() >= StartInstant.value()) {
         Started = true;
-        YT_LOG_DEBUG("Job CPU monitor is started");
+        YT_TLOG_DEBUG("Job CPU monitor is started");
     }
     return Started;
 }

@@ -1,6 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE, with_additional_threads
 
+from yt_helpers import profiler_factory
+
 from yt_queue_agent_test_base import TestQueueAgentBase
+
+from yt.environment.tls_helpers import (
+    create_certificate,
+    get_certificate_fingerprint,
+    get_server_certificate,
+)
 
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
@@ -20,6 +28,7 @@ import builtins
 import functools
 import logging
 import pytest
+import threading
 import time
 
 
@@ -270,10 +279,10 @@ class TestKafkaProxy(KafkaProxyBase):
         set(f"{queue_path}/@inherit_acl", False)
         set(f"{consumer_path}/@inherit_acl", False)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
@@ -307,10 +316,10 @@ class TestKafkaProxy(KafkaProxyBase):
         set(f"{queue_path}/@inherit_acl", False)
         set(f"{consumer_path}/@inherit_acl", False)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
@@ -405,6 +414,65 @@ class TestKafkaProxy(KafkaProxyBase):
 
         _check_rows(rows_count)
 
+    @authors("panesher")
+    def test_same_key_same_partition_and_order(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+
+        TestKafkaProxy._create_kafka_queue(queue_path, tablet_count=5)
+
+        address = self.Env.get_kafka_proxy_address()
+        p = Producer(get_producer_config(address, token))
+        serializer = StringSerializer("utf_8")
+
+        keys = [f"key_{i}" for i in range(10)]
+        repeats = 5
+
+        for seq in range(repeats):
+            for key in keys:
+                p.poll(0.0)
+                p.produce(topic=queue_path,
+                          key=serializer(key),
+                          value=serializer(f"{seq}"),
+                          on_delivery=_fail_on_error)
+            p.flush()
+        p.flush()
+
+        def _check():
+            rows = select_rows("key, value, [$tablet_index], [$row_index] from [//tmp/queue]")
+            if len(rows) != len(keys) * repeats:
+                return False
+
+            # Same key must always land on the same tablet (partition).
+            key_to_tablet = {}
+            for row in rows:
+                tablet_index = row["$tablet_index"]
+                if row["key"] in key_to_tablet:
+                    assert key_to_tablet[row["key"]] == tablet_index, \
+                        f"Key '{row['key']}' landed on tablets {key_to_tablet[row['key']]} and {tablet_index}"
+                else:
+                    key_to_tablet[row["key"]] = tablet_index
+
+            # Within a partition messages are ordered by row index, so per key
+            # the produce order must be preserved.
+            rows.sort(key=lambda row: (row["$tablet_index"], row["$row_index"]))
+            key_to_values = {}
+            for row in rows:
+                key_to_values.setdefault(row["key"], []).append(row["value"])
+
+            for key, values in key_to_values.items():
+                assert values == [f"{seq}" for seq in range(repeats)], \
+                    f"Key '{key}' has out-of-order values {values}"
+
+            return True
+
+        wait(_check)
+
     @authors("apachee")
     def test_fetch(self):
         username = "u"
@@ -480,8 +548,6 @@ class TestKafkaProxy(KafkaProxyBase):
             {"surname": "foo-0", "number": i, "$tablet_index": i} for i in range(row_count)
         ]
 
-        insert_rows(queue_path, rows)
-
         address = self.Env.get_kafka_proxy_address()
 
         consumers = []
@@ -494,6 +560,19 @@ class TestKafkaProxy(KafkaProxyBase):
             c = Consumer(consumer_config)
             c.subscribe([queue_path])
             consumers.append(c)
+
+        def is_assignments_balanced():
+            assert tablet_count % len(consumers) == 0, "Tablet count is not divisible by consumer count"
+            expected_partitions_per_consumer = tablet_count // len(consumers)
+
+            for consumer in consumers:
+                consumer.poll(0.1)
+
+            return all(len(consumer.assignment()) == expected_partitions_per_consumer for consumer in consumers)
+
+        wait(is_assignments_balanced)
+
+        insert_rows(queue_path, rows)
 
         none_message_count = 0
         error_count = 0
@@ -555,9 +634,7 @@ class TestKafkaProxy(KafkaProxyBase):
             consumers.append(c)
 
         # Wait rebalancing.
-        for _ in range(15):
-            for consumer_index, consumer in enumerate(consumers):
-                consumer.poll(0.1)
+        wait(is_assignments_balanced)
 
         consumer_count *= 2
         rows *= 2
@@ -695,7 +772,85 @@ class TestKafkaProxy(KafkaProxyBase):
         wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)
 
     @authors("panesher")
+    @pytest.mark.parametrize("expected_kafka_error", [KafkaError.TOPIC_AUTHORIZATION_FAILED, KafkaError.UNKNOWN])
+    def test_request_metrics(self, expected_kafka_error):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = f'primary:{self.create_queue_path("error")}'
+
+        TestKafkaProxy._create_kafka_queue(queue_path)
+
+        address = self.Env.get_kafka_proxy_address()
+        proxy_name = ls("//sys/kafka_proxies/instances")[0]
+        profiler = profiler_factory().at_kafka_proxy(proxy_name, fixed_tags={"request_type": "produce"})
+
+        request_count = profiler.counter("kafka_proxy/requests/count")
+        failed_request_count = profiler.counter("kafka_proxy/requests/failed_count")
+        authorization_error_count = profiler.counter(
+            "kafka_proxy/requests/error_count",
+            tags={"error_code": "topic_authorization_failed"})
+        unknown_error_count = profiler.counter(
+            "kafka_proxy/requests/error_count",
+            tags={"error_code": "unknown_server_error"})
+        request_time = profiler.histogram("kafka_proxy/requests/time")
+
+        p = Producer(get_producer_config(address, token))
+        serializer = StringSerializer("utf_8")
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_0"),
+                  value=serializer("value_0"),
+                  on_delivery=_fail_on_error)
+        p.flush()
+
+        wait(lambda: request_count.get_delta() > 0)
+        wait(lambda: sum(bin["count"] for bin in request_time.get_bins()) > 0)
+        assert failed_request_count.get_delta() == 0
+        assert authorization_error_count.get_delta() == 0
+        assert unknown_error_count.get_delta() == 0
+
+        if expected_kafka_error == KafkaError.TOPIC_AUTHORIZATION_FAILED:
+            set(f"{queue_path}/@inherit_acl", False)
+        elif expected_kafka_error == KafkaError.UNKNOWN:
+            sync_unmount_table(queue_path)
+        else:
+            assert False, "Invalid expected Kafka error"
+
+        def produce_fails_with_expected_error():
+            error = None
+
+            def set_errror(err, msg):
+                nonlocal error
+                error = err
+
+            p.produce(
+                topic=queue_path,
+                key=serializer("key_1"),
+                value=serializer("value_1"),
+                on_delivery=set_errror,
+            )
+            p.flush()
+
+            if error is not None:
+                return isinstance(error, KafkaError) and error.code() == expected_kafka_error
+
+            if failed_request_count.get_delta() == 0:
+                return False
+
+            if expected_kafka_error == KafkaError.TOPIC_AUTHORIZATION_FAILED:
+                return authorization_error_count.get_delta() > 0
+            elif expected_kafka_error == KafkaError.UNKNOWN:
+                return unknown_error_count.get_delta() > 0
+
+        wait(produce_fails_with_expected_error)
+
+    @authors("panesher")
     @with_additional_threads
+    @pytest.mark.timeout(120)
     @pytest.mark.parametrize("partitions_count", [1, 5])
     @pytest.mark.parametrize("is_kafka_queue", [True, False])
     def test_producer_consumer_parallel(self, partitions_count, is_kafka_queue):
@@ -717,13 +872,15 @@ class TestKafkaProxy(KafkaProxyBase):
 
         address = self.Env.get_kafka_proxy_address()
         rows_count = 100
+        batch_size = 10
 
         received_messages = []
         errors = []
+        assigned = threading.Event()
 
         def consumer_func():
             c = Consumer(get_consumer_config(address, token, consumer_path))
-            c.subscribe([queue_path])
+            c.subscribe([queue_path], on_assign=lambda *_: assigned.set())
 
             # Wait for messages with a timeout
             i = 0
@@ -753,6 +910,9 @@ class TestKafkaProxy(KafkaProxyBase):
 
         consumer_thread = self.spawn_additional_thread(target=consumer_func, name="consumer_thread")
 
+        # Start writing only once the consumer is ready to read, so that reads and writes overlap.
+        wait(assigned.is_set)
+
         written_messages = []
         if is_kafka_queue:
             p = Producer(get_producer_config(address, token))
@@ -767,17 +927,18 @@ class TestKafkaProxy(KafkaProxyBase):
                     value=serializer(f"value_{i}"),
                     on_delivery=_fail_on_error)
                 p.poll(0)
-                p.flush()
-                if i % 30 == 0:
+                if (i + 1) % batch_size == 0:
+                    p.flush()
                     time.sleep(0.1)
         else:
-            for i in range(rows_count):
-                written_messages.append((None, {"surname": f"foo-{i}", "number": i}))
-                insert_rows(queue_path, [
-                    {"surname": f"foo-{i}", "number": i},
-                ])
-                if i % 30 == 0:
-                    time.sleep(0.1)
+            for start in range(0, rows_count, batch_size):
+                rows = [
+                    {"surname": f"foo-{i}", "number": i}
+                    for i in range(start, start + batch_size)
+                ]
+                written_messages += [(None, row) for row in rows]
+                insert_rows(queue_path, rows)
+                time.sleep(0.1)
 
         consumer_thread.join()
 
@@ -794,3 +955,135 @@ class TestKafkaProxy(KafkaProxyBase):
         assert len(received_messages) == len(written_messages) == rows_count
         for i, (kv, expected_kv) in enumerate(zip(received_messages, written_messages)):
             assert kv == expected_kv, f"Key value is missing: index '{i}' value: '{expected_kv}'"
+
+
+##################################################################
+
+
+class TestKafkaProxyTls(KafkaProxyBase):
+    ENABLE_TLS = True
+
+    DELTA_KAFKA_PROXY_CONFIG = {
+        "server": {
+            "credentials": {
+                "update_period": 1000,
+            },
+        },
+    }
+
+    def _get_proxy_cert_path(self, index=0):
+        proxy_config = self.Env.configs["kafka_proxy"][index]
+        proxy_cert = proxy_config["server"]["credentials"]["cert_chain"]["file_name"]
+        proxy_cert_key = proxy_config["server"]["credentials"]["private_key"]["file_name"]
+        return proxy_cert, proxy_cert_key
+
+    def _get_tls_consumer_config(self, address, token, consumer_path, sasl_mechanism="PLAIN"):
+        consumer_config = get_consumer_config(address, token, consumer_path, sasl_mechanism)
+        consumer_config["security.protocol"] = "SASL_SSL"
+        consumer_config["ssl.ca.location"] = self.Env.yt_config.public_ca_cert
+        return consumer_config
+
+    def _get_tls_producer_config(self, address, token):
+        producer_config = get_producer_config(address, token)
+        producer_config["security.protocol"] = "SASL_SSL"
+        producer_config["ssl.ca.location"] = self.Env.yt_config.public_ca_cert
+        return producer_config
+
+    def _produce_and_consume(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = f"primary:{self.create_queue_path()}"
+        consumer_path = f"primary:{self.create_consumer_path()}"
+
+        TestKafkaProxyTls._create_kafka_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        address = self.Env.get_kafka_proxy_address()
+
+        p = Producer(self._get_tls_producer_config(address, token))
+        serializer = StringSerializer('utf_8')
+
+        sent_messages = [
+            (f"key_{i}", f"value_{i}") for i in range(3)
+        ]
+        for key, value in sent_messages:
+            p.poll(0.0)
+            p.produce(
+                topic=queue_path,
+                partition=0,
+                key=serializer(key),
+                value=serializer(value),
+                on_delivery=_fail_on_error)
+
+        p.flush()
+
+        c = Consumer(self._get_tls_consumer_config(address, token, consumer_path))
+        c.assign([TopicPartition(queue_path, 0)])
+
+        messages = []
+        none_message_count = 0
+        error_count = 0
+        while True:
+            msg = c.poll(1.0)
+            if msg is None:
+                none_message_count += 1
+                assert none_message_count <= 100, "Too much none messages"
+                continue
+
+            if msg.error():
+                error_count += 1
+                assert error_count <= 10, msg.error()
+                continue
+
+            messages.append(KafkaMessageHelper(msg).parse())
+            if len(messages) >= 3:
+                break
+
+            c.commit(msg)
+
+        c.close()
+        assert messages == sent_messages
+
+    @authors("panesher")
+    def test_tls_producer_consumer(self):
+        self._produce_and_consume()
+
+    @authors("panesher")
+    def test_certificate_update(self):
+        proxy_cert, proxy_cert_key = self._get_proxy_cert_path()
+
+        old_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("Old certificate fingerprint: {}", old_fingerprint)
+
+        address = self.Env.get_kafka_proxy_address()
+
+        def current_fingerprint():
+            return get_certificate_fingerprint(cert_content=get_server_certificate(address))
+
+        assert current_fingerprint() == old_fingerprint
+
+        create_certificate(
+            ca_cert=self.Env.yt_config.public_ca_cert,
+            ca_cert_key=self.Env.yt_config.public_ca_cert_key,
+            cert=proxy_cert,
+            cert_key=proxy_cert_key,
+            names=[self.Env.yt_config.fqdn, self.Env.yt_config.cluster_name],
+        )
+
+        new_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("New certificate fingerprint: {}", new_fingerprint)
+
+        assert new_fingerprint != old_fingerprint
+
+        wait(lambda: current_fingerprint() == new_fingerprint)
+
+        self._produce_and_consume()

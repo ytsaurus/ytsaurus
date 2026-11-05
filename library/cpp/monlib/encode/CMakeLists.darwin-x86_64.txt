@@ -23,7 +23,6 @@ add_subdirectory(prometheus)
 add_subdirectory(buffered)
 add_subdirectory(spack)
 add_subdirectory(json)
-add_subdirectory(text)
 
 add_library(cpp-monlib-encode)
 
@@ -31,6 +30,7 @@ add_library(cpp-monlib-encode)
 target_link_libraries(cpp-monlib-encode PUBLIC
   contrib-libs-cxxsupp
   yutil
+  cpp-http-io
   cpp-monlib-metrics
   tools-enum_parser-enum_serialization_runtime
 )

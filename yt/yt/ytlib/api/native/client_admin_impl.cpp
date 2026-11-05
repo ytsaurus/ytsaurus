@@ -141,7 +141,8 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
 
     std::queue<TSnapshotRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting cell to build a snapshot (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting cell to build a snapshot")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId]);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -156,20 +157,26 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         requestQueue.pop();
 
         auto cellId = request.CellId;
-        YT_LOG_INFO("Waiting for snapshot (CellId: %v)", cellId);
+        YT_TLOG_INFO("Waiting for snapshot")
+            .With("CellId", cellId);
         auto snapshotIdOrError = WaitFor(request.Future);
         if (snapshotIdOrError.IsOK()) {
             auto snapshotId = snapshotIdOrError.Value()->snapshot_id();
-            YT_LOG_INFO("Snapshot built successfully (CellId: %v, SnapshotId: %v)", cellId, snapshotId);
+            YT_TLOG_INFO("Snapshot built successfully")
+                .With("CellId", cellId)
+                .With("SnapshotId", snapshotId);
             cellIdToSnapshotId[cellId] = snapshotId;
         } else {
             auto errorCode = snapshotIdOrError.GetCode();
             if (errorCode == NHydra::EErrorCode::ReadOnlySnapshotBuilt) {
-                YT_LOG_INFO("Skipping cell since it is already in read-only mode and has a valid snapshot (CellId: %v)", cellId);
+                YT_TLOG_INFO("Skipping cell since it is already in read-only mode and has a valid snapshot")
+                    .With("CellId", cellId);
                 auto snapshotId = snapshotIdOrError.Attributes().Get<int>("snapshot_id");
                 cellIdToSnapshotId[cellId] = snapshotId;
             } else if (options.Retry && errorCode != NHydra::EErrorCode::ReadOnlySnapshotBuildFailed) {
-                YT_LOG_INFO(snapshotIdOrError, "Failed to build snapshot; retrying (CellId: %v)", cellId);
+                YT_TLOG_INFO("Failed to build snapshot; retrying")
+                    .With("CellId", cellId)
+                    .With(snapshotIdOrError);
                 enqueueRequest(cellId);
             } else {
                 snapshotIdOrError.ThrowOnError();
@@ -223,7 +230,8 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
     i64 logicalTime;
     std::queue<TGetMasterConsistentStateRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting consistent state (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting consistent state")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId], logicalTime);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -238,10 +246,10 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto req = constructRequest(channels[primaryCellId]);
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        YT_LOG_INFO("Received consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
-            primaryCellId,
-            rsp->logical_time(),
-            rsp->sequence_number());
+        YT_TLOG_INFO("Received consistent state")
+            .With("CellId", primaryCellId)
+            .With("LogicalTime", rsp->logical_time())
+            .With("SequenceNumber", rsp->sequence_number());
         logicalTime = rsp->logical_time();
         EmplaceOrCrash(cellIdToConsistentState, primaryCellId, TMasterConsistentState{
             .SequenceNumber = rsp->sequence_number(),
@@ -263,10 +271,10 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto responseOrError = WaitFor(request.Future);
         if (responseOrError.IsOK()) {
             auto response = responseOrError.Value();
-            YT_LOG_INFO("Received consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
-                cellId,
-                response->sequence_number(),
-                response->segment_id());
+            YT_TLOG_INFO("Received consistent state")
+                .With("CellId", cellId)
+                .With("SequenceNumber", response->sequence_number())
+                .With("SegmentId", response->segment_id());
             EmplaceOrCrash(cellIdToConsistentState, cellId, TMasterConsistentState{
                 .SequenceNumber = response->sequence_number(),
                 .SegmentId = response->segment_id(),
@@ -274,8 +282,8 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
             continue;
         }
         if (responseOrError.GetCode() == NHiveClient::EErrorCode::TimeEntryNotFound) {
-            YT_LOG_INFO("Requested time is missing; retrying (CellId: %v)",
-                primaryCellId);
+            YT_TLOG_INFO("Requested time is missing; retrying")
+                .With("CellId", primaryCellId);
             resetState();
         } else {
             THROW_ERROR(responseOrError);
@@ -342,7 +350,8 @@ void TClient::DoMasterExitReadOnly(
 
     std::queue<TExitReadOnlyRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting exiting read-only mode at cell (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting exiting read-only mode at cell")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId]);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -358,16 +367,79 @@ void TClient::DoMasterExitReadOnly(
         auto cellId = request.CellId;
         auto rspOrError = WaitFor(request.Future);
         if (rspOrError.IsOK()) {
-            YT_LOG_INFO("Exited read-only mode (CellId: %v)", cellId);
+            YT_TLOG_INFO("Exited read-only mode")
+                .With("CellId", cellId);
             continue;
         }
         if (options.Retry) {
-            YT_LOG_INFO(rspOrError, "Failed to exit read-only mode; retrying (CellId: %v)", cellId);
+            YT_TLOG_INFO("Failed to exit read-only mode; retrying")
+                .With("CellId", cellId)
+                .With(rspOrError);
             enqueueRequest(cellId);
         } else {
             THROW_ERROR(rspOrError);
         }
     }
+}
+
+void TClient::DoFreezeHydraPeer(
+    TCellId cellId,
+    const std::string& address,
+    const TFreezeHydraPeerOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.Freeze();
+    req->set_term(options.Term);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoTruncateChangelog(
+    TCellId cellId,
+    const std::string& address,
+    const TTruncateChangelogOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.TruncateChangelog();
+    req->set_last_sequence_number(options.LastSequenceNumber);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoScheduleRestart(
+    TCellId cellId,
+    const std::string& address,
+    const TScheduleRestartOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.ForceRestart();
+
+    auto restartReason = TError("Schedule restart command");
+    ToProto(req->mutable_reason(), restartReason);
+    req->set_arm_priority_boost(false);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 void TClient::DoResetDynamicallyPropagatedMasterCells(const TResetDynamicallyPropagatedMasterCellsOptions& options)
@@ -503,7 +575,7 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
         .ThrowOnError();
 }
 
-TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)
+std::string TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)
 {
     ValidateSuperuserPermissions();
 
@@ -536,7 +608,7 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
     return result;
 }
 
-TString TClient::DoWriteOperationControllerCoreDump(
+std::string TClient::DoWriteOperationControllerCoreDump(
     TOperationId operationId,
     const TWriteOperationControllerCoreDumpOptions& options)
 {
@@ -630,8 +702,8 @@ void TClient::DoMigrateReplicationCards(
         auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
-                << TErrorAttribute("chaos_cell_id", chaosCellId)
-                << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+                .With("chaos_cell_id", chaosCellId)
+                .With("sibling_cell_tag", siblingCellTag);
         }
 
         destinationCellId = descriptor->CellId;
@@ -654,21 +726,22 @@ void TClient::DoSuspendChaosCells(
     SyncCellsIfNeeded(cellIds);
 
     std::vector<TFuture<void>> futures;
-    futures.reserve(cellIds.size());
+    futures.reserve(2 * cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto chaosCellId : cellIds) {
+        auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
         {
             // Migrate replication cards.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
-            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            auto proxy = TChaosNodeServiceProxy(channel);
 
             auto siblingCellTag = GetSiblingChaosCellTag(CellTagFromId(chaosCellId));
             const auto& cellDirectory = Connection_->GetCellDirectory();
             auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
             if (!descriptor) {
                 THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
-                    << TErrorAttribute("chaos_cell_id", chaosCellId)
-                    << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+                    .With("chaos_cell_id", chaosCellId)
+                    .With("sibling_cell_tag", siblingCellTag);
             }
 
             auto req = proxy.MigrateReplicationCards();
@@ -676,19 +749,18 @@ void TClient::DoSuspendChaosCells(
             ToProto(req->mutable_migrate_to_cell_id(), descriptor->CellId);
             req->set_migrate_all_replication_cards(true);
             req->set_suspend_chaos_cell(true);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
 
         {
             // Suspend coordination.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
             auto proxy = TCoordinatorServiceProxy(std::move(channel));
 
             auto req = proxy.SuspendCoordinator();
             SetMutationId(req, options);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -705,27 +777,27 @@ void TClient::DoResumeChaosCells(
     SyncCellsIfNeeded(cellIds);
 
     std::vector<TFuture<void>> futures;
-    futures.reserve(cellIds.size());
+    futures.reserve(2 * cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto chaosCellId : cellIds) {
+        auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
         {
             // Resume replication card creation.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
-            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            auto proxy = TChaosNodeServiceProxy(channel);
 
             auto req = proxy.ResumeChaosCell();
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
             futures.push_back(req->Invoke().AsVoid());
         }
 
         {
             // Resume coordination.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
             auto proxy = TCoordinatorServiceProxy(std::move(channel));
 
             auto req = proxy.ResumeCoordinator();
             SetMutationId(req, options);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -744,12 +816,13 @@ void TClient::DoSuspendTabletCells(
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto cellId : cellIds) {
         auto channel = GetCellChannelOrThrow(cellId);
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SuspendTabletCell();
-        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+        req->SetTimeout(methodTimeout);
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -766,12 +839,13 @@ void TClient::DoResumeTabletCells(
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto cellId : cellIds) {
         auto channel = GetCellChannelOrThrow(cellId);
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.ResumeTabletCell();
-        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+        req->SetTimeout(methodTimeout);
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -812,7 +886,7 @@ TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
             "Maintenance request for %v proxies requires \"%v\" to exist somewhere",
             component == EMaintenanceComponent::RpcProxy ? "RPC" : "HTTP",
             path)
-            << response;
+            .With(response);
     }
 
     return {PrimaryMasterCellTagSentinel};
@@ -826,7 +900,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     EMaintenanceComponent component,
     const std::string& address,
     EMaintenanceType type,
-    const TString& comment,
+    const std::string& comment,
     const TAddMaintenanceOptions& options)
 {
     ValidateMaintenanceComment(comment);

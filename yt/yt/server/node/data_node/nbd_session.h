@@ -29,8 +29,19 @@ struct TNbdSession
     //! Read size bytes from NBD chunk at offset.
     TFuture<NChunkClient::TBlock> Read(i64 offset, i64 size, ui64 cookie);
 
+    //! Read multiple non-contiguous ranges from NBD chunk in a single IO call.
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBatch(
+        const std::vector<TNbdReadSubrequest>& subrequests,
+        ui64 cookie);
+
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie);
+
+    //! Flush dirty data to disk (fsync).
+    TFuture<void> Flush(ui64 cookie);
+
+    //! Flush a specific range of data to disk (sync_file_range).
+    TFuture<void> FlushRange(i64 offset, i64 size);
 
     //! Create NBD chunk and make filesystem on it.
     TFuture<void> Create();
@@ -67,10 +78,13 @@ struct TNbdSession
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) override;
 
     bool ShouldUseProbePutBlocks() const override;
-    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    void ProbePutBlocks(
+        i64 requestedCumulativeMemorySize,
+        std::optional<NIO::TIOFairShareState> fairShareState) override;
     i64 GetApprovedCumulativeBlockSize() const override;
     i64 GetMaxRequestedCumulativeBlockSize() const override;
 
@@ -78,12 +92,14 @@ struct TNbdSession
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) override;
 
     TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
@@ -105,6 +121,7 @@ private:
     IBootstrap* Bootstrap_;
     const TSessionId Id_;
     const TSessionOptions Options_;
+    const IInvokerPtr StorageHeavyInvoker_;
     const TStoreLocationPtr StoreLocation_;
     const NConcurrency::TLease Lease_;
     NNode::TLockedChunkGuard LockedChunkGuard_;

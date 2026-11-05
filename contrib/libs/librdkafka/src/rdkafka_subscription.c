@@ -46,6 +46,31 @@ rd_kafka_resp_err_t rd_kafka_unsubscribe(rd_kafka_t *rk) {
             rd_kafka_op_req2(rkcg->rkcg_ops, RD_KAFKA_OP_SUBSCRIBE));
 }
 
+rd_kafka_resp_err_t rd_kafka_share_unsubscribe(rd_kafka_share_t *rkshare) {
+        rd_kafka_resp_err_t err;
+        rd_kafka_error_t *error = NULL;
+
+        /**
+         * TODO KIP-932: Guard this with checks for rkshare and
+         *               rkshare->rkshare_rk?
+         */
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL)) {
+                err = rd_kafka_error_code(error);
+                rd_kafka_error_destroy(error);
+                return err;
+        }
+
+        if (unlikely((err = rd_kafka_share_consumer_closed_err(rkshare))))
+                goto done;
+
+        err = rd_kafka_unsubscribe(rkshare->rkshare_rk);
+        if (!err)
+                rkshare->rkshare_subscribed = rd_false;
+done:
+        rd_kafka_share_release(rkshare);
+        return err;
+}
+
 
 /** @returns 1 if the topic is invalid (bad regex, empty), else 0 if valid. */
 static size_t _invalid_topic_cb(const rd_kafka_topic_partition_t *rktpar,
@@ -63,6 +88,20 @@ static size_t _invalid_topic_cb(const rd_kafka_topic_partition_t *rktpar,
                 return 1;
 
         rd_regex_destroy(re);
+
+        return 0;
+}
+
+
+/** @returns 1 if the topic is empty (invalid for the share consumer),
+ *           else 0. Share consumer subscriptions are plain topic names:
+ *           entries are forwarded to the broker verbatim and are never
+ *           expanded as regex/wildcards, so a leading '^' is treated as a
+ *           literal character rather than a pattern marker. */
+static size_t _share_invalid_topic_cb(const rd_kafka_topic_partition_t *rktpar,
+                                      void *opaque) {
+        if (!*rktpar->topic)
+                return 1;
 
         return 0;
 }
@@ -96,6 +135,76 @@ rd_kafka_subscribe(rd_kafka_t *rk,
 
         return rd_kafka_op_err_destroy(
             rd_kafka_op_req(rkcg->rkcg_ops, rko, RD_POLL_INFINITE));
+}
+
+rd_kafka_resp_err_t
+rd_kafka_share_subscribe(rd_kafka_share_t *rkshare,
+                         const rd_kafka_topic_partition_list_t *topics) {
+        rd_kafka_op_t *rko;
+        rd_kafka_cgrp_t *rkcg;
+        rd_kafka_topic_partition_list_t *topics_cpy;
+        rd_kafka_resp_err_t err;
+        rd_kafka_error_t *error = NULL;
+
+        /**
+         * TODO KIP-932: Guard this with checks for rkshare and
+         *               rkshare->rkshare_rk?
+         */
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL)) {
+                err = rd_kafka_error_code(error);
+                rd_kafka_error_destroy(error);
+                return err;
+        }
+
+        if (unlikely((err = rd_kafka_share_consumer_closed_err(rkshare))))
+                goto done;
+
+        if (!(rkcg = rd_kafka_cgrp_get(rkshare->rkshare_rk))) {
+                err = RD_KAFKA_RESP_ERR__UNKNOWN_GROUP;
+                goto done;
+        }
+
+        /* An empty topic list is equivalent to unsubscribe. */
+        if (topics->cnt == 0) {
+                err = rd_kafka_share_unsubscribe(rkshare);
+                goto done;
+        }
+
+        /* Share consumer subscriptions are plain topic names forwarded to
+         * the broker verbatim; entries are never expanded as regex/wildcards
+         * (a leading '^' is a literal character, not a pattern marker).
+         * Reject only empty entries; pass everything else through via the
+         * heartbeat. */
+        if (rd_kafka_topic_partition_list_sum(topics, _share_invalid_topic_cb,
+                                              NULL) > 0) {
+                err = RD_KAFKA_RESP_ERR__INVALID_ARG;
+                goto done;
+        }
+
+        topics_cpy = rd_kafka_topic_partition_list_copy(topics);
+        if (rd_kafka_topic_partition_list_has_duplicates(
+                topics_cpy, rd_true /*ignore partition field*/)) {
+                rd_kafka_topic_partition_list_destroy(topics_cpy);
+                err = RD_KAFKA_RESP_ERR__INVALID_ARG;
+                goto done;
+        }
+
+        rko                         = rd_kafka_op_new(RD_KAFKA_OP_SUBSCRIBE);
+        rko->rko_u.subscribe.topics = topics_cpy;
+
+        err = rd_kafka_op_err_destroy(
+            rd_kafka_op_req(rkcg->rkcg_ops, rko, RD_POLL_INFINITE));
+        /**
+         * TODO KIP-932: It can only return FATAL error from the main thread.
+         * In which case it unsubscribes. Check if we should change the flag
+         * to false when FATAL error is received or  keep it as true which
+         * will let the user go through the normal consumer flow.
+         */
+        if (!err)
+                rkshare->rkshare_subscribed = rd_true;
+done:
+        rd_kafka_share_release(rkshare);
+        return err;
 }
 
 
@@ -259,6 +368,30 @@ rd_kafka_subscription(rd_kafka_t *rk,
         return err;
 }
 
+rd_kafka_resp_err_t
+rd_kafka_share_subscription(rd_kafka_share_t *rkshare,
+                            rd_kafka_topic_partition_list_t **topics) {
+        rd_kafka_resp_err_t err;
+        rd_kafka_error_t *error = NULL;
+
+        /**
+         * TODO KIP-932: Guard this with checks for rkshare and
+         *               rkshare->rkshare_rk?
+         */
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL)) {
+                err = rd_kafka_error_code(error);
+                rd_kafka_error_destroy(error);
+                return err;
+        }
+
+        if (unlikely((err = rd_kafka_share_consumer_closed_err(rkshare))))
+                goto done;
+
+        err = rd_kafka_subscription(rkshare->rkshare_rk, topics);
+done:
+        rd_kafka_share_release(rkshare);
+        return err;
+}
 
 rd_kafka_resp_err_t
 rd_kafka_pause_partitions(rd_kafka_t *rk,

@@ -23,6 +23,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/https
+
     yt/yt/server/scheduler/common
     yt/yt/server/scheduler/strategy
 

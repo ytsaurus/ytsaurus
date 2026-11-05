@@ -24,8 +24,8 @@ void WarnForUnrecognizedOptionsImpl(
 {
     const auto& Logger = logger;
     if (unrecognized && unrecognized->GetChildCount() > 0) {
-        YT_LOG_WARNING("Bootstrap config contains unrecognized options (Unrecognized: %v)",
-            ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+        YT_TLOG_WARNING("Bootstrap config contains unrecognized options")
+            .With("Unrecognized", ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
     }
 }
 
@@ -42,8 +42,8 @@ void AbortOnUnrecognizedOptionsImpl(
 {
     const auto& Logger = logger;
     if (unrecognized && unrecognized->GetChildCount() > 0) {
-        YT_LOG_ERROR("Bootstrap config contains unrecognized options, terminating (Unrecognized: %v)",
-            ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+        YT_TLOG_ERROR("Bootstrap config contains unrecognized options, terminating")
+            .With("Unrecognized", ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
         YT_ABORT();
     }
 }

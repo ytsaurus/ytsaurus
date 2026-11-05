@@ -1,13 +1,33 @@
 #pragma once
 
+#include <yt/yt/ytlib/tablet_client/public.h>
+
 #include <yt/yt/client/api/public.h>
-#include <yt/yt/client/api/operation_client.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <concepts>
+
 namespace NYT::NApi::NNative {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+concept CTwoPhaseTableRequest =
+    std::same_as<TRequest, NTabletClient::NProto::TReqMount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqUnmount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqRemount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqFreeze> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqUnfreeze> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqReshard> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqTwoPhaseAlter>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const std::string SequoiaCypressOrderingTag;
+extern const std::string SequoiaReplicasOrderingTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,15 +88,6 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EChaosResidencyCacheType, i8,
     (MasterCache)
     (Client)
 );
-
-// TODO(omgronny): Do we really two separate vectors for finished and running jobs?
-struct TListJobsFromControllerAgentResult
-{
-    std::vector<TJob> FinishedJobs;
-    int TotalFinishedJobCount = 0;
-    std::vector<TJob> InProgressJobs;
-    int TotalInProgressJobCount = 0;
-};
 
 struct TLockNodeDetailedResult
 {

@@ -8,11 +8,12 @@ __all__ = (
 
 import os
 import pickle
+import runpy
 import subprocess
 import sys
 from collections import deque
 from collections.abc import Callable
-from importlib.util import module_from_spec, spec_from_file_location
+from types import ModuleType
 from typing import TypeVar, cast
 
 from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
@@ -118,7 +119,7 @@ async def run_sync(  # type: ignore[return]
         # find one that hasn't exited yet
         process: Process
         while idle_workers:
-            process, idle_since = idle_workers.pop()
+            process, _idle_since = idle_workers.pop()
             if process.returncode is None:
                 stdin = cast(ByteSendStream, process.stdin)
                 buffered = BufferedByteReceiveStream(
@@ -133,7 +134,7 @@ async def run_sync(  # type: ignore[return]
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
 
-                    process_to_kill, idle_since = idle_workers.popleft()
+                    process_to_kill, _idle_since = idle_workers.popleft()
                     process_to_kill.kill()
                     workers.remove(process_to_kill)
                     killed_processes.append(process_to_kill)
@@ -210,6 +211,7 @@ def process_worker() -> None:
     stdout = sys.stdout
     sys.stdin = open(os.devnull)
     sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
 
     stdout.buffer.write(b"READY\n")
     while True:
@@ -235,11 +237,12 @@ def process_worker() -> None:
                     # Load the parent's main module but as __mp_main__ instead of
                     # __main__ (like multiprocessing does) to avoid infinite recursion
                     try:
-                        spec = spec_from_file_location("__mp_main__", main_module_path)
-                        if spec and spec.loader:
-                            main = module_from_spec(spec)
-                            spec.loader.exec_module(main)
-                            sys.modules["__main__"] = main
+                        main = ModuleType("__mp_main__")
+                        main_content = runpy.run_path(
+                            main_module_path, run_name="__mp_main__"
+                        )
+                        main.__dict__.update(main_content)
+                        sys.modules["__main__"] = sys.modules["__mp_main__"] = main
                     except BaseException as exc:
                         exception = exc
         try:

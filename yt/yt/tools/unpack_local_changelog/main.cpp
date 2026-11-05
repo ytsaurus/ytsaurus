@@ -47,8 +47,8 @@ public:
     }
 
 private:
-    TString InputFile_;
-    TString OutputFile_;
+    std::string InputFile_;
+    std::string OutputFile_;
     std::optional<int> FirstRecordIndex_;
     std::optional<int> LastRecordIndex_;
 
@@ -61,12 +61,9 @@ private:
             EIOEngineType::ThreadPool,
             ioEngineConfigNode);
 
-        auto changelogDispatcherConfig = New<TFileChangelogDispatcherConfig>();
-
         auto changelogDispatcher = CreateFileChangelogDispatcher(
             ioEngine,
-            /*memoryUsageTracker*/ nullptr,
-            changelogDispatcherConfig,
+            /*indexMemoryUsageTracker*/ nullptr,
             "Dispatcher");
 
         auto changelogConfig = New<TFileChangelogConfig>();

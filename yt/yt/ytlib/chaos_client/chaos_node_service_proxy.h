@@ -37,6 +37,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChaosLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, WatchChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, PingChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, FindChaosObject);
     DEFINE_RPC_PROXY_METHOD(NProto, FindReplicationCard);
@@ -46,4 +47,3 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient
-

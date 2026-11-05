@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
+import tech.ytsaurus.client.rpc.RetryingRpcClient;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientListener;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
@@ -51,6 +52,10 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
             rpcClient = new RpcClientListenerWrapper(rpcClient, rpcClientListener);
         }
 
+        if (builder.retryRequests) {
+            rpcClient = new RetryingRpcClient(rpcClient);
+        }
+
         return rpcClient;
     }
 
@@ -82,6 +87,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         Executor heavyExecutor;
         @Nullable
         SerializationResolver serializationResolver;
+        boolean retryRequests = false;
 
         Builder() {
         }
@@ -156,6 +162,19 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
          */
         public Builder setConfig(YTsaurusClientConfig config) {
             this.config = config;
+            return self();
+        }
+
+        /**
+         * Retry requests of this client according to the retry policy of its
+         * {@link tech.ytsaurus.client.rpc.RpcOptions}, disabled by default.
+         *
+         * <p>
+         * The policy is better chosen explicitly: a request is retried to the very same proxy, and some
+         * mutating requests, a transaction start among them, carry no mutation id and are not safe to retry.
+         */
+        public Builder setRetryRequests(boolean retryRequests) {
+            this.retryRequests = retryRequests;
             return self();
         }
 

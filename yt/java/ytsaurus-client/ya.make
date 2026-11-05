@@ -21,6 +21,7 @@ PEERDIR(
     contrib/java/io/netty/netty-codec
     contrib/java/io/netty/netty-common
     contrib/java/io/netty/netty-handler
+    contrib/java/io/netty/netty-handler-proxy
     contrib/java/io/netty/netty-transport
     contrib/java/io/netty/netty-transport-native-epoll-linux-x86_64
 
@@ -42,6 +43,7 @@ DEPENDENCY_MANAGEMENT(
     contrib/java/io/netty/netty-codec/${netty_version}
     contrib/java/io/netty/netty-common/${netty_version}
     contrib/java/io/netty/netty-handler/${netty_version}
+    contrib/java/io/netty/netty-handler-proxy/${netty_version}
     contrib/java/io/netty/netty-transport/${netty_version}
     contrib/java/io/netty/netty-transport-native-epoll-linux-x86_64/${netty_version}
 

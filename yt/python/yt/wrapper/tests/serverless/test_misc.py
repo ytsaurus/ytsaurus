@@ -4,6 +4,8 @@ import yt.wrapper as yt
 from typing import get_type_hints
 from unittest import mock
 
+import pytest
+
 from yt.testlib import authors
 
 
@@ -17,6 +19,41 @@ def test_config_types():
                 _check_keys(type_hints[param_name], param_value)
 
     _check_keys(yt.default_config.DefaultConfigType, yt.default_config.default_config)
+
+
+@authors("asklit")
+@pytest.mark.parametrize("token", [
+    " token",
+    "token ",
+    "\ttoken",
+    "token\t",
+    "\rtoken",
+    "token\r",
+    "\ntoken",
+    "token\n",
+    " \t\r\n",
+])
+def test_token_with_leading_or_trailing_whitespace(token):
+    with pytest.raises(
+            yt.YtTokenError,
+            match="Authentication token contains leading or trailing whitespace"):
+        yt._get_token(token=token)
+
+
+@authors("asklit")
+def test_config_token_with_trailing_whitespace():
+    client = yt.YtClient(config={"token": "token\n"})
+
+    with pytest.raises(
+            yt.YtTokenError,
+            match="Authentication token contains leading or trailing whitespace"):
+        yt._get_token(client=client)
+
+
+@authors("asklit")
+def test_token_with_inner_whitespace_uses_generic_error():
+    with pytest.raises(yt.YtTokenError, match="You have an improper authentication token"):
+        yt._get_token(token="token with space")
 
 
 @authors("denvr")   # author: marydrobotun@gmail.com

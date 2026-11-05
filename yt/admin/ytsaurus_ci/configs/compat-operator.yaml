@@ -17,3 +17,15 @@ main:
   source: stable
 0.30.0:
   source: stable
+0.31.0:
+  source: stable
+0.32.0:
+  source: stable
+0.33.0:
+  source: stable
+0.34.0:
+  source: stable
+0.35.0:
+  source: stable
+0.36.0:
+  source: stable

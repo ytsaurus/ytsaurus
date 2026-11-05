@@ -11,8 +11,15 @@
 #include <contrib/ydb/library/actors/interconnect/interconnect_tcp_server.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_tcp_proxy.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_proxy_wrapper.h>
+#include <contrib/ydb/library/actors/interconnect/interconnect_uring_engine_client.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/mem_pool.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/cq_actor/cq_actor.h>
+
+#include <library/cpp/logger/backend.h>
+
+#include <util/string/cast.h>
+#include <util/system/env.h>
+#include <util/system/sanitizers.h>
 
 #include "tls/tls.h"
 
@@ -24,6 +31,8 @@ class TNode {
     TInterconnectProxyCommon::TPtr Common;
 
 public:
+    using TLogBackendFactory = std::function<TAutoPtr<TLogBackend>()>;
+
     static constexpr ui32 DefaultInflight() { return 512 * 1024; }
     TNode(ui32 nodeId, ui32 numNodes, const THashMap<ui32, ui16>& nodeToPort, const TString& address,
           NMonitoring::TDynamicCounterPtr counters, TDuration deadPeerTimeout,
@@ -34,7 +43,9 @@ public:
           bool withTls = false, std::function<IActor*(ui32)> checkerFactory = {},
           NInterconnect::NRdma::ECqMode rdmaCqMode = NInterconnect::NRdma::ECqMode::EVENT,
           bool withRdma = true,
-          std::function<void(ui32, TInterconnectSettings&)> settingsCustomizer = {}) {
+          std::function<void(ui32, TInterconnectSettings&)> settingsCustomizer = {},
+          TLogBackendFactory logBackendFactory = {},
+          TVector<ui32> interconnectSessionPoolIds = {0}) {
         TActorSystemSetup setup;
         setup.NodeId = nodeId;
         setup.ExecutorsCount = 2;
@@ -43,6 +54,8 @@ public:
         setup.Executors[1].Reset(new TIOExecutorPool(1, 1));
         setup.Scheduler.Reset(new TBasicSchedulerThread());
         const ui32 interconnectPoolId = 0;
+        const TInterconnectSessionPoolMapping interconnectSessionPoolMapping(
+            std::move(interconnectSessionPoolIds));
 
         Common = MakeIntrusive<TInterconnectProxyCommon>();
         auto& common = Common;
@@ -52,7 +65,8 @@ public:
         common->ClusterUUID = "cluster";
         common->AcceptUUID = {common->ClusterUUID};
         common->TechnicalSelfHostName = address;
-        common->Settings.Handshake = TDuration::Seconds(1);
+        common->Settings.Handshake = NSan::PlainOrUnderSanitizer(
+            TDuration::Seconds(1), TDuration::Seconds(15));
         common->Settings.DeadPeer = deadPeerTimeout;
         common->Settings.CloseOnIdle = TDuration::Minutes(1);
         common->Settings.SendBufferDieLimitInMB = 512;
@@ -65,9 +79,29 @@ public:
         }
         setup.InterconnectCollectSubscriptionStackTrace = common->Settings.CollectSubscriptionStackTrace;
 
+        if (common->Settings.V2.Threads) {
+            // Mirror production: the engine is created up front whenever Threads is non-zero (regardless of
+            // Settings.V2.Enable, which only gates handshake negotiation and may be flipped at runtime) and
+            // published in Common; OnActorSystemCreated installs its actor-system client. Shard
+            // count is overridable via YDB_IC_V2_SHARDS so tests can force many connections onto one ring.
+            if (const TString s = GetEnv("YDB_IC_V2_SHARDS"); !s.empty()) {
+                common->Settings.V2.Threads = FromString<ui32>(s);
+            }
+            if (const TString s = GetEnv("YDB_IC_V2_RINGS_PER_SHARD"); !s.empty()) {
+                common->Settings.V2.RingsPerShard = FromString<ui32>(s);
+            }
+            common->UringEngineV2 = CreateUringEngine(common);
+            setup.OnActorSystemCreated.push_back([common = common](TActorSystem *actorSystem) {
+                if (const auto& engine = common->UringEngineV2) {
+                    engine->SetClient(CreateUringEngineClient(*common, actorSystem));
+                }
+            });
+        }
+
         #if !defined(_msan_enabled_)
         if (withRdma) {
             common->RdmaMemPool = NInterconnect::NRdma::CreateSlotMemPool(nullptr, {});
+            setup.RcBufAllocator = std::make_shared<TRdmaAllocatorWithFallback>(common->RdmaMemPool);
         }
         #else
             Y_UNUSED(withRdma);
@@ -88,7 +122,7 @@ public:
         }
 
         setup.Interconnect.ProxyActors.resize(numNodes + 1 - numDynamicNodes);
-        setup.Interconnect.ProxyWrapperFactory = CreateProxyWrapperFactory(common, interconnectPoolId);
+        setup.Interconnect.ProxyWrapperFactory = CreateProxyWrapperFactory(common, interconnectSessionPoolMapping);
 
         for (ui32 i = 1; i <= numNodes; ++i) {
             if (i == nodeId) {
@@ -98,14 +132,15 @@ public:
             } else if (i <= numNodes - numDynamicNodes) {
                 // create proxy actor to reach node "i"
                 setup.Interconnect.ProxyActors[i] = {new TInterconnectProxyTCP(i, common),
-                    TMailboxType::ReadAsFilled, interconnectPoolId};
+                    TMailboxType::ReadAsFilled, interconnectSessionPoolMapping.GetPoolId(i)};
             }
         }
 
-        setup.LocalServices.emplace_back(MakePollerActorId(), TActorSetupCmd(CreatePollerActor(),
+        setup.LocalServices.emplace_back(MakePollerActorId(), TActorSetupCmd(CreatePollerActor(counters),
             TMailboxType::ReadAsFilled, 0));
         setup.LocalServices.emplace_back(NInterconnect::NRdma::MakeCqActorId(),
-            TActorSetupCmd(NInterconnect::NRdma::CreateCqActor(-1, 1024, rdmaCqMode, nullptr),
+            TActorSetupCmd(NInterconnect::NRdma::CreateCqActor(
+                CreateRdmaRuntimeParams(1024, common->Settings.EnableRdmaSendReceive, 8, 0), rdmaCqMode, nullptr),
             TMailboxType::ReadAsFilled, 0));
 
         const TActorId loggerActorId = loggerSettings ? loggerSettings->LoggerActorId : TActorId(0, "logger");
@@ -149,8 +184,9 @@ public:
             interconnectPoolId));
 
         // register logger
+        TAutoPtr<TLogBackend> logBackend = logBackendFactory ? logBackendFactory() : CreateStderrBackend();
         setup.LocalServices.emplace_back(loggerActorId, TActorSetupCmd(new TLoggerActor(loggerSettings,
-            CreateStderrBackend(), counters->GetSubgroup("subsystem", "logger")),
+            logBackend, counters->GetSubgroup("subsystem", "logger")),
             TMailboxType::ReadAsFilled, 1));
 
         if (common->OutgoingHandshakeInflightLimit) {
@@ -163,11 +199,23 @@ public:
         auto sp = MakeHolder<TActorSystemSetup>(std::move(setup));
         ActorSystem.Reset(new TActorSystem(sp, nullptr, loggerSettings));
         ActorSystem->Start();
+        // The v2 io_uring engine (shared, off-actor, with its own reaper threads) was created above and
+        // published in Common; the interconnect proxy binds it to the actor system on start and it is
+        // stopped via the actor system's DeferPreStop hook.
     }
 
     ~TNode() {
-        ActorSystem->Stop();
+        Stop();
         unlink(CaPath.c_str());
+    }
+
+    void Stop() {
+        if (ActorSystem) {
+            // The v2 engine (if created) is stopped via the actor system's DeferPreStop hook during
+            // Stop(), so its reaper threads are joined before the executors shut down.
+            ActorSystem->Stop();
+            ActorSystem.Reset();
+        }
     }
 
     bool Send(const TActorId& recipient, IEventBase* ev) {
@@ -193,5 +241,9 @@ public:
 
     TInterconnectSettings& MutableInterconnectSettings() {
         return Common->Settings;
+    }
+
+    std::shared_ptr<NInterconnect::NRdma::IMemPool> GetRdmaMemPool() const {
+        return Common->RdmaMemPool;
     }
 };

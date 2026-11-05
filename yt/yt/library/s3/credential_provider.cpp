@@ -11,7 +11,7 @@ class TStaticCredentialProvider
     : public ICredentialsProvider
 {
 public:
-    TStaticCredentialProvider(TString accessKey, TString secretKey)
+    TStaticCredentialProvider(std::string accessKey, std::string secretKey)
         : Credentials_(TCredentials{.AccessKeyId = std::move(accessKey), .SecretAccessKey = std::move(secretKey)})
     {
     }
@@ -31,7 +31,7 @@ class TTvmCredentialProvider
     : public ICredentialsProvider
 {
 public:
-    TTvmCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, TString tvmSecret)
+    TTvmCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, std::string tvmSecret)
         : SelfTvm_(selfTvm)
         , S3Tvm_(s3Tvm)
         , TvmService_(BuildTvmService(selfTvm, s3Tvm, std::move(tvmSecret)))
@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    static NAuth::ITvmServicePtr BuildTvmService(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, TString tvmSecret)
+    static NAuth::ITvmServicePtr BuildTvmService(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, std::string tvmSecret)
     {
         auto config = New<NAuth::TTvmServiceConfig>();
         config->ClientSelfId = selfTvm;
@@ -70,12 +70,12 @@ ICredentialsProviderPtr CreateAnonymousCredentialProvider()
     return CreateStaticCredentialProvider(/*accessKey*/ "", /*secretKey*/ "");
 }
 
-ICredentialsProviderPtr CreateStaticCredentialProvider(TString accessKey, TString secretKey)
+ICredentialsProviderPtr CreateStaticCredentialProvider(std::string accessKey, std::string secretKey)
 {
     return New<TStaticCredentialProvider>(std::move(accessKey), std::move(secretKey));
 }
 
-ICredentialsProviderPtr CreateTVMCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, TString tvmSecret)
+ICredentialsProviderPtr CreateTVMCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, std::string tvmSecret)
 {
     return New<TTvmCredentialProvider>(selfTvm, s3Tvm, std::move(tvmSecret));
 }

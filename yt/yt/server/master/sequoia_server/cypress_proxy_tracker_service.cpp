@@ -31,7 +31,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TCypressProxyTrackerServiceProxy::GetDescriptor(),
-            TMasterHydraServiceBase::TRpcHeavyDefaultInvoker{},
+            TDispatcher::Get()->GetHeavyInvoker(),
             SequoiaServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
@@ -49,17 +49,15 @@ private:
         // registered Cypress proxy info. Both of use cases works fine with
         // unknown values.
         auto sequoiaReign = static_cast<ESequoiaReign>(request->sequoia_reign());
-        context->SetRequestInfo("Address: %v, SequoiaReign: %v, HeartbeatPeriod: %v",
-            request->address(),
-            sequoiaReign,
-            YT_APPLY_PROTO_OPTIONAL(*request, heartbeat_period, FromProto<TDuration>));
+        context->AnnotateRequest()
+            .With("Address", request->address())
+            .With("SequoiaReign", sequoiaReign)
+            .With("HeartbeatPeriod", YT_APPLY_PROTO_OPTIONAL(*request, heartbeat_period, FromProto<TDuration>));
 
         if (!Bootstrap_->IsPrimaryMaster()) {
-            YT_LOG_ALERT(
-                "Attempt to register Cypress proxy at secondary master "
-                "(Address: %v, SequoiaReign: %v)",
-                request->address(),
-                sequoiaReign);
+            YT_TLOG_ALERT("Attempt to register Cypress proxy at secondary master")
+                .With("Address", request->address())
+                .With("SequoiaReign", sequoiaReign);
             context->Reply(TError("Cypress proxy cannot be registered at secondary master"));
             return;
         }

@@ -5,6 +5,7 @@
 #include "chunk.h"
 #include "chunk_store.h"
 #include "chunk_meta_manager.h"
+#include "location.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -45,7 +46,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "SkynetHandler");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "SkynetHandler");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,8 +78,8 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
 
     if (*partIndex < 0 || readRange->LowerLimit().GetRowIndex() < 0 || readRange->UpperLimit().GetRowIndex() < 0) {
         THROW_ERROR_EXCEPTION("Parameter is negative")
-            << TErrorAttribute("part_index", *partIndex)
-            << TErrorAttribute("read_range", *readRange);
+            .With("part_index", *partIndex)
+            .With("read_range", *readRange);
     }
 }
 
@@ -94,7 +95,7 @@ void AdjustReadRange(
     httpRange.second += 1;
     if (httpRange.first >= httpRange.second) {
         THROW_ERROR_EXCEPTION("Invalid http range")
-            << TErrorAttribute("http_range", httpRange);
+            .With("http_range", httpRange);
     }
 
     auto skipRows = httpRange.first / SkynetPartSize;
@@ -137,7 +138,7 @@ public:
             }
 
             rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(ex.what()))))
                 .ThrowOnError();
 
             throw;
@@ -157,22 +158,22 @@ private:
         i64 skipPrefix = 0;
         auto httpRange = NHttp::FindBytesRange(req->GetHeaders());
 
-        YT_LOG_DEBUG("Received Skynet read request (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v)",
-            chunkId,
-            readRange,
-            startPartIndex,
-            httpRange);
+        YT_TLOG_DEBUG("Received Skynet read request")
+            .With("ChunkId", chunkId)
+            .With("ReadRange", readRange)
+            .With("StartPartIndex", startPartIndex)
+            .With("HttpRange", httpRange);
 
         if (httpRange) {
             AdjustReadRange(*httpRange, &readRange, &startPartIndex, &skipPrefix, &byteLimit);
 
-            YT_LOG_DEBUG("Adjusted read range (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v, SkipPrefix: %v, ByteLimit: %v)",
-                chunkId,
-                readRange,
-                startPartIndex,
-                httpRange,
-                skipPrefix,
-                byteLimit);
+            YT_TLOG_DEBUG("Adjusted read range")
+                .With("ChunkId", chunkId)
+                .With("ReadRange", readRange)
+                .With("StartPartIndex", startPartIndex)
+                .With("HttpRange", httpRange)
+                .With("SkipPrefix", skipPrefix)
+                .With("ByteLimit", byteLimit);
         }
 
         auto chunk = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
@@ -191,26 +192,27 @@ private:
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (!miscExt.shared_to_skynet()) {
             THROW_ERROR_EXCEPTION("Chunk access not allowed")
-                << TErrorAttribute("chunk_id", chunkId);
+                .With("chunk_id", chunkId);
         }
         if (readRange.LowerLimit().GetRowIndex() >= miscExt.row_count() ||
             readRange.UpperLimit().GetRowIndex() >= miscExt.row_count() + 1 ||
             readRange.LowerLimit().GetRowIndex() >= readRange.UpperLimit().GetRowIndex())
         {
             THROW_ERROR_EXCEPTION("Requested rows are out of bound")
-                << TErrorAttribute("read_range", readRange)
-                << TErrorAttribute("row_count", miscExt.row_count());
+                .With("read_range", readRange)
+                .With("row_count", miscExt.row_count());
         }
 
+        auto blockCache = Bootstrap_->GetBlockCacheForMedium(chunk->GetLocation()->GetMediumIndex());
         auto readerConfig = New<TReplicationReaderConfig>();
         auto chunkReader = CreateLocalChunkReader(
             readerConfig,
             chunk,
-            Bootstrap_->GetBlockCache(),
+            blockCache,
             Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
         auto chunkState = New<TChunkState>(TChunkState{
-            .BlockCache = Bootstrap_->GetBlockCache(),
+            .BlockCache = blockCache,
             .TableSchema = New<TTableSchema>(),
         });
 
@@ -252,8 +254,8 @@ private:
             if (blob.Empty()) {
                 if (byteLimit && byteWritten != *byteLimit) {
                     THROW_ERROR_EXCEPTION("Truncated file part")
-                        << TErrorAttribute("byte_limit", byteLimit)
-                        << TErrorAttribute("byte_written", byteWritten);
+                        .With("byte_limit", byteLimit)
+                        .With("byte_written", byteWritten);
                 }
 
                 break;

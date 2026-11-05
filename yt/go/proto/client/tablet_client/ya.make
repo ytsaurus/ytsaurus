@@ -4,12 +4,14 @@ ONLY_TAGS(GO_PROTO)
 
 PEERDIR(
     yt/go/proto/core/misc
+    yt/go/proto/client/api/common
 )
 
 PROTO_NAMESPACE(yt)
 
 SRCS(
     ${ARCADIA_ROOT}/yt/yt_proto/yt/client/tablet_client/proto/lock_mask.proto
+    ${ARCADIA_ROOT}/yt/yt_proto/yt/client/tablet_client/proto/secondary_index.proto
 )
 
 END()

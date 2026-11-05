@@ -51,8 +51,8 @@ class OdinTestEnv(object):
         self.storage_factory = lambda: FileStorage(storage_file)
         self.storage = self.storage_factory()
 
-        self.socket_path = os.path.join(tempfile.gettempdir(), "{}.sock"
-                                        .format(generate_unique_id("_test_odin")))
+        # Short dir: sandbox tempdir overflows the ~108-byte AF_UNIX limit.
+        self.socket_path = os.path.join(tempfile.mkdtemp(prefix="odin_", dir="/tmp"), "odin.sock")
 
         self.tmp_checks_path = tempfile.mkdtemp(prefix="tmp_checks_path")
         self.tmp_config_path = os.path.join(self.tmp_checks_path, "config.json")

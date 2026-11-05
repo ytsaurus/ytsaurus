@@ -1,0 +1,9 @@
+package NYT.NFlow.NProto;
+
+message TReqDie
+{
+    optional int32 exit_code = 1 [default = 42];
+}
+
+message TRspDie
+{ }

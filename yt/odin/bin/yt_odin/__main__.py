@@ -212,6 +212,7 @@ def main(args):
                 yt_enable_proxy_discovery=cluster_config["yt_config"].get("enable_proxy_discovery", True),
                 yt_driver_address_resolver_config=cluster_config["yt_config"].get("driver_address_resolver_config", {}),
                 yt_driver_logging_config=cluster_config["yt_config"].get("driver_logging_config", {}),
+                yt_enable_tls=cluster_config["yt_config"].get("enable_tls", False),
                 secrets=secrets)
 
             process = BoundProcess(target=run_odin, args=(db_kwargs, odin_kwargs),

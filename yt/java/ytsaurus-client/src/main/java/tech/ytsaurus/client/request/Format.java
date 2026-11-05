@@ -13,6 +13,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 
 public class Format {
+    private static final String ARROW_TYPE = "arrow";
     private static final String DEFAULT_TABLE_NAME = "table";
     private final String type;
     private final Map<String, YTreeNode> attributes;
@@ -42,6 +43,10 @@ public class Format {
         Map<String, YTreeNode> attributes = new HashMap<>();
         attributes.put("format", YTree.stringNode("binary"));
         return new Format("yson", attributes);
+    }
+
+    public static Format arrow() {
+        return new Format(ARROW_TYPE, Map.of());
     }
 
     public static Format skiff(SkiffSchema schema, int numberOfTables) {

@@ -6,8 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NDynamicConfig {
 
@@ -89,6 +89,15 @@ protected:
     virtual std::vector<std::string> GetInstanceTags() const;
 
 private:
+    struct TConfigFetch
+    {
+        //! Null if absent.
+        NYson::TYsonString Config;
+        std::vector<std::string> InstanceTags;
+
+        bool operator==(const TConfigFetch& other) const = default;
+    };
+
     const TDynamicConfigManagerOptions Options_;
     const TDynamicConfigManagerConfigPtr Config_;
 
@@ -100,7 +109,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TError UpdateError_;
     TError UnrecognizedOptionError_;
     NYTree::IMapNodePtr UnrecognizedOptions_;
@@ -112,6 +121,9 @@ private:
     NYTree::IMapNodePtr LastAppliedConfigPatchNode_;
 
     std::vector<std::string> InstanceTags_;
+
+    //! The fetch behind #AppliedConfigNode_.
+    std::optional<TConfigFetch> LastProcessedFetch_;
 
     //! This promise becomes set when dynamic config was loaded
     //! for the first time.
@@ -126,7 +138,7 @@ private:
     void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 
     //! Returns the list of last config update attempt errors when spinlock is already guarded.
-    std::vector<TError> LockedGetErrors(const TGuard<NThreading::TSpinLock>& guard) const;
+    std::vector<TError> LockedGetErrors(const TGuard<TSpinLock>& guard) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

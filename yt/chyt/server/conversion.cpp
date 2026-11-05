@@ -27,20 +27,20 @@ static const TLogger Logger("Conversion");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TConversionSettingsPtr& settings, bool isReadConversions)
 {
     TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypePtr ToDataType(const TColumnSchema& columnSchema, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypePtr ToDataType(const TColumnSchema& columnSchema, const TConversionSettingsPtr& settings, bool isReadConversions)
 {
     TComplexTypeFieldDescriptor descriptor(columnSchema);
     TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TConversionSettingsPtr& settings, bool isReadConversions)
 {
     DB::DataTypes result;
     result.reserve(ssize(schemas));
@@ -53,12 +53,12 @@ DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TComp
     return result;
 }
 
-DB::DataTypes ToDataTypes(const TTableSchema& schema, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypes ToDataTypes(const TTableSchema& schema, const TConversionSettingsPtr& settings, bool isReadConversions)
 {
     return ToDataTypes(schema.Columns(), settings, isReadConversions);
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings)
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& schemas, const TConversionSettingsPtr& settings)
 {
     const auto& dataTypes = ToDataTypes(schemas, settings);
 
@@ -71,12 +71,12 @@ DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& sche
     return result;
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
+DB::NamesAndTypesList ToNamesAndTypesList(const TTableSchema& schema, const TConversionSettingsPtr& settings)
 {
     return ToNamesAndTypesList(schema.Columns(), settings);
 }
 
-DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr &settings)
+DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const TConversionSettingsPtr &settings)
 {
     DB::Block headerBlock;
 
@@ -90,7 +90,7 @@ DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const TCompos
     return headerBlock;
 }
 
-DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
+DB::Block ToHeaderBlock(const TTableSchema& schema, const TConversionSettingsPtr& settings)
 {
     return ToHeaderBlock(schema.Columns(), settings);
 }
@@ -119,13 +119,13 @@ EValueType ToValueType(DB::Field::Types::Which which)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TCompositeSettingsPtr& settings)
+TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TConversionSettingsPtr& settings)
 {
     TCHToYTConverter converter(type, settings);
     return converter.GetLogicalType();
 }
 
-TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColumns& keyColumns, const TCompositeSettingsPtr& settings)
+TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColumns& keyColumns, const TConversionSettingsPtr& settings)
 {
     std::vector<TString> columnOrder;
     THashSet<TString> usedColumns;
@@ -171,7 +171,7 @@ DB::Field ToField(
     const NTableClient::TUnversionedValue& value,
     const NTableClient::TLogicalTypePtr& type)
 {
-    auto settings = New<TCompositeSettings>();
+    auto settings = New<TConversionSettings>();
     TYTToCHColumnConverter convertor(TComplexTypeFieldDescriptor(type), settings);
     convertor.InitColumn();
     convertor.ConsumeUnversionedValues(TRange(&value, 1));
@@ -255,7 +255,7 @@ std::vector<int> GetColumnIndexToId(
 TUnversionedOwningValue ToUnversionedOwningValue(
     const DB::Field& field,
     const DB::DataTypePtr& dataType,
-    const TCompositeSettingsPtr& settings)
+    const TConversionSettingsPtr& settings)
 {
     auto column = dataType->createColumn();
     column->insert(field);
@@ -272,7 +272,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
     const DB::Block& block,
     const std::vector<DB::DataTypePtr>& dataTypes,
     const std::vector<int>& columnIndexToId,
-    const TCompositeSettingsPtr& settings)
+    const TConversionSettingsPtr& settings)
 {
     auto mutableRows = ToMutableRowRange(block, dataTypes, columnIndexToId, settings);
     std::vector<TUnversionedRow> rows(mutableRows.size());
@@ -288,7 +288,7 @@ TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
     const DB::Block& block,
     const std::vector<DB::DataTypePtr>& dataTypes,
     const std::vector<int>& columnIndexToId,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     int extraColumnCapacity)
 {
     int columnCount = columnIndexToId.size();
@@ -339,7 +339,7 @@ TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
  * Only first usedKeyColumnCount columns are converted, other values are discarded.
  *
  * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
- * filled with min (lower) or max (upper) possible value of the corresponding column.
+ * filled with the first (lower) or last (upper) possible value in column sort order.
  *
  * If provided bounds are exclusive and tryMakeBoundsInclusive is |true|,
  * this functions will try to convert them to inclusive using some heuristics.
@@ -353,6 +353,7 @@ TClickHouseKeys ToClickHouseKeys(
     int usedKeyColumnCount,
     bool tryMakeBoundsInclusive)
 {
+    // TODO(buyval01): Handle NaN values in key conditions properly.
     YT_VERIFY(usedKeyColumnCount <= std::ssize(dataTypes));
 
     auto convertToClickHouseKey = [&] (const TKeyBound& ytBound) {
@@ -382,7 +383,8 @@ TClickHouseKeys ToClickHouseKeys(
             int lastConvertedIndex = prefixSizeToConvert - 1;
 
             std::optional<DB::Field> adjustedValue;
-            if (ytBound.IsUpper) {
+            bool descending = schema.Columns()[lastConvertedIndex].SortOrder() == ESortOrder::Descending;
+            if (ytBound.IsUpper != descending) {
                 adjustedValue = TryDecrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
             } else {
                 adjustedValue = TryIncrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
@@ -394,14 +396,15 @@ TClickHouseKeys ToClickHouseKeys(
             }
         }
 
-        // Fill remaining suffix with min/max values.
+        // Fill remaining suffix in physical key order.
         for (int index = prefixSizeToConvert; index < usedKeyColumnCount; ++index) {
             // For an inclusive bound we should set a value which will not shorten our range.
-            // Such value is the maximum type value for upper bound the minimum type value for an lower bound.
+            // Such value is the last value in sort order for an upper bound, or the first for a lower bound.
             // For an exclusive bound we can set any value, because it will only extend our range.
             // But to keep our keys as accurate as possible, we need to set a value which will extend our range the least.
             // Such value is an opposite to a value we chose for an inclusive bound.
-            if (ytBound.IsUpper ^ isInclusive) {
+            bool descending = schema.Columns()[index].SortOrder() == ESortOrder::Descending;
+            if (ytBound.IsUpper ^ isInclusive ^ descending) {
                 chKey[index] = GetMinimumTypeValue(dataTypes[index]);
             } else {
                 chKey[index] = GetMaximumTypeValue(dataTypes[index]);

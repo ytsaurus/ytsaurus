@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 from enum import auto
-
+from collections.abc import Sequence
 from sqlglot.helper import AutoName
 
 
@@ -38,7 +38,7 @@ class ParseError(SqlglotError):
     def __init__(
         self,
         message: str,
-        errors: t.Optional[t.List[t.Dict[str, t.Any]]] = None,
+        errors: list[dict[str, t.Any]] | None = None,
     ):
         super().__init__(message)
         self.errors = errors or []
@@ -47,13 +47,13 @@ class ParseError(SqlglotError):
     def new(
         cls,
         message: str,
-        description: t.Optional[str] = None,
-        line: t.Optional[int] = None,
-        col: t.Optional[int] = None,
-        start_context: t.Optional[str] = None,
-        highlight: t.Optional[str] = None,
-        end_context: t.Optional[str] = None,
-        into_expression: t.Optional[str] = None,
+        description: str | None = None,
+        line: int | None = None,
+        col: int | None = None,
+        start_context: str | None = None,
+        highlight: str | None = None,
+        end_context: str | None = None,
+        into_expression: str | None = None,
     ) -> ParseError:
         return cls(
             message,
@@ -89,9 +89,9 @@ class ExecuteError(SqlglotError):
 
 def highlight_sql(
     sql: str,
-    positions: t.List[t.Tuple[int, int]],
+    positions: list[tuple[int, int]],
     context_length: int = ERROR_MESSAGE_CONTEXT_DEFAULT,
-) -> t.Tuple[str, str, str, str]:
+) -> tuple[str, str, str, str]:
     """
     Highlight a SQL string using ANSI codes at the given positions.
 
@@ -150,7 +150,7 @@ def highlight_sql(
     return formatted_sql, start_context, highlight, end_context
 
 
-def concat_messages(errors: t.Sequence[t.Any], maximum: int) -> str:
+def concat_messages(errors: Sequence[t.Any], maximum: int) -> str:
     msg = [str(e) for e in errors[:maximum]]
     remaining = len(errors) - maximum
     if remaining > 0:
@@ -158,5 +158,5 @@ def concat_messages(errors: t.Sequence[t.Any], maximum: int) -> str:
     return "\n\n".join(msg)
 
 
-def merge_errors(errors: t.Sequence[ParseError]) -> t.List[t.Dict[str, t.Any]]:
+def merge_errors(errors: Sequence[ParseError]) -> list[dict[str, t.Any]]:
     return [e_dict for error in errors for e_dict in error.errors]

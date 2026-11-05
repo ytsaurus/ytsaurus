@@ -1,9 +1,9 @@
 #include "domestic_medium_type_handler.h"
 
+#include "chunk_manager.h"
 #include "domestic_medium.h"
 #include "domestic_medium_proxy.h"
 #include "medium_type_handler_base.h"
-#include "chunk_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 

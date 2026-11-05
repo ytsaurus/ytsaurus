@@ -9,6 +9,9 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/ytlib/cell_balancer/cell_tracker_service_proxy.h>
 
@@ -53,15 +56,11 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo(
-            "AssignPeerCount: %v, "
-            "RevokePeerCount: %v, "
-            "PeerCountUpdateCount: %v, "
-            "SetLeadingPeerCount: %v",
-            request->assignments_size(),
-            request->revocations_size(),
-            request->peer_count_updates_size(),
-            request->leading_peer_updates_size());
+        context->AnnotateRequest()
+            .With("AssignPeerCount", request->assignments_size())
+            .With("RevokePeerCount", request->revocations_size())
+            .With("PeerCountUpdateCount", request->peer_count_updates_size())
+            .With("SetLeadingPeerCount", request->leading_peer_updates_size());
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         context->ReplyFrom(CreateMutation(hydraManager, *request)
@@ -73,7 +72,7 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
@@ -161,7 +160,7 @@ private:
 
         auto fillSlot = [&] (
             NCellBalancerClient::NProto::TSlot* protoSlot,
-            const NNodeTrackerServer::TNode::TCellSlot& slot)
+            const NNodeTrackerServer::TCellSlot& slot)
         {
             if (!slot.Cell) {
                 return;
@@ -211,11 +210,9 @@ private:
             }
         }
 
-        context->SetResponseInfo(
-            "NodeCount: %v, "
-            "CellCount: %v",
-            response->nodes_size(),
-            cellCount);
+        context->AnnotateResponse()
+            .With("NodeCount", response->nodes_size())
+            .With("CellCount", cellCount);
 
         context->Reply();
     }

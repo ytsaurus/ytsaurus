@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/error_code.h>
+#include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -10,6 +10,7 @@ namespace protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class Arena;
 class Message;
 class MessageLite;
 class Descriptor;
@@ -37,12 +38,13 @@ namespace NProtoBuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using Message = ::google::protobuf::Message;
-using MessageLite = ::google::protobuf::MessageLite;
-using MessageDifferencer = ::google::protobuf::util::MessageDifferencer;
-using Descriptor = ::google::protobuf::Descriptor;
-using FieldDescriptor = ::google::protobuf::FieldDescriptor;
-using UnknownFieldSet = ::google::protobuf::UnknownFieldSet;
+using ::google::protobuf::Arena;
+using ::google::protobuf::Message;
+using ::google::protobuf::MessageLite;
+using ::google::protobuf::util::MessageDifferencer;
+using ::google::protobuf::Descriptor;
+using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +116,7 @@ struct TIndexParseResult;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWireString;
+class TMutableWireString;
 class TWireStringPart;
 
 ////////////////////////////////////////////////////////////////////////////////

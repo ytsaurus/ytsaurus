@@ -14,7 +14,6 @@ import builtins
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAllyReplicas(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -115,8 +114,8 @@ class TestAllyReplicas(YTEnvSetup):
             set_node_banned(node, False)
 
     @authors("ifsmirnov")
+    @pytest.mark.skip(reason="YT-15097")
     def test_ally_replicas_disabled(self):
-        pytest.skip("YT-15097")
         self._create_table("//tmp/t")
         rows = [{"a": "b"}]
         write_table("//tmp/t", rows)
@@ -184,25 +183,9 @@ class TestAllyReplicas(YTEnvSetup):
 
         assert not banned_nodes
 
-
-# COMPAT(danilalexeev): YT-23781.
-@pytest.mark.enabled_multidaemon
-class TestAllyReplicasOldHeartbeats(TestAllyReplicas):
-    ENABLE_MULTIDAEMON = True
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": False,
-                "enable_validation_full_heartbeats": False,
-            },
-        }
-    }
-
-
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAllyReplicasMulticell(TestAllyReplicas):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

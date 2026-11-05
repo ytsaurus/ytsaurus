@@ -90,7 +90,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             for i in range(4):
                 query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
                 if i != 0:
-                    with raises_yt_error(QueryFailedError):
+                    with raises_yt_error(code=QueryFailedError):
                         clique.make_query(query)
                 else:
                     result = clique.make_query(query)
@@ -174,7 +174,7 @@ class TestYsonFunctions(ClickHouseTestBase):
     @authors("gudqeit")
     def test_parse_unexpected_type(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
 
             result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
@@ -229,7 +229,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": yson.dumps(object, "text").decode()}]
             result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
             assert result == [{"i": None}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
 
     @authors("dakovalkov")
@@ -247,13 +247,21 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": object["a"]}]
             result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
             assert result == [{"i": ""}]
+            # A numeric node extracted as String must be written in text form ("42"),
+            # not as binary YSON (which would yield bytes like "\x02T").
+            result = clique.make_query(
+                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'String') as i")
+            assert result == [{"i": "42"}]
+            result = clique.make_query(
+                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'Int64') as i")
+            assert result == [{"i": 42}]
 
     # CHYT-370.
     @authors("max42")
     def test_const_arguments(self):
         with Clique(1) as clique:
             assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": '["foo";"bar";]'}
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
                 clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
 
@@ -263,6 +271,15 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
                 {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
             ]
+
+    @authors("iharbychyk")
+    def test_yson_extract_keys(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YSONExtractKeys('{a=hello;b=[-100;200.0;300]}') as res") == [{"res": ["a", "b"]}]
+            assert clique.make_query("select YSONExtractKeys('{x={a=1;b=2};y={z={c=3}}}', 'y', 'z') as res") == [{"res": ["c"]}]
+            assert clique.make_query("select YSONExtractKeys('{a=1;b=2}', 'c') as res") == [{"res": []}]
+            assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
+            assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
 
     @authors("a-dyu")
     def test_yson_to_json(self):

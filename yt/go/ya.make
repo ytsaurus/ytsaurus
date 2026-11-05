@@ -22,8 +22,10 @@ RECURSE(
     deps
     dockertest
     examples
+    flow
     # genproto
     guid
+    internal
     mapreduce
     migrate
     proto

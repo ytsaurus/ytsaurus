@@ -51,6 +51,7 @@ target_link_libraries(server-lib-tablet_node PUBLIC
   yt-yt-ytlib
   server-lib-hive
   server-lib-election
+  server-lib-tablet_balancer
   server-lib-transaction_supervisor
   contrib-libs-protobuf
 )

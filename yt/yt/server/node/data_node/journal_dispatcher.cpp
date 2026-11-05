@@ -85,9 +85,9 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) override;
 
-    TFuture<bool> IsJournalSealed(
+    bool IsJournalSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId) override;
+        TChunkId chunkId) const override;
 
     TFuture<void> SealJournal(TJournalChunkPtr chunk) override;
 
@@ -138,11 +138,11 @@ public:
 
     ~TCachedChangelog()
     {
-        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-            Location_->GetId(),
-            Location_->GetUuid(),
-            Location_->GetIndex(),
-            ChunkId_);
+        YT_TLOG_DEBUG("Cached changelog destroyed")
+            .With("LocationId", Location_->GetId())
+            .With("LocationUuid", Location_->GetUuid())
+            .With("LocationIndex", Location_->GetIndex())
+            .With("ChunkId", ChunkId_);
     }
 
     int GetId() const override
@@ -165,15 +165,23 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        auto result = UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        auto result = UnderlyingChangelog_->EstimateWriteSize(payloadSize);
         if (EnableMultiplexing_) {
             const auto& journalManager = Location_->GetJournalManager();
             result += journalManager->EstimateMultiplexedChangelogSize(payloadSize);
         }
 
         return result;
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -346,9 +354,9 @@ TFuture<void> TJournalDispatcher::RemoveJournal(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<bool> TJournalDispatcher::IsJournalSealed(
+bool TJournalDispatcher::IsJournalSealed(
     const TStoreLocationPtr& location,
-    TChunkId chunkId)
+    TChunkId chunkId) const
 {
     const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);
@@ -368,11 +376,11 @@ void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog added to cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-        key.Location->GetId(),
-        key.Location->GetUuid(),
-        key.Location->GetIndex(),
-        key.ChunkId);
+    YT_TLOG_DEBUG("Changelog added to cache")
+        .With("LocationId", key.Location->GetId())
+        .With("LocationUuid", key.Location->GetUuid())
+        .With("LocationIndex", key.Location->GetIndex())
+        .With("ChunkId", key.ChunkId);
 }
 
 void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
@@ -382,11 +390,11 @@ void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog removed from cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-        key.Location->GetId(),
-        key.Location->GetUuid(),
-        key.Location->GetIndex(),
-        key.ChunkId);
+    YT_TLOG_DEBUG("Changelog removed from cache")
+        .With("LocationId", key.Location->GetId())
+        .With("LocationUuid", key.Location->GetUuid())
+        .With("LocationIndex", key.Location->GetIndex())
+        .With("ChunkId", key.ChunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,7 +43,7 @@ template <
 >
 TResult RunTool(
     const TArg& arg,
-    std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker)
+    std::function<NYson::TYsonString(const std::string&, const NYson::TYsonString&)> invoker)
 {
     auto name = typeid(TTool).name();
 
@@ -52,7 +52,7 @@ TResult RunTool(
         serializedArgument = NYson::ConvertToYsonString(arg, NYson::EYsonFormat::Text);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to serialize argument for tool %v", name)
-            << ex;
+            .With(ex);
     }
 
     auto serializedResultOrError = invoker(name, serializedArgument);
@@ -64,8 +64,8 @@ TResult RunTool(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse result of tool %v",
             name)
-            << TErrorAttribute("result", serializedResultOrError.AsStringBuf())
-            << ex;
+            .With("result", serializedResultOrError.AsStringBuf())
+            .With(ex);
     }
 
     THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error occurred during tool run");
@@ -79,7 +79,7 @@ template <
     typename TTool,
     typename TArg
 >
-std::vector<TString> GenerateToolArguments(const TArg& arg)
+std::vector<std::string> GenerateToolArguments(const TArg& arg)
 {
     auto name = typeid(TTool).name();
 
@@ -88,10 +88,10 @@ std::vector<TString> GenerateToolArguments(const TArg& arg)
         serializedArgument = NYson::ConvertToYsonString(arg, NYson::EYsonFormat::Text);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to serialize argument for tool %v", name)
-            << ex;
+            .With(ex);
     }
 
-    return std::vector<TString>{
+    return std::vector<std::string>{
         "--tool-name",
         name,
         "--tool-spec",

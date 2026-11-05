@@ -12,7 +12,7 @@ TVolumeProfilerCounters::TVolumeProfilerCounters()
     : VolumeProfiler_("/volumes")
 { }
 
-TCounter TVolumeProfilerCounters::GetCounter(const TTagSet& tagSet, const TString& name)
+TCounter TVolumeProfilerCounters::GetCounter(const TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -25,7 +25,7 @@ TCounter TVolumeProfilerCounters::GetCounter(const TTagSet& tagSet, const TStrin
     return it->second;
 }
 
-TGauge TVolumeProfilerCounters::GetGauge(const TTagSet& tagSet, const TString& name)
+TGauge TVolumeProfilerCounters::GetGauge(const TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -38,7 +38,7 @@ TGauge TVolumeProfilerCounters::GetGauge(const TTagSet& tagSet, const TString& n
     return it->second;
 }
 
-TEventTimer TVolumeProfilerCounters::GetTimeHistogram(const TTagSet& tagSet, const TString& name)
+TEventTimer TVolumeProfilerCounters::GetTimeHistogram(const TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -59,7 +59,7 @@ TEventTimer TVolumeProfilerCounters::GetTimeHistogram(const TTagSet& tagSet, con
     return it->second;
 }
 
-TEventTimer TVolumeProfilerCounters::GetTimer(const TTagSet& tagSet, const TString& name)
+TEventTimer TVolumeProfilerCounters::GetTimer(const TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -72,7 +72,7 @@ TEventTimer TVolumeProfilerCounters::GetTimer(const TTagSet& tagSet, const TStri
     return it->second;
 }
 
-TTagSet TVolumeProfilerCounters::MakeTagSet(const TString& volumeType, const TString& volumeFilePath)
+TTagSet TVolumeProfilerCounters::MakeTagSet(const std::string& volumeType, const std::string& volumeFilePath)
 {
     return TTagSet({{"type", volumeType}, {"file_path", volumeFilePath}});
 }
@@ -82,7 +82,7 @@ TVolumeProfilerCounters* TVolumeProfilerCounters::Get()
     return Singleton<TVolumeProfilerCounters>();
 }
 
-TVolumeProfilerCounters::TKey TVolumeProfilerCounters::CreateKey(const TTagSet& tagSet, const TString& name)
+TVolumeProfilerCounters::TKey TVolumeProfilerCounters::CreateKey(const TTagSet& tagSet, const std::string& name)
 {
     auto key = tagSet.Tags();
     key.push_back({"name", name});
@@ -95,47 +95,6 @@ TTaggedCounters<int>& VolumeCounters()
 {
     static TTaggedCounters<int> result;
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLayerLocationPerformanceCounters::TLayerLocationPerformanceCounters(const TProfiler& profiler)
-{
-    LayerCount = profiler.Gauge("/layer_count");
-    VolumeCount = profiler.Gauge("/volume_count");
-
-    UsedSpace = profiler.Gauge("/used_space");
-    AvailableSpace = profiler.Gauge("/available_space");
-    TotalSpace = profiler.Gauge("/total_space");
-    Full = profiler.Gauge("/full");
-
-    ImportLayerTimer = profiler.Timer("/import_layer_time");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTmpfsLayerCacheCounters::TTmpfsLayerCacheCounters(TProfiler profiler)
-    : Profiler_(std::move(profiler))
-{ }
-
-TCounter TTmpfsLayerCacheCounters::GetCounter(const TTagSet& tagSet, const TString& name)
-{
-    auto key = CreateKey(tagSet, name);
-
-    auto guard = Guard(Lock_);
-    auto [it, inserted] = Counters_.emplace(key, TCounter());
-    if (inserted) {
-        it->second = Profiler_.WithTags(tagSet).Counter(name);
-    }
-
-    return it->second;
-}
-
-TTmpfsLayerCacheCounters::TKey TTmpfsLayerCacheCounters::CreateKey(const TTagSet& tagSet, const TString& name)
-{
-    auto key = tagSet.Tags();
-    key.push_back({"name", name});
-    return key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

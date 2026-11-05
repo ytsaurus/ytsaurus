@@ -44,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProbe)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr busClientConfig,
+    NBus::NTcp::TBusClientConfigPtr busClientConfig,
     NExecNode::TJobProbeConfigPtr probeConfig);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,15 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 func TestCounter_Add(t *testing.T) {
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-	}
+	c := NewCounter("mycounter", 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	c.Add(1)
 	assert.Equal(t, int64(1), c.value.Load())
@@ -27,11 +22,7 @@ func TestCounter_Add(t *testing.T) {
 }
 
 func TestCounter_Inc(t *testing.T) {
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-	}
+	c := NewCounter("mycounter", 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	for i := 0; i < 10; i++ {
 		c.Inc()
@@ -44,38 +35,23 @@ func TestCounter_Inc(t *testing.T) {
 }
 
 func TestCounter_getID(t *testing.T) {
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-	}
+	c := NewCounter("mycounter", 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	assert.Equal(t, "mycounter", c.getID())
 }
 
 func TestCounter_getID_WithTS(t *testing.T) {
 	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-		timestamp:  &ts,
-	}
+	c := NewCounter("mycounter", 0, WithTags(map[string]string{"ololo": "trololo"}), WithTimestamp(ts))
 
 	assert.Equal(t, "mycounter(2020-01-01T00:00:00Z)", c.getID())
 }
 
 func TestCounter_MarshalJSON(t *testing.T) {
 	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-		value:      *atomic.NewInt64(42),
-		timestamp:  &ts,
-	}
+	c := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithTimestamp(ts))
 
-	b, err := json.Marshal(c)
+	b, err := json.Marshal(&c)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42,"ts":1577836800}`)
@@ -83,14 +59,9 @@ func TestCounter_MarshalJSON(t *testing.T) {
 }
 
 func TestRatedCounter_MarshalJSON(t *testing.T) {
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeRated,
-		tags:       map[string]string{"ololo": "trololo"},
-		value:      *atomic.NewInt64(42),
-	}
+	c := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
 
-	b, err := json.Marshal(c)
+	b, err := json.Marshal(&c)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"RATE","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42}`)
@@ -98,16 +69,9 @@ func TestRatedCounter_MarshalJSON(t *testing.T) {
 }
 
 func TestNameTagCounter_MarshalJSON(t *testing.T) {
-	c := &Counter{
-		name:       "mycounter",
-		metricType: typeCounter,
-		tags:       map[string]string{"ololo": "trololo"},
-		value:      *atomic.NewInt64(42),
+	c := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithUseNameTag())
 
-		useNameTag: true,
-	}
-
-	b, err := json.Marshal(c)
+	b, err := json.Marshal(&c)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"COUNTER","labels":{"name":"mycounter","ololo":"trololo"},"value":42}`)

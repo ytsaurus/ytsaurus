@@ -12,7 +12,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CStringOrLiteralValue TValue>
-TString FormatValue(const TValue& value)
+std::string FormatValue(const TValue& value)
 {
     if constexpr (std::same_as<TValue, NQueryClient::NAst::TLiteralValue>) {
         return NQueryClient::NAst::FormatLiteralValue(value);
@@ -22,7 +22,7 @@ TString FormatValue(const TValue& value)
 }
 
 template <CStringOrLiteralValue TValue, class TFormatter>
-TString FormatListImpl(const std::vector<TValue>& formatttableValues, const TFormatter& formatter)
+std::string FormatListImpl(const std::vector<TValue>& formatttableValues, const TFormatter& formatter)
 {
     TStringBuilder builder;
     TDelimitedStringBuilderWrapper wrapper(&builder);
@@ -40,7 +40,7 @@ TString FormatListImpl(const std::vector<TValue>& formatttableValues, const TFor
 
 } // namespace NDetail
 
-template <CString TReference, CStringOrLiteralValue TValue>
+template <NMpl::CString TReference, CStringOrLiteralValue TValue>
 std::string GenerateLexicographicalFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& formattableValues,
@@ -79,7 +79,7 @@ std::string GenerateLexicographicalFilter(
         FormatList(formattableValues));
 }
 
-template <CString TReference, CStringOrLiteralValue TValue>
+template <NMpl::CString TReference, CStringOrLiteralValue TValue>
 std::string GenerateLexicographicalRangeFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& leftBound,
@@ -101,7 +101,7 @@ std::string GenerateLexicographicalRangeFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CStringOrLiteralValue TValue>
-TString FormatList(const std::vector<TValue>& formatttableValues)
+std::string FormatList(const std::vector<TValue>& formatttableValues)
 {
     return NDetail::FormatListImpl(formatttableValues, NDetail::FormatValue<TValue>);
 }

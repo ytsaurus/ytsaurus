@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "object.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -57,10 +57,11 @@ public:
     void DestroyZombie(TObject* object);
     bool IsRegisteredZombie(TObject* object) const;
     bool IsEphemeralGhost(TObject* object) const;
+    bool IsWeakGhost(TObject* object) const;
 
-    void RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagList& cellTags);
+    void RegisterRemovalAwaitingCellsSyncObject(TObject* object, const NObjectClient::TCellTagSet& cellTags);
     void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
-    const THashMap<TObjectRawPtr, TCellTagList>& GetRemovalAwaitingCellsSyncObjects() const;
+    const THashMap<TObjectRawPtr, NObjectClient::TCellTagSet>& GetRemovalAwaitingCellsSyncObjects() const;
 
     TObject* GetWeakGhostObject(TObjectId id);
 
@@ -111,7 +112,7 @@ private:
     std::atomic<int> LockedObjectCount_ = 0;
 
     //! Objects in |RemovalAwaitingCellsSync| life stage.
-    THashMap<TObjectRawPtr, TCellTagList> RemovalAwaitingCellsSyncObjects_;
+    THashMap<TObjectRawPtr, NObjectClient::TCellTagSet> RemovalAwaitingCellsSyncObjects_;
 
     //! List of the ephemeral ghosts waiting for ephemeral unref.
     TMpscStack<std::pair<TObject*, TEpoch>> EphemeralGhostUnrefQueue_;

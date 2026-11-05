@@ -1,7 +1,6 @@
 #include "dictionary_source.h"
 
 #include "conversion.h"
-#include "dictionary_access_control.h"
 #include "secondary_query_source.h"
 #include "host.h"
 #include "query_context.h"
@@ -62,7 +61,7 @@ public:
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), Client_)
-        , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
+        , Logger(ClickHouseYtLogger().WithTag("Path", Path_))
         , Context_(context)
         , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
             DictionaryStructure_,
@@ -74,9 +73,13 @@ public:
             DB::IdentifierQuotingStyle::Backticks))
         , Session_(std::make_shared<DB::Session>(Host_->GetContext(), DB::ClientInfo::Interface::LOCAL))
     {
+        if (auto user = Client_->GetOptions().User) {
+            ClientUserName_ = *user;
+        }
+
         RegisterNewUser(
             Host_->GetContext()->getAccessControl(),
-            CacheUserName,
+            ClientUserName_,
             Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
         SupportsSelectiveLoad_ = FetchTable()->IsOrderedDynamic();
@@ -86,15 +89,15 @@ public:
     {
         RevisionTracker_.FixCurrentRevision();
 
-        YT_LOG_INFO("Reloading dictionary (Revision: %llx)", RevisionTracker_.GetRevision());
+        YT_TLOG_INFO("Reloading dictionary")
+            .WithFormat("Revision", "%llx", RevisionTracker_.GetRevision());
 
         auto table = FetchTable();
 
-        ValidateSchema(*table->Schema);
+        auto readSchema = BuildReadSchema(*table->Schema);
 
-        auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
-            .RichPath = Path_,
-            .Client = Client_,
+        TUserObject userObject(Path_);
+        auto tableReadSpec = FetchSingleTableReadSpec(&userObject, Client_, TFetchSingleTableReadSpecOptions{
             .GetUserObjectBasicAttributesOptions = {
                 .OmitInaccessibleRows = true,
             },
@@ -108,12 +111,12 @@ public:
             tableReadSpec,
             TClientChunkReadOptions(),
             true,
-            NTableClient::TNameTable::FromSchema(*table->Schema),
-            NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
+            NTableClient::TNameTable::FromSchema(*readSchema),
+            NTableClient::TColumnFilter(readSchema->GetColumnCount()));
 
         auto source = CreateSecondaryQuerySource(
             reader,
-            BuildSimpleReadPlan(table->Schema->Columns()),
+            BuildSimpleReadPlan(readSchema->Columns()),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
@@ -126,7 +129,7 @@ public:
 
     DB::QueryPipeline loadIds(const std::vector<UInt64>& ids) override
     {
-        TString query = QueryBuilder_->composeLoadIdsQuery(ids);
+        auto query = QueryBuilder_->composeLoadIdsQuery(ids);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
@@ -139,13 +142,14 @@ public:
         const DB::Columns& keyColumns,
         const std::vector<size_t>& requestedRows) override
     {
-        TString query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
+        auto query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
     bool isModified() const override
     {
-        YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %llx)", RevisionTracker_.GetRevision());
+        YT_TLOG_DEBUG("Checking dictionary revision")
+            .WithFormat("OldRevision", "%llx", RevisionTracker_.GetRevision());
         return RevisionTracker_.HasRevisionChanged();
     }
 
@@ -183,6 +187,7 @@ public:
 private:
     THost* Host_;
     NApi::NNative::IClientPtr Client_;
+    std::string ClientUserName_ = DictionariesUserName;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
     DB::NamesAndTypesList NamesAndTypesList_;
@@ -193,18 +198,36 @@ private:
     bool SupportsSelectiveLoad_;
     std::shared_ptr<DB::Session> Session_;
 
-    void ValidateSchema(const TTableSchema& schema)
+    TTableSchemaPtr BuildReadSchema(const TTableSchema& tableSchema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TCompositeSettings>());
-        if (namesAndTypesList != NamesAndTypesList_) {
-            THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
-                << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
-                << TErrorAttribute("actual_schema", namesAndTypesList.toString());
+        std::vector<TColumnSchema> columns;
+        columns.reserve(NamesAndTypesList_.size());
+        for (const auto& nameAndType : NamesAndTypesList_) {
+            const auto* column = tableSchema.FindColumn(nameAndType.name);
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Dictionary column %Qv is missing in the source table schema",
+                    nameAndType.name)
+                    .With("config_schema", NamesAndTypesList_.toString())
+                    .With("actual_schema",
+                        ToNamesAndTypesList(tableSchema, New<TConversionSettings>()).toString());
+            }
+            columns.push_back(*column);
         }
+
+        auto readSchema = New<TTableSchema>(std::move(columns));
+
+        auto namesAndTypesList = ToNamesAndTypesList(*readSchema, New<TConversionSettings>());
+        if (namesAndTypesList != NamesAndTypesList_) {
+            THROW_ERROR_EXCEPTION("Dictionary schema does not match the source table schema")
+                .With("config_schema", NamesAndTypesList_.toString())
+                .With("actual_schema", namesAndTypesList.toString());
+        }
+
+        return readSchema;
     }
 
     TTablePtr FetchTable() {
-        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
+        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Client_);
 
         auto table = FetchTablesSoft(
             fakeQueryContext.Get(),
@@ -219,7 +242,7 @@ private:
     DB::ContextMutablePtr GetContext() {
         auto context =  PrepareContextForQuery(
             Session_,
-            CacheUserName,
+            ClientUserName_,
             TDuration::Seconds(0),
             Host_,
             "ChytDictionarySource");
@@ -243,11 +266,11 @@ void RegisterTableDictionarySource(THost* host)
         const std::string& /*default_database*/,
         bool /*checkConfig*/) -> DB::DictionarySourcePtr
     {
-        const auto& path = TRichYPath::Parse(TString(config.getString(dictSectionPath + ".yt.path")));
+        const auto path = config.getString(Format("%v.yt.path", dictSectionPath));
         return std::make_unique<TTableDictionarySource>(
             host,
             dictionaryStructure,
-            path,
+            TRichYPath::Parse(TStringBuf(path)),
             sampleBlock.getNamesAndTypesList(),
             context);
     };
@@ -257,13 +280,17 @@ void RegisterTableDictionarySource(THost* host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> GetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(
+    const DBPoco::Util::AbstractConfiguration& config,
+    const std::string& configPrefix)
 {
-    auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
-    if (!ytSource) {
+    const auto pathKey = Format("%v.source.yt.path", configPrefix);
+    if (!config.has(pathKey)) {
         return std::nullopt;
     }
-    return ytSource->Path();
+
+    const auto path = config.getString(pathKey);
+    return TRichYPath::Parse(TStringBuf(path)).GetPath();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

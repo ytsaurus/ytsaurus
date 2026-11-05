@@ -6,11 +6,11 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletNode {
 

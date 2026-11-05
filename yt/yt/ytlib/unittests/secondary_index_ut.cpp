@@ -45,10 +45,31 @@ const auto BasicIndexSchema = New<TTableSchema>(std::vector{
     TColumnSchema("$empty", EValueType::Int64),
 }, true, true);
 
-const TIndexInfo DefaultIndexInfo = {
-    .Kind = ESecondaryIndexKind::FullSync,
-    .Correspondence = ETableToIndexCorrespondence::Bijective,
-};
+const TIndexInfo DefaultIndexInfo = [] {
+    TIndexInfo info;
+    info.Kind = ESecondaryIndexKind::FullSync;
+    info.Correspondence = ETableToIndexCorrespondence::Bijective;
+    return info;
+}();
+
+////////////////////////////////////////////////////////////////////////////////
+
+ERowModificationType GetModificationType(const TRowModification& modification)
+{
+    return Visit(modification,
+        [] (const NRowModifications::TWriteRow&) {
+            return ERowModificationType::Write;
+        },
+        [] (const NRowModifications::TDeleteRow&) {
+            return ERowModificationType::Delete;
+        },
+        [] (const NRowModifications::TVersionedWriteRow&) {
+            return ERowModificationType::VersionedWrite;
+        },
+        [] (const NRowModifications::TWriteAndLockRow&) {
+            return ERowModificationType::WriteAndLock;
+        });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,26 +129,29 @@ public:
             .Locks = {},
             .SequentialId = 0,
         };
+        auto indexInfo = TIndexInfo();
+        indexInfo.Kind = kind;
+        indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
 
         auto modifications = Run(
             std::move(tableSchema),
             std::move(indexSchema),
             TRange(&modification, 1),
             {},
-            TIndexInfo{
-                .Kind = kind,
-                .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-            });
+            indexInfo);
 
         THROW_ERROR_EXCEPTION_IF(modifications.Size() != 1,
             "Expected a single index modification, got %v",
             modifications.Size());
 
         auto indexModification = modifications[0];
-        THROW_ERROR_EXCEPTION_IF(indexModification.Type != ERowModificationType::Write,
-            "Expected a write modification, got %Qlv", indexModification.Type);
+        auto modificationType = GetModificationType(indexModification);
+        THROW_ERROR_EXCEPTION_IF(modificationType != ERowModificationType::Write,
+            "Expected a write modification, got %v",
+            modificationType);
 
-        for (auto val : TUnversionedRow(indexModification.Row)) {
+        const auto& indexWrite = std::get<NRowModifications::TWriteRow>(indexModification);
+        for (auto val : indexWrite.Row) {
             auto primaryIndex = val.Id;
             if (primaryIndex >= columnCount) {
                 continue;
@@ -499,15 +523,16 @@ TEST_F(TSecondaryIndexTest, EvaluatedColumns)
         TColumnSchema("eva2", EValueType::Int64).SetExpression("-value1"),
     });
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::FullSync;
+    indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
+
     Run(
         std::move(tableSchema),
         std::move(indexSchema),
         {},
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::FullSync,
-            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-        });
+        indexInfo);
 }
 
 TEST_F(TSecondaryIndexTest, UnfoldingDifferentNames)
@@ -534,18 +559,16 @@ TEST_F(TSecondaryIndexTest, UnfoldingDifferentNames)
         .SequentialId=0,
     };
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::Unfolding;
+    indexInfo.UnfoldedColumns = TUnfoldedColumns("values", "value");
+
     auto indexModifications = Run(
         std::move(tableSchema),
         std::move(indexSchema),
         TRange(&modification, 1),
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::Unfolding,
-            .UnfoldedColumns = TUnfoldedColumns{
-                .TableColumn = "values",
-                .IndexColumn = "value",
-            },
-        });
+        indexInfo);
 
     EXPECT_EQ(indexModifications.size(), 4ul);
 }
@@ -579,19 +602,17 @@ TEST_F(TSecondaryIndexTest, UnfoldingDifferentNamesEvaluated)
         .SequentialId=0,
     };
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::Unfolding;
+    indexInfo.UnfoldedColumns = TUnfoldedColumns("values_evaluated", "value");
+    indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
+
     auto indexModifications = Run(
         std::move(tableSchema),
         std::move(indexSchema),
         TRange(&modification, 1),
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::Unfolding,
-            .UnfoldedColumns = TUnfoldedColumns{
-                .TableColumn = "values_evaluated",
-                .IndexColumn = "value",
-            },
-            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-        });
+        indexInfo);
 
     EXPECT_EQ(indexModifications.size(), 4ul);
 }
@@ -618,19 +639,26 @@ TEST_F(TSecondaryIndexTest, OverwriteRow)
 
     ASSERT_EQ(indexModifications.Size(), 2ul);
     ASSERT_TRUE(
-        (indexModifications[0].Type == ERowModificationType::Delete) !=
-        (indexModifications[1].Type == ERowModificationType::Delete));
+        (GetModificationType(indexModifications[0]) == ERowModificationType::Delete) !=
+        (GetModificationType(indexModifications[1]) == ERowModificationType::Delete));
     ASSERT_TRUE(
-        (indexModifications[0].Type == ERowModificationType::Write) !=
-        (indexModifications[1].Type == ERowModificationType::Write));
+        (GetModificationType(indexModifications[0]) == ERowModificationType::Write) !=
+        (GetModificationType(indexModifications[1]) == ERowModificationType::Write));
 
     for (auto& im : indexModifications) {
-        if (im.Type == ERowModificationType::Write) {
-            EXPECT_EQ(TUnversionedRow(im.Row)[0].Data.Int64, 1);
-            EXPECT_EQ(TUnversionedRow(im.Row)[1].Data.Int64, 0);
+        if (const auto* indexWrite = std::get_if<NRowModifications::TWriteRow>(&im);
+            indexWrite)
+        {
+            EXPECT_EQ(indexWrite->Row[0].Data.Int64, 1);
+            EXPECT_EQ(indexWrite->Row[1].Data.Int64, 0);
+
+        } else if (const auto* indexDelete = std::get_if<NRowModifications::TDeleteRow>(&im);
+            indexDelete)
+        {
+            EXPECT_EQ(indexDelete->Key[0].Data.Int64, 0);
+            EXPECT_EQ(indexDelete->Key[1].Data.Int64, 0);
         } else {
-            EXPECT_EQ(TUnversionedRow(im.Row)[0].Data.Int64, 0);
-            EXPECT_EQ(TUnversionedRow(im.Row)[1].Data.Int64, 0);
+            GTEST_FAIL();
         }
     }
 }

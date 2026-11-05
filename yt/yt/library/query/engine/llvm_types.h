@@ -19,7 +19,6 @@ using llvm::ArrayRef;
 template <>
 struct TTypeBuilder<NYT::NQueryClient::TPositionIndependentValueData>
 {
-public:
     using TBoolean = TTypeBuilder<char>;
     using TInt64 = TTypeBuilder<i64>;
     using TUint64 = TTypeBuilder<ui64>;
@@ -74,7 +73,6 @@ public:
 template <>
 struct TTypeBuilder<NYT::NQueryClient::TPositionIndependentValue>
 {
-public:
     using TId = TTypeBuilder<ui16>;
     using TType = TTypeBuilder<ui8>;
     using TAggregate = TTypeBuilder<ui8>;

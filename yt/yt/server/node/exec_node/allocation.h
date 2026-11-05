@@ -24,6 +24,7 @@ DEFINE_ENUM(EAllocationFinishReason,
     (AgentDisconnected)
     (JobFinishedUnsuccessfully)
     (UserSlotDisabled)
+    (JobsDisabledOnNode)
 );
 
 class TAllocation
@@ -87,7 +88,7 @@ public:
     void Complete(EAllocationFinishReason finishReason);
     void Preempt(
         TDuration timeout,
-        TString preemptionReason,
+        std::string preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     bool IsResourceUsageOverdraftOccurred() const;
@@ -159,7 +160,9 @@ private:
         TJobId jobId,
         NControllerAgent::NProto::TJobSpec&& jobSpec);
 
-    void OnAllocationFinished(EAllocationFinishReason finishReason);
+    void OnAllocationFinished(
+        EAllocationFinishReason finishReason,
+        TJobPtr lastJob);
 
     void OnJobPrepared(TJobPtr job);
     void OnJobFinished(TJobPtr job);

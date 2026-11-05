@@ -1,7 +1,5 @@
 #include "domestic_medium.h"
 
-#include "config.h"
-
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NChunkServer {
@@ -33,7 +31,6 @@ void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
     Save(context, Transient_);
     Save(context, *Config_);
     Save(context, DiskFamilyWhitelist_);
-    Save(context, EnableSequoiaReplicas_);
 }
 
 void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
@@ -45,7 +42,10 @@ void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
     Load(context, Transient_);
     Load(context, *Config_);
     Load(context, DiskFamilyWhitelist_);
-    Load(context, EnableSequoiaReplicas_);
+    if (context.GetVersion() < EMasterReign::RemoveEnableSequoiaReplicasInMedium) {
+        bool enableSequoiaReplicas;
+        Load(context, enableSequoiaReplicas);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

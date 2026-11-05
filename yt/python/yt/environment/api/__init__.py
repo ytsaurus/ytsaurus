@@ -69,6 +69,7 @@ class LocalYtConfig(object):
     initialize_world = attr.ib(False)
     wait_tablet_cell_initialization = attr.ib(False)
     init_operations_archive = attr.ib(False)
+    queue_agent_state_target_version = attr.ib(None)
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
     cluster_name = attr.ib(None)
@@ -92,7 +93,10 @@ class LocalYtConfig(object):
     node_io_engine_type = attr.ib(None)
     node_use_direct_io_for_reads = attr.ib("never")
     node_network_names = attr.ib(factory=lambda: ["default"])
+    job_proxy_log_location_count = attr.ib(1)
     store_location_count = attr.ib(1)
+    # Media of the store locations, position-wise; implies the location count.
+    store_location_media = attr.ib(None)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
     # COMPAT(pogorelov)
@@ -120,6 +124,11 @@ class LocalYtConfig(object):
     enable_auth = attr.ib(False)
     create_admin_user = attr.ib(False)
 
+    """tcmalloc heap profiling"""
+    # Heap-profile sampling interval (bytes). None leaves the server default; 0 disables
+    # it, avoiding a per-sample backtrace that may be slow on debug builds.
+    tcmalloc_profile_sampling_rate = attr.ib(None)
+
     """TLS settings"""
     enable_tls = attr.ib(False)
     internal_ca_cert = attr.ib(None)
@@ -134,6 +143,8 @@ class LocalYtConfig(object):
     https_cert_key = attr.ib(None)
     public_rpc_cert = attr.ib(None)
     public_rpc_cert_key = attr.ib(None)
+    kafka_cert = attr.ib(None)
+    kafka_cert_key = attr.ib(None)
     peer_alternative_host_name = attr.ib(None)
 
     """Native authentication settings"""
@@ -174,12 +185,14 @@ class LocalYtConfig(object):
     http_proxy_count = attr.ib(1)
     rpc_proxy_count = attr.ib(1)
     master_cache_count = attr.ib(0)
+    chaos_cache_count = attr.ib(0)
     remote_cluster_count = attr.ib(0)
     cell_balancer_count = attr.ib(0)
     enable_bundle_controller = attr.ib(False)
     tablet_balancer_count = attr.ib(0)
     cypress_proxy_count = attr.ib(0)
     replicated_table_tracker_count = attr.ib(0)
+    offshore_data_gateway_count = attr.ib(0)
 
     """Start options"""
     defer_node_start = attr.ib(False)
@@ -200,9 +213,13 @@ class LocalYtConfig(object):
     delta_rpc_proxy_config = attr.ib(None)
     delta_driver_config = attr.ib(None)
     delta_master_cache_config = attr.ib(None)
+    delta_chaos_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
 
-    # COMPAT
+    """Logging options"""
+    default_abort_on_alert = attr.ib(None)
+
+    # COMPAT(ignat)
     enable_legacy_logging_scheme = attr.ib(False)
 
     @enable_auth.validator

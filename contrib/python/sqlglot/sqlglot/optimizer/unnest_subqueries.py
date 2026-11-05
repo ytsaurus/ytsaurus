@@ -1,9 +1,11 @@
+from __future__ import annotations
 from sqlglot import exp
 from sqlglot.helper import name_sequence
 from sqlglot.optimizer.scope import ScopeType, find_in_scope, traverse_scope
+from sqlglot._typing import E
 
 
-def unnest_subqueries(expression):
+def unnest_subqueries(expression: E) -> E:
     """
     Rewrite sqlglot AST to convert some predicates with subqueries into joins.
 
@@ -17,9 +19,9 @@ def unnest_subqueries(expression):
         'SELECT * FROM x AS x LEFT JOIN (SELECT y.a AS a FROM y AS y WHERE TRUE GROUP BY y.a) AS _u_0 ON x.a = _u_0.a WHERE _u_0.a = 1'
 
     Args:
-        expression (sqlglot.Expression): expression to unnest
+        expression (sqlglot.Expr): expression to unnest
     Returns:
-        sqlglot.Expression: unnested expression
+        sqlglot.Expr: unnested expression
     """
     next_alias_name = name_sequence("_u_")
 
@@ -51,11 +53,20 @@ def unnest(select, parent_select, next_alias_name):
         )
         or parent_select is not predicate.parent_select
         or not parent_select.args.get("from_")
+        # NOT IN has three-valued semantics that the LEFT-JOIN-anti rewrite doesn't preserve:
+        # a NULL in the subquery makes NOT IN evaluate to NULL for every outer row.
+        or (isinstance(predicate, exp.In) and isinstance(predicate.parent, exp.Not))
     ):
         return
 
     if isinstance(select, exp.SetOperation):
-        select = exp.select(*select.selects).from_(select.subquery(next_alias_name()))
+        inner_alias = next_alias_name()
+        select = exp.select(
+            *(
+                exp.alias_(exp.column(s.alias_or_name, inner_alias), s.alias_or_name)
+                for s in select.selects
+            )
+        ).from_(select.subquery(inner_alias))
 
     alias = next_alias_name()
     clause = predicate.find_ancestor(exp.Having, exp.Where, exp.Join)
@@ -92,7 +103,7 @@ def unnest(select, parent_select, next_alias_name):
 
         return
 
-    if select.find(exp.Limit, exp.Offset):
+    if find_in_scope(select, exp.Limit, exp.Offset):
         return
 
     if isinstance(predicate, exp.Any):
@@ -149,9 +160,14 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
         if column.find_ancestor(exp.Where) is not where:
             return
 
+        # The predicate is replaced with TRUE below, which is only sound if its result flows
+        # into the WHERE through conjunctions; wrappers like NOT would invert that TRUE.
         predicate = column.find_ancestor(exp.Predicate)
+        ancestor = predicate.parent if predicate else None
+        while isinstance(ancestor, (exp.And, exp.Paren)):
+            ancestor = ancestor.parent
 
-        if not predicate or predicate.find_ancestor(exp.Where) is not where:
+        if ancestor is not where:
             return
 
         if isinstance(predicate, exp.Binary):
@@ -193,10 +209,19 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
 
     parent_predicate = select.find_ancestor(exp.Predicate)
 
+    # When the subquery is embedded inside a function (e.g. COALESCE, TRIM) in the SELECT list,
+    # the ancestor chain contains no Predicate node AND the subquery is not a direct projection.
+    if parent_predicate is None and not is_subquery_projection:
+        return
+
     # if the value of the subquery is not an agg or a key, we need to collect it into an array
     # so that it can be grouped. For subquery projections, we use a MAX aggregation instead.
     agg_func = exp.Max if is_subquery_projection else exp.ArrayAgg
-    if not value.find(exp.AggFunc) and value.this not in group_by:
+    if (
+        not isinstance(value, exp.Subquery)
+        and not find_in_scope(value, exp.AggFunc)
+        and value.this not in group_by
+    ):
         select.select(
             exp.alias_(agg_func(this=value.this), value.alias, quoted=False),
             append=False,
@@ -252,7 +277,7 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
 
         # COUNT always returns 0 on empty datasets, so we need take that into consideration here
         # by transforming all counts into 0 and using that as the coalesced value
-        if value.find(exp.Count):
+        if find_in_scope(value, exp.Count):
 
             def remove_aggs(node):
                 if isinstance(node, exp.Count):
@@ -298,11 +323,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
     )
 
 
-def _replace(expression, condition):
+def _replace(expression: exp.Expr, condition: exp.ExpOrStr) -> exp.Expr:
     return expression.replace(exp.condition(condition))
 
 
-def _other_operand(expression):
+def _other_operand(expression: object) -> exp.Expr | None:
     if isinstance(expression, exp.In):
         return expression.this
 

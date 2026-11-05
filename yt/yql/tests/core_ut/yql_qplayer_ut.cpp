@@ -1,4 +1,5 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
@@ -9,6 +10,7 @@
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yql/essentials/core/services/mounts/yql_mounts.h>
+#include <yql/essentials/utils/string/trim_indent.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
@@ -57,6 +59,7 @@ struct TRunSettings {
     THashMap<TString, TString> StaticFiles, DynamicFiles;
     bool ChangeTime = false;
     TVector<std::pair<TString, TCredential>> Credentials;
+    TGatewaysConfig GatewaysConfig;
 };
 
 TUserDataTable MakeUserTables(const THashMap<TString, TString>& map) {
@@ -97,6 +100,7 @@ bool RunProgram(bool replay, const TString& query, const TQContext& qContext, co
     TProgramFactory factory(!runSettings.ChangeTime, functionRegistry.Get(), 0ULL, dataProvidersInit, "ut");
     factory.SetUdfResolver(NCommon::CreateSimpleUdfResolver(functionRegistry.Get()));
     factory.SetModules(moduleResolver);
+    factory.SetGatewaysConfig(&runSettings.GatewaysConfig);
 
     if (!replay && (!runSettings.StaticFiles.empty() || !runSettings.DynamicFiles.empty())) {
         TFileStorageConfig fsConfig;
@@ -277,6 +281,33 @@ Y_UNIT_TEST_SUITE(QPlayerTests) {
         });
     }
 
+    Y_UNIT_TEST(EvaluateCodeCacheHitExpandsLambdaOnReplay) {
+        auto s = TrimIndent(R"sql(
+            $identity = ($value) -> ($value);
+            $fallback = ($value) -> (Just($value));
+            $dispatch = ($value) -> {
+                $type = FormatType(TypeOf($value));
+                $isString = $type IN AsList('String', 'Optional<String>');
+                $picked = EvaluateCode(IF($isString, QuoteCode($identity), QuoteCode($fallback)));
+                RETURN $picked($value);
+            };
+
+            SELECT $dispatch($dispatch('value'));
+        )sql");
+
+        auto qStorage = MakeMemoryQStorage();
+        TRunSettings captureRunSettings;
+        TQContext savingCtx(qStorage->MakeWriter("foo", {}));
+        UNIT_ASSERT(RunProgram(false, s, savingCtx, captureRunSettings));
+        savingCtx.GetWriter()->Commit().GetValueSync();
+
+        TRunSettings replayRunSettings;
+        auto* coreFlag = replayRunSettings.GatewaysConfig.MutableYqlCore()->AddFlags();
+        coreFlag->SetName("EnableEvaluateExprCache");
+        TQContext loadingCtx(qStorage->MakeReader("foo", {}));
+        UNIT_ASSERT(RunProgram(true, "", loadingCtx, replayRunSettings));
+    }
+
     Y_UNIT_TEST(WalkFolders) {
         auto s = R"(
 $postHandler = ($nodes, $state, $level) -> {
@@ -308,3 +339,36 @@ SELECT State FROM plato.WalkFolders(``, $postHandler AS PostHandler);
         CheckProgram(s, runSettings);
     }
 }
+
+Y_UNIT_TEST_SUITE(QPlayerRuntimeSettingsTests) {
+    Y_UNIT_TEST(CaptureStoresActivatedFlags) {
+        TGatewaysConfig config;
+
+        auto* hostSetting = config.MutableRuntimeSettings()->AddHostSettings();
+        hostSetting->SetName("TestHostSetting");
+        hostSetting->SetValue("true");
+        hostSetting->MutableActivation()->SetPercentage(50);
+
+        auto* udfSettings = config.MutableRuntimeSettings()->AddUdfSettings();
+        udfSettings->SetModule("TestModule");
+        auto* udfSetting = udfSettings->AddRuntimeSettings();
+        udfSetting->SetName("TestSetting");
+        udfSetting->SetValue("TestValue");
+        udfSetting->MutableActivation()->SetPercentage(50);
+
+        TRunSettings runSettings;
+        runSettings.GatewaysConfig = config;
+
+        auto qStorage = MakeMemoryQStorage();
+        {
+            TQContext savingCtx(qStorage->MakeWriter("foo", {}));
+            UNIT_ASSERT(RunProgram(false, "select 1", savingCtx, runSettings));
+            savingCtx.GetWriter()->Commit().GetValueSync();
+        }
+
+        auto reader = qStorage->MakeReader("foo", {});
+        UNIT_ASSERT(reader->Get({.Component = "Activation", .Label = "runtime_settings_$all"}).GetValueSync().Defined());
+        UNIT_ASSERT(reader->Get({.Component = "Activation", .Label = "runtime_settings_udf_TestModule"}).GetValueSync().Defined());
+    }
+} // Y_UNIT_TEST_SUITE(QPlayerRuntimeSettingsTests)
+

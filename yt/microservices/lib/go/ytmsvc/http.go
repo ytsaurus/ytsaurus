@@ -8,6 +8,8 @@ import (
 
 	"github.com/rs/cors"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -19,9 +21,16 @@ var ResponseStatusOK any = struct {
 
 func WriteError(w http.ResponseWriter, req *http.Request, err error) {
 	err = yterrors.FromError(err)
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	encoder := json.NewEncoder(w)
-	Must0(encoder.Encode(err))
+	if encodeErr := json.NewEncoder(w).Encode(err); encodeErr != nil {
+		// TODO(ilyaibraev): Remove the dependency on the global logger.
+		ctxlog.Error(req.Context(), Logger, "failed to write error response",
+			log.Error(encodeErr),
+			log.String("method", req.Method),
+			log.String("path", req.URL.Path),
+		)
+	}
 }
 
 func FormatResponse(handler HTTPHandlerE) http.HandlerFunc {

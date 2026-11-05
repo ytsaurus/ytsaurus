@@ -13,7 +13,7 @@ namespace NYT {
 
 using namespace NConcurrency;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ThrottlerTest");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "ThrottlerTest");
 static auto DonePromise = NewPromise<void>();
 
 enum class ERunMode

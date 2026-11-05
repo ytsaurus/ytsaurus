@@ -29,6 +29,40 @@ func TestValueType_String(t *testing.T) {
 	}
 }
 
+func TestValueType_Code(t *testing.T) {
+	for _, tc := range []struct {
+		typ  ValueType
+		code uint8
+	}{
+		{typ: TypeNull, code: 0x02},
+		{typ: TypeInt64, code: 0x03},
+		{typ: TypeUint64, code: 0x04},
+		{typ: TypeFloat64, code: 0x05},
+		{typ: TypeBool, code: 0x06},
+		{typ: TypeBytes, code: 0x10},
+		{typ: TypeAny, code: 0x11},
+		{typ: TypeComposite, code: 0x12},
+	} {
+		t.Run(tc.typ.String(), func(t *testing.T) {
+			require.Equal(t, tc.code, tc.typ.Code())
+
+			typ, err := ValueTypeFromCode(tc.code)
+			require.NoError(t, err)
+			require.Equal(t, tc.typ, typ)
+		})
+	}
+}
+
+func TestValueTypeFromCode_Invalid(t *testing.T) {
+	// 0x00, 0x01 and 0xef are the query sentinels Min, TheBottom and Max.
+	for _, code := range []uint8{0x00, 0x01, 0x07, 0x0f, 0x13, 0xef, 0xff} {
+		t.Run(fmt.Sprintf("0x%02x", code), func(t *testing.T) {
+			_, err := ValueTypeFromCode(code)
+			require.Error(t, err)
+		})
+	}
+}
+
 var testRow = Row{
 	NewNull(1),
 	NewBool(2, true),

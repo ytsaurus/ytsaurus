@@ -5,6 +5,7 @@
 #include "cypress_proxy_tracker.h"
 #include "private.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>

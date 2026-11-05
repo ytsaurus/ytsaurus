@@ -3,9 +3,12 @@
 #include "bootstrap.h"
 #include "bundle_dynamic_config_manager.h"
 #include "config.h"
+#include "master_connector.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -24,6 +27,7 @@ namespace NYT::NCellarNode {
 
 using namespace NBundleController;
 using namespace NConcurrency;
+using namespace NTracing;
 
 using NYT::ToProto;
 
@@ -38,9 +42,9 @@ TBundleControllerConnector::TBundleControllerConnector(IBootstrap* bootstrap)
     , DynamicConfig_(New<TBundleControllerConnectorDynamicConfig>())
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND([this, weakThis = MakeWeak(this)] {
+        BIND([weakThis = MakeWeak(this)] {
             auto this_ = weakThis.Lock();
-            return this_ ? SendHeartbeat() : TError("Bundle controller connector is destroyed");
+            return this_ ? this_->SendHeartbeat() : TError("Bundle controller connector is destroyed");
         }),
         DynamicConfig_->HeartbeatExecutor))
 {
@@ -48,7 +52,7 @@ TBundleControllerConnector::TBundleControllerConnector(IBootstrap* bootstrap)
 
     if (DynamicConfig_->Enable) {
         HeartbeatExecutor_->Start();
-        YT_LOG_INFO("Started bundle controller connector after changing the config");
+        YT_TLOG_INFO("Started bundle controller connector after changing the config");
     }
 }
 
@@ -61,29 +65,25 @@ void TBundleControllerConnector::OnDynamicConfigChanged(
 {
     DynamicConfig_ = newConfig;
 
-    YT_LOG_DEBUG(
-        "Set new bundle controller heartbeat options "
-        "(NewPeriod: %v, NewSplay: %v, NewJitter: %v, "
-        "NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v, "
-        "NewHeartbeatTimeout: %v)",
-        newConfig->HeartbeatExecutor.Period,
-        newConfig->HeartbeatExecutor.Splay,
-        newConfig->HeartbeatExecutor.Jitter,
-        newConfig->HeartbeatExecutor.MinBackoff,
-        newConfig->HeartbeatExecutor.MaxBackoff,
-        newConfig->HeartbeatExecutor.BackoffMultiplier,
-        newConfig->HeartbeatTimeout);
+    YT_TLOG_DEBUG("Set new bundle controller heartbeat options")
+        .With("NewPeriod", newConfig->HeartbeatExecutor.Period)
+        .With("NewSplay", newConfig->HeartbeatExecutor.Splay)
+        .With("NewJitter", newConfig->HeartbeatExecutor.Jitter)
+        .With("NewMinBackoff", newConfig->HeartbeatExecutor.MinBackoff)
+        .With("NewMaxBackoff", newConfig->HeartbeatExecutor.MaxBackoff)
+        .With("NewBackoffMultiplier", newConfig->HeartbeatExecutor.BackoffMultiplier)
+        .With("NewHeartbeatTimeout", newConfig->HeartbeatTimeout);
 
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
 
     if (!oldConfig->Enable && newConfig->Enable) {
         HeartbeatExecutor_->Start();
-        YT_LOG_INFO("Started bundle controller connector after changing the config");
+        YT_TLOG_INFO("Started bundle controller connector after changing the config");
     }
 
     if (oldConfig->Enable && !newConfig->Enable) {
         YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
-        YT_LOG_INFO("Stopped bundle controller connector after changing the config");
+        YT_TLOG_INFO("Stopped bundle controller connector after changing the config");
     }
 }
 
@@ -101,22 +101,20 @@ TError TBundleControllerConnector::SendHeartbeat()
     auto req = proxy.Heartbeat();
     PrepareHeartbeatRequest(req);
 
-    YT_LOG_INFO("Sending node heartbeat to bundle controller");
+    YT_TLOG_INFO("Sending node heartbeat to bundle controller");
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
-        YT_LOG_ERROR(
-            rspOrError,
-            "Failed to report heartbeat to bundle controller (BackoffTime: [%v, %v])",
-            minBackoff,
-            maxBackoff);
+        YT_TLOG_ERROR("Failed to report heartbeat to bundle controller")
+            .WithFormat("BackoffTime", "[%v, %v]", minBackoff, maxBackoff)
+            .With(rspOrError);
         return TError("Failed to report heartbeat to bundle controller");
     }
 
     ProcessHeartbeatResponse(rspOrError.Value());
 
-    YT_LOG_INFO("Successfully reported heartbeat to bundle controller");
+    YT_TLOG_INFO("Successfully reported heartbeat to bundle controller");
 
     return {};
 }
@@ -132,14 +130,66 @@ void TBundleControllerConnector::PrepareHeartbeatRequest(const TReqClientHeartbe
 
 void TBundleControllerConnector::ProcessHeartbeatResponse(const TRspClientHeartbeatPtr& response)
 {
-    if (response->has_force_update_config() && response->force_update_config()) {
-        YT_LOG_INFO("Started out of band bundle dynamic config update pipeline");
-
-        WaitFor(Bootstrap_->GetBundleDynamicConfigManager()->ScheduleOutOfBandUpdate())
-            .ThrowOnError();
-
-        YT_LOG_INFO("Finished out of band bundle dynamic config update pipeline");
+    if (!response->force_update_config()) {
+        return;
     }
+
+    auto tag = FromProto<std::string>(response->expected_tag());
+
+    if (ExpectedTag_ && ExpectedTag_.value() == tag) {
+        YT_TLOG_INFO("Out of band cell move pipeline has already started")
+            .With("Tag", tag);
+        return;
+    }
+
+    if (ExpectedTag_ && ExpectedTag_.value() != tag) {
+        YT_TLOG_INFO("Cancelled previous out of band cell move pipeline")
+            .With("PreviousTag", ExpectedTag_.value())
+            .With("NextTag", tag);
+
+        ConfigUpdatePipelineFuture_.Cancel(TError("Config update was requested with different tag %Qv", tag));
+    }
+
+    ExpectedTag_ = std::move(tag);
+
+    ConfigUpdatePipelineFuture_ = BIND(&TBundleControllerConnector::DoFullyUpdateBundlesDynamicConfig, MakeWeak(this))
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run();
+}
+
+void TBundleControllerConnector::DoFullyUpdateBundlesDynamicConfig()
+{
+    TTraceContextGuard guard(TTraceContext::NewRoot("OutOfBandDynamicConfigUpdate"));
+
+    YT_TLOG_INFO("Started out of band dynamic config update pipeline");
+
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    const auto& cellarNodeMasterConnector = Bootstrap_->GetMasterConnector();
+    const auto primaryMasterCellTag = THashSet<NObjectClient::TCellTag>{
+        Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag()};
+
+    // Get up-to-date node tags.
+    auto clusterExecutedEvents = clusterNodeMasterConnector->GetExecutedEvents(primaryMasterCellTag);
+    clusterNodeMasterConnector->ScheduleMasterHeartbeats(primaryMasterCellTag);
+    WaitFor(clusterExecutedEvents).ThrowOnError();
+
+    // Apply config matching the new tags.
+    WaitFor(Bootstrap_->GetBundleDynamicConfigManager()->ScheduleOutOfBandUpdate())
+        .ThrowOnError();
+
+    // Update node resource limits to apply new memory categories.
+    WaitFor(Bootstrap_->GetNodeResourceManager()->SyncUpdateLimits())
+        .ThrowOnError();
+
+    // Report updated memory category statistics to master.
+    clusterNodeMasterConnector->ScheduleMasterHeartbeats(primaryMasterCellTag);
+
+    // Report updated tablet slot count to master.
+    cellarNodeMasterConnector->ScheduleMasterHeartbeats(clusterNodeMasterConnector->GetMasterCellTags());
+
+    ExpectedTag_ = std::nullopt;
+
+    YT_TLOG_INFO("Finished out of band bundle dynamic config update pipeline");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

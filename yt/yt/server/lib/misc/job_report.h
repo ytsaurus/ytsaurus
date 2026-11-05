@@ -21,7 +21,8 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NServer {
 
@@ -60,7 +61,7 @@ struct TJobInterruptionInfo
 
     std::optional<TDuration> InterruptionTimeout;
 
-    std::optional<TString> PreemptionReason;
+    std::optional<std::string> PreemptionReason;
 
     std::optional<TPreemptedFor> PreemptedFor;
 };
@@ -83,7 +84,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TOperationId, OperationId);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobType>, Type);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, State);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, State);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, StartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, FinishTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Error);
@@ -93,9 +94,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Statistics);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Events);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, Stderr);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, GpuCheckStderr);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, FailContext);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobAgent::TJobProfile>, Profile);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NControllerAgent::TCoreInfos>, CoreInfos);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId);
@@ -103,15 +104,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors);
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasProbingCompetitors);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, TaskName);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, TreeId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, MonitoringDescriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, CollectiveMemberRank);
     DEFINE_BYREF_RO_PROPERTY(TGuid, CollectiveId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, Address);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NNodeTrackerClient::TAddressMap>, Addresses);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerState);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, ControllerState);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ArchiveFeatures);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TDuration>, Ttl);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, OperationIncarnation);
@@ -119,6 +120,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, GangRank);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerError);
 
 protected:
     TJobReport() = default;
@@ -131,7 +133,7 @@ struct TGpuDevice
 {
     int DeviceNumber;
 
-    TString DeviceName;
+    std::string DeviceName;
 
     REGISTER_YSON_STRUCT(TGpuDevice);
 
@@ -152,13 +154,13 @@ struct TExecAttributes
     std::vector<std::string> IPAddresses;
 
     //! Absolute path to job sandbox directory.
-    TString SandboxPath;
+    std::string SandboxPath;
 
     //! Medium of disk acquired by slot.
     std::string MediumName;
 
     //! Absolute path to job proxy socket file.
-    TString JobProxySocketPath;
+    std::string JobProxySocketPath;
 
     //! GPU devices used by job.
     std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;

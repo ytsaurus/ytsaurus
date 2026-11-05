@@ -1,4 +1,5 @@
 RECURSE(
     file
     interface
+    static
 )

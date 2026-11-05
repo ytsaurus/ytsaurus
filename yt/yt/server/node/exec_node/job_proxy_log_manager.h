@@ -16,7 +16,7 @@ struct IJobProxyLogManager
     virtual void Initialize() = 0;
     virtual void Start() = 0;
 
-    virtual TString AdjustLogPath(TJobId jobId, const TString& logFilePath) = 0;
+    virtual std::string AdjustLogPath(TJobId jobId, const std::string& logFilePath) = 0;
 
     virtual void OnDynamicConfigChanged(
         const TJobProxyLogManagerDynamicConfigPtr& oldConfig,
@@ -26,6 +26,10 @@ struct IJobProxyLogManager
         TJobId jobId,
         const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId) = 0;
+
+    virtual bool IsEnabled() const = 0;
+
+    virtual void BindJobLogDirectoryWithSymlink(TJobId jobId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyLogManager);

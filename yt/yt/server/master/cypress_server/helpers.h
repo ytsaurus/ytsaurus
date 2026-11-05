@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/yson/string.h>
 
 namespace NYT::NCypressServer {
@@ -35,6 +37,8 @@ using TKeyToCypressNodeImpl = THashMap<
 namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& options, TStringBuf /*spec*/);
+
+NLogging::TLoggingTagList MakeAccessTrackingOptionsTags(const TAccessTrackingOptions& options);
 
 } // namespace NProto
 

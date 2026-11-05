@@ -1,7 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -76,17 +76,6 @@ void TSuspendableStripe::RegisterMetadata(auto&& registrar)
 }
 
 PHOENIX_DEFINE_TYPE(TSuspendableStripe);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateLogger(const TLogger& logger)
-{
-    YT_VERIFY(logger);
-    const auto& tag = logger.GetTag();
-    YT_VERIFY(tag.find("Name:") != TString::npos);
-    // OperationId for YT controllers, QueryId for CHYT.
-    YT_VERIFY(tag.find("OperationId:") != TString::npos || tag.find("QueryId:") != TString::npos);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

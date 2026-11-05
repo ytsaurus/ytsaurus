@@ -1,0 +1,12 @@
+RECURSE(
+    bullied_process
+    client
+    companion
+    describe
+    integration_test_base
+    integration_test_base/yt_sync_preset
+    yt_sync_mini
+    pipeline_tables
+    queue
+    runner
+)

@@ -37,7 +37,7 @@ void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::
 
 void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf /*spec*/);
 
-TString ToString(
+std::string ToString(
     const TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 

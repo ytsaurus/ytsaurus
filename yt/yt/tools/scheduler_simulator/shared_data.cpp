@@ -269,7 +269,7 @@ bool TSharedJobAndOperationCounter::HasUnfinishedOperations() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedOperationStatisticsOutput::TSharedOperationStatisticsOutput(const TString& filename)
+TSharedOperationStatisticsOutput::TSharedOperationStatisticsOutput(const std::string& filename)
     : OutputStream_(filename)
 { }
 

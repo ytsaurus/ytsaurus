@@ -43,8 +43,11 @@ func TestErrors(t *testing.T) {
 
 	t.Run("WriteRows", func(t *testing.T) {
 		w, err := env.YT.WriteTable(env.Ctx, badPath, nil)
-		require.NoError(t, err)
-		checkPathError(t, w.Commit(), badPath)
+		if err != nil {
+			checkPathError(t, err, badPath)
+		} else {
+			checkPathError(t, w.Commit(), badPath)
+		}
 	})
 
 	t.Run("Read", func(t *testing.T) {

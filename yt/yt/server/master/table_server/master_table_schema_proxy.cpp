@@ -4,6 +4,8 @@
 #include "master_table_schema.h"
 #include "table_manager.h"
 
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>
@@ -102,6 +104,8 @@ private:
 
     void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
     {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
         const auto* schema = GetThisImpl();
 
         const auto& tableManager = Bootstrap_->GetTableManager();

@@ -40,7 +40,8 @@ protected:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts) const override;
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights) const override;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(THunkStorageNode)

@@ -4,6 +4,14 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTableReaderOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("decode_hunks", &TThis::DecodeHunks)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTableWriterOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("compute_digest", &TThis::ComputeDigest)

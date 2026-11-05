@@ -147,7 +147,7 @@ $ python -m yt.yt.scripts.fetch_cluster_logs ytbench primary_masters --writer ac
 ### Example 2: Target specific pods
 
 ```bash
-$ yt admin logs-via-k8s ytbench primary_masters --writer access -w debug --from-ts 2026-02-07T14:38:01Z \
+$ python -m yt.yt.scripts.fetch_cluster_logs --writer access -w debug --from-ts 2026-02-07T14:38:01Z \
     --to-ts 2026-02-07T14:48:01Z --output case-1 --pod ms-3 -p ms-4
 ```
 

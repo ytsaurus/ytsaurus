@@ -1,0 +1,408 @@
+{
+    "nodes" = {
+        "logs" = {"type" = "map_node"; "attributes" = {"yt_logs_format_version" = 1;};};
+    };
+    "tables" = {
+        "logs/sources_meta" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="meta";"type_v3"={"type_name"="optional";"item"="yson";};"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 172800000;
+                };
+            };
+        };
+        "logs/logs_meta" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id, instance_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_name";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="file_path";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_config";"type_v3"={"type_name"="optional";"item"="yson";};"group"="default";};
+                {"name"="creation_time";"type_v3"="timestamp64";"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 172800000;
+                };
+            };
+        };
+        "logs/logs" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id, instance_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_name";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="file_path";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="ts";"type_v3"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="line";"type_v3"="string";"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 86400000;
+                };
+            };
+        };
+        "timers" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "computation_id";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="message_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="stream_id";"type"="string";"group"="default";};
+                {"name"="system_timestamp";"type"="uint64";"group"="default";};
+                {"name"="event_timestamp";"type"="uint64";"group"="default";};
+                {"name"="trigger_timestamp";"type"="uint64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "timer_pages" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="family_id";"type"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="kind";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="timestamp";"type"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="row_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="trigger_timestamp";"type"="uint64";"group"="default";};
+                {"name"="event_timestamp";"type"="uint64";"group"="default";};
+                {"name"="system_timestamp";"type"="uint64";"group"="default";};
+                {"name"="message_id";"type"="string";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "timer_page_meta" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="computation_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="family_id";"type"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="kind";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="begin_timestamp";"type"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="stream_id";"type"="string";"group"="default";};
+                {"name"="key_begin";"type"="string";"group"="default";};
+                {"name"="key_end";"type"="string";"group"="default";};
+                {"name"="end_timestamp";"type"="uint64";"group"="default";};
+                {"name"="once_shared";"type"="boolean";"group"="default";};
+                {"name"="dirty_minima";"type"="boolean";"group"="default";};
+                {"name"="event_done";"type"="boolean";"group"="default";};
+                {"name"="dedup_slots";"type"="boolean";"group"="default";};
+                {"name"="count";"type"="int64";"aggregate"="sum";"group"="default";};
+                {"name"="min_event";"type"="uint64";"group"="default";};
+                {"name"="min_system";"type"="uint64";"group"="default";};
+                {"name"="max_timestamp";"type"="uint64";"aggregate"="max";"group"="default";};
+                {"name"="format_version";"type"="int64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "input_messages" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "computation_id";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="message_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="system_timestamp";"type"="uint64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "row_merger_type" = "watermark";
+                };
+            };
+        };
+        "compact_input_messages" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "deduplication_message_key";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="system_timestamp";"type"="uint64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "row_merger_type" = "watermark";
+                };
+            };
+        };
+        "compact_output_messages" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "computation_id";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="stream_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="chunk_id";"type"="int64";"sort_order"="ascending";"group"="default";};
+                {"name"="data";"type"="string";"group"="default";"max_inline_hunk_size"=128;};
+                {"name"="data_codec";"type"="int64";"group"="default";};
+                {"name"="processed_mask";"type"="string";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "compact_partition_output_messages" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(partition_id)";
+                    "type" = "uint64";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="partition_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="stream_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="chunk_id";"type"="int64";"sort_order"="ascending";"group"="default";};
+                {"name"="data";"type"="string";"group"="default";"max_inline_hunk_size"=128;};
+                {"name"="data_codec";"type"="int64";"group"="default";};
+                {"name"="processed_mask";"type"="string";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "states" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "computation_id";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="name";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="state";"type"="any";"group"="default";"max_inline_hunk_size"=128;};
+                {"name"="compressed";"type"="string";"group"="default";"max_inline_hunk_size"=128;};
+                {
+                    "name" = "compressed_patch";
+                    "type" = "string";
+                    "group" = "default";
+                    "max_inline_hunk_size" = 128;
+                };
+                {"name"="format";"type"="any";"group"="default";"max_inline_hunk_size"=128;};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "partition_states" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(partition_id)";
+                    "type" = "uint64";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="partition_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="name";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="state";"type"="any";"group"="default";"max_inline_hunk_size"=128;};
+                {"name"="compressed";"type"="string";"group"="default";"max_inline_hunk_size"=128;};
+                {
+                    "name" = "compressed_patch";
+                    "type" = "string";
+                    "group" = "default";
+                    "max_inline_hunk_size" = 128;
+                };
+                {"name"="format";"type"="any";"group"="default";"max_inline_hunk_size"=128;};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "flow_state" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="sequence_id";"type"="int64";"sort_order"="ascending";"group"="default";};
+                {"name"="flags";"type"="uint64";"group"="default";};
+                {"name"="state_name";"type"="string";"group"="default";};
+                {"name"="key_left";"type"="string";"group"="default";};
+                {"name"="key_right";"type"="string";"group"="default";};
+                {"name"="value";"type"="any";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "flow_state_obsolete" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="key";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="value";"type"="any";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "flow_control" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="key";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="value";"type"="any";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "key_visitor_states" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "computation_id";
+                    "type" = "string";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="stream_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="key";"type"="any";"sort_order"="ascending";"group"="default";};
+                {"name"="is_lower";"type"="boolean";"sort_order"="ascending";"group"="default";};
+                {"name"="state";"type"="any";"group"="default";"max_inline_hunk_size"=128;};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "partition_transactions" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(partition_id)";
+                    "type" = "uint64";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="partition_id";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="last_transaction_start_timestamp";"type"="uint64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "leases" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(key)";
+                    "type" = "uint64";
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="key";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="subkey";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="value";"type"="any";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+        "leader_election_lock" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {"name"="lock_key";"type"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="leader_lease_id";"type"="string";"group"="default";};
+                {"name"="leader_name";"type"="string";"group"="default";};
+                {"name"="lease_timeout";"type"="uint64";"group"="default";};
+                {"name"="last_ping_time";"type"="uint64";"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+            };
+        };
+    };
+    "queues" = {
+        "timer_page_journal" = {
+            "schema" = <"strict"=%true;"unique_keys"=%false;>[
+                {"name"="computation_id";"type"="string";};
+                {"name"="family_id";"type"="uint64";};
+                {"name"="begin_timestamp";"type"="uint64";};
+                {"name"="op";"type"="string";};
+                {"name"="stream_id";"type"="string";};
+                {"name"="kind";"type"="string";};
+                {"name"="key_begin";"type"="string";};
+                {"name"="key_end";"type"="string";};
+                {"name"="once_shared";"type"="boolean";};
+                {"name"="event_done";"type"="boolean";};
+                {"name"="dedup_slots";"type"="boolean";};
+                {"name"="$timestamp";"type"="uint64";};
+                {"name"="$cumulative_data_weight";"type"="int64";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "tablet_count" = 1;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 86400000;
+                };
+            };
+        };
+        "controller_logs" = {
+            "schema" = <"strict"=%true;"unique_keys"=%false;>[
+                {"name"="host";"type"="string";};
+                {"name"="data";"type"="string";};
+                {"name"="codec";"type"="string";};
+                {"name"="$timestamp";"type"="uint64";};
+                {"name"="$cumulative_data_weight";"type"="int64";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "tablet_count" = 1;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 86400000;
+                };
+            };
+        };
+    };
+}

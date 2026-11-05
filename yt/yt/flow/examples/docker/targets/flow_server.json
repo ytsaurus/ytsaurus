@@ -1,0 +1,4 @@
+[
+  {"targets": ["localhost:10001"], "labels": {"service": "controller"}},
+  {"targets": ["localhost:10002", "localhost:10003"], "labels": {"service": "worker"}}
+]

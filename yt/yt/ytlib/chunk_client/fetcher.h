@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChunkClient {
 
@@ -50,7 +50,6 @@ struct IFetcher
 {
     virtual void AddChunk(TInputChunkPtr chunk) = 0;
     virtual int GetChunkCount() const = 0;
-    virtual void SetCancelableContext(TCancelableContextPtr cancelableContext) = 0;
     virtual TFuture<void> Fetch() = 0;
 };
 
@@ -72,12 +71,6 @@ public:
     int GetChunkCount() const override;
 
     TFuture<void> Fetch() override;
-
-    //! Set cancelable context for the fetcher.
-    //! NB: If invoker is cancelable, do not ever forget to provide its cancelable context;
-    //! otherwise internal promise inside fetcher may never be set and WaitFor on the fetch future
-    //! will never succeed, leading to fiber leak (refer to YT-11643 for example).
-    void SetCancelableContext(TCancelableContextPtr cancelableContext) override;
 
 protected:
     const TFetcherConfigPtr Config_;
@@ -142,9 +135,7 @@ private:
     //! NodeId -> UnbanTime for nodes that throttled our requests.
     THashMap<NNodeTrackerClient::TNodeId, TInstant> UnbanTime_;
 
-    TCancelableContextPtr CancelableContext_;
-
-    NThreading::TAtomicObject<TFuture<void>> ActiveTaskFuture_;
+    TAtomicObject<TFuture<void>> ActiveTaskFuture_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 

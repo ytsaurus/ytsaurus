@@ -143,7 +143,8 @@ void TLevelRunner::StartAllAvailable(const TStartOperationContext& context)
     const TStartOperationContext& context)
 {
     auto operation = YtGraph_->StartOperation(Tx_, operationNodeId, context);
-    YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
+    YT_TLOG_DEBUG("Operation was started")
+        .With("OperationId", operation->GetId());
 
     State_->RegisterRunningOperation(operationNodeId, operation);
 

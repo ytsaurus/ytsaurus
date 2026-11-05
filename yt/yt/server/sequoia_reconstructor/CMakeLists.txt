@@ -32,12 +32,17 @@ target_link_libraries(yt-server-sequoia_reconstructor PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-getopt-small
+  cpp-yson-node
+  cpp-mapreduce-client
+  cpp-mapreduce-interface
+  mapreduce-library-operation_tracker
+  cpp-mapreduce-util
   yt-yt-core
   yt-library-program
   yt-library-fusion
-  yt-yt-ytlib
   server-lib-io
   yt-server-master
+  yt-yt-ytlib
 )
 
 target_sources(yt-server-sequoia_reconstructor PRIVATE
@@ -45,8 +50,8 @@ target_sources(yt-server-sequoia_reconstructor PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/mapper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/program.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/reducer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/record_consumer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/sequoia_reconstructor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/reducer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/sequoia_reconstructor/yt_connector.cpp
 )
 

@@ -484,27 +484,57 @@ def get_use_local_python_in_jobs(client):
     return use_local_python_in_jobs
 
 
-def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client):
+def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client,
+                           job_binary_local_path=None, job_binary_md5=None, job_binary_cypress_path=None):
     use_py_runner = None
     arguments = []
 
+    def build_caller_file_argument(filename, md5=None):
+        file_params = {"filename": filename}
+        if md5 is not None:
+            file_params["hash"] = md5
+        return file_argument_builder(file_params, caller=True)
+
+    def build_caller_cypress_file_argument(path):
+        # File itself is added to the job file paths by the caller,
+        # here we only need its name inside the job sandbox.
+        return "./" + path.attributes["file_name"]
+
     if is_standalone_binary:
         use_py_runner = False
-        executable = None
-        if hasattr(sys, "frozen"):
-            executable = sys.executable
+        if job_binary_cypress_path is not None:
+            arguments = [build_caller_cypress_file_argument(job_binary_cypress_path)]
+        elif job_binary_local_path is not None:
+            arguments = [build_caller_file_argument(job_binary_local_path, job_binary_md5)]
         else:
-            executable = sys.argv[0]
-        arguments = [file_argument_builder(executable, caller=True)]
+            if hasattr(sys, "frozen"):
+                executable = sys.executable
+            else:
+                executable = sys.argv[0]
+            arguments = [build_caller_file_argument(executable)]
     else:
         use_py_runner = True
 
         python_binary = get_config(client)["pickling"]["python_binary"]
-        if python_binary is not None:
+        if job_binary_cypress_path is not None:
+            if python_binary is not None:
+                raise YtError("Options job_binary_cypress_path and pickling/python_binary cannot be "
+                              "specified simultaneously")
+            arguments = [build_caller_cypress_file_argument(job_binary_cypress_path)]
+            if is_arcadia_python() and "yt.wrapper._py_runner" in getattr(sys, "extra_modules", []):
+                use_py_runner = False
+        elif job_binary_local_path is not None:
+            if python_binary is not None:
+                raise YtError("Options job_binary_local_path and pickling/python_binary cannot be "
+                              "specified simultaneously")
+            arguments = [build_caller_file_argument(job_binary_local_path, job_binary_md5)]
+            if is_arcadia_python() and "yt.wrapper._py_runner" in getattr(sys, "extra_modules", []):
+                use_py_runner = False
+        elif python_binary is not None:
             arguments = [python_binary]
         else:
             if use_local_python_in_jobs is not None and use_local_python_in_jobs:
-                arguments = [file_argument_builder(sys.executable, caller=True)]
+                arguments = [build_caller_file_argument(sys.executable)]
                 if is_arcadia_python() and "yt.wrapper._py_runner" in getattr(sys, "extra_modules", []):
                     use_py_runner = False
             else:
@@ -525,9 +555,10 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 
     pickling_config = get_config(client)["pickling"]
     pickler_name = pickling_config["framework"]
+    encryption_engine = pickling_config.get("encryption_engine", "cryptography_fernet")
     pickler = Pickler(pickler_name)
     if params.pickling_encryption_key is not None:
-        encryption_key = pickler.enable_encryption(key=params.pickling_encryption_key)
+        encryption_key = pickler.enable_encryption(key=params.pickling_encryption_key, engine=encryption_engine)
     else:
         encryption_key = None
     dump_kwargs = {}
@@ -554,7 +585,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
             del config_copy["token"]
         config_pickler = Pickler(config.DEFAULT_PICKLING_FRAMEWORK)
         if encryption_key:
-            config_pickler.enable_encryption(key=encryption_key)
+            config_pickler.enable_encryption(key=encryption_key, engine=encryption_engine)
         config_pickler.dump(config_copy, fout)
 
     return (list(map(file_argument_builder, [function_filename, config_filename])), encryption_key)
@@ -629,7 +660,8 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
     ]
 
 
-def do_wrap(function, tempfiles_manager, local_mode, file_manager, params: OperationParameters, client) -> WrapResult:
+def do_wrap(function, tempfiles_manager, local_mode, file_manager, params: OperationParameters, client,
+            job_binary_local_path=None, job_binary_md5=None, job_binary_cypress_path=None) -> WrapResult:
     assert params.job_type in ["mapper", "reducer", "reduce_combiner", "vanilla"]
 
     def create_temp_file(prefix="", suffix=""):
@@ -672,7 +704,10 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params: Opera
         title = None
 
     caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs,
-                                              file_argument_builder, environment, client)
+                                              file_argument_builder, environment, client,
+                                              job_binary_local_path=job_binary_local_path,
+                                              job_binary_md5=job_binary_md5,
+                                              job_binary_cypress_path=job_binary_cypress_path)
     function_and_config_files, function_and_config_files_key = build_function_and_config_arguments(
         function,
         create_temp_file,

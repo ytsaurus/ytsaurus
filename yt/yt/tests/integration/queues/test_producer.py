@@ -10,18 +10,17 @@ from yt_type_helpers import normalize_schema, make_schema
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
+import yt.yson as yson
+
 from yt.wrapper.common import generate_uuid
 
 import yt_error_codes
-
-import pytest
 
 import builtins
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCreateQueueProducer(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -43,7 +42,6 @@ class TestCreateQueueProducer(TestQueueAgentBase):
         wait_for_tablet_state("//tmp/p", "mounted")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -219,7 +217,6 @@ class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
         assert session["epoch"] == 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestProducerApi(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -480,8 +477,68 @@ class TestProducerApi(TestQueueAgentBase):
         session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
         assert session["user_meta"] == user_meta
 
+    @authors("nadya73")
+    def test_push_queue_producer_does_not_convert_null_to_yson_entity(self):
+        # NB: Unlike insert_rows, push_queue_producer keeps an explicit null written into
+        # an `any` column as a real null instead of converting it to a YSON entity.
+        self._create_queue("//tmp/q", schema=[
+            {"name": "data", "type": "any"},
+            {"name": "$timestamp", "type": "uint64"},
+        ])
+        self._create_producer("//tmp/p")
+        create_queue_producer_session("//tmp/p", "//tmp/q", "test")
 
-@pytest.mark.enabled_multidaemon
+        def null_row_count():
+            return len(select_rows("* from [//tmp/q] where is_null(data)"))
+
+        push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": None}], epoch=0, sequence_number=0)
+        assert null_row_count() == 1
+
+        # The conversion is still available on demand.
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = True
+        push_queue_producer(
+            "//tmp/p", "//tmp/q", "test", data=[{"data": None}],
+            epoch=0, sequence_number=1, input_format=format)
+        assert null_row_count() == 1
+
+        # Explicitly disabling it works as well.
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+        push_queue_producer(
+            "//tmp/p", "//tmp/q", "test", data=[{"data": None}],
+            epoch=0, sequence_number=2, input_format=format)
+        assert null_row_count() == 2
+
+        # Non-null values are unaffected: composites and scalars still land as YSON values.
+        push_queue_producer(
+            "//tmp/p", "//tmp/q", "test", data=[{"data": {"a": 1}}, {"data": 42}],
+            epoch=0, sequence_number=3)
+        assert null_row_count() == 2
+        values = [row["data"] for row in select_rows("data from [//tmp/q] where not is_null(data)")]
+        # The three non-null rows are the YSON entity from the push above and the two values here.
+        assert len(values) == 3
+        assert {"a": 1} in values and 42 in values
+
+    @authors("nadya73")
+    def test_push_queue_producer_null_in_typed_column(self):
+        # NB: Columns of a concrete type are not affected by the flag in either direction.
+        self._create_queue("//tmp/q", schema=[
+            {"name": "data", "type": "int64"},
+            {"name": "$timestamp", "type": "uint64"},
+        ])
+        self._create_producer("//tmp/p")
+        create_queue_producer_session("//tmp/p", "//tmp/q", "test")
+
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = True
+        push_queue_producer(
+            "//tmp/p", "//tmp/q", "test", data=[{"data": None}],
+            epoch=0, sequence_number=0, input_format=format)
+        push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": None}], epoch=0, sequence_number=1)
+
+        assert len(select_rows("* from [//tmp/q] where is_null(data)")) == 2
+
+
 class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
@@ -541,7 +598,7 @@ class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
 
-        with raises_yt_error("has no synchronous replicas"):
+        with raises_yt_error("Table .* has no synchronous replicas and \"require_sync_replica\" option is set"):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
 
         push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0, require_sync_replica=False)

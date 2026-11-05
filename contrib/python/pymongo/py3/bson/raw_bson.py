@@ -50,11 +50,14 @@ For use cases like moving documents across different databases or writing binary
 blobs to disk, using raw BSON documents provides better speed and avoids the
 overhead of decoding or encoding BSON.
 """
+
 from __future__ import annotations
 
-from typing import Any, ItemsView, Iterator, Mapping, Optional
+import copyreg
+from collections.abc import ItemsView, Iterator, Mapping
+from typing import Any, Optional
 
-from bson import _get_object_size, _raw_to_dict
+from bson import _get_object_size, _raw_as_bytes, _raw_to_dict
 from bson.codec_options import _RAW_BSON_DOCUMENT_MARKER, CodecOptions
 from bson.codec_options import DEFAULT_CODEC_OPTIONS as DEFAULT
 
@@ -82,7 +85,7 @@ class RawBSONDocument(Mapping[str, Any]):
     RawBSONDocument decode its bytes.
     """
 
-    __slots__ = ("__raw", "__inflated_doc", "__codec_options")
+    __slots__ = ("__codec_options", "__inflated_doc", "__raw")
     _type_marker = _RAW_BSON_DOCUMENT_MARKER
     __codec_options: CodecOptions[RawBSONDocument]
 
@@ -140,7 +143,16 @@ class RawBSONDocument(Mapping[str, Any]):
 
     @property
     def raw(self) -> bytes | memoryview:
-        """The raw BSON bytes composing this document."""
+        """The raw BSON bytes composing this document.
+
+        .. versionchanged:: 4.18
+           Documents and subdocuments 4KB and larger decoded from an
+           immutable buffer are returned as read-only :class:`memoryview`
+           slices of that buffer instead of :class:`bytes` copies. Documents
+           decoded from mutable buffers such as :class:`bytearray` are
+           always :class:`bytes` copies. Call ``bytes(doc.raw)``
+           to get an independent copy.
+        """
         return self.__raw
 
     def items(self) -> ItemsView[str, Any]:
@@ -175,8 +187,23 @@ class RawBSONDocument(Mapping[str, Any]):
             return self.__raw == other.raw
         return NotImplemented
 
+    __hash__ = None  # type: ignore[assignment]
+
+    def __getstate__(self) -> tuple[Optional[dict[str, Any]], dict[str, Any]]:
+        slots_state: dict[str, Any] = {
+            name: getattr(self, name)
+            for name in copyreg._slotnames(type(self))  # type: ignore[attr-defined]
+            if hasattr(self, name)
+        }
+        slots_state["_RawBSONDocument__raw"] = _raw_as_bytes(self.__raw)
+        slots_state["_RawBSONDocument__inflated_doc"] = None
+        return getattr(self, "__dict__", None), slots_state
+
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.raw!r}, codec_options={self.__codec_options!r})"
+        return (
+            f"{self.__class__.__name__}({_raw_as_bytes(self.__raw)!r}, "
+            f"codec_options={self.__codec_options!r})"
+        )
 
 
 class _RawArrayBSONDocument(RawBSONDocument):

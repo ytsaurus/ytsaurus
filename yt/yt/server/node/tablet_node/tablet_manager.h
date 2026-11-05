@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_cache_controller.h"
 #include "tablet_memory_statistics.h"
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
@@ -62,6 +63,8 @@ struct ITabletManager
     virtual ISmoothMovementTrackerHostPtr GetSmoothMovementTrackerHost() = 0;
 
     virtual std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const = 0;
+
+    virtual TRowCacheControllerContext GetRowCacheControllerContext() const = 0;
 
     virtual void UpdateTabletSnapshot(
         TTablet* tablet,

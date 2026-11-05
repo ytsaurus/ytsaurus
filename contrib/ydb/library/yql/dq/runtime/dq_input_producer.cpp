@@ -2,9 +2,10 @@
 
 #include "dq_columns_resolve.h"
 
-#include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_watermarks.h>
+#include <contrib/ydb/library/yql/dq/runtime/streaming/dq_compute_actor_watermarks.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_async_input.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_input_channel.h>
+#include <contrib/ydb/library/yql/dq/runtime/dq_input_ready.h>
 #include <yql/essentials/minikql/computation/mkql_block_reader.h>
 #include <yql/essentials/minikql/computation/mkql_block_builder.h>
 #include <yql/essentials/minikql/mkql_node.h>
@@ -39,9 +40,10 @@ public:
         TVector<IDqInput::TPtr>&& inputs,
         TDqMeteringStats::TInputStatsMeter stats,
         TInstant& startTs,
-        bool& inputConsumed,
+        ui64& inputsConsumed,
         NKikimr::NMiniKQL::TWatermark* watermark,
-        TDqComputeActorWatermarks* watermarksTracker
+        TDqComputeActorWatermarks* watermarksTracker,
+        bool useReadySet
     )
         : TBase(memInfo)
         , Inputs(std::move(inputs))
@@ -49,7 +51,7 @@ public:
         , Batch(type)
         , Stats(stats)
         , StartTs(startTs)
-        , InputConsumed(inputConsumed)
+        , InputsConsumed(inputsConsumed)
         , WatermarkStorage(watermark)
         , WatermarksTracker(watermarksTracker)
     {
@@ -63,6 +65,9 @@ public:
             } else {
                 Y_ENSURE(false, "Unknown IDqInput type");
             }
+        }
+        if (useReadySet) {
+            BindReadySet();
         }
     }
 
@@ -106,7 +111,7 @@ private:
         if (Y_UNLIKELY(!StartTs)) {
             StartTs = Now();
         }
-        InputConsumed = true;
+        ++InputsConsumed;
         return NUdf::EFetchStatus::Ok;
     }
 
@@ -151,14 +156,65 @@ private:
         if (Y_UNLIKELY(!StartTs)) {
             StartTs = Now();
         }
-        InputConsumed = true;
+        ++InputsConsumed;
         return NUdf::EFetchStatus::Ok;
     }
 
 private:
+    // The inputs are visited when marked, see TDqInputReadySet, a slot each: their index in Inputs, which then stays
+    // as is. An input which does not support it leaves the union polled, as before: the marks of the inputs bound
+    // already go to a set nobody reads
+    void BindReadySet() {
+        if (Inputs.empty()) {
+            return;
+        }
+        auto readySet = std::make_shared<TDqInputReadySet>(Inputs.size());
+        for (ui32 slot = 0; slot < Inputs.size(); ++slot) {
+            if (!Inputs[slot]->BindReadySet(readySet, slot)) {
+                return;
+            }
+        }
+        ReadySet = std::move(readySet);
+    }
+
     NUdf::EFetchStatus FindBuffer() {
         Batch.clear();
 
+        if (ReadySet ? FindNotified() : FindPolled()) {
+            return NUdf::EFetchStatus::Ok;
+        }
+
+        return Alive == 0 ? NUdf::EFetchStatus::Finish : NUdf::EFetchStatus::Yield;
+    }
+
+    // Visits the inputs ReadySet hands out: the marked ones, and those which had data the last time
+    bool FindNotified() {
+        ReadySet->Collect();
+        for (auto count = ReadySet->ReadyCount(); count > 0; --count) {
+            auto slot = ReadySet->Next();
+            auto& input = Inputs[slot];
+            if (input->Pop(Batch, Watermark)) {
+                ReadySet->Keep(slot);
+                InputKey = InputKeys[slot];
+                return true;
+            }
+            if (input->IsFinished()) {
+                if (WatermarksEnabled()) {
+                    WatermarksTracker->UnregisterInput(InputKeys[slot].InputId, InputKeys[slot].IsChannel, /*silent=*/true);
+                }
+                ReadySet->Retire(slot);
+                --Alive;
+            } else {
+                // found empty, which asks the input to wake the consumer up on its next push
+                ReadySet->Release(slot);
+            }
+        }
+
+        return false;
+    }
+
+    // Polls every live input, round robin: a finished one is moved past Alive
+    bool FindPolled() {
         auto startIndex = Index++;
         size_t i = 0;
 
@@ -167,7 +223,7 @@ private:
             auto& input = Inputs[currentIndex];
             if (input->Pop(Batch, Watermark)) {
                 InputKey = InputKeys[currentIndex];
-                return NUdf::EFetchStatus::Ok;
+                return true;
             }
             if (input->IsFinished()) {
                 if (WatermarksEnabled()) {
@@ -182,7 +238,7 @@ private:
             }
         }
 
-        return Alive == 0 ? NUdf::EFetchStatus::Finish : NUdf::EFetchStatus::Yield;
+        return false;
     }
 
     [[nodiscard]] bool WatermarksEnabled() const {
@@ -217,10 +273,13 @@ private:
 
     TDqMeteringStats::TInputStatsMeter Stats;
     TInstant& StartTs;
-    bool& InputConsumed;
+    ui64& InputsConsumed;
 
     NKikimr::NMiniKQL::TWatermark* WatermarkStorage;
     TDqComputeActorWatermarks* WatermarksTracker;
+
+    // set when the inputs are visited when marked rather than polled, see BindReadySet
+    std::shared_ptr<TDqInputReadySet> ReadySet;
 };
 
 template<bool IsWide>
@@ -228,14 +287,14 @@ class TDqInputMergeStreamValue : public TComputationValue<TDqInputMergeStreamVal
     using TBase = TComputationValue<TDqInputMergeStreamValue<IsWide>>;
 public:
     TDqInputMergeStreamValue(TMemoryUsageInfo* memInfo, const NKikimr::NMiniKQL::TType* type, TVector<IDqInput::TPtr>&& inputs,
-        TVector<TSortColumnInfo>&& sortCols, TDqMeteringStats::TInputStatsMeter stats, TInstant& startTs, bool& inputConsumed)
+        TVector<TSortColumnInfo>&& sortCols, TDqMeteringStats::TInputStatsMeter stats, TInstant& startTs, ui64& inputsConsumed)
         : TBase(memInfo)
         , Inputs(std::move(inputs))
         , Width(type->IsMulti() ? static_cast<const NMiniKQL::TMultiType*>(type)->GetElementsCount() : TMaybe<ui32>())
         , SortCols(std::move(sortCols))
         , Stats(stats)
         , StartTs(startTs)
-        , InputConsumed(inputConsumed)
+        , InputsConsumed(inputsConsumed)
     {
         YQL_ENSURE(!IsWide ^ Width.Defined());
         CurrentBuffers.reserve(Inputs.size());
@@ -328,7 +387,7 @@ private:
         if (Y_UNLIKELY(!StartTs)) {
             StartTs = Now();
         }
-        InputConsumed = true;
+        ++InputsConsumed;
         return NUdf::EFetchStatus::Ok;
     }
 
@@ -348,7 +407,7 @@ private:
         if (Stats) {
             Stats.Add(result, width);
         }
-        InputConsumed = true;
+        ++InputsConsumed;
         return NUdf::EFetchStatus::Ok;
     }
 
@@ -436,7 +495,7 @@ private:
     TMap<ui32, EDataSlot> SortColTypes;
     TDqMeteringStats::TInputStatsMeter Stats;
     TInstant& StartTs;
-    bool& InputConsumed;
+    ui64& InputsConsumed;
 };
 
 TVector<NKikimr::NMiniKQL::TType*> ExtractBlockItemTypes(const NKikimr::NMiniKQL::TType* type) {
@@ -508,7 +567,7 @@ class TDqInputMergeBlockStreamValue : public TComputationValue<TDqInputMergeBloc
 public:
     TDqInputMergeBlockStreamValue(TMemoryUsageInfo* memInfo, const NKikimr::NMiniKQL::TType* type, TVector<IDqInput::TPtr>&& inputs,
         TVector<TSortColumnInfo>&& sortCols, const NKikimr::NMiniKQL::THolderFactory& factory, TDqMeteringStats::TInputStatsMeter stats,
-        TInstant& startTs, bool& inputConsumed, NUdf::IPgBuilder* pgBuilder)
+        TInstant& startTs, ui64& inputsConsumed, NUdf::IPgBuilder* pgBuilder)
         : TBase(memInfo)
         , SortCols_(std::move(sortCols))
         , ItemTypes_(ExtractBlockItemTypes(type))
@@ -518,7 +577,7 @@ public:
         , Factory_(factory)
         , Stats_(stats)
         , StartTs(startTs)
-        , InputConsumed(inputConsumed)
+        , InputsConsumed(inputsConsumed)
     {
         YQL_ENSURE(MaxOutputBlockLen_ > 0);
         InputData_.reserve(inputs.size());
@@ -703,18 +762,18 @@ private:
 
         YQL_ENSURE(width == chunk.size() + 1);
         for (ui32 i = 0; i < chunk.size(); ++i) {
-            result[i] = Factory_.CreateArrowBlock(std::move(chunk[i]));
+            result[i] = Factory_.CreateArrowBlock(std::move(chunk[i]), NYql::DefaultDatumValidationMode);
         }
 
         YQL_ENSURE(blockLen > 0);
-        result[chunk.size()] = Factory_.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(blockLen)));
+        result[chunk.size()] = Factory_.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(blockLen)), NYql::DefaultDatumValidationMode);
         if (Stats_) {
             Stats_.Add(result, width);
         }
         if (Y_UNLIKELY(!StartTs)) {
             StartTs = Now();
         }
-        InputConsumed = true;
+        ++InputsConsumed;
         return NUdf::EFetchStatus::Ok;
     }
 
@@ -828,7 +887,7 @@ private:
     std::unique_ptr<TArgsDechunker> Output_;
     bool IsFinished_ = false;
     TInstant& StartTs;
-    bool& InputConsumed;
+    ui64& InputsConsumed;
 };
 
 void ValidateInputTypes(const NKikimr::NMiniKQL::TType* type, const TVector<IDqInput::TPtr>& inputs) {
@@ -886,15 +945,16 @@ NUdf::TUnboxedValue CreateInputUnionValue(
     const NMiniKQL::THolderFactory& factory,
     TDqMeteringStats::TInputStatsMeter stats,
     TInstant& startTs,
-    bool& inputConsumed,
+    ui64& inputsConsumed,
     NKikimr::NMiniKQL::TWatermark* watermark,
-    TDqComputeActorWatermarks* watermarksTracker
+    TDqComputeActorWatermarks* watermarksTracker,
+    bool useReadySet
 ) {
     ValidateInputTypes(type, inputs);
     if (type->IsMulti()) {
-        return factory.Create<TDqInputUnionStreamValue<true>>(type, std::move(inputs), stats, startTs, inputConsumed, watermark, watermarksTracker);
+        return factory.Create<TDqInputUnionStreamValue<true>>(type, std::move(inputs), stats, startTs, inputsConsumed, watermark, watermarksTracker, useReadySet);
     }
-    return factory.Create<TDqInputUnionStreamValue<false>>(type, std::move(inputs), stats, startTs, inputConsumed, watermark, watermarksTracker);
+    return factory.Create<TDqInputUnionStreamValue<false>>(type, std::move(inputs), stats, startTs, inputsConsumed, watermark, watermarksTracker, useReadySet);
 }
 
 NKikimr::NUdf::TUnboxedValue CreateInputMergeValue(
@@ -904,7 +964,7 @@ NKikimr::NUdf::TUnboxedValue CreateInputMergeValue(
     const NKikimr::NMiniKQL::THolderFactory& factory,
     TDqMeteringStats::TInputStatsMeter stats,
     TInstant& startTs,
-    bool& inputConsumed,
+    ui64& inputsConsumed,
     NUdf::IPgBuilder* pgBuilder
 ) {
     ValidateInputTypes(type, inputs);
@@ -914,13 +974,13 @@ NKikimr::NUdf::TUnboxedValue CreateInputMergeValue(
             // we can ignore scalar columns, since all they have exactly the same value in all inputs
             EraseIf(sortCols, [](const auto& sortCol) { return *sortCol.IsScalar; });
             if (sortCols.empty()) {
-                return factory.Create<TDqInputUnionStreamValue<true>>(type, std::move(inputs), stats, startTs, inputConsumed, nullptr, nullptr);
+                return factory.Create<TDqInputUnionStreamValue<true>>(type, std::move(inputs), stats, startTs, inputsConsumed, nullptr, nullptr, false);
             }
-            return factory.Create<TDqInputMergeBlockStreamValue>(type, std::move(inputs), std::move(sortCols), factory, stats, startTs, inputConsumed, pgBuilder);
+            return factory.Create<TDqInputMergeBlockStreamValue>(type, std::move(inputs), std::move(sortCols), factory, stats, startTs, inputsConsumed, pgBuilder);
         }
-        return factory.Create<TDqInputMergeStreamValue<true>>(type, std::move(inputs), std::move(sortCols), stats, startTs, inputConsumed);
+        return factory.Create<TDqInputMergeStreamValue<true>>(type, std::move(inputs), std::move(sortCols), stats, startTs, inputsConsumed);
     }
-    return factory.Create<TDqInputMergeStreamValue<false>>(type, std::move(inputs), std::move(sortCols), stats, startTs, inputConsumed);
+    return factory.Create<TDqInputMergeStreamValue<false>>(type, std::move(inputs), std::move(sortCols), stats, startTs, inputsConsumed);
 }
 
 } // namespace NYql::NDq

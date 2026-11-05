@@ -31,12 +31,20 @@ public:
         return it->second;
     }
 
+    void InvalidateTable(const TTableMountInfoPtr& /*tableInfo*/) override
+    {
+        YT_ABORT();
+    }
+
     void InvalidateTablet(TTabletId /*tablet*/) override
     {
         YT_ABORT();
     }
 
-    TInvalidationResult InvalidateOnError(const TError& /*error*/, bool /*forceRetry*/) override
+    TInvalidationResult InvalidateOnError(
+        const TError& /*error*/,
+        bool /*forceRetry*/,
+        TTabletId /*tabletIdHint*/) override
     {
         YT_ABORT();
     }
@@ -61,7 +69,7 @@ private:
 
     std::atomic<ui64> TotalWaitTime_{};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<NYPath::TYPath, TFuture<TTableMountInfoPtr>> TableInfoMap_;
 
     void AddWaitTime(TInstant start, const TError& /*error*/)

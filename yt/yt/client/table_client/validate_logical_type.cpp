@@ -50,14 +50,14 @@ class TComplexLogicalTypeValidatorImpl
     class TFieldId;
 
 public:
-    TComplexLogicalTypeValidatorImpl(TYsonPullParser* parser, TComplexTypeFieldDescriptor descriptor)
+    TComplexLogicalTypeValidatorImpl(TYsonPullParser* parser, const TLogicalTypePtr& rootType)
         : Cursor_(parser)
-        , RootDescriptor_(descriptor)
+        , RootType_(rootType)
     { }
 
     void Validate()
     {
-        return ValidateLogicalType(RootDescriptor_.GetType(), TFieldId());
+        return ValidateLogicalType(RootType_, TFieldId());
     }
 
 private:
@@ -93,6 +93,9 @@ private:
                 return;
             case ELogicalMetatype::Decimal:
                 ValidateDecimalType(type->UncheckedAsDecimalTypeRef(), fieldId);
+                return;
+            case ELogicalMetatype::AggregateState:
+                ValidateLogicalType(type->UncheckedAsAggregateStateTypeRef().GetElement(), fieldId);
                 return;
         }
         YT_ABORT();
@@ -448,14 +451,15 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "Error validating field %Qv",
                 GetDescription(fieldId))
-                << ex;
+                .With(ex);
         }
         Cursor_.Next();
     }
 
     std::string GetDescription(const TFieldId& fieldId) const
     {
-        return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
+        // Descriptor is built lazily since it is needed only for error messages.
+        return fieldId.GetDescriptor(TComplexTypeFieldDescriptor(RootType_)).GetDescription();
     }
 
 private:
@@ -557,6 +561,9 @@ private:
                     case ELogicalMetatype::Tagged:
                         descriptor = descriptor.TaggedElement();
                         continue;
+                    case ELogicalMetatype::AggregateState:
+                        descriptor = descriptor.AggregateStateElement();
+                        continue;
                 }
                 YT_ABORT();
             }
@@ -576,7 +583,8 @@ private:
 
 private:
     TYsonPullParserCursor Cursor_;
-    const TComplexTypeFieldDescriptor RootDescriptor_;
+    // Not owned; the caller keeps the type alive for the duration of validation.
+    const TLogicalTypePtr& RootType_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,7 +597,7 @@ void ValidateComplexLogicalType(TStringBuf ysonData, const TLogicalTypePtr& type
 {
     TMemoryInput in(ysonData);
     TYsonPullParser parser(&in, EYsonType::Node);
-    TComplexLogicalTypeValidatorImpl validator(&parser, TComplexTypeFieldDescriptor(type));
+    TComplexLogicalTypeValidatorImpl validator(&parser, type);
     validator.Validate();
 }
 

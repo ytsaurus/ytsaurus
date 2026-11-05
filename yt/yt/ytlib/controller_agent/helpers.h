@@ -27,7 +27,7 @@ struct TJobFile
     TJobId JobId;
     NYPath::TYPath Path;
     NChunkClient::TChunkId ChunkId;
-    TString DescriptionType;
+    std::string DescriptionType;
 };
 
 void SaveJobFiles(
@@ -75,9 +75,7 @@ bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
-    const TString& accessMethod,
-    const TString& filesystem);
+void ValidateCompatibility(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -68,7 +68,7 @@ private:
                 BufferPosition_ = 0;
                 if (zstdInBuffer.size == 0) {
                     if (returnCode != 0) {
-                        YT_LOG_WARNING("Incomplete Zstd block");
+                        YT_TLOG_WARNING("Incomplete Zstd block");
                         return 0;
                     }
                     break;
@@ -78,7 +78,7 @@ private:
             returnCode = ::ZSTD_decompressStream(ZstdContext_.get(), &zstdOutBuffer, &zstdInBuffer);
             if (::ZSTD_isError(returnCode)) {
                 THROW_ERROR_EXCEPTION("Error decompressing Zstd frame")
-                    << TError("%v", ::ZSTD_getErrorName(returnCode));
+                    .With(TError("%v", ::ZSTD_getErrorName(returnCode)));
             }
             if (returnCode == 0) {
                 ZSTD_initDStream(ZstdContext_.get());
@@ -122,6 +122,10 @@ public:
         }
 
         RefillBuffer();
+
+        if (IsExhausted()) {
+            return nullptr;
+        }
 
         auto frameInput = std::make_unique<TFrameInput>(this);
         return std::make_unique<TUncompressedZstdFrameStream>(std::move(frameInput));

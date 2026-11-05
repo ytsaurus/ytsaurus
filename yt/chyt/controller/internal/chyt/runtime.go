@@ -17,8 +17,8 @@ type runtimePaths struct {
 func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypath.Path, incarnationIndex int, expirationTimeout uint64) (path ypath.Path, err error) {
 	path = root.Child(kind).Child(strconv.Itoa(incarnationIndex))
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-		Force:     true,
-		Recursive: true,
+		IgnoreExisting: true,
+		Recursive:      true,
 		Attributes: map[string]any{
 			"expiration_timeout": expirationTimeout,
 		},
@@ -26,8 +26,8 @@ func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypa
 	return
 }
 
-func (c *Controller) prepareRuntime(ctx context.Context, spec runtimeDataSpec, alias string, incarnationIndex int) (paths runtimePaths, err error) {
-	root := spec.RuntimeDataPath.Child(alias)
+func (c *Controller) prepareRuntime(ctx context.Context, spec runtimeDataSpec, incarnationIndex int) (paths runtimePaths, err error) {
+	root := spec.RuntimeDataPath
 	paths.StderrTable, err = c.prepareBlobTable(ctx, "stderrs", root, incarnationIndex, spec.RuntimeDataExpirationTimeout)
 	if err != nil {
 		return
@@ -61,6 +61,10 @@ func (c *Controller) prepareCypressDirectories(ctx context.Context, alias string
 
 	if err := c.createDirIfNotExists(ctx, c.sqlUDFDir(alias), true /*opaque*/); err != nil {
 		return fmt.Errorf("error creating sql udf dir: %v", err)
+	}
+
+	if err := c.createDirIfNotExists(ctx, c.storageArtifactsDir(alias), true /*opaque*/); err != nil {
+		return fmt.Errorf("error creating storage artifacts dir: %v", err)
 	}
 
 	return nil

@@ -1,5 +1,5 @@
 #include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
-#include <contrib/ydb/library/yql/providers/dq/runtime/task_command_executor.h>
+#include <yt/yql/providers/dq/runtime/task_command_executor.h>
 
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
 #include <yt/yql/providers/yt/mkql_dq/yql_yt_dq_transform.h>
@@ -12,7 +12,7 @@
 #include <contrib/ydb/library/yql/dq/transform/yql_common_dq_transform.h>
 
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
-#include <contrib/ydb/library/yql/tools/dq/worker_job/dq_worker.h>
+#include <yt/yql/tools/dq/worker_job/dq_worker.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
 
 #include <library/cpp/svnversion/svnversion.h>

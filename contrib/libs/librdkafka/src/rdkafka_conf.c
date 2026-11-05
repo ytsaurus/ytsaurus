@@ -56,24 +56,29 @@
 #include <windows.h>
 #endif
 
+#if WITH_OAUTHBEARER_OIDC
+#include <curl/curl.h>
+#endif
+
 struct rd_kafka_property {
         rd_kafka_conf_scope_t scope;
         const char *name;
-        enum { _RK_C_STR,
-               _RK_C_INT,
-               _RK_C_DBL, /* Double */
-               _RK_C_S2I, /* String to Integer mapping.
-                           * Supports limited canonical str->int mappings
-                           * using s2i[] */
-               _RK_C_S2F, /* CSV String to Integer flag mapping (OR:ed) */
-               _RK_C_BOOL,
-               _RK_C_PTR,     /* Only settable through special set functions */
-               _RK_C_PATLIST, /* Pattern list */
-               _RK_C_KSTR,    /* Kafka string */
-               _RK_C_ALIAS, /* Alias: points to other property through .sdef */
-               _RK_C_INTERNAL, /* Internal, don't expose to application */
-               _RK_C_INVALID,  /* Invalid property, used to catch known
-                                * but unsupported Java properties. */
+        enum {
+                _RK_C_STR,
+                _RK_C_INT,
+                _RK_C_DBL, /* Double */
+                _RK_C_S2I, /* String to Integer mapping.
+                            * Supports limited canonical str->int mappings
+                            * using s2i[] */
+                _RK_C_S2F, /* CSV String to Integer flag mapping (OR:ed) */
+                _RK_C_BOOL,
+                _RK_C_PTR,     /* Only settable through special set functions */
+                _RK_C_PATLIST, /* Pattern list */
+                _RK_C_KSTR,    /* Kafka string */
+                _RK_C_ALIAS, /* Alias: points to other property through .sdef */
+                _RK_C_INTERNAL, /* Internal, don't expose to application */
+                _RK_C_INVALID,  /* Invalid property, used to catch known
+                                 * but unsupported Java properties. */
         } type;
         int offset;
         const char *desc;
@@ -195,6 +200,15 @@ struct rd_kafka_property {
 #define _UNSUPPORTED_OIDC                                                      \
         .unsupported =                                                         \
             "OAuth/OIDC depends on libcurl and OpenSSL which were not "        \
+            "available at build time"
+#endif
+
+#if WITH_OAUTHBEARER_OIDC
+#define _UNSUPPORTED_HTTPS .unsupported = NULL
+#else
+#define _UNSUPPORTED_HTTPS                                                     \
+        .unsupported =                                                         \
+            "HTTPS calls depend on libcurl and OpenSSL which were not "        \
             "available at build time"
 #endif
 
@@ -339,6 +353,20 @@ rd_kafka_conf_validate_partitioner(const struct rd_kafka_property *prop,
                !strcmp(val, "fnv1a_random");
 }
 
+/**
+ * @brief Validate that a string is non-null, non-empty, and not
+ * whitespace-only.
+ */
+static rd_bool_t rd_kafka_conf_validate_str(const char *value) {
+        const char *p;
+        if (!value || !*value)
+                return rd_false;
+        for (p = value; *p; p++) {
+                if (!isspace((int)*p))
+                        return rd_true;
+        }
+        return rd_false;
+}
 
 /**
  * librdkafka configuration property definitions.
@@ -416,7 +444,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
     {_RK_GLOBAL, "message.copy.max.bytes", _RK_C_INT, _RK(msg_copy_max_size),
      "Maximum size for message to be copied to buffer. "
      "Messages larger than this will be passed by reference (zero-copy) "
-     "at the expense of larger iovecs.",
+     "at the expense of larger iovecs. "
+     "This property is not supported for share consumers.",
      0, 1000000000, 0xffff},
     {_RK_GLOBAL | _RK_MED, "receive.message.max.bytes", _RK_C_INT,
      _RK(recv_max_msg_size),
@@ -425,7 +454,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "case of protocol hickups. "
      "This value must be at least `fetch.max.bytes`  + 512 to allow "
      "for protocol overhead; the value is adjusted automatically "
-     "unless the configuration property is explicitly set.",
+     "unless the configuration property is explicitly set. For share "
+     "consumers, the default value is INT_MAX.",
      1000, INT_MAX, 100000000},
     {_RK_GLOBAL, "max.in.flight.requests.per.connection", _RK_C_INT,
      _RK(max_inflight),
@@ -433,10 +463,39 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "This is a generic property applied to all broker communication, "
      "however it is primarily relevant to produce requests. "
      "In particular, note that other mechanisms limit the number "
-     "of outstanding consumer fetch request per broker to one.",
+     "of outstanding consumer fetch request per broker to one. "
+     "This property is ignored for share consumers.",
      1, 1000000, 1000000},
     {_RK_GLOBAL, "max.in.flight", _RK_C_ALIAS,
      .sdef = "max.in.flight.requests.per.connection"},
+    {_RK_GLOBAL, "metadata.recovery.strategy", _RK_C_S2I,
+     _RK(metadata_recovery_strategy),
+     "Controls how the client recovers when none of the brokers known to it "
+     "is available. If set to `none`, the client doesn't re-bootstrap. "
+     "If set to `rebootstrap`, the client repeats the bootstrap process "
+     "using `bootstrap.servers` and brokers added through "
+     "`rd_kafka_brokers_add()`. Rebootstrapping is useful when a client "
+     "communicates with brokers so infrequently that the set of brokers "
+     "may change entirely before the client refreshes metadata. "
+     "Metadata recovery is triggered when all last-known brokers appear "
+     "unavailable simultaneously or the client cannot refresh metadata within "
+     "`metadata.recovery.rebootstrap.trigger.ms` or it's requested in a "
+     "metadata response.",
+     .vdef = RD_KAFKA_METADATA_RECOVERY_STRATEGY_REBOOTSTRAP,
+     .s2i  = {{RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE, "none"},
+              {RD_KAFKA_METADATA_RECOVERY_STRATEGY_REBOOTSTRAP, "rebootstrap"},
+              {0, NULL}}},
+    {_RK_GLOBAL, "metadata.recovery.rebootstrap.trigger.ms", _RK_C_INT,
+     _RK(metadata_recovery_rebootstrap_trigger_ms),
+     "If a client configured to rebootstrap using "
+     "`metadata.recovery.strategy=rebootstrap` "
+     "is unable to obtain metadata from any "
+     "of the brokers for this interval, "
+     "client repeats the bootstrap process using "
+     "`bootstrap.servers` configuration "
+     "and brokers added through "
+     "`rd_kafka_brokers_add()`.",
+     0, INT_MAX, 300000},
     {_RK_GLOBAL | _RK_DEPRECATED | _RK_HIDDEN, "metadata.request.timeout.ms",
      _RK_C_INT, _RK(metadata_request_timeout_ms), "Not used.", 10, 900 * 1000,
      10},
@@ -487,7 +546,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
     {_RK_GLOBAL, "topic.blacklist", _RK_C_PATLIST, _RK(topic_blacklist),
      "Topic blacklist, a comma-separated list of regular expressions "
      "for matching topic names that should be ignored in "
-     "broker metadata information as if the topics did not exist."},
+     "broker metadata information as if the topics did not exist. "
+     "This property is not supported for share consumers."},
     {_RK_GLOBAL | _RK_MED, "debug", _RK_C_S2F, _RK(debug),
      "A comma-separated list of debug contexts to enable. "
      "Detailed Producer debugging: broker,topic,msg. "
@@ -540,7 +600,7 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
 #endif
     },
     {_RK_GLOBAL, "socket.nagle.disable", _RK_C_BOOL, _RK(socket_nagle_disable),
-     "Disable the Nagle algorithm (TCP_NODELAY) on broker sockets.", 0, 1, 0
+     "Disable the Nagle algorithm (TCP_NODELAY) on broker sockets.", 0, 1, 1
 #ifndef TCP_NODELAY
      ,
      .unsupported = "TCP_NODELAY not available at build time"
@@ -577,11 +637,15 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      _RK(connections_max_idle_ms),
      "Close broker connections after the specified time of "
      "inactivity. "
-     "Disable with 0. "
+     "Disable with 0. For share consumers, the default value is 540000 (9 "
+     "mins)."
      "If this property is left at its default value some heuristics are "
      "performed to determine a suitable default value, this is currently "
      "limited to identifying brokers on Azure "
-     "(see librdkafka issue #3109 for more info).",
+     "(see librdkafka issue #3109 for more info). "
+     "Actual value can be lower, up to 2s lower, "
+     "only if `connections.max.idle.ms` >= 4s, "
+     "as jitter is added to avoid disconnecting all brokers at the same time.",
      0, INT_MAX, 0},
     {_RK_GLOBAL | _RK_MED | _RK_HIDDEN, "enable.sparse.connections", _RK_C_BOOL,
      _RK(sparse_connections),
@@ -601,12 +665,14 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "The time is increased exponentially until "
      "`reconnect.backoff.max.ms` is reached. "
      "-25% to +50% jitter is applied to each reconnect backoff. "
-     "A value of 0 disables the backoff and reconnects immediately.",
+     "A value of 0 disables the backoff and reconnects immediately. For share "
+     "consumers, the default value is 50.",
      0, 60 * 60 * 1000, 100},
     {_RK_GLOBAL | _RK_MED, "reconnect.backoff.max.ms", _RK_C_INT,
      _RK(reconnect_backoff_max_ms),
      "The maximum time to wait before reconnecting to a broker "
-     "after the connection has been closed.",
+     "after the connection has been closed. For share consumers, the default "
+     "value is 1000.",
      0, 60 * 60 * 1000, 10 * 1000},
     {_RK_GLOBAL | _RK_HIGH, "statistics.interval.ms", _RK_C_INT,
      _RK(stats_interval_ms),
@@ -702,8 +768,10 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "The application should mask this signal as an internal "
      "signal handler is installed.",
      0, 128, 0},
-    {_RK_GLOBAL | _RK_HIGH, "api.version.request", _RK_C_BOOL,
+    {_RK_GLOBAL | _RK_HIGH | _RK_DEPRECATED, "api.version.request", _RK_C_BOOL,
      _RK(api_version_request),
+     "**Post-deprecation actions: remove this configuration property, "
+     "brokers < 0.10.0 won't be supported anymore in librdkafka 3.x.** "
      "Request broker's supported API versions to adjust functionality to "
      "available protocol features. If set to false, or the "
      "ApiVersionRequest fails, the fallback version "
@@ -715,16 +783,20 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
     {_RK_GLOBAL, "api.version.request.timeout.ms", _RK_C_INT,
      _RK(api_version_request_timeout_ms),
      "Timeout for broker API version requests.", 1, 5 * 60 * 1000, 10 * 1000},
-    {_RK_GLOBAL | _RK_MED, "api.version.fallback.ms", _RK_C_INT,
-     _RK(api_version_fallback_ms),
+    {_RK_GLOBAL | _RK_MED | _RK_DEPRECATED, "api.version.fallback.ms",
+     _RK_C_INT, _RK(api_version_fallback_ms),
+     "**Post-deprecation actions: remove this configuration property, "
+     "brokers < 0.10.0 won't be supported anymore in librdkafka 3.x.** "
      "Dictates how long the `broker.version.fallback` fallback is used "
      "in the case the ApiVersionRequest fails. "
      "**NOTE**: The ApiVersionRequest is only issued when a new connection "
      "to the broker is made (such as after an upgrade).",
      0, 86400 * 7 * 1000, 0},
 
-    {_RK_GLOBAL | _RK_MED, "broker.version.fallback", _RK_C_STR,
-     _RK(broker_version_fallback),
+    {_RK_GLOBAL | _RK_MED | _RK_DEPRECATED, "broker.version.fallback",
+     _RK_C_STR, _RK(broker_version_fallback),
+     "**Post-deprecation actions: remove this configuration property, "
+     "brokers < 0.10.0 won't be supported anymore in librdkafka 3.x.** "
      "Older broker versions (before 0.10.0) provide no way for a client to "
      "query "
      "for supported protocol features "
@@ -750,7 +822,9 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "Further, the consumer default value is different from the Java "
      "consumer (true), and this property is not supported by the Java "
      "producer. Requires broker version >= 0.11.0.0, for older broker "
-     "versions only the broker configuration applies.",
+     "versions only the broker configuration applies. This property "
+     "is currently not supported for share consumers and will be enabled in "
+     "the General Availability (GA) release.",
      0, 1, 0},
 
     /* Security related global properties */
@@ -758,10 +832,10 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      _RK(security_protocol), "Protocol used to communicate with brokers.",
      .vdef = RD_KAFKA_PROTO_PLAINTEXT,
      .s2i  = {{RD_KAFKA_PROTO_PLAINTEXT, "plaintext"},
-             {RD_KAFKA_PROTO_SSL, "ssl", _UNSUPPORTED_SSL},
-             {RD_KAFKA_PROTO_SASL_PLAINTEXT, "sasl_plaintext"},
-             {RD_KAFKA_PROTO_SASL_SSL, "sasl_ssl", _UNSUPPORTED_SSL},
-             {0, NULL}}},
+              {RD_KAFKA_PROTO_SSL, "ssl", _UNSUPPORTED_SSL},
+              {RD_KAFKA_PROTO_SASL_PLAINTEXT, "sasl_plaintext"},
+              {RD_KAFKA_PROTO_SASL_SSL, "sasl_ssl", _UNSUPPORTED_SSL},
+              {0, NULL}}},
 
     {_RK_GLOBAL, "ssl.cipher.suites", _RK_C_STR, _RK(ssl.cipher_suites),
      "A cipher suite is a named combination of authentication, "
@@ -825,6 +899,29 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "If OpenSSL is dynamically linked the OpenSSL library's default "
      "path will be used (see `OPENSSLDIR` in `openssl version -a`).",
      _UNSUPPORTED_SSL},
+    {_RK_GLOBAL, "https.ca.location", _RK_C_STR, _RK(https.ca_location),
+     "File or directory path to CA certificate(s) for verifying "
+     "HTTPS endpoints, like `sasl.oauthbearer.token.endpoint.url` used for "
+     "OAUTHBEARER/OIDC authentication. "
+     "Mutually exclusive with `https.ca.pem`. "
+     "Defaults: "
+     "On Windows the system's CA certificates are automatically looked "
+     "up in the Windows Root certificate store. "
+     "On Mac OSX this configuration defaults to `probe`. "
+     "It is recommended to install openssl using Homebrew, "
+     "to provide CA certificates. "
+     "On Linux install the distribution's ca-certificates package. "
+     "If OpenSSL is statically linked or `https.ca.location` is set to "
+     "`probe` a list of standard paths will be probed and the first one "
+     "found will be used as the default CA certificate location path. "
+     "If OpenSSL is dynamically linked the OpenSSL library's default "
+     "path will be used (see `OPENSSLDIR` in `openssl version -a`).",
+     _UNSUPPORTED_HTTPS},
+    {_RK_GLOBAL, "https.ca.pem", _RK_C_STR, _RK(https.ca_pem),
+     "CA certificate string (PEM format) for verifying HTTPS endpoints. "
+     "Mutually exclusive with `https.ca.location`. "
+     "Optional: see `https.ca.location`.",
+     _UNSUPPORTED_HTTPS},
     {_RK_GLOBAL | _RK_SENSITIVE, "ssl.ca.pem", _RK_C_STR, _RK(ssl.ca_pem),
      "CA certificate string (PEM format) for verifying the broker's key.",
      _UNSUPPORTED_SSL},
@@ -889,7 +986,7 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "OpenSSL >= 1.0.2 required.",
      .vdef = RD_KAFKA_SSL_ENDPOINT_ID_HTTPS,
      .s2i  = {{RD_KAFKA_SSL_ENDPOINT_ID_NONE, "none"},
-             {RD_KAFKA_SSL_ENDPOINT_ID_HTTPS, "https"}},
+              {RD_KAFKA_SSL_ENDPOINT_ID_HTTPS, "https"}},
      _UNSUPPORTED_OPENSSL_1_0_2},
     {_RK_GLOBAL, "ssl.certificate.verify_cb", _RK_C_PTR,
      _RK(ssl.cert_verify_cb),
@@ -1009,7 +1106,7 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "and `sasl.oauthbearer.token.endpoint.url`.",
      .vdef = RD_KAFKA_SASL_OAUTHBEARER_METHOD_DEFAULT,
      .s2i  = {{RD_KAFKA_SASL_OAUTHBEARER_METHOD_DEFAULT, "default"},
-             {RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC, "oidc"}},
+              {RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC, "oidc"}},
      _UNSUPPORTED_OIDC},
     {_RK_GLOBAL, "sasl.oauthbearer.client.id", _RK_C_STR,
      _RK(sasl.oauthbearer.client_id),
@@ -1018,7 +1115,11 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "authorization server handles. "
      "Only used when `sasl.oauthbearer.method` is set to \"oidc\".",
      _UNSUPPORTED_OIDC},
-    {_RK_GLOBAL, "sasl.oauthbearer.client.secret", _RK_C_STR,
+    {_RK_GLOBAL, "sasl.oauthbearer.client.credentials.client.id", _RK_C_ALIAS,
+     .sdef = "sasl.oauthbearer.client.id"},
+    {_RK_GLOBAL, "sasl.oauthbearer.client.credentials.client.secret",
+     _RK_C_ALIAS, .sdef = "sasl.oauthbearer.client.secret"},
+    {_RK_GLOBAL | _RK_SENSITIVE, "sasl.oauthbearer.client.secret", _RK_C_STR,
      _RK(sasl.oauthbearer.client_secret),
      "Client secret only known to the application and the "
      "authorization server. This should be a sufficiently random string "
@@ -1043,6 +1144,128 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "OAuth/OIDC issuer token endpoint HTTP(S) URI used to retrieve token. "
      "Only used when `sasl.oauthbearer.method` is set to \"oidc\".",
      _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.sub.claim.name", _RK_C_STR,
+     _RK(sasl.oauthbearer.sub_claim_name),
+     "JWT claim name to use as the subject (principal) when validating "
+     "OIDC access tokens. Must be present in the JWT payload with a "
+     "non-empty value. Should match the broker's "
+     "`sasl.oauthbearer.sub.claim.name` configuration for consistent "
+     "authentication. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\".",
+     .sdef = "sub", _UNSUPPORTED_OIDC},
+    {
+        _RK_GLOBAL,
+        "sasl.oauthbearer.grant.type",
+        _RK_C_S2I,
+        _RK(sasl.oauthbearer.grant_type),
+        "OAuth grant type to use when communicating with the identity "
+        "provider.",
+        _UNSUPPORTED_OIDC,
+        .vdef = RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_CLIENT_CREDENTIALS,
+        .s2i  = {{RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_CLIENT_CREDENTIALS,
+                  "client_credentials"},
+                 {RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_JWT_BEARER,
+                  "urn:ietf:params:oauth:grant-type:jwt-bearer"}},
+    },
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.algorithm", _RK_C_S2I,
+     _RK(sasl.oauthbearer.assertion.algorithm),
+     "Algorithm the client should use to sign the assertion sent "
+     "to the identity provider and in the OAuth alg header in the JWT "
+     "assertion.",
+     _UNSUPPORTED_OIDC,
+     .vdef = RD_KAFKA_SASL_OAUTHBEARER_ASSERTION_ALGORITHM_RS256,
+     .s2i  = {{RD_KAFKA_SASL_OAUTHBEARER_ASSERTION_ALGORITHM_RS256, "RS256"},
+              {RD_KAFKA_SASL_OAUTHBEARER_ASSERTION_ALGORITHM_ES256, "ES256"}}},
+    {_RK_GLOBAL | _RK_SENSITIVE, "sasl.oauthbearer.assertion.private.key.file",
+     _RK_C_STR, _RK(sasl.oauthbearer.assertion.private_key.file),
+     "Path to client's private key (PEM) used for authentication "
+     "when using the JWT assertion.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL | _RK_SENSITIVE,
+     "sasl.oauthbearer.assertion.private.key.passphrase", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.private_key.passphrase),
+     "Private key passphrase for `sasl.oauthbearer.assertion.private.key.file`"
+     " or `sasl.oauthbearer.assertion.private.key.pem`.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL | _RK_SENSITIVE, "sasl.oauthbearer.assertion.private.key.pem",
+     _RK_C_STR, _RK(sasl.oauthbearer.assertion.private_key.pem),
+     "Client's private key (PEM) used for authentication "
+     "when using the JWT assertion.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.file", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.file),
+     "Path to the assertion file. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.aud", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.claim.audience),
+     "JWT audience claim. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.exp.seconds", _RK_C_INT,
+     _RK(sasl.oauthbearer.assertion.claim.expiration_s),
+     "Assertion expiration time in seconds. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     1, INT_MAX, 300, _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.iss", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.claim.issuer),
+     "JWT issuer claim. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.jti.include", _RK_C_BOOL,
+     _RK(sasl.oauthbearer.assertion.claim.jti_include),
+     "JWT ID claim. When set to `true`, a random UUID is generated. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     0, 1, 0, _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.nbf.seconds", _RK_C_INT,
+     _RK(sasl.oauthbearer.assertion.claim.not_before_s),
+     "Assertion not before time in seconds. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     0, INT_MAX, 60, _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.claim.sub", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.claim.subject),
+     "JWT subject claim. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     _UNSUPPORTED_OIDC},
+    {_RK_GLOBAL, "sasl.oauthbearer.assertion.jwt.template.file", _RK_C_STR,
+     _RK(sasl.oauthbearer.assertion.jwt_template_file),
+     "Path to the JWT template file. "
+     "Only used when `sasl.oauthbearer.method` is set to \"oidc\" and JWT "
+     "assertion is needed.",
+     _UNSUPPORTED_OIDC},
+    {
+        _RK_GLOBAL,
+        "sasl.oauthbearer.metadata.authentication.type",
+        _RK_C_S2I,
+        _RK(sasl.oauthbearer.metadata_authentication.type),
+        "Type of metadata-based authentication to use for OAUTHBEARER/OIDC "
+        "`azure_imds` authenticates using the Azure IMDS endpoint. "
+        "Sets a default value for `sasl.oauthbearer.token.endpoint.url` if "
+        "missing. "
+        "`aws_iam` indicates AWS IAM-based authentication using "
+        "GetWebIdentityToken API. "
+        "librdkafka does not implement the aws_iam token flow natively as of "
+        "now. "
+        "Configuration values specific of chosen authentication type can be "
+        "passed "
+        "through `sasl.oauthbearer.config`.",
+        _UNSUPPORTED_OIDC,
+        .vdef = RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_NONE,
+        .s2i =
+            {{RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_NONE,
+              "none"},
+             {RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AZURE_IMDS,
+              "azure_imds"},
+             {RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AWS_IAM,
+              "aws_iam"}},
+    },
 
     /* Plugins */
     {_RK_GLOBAL, "plugin.library.paths", _RK_C_STR, _RK(plugin_paths),
@@ -1102,7 +1325,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "group rebalance. This should be used in combination with a larger "
      "`session.timeout.ms` to avoid group rebalances caused by transient "
      "unavailability (e.g. process restarts). "
-     "Requires broker version >= 2.3.0."},
+     "Requires broker version >= 2.3.0. This property is not supported for "
+     "share consumers."},
     {_RK_GLOBAL | _RK_CGRP | _RK_MED, "partition.assignment.strategy",
      _RK_C_STR, _RK(partition_assignment_strategy),
      "The name of one or more partition assignment strategies. The "
@@ -1110,9 +1334,10 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "members of the group to assign partitions to group members. If "
      "there is more than one eligible strategy, preference is "
      "determined by the order of this list (strategies earlier in the "
-     "list have higher priority). "
-     "Cooperative and non-cooperative (eager) strategies must not be "
-     "mixed. "
+     "list have higher priority). Cooperative and non-cooperative (eager)"
+     "strategies must not be mixed. `partition.assignment.strategy` is not "
+     "supported for "
+     "`group.protocol=consumer`. Use `group.remote.assignor` instead. "
      "Available strategies: range, roundrobin, cooperative-sticky.",
      .sdef = "range,roundrobin"},
     {_RK_GLOBAL | _RK_CGRP | _RK_HIGH, "session.timeout.ms", _RK_C_INT,
@@ -1122,20 +1347,35 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "to indicate its liveness to the broker. If no hearts are "
      "received by the broker for a group member within the "
      "session timeout, the broker will remove the consumer from "
-     "the group and trigger a rebalance. "
-     "The allowed range is configured with the **broker** configuration "
+     "the group and trigger a rebalance. The "
+     "allowed range is configured with the **broker** configuration "
      "properties `group.min.session.timeout.ms` and "
-     "`group.max.session.timeout.ms`. "
+     "`group.max.session.timeout.ms`. `session.timeout.ms` is not supported "
+     "for `group.protocol=consumer`. It is set with the broker configuration "
+     "property "
+     "`group.consumer.session.timeout.ms` by default or can be configured "
+     "through the AdminClient IncrementalAlterConfigs API. "
+     "The allowed range is configured with the broker configuration "
+     "properties `group.consumer.min.session.timeout.ms` and "
+     "`group.consumer.max.session.timeout.ms`. "
      "Also see `max.poll.interval.ms`.",
      1, 3600 * 1000, 45 * 1000},
     {_RK_GLOBAL | _RK_CGRP, "heartbeat.interval.ms", _RK_C_INT,
      _RK(group_heartbeat_intvl_ms),
-     "Group session keepalive heartbeat interval.", 1, 3600 * 1000, 3 * 1000},
+     "Group session keepalive heartbeat interval. "
+     "`heartbeat.interval.ms` is not supported for `group.protocol=consumer`. "
+     "It is set with the broker configuration property "
+     "`group.consumer.heartbeat.interval.ms` by default or can be configured "
+     "through the AdminClient IncrementalAlterConfigs API. The allowed range "
+     "is configured with the broker configuration properties "
+     "`group.consumer.min.heartbeat.interval.ms` and "
+     "`group.consumer.max.heartbeat.interval.ms`.",
+     1, 3600 * 1000, 3 * 1000},
     {_RK_GLOBAL | _RK_CGRP, "group.protocol.type", _RK_C_KSTR,
      _RK(group_protocol_type),
      "Group protocol type for the `classic` group protocol. NOTE: Currently, "
-     "the only supported group "
-     "protocol type is `consumer`.",
+     "the only supported group protocol type is `consumer`. "
+     "`group.protocol.type` is not supported for `group.protocol=consumer`",
      .sdef = "consumer"},
     {_RK_GLOBAL | _RK_CGRP | _RK_HIGH, "group.protocol", _RK_C_S2I,
      _RK(group_protocol),
@@ -1146,12 +1386,13 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "but will change to `consumer` in next releases.",
      .vdef = RD_KAFKA_GROUP_PROTOCOL_CLASSIC,
      .s2i  = {{RD_KAFKA_GROUP_PROTOCOL_CLASSIC, "classic"},
-             {RD_KAFKA_GROUP_PROTOCOL_CONSUMER, "consumer"}}},
+              {RD_KAFKA_GROUP_PROTOCOL_CONSUMER, "consumer"}}},
     {_RK_GLOBAL | _RK_CGRP | _RK_MED, "group.remote.assignor", _RK_C_STR,
      _RK(group_remote_assignor),
      "Server side assignor to use. Keep it null to make server select a "
      "suitable assignor for the group. "
-     "Available assignors: uniform or range. Default is null",
+     "Available assignors: uniform or range. Default is null. This property is "
+     "not supported for share consumers.",
      .sdef = NULL},
     {_RK_GLOBAL | _RK_CGRP, "coordinator.query.interval.ms", _RK_C_INT,
      _RK(coord_query_intvl_ms),
@@ -1190,7 +1431,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      _RK(auto_commit_interval_ms),
      "The frequency in milliseconds that the consumer offsets "
      "are committed (written) to offset storage. (0 = disable). "
-     "This setting is used by the high-level consumer.",
+     "This setting is used by the high-level consumer. "
+     "This property is ignored for share consumers.",
      0, 86400 * 1000, 5 * 1000},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_HIGH, "enable.auto.offset.store",
      _RK_C_BOOL, _RK(enable_auto_offset_store),
@@ -1202,7 +1444,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "queued.min.messages", _RK_C_INT,
      _RK(queued_min_msgs),
      "Minimum number of messages per topic+partition "
-     "librdkafka tries to maintain in the local consumer queue.",
+     "librdkafka tries to maintain in the local consumer queue. This property "
+     "is not supported for share consumers.",
      1, 10000000, 100000},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "queued.max.messages.kbytes",
      _RK_C_INT, _RK(queued_max_msg_kbytes),
@@ -1213,7 +1456,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "When using the legacy simple consumer or when separate "
      "partition queues are used this setting applies per partition. "
      "This value may be overshot by fetch.message.max.bytes. "
-     "This property has higher priority than queued.min.messages.",
+     "This property has higher priority than queued.min.messages. This "
+     "property is not supported for share consumers.",
      1, INT_MAX / 1024, 0x10000 /*64MB*/},
     {_RK_GLOBAL | _RK_CONSUMER, "fetch.wait.max.ms", _RK_C_INT,
      _RK(fetch_wait_max_ms),
@@ -1228,7 +1472,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "been exceded. "
      "This property may need to be decreased if the queue thresholds are "
      "set low and the application is experiencing long (~1s) delays "
-     "between messages. Low values may increase CPU utilization.",
+     "between messages. Low values may increase CPU utilization. This property "
+     "is not supported for share consumers.",
      0, 300 * 1000, 1000},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "fetch.message.max.bytes", _RK_C_INT,
      _RK(fetch_msg_max_bytes),
@@ -1236,7 +1481,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "fetching messages from the broker. "
      "If the client encounters a message larger than this value "
      "it will gradually try to increase it until the "
-     "entire message can be fetched.",
+     "entire message can be fetched. This property is ignored for share "
+     "consumers.",
      1, 1000000000, 1024 * 1024},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "max.partition.fetch.bytes",
      _RK_C_ALIAS, .sdef = "fetch.message.max.bytes"},
@@ -1250,19 +1496,23 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "The maximum message batch size accepted by the broker is defined "
      "via `message.max.bytes` (broker config) or "
      "`max.message.bytes` (broker topic config). "
-     "`fetch.max.bytes` is automatically adjusted upwards to be "
+     "For regular (not share) consumers, `fetch.max.bytes` is automatically "
+     "adjusted "
+     "upwards to be "
      "at least `message.max.bytes` (consumer config).",
      0, INT_MAX - 512, 50 * 1024 * 1024 /* 50MB */},
     {_RK_GLOBAL | _RK_CONSUMER, "fetch.min.bytes", _RK_C_INT,
      _RK(fetch_min_bytes),
      "Minimum number of bytes the broker responds with. "
      "If fetch.wait.max.ms expires the accumulated data will "
-     "be sent to the client regardless of this setting.",
-     1, 100000000, 1},
+     "be sent to the client regardless of this setting. For regular consumers, "
+     "this value must be in range 1..100000000",
+     0, INT_MAX, 1},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "fetch.error.backoff.ms", _RK_C_INT,
      _RK(fetch_error_backoff_ms),
      "How long to postpone the next fetch request for a "
-     "topic+partition in case of a fetch error.",
+     "topic+partition in case of a fetch error. This property is not supported "
+     "for share consumers.",
      0, 300 * 1000, 500},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_DEPRECATED, "offset.store.method",
      _RK_C_S2I, _RK(offset_store_method),
@@ -1272,30 +1522,35 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "(requires Apache Kafka 0.8.2 or later on the broker).",
      .vdef = RD_KAFKA_OFFSET_METHOD_BROKER,
      .s2i  = {{RD_KAFKA_OFFSET_METHOD_NONE, "none"},
-             {RD_KAFKA_OFFSET_METHOD_FILE, "file"},
-             {RD_KAFKA_OFFSET_METHOD_BROKER, "broker"}}},
+              {RD_KAFKA_OFFSET_METHOD_FILE, "file"},
+              {RD_KAFKA_OFFSET_METHOD_BROKER, "broker"}}},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_HIGH, "isolation.level", _RK_C_S2I,
      _RK(isolation_level),
      "Controls how to read messages written transactionally: "
      "`read_committed` - only return transactional messages which have "
      "been committed. `read_uncommitted` - return all messages, even "
-     "transactional messages which have been aborted.",
+     "transactional messages which have been aborted. This property is not "
+     "supported for share consumers.",
      .vdef = RD_KAFKA_READ_COMMITTED,
      .s2i  = {{RD_KAFKA_READ_UNCOMMITTED, "read_uncommitted"},
-             {RD_KAFKA_READ_COMMITTED, "read_committed"}}},
+              {RD_KAFKA_READ_COMMITTED, "read_committed"}}},
     {_RK_GLOBAL | _RK_CONSUMER, "consume_cb", _RK_C_PTR, _RK(consume_cb),
-     "Message consume callback (set with rd_kafka_conf_set_consume_cb())"},
+     "Message consume callback (set with rd_kafka_conf_set_consume_cb()). "
+     "This property is not supported for share consumers."},
     {_RK_GLOBAL | _RK_CONSUMER, "rebalance_cb", _RK_C_PTR, _RK(rebalance_cb),
      "Called after consumer group has been rebalanced "
-     "(set with rd_kafka_conf_set_rebalance_cb())"},
+     "(set with rd_kafka_conf_set_rebalance_cb()). "
+     "This property is not supported for share consumers."},
     {_RK_GLOBAL | _RK_CONSUMER, "offset_commit_cb", _RK_C_PTR,
      _RK(offset_commit_cb),
      "Offset commit result propagation callback. "
-     "(set with rd_kafka_conf_set_offset_commit_cb())"},
+     "(set with rd_kafka_conf_set_offset_commit_cb()). "
+     "This property is not supported for share consumers."},
     {_RK_GLOBAL | _RK_CONSUMER, "enable.partition.eof", _RK_C_BOOL,
      _RK(enable_partition_eof),
      "Emit RD_KAFKA_RESP_ERR__PARTITION_EOF event whenever the "
-     "consumer reaches the end of a partition.",
+     "consumer reaches the end of a partition. This property is not supported "
+     "for share consumers.",
      0, 1, 0},
     {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "check.crcs", _RK_C_BOOL,
      _RK(check_crcs),
@@ -1308,6 +1563,25 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "which indicates where this client is physically located. It "
      "corresponds with the broker config `broker.rack`.",
      .sdef = ""},
+    {_RK_GLOBAL | _RK_CONSUMER, "max.poll.records", _RK_C_INT,
+     _RK(share.max_poll_records),
+     "The maximum number of records returned in a single call to "
+     "`rd_kafka_share_poll()`. This value is sent to the broker in the "
+     "ShareFetch request and therefore bounds the number of records the broker "
+     "acquires and returns "
+     "per fetch. "
+     "Note: this limit is currently best-effort and not strictly enforced, "
+     "so a poll may occasionally return more records than this value. "
+     "This property is only supported for share consumers.",
+     1, INT_MAX, 500},
+    {_RK_GLOBAL | _RK_CONSUMER | _RK_MED, "share.acknowledgement.mode",
+     _RK_C_STR, _RK(share.share_acknowledgement_mode),
+     "Acknowledgement mode for share consumers. "
+     "'implicit' - messages are implicitly acknowledged when the next poll "
+     "is called. 'explicit' - messages must be explicitly acknowledged "
+     "using rd_kafka_share_acknowledge*() APIs.",
+     .sdef = "implicit"},
+
 
     /* Global producer properties */
     {_RK_GLOBAL | _RK_PRODUCER | _RK_HIGH, "transactional.id", _RK_C_STR,
@@ -1365,7 +1639,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
     {_RK_GLOBAL | _RK_PRODUCER | _RK_HIGH, "queue.buffering.max.messages",
      _RK_C_INT, _RK(queue_buffering_max_msgs),
      "Maximum number of messages allowed on the producer queue. "
-     "This queue is shared by all topics and partitions. A value of 0 disables "
+     "This queue is shared by all topics and partitions. A value of 0 "
+     "disables "
      "this limit.",
      0, INT_MAX, 100000},
     {_RK_GLOBAL | _RK_PRODUCER | _RK_HIGH, "queue.buffering.max.kbytes",
@@ -1403,7 +1678,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
 
     {_RK_GLOBAL | _RK_MED, "retry.backoff.max.ms", _RK_C_INT,
      _RK(retry_backoff_max_ms),
-     "The max backoff time in milliseconds before retrying a protocol request, "
+     "The max backoff time in milliseconds before retrying a protocol "
+     "request, "
      "this is the atmost backoff allowed for exponentially backed off "
      "requests.",
      1, 300 * 1000, 1000},
@@ -1427,11 +1703,11 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "the topic configuration property `compression.codec`. ",
      .vdef = RD_KAFKA_COMPRESSION_NONE,
      .s2i  = {{RD_KAFKA_COMPRESSION_NONE, "none"},
-             {RD_KAFKA_COMPRESSION_GZIP, "gzip", _UNSUPPORTED_ZLIB},
-             {RD_KAFKA_COMPRESSION_SNAPPY, "snappy", _UNSUPPORTED_SNAPPY},
-             {RD_KAFKA_COMPRESSION_LZ4, "lz4"},
-             {RD_KAFKA_COMPRESSION_ZSTD, "zstd", _UNSUPPORTED_ZSTD},
-             {0}}},
+              {RD_KAFKA_COMPRESSION_GZIP, "gzip", _UNSUPPORTED_ZLIB},
+              {RD_KAFKA_COMPRESSION_SNAPPY, "snappy", _UNSUPPORTED_SNAPPY},
+              {RD_KAFKA_COMPRESSION_LZ4, "lz4"},
+              {RD_KAFKA_COMPRESSION_ZSTD, "zstd", _UNSUPPORTED_ZSTD},
+              {0}}},
     {_RK_GLOBAL | _RK_PRODUCER | _RK_MED, "compression.type", _RK_C_ALIAS,
      .sdef = "compression.codec"},
     {_RK_GLOBAL | _RK_PRODUCER | _RK_MED, "batch.num.messages", _RK_C_INT,
@@ -1472,7 +1748,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      0, 900000, 10},
     {_RK_GLOBAL, "client.dns.lookup", _RK_C_S2I, _RK(client_dns_lookup),
      "Controls how the client uses DNS lookups. By default, when the lookup "
-     "returns multiple IP addresses for a hostname, they will all be attempted "
+     "returns multiple IP addresses for a hostname, they will all be "
+     "attempted "
      "for connection before the connection is considered failed. This applies "
      "to both bootstrap and advertised servers. If the value is set to "
      "`resolve_canonical_bootstrap_servers_only`, each entry will be resolved "
@@ -1485,8 +1762,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "hostname. ",
      .vdef = RD_KAFKA_USE_ALL_DNS_IPS,
      .s2i  = {{RD_KAFKA_USE_ALL_DNS_IPS, "use_all_dns_ips"},
-             {RD_KAFKA_RESOLVE_CANONICAL_BOOTSTRAP_SERVERS_ONLY,
-              "resolve_canonical_bootstrap_servers_only"}}},
+              {RD_KAFKA_RESOLVE_CANONICAL_BOOTSTRAP_SERVERS_ONLY,
+               "resolve_canonical_bootstrap_servers_only"}}},
     {_RK_GLOBAL, "enable.metrics.push", _RK_C_BOOL, _RK(enable_metrics_push),
      "Whether to enable pushing of client metrics to the cluster, if the "
      "cluster has a client metrics subscription which matches this client",
@@ -1558,7 +1835,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "`murmur2_random` - Java Producer compatible Murmur2 hash of key "
      "(NULL keys are randomly partitioned. This is functionally equivalent "
      "to the default partitioner in the Java Producer.), "
-     "`fnv1a` - FNV-1a hash of key (NULL keys are mapped to single partition), "
+     "`fnv1a` - FNV-1a hash of key (NULL keys are mapped to single "
+     "partition), "
      "`fnv1a_random` - FNV-1a hash of key (NULL keys are randomly "
      "partitioned).",
      .sdef     = "consistent_random",
@@ -1579,12 +1857,12 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "inherit = inherit global compression.codec configuration.",
      .vdef = RD_KAFKA_COMPRESSION_INHERIT,
      .s2i  = {{RD_KAFKA_COMPRESSION_NONE, "none"},
-             {RD_KAFKA_COMPRESSION_GZIP, "gzip", _UNSUPPORTED_ZLIB},
-             {RD_KAFKA_COMPRESSION_SNAPPY, "snappy", _UNSUPPORTED_SNAPPY},
-             {RD_KAFKA_COMPRESSION_LZ4, "lz4"},
-             {RD_KAFKA_COMPRESSION_ZSTD, "zstd", _UNSUPPORTED_ZSTD},
-             {RD_KAFKA_COMPRESSION_INHERIT, "inherit"},
-             {0}}},
+              {RD_KAFKA_COMPRESSION_GZIP, "gzip", _UNSUPPORTED_ZLIB},
+              {RD_KAFKA_COMPRESSION_SNAPPY, "snappy", _UNSUPPORTED_SNAPPY},
+              {RD_KAFKA_COMPRESSION_LZ4, "lz4"},
+              {RD_KAFKA_COMPRESSION_ZSTD, "zstd", _UNSUPPORTED_ZSTD},
+              {RD_KAFKA_COMPRESSION_INHERIT, "inherit"},
+              {0}}},
     {_RK_TOPIC | _RK_PRODUCER | _RK_HIGH, "compression.type", _RK_C_ALIAS,
      .sdef = "compression.codec"},
     {_RK_TOPIC | _RK_PRODUCER | _RK_MED, "compression.level", _RK_C_INT,
@@ -1620,7 +1898,8 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "consumer only. When using the high-level KafkaConsumer, the "
      "global `auto.commit.interval.ms` property must be used instead]. "
      "The frequency in milliseconds that the consumer offsets "
-     "are committed (written) to offset storage.",
+     "are committed (written) to offset storage. "
+     "This property is ignored for share consumers.",
      10, 86400 * 1000, 60 * 1000},
     {_RK_TOPIC | _RK_CONSUMER | _RK_HIGH, "auto.offset.reset", _RK_C_S2I,
      _RKT(auto_offset_reset),
@@ -1668,12 +1947,13 @@ static const struct rd_kafka_property rd_kafka_properties[] = {
      "Apache Kafka 0.8.2 or later on the broker.).",
      .vdef = RD_KAFKA_OFFSET_METHOD_BROKER,
      .s2i  = {{RD_KAFKA_OFFSET_METHOD_FILE, "file"},
-             {RD_KAFKA_OFFSET_METHOD_BROKER, "broker"}}},
+              {RD_KAFKA_OFFSET_METHOD_BROKER, "broker"}}},
 
     {_RK_TOPIC | _RK_CONSUMER, "consume.callback.max.messages", _RK_C_INT,
      _RKT(consume_callback_max_msgs),
      "Maximum number of messages to dispatch in "
-     "one `rd_kafka_consume_callback*()` call (0 = unlimited)",
+     "one `rd_kafka_consume_callback*()` call (0 = unlimited). "
+     "This property is not supported for share consumers.",
      0, 1000000, 0},
 
     {0, /* End */}};
@@ -2328,7 +2608,7 @@ static int rd_kafka_anyconf_set(int scope,
                 const struct rd_kafka_property *_prop;                         \
                 rd_kafka_conf_res_t _res;                                      \
                 _prop = rd_kafka_conf_prop_find(SCOPE, NAME);                  \
-                rd_assert(_prop && * "invalid property name");                 \
+                rd_assert(_prop && *"invalid property name");                  \
                 _res = rd_kafka_anyconf_set_prop(                              \
                     SCOPE, CONF, _prop, (const void *)VALUE,                   \
                     1 /*allow-specifics*/, NULL, 0);                           \
@@ -2759,7 +3039,6 @@ void rd_kafka_conf_set_offset_commit_cb(
         rd_kafka_anyconf_set_internal(_RK_GLOBAL, conf, "offset_commit_cb",
                                       offset_commit_cb);
 }
-
 
 
 void rd_kafka_conf_set_error_cb(rd_kafka_conf_t *conf,
@@ -3735,6 +4014,213 @@ char **rd_kafka_conf_kv_split(const char **input, size_t incnt, size_t *cntp) {
         return out;
 }
 
+/**
+ * @brief Get value for the config param corresponding to \p key in
+ *        \p config, using \p pairs_sep for splitting it
+ *        into key-value pairs and '=' for splitting keys and values.
+ */
+char *rd_kafka_conf_kv_get(const char *config,
+                           const char *key,
+                           const char pairs_sep) {
+        size_t i, config_pair_cnt, config_key_value_cnt;
+        char *ret = NULL;
+        char **config_key_values;
+        if (!config)
+                return NULL;
+
+        char **config_pairs =
+            rd_string_split(config, pairs_sep, rd_true, &config_pair_cnt);
+
+        config_key_values =
+            rd_kafka_conf_kv_split((const char **)config_pairs, config_pair_cnt,
+                                   &config_key_value_cnt);
+        for (i = 0; i < config_key_value_cnt / 2; i += 2) {
+                char *config_key = config_key_values[i];
+                if (!rd_strcmp(config_key, key)) {
+                        ret = rd_strdup(config_key_values[i + 1]);
+                        break;
+                }
+        }
+        rd_free(config_key_values);
+        rd_free(config_pairs);
+        return ret;
+}
+
+const char *
+rd_kafka_conf_finalize_oauthbearer_oidc_grant_type(rd_kafka_conf_t *conf) {
+        switch (conf->sasl.oauthbearer.grant_type) {
+        case RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_CLIENT_CREDENTIALS:
+                if (!conf->sasl.oauthbearer.client_id)
+                        return "`sasl.oauthbearer.client.id` is "
+                               "mandatory when `sasl.oauthbearer.method=oidc` "
+                               "is set";
+
+                if (!conf->sasl.oauthbearer.client_secret) {
+                        return "`sasl.oauthbearer.client.secret` is "
+                               "mandatory when `sasl.oauthbearer.method=oidc` "
+                               "is set";
+                }
+                break;
+        case RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_JWT_BEARER:
+                if (conf->sasl.oauthbearer.assertion.file) {
+                        if (conf->sasl.oauthbearer.assertion.private_key.file)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.file` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.private_key.pem)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.pem` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.private_key
+                                .passphrase)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.passphrase` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.jwt_template_file)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "jwt.template.file` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.claim.subject)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.sub` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.claim.audience)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.aud` cannot both be set";
+
+                        if (conf->sasl.oauthbearer.assertion.claim.issuer)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.iss` cannot both be set";
+
+                        if (rd_kafka_conf_is_modified(
+                                conf,
+                                "sasl.oauthbearer."
+                                "assertion.claim.jti.include"))
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.jti.include` cannot both be set";
+
+                        if (rd_kafka_conf_is_modified(
+                                conf,
+                                "sasl.oauthbearer."
+                                "assertion.claim.exp.seconds"))
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.exp.seconds` cannot both be set";
+
+
+                        if (rd_kafka_conf_is_modified(
+                                conf,
+                                "sasl.oauthbearer."
+                                "assertion.claim.nbf.seconds"))
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.file` and "
+                                       "`sasl.oauthbearer.assertion."
+                                       "claim.nbf.seconds` cannot both be set";
+                } else {
+                        if (conf->sasl.oauthbearer.assertion.private_key.file &&
+                            conf->sasl.oauthbearer.assertion.private_key.pem)
+                                return "Mutually exclusive properties set. "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.file` and "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.pem` cannot both be set";
+
+                        if (!conf->sasl.oauthbearer.assertion.private_key
+                                 .file &&
+                            !conf->sasl.oauthbearer.assertion.private_key.pem)
+                                return "`sasl.oauthbearer.assertion.private."
+                                       "key.file` or "
+                                       "`sasl.oauthbearer.assertion.private."
+                                       "key.pem` is mandatory when "
+                                       "`sasl.oauthbearer.grant.type` "
+                                       "is set to "
+                                       "`urn:ietf:params:oauth:grant-"
+                                       "type:jwt-bearer`";
+                }
+                break;
+        default:
+                break;
+        }
+        return NULL;
+}
+
+const char *rd_kafka_conf_finalize_oauthbearer_oidc(rd_kafka_conf_t *conf) {
+        const char *errstr;
+        if (conf->sasl.oauthbearer.method !=
+            RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC)
+                return NULL;
+
+        if (conf->sasl.enable_oauthbearer_unsecure_jwt)
+                return "`enable.sasl.oauthbearer.unsecure.jwt` and "
+                       "`sasl.oauthbearer.method=oidc` are "
+                       "mutually exclusive";
+
+        if (!conf->sasl.oauthbearer.token_endpoint_url) {
+                const char *errstr =
+                    "`sasl.oauthbearer.token.endpoint.url` "
+                    "is mandatory when "
+                    "`sasl.oauthbearer.method=oidc` is set";
+                if (conf->sasl.oauthbearer.metadata_authentication.type ==
+                    RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AZURE_IMDS) {
+                        char *query = rd_kafka_conf_kv_get(
+                            conf->sasl.oauthbearer_config, "query", ',');
+                        if (!query)
+                                return "`sasl.oauthbearer.token.endpoint.url` "
+                                       "is mandatory for Azure IMDS "
+                                       "authentication "
+                                       "when `query` isn't set";
+                        rd_free(query);
+                } else if (
+                    conf->sasl.oauthbearer.metadata_authentication.type ==
+                    RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AWS_IAM) {
+                        /* AWS IAM uses region url for metadata authentication,
+                         * so the OIDC token endpoint URL is unused. */
+                } else {
+                        return errstr;
+                }
+        }
+
+        if (conf->sasl.oauthbearer.metadata_authentication.type ==
+            RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_NONE) {
+                if ((errstr =
+                         rd_kafka_conf_finalize_oauthbearer_oidc_grant_type(
+                             conf))) {
+                        return errstr;
+                }
+        }
+
+        /* Enable background thread for the builtin OIDC handler,
+         * unless a refresh callback has been set. */
+        if (!conf->sasl.oauthbearer.token_refresh_cb) {
+                conf->enabled_events |= RD_KAFKA_EVENT_BACKGROUND;
+                conf->sasl.enable_callback_queue = 1;
+        }
+
+        if (rd_kafka_conf_is_modified(conf,
+                                      "sasl.oauthbearer.sub.claim.name") &&
+            !rd_kafka_conf_validate_str(conf->sasl.oauthbearer.sub_claim_name))
+                return "`sasl.oauthbearer.sub.claim.name` must be "
+                       "non-empty and not contain only whitespace";
+
+        return NULL;
+}
 
 /**
  * @brief Verify configuration \p conf is
@@ -3776,10 +4262,33 @@ const char *rd_kafka_conf_finalize(rd_kafka_type_t cltype,
         if (conf->ssl.ca && (conf->ssl.ca_location || conf->ssl.ca_pem))
                 return "`ssl.ca.location` or `ssl.ca.pem`, and memory-based "
                        "set_ssl_cert(CERT_CA) are mutually exclusive.";
+
+#if WITH_OAUTHBEARER_OIDC
+        if (conf->https.ca_location && conf->https.ca_pem)
+                return "`https.ca.location` and `https.ca.pem` "
+                       "are mutually exclusive";
+
+        if (conf->https.ca_location &&
+            rd_strcmp(conf->https.ca_location, "probe") &&
+            !rd_file_stat(conf->https.ca_location, NULL))
+                return "`https.ca.location` must be "
+                       "an existing file or directory";
+
+#if !CURL_AT_LEAST_VERSION(7, 77, 0)
+        if (conf->https.ca_pem)
+                return "`https.ca.pem` requires libcurl 7.77.0 or later";
+#endif
+#endif
+
+
 #ifdef __APPLE__
         else if (!conf->ssl.ca && !conf->ssl.ca_location && !conf->ssl.ca_pem)
                 /* Default ssl.ca.location to 'probe' on OSX */
                 rd_kafka_conf_set(conf, "ssl.ca.location", "probe", NULL, 0);
+
+        /* Default https.ca.location to 'probe' on OSX */
+        if (!conf->https.ca_location && !conf->https.ca_pem)
+                rd_kafka_conf_set(conf, "https.ca.location", "probe", NULL, 0);
 #endif
 #endif
 
@@ -3791,59 +4300,260 @@ const char *rd_kafka_conf_finalize(rd_kafka_type_t cltype,
                                "`oauthbearer_token_refresh_cb` are "
                                "mutually exclusive";
 
-                if (conf->sasl.enable_oauthbearer_unsecure_jwt &&
-                    conf->sasl.oauthbearer.method ==
-                        RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC)
-                        return "`enable.sasl.oauthbearer.unsecure.jwt` and "
-                               "`sasl.oauthbearer.method=oidc` are "
-                               "mutually exclusive";
-
-                if (conf->sasl.oauthbearer.method ==
-                    RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC) {
-                        if (!conf->sasl.oauthbearer.client_id)
-                                return "`sasl.oauthbearer.client.id` is "
-                                       "mandatory when "
-                                       "`sasl.oauthbearer.method=oidc` is set";
-
-                        if (!conf->sasl.oauthbearer.client_secret) {
-                                return "`sasl.oauthbearer.client.secret` is "
-                                       "mandatory when "
-                                       "`sasl.oauthbearer.method=oidc` is set";
-                        }
-
-                        if (!conf->sasl.oauthbearer.token_endpoint_url) {
-                                return "`sasl.oauthbearer.token.endpoint.url` "
-                                       "is mandatory when "
-                                       "`sasl.oauthbearer.method=oidc` is set";
-                        }
-                }
-
-                /* Enable background thread for the builtin OIDC handler,
-                 * unless a refresh callback has been set. */
-                if (conf->sasl.oauthbearer.method ==
-                        RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC &&
-                    !conf->sasl.oauthbearer.token_refresh_cb) {
-                        conf->enabled_events |= RD_KAFKA_EVENT_BACKGROUND;
-                        conf->sasl.enable_callback_queue = 1;
-                }
+                errstr = rd_kafka_conf_finalize_oauthbearer_oidc(conf);
+                if (errstr)
+                        return errstr;
         }
 
 #endif
 
         if (cltype == RD_KAFKA_CONSUMER) {
 
+                /* Share-consumer-specific config validation.
+                 *
+                 * The share consumer is broker-driven
+                 * (ShareGroupHeartbeat), so a number of client-side
+                 * properties have no meaning or must take
+                 * library-mandatory values. The checks below reject
+                 * any explicit set of those properties; the
+                 * library-mandatory values are then applied at the
+                 * end of the block, before the downstream
+                 * group-protocol validation runs so its
+                 * CONSUMER-branch checks also apply to share
+                 * consumers.
+                 */
+                if (conf->share.is_share_consumer) {
+                        if (conf->rebalance_cb)
+                                return "`rebalance_cb` is not applicable "
+                                       "for share consumer";
+
+                        if (conf->enabled_events & RD_KAFKA_EVENT_REBALANCE)
+                                return "`RD_KAFKA_EVENT_REBALANCE` is not "
+                                       "applicable for share consumer";
+
+                        if (conf->offset_commit_cb)
+                                return "`offset_commit_cb` is not applicable "
+                                       "for share consumer";
+
+                        if (conf->consume_cb)
+                                return "`consume_cb` is not applicable "
+                                       "for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "enable.auto.commit"))
+                                return "`enable.auto.commit` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf, "group.protocol"))
+                                return "`group.protocol` is not applicable "
+                                       "for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf, "socket.max.fails"))
+                                return "`socket.max.fails` must be 1 for "
+                                       "share consumer; changing it is not "
+                                       "allowed";
+
+                        if (rd_kafka_conf_is_modified(
+                                conf, "partition.assignment.strategy"))
+                                return "`partition.assignment.strategy` is "
+                                       "not applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "group.instance.id"))
+                                return "`group.instance.id` is not applicable "
+                                       "for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf, "isolation.level"))
+                                return "`isolation.level` is not applicable "
+                                       "for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "group.remote.assignor"))
+                                return "`group.remote.assignor` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "queued.min.messages"))
+                                return "`queued.min.messages` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(
+                                conf, "queued.max.messages.kbytes"))
+                                return "`queued.max.messages.kbytes` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "fetch.queue.backoff.ms"))
+                                return "`fetch.queue.backoff.ms` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "fetch.error.backoff.ms"))
+                                return "`fetch.error.backoff.ms` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "enable.partition.eof"))
+                                return "`enable.partition.eof` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "message.copy.max.bytes"))
+                                return "`message.copy.max.bytes` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(conf, "topic.blacklist"))
+                                return "`topic.blacklist` is not "
+                                       "applicable for share consumer";
+
+                        if (rd_kafka_conf_is_modified(
+                                conf, "allow.auto.create.topics"))
+                                return "allow.auto.create.topics is currently "
+                                       "not supported for share consumer "
+                                       "and will be enabled in the General "
+                                       "Availability (GA) release";
+
+                        if (conf->topic_conf &&
+                            rd_kafka_topic_conf_is_modified(
+                                conf->topic_conf, "auto.offset.reset"))
+                                return "`auto.offset.reset` is not "
+                                       "applicable for share consumer";
+
+                        if (conf->topic_conf &&
+                            rd_kafka_topic_conf_is_modified(
+                                conf->topic_conf,
+                                "consume.callback.max.messages"))
+                                return "`consume.callback.max.messages` is not "
+                                       "applicable for share consumer";
+
+                        /* The Azure heuristic (which lowers it to <4 minutes)
+                         * still overrides this for Azure brokers.
+                         *
+                         * TODO KIP-932: this 9-min default is currently
+                         * undermined because a share consumer reconnects
+                         * immediately after an idle close while it still has
+                         * assigned toppars (see
+                         * rd_kafka_broker_share_consumer_serve). Fix so the
+                         * connection stays closed until a fetch is actually
+                         * required. */
+                        if (!rd_kafka_conf_is_modified(
+                                conf, "connections.max.idle.ms"))
+                                conf->connections_max_idle_ms = 9 * 60 * 1000;
+
+                        /* Match the Java client's reconnect-backoff defaults
+                         * for share consumers (librdkafka's client-wide
+                         * defaults are 100 / 10000). Only when unset, so a
+                         * user-provided value still wins; regular consumers
+                         * and producers keep the librdkafka defaults. */
+                        if (!rd_kafka_conf_is_modified(conf,
+                                                       "reconnect.backoff.ms"))
+                                conf->reconnect_backoff_ms = 50;
+                        if (!rd_kafka_conf_is_modified(
+                                conf, "reconnect.backoff.max.ms"))
+                                conf->reconnect_backoff_max_ms = 1000;
+
+                        /* TODO KIP-932: Java client has no client-side receive
+                         * cap so we are defaulting this value to INT_MAX. To be
+                         * at par with Java, this check should not exist
+                         * altogether for share consumers. Currently, we are
+                         * allowing the user to set if they want to reject
+                         * oversize msgs gracefully. Check
+                         * rd_buf_write_ensure_contig().
+                         */
+                        if (!rd_kafka_conf_is_modified(
+                                conf, "receive.message.max.bytes"))
+                                conf->recv_max_msg_size = INT_MAX;
+
+                        /* TODO KIP-932: Fix max value for fetch.wait.max.ms to
+                         * keep it at par with Java client. Remember that
+                         * raising the cap can overflow */
+
+                        conf->enable_auto_commit = 0;
+                        conf->group_protocol = RD_KAFKA_GROUP_PROTOCOL_CONSUMER;
+                        conf->socket_max_fails = 1;
+                } else {
+                        if (conf->fetch_min_bytes < 1 ||
+                            conf->fetch_min_bytes > 100000000) {
+                                /* For non-share consumers preserve librdkafka's
+                                 * historical `fetch.min.bytes` range
+                                 * of 1..100000000. The property max was raised
+                                 * to INT_MAX so share consumers can match the
+                                 * Java client; share consumers are exempt from
+                                 * this check. */
+                                /* TODO KIP-932: Ensure error msg is exactly
+                                 * same as returned by rd_kafka_anyconf_set_prop
+                                 */
+                                return "Configuration property "
+                                       "\"fetch.min.bytes\" value is outside "
+                                       "allowed range 1..100000000";
+                        }
+                }
+
+                if (conf->group_protocol == RD_KAFKA_GROUP_PROTOCOL_CLASSIC) {
+                        if (conf->max_poll_interval_ms <
+                            conf->group_session_timeout_ms)
+                                return "`max.poll.interval.ms`must be >= "
+                                       "`session.timeout.ms`";
+                } else {
+#if !HAVE_SECURE_RAND_BYTES
+                        return "`group.protocol=consumer` requires "
+                               "librdkafka to be built with secure random "
+                               "number generator support";
+#endif
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "session.timeout.ms")) {
+                                return "`session.timeout.ms` is not supported "
+                                       "for `group.protocol=consumer` or "
+                                       "share consumer. It is defined broker "
+                                       "side";
+                        }
+
+                        if (rd_kafka_conf_is_modified(
+                                conf, "partition.assignment.strategy")) {
+                                return "`partition.assignment.strategy` is not "
+                                       "supported for "
+                                       "`group.protocol=consumer`. Use "
+                                       "`group.remote.assignor` instead";
+                        }
+
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "group.protocol.type")) {
+                                return "`group.protocol.type` is not supported "
+                                       "for `group.protocol=consumer` or "
+                                       "share consumer";
+                        }
+
+                        if (rd_kafka_conf_is_modified(
+                                conf, "heartbeat.interval.ms")) {
+                                return "`heartbeat.interval.ms` is not "
+                                       "supported "
+                                       "for `group.protocol=consumer` or "
+                                       "share consumer. It is defined broker "
+                                       "side";
+                        }
+                }
+
                 /* Automatically adjust `fetch.max.bytes` to be >=
                  * `message.max.bytes` and <= `queued.max.message.kbytes`
-                 * unless set by user. */
-                if (rd_kafka_conf_is_modified(conf, "fetch.max.bytes")) {
-                        if (conf->fetch_max_bytes < conf->max_msg_size)
-                                return "`fetch.max.bytes` must be >= "
-                                       "`message.max.bytes`";
-                } else {
-                        conf->fetch_max_bytes =
-                            RD_MAX(RD_MIN(conf->fetch_max_bytes,
-                                          conf->queued_max_msg_kbytes * 1024),
-                                   conf->max_msg_size);
+                 * unless set by user.
+                 */
+                /* Share consumers are exempt: neither the message.max.bytes
+                 * floor nor the queued.max.messages.kbytes clamp applies
+                 * (both are rejected / not applicable), so fetch.max.bytes is
+                 * used as configured. */
+                if (!conf->share.is_share_consumer) {
+                        if (rd_kafka_conf_is_modified(conf,
+                                                      "fetch.max.bytes")) {
+                                if (conf->fetch_max_bytes < conf->max_msg_size)
+                                        return "`fetch.max.bytes` must be >= "
+                                               "`message.max.bytes`";
+                        } else {
+                                conf->fetch_max_bytes = RD_MAX(
+                                    RD_MIN(conf->fetch_max_bytes,
+                                           conf->queued_max_msg_kbytes * 1024),
+                                    conf->max_msg_size);
+                        }
                 }
 
                 /* Automatically adjust 'receive.message.max.bytes' to
@@ -3861,10 +4571,6 @@ const char *rd_kafka_conf_finalize(rd_kafka_type_t cltype,
                             RD_MAX(conf->recv_max_msg_size,
                                    conf->fetch_max_bytes + 512);
                 }
-
-                if (conf->max_poll_interval_ms < conf->group_session_timeout_ms)
-                        return "`max.poll.interval.ms`must be >= "
-                               "`session.timeout.ms`";
 
                 /* Simplifies rd_kafka_is_idempotent() which is producer-only */
                 conf->eos.idempotence = 0;
@@ -3960,7 +4666,7 @@ const char *rd_kafka_conf_finalize(rd_kafka_type_t cltype,
 
         if (conf->reconnect_backoff_max_ms < conf->reconnect_backoff_ms)
                 return "`reconnect.backoff.max.ms` must be >= "
-                       "`reconnect.max.ms`";
+                       "`reconnect.backoff.ms`";
 
         if (conf->sparse_connections) {
                 /* Set sparse connection random selection interval to
@@ -3983,6 +4689,8 @@ const char *rd_kafka_conf_finalize(rd_kafka_type_t cltype,
         if (!rd_kafka_conf_is_modified(conf, "allow.auto.create.topics")) {
                 /* Consumer: Do not allow auto create by default.
                  * Producer: Allow auto create by default. */
+                /* TODO KIP-932: Add auto topic creation support for share
+                 * consumers */
                 if (cltype == RD_KAFKA_CONSUMER)
                         conf->allow_auto_create_topics = rd_false;
                 else if (cltype == RD_KAFKA_PRODUCER)
@@ -4423,7 +5131,7 @@ int unittest_conf(void) {
         /* Verify that software.client.* string-safing works */
         conf = rd_kafka_conf_new();
         res  = rd_kafka_conf_set(conf, "client.software.name",
-                                " .~aba. va! !.~~", NULL, 0);
+                                 " .~aba. va! !.~~", NULL, 0);
         RD_UT_ASSERT(res == RD_KAFKA_CONF_OK, "%d", res);
         res = rd_kafka_conf_set(conf, "client.software.version",
                                 "!1.2.3.4.5!!! a", NULL, 0);
@@ -4442,13 +5150,26 @@ int unittest_conf(void) {
 
         readlen = sizeof(readval);
         res2    = rd_kafka_conf_get(conf, "client.software.version", readval,
-                                 &readlen);
+                                    &readlen);
         RD_UT_ASSERT(res2 == RD_KAFKA_CONF_OK, "%d", res2);
         RD_UT_ASSERT(!strcmp(readval, "1.2.3.4.5----a"),
                      "client.software.* safification failed: \"%s\"", readval);
         RD_UT_SAY("Safified client.software.version=\"%s\"", readval);
 
         rd_kafka_conf_destroy(conf);
+
+        /* Verify rd_kafka_conf_validate_str */
+        RD_UT_ASSERT(!rd_kafka_conf_validate_str(NULL), "NULL must be invalid");
+        RD_UT_ASSERT(!rd_kafka_conf_validate_str(""),
+                     "empty string must be invalid");
+        RD_UT_ASSERT(!rd_kafka_conf_validate_str("   "),
+                     "whitespace-only string must be invalid");
+        RD_UT_ASSERT(!rd_kafka_conf_validate_str("\t\n"),
+                     "tab/newline-only string must be invalid");
+        RD_UT_ASSERT(rd_kafka_conf_validate_str("sub"),
+                     "\"sub\" must be valid");
+        RD_UT_ASSERT(rd_kafka_conf_validate_str(" sub "),
+                     "\" sub \" must be valid");
 
         RD_UT_PASS();
 }

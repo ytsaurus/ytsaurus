@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Optional, Sequence, cast
+from typing import Any, Callable, Optional, Sequence, cast
 from typing_extensions import override
 
 import yt.wrapper as yt
@@ -30,6 +30,10 @@ class Action(ABC):
     @abstractmethod
     def execute(self, app: SequoiaTool) -> None:
         """Perform the mutation."""
+        pass
+
+    def wait_ready(self, app: SequoiaTool) -> None:
+        """(Optional) Block until deferred work from execute() completes."""
         pass
 
     @abstractmethod
@@ -95,6 +99,17 @@ class ActionPlan():
         """Action plan name for logging."""
         return self._name
 
+    def _maybe_rollback(self, app: SequoiaTool, stop_index: int) -> None:
+        if not app.interaction.confirm("Roll back changes?"):
+            return
+        for action in reversed(self._actions[:stop_index]):
+            try:
+                logging.info(f"--- {action.describe()}")
+                action.rollback(app)
+            except Exception as roll_exc:
+                logging.warning(
+                    f'Could not roll back "{action.describe()}": {roll_exc}')
+
     def execute_all(self, app: SequoiaTool) -> None:
         logging.info("Executing actions")
 
@@ -102,19 +117,27 @@ class ActionPlan():
             try:
                 logging.info(f"+++ {action.describe()}")
                 action.execute(app)
-
             except Exception as exc:
                 logging.error(f'"{action.describe()}" failed: {exc}')
-                if app.interaction.confirm("Roll back changes?"):
-                    for action in reversed(self._actions[:index]):
-                        try:
-                            logging.info(f"--- {action.describe()}")
-                            action.rollback(app)
-                        except Exception as roll_exc:
-                            logging.warning(
-                                "Could not roll back"
-                                f'"{action.describe()}": {roll_exc}')
+                self._maybe_rollback(app, index)
                 raise
+
+        deferred = [
+            action for action in self._actions
+            if type(action).wait_ready is not Action.wait_ready
+        ]
+        if deferred:
+            logging.info(
+                f"Waiting for {len(deferred)} action(s) to complete")
+            for action in deferred:
+                try:
+                    logging.info(f"... {action.describe()}")
+                    action.wait_ready(app)
+                except Exception as exc:
+                    logging.error(
+                        f'"{action.describe()}" wait failed: {exc}')
+                    self._maybe_rollback(app, len(self._actions))
+                    raise
 
         logging.info("Successfully executed all actions")
 
@@ -161,15 +184,10 @@ class ActionPlan():
 class SetAttributeAction(Action):
     """Set YT object attribute."""
 
-    # Use this to validate that value is not set.
-    NON_EXISTING_KEY = "__not_existing"
-
     def __init__(
         self,
         path: str,
         value: Any,
-        old_value: Any = None,
-        remote: bool = False,
     ) -> None:
         if not path.count("@"):
             raise RuntimeError("Path must lead to an attribute")
@@ -179,15 +197,11 @@ class SetAttributeAction(Action):
 
         self._path = path
         self._value = value
-        self._old_value: Any = old_value
-        self._remote = remote
-
-    def yt_client(self, app: SequoiaTool) -> yt.YtClient:
-        return app.remote_client if self._remote else app.ground_client
+        self._old_value: Any = None
 
     def _try_get_current_value(self, app: SequoiaTool) -> Any:
         try:
-            return self.yt_client(app).get(self._path)
+            return app.ground_client.get(self._path)
         except yt.errors.YtResolveError:
             return None
 
@@ -206,9 +220,9 @@ class SetAttributeAction(Action):
     @override
     def rollback(self, app: SequoiaTool) -> None:
         if self._old_value is not None:
-            self.yt_client(app).set(self._path, self._old_value)
+            app.ground_client.set(self._path, self._old_value)
         else:
-            self.yt_client(app).remove(self._path)
+            app.ground_client.remove(self._path)
 
     @override
     def describe(self) -> str:
@@ -217,15 +231,8 @@ class SetAttributeAction(Action):
     @override
     def validate_prerequisites(self, app: SequoiaTool) -> None:
         dirname = yt.ypath_dirname(self._path)
-        if not self.yt_client(app).exists(dirname):
+        if not app.ground_client.exists(dirname):
             raise ValidationFailed(f"Parent path {dirname} doesn't exist")
-
-        if self._old_value is not None:
-            expected: Any = (
-                self._old_value
-                if self._old_value != self.NON_EXISTING_KEY
-                else None)
-            self._validate_current_value(app, expected)
 
     @override
     def validate_state(self, app: SequoiaTool) -> None:
@@ -249,7 +256,69 @@ class SetAttributeAction(Action):
                 logger)
 
 
-class CreateObjectActionBase(Action):
+class ValidateConfigAction(Action):
+    """Validate config provided by a user-supplied callback.
+
+    Comparison is done in patch_mode: only keys present in `expected` are
+    checked, so extra keys in the actual config are ignored.
+    """
+
+    def __init__(
+        self,
+        get_config: Callable[[SequoiaTool], Any],
+        description: str,
+        expected: Any,
+    ) -> None:
+        self._get_config_fn = get_config
+        self._description = description
+        self._expected = expected
+
+    def _find_mismatches(self, app: SequoiaTool) -> list[str]:
+        actual = self._get_config_fn(app)
+        return compare_values(actual, self._expected, patch_mode=True)
+
+    def _format_mismatches(self, mismatches: list[str]) -> str:
+        joined = "; ".join(mismatches)
+        return f"Mismatches: [{joined}]"
+
+    def _safe_find_mismatches(self, app: SequoiaTool) -> list[str] | None:
+        try:
+            return self._find_mismatches(app)
+        except Exception as exc:
+            logger.warning("%s: validation skipped: %s", self.describe(), exc)
+            return None
+
+    @override
+    def execute(self, app: SequoiaTool) -> None:
+        if mismatches := self._safe_find_mismatches(app):
+            logger.warning(
+                "%s: %s", self.describe(), self._format_mismatches(mismatches))
+
+    @override
+    def validate_state(self, app: SequoiaTool) -> None:
+        if mismatches := self._find_mismatches(app):
+            raise ValidationFailed(self._format_mismatches(mismatches))
+
+    @override
+    def dry_run(self, app: SequoiaTool) -> None:
+        mismatches = self._safe_find_mismatches(app)
+        if mismatches is None:
+            return
+        if mismatches:
+            log_dry_run(
+                MessageBuilder(f"{self.describe()} failed")
+                .with_field("mismatches", mismatches)
+                .build(),
+                logger)
+        else:
+            log_dry_run(f"{self.describe()} passed", logger)
+
+    @override
+    def describe(self) -> str:
+        return self._description
+
+
+class CreateObjectActionBase(Action, ABC):
     def __init__(
         self,
         name: str,
@@ -276,8 +345,9 @@ class CreateObjectActionBase(Action):
     def parent_path(self) -> str:
         return self._root_dir
 
+    @abstractmethod
     def _do_create(self, app: SequoiaTool) -> None:
-        raise NotImplementedError("Subclass must override this method")
+        pass
 
     @override
     def execute(self, app: SequoiaTool) -> None:
@@ -322,7 +392,7 @@ class CreateObjectActionBase(Action):
                 logger)
         elif self.check_state(app):
             log_dry_run(
-                f'{self._type.title()} "{self._name}" already exists.',
+                f'{self._type} "{self._name}" already exists.',
                 logger)
 
 
@@ -383,6 +453,7 @@ class CreateTableAction(CreateNodeAction):
         parent_path: str,
         schema: list[dict[str, Any]],
         attributes: Optional[dict[str, Any]] = None,
+        pivot_keys: Optional[list] = None,
     ) -> None:
         extended_attributes = {
             **(attributes or {}),
@@ -394,6 +465,21 @@ class CreateTableAction(CreateNodeAction):
             type="table",
             root_dir=parent_path,
             attributes=extended_attributes)
+        self._pivot_keys = pivot_keys
+
+    def _do_create(self, app: SequoiaTool) -> None:
+        super()._do_create(app)
+
+        shard_count = self._attributes.get("tablet_count")
+        if shard_count is None or shard_count <= 1:
+            return
+
+        if self._pivot_keys is not None:
+            reshard_kwargs = {"pivot_keys": self._pivot_keys}
+        else:
+            reshard_kwargs = {"tablet_count": shard_count}
+
+        app.ground_client.reshard_table(self._path, sync=True, **reshard_kwargs)
 
     @override
     def validate_prerequisites(self, app: SequoiaTool) -> None:
@@ -402,75 +488,30 @@ class CreateTableAction(CreateNodeAction):
                 f"Parent path {self.parent_path} doesn't exist")
 
 
-class CreateTabletCellsAction(Action):
-    """Create specified number of YT tablet cells."""
-
-    def __init__(self, tablet_cell_bundle: str, cell_count: int) -> None:
-        self._bundle_name = tablet_cell_bundle
-        self._count = cell_count
-
-    def _get_current_count(self, app: SequoiaTool) -> int:
-        path = yt.ypath_join("//sys/tablet_cell_bundles",
-                             self._bundle_name,
-                             "@tablet_cell_count")
-        return cast(int, app.ground_client.get(path))
-
-    def _get_remaining_count(self, app: SequoiaTool) -> int:
-        return max(0, self._count - self._get_current_count(app))
-
-    @override
-    def execute(self, app: SequoiaTool) -> None:
-        ids = []
-        try:
-            for _ in range(self._get_remaining_count(app)):
-                id = app.ground_client.create(
-                    type="tablet_cell",
-                    attributes={"tablet_cell_bundle": self._bundle_name})
-                ids.append(id)
-        finally:
-            if ids:
-                logging.info(f"Created tablet cells: {ids}")
-
-    @override
-    def describe(self) -> str:
-        return (f'Create tablet cells in the "{self._bundle_name}" bundle')
-
-    @override
-    def validate_state(self, app: SequoiaTool) -> None:
-        current = self._get_current_count(app)
-        if current != self._count:
-            raise ValidationFailed(
-                f"Tablet cell count mismatch: {current} != {self._count}")
-
-    @override
-    def dry_run(self, app: SequoiaTool) -> None:
-        remaining = self._get_remaining_count(app)
-        if remaining > 0:
-            log_dry_run(f"Would create {remaining} tablet cells in the"
-                        f'"{self._bundle_name}" bundle', logger)
-        elif self.check_state(app):
-            log_dry_run("Enough tablet cells exist in the "
-                        f'"{self._bundle_name}" bundle', logger)
-
-
 class MountTabletAction(Action):
     def __init__(
         self,
         path: str,
         unmount: bool,
-        **kwargs,
     ) -> None:
         self._path = path
         self._unmount = unmount
-        self._kwargs = kwargs
         self._executed = False
+
+    def _op(self, app: SequoiaTool):
+        return (app.ground_client.unmount_table if self._unmount
+                else app.ground_client.mount_table)
 
     @override
     def execute(self, app: SequoiaTool) -> None:
-        op = (app.ground_client.unmount_table if self._unmount
-              else app.ground_client.mount_table)
-        op(self._path, **self._kwargs)
+        self._op(app)(self._path, sync=False)
         self._executed = True
+
+    @override
+    def wait_ready(self, app: SequoiaTool) -> None:
+        if not self._executed:
+            return
+        self._op(app)(self._path, sync=True)
 
     @override
     def rollback(self, app: SequoiaTool) -> None:
@@ -502,9 +543,7 @@ class MountTabletAction(Action):
     def dry_run(self, app: SequoiaTool) -> None:
         verb = "unmount" if self._unmount else "mount"
         log_dry_run(
-            MessageBuilder(f"Would {verb} table {self._path}")
-            .with_fields(self._kwargs)
-            .build(),
+            f"Would {verb} table {self._path}",
             logger)
 
 

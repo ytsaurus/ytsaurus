@@ -70,9 +70,10 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Started checking component state");
+        YT_TLOG_DEBUG("Started checking component state");
         auto logFinally = Finally([&] {
-            YT_LOG_DEBUG("Finished checking component state (Banned: %v)", Banned_.load());
+            YT_TLOG_DEBUG("Finished checking component state")
+                .With("Banned", Banned_.load());
         });
 
         auto options = TGetNodeOptions{
@@ -87,7 +88,8 @@ private:
             Banned_.store(
                 instance->Attributes().Get<bool>(BannedAttributeName, false));
         } catch (std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed checking component state");
+            YT_TLOG_ERROR("Failed checking component state")
+                .With(ex);
         }
     }
 

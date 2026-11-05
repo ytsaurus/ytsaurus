@@ -9,7 +9,11 @@ SRCS(
     cypress_synchronizer.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    multi_consumer_controller.cpp
+    multi_consumer_names_garbage_collector.cpp
+    multi_consumer_profile_manager.cpp
     object.cpp
+    ytree_helpers.cpp
     pass_profiler.cpp
     performance_counters.cpp
     profile_manager.cpp
@@ -28,7 +32,6 @@ SRCS(
 PEERDIR(
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
 
@@ -37,6 +40,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/client/federated
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/monitoring
     yt/yt/library/orchid

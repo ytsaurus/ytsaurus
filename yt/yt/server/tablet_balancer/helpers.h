@@ -43,6 +43,7 @@ THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
     const IMulticellThrottlerPtr& throttler,
+    bool useInternalApi,
     std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
 THashMap<NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode> FetchChaosTableReplicaModes(
@@ -69,6 +70,16 @@ std::tuple<TTablePerformanceCountersMap, NQueryClient::TTableSchemaPtr> FetchPer
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
     const NYPath::TYPath& tablePath);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AreReplicaClustersHealthy(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    int unhealthyBundleLimit);
+
+bool IsBundleHealthyOnReplicaClusters(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    const std::string& bundleName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

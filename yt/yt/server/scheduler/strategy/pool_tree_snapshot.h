@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "field_filter.h"
 #include "pool_tree_element.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
@@ -49,11 +50,27 @@ public:
         NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
         TJobResourcesByTagFilter resourceLimitsByTagFilter);
 
-    TPoolTreePoolElement* FindPool(const TString& poolName) const;
+    TPoolTreePoolElement* FindPool(const std::string& poolName) const;
     TPoolTreeOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
     TPoolTreeOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
 
     bool IsElementEnabled(const TPoolTreeElement* element) const;
+
+    TError CheckIsOperationStuck(
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const;
+
+    void BuildOperationProgress(
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const;
+
+    void BuildElementYson(
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshot)
@@ -81,11 +98,10 @@ struct TResourceUsageSnapshot final
     NProfiling::TCpuInstant BuildTime;
     THashSet<TOperationId> AliveOperationIds;
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
-    THashMap<TString, TJobResources> PoolToResourceUsage;
+    THashMap<std::string, TJobResources> PoolToResourceUsage;
     // NB: these usages used in scheduler tree strategy at schedule allocation initialization stage;
     // it can be dropped from snapshot by the cost of less accurate values (without precommitted part).
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsageWithPrecommit;
-    THashMap<TString, TJobResources> PoolToResourceUsageWithPrecommit;
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceUsageSnapshot)

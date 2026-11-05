@@ -8,12 +8,6 @@
 
 namespace NYT::NTransactionServer {
 
-namespace NProto {
-
-class TTransactionFinishRequest;
-
-} // namespace NProto
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: modifies original RPC request.
@@ -60,7 +54,9 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang);
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang,
+    NCypressClient::TNodeId sequoiaNodeIdToLock,
+    bool useSeparateSequoiaTransactionPerCoordinator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

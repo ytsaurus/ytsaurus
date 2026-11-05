@@ -46,6 +46,7 @@ SRCS(
     data_node/location.cpp
     data_node/location_manager.cpp
     data_node/master_connector.cpp
+    data_node/medium_aware_block_cache_manager.cpp
     data_node/medium_directory_manager.cpp
     data_node/medium_updater.cpp
     data_node/network_statistics.cpp
@@ -73,35 +74,54 @@ SRCS(
     exec_node/job.cpp
     exec_node/job_fs_secretary.cpp
     exec_node/job_info.cpp
-    exec_node/job_directory_manager.cpp
     exec_node/job_gpu_checker.cpp
     exec_node/job_controller.cpp
     exec_node/job_prober_service.cpp
     exec_node/job_proxy_log_manager.cpp
     exec_node/job_workspace_builder.cpp
-    exec_node/layer_location.cpp
     exec_node/master_connector.cpp
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
-    exec_node/preparation_options.cpp
+    exec_node/pending_downloads_tracker.cpp
     exec_node/private.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp
-    exec_node/slot.cpp
     exec_node/slot_location.cpp
     exec_node/slot_manager.cpp
     exec_node/supervisor_service.cpp
     exec_node/throttler_manager.cpp
-    exec_node/volume.proto
-    exec_node/volume.cpp
     exec_node/volume_artifact.cpp
     exec_node/volume_helpers.cpp
-    exec_node/volume_cache.cpp
     exec_node/volume_counters.cpp
-    exec_node/volume_manager.cpp
-    exec_node/porto_volume.cpp
-    exec_node/tmpfs_layer_cache.cpp
+
+    exec_node/environment/common/host_slot.cpp
+    exec_node/environment/common/job_directory_manager.cpp
+    exec_node/environment/common/job_environment_base.cpp
+    exec_node/environment/common/job_filesystem.cpp
+    exec_node/environment/common/slot.cpp
+    exec_node/environment/common/tmpfs_volume.cpp
+    exec_node/environment/common/volume_manager.cpp
+    exec_node/environment/cri/job_environment.cpp
+    exec_node/environment/cri/job_workspace_builder.cpp
+    exec_node/environment/porto/health_checker.cpp
+    exec_node/environment/porto/job_directory_manager.cpp
+    exec_node/environment/porto/job_environment.cpp
+    exec_node/environment/porto/job_fs_secretary.cpp
+    exec_node/environment/porto/job_workspace_builder.cpp
+    exec_node/environment/porto/layer.cpp
+    exec_node/environment/porto/layer_counters.cpp
+    exec_node/environment/porto/layer_location.cpp
+    exec_node/environment/porto/overlay_data.cpp
+    exec_node/environment/porto/porto_volume.cpp
+    exec_node/environment/porto/slot.cpp
+    exec_node/environment/porto/slot_location.cpp
+    exec_node/environment/porto/tmpfs_layer_cache.cpp
+    exec_node/environment/porto/volume.proto
+    exec_node/environment/porto/volume_cache.cpp
+    exec_node/environment/porto/volume_manager.cpp
+    exec_node/environment/simple/job_environment.cpp
+    exec_node/environment/simple/job_workspace_builder.cpp
 
     job_agent/job_resource_manager.cpp
 
@@ -124,6 +144,7 @@ SRCS(
     tablet_node/bootstrap.cpp
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
+    tablet_node/chunk_prolongator.cpp
     tablet_node/chunk_replica_cache_pinger.cpp
     tablet_node/chunk_view_size_compaction_hint.cpp
     tablet_node/compaction_hint_controllers.cpp
@@ -136,6 +157,7 @@ SRCS(
     tablet_node/error_manager.cpp
     tablet_node/failing_on_rotation_reader.cpp
     tablet_node/fetch_rows.cpp
+    tablet_node/global_stores_update_throttler.cpp
     tablet_node/hedging_manager_registry.cpp
     tablet_node/helpers.cpp
     tablet_node/hint_manager.cpp
@@ -174,6 +196,7 @@ SRCS(
     tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_compaction_hint.cpp
+    tablet_node/row_cache_controller.cpp
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp
     tablet_node/slot_manager.cpp
@@ -216,6 +239,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/https
     yt/yt/core/service_discovery/yp
 
     yt/yt/library/containers
@@ -254,6 +278,8 @@ PEERDIR(
     yt/yt/server/lib/lsm
     yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
+    yt/yt/server/lib/nbd/chunk
+    yt/yt/server/lib/nbd/image
     yt/yt/server/lib/node
     yt/yt/server/lib/rpc
     yt/yt/server/lib/tablet_balancer

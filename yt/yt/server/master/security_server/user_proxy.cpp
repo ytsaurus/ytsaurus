@@ -17,11 +17,14 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/security_client/proto/user_ypath.pb.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityServer {
 
@@ -79,6 +82,11 @@ private:
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestLimits)
+            .SetWritable(true)
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride)
+            .SetPresent(user->GetActiveTransactionCountAlertThresholdAndLimitOverride().has_value())
+            .SetRemovable(true)
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableAccounts)
@@ -150,6 +158,20 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(userLimitsSerializer);
 
+                return true;
+            }
+
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                auto limitsOverride = user->GetActiveTransactionCountAlertThresholdAndLimitOverride();
+                if (!limitsOverride) {
+                    break;
+                }
+                auto [threshold, limit] = *limitsOverride;
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("alert_threshold").Value(threshold)
+                        .Item("limit").Value(limit)
+                    .EndMap();
                 return true;
             }
 
@@ -280,17 +302,20 @@ private:
             case EInternedAttributeKey::LastSeenTime: {
                 std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
                 if (IsPrimaryMaster()) {
-                    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                    auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
+                    const auto& securityManager = Bootstrap_->GetSecurityManager();
+                    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
 
-                    for (auto portalCellTag : portalCellTags) {
-                        if (portalCellTag == multicellManager->GetCellTag()) {
+                    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                    auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
+
+                    for (auto nodeHostCellTag : nodeHostCellTags) {
+                        if (nodeHostCellTag == multicellManager->GetCellTag()) {
                             continue;
                         }
 
                         auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
-                            multicellManager->GetMasterChannelOrThrow(portalCellTag, NHydra::EPeerKind::Follower));
-                        asyncResults.push_back(proxy.Execute(TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
+                            multicellManager->GetMasterChannelOrThrow(nodeHostCellTag, NHydra::EPeerKind::Follower));
+                        asyncResults.push_back(proxy.ExecuteAs(userNameToForward, TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
                     }
                 }
 
@@ -316,11 +341,18 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* rootUser = securityManager->GetRootUser();
 
-        auto validateUserNotRoot = [&] {
+        auto validateRequestLimitsChangeForRoot = [&] {
+            if (Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot) {
+                return;
+            }
+
             THROW_ERROR_EXCEPTION_IF(user == rootUser,
                 "Cannot set %Qv for %Qv",
                 key.Unintern(),
                 user->GetName());
+        };
+        auto validateNonNegative = [&] (auto value, TStringBuf name) {
+            THROW_ERROR_EXCEPTION_IF(value < 0, "%Qv cannot be negative", name);
         };
 
         switch (key) {
@@ -331,43 +363,34 @@ private:
             }
 
             case EInternedAttributeKey::ReadRequestRateLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"read_request_rate_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Read);
                 return true;
             }
 
             case EInternedAttributeKey::WriteRequestRateLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"write_request_rate_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Write);
                 return true;
             }
 
             case EInternedAttributeKey::RequestQueueSizeLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestQueueSizeLimit(user, limit);
                 return true;
             }
 
             case EInternedAttributeKey::RequestLimits: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
@@ -376,8 +399,34 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                int threshold = 0;
+                int limit = 0;
+                try {
+                    const auto& map = ConvertToNode(value)->AsMap();
+                    threshold = map->GetChildValueOrThrow<int>("alert_threshold");
+                    limit = map->GetChildValueOrThrow<int>("limit");
+                    THROW_ERROR_EXCEPTION_UNLESS(map->GetChildCount() == 2, "Invalid format: extra keys");
+                } catch (const std::exception& exception) {
+                    THROW_ERROR_EXCEPTION("Use format {alert_threshold=<value>; limit=<value>}")
+                        .With(exception);
+                }
+                validateNonNegative(threshold, "alert_threshold");
+                validateNonNegative(limit, "limit");
+                if (threshold > limit && !force && user->IsNative()) {
+                    THROW_ERROR_EXCEPTION("Possible misconfiguration: trying to set alert_threshold > limit. Use force = true to set anyway");
+                }
+
+                user->SetActiveTransactionCountAlertThresholdAndLimitOverride(
+                    TUser::TActiveTransactionCountLimitsOverride{
+                        .AlertThreshold = threshold,
+                        .Limit = limit,
+                    });
+                return true;
+            }
+
             case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestWeightThrottlerConfig(user, config);
@@ -385,7 +434,7 @@ private:
             }
 
             case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, config);
@@ -412,13 +461,13 @@ private:
                 auto newTags = ConvertTo<THashSet<std::string>>(value);
                 if (std::ssize(newTags) > securityManagerDynconfig->MaxUserTagCount) {
                     THROW_ERROR_EXCEPTION("Cannot set user tags as user tags count limit exceeded")
-                        << TErrorAttribute("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
+                        .With("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
                 }
                 for (const auto& tag : newTags) {
                     if (std::ssize(tag) >= securityManagerDynconfig->MaxUserTagSize) {
                         THROW_ERROR_EXCEPTION("Cannot set user tags as user tag size limit exceeded")
-                            << TErrorAttribute("max_user_tag_size", securityManagerDynconfig->MaxUserTagSize)
-                            << TErrorAttribute("tag", tag);
+                            .With("max_user_tag_size", securityManagerDynconfig->MaxUserTagSize)
+                            .With("tag", tag);
                     }
                     ValidateBooleanFormulaVariable(tag);
                 }
@@ -467,6 +516,11 @@ private:
 
             case EInternedAttributeKey::Tags: {
                 user->Tags() = {};
+                return true;
+            }
+
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                user->SetActiveTransactionCountAlertThresholdAndLimitOverride(std::nullopt);
                 return true;
             }
 

@@ -64,19 +64,43 @@ TEST(TQueueClientPathTest, StringRoundConversion)
     EXPECT_EQ(TConsumerReference(ToString(consumerRef)), consumerRef);
 }
 
+TEST(TQueueClientPathTest, StringConversionFlushesShortAttributesBeforePath)
+{
+    TRichYPath path("//p");
+    path.SetCluster("c");
+    path.SetQueueConsumerName("q");
+
+    EXPECT_EQ(ToString(TConsumerReference(path)), "<\"cluster\"=\"c\";\"queue_consumer_name\"=\"q\";>//p");
+}
+
 TEST(TQueueClientPathTest, BadObjects)
 {
     TRichYPath path("//my/path");
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
     EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
 
+    EXPECT_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)), TErrorException);
+    EXPECT_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)), TErrorException);
+
     path.SetCluster("cluster_1");
     EXPECT_NO_THROW(Y_UNUSED(TTablePath(path)));
     EXPECT_NO_THROW(Y_UNUSED(TConsumerReference(path)));
 
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
+
+    path.SetQueueConsumerName("my_id");
+    EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
+
     path.SetForeign(true);
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
     EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
+
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

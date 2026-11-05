@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(1.33)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(3801498008)
+
+SRC_RESOURCE(3801498006)
+
+ORIGINAL_SOURCE(https://bitbucket.org/snakeyaml/snakeyaml/src)
+
+END()

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/tablet_balancer/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/re2/public.h>
@@ -10,8 +12,7 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Collection of patches for table IO configs. All patches are applied after
-//! user-provided config.
+//! Collection of patches for table IO configs.
 struct TTableIOConfigPatch
     : public NYTree::TYsonStruct
 {
@@ -34,12 +35,14 @@ DEFINE_REFCOUNTED_TYPE(TTableIOConfigPatch)
 //! Collection of patches for table configs:
 //! - mount config template patch (applied before user-provided config)
 //! - mount config patch (applied after user-provided config)
-//! - IO patches (applied after user-provided config)
+//! - IO config template patch (applied before user-provided config)
+//! - IO config patch (applied after user-provided config)
 struct TTableConfigPatch
     : public virtual NYTree::TYsonStruct
 {
     NYTree::IMapNodePtr MountConfigTemplatePatch;
     NYTree::IMapNodePtr MountConfigPatch;
+    TTableIOConfigPatchPtr IOConfigTemplatePatch;
     TTableIOConfigPatchPtr IOConfigPatch;
 
     bool IsEqual(const TTableConfigPatchPtr& other) const;
@@ -66,8 +69,12 @@ struct TTableConfigExperiment
 
     //! If not null, take only tables whose paths match the RE.
     NRe2::TRe2Ptr PathRe;
-    //! If not null, take only tables of the specified tablet cell bundle.
+    //! If not null, excludes tables whose paths match the RE and takes priority over |PathRe|.
+    NRe2::TRe2Ptr ExcludePathRe;
+    //! If not null, take only tables whose tablet cell bundles match the RE.
     NRe2::TRe2Ptr TabletCellBundle;
+    //! If not null, excludes tables whose tablet cell bundles match the RE and takes priority over |TabletCellBundle|.
+    NRe2::TRe2Ptr ExcludeTabletCellBundle;
     //! If not null, take only tables wih specified memory mode.
     NRe2::TRe2Ptr InMemoryMode;
     //! If not null, take only sorted/non-sorted tables respectively.
@@ -78,7 +85,7 @@ struct TTableConfigExperiment
     //! Arbitrary string necessary to make experiments independent. Used to seed a random
     //! generator before tossing a coin to check if a certain table is affected by the
     //! experiment.
-    TString Salt;
+    std::string Salt;
 
     //! Fraction of tables of the domain that are affected by the experiment.
     //! Stored as a rational number to make deterministic choices and avoid precision errors.
@@ -127,12 +134,16 @@ DEFINE_REFCOUNTED_TYPE(TTableConfigExperiment)
 //!         store_reader_config = {};
 //!         ...
 //!     };
+//!     io_config_template_patch = {
+//!         store_reader_config = {};
+//!         ...
+//!     };
 //!     table_config_experiments = {};
 //! };
 struct TClusterTableConfigPatchSet
     : public TTableConfigPatch
 {
-    std::map<TString, TTableConfigExperimentPtr> TableConfigExperiments;
+    std::map<std::string, TTableConfigExperimentPtr> TableConfigExperiments;
 
     REGISTER_YSON_STRUCT(TClusterTableConfigPatchSet);
 
@@ -154,6 +165,7 @@ struct TTableSettings
     TTabletStoreWriterOptionsPtr StoreWriterOptions;
     TTabletHunkWriterConfigPtr HunkWriterConfig;
     TTabletHunkWriterOptionsPtr HunkWriterOptions;
+    NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig;
 
     //! Initializes all fields with corresponding New<...>().
     static TTableSettings CreateNew();
@@ -167,12 +179,8 @@ struct TTableSettings
 //! patches and experiments.
 struct TRawTableSettings
 {
-    //! Explicitly provided configs.
-    //! The difference between mount config and IO configs is dictated by the way
-    //! they are dealt with at master. Mount config is being sent as a node, allowing
-    //! for extra template patches ("under user config") being applied later.
-    //! IO configs are fully materialized before being sent to the tablet cell,
-    //! so only regular patches ("over user config") can be applied.
+    //! Explicitly provided configs. Mount and IO configs are kept as raw nodes so
+    //! template and regular patches can be re-applied independently.
     struct
     {
         //! Recognized (by master) portion of the @mount_config attribute.
@@ -183,23 +191,21 @@ struct TRawTableSettings
         //! more recent binary and be able to apply those options.
         NYTree::IMapNodePtr ExtraMountConfig;
 
-        //! The following configs are results of merging templates from
-        //! "store_chunk_reader" (and similar) options of the tablet manager dynamic
-        //! config and patches from @chunk_reader (and similar) attributes of the table.
-        TTabletStoreReaderConfigPtr StoreReaderConfig;
-        TTabletHunkReaderConfigPtr HunkReaderConfig;
-        TTabletStoreWriterConfigPtr StoreWriterConfig;
+        NYTree::IMapNodePtr StoreReaderConfig;
+        NYTree::IMapNodePtr HunkReaderConfig;
+        NYTree::IMapNodePtr StoreWriterConfig;
         TTabletStoreWriterOptionsPtr StoreWriterOptions;
-        TTabletHunkWriterConfigPtr HunkWriterConfig;
+        NYTree::IMapNodePtr HunkWriterConfig;
         TTabletHunkWriterOptionsPtr HunkWriterOptions;
+
+        NYTree::IMapNodePtr TabletBalancerConfig;
     } Provided;
 
     TTableConfigPatchPtr GlobalPatch;
     // NB: Use tree map to ensure deterministic order and allow efficient
     // set difference and set intersection.
-    std::map<TString, TTableConfigExperimentPtr> Experiments;
+    std::map<std::string, TTableConfigExperimentPtr> Experiments;
 
-    //! Initializes all provided IO configs with corresponding New<...>().
     void CreateNewProvidedConfigs();
 
     //! Removes from the |Experiments| map all experiments which do not match |descriptor|.
@@ -211,7 +217,10 @@ struct TRawTableSettings
     //! error is appended to |errors|.
     TTableSettings BuildEffectiveSettings(
         std::vector<TError>* errors,
-        std::vector<TString>* malformedExperimentNames) const;
+        std::vector<std::string>* malformedExperimentNames) const;
+
+    // COMPAT(ifsmirnov): ETabletReign::RawIOConfigNodes
+    void MaterializeProvidedConfigs(std::vector<TError>* errors);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

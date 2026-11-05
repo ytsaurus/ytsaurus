@@ -20,10 +20,11 @@ import (
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/migrate"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
-	"go.ytsaurus.tech/yt/go/yttest"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func TestGenerateTimestamp(t *testing.T) {
@@ -47,12 +48,15 @@ func TestTabletClient(t *testing.T) {
 		{Name: "TabletTx", Test: suite.TestTabletTx},
 		{Name: "TabletTxDuration", Test: suite.TestTabletTxDuration},
 		{Name: "ExecTabletTx", Test: suite.TestExecTabletTx},
+		{Name: "TabletTxPrerequisite", Test: suite.TestTabletTxPrerequisite},
 		{Name: "LookupColumnFilter", Test: suite.TestLookupColumnFilter},
 		{Name: "ReadTimestamp", Test: suite.TestReadTimestamp},
+		{Name: "VersionedReadOptions", Test: suite.TestVersionedReadOptions},
 		{Name: "InsertRows_map", Test: suite.TestInsertRows_map},
 		{Name: "InsertRows_empty", Test: suite.TestInsertRows_empty},
 		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
 		{Name: "InsertRowsBatch", Test: suite.TestInsertRowsBatch},
+		{Name: "LockRows", Test: suite.TestLockRows},
 		{Name: "LookupRows_map", Test: suite.TestLookupRows_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
 		{Name: "MultiLookupRows_Basic", Test: suite.TestMultiLookupRows_Basic, SkipHTTP: true},
 		{Name: "MultiLookupRows_WithKeepMissingRows", Test: suite.TestMultiLookupRows_WithKeepMissingRows, SkipHTTP: true},
@@ -61,6 +65,47 @@ func TestTabletClient(t *testing.T) {
 		{Name: "MultiLookupRows_EmptySubrequests", Test: suite.TestMultiLookupRows_EmptySubrequests, SkipHTTP: true},
 		{Name: "SelectRowsWithPlaceholders", Test: suite.SelectRowsWithPlaceholders},
 	})
+}
+
+func (s *Suite) TestTabletTxPrerequisite(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
+
+	liveTx, err := yc.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	tx, err := yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{
+		PrerequisiteTransactionIDs: []yt.TxID{liveTx.ID()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.InsertRows(ctx, testTable, []any{&testRow{"foo", "1"}}, nil))
+	require.NoError(t, tx.Commit())
+	require.NoError(t, liveTx.Abort())
+
+	r, err := yc.LookupRows(ctx, testTable, []any{&testKey{"foo"}}, nil)
+	require.NoError(t, err)
+	require.True(t, r.Next(), "committed row must be present")
+	var row testRow
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, &testRow{"foo", "1"}, &row)
+	require.NoError(t, r.Close())
+
+	deadTx, err := yc.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	tx, err = yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{
+		PrerequisiteTransactionIDs: []yt.TxID{deadTx.ID()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.InsertRows(ctx, testTable, []any{&testRow{"bar", "2"}}, nil))
+	require.NoError(t, deadTx.Abort())
+	require.Error(t, tx.Commit())
+
+	r, err = yc.LookupRows(ctx, testTable, []any{&testKey{"bar"}}, nil)
+	require.NoError(t, err)
+	require.False(t, r.Next(), "fenced row must be absent")
+	require.NoError(t, r.Close())
 }
 
 func (s *Suite) TestTabletTx(ctx context.Context, t *testing.T, yc yt.Client) {
@@ -267,6 +312,126 @@ func (s *Suite) TestReadTimestamp(ctx context.Context, t *testing.T, yc yt.Clien
 	require.NoError(t, err)
 	defer r.Close()
 	checkReader(r)
+}
+
+func (s *Suite) TestVersionedReadOptions(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	tableSchema := schema.MustInfer(&testRowWithTwoColumns{})
+	tableSchema.Columns[2].Required = false
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, testTable, tableSchema))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
+
+	beforeInsert, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, yc.InsertRows(ctx, testTable, []any{&testRowWithTwoColumns{"foo", "1", "2"}}, nil))
+
+	beforeUpdate, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+	update := struct {
+		Key    string `yson:"table_key"`
+		Value0 string `yson:"value0"`
+	}{"foo", "3"}
+	require.NoError(t, yc.InsertRows(ctx, testTable, []any{&update}, &yt.InsertRowsOptions{
+		Update: ptr.Bool(true),
+	}))
+	afterUpdate, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+
+	type timestampedRow struct {
+		Key             string       `yson:"table_key"`
+		Value0          string       `yson:"value0"`
+		Value1          string       `yson:"value1"`
+		Value0Timestamp yt.Timestamp `yson:"$timestamp:value0"`
+		Value1Timestamp yt.Timestamp `yson:"$timestamp:value1"`
+	}
+	readRow := func(t *testing.T, r yt.TableReader) (row timestampedRow) {
+		t.Helper()
+		defer r.Close()
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+		return
+	}
+
+	for _, method := range []struct {
+		name string
+		read func(*yt.VersionedReadOptions, *yt.Timestamp, bool) (yt.TableReader, error)
+	}{
+		{
+			name: "LookupRows",
+			read: func(options *yt.VersionedReadOptions, timestamp *yt.Timestamp, filterColumns bool) (yt.TableReader, error) {
+				var columns []string
+				if filterColumns {
+					columns = []string{"table_key", "value0", "$timestamp:value0"}
+				}
+				return yc.LookupRows(ctx, testTable, []any{&testKey{"foo"}}, &yt.LookupRowsOptions{
+					Columns:              columns,
+					Timestamp:            timestamp,
+					VersionedReadOptions: options,
+				})
+			},
+		},
+		{
+			name: "SelectRows",
+			read: func(options *yt.VersionedReadOptions, timestamp *yt.Timestamp, filterColumns bool) (yt.TableReader, error) {
+				columns := "*"
+				if filterColumns {
+					columns = "table_key, value0, [$timestamp:value0]"
+				}
+				return yc.SelectRows(ctx, fmt.Sprintf("%s from [%s]", columns, testTable), &yt.SelectRowsOptions{
+					Timestamp:            timestamp,
+					VersionedReadOptions: options,
+				})
+			},
+		},
+	} {
+		t.Run(method.name, func(t *testing.T) {
+			for _, options := range []*yt.VersionedReadOptions{
+				nil,
+				{},
+				{ReadMode: yt.VersionedReadModeDefault},
+			} {
+				r, err := method.read(options, nil, false)
+				require.NoError(t, err)
+				require.Equal(t, timestampedRow{Key: "foo", Value0: "3", Value1: "2"}, readRow(t, r))
+			}
+
+			options := &yt.VersionedReadOptions{ReadMode: yt.VersionedReadModeLatestTimestamp}
+			r, err := method.read(options, nil, false)
+			require.NoError(t, err)
+			latest := readRow(t, r)
+			require.Equal(t, "foo", latest.Key)
+			require.Equal(t, "3", latest.Value0)
+			require.Equal(t, "2", latest.Value1)
+			require.Greater(t, latest.Value1Timestamp, beforeInsert)
+			require.Less(t, latest.Value1Timestamp, beforeUpdate)
+			require.Greater(t, latest.Value0Timestamp, beforeUpdate)
+			require.Less(t, latest.Value0Timestamp, afterUpdate)
+
+			r, err = method.read(options, nil, true)
+			require.NoError(t, err)
+			require.Equal(t, timestampedRow{
+				Key:             "foo",
+				Value0:          "3",
+				Value0Timestamp: latest.Value0Timestamp,
+			}, readRow(t, r))
+
+			r, err = method.read(options, &beforeUpdate, false)
+			require.NoError(t, err)
+			require.Equal(t, timestampedRow{
+				Key:             "foo",
+				Value0:          "1",
+				Value1:          "2",
+				Value0Timestamp: latest.Value1Timestamp,
+				Value1Timestamp: latest.Value1Timestamp,
+			}, readRow(t, r))
+		})
+	}
 }
 
 func (s *Suite) TestInsertRows_map(ctx context.Context, t *testing.T, yc yt.Client) {
@@ -597,34 +762,87 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 	}
 }
 
-func TestLockRows(t *testing.T) { // todo rewrite as suite test after LockRows is implemented in rpc client
+type lockRowsIntegrationRow struct {
+	Key    string `yson:"key,key"`
+	ValueA string `yson:"value_a,omitempty"`
+	ValueB string `yson:"value_b,omitempty"`
+}
+
+type lockRowsIntegrationKey struct {
+	Key string `yson:"key"`
+}
+
+func (s *Suite) TestLockRows(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	env := yttest.New(t)
+	atomicity := yt.AtomicityFull
+	beginTx := func(t *testing.T) yt.TabletTx {
+		tx, err := yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{Atomicity: &atomicity})
+		require.NoError(t, err)
+		return tx
+	}
+	createTable := func(t *testing.T, sc schema.Schema) ypath.Path {
+		table := tmpPath().Child("table")
+		require.NoError(t, migrate.Create(ctx, yc, table, sc))
+		require.NoError(t, migrate.MountAndWait(ctx, yc, table))
+		return table
+	}
+	defaultSchema := func() schema.Schema {
+		sc := schema.MustInfer(&lockRowsIntegrationRow{})
+		sc.Columns[1].Lock = "group_a"
+		sc.Columns[2].Lock = "group_b"
+		return sc
+	}
+	updateOptions := &yt.InsertRowsOptions{Update: ptr.Bool(true)}
+	commitWithConflict := func(t *testing.T, tx yt.TabletTx) {
+		err := tx.Commit()
+		require.Error(t, err)
+		require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeTransactionLockConflict))
+	}
 
-	testTable := env.TmpPath().Child("table")
+	t.Run("SameRowAndGroupConflict", func(t *testing.T) {
+		table := createTable(t, defaultSchema())
+		key := []any{&lockRowsIntegrationKey{"foo"}}
+		require.NoError(t, yc.InsertRows(ctx, table, []any{&lockRowsIntegrationRow{"foo", "before", ""}}, nil))
 
-	sc := schema.MustInfer(&testRow{})
-	sc.Columns[1].Lock = "lock"
-	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, sc))
-	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+		lockTx := beginTx(t)
+		writeTx := beginTx(t)
+		require.NoError(t, lockTx.LockRows(ctx, table, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
+		require.NoError(t, writeTx.InsertRows(ctx, table, []any{map[string]any{"key": "foo", "value_a": "after"}}, nil))
+		require.NoError(t, lockTx.Commit())
+		commitWithConflict(t, writeTx)
 
-	row := []any{&testRow{"foo", "1"}}
-	key := []any{&testKey{"foo"}}
+		r, err := yc.LookupRows(ctx, table, key, nil)
+		require.NoError(t, err)
+		defer r.Close()
+		require.True(t, r.Next())
+		var row lockRowsIntegrationRow
+		require.NoError(t, r.Scan(&row))
+		require.Equal(t, "before", row.ValueA)
+	})
 
-	require.NoError(t, env.YT.InsertRows(env.Ctx, testTable, row, nil))
+	t.Run("GroupsAreResolvedPerTable", func(t *testing.T) {
+		firstSchema := defaultSchema()
+		secondSchema := defaultSchema()
+		secondSchema.Columns[1].Lock = "group_b"
+		secondSchema.Columns[2].Lock = "group_a"
+		firstTable := createTable(t, firstSchema)
+		secondTable := createTable(t, secondSchema)
+		key := []any{&lockRowsIntegrationKey{"foo"}}
 
-	tx0, err := env.YT.BeginTabletTx(env.Ctx, nil)
-	require.NoError(t, err)
+		lockTx := beginTx(t)
+		require.NoError(t, lockTx.LockRows(ctx, firstTable, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
+		require.NoError(t, lockTx.LockRows(ctx, secondTable, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
 
-	tx1, err := env.YT.BeginTabletTx(env.Ctx, nil)
-	require.NoError(t, err)
+		firstWriteTx := beginTx(t)
+		require.NoError(t, firstWriteTx.InsertRows(ctx, firstTable, []any{map[string]any{"key": "foo", "value_a": "after"}}, updateOptions))
+		secondWriteTx := beginTx(t)
+		require.NoError(t, secondWriteTx.InsertRows(ctx, secondTable, []any{map[string]any{"key": "foo", "value_b": "after"}}, updateOptions))
 
-	require.NoError(t, tx1.InsertRows(env.Ctx, testTable, row, nil))
-	require.NoError(t, tx1.Commit())
-
-	require.NoError(t, tx0.LockRows(env.Ctx, testTable, []string{"lock"}, yt.LockTypeSharedStrong, key, nil))
-	require.Error(t, tx0.Commit())
+		require.NoError(t, lockTx.Commit())
+		commitWithConflict(t, firstWriteTx)
+		commitWithConflict(t, secondWriteTx)
+	})
 }
 
 func (s *Suite) TestMultiLookupRows_Basic(ctx context.Context, t *testing.T, yc yt.Client) {

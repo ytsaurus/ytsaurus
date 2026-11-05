@@ -161,8 +161,11 @@ private:
     //! the #partition_tables command will throw an exception.
     bool AdjustDataWeightPerPartition;
 
-    //! Return cookies that can be used with read_table_partition command
+    //! Return cookies that can be used with read_table_partition command.
     bool EnableCookies;
+    //! Whether to include node descriptors in the cookie (effective only when EnableCookies is true).
+    //! Increases cookie size but likely reduces read latency with read_table_partition command.
+    bool FetchCookieNodeDescriptors;
 
     bool OmitInaccessibleRows;
 
@@ -230,10 +233,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemountTableCommand
+struct TRemountTableCommand
     : public TTabletCommandBase<NApi::TRemountTableOptions>
 {
-public:
     REGISTER_YSON_STRUCT_LITE(TRemountTableCommand);
 
     static void Register(TRegistrar /*registrar*/)
@@ -351,7 +353,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    TString Query;
+    std::string Query;
     NYTree::IMapNodePtr PlaceholderValues;
     bool EnableStatistics = false;
 
@@ -375,7 +377,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    TString Query;
+    std::string Query;
 
     void DoExecute(ICommandContextPtr context) override;
 };

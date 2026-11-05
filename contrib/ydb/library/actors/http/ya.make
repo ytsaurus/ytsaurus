@@ -17,6 +17,11 @@ SRCS(
     http_static.h
     http.cpp
     http.h
+    http2_frames.h
+    http2_hpack.h
+    http2_hpack.cpp
+    http2.h
+    http2.cpp
 )
 
 PEERDIR(
@@ -24,7 +29,6 @@ PEERDIR(
     contrib/libs/zlib
     contrib/ydb/library/actors/core
     contrib/ydb/library/actors/interconnect
-    library/cpp/dns
     library/cpp/monlib/metrics
     library/cpp/string_utils/quote
 )

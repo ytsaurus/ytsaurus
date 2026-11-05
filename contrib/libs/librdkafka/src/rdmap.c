@@ -404,11 +404,16 @@ static int unittest_typed_map2(void) {
 static int unittest_untyped_map(void) {
         rd_map_t rmap;
         int pass, i, r;
-        int cnt     = 100000;
+        int cnt     = rd_unittest_with_valgrind ? 1000 : 100000;
         int exp_cnt = 0, get_cnt = 0, iter_cnt = 0;
         const rd_map_elem_t *elem;
         rd_ts_t ts     = rd_clock();
         rd_ts_t ts_get = 0;
+
+        if (rd_unittest_with_valgrind)
+                RD_UT_WARN(
+                    "Reducing count in "
+                    "untyped map test when using Valgrind");
 
         rd_map_init(&rmap, cnt, rd_map_str_cmp, rd_map_str_hash, rd_free,
                     rd_free);

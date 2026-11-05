@@ -1,6 +1,4 @@
-LIBRARY()
-
-YQL_LAST_ABI_VERSION()
+YQL_LIBRARY()
 
 PEERDIR(
     library/cpp/yt/memory
@@ -9,9 +7,11 @@ PEERDIR(
     yql/essentials/minikql/computation
     yql/essentials/providers/common/provider
 
+    yt/yql/providers/ytflow/codec
     yt/yql/providers/ytflow/integration/mkql_interface
 
     yt/yt/client
+    yt/yt/client/cache
     yt/yt/core
 )
 

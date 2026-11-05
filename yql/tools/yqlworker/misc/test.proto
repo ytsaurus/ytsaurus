@@ -1,0 +1,10 @@
+message TSlimMsg {
+    optional uint32 Int32 = 1;
+    optional float Float = 2;
+}
+
+message TFatMsg {
+    optional string Str = 1;
+    optional TSlimMsg SubMsg = 2;
+    repeated uint32 Ints = 3;
+}

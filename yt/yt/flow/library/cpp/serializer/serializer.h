@@ -1,0 +1,33 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/flow/library/cpp/delta_codecs/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
+namespace NYT::NFlow::NYsonSerializer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TTableSchemaPtr GetYsonSchema(const NYTree::TYsonStructPtr& ysonStruct);
+
+template <class T>
+NTableClient::TTableSchemaPtr GetYsonSchema();
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TUnversionedOwningRow Serialize(const NYTree::TYsonStructPtr& ysonStruct, const NTableClient::TTableSchemaPtr& schema);
+
+void Deserialize(const NYTree::TYsonStructPtr& ysonStruct, const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema);
+
+template <class T>
+TIntrusivePtr<T> Deserialize(const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NYsonSerializer
+
+#define SERIALIZER_INL_H_
+#include "serializer-inl.h"
+#undef SERIALIZER_INL_H_

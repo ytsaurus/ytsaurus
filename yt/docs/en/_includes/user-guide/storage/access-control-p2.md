@@ -62,18 +62,21 @@ The authorization module on the master server solves the following problem: shou
 
 Any system user can act as `U`. Note that `U` cannot be a group, although group membership is taken into account when making a decision. If `U` is `root`, the access request is automatically approved.
 
-Access type `P` is also called **permission**. The permissions supported by {{product-name}} are shown in the table.
+Access type `P` is also called **permission**. The permissions supported by {{product-name}} are shown in the table. The **Applies to** column lists the object types for which the permission is meaningful; for other object types the permission is ignored.
 
-| Permission | Description |
-| ------------ | ------------------------------------------------------------ |
-| `read` | Means reading a value or getting information about an object or its attributes. |
-| `write` | Means changing an object state or its attributes. |
-| `use` | Applies to accounts, pools, and bundles and means usage (that is, the ability to insert new objects into the quota of a given account, run operations in a pool, or move a dynamic table to a bundle). |
-| `administer` | Means changing the object access descriptor. |
-| `create` | Applies only to schemas and means creating objects of this type. |
-| `remove` | Means removing an object. |
-| `mount` | Means mounting, unmounting, remounting, and resharding a dynamic table. |
-| `manage` | Applies only to operations (not to Cypress nodes) and means managing that operation or its jobs. |
+| Permission | Applies to | Description |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| `read` | All objects | Reading a value or getting information about an object and its attributes. See [details](#permission_read). |
+| `full_read` | Tables (behaves as `read` for other objects) | Reading the whole table with no columnar or row-level restrictions. See [details](#permission_full_read). |
+| `write` | All objects | Changing an object state or its attributes. |
+| `use` | Accounts, pools, tablet cell bundles | Using an object's resources. See [details](#permission_use). |
+| `administer` | All objects | Changing the object access descriptor (its ACL and related attributes). |
+| `create` | Object schemas | Creating objects of a corresponding type. |
+| `remove` | All objects | Removing an object. |
+| `mount` | Dynamic tables | Mounting, unmounting, remounting, freezing, unfreezing, and resharding a dynamic table. |
+| `manage` | Operations | Managing an operation and its jobs. See [Managing operations](#managing-operations). |
+| `modify_children` | Composite Cypress nodes, accounts, pools | Adding and removing children of a composite object. See [details](#permission_modify_children). |
+| `register_queue_consumer` | Queues | Registering a consumer for a queue. See [details](#permission_register_queue_consumer). |
 
 Object `O` means a random system object: Cypress node, user, group, account, chunk, transaction, and so on.
 
@@ -95,6 +98,43 @@ Once an effective list is built, the decision to grant or deny access is made ac
 
 “Entry for `U` and `P`” means that `P` is mentioned in the `permissions` list and either user `U` or at least one group in which user U is a direct or indirect member is mentioned in the `subjects` list. From that description, it follows specifically that if the effective list is empty, access will be denied.
 
+### read { #permission_read }
+
+For tables, `read` grants access to the data, but the visible set of columns and rows can be further narrowed by [columnar](../../../user-guide/storage/columnar-acl.md) and [row-level](../../../user-guide/storage/row-level-security.md) ACLs: even with `read` for the whole table, a user must be explicitly allowed to read particular columns.
+
+### full_read { #permission_full_read }
+
+Grants unrestricted read access to the entire table, ignoring any columnar or row-level restrictions. For all other object types, `full_read` is equivalent to `read`.
+
+It is required for actions that need the complete data set, such as `copy`ing and `move`ing a table.
+
+Because this permission implies access to every column, the `columns` attribute cannot be specified in the same ACE.
+
+### use { #permission_use }
+
+Grants the ability to consume the object's resources:
+
+* for an account, to create new objects in that account's quota;
+* for a pool, to run operations in that pool;
+* for a tablet cell bundle, to create a dynamic table in that bundle.
+
+### modify_children { #permission_modify_children }
+
+Grants the ability to add and remove children of a composite object. For a Cypress map node, creating or removing a child requires either `write` or `modify_children` on the parent; granting only `modify_children` lets a subject manage the children of a node without granting broader `write` access to the node itself.
+
+### register_queue_consumer { #permission_register_queue_consumer }
+
+Grants the ability to [register a consumer for a queue](../../../user-guide/dynamic-tables/queues.md#register_queue_consumer). An ACE with this permission has two special rules: it must specify vitality via the `vital` attribute (`%true` or `%false`), and it must contain `register_queue_consumer` as its only permission. For example:
+
+```bash
+{
+    action = allow;
+    subjects = [my_group];
+    permissions = [register_queue_consumer];
+    vital = %true;
+}
+```
+
 ## Object owner and owner user { #owner}
 
 When user `U` creates an object, user U also becomes the owner of that object, which is shown in the `owner` attribute.
@@ -107,7 +147,7 @@ Only the superuser (member of the `superusers` group) can change the owner.
 
 There is also a special fictitious `owner` user in the system. You cannot authenticate with it, but you can refer to it in the ACL as a subject. `owner` is replaced by the actual object owner when permissions are checked. This enables you to do such things as describe the "in this folder, only those who created the nodes can remove them" restriction by the ACE:`{action=allow; permissions=[remove]; subjects=[owner]; inheritance_mode = descendants_only}`. Remember to disable permission inheritance by specifying `inherit_acl = %false`.
 
-## Managing operations
+## Managing operations { #managing-operations }
 
 Any operation has an ACL associated with it, similar to Cypress nodes. You can obtain this ACL from the attribute at `runtime_parameters/acl` of the operation.
 
@@ -141,7 +181,7 @@ ACL inheritance should be used everywhere, except in places where the nature of 
 
 ## Checking the ACL { #check_acl}
 
-To check if a user has a certain permission to a certain Cypress node, use the `check-permission` command. 
+To check if a user has a certain permission to a certain Cypress node, use the `check-permission` command.
 
 Example:
 

@@ -1,18 +1,22 @@
 PY3TEST()
 
 IF (SANITIZER_TYPE)
-    SET(YT_SPLIT_FACTOR 50)
+    SET(YT_SPLIT_FACTOR 75)
 ELSE()
-    SET(YT_SPLIT_FACTOR 40)
+    SET(YT_SPLIT_FACTOR 60)
 ENDIF()
 
 IF (SANITIZER_TYPE)
-    SET(YT_TIMEOUT 2400)
+    SET(YT_TIMEOUT 3600)
+ELSE()
+    SET(YT_TIMEOUT 3000)
 ENDIF()
 
 ENV(YT_TEST_FILTER=XLARGE)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
+
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
@@ -22,8 +26,8 @@ IF (SANITIZER_TYPE)
     )
 ELSE()
     REQUIREMENTS(
-        cpu:38
-        ram:48
+        cpu:20
+        ram:28
         ram_disk:15
     )
 ENDIF()

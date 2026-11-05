@@ -6,7 +6,7 @@ from os import PathLike
 from subprocess import PIPE, CalledProcessError, CompletedProcess
 from typing import IO, Any, TypeAlias, cast
 
-from ..abc import Process
+from ..abc import Process  # noqa: TC001
 from ._eventloop import get_async_backend
 from ._tasks import create_task_group
 
@@ -176,7 +176,7 @@ async def open_process(
         kwargs["group"] = group
 
     if extra_groups is not None:
-        kwargs["extra_groups"] = group
+        kwargs["extra_groups"] = extra_groups
 
     if umask >= 0:
         kwargs["umask"] = umask

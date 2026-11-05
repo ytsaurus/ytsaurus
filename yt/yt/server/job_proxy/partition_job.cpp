@@ -1,3 +1,4 @@
+#include "helpers.h"
 #include "job_detail.h"
 #include "partition_job.h"
 #include "private.h"
@@ -20,6 +21,9 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NJobProxy {
 
@@ -71,8 +75,6 @@ public:
             }
         }
 
-        NameTable_ = TNameTable::FromKeyColumns(keyColumns);
-
         ReaderFactory_ = [
             =,
             this,
@@ -98,6 +100,13 @@ public:
                 partitionTags,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
+
+        if (PartitionJobSpecExt_.has_push_based_shuffle_writer()) {
+            InitializeShuffleWriterFactory();
+            return;
+        }
+
+        NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = JobSpecExt_.output_table_specs(0);
@@ -149,6 +158,17 @@ private:
 
     TNameTablePtr NameTable_;
 
+    void InitializeShuffleWriterFactory()
+    {
+        TTableSchemaPtr streamSchema;
+        FromProto(&streamSchema, PartitionJobSpecExt_.push_based_shuffle_writer().intermediate_stream_schema());
+
+        NameTable_ = TNameTable::FromSchema(*streamSchema);
+
+        WriterFactory_ = [this] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+            return CreateJobShuffleWriter(Host_, PartitionJobSpecExt_);
+        };
+    }
 
     void InitializeReader() override
     {

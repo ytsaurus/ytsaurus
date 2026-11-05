@@ -1,10 +1,10 @@
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/config.h>
 #include <yt/yt/server/lib/hydra/local_changelog_store.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -192,6 +192,52 @@ TEST_F(TChangelogTestNoAutoFlush, ReadFromDiskAndMemory)
 
     EXPECT_EQ(TotalRecordCount, std::ssize(records));
     CheckRecords(records, 0, TotalRecordCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTimedFlushChangelogTest
+    : public TChangelogTest
+{
+protected:
+    static constexpr auto FlushPeriod = TDuration::MilliSeconds(200);
+
+    void InitConfig(const TFileChangelogStoreConfigPtr& config) override
+    {
+        TChangelogTest::InitConfig(config);
+        config->FlushPeriod = FlushPeriod;
+    }
+};
+
+TEST_F(TTimedFlushChangelogTest, AppendWithinFlushPeriodIsFlushedByDeadline)
+{
+    WaitFor(Changelog_->Append({MakeData(0)}))
+        .ThrowOnError();
+
+    // The first flush has just happened, so this record waits for the flush period to expire.
+    auto startTime = TInstant::Now();
+    WaitFor(Changelog_->Append({MakeData(1)}).WithTimeout(TDuration::Seconds(10)))
+        .ThrowOnError();
+    auto elapsed = TInstant::Now() - startTime;
+
+    EXPECT_GE(elapsed, FlushPeriod / 2);
+    EXPECT_LE(elapsed, TDuration::Seconds(5));
+}
+
+TEST_F(TTimedFlushChangelogTest, SequentialAppendsAreAllFlushed)
+{
+    constexpr int RecordCount = 10;
+
+    for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
+        WaitFor(Changelog_->Append({MakeData(recordIndex)}).WithTimeout(TDuration::Seconds(10)))
+            .ThrowOnError();
+    }
+
+    auto records = WaitFor(Changelog_->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max()))
+        .ValueOrThrow();
+
+    EXPECT_EQ(RecordCount, std::ssize(records));
+    CheckRecords(records, 0, RecordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

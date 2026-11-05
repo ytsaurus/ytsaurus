@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/misc/mpsc_stack.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -28,6 +28,7 @@ class TResourceTree
 {
 public:
     TResourceTree(
+        NLogging::TLogger logger,
         const TStrategyTreeConfigPtr& config,
         const std::vector<IInvokerPtr>& feasibleInvokers);
 
@@ -52,7 +53,8 @@ public:
         std::string* violatedIdOutput);
     bool CommitHierarchicalPreemptedResourceUsage(
         const TResourceTreeElementPtr& element,
-        const TJobResources& delta);
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
     void ChangeParent(
@@ -73,18 +75,21 @@ public:
     void IncrementUsageLockReadCount();
     void IncrementUsageLockWriteCount();
 
-    NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> AcquireStructureLock();
+    TWriterGuard<TReaderWriterSpinLock> AcquireStructureLock();
 
     void InitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
 
 private:
-    std::vector<IInvokerPtr> FeasibleInvokers_;
+    const NLogging::TLogger Logger;
+
+    const std::vector<IInvokerPtr> FeasibleInvokers_;
 
     std::atomic<bool> EnableStructureLockProfiling_ = false;
     std::atomic<bool> EnableUsageLockProfiling_ = false;
     std::atomic<bool> UsePrecommitForPreemption_ = false;
+    std::atomic<bool> EnableInfiniteResourceLimitsOvercommit_ = false;
 
     // For testing.
     // Encoded as microseconds; ::Max<TDuration::TValue>() means "not set".
@@ -96,7 +101,7 @@ private:
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
     TMpscStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StructureLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, StructureLock_);
 
     NProfiling::TProfiler Profiler_ = NProfiling::TProfiler{"/resource_tree"}.WithHot();
     NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");

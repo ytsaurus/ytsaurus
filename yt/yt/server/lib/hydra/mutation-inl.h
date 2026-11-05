@@ -75,7 +75,7 @@ std::unique_ptr<TMutation> CreateMutation(
     auto mutation = CreateMutation(std::move(hydraManager), context);
     mutation->SetHandler(
         BIND([=] (TMutationContext* mutationContext) {
-            auto response = ObjectPool<TResponse>().Allocate();
+            auto response = ObjectPool<TResponse>().AllocateUnique();
             (target->*handler)(context, &context->Request(), response.get());
             mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
         }));
@@ -112,7 +112,7 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
-            auto response = ObjectPool<TResponse>().Allocate();
+            auto response = ObjectPool<TResponse>().AllocateUnique();
             (target->*handler)(context, &request, response.get());
             mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
         }));

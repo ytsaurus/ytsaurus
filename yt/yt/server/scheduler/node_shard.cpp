@@ -35,8 +35,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -88,7 +88,7 @@ void AddAllocationToPreempt(
     NProto::NNode::TRspHeartbeat* response,
     TAllocationId allocationId,
     TDuration duration,
-    const std::optional<TString>& preemptionReason,
+    const std::optional<std::string>& preemptionReason,
     const std::optional<TPreemptedFor>& preemptedFor)
 {
     auto allocationToPreempt = response->add_allocations_to_preempt();
@@ -109,17 +109,16 @@ void AddAllocationToPreempt(
 
 std::optional<EAbortReason> ParseAbortReason(const TError& error, TAllocationId allocationId, const NLogging::TLogger& Logger)
 {
-    auto abortReasonString = error.Attributes().Find<TString>("abort_reason");
+    auto abortReasonString = error.Attributes().Find<std::string>("abort_reason");
     if (!abortReasonString) {
         return {};
     }
 
     auto abortReason = TryParseEnum<EAbortReason>(*abortReasonString);
     if (!abortReason) {
-        YT_LOG_DEBUG(
-            "Failed to parse abort reason from result (AllocationId: %v, UnparsedAbortReason: %v)",
-            allocationId,
-            *abortReasonString);
+        YT_TLOG_DEBUG("Failed to parse abort reason from result")
+            .With("AllocationId", allocationId)
+            .With("UnparsedAbortReason", *abortReasonString);
     }
 
     return abortReason;
@@ -131,6 +130,35 @@ void AddAllocationToAbort(NProto::NNode::TRspHeartbeat* response, const TAllocat
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MergeAllocationUpdates(
+    NStrategy::TAllocationUpdate* update,
+    const NStrategy::TAllocationUpdate& otherUpdate)
+{
+    YT_VERIFY(update->AllocationId == otherUpdate.AllocationId);
+    YT_VERIFY(update->OperationId == otherUpdate.OperationId);
+    YT_VERIFY(update->ControllerEpoch == otherUpdate.ControllerEpoch);
+    YT_VERIFY(!update->AllocationResources || update->ResourcesUpdateTime > 0);
+    YT_VERIFY(!otherUpdate.AllocationResources || otherUpdate.ResourcesUpdateTime > 0);
+
+    update->Finished |= otherUpdate.Finished;
+
+    if (otherUpdate.PreemptibleProgressStartTime &&
+        (!update->PreemptibleProgressStartTime ||
+            *update->PreemptibleProgressStartTime < *otherUpdate.PreemptibleProgressStartTime))
+    {
+        update->PreemptibleProgressStartTime = otherUpdate.PreemptibleProgressStartTime;
+    }
+
+    if (otherUpdate.AllocationResources &&
+        (!update->AllocationResources || update->ResourcesUpdateTime < otherUpdate.ResourcesUpdateTime))
+    {
+        update->AllocationResources = otherUpdate.AllocationResources;
+        update->ResourcesUpdateTime = otherUpdate.ResourcesUpdateTime;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,7 +291,7 @@ TNodeShard::TNodeShard(
     , ResourceStatisticsByTagsCache_(New<TResourceStatisticsByTagsCache>(
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-    , Logger(NodeShardLogger().WithTag("NodeShardId: %v", Id_))
+    , Logger(NodeShardLogger().WithTag("NodeShardId", Id_))
     , RemoveOutdatedScheduleAllocationEntryExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::RemoveOutdatedScheduleAllocationEntries, MakeWeak(this)),
@@ -388,8 +416,6 @@ void TNodeShard::DoCleanup()
 
     RegisteredAgents_.clear();
     RegisteredAgentIncarnationIds_.clear();
-
-    SubmitAllocationsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(
@@ -408,9 +434,9 @@ void TNodeShard::RegisterOperation(
 
     WaitingForRegisterOperationIds_.erase(operationId);
 
-    YT_LOG_DEBUG("Operation registered at node shard (OperationId: %v, WaitingForRevival: %v)",
-        operationId,
-        waitingForRevival);
+    YT_TLOG_DEBUG("Operation registered at node shard")
+        .With("OperationId", operationId)
+        .With("WaitingForRevival", waitingForRevival);
 }
 
 void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch)
@@ -424,10 +450,10 @@ void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoc
     operationState.OperationUnreadyLoggedAllocationIds = THashSet<TAllocationId>();
     operationState.ControllerEpoch = newControllerEpoch;
 
-    YT_LOG_DEBUG("Operation revival started at node shard (OperationId: %v, AllocationCount: %v, NewControllerEpoch: %v)",
-        operationId,
-        operationState.Allocations.size(),
-        newControllerEpoch);
+    YT_TLOG_DEBUG("Operation revival started at node shard")
+        .With("OperationId", operationId)
+        .With("AllocationCount", operationState.Allocations.size())
+        .With("NewControllerEpoch", newControllerEpoch);
 
     auto allocations = operationState.Allocations;
     for (const auto& [allocationId, allocation] : allocations) {
@@ -469,10 +495,9 @@ void TNodeShard::FinishOperationRevival(
         RegisterAllocation(allocation);
     }
 
-    YT_LOG_DEBUG(
-        "Operation revival finished at node shard (OperationId: %v, RevivedAllocationCount: %v)",
-        operationId,
-        allocations.size());
+    YT_TLOG_DEBUG("Operation revival finished at node shard")
+        .With("OperationId", operationId)
+        .With("RevivedAllocationCount", allocations.size());
 }
 
 void TNodeShard::ResetOperationRevival(TOperationId operationId)
@@ -487,9 +512,8 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
     operationState.ControllerTerminated = false;
     operationState.OperationUnreadyLoggedAllocationIds = THashSet<TAllocationId>();
 
-    YT_LOG_DEBUG(
-        "Operation revival state reset at node shard (OperationId: %v)",
-        operationId);
+    YT_TLOG_DEBUG("Operation revival state reset at node shard")
+        .With("OperationId", operationId);
 }
 
 void TNodeShard::UnregisterOperation(TOperationId operationId)
@@ -511,8 +535,8 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
 
     IdToOperationState_.erase(it);
 
-    YT_LOG_DEBUG("Operation unregistered from node shard (OperationId: %v)",
-        operationId);
+    YT_TLOG_DEBUG("Operation unregistered from node shard")
+        .With("OperationId", operationId);
 }
 
 void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
@@ -583,14 +607,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     auto resourceLimits = ToJobResources(request->resource_limits());
     auto resourceUsage = ToJobResources(request->resource_usage());
 
-    context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, AllocationCount: %v",
-        nodeId,
-        descriptor.GetDefaultAddress(),
-        ManagerHost_->FormatHeartbeatResourceUsage(
-            resourceUsage,
-            resourceLimits,
-            request->disk_resources()),
-        request->allocations_size());
+    context->AnnotateRequest()
+        .With("NodeId", nodeId)
+        .With("NodeAddress", descriptor.GetDefaultAddress())
+        .With("ResourceUsage", ManagerHost_->FormatHeartbeatResourceUsage( resourceUsage, resourceLimits, request->disk_resources()))
+        .With("AllocationCount", request->allocations_size());
 
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
@@ -605,7 +626,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         if (!oldValue && newValue) {
             ++JobReporterQueueIsTooLargeNodeCount_;
         }
-        YT_LOG_DEBUG_IF(newValue, "Job reporter queue is too large (NodeAddress: %v)", descriptor.GetDefaultAddress());
+        YT_TLOG_DEBUG_IF(newValue, "Job reporter queue is too large")
+            .With("NodeAddress", descriptor.GetDefaultAddress());
         node->SetJobReporterQueueIsTooLarge(newValue);
     }
 
@@ -635,11 +657,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // We need to prevent context switched between checking node state and BeginNodeHeartbeatProcessing.
         TForbidContextSwitchGuard guard;
         if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
-            auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
+            auto error = TError("Node is not online: master state is %Qlv, scheduler state is %Qlv",
                 node->GetMasterState(),
                 node->GetSchedulerState());
             if (!node->GetRegistrationError().IsOK()) {
-                error = error << node->GetRegistrationError();
+                error = error.With(node->GetRegistrationError());
             }
             context->Reply(error);
             return;
@@ -692,18 +714,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     bool skipScheduleAllocations = false;
     if (hasWaitingAllocations) {
-        YT_LOG_DEBUG(
-            "Waiting allocations found (NodeAddress: %v, SuppressingScheduling: %v)",
-            node->GetDefaultAddress(),
-            Config_->DisableSchedulingOnNodeWithWaitingAllocations);
+        YT_TLOG_DEBUG("Waiting allocations found")
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("SuppressingScheduling", Config_->DisableSchedulingOnNodeWithWaitingAllocations);
         if (Config_->DisableSchedulingOnNodeWithWaitingAllocations) {
             skipScheduleAllocations = true;
         }
     }
     if (isThrottlingActive) {
-        YT_LOG_DEBUG(
-            "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Throttling is active, suppressing new allocations scheduling")
+            .With("NodeAddress", node->GetDefaultAddress());
         skipScheduleAllocations = true;
     }
 
@@ -716,13 +736,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         const auto& address = node->GetDefaultAddress();
 
         auto error = TError("Node without user slots")
-            << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+            .With("abort_reason", EAbortReason::NodeWithDisabledJobs);
         for (const auto& allocation : allocations) {
-            YT_LOG_DEBUG(
-                "Aborting allocation on node without user slots (Address: %v, AllocationId: %v, OperationId: %v)",
-                address,
-                allocation->GetId(),
-                allocation->GetOperationId());
+            YT_TLOG_DEBUG("Aborting allocation on node without user slots")
+                .With("Address", address)
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
 
             OnAllocationAborted(allocation, error, EAbortReason::NodeWithDisabledJobs);
         }
@@ -739,6 +758,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         Id_,
         Config_,
         node,
+        Bootstrap_->GetScheduler()->GetBackgroundInvoker(),
         runningAllocations,
         mediumDirectory,
         minSpareResources);
@@ -770,22 +790,22 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->SetLastRegisteredControllerAgentsSentTime(now);
     }
 
-    context->SetResponseInfo(
-        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, "
-        "IsThrottling: %v, SendRegisteredControllerAgents: %v, NodeFreeResources: %v",
-        Id_,
-        nodeId,
-        descriptor.GetDefaultAddress(),
-        node->GetSchedulingHeartbeatComplexity(),
-        ConcurrentHeartbeatComplexity_.load(),
-        isThrottlingActive,
-        shouldSendRegisteredControllerAgents,
-        schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
+    context->AnnotateResponse()
+        .With("NodeShardId", Id_)
+        .With("HeartbeatComplexity", node->GetSchedulingHeartbeatComplexity())
+        .With("TotalComplexity", ConcurrentHeartbeatComplexity_.load())
+        .With("IsThrottling", isThrottlingActive)
+        .With("SendRegisteredControllerAgents", shouldSendRegisteredControllerAgents)
+        .With("NodeFreeResources", schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
 
-    TStringBuilder schedulingAttributesBuilder;
-    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
-    context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
+    NLogging::TLoggingTagList schedulingAttributeTags;
+    {
+        TForbidContextSwitchGuard guard;
+
+        schedulingAttributeTags = strategyProxy->BuildSchedulingAttributeTags(schedulingHeartbeatContext);
+    }
+    context->AnnotateResponse()
+        .With(schedulingAttributeTags);
 
     FillNodeProfilingTags(response, strategyProxy);
 
@@ -796,28 +816,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
-        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-
         // NB: Some allocations maybe considered aborted after processing scheduled allocations.
         SubmitAllocationsToStrategy();
 
-        // TODO(eshcherbin): It's possible to shorten this message by writing preemptible info
-        // only when preemptive scheduling has been attempted.
-        context->SetIncrementalResponseInfo(
-            "StartedAllocations: {All: %v, ByPreemption: %v}, PreemptedAllocations: %v, "
-            "PreemptibleInfo: {AllocationCount: %v, UsageDiscount: %v}, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
-            "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
-            schedulingHeartbeatContext->StartedAllocations().size(),
-            statistics.ScheduledDuringPreemption,
-            schedulingHeartbeatContext->PreemptedAllocations().size(),
-            statistics.PreemptibleAllocationCount,
-            statistics.ResourceUsageDiscount,
-            statistics.SsdPriorityPreemptionEnabled,
-            statistics.SsdPriorityPreemptionMedia,
-            FormatScheduleAllocationAttemptsCompact(statistics),
-            FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
+        context->AnnotateResponse()
+            .With("StartedAllocations", schedulingHeartbeatContext->StartedAllocations().size())
+            .With("PreemptedAllocations", schedulingHeartbeatContext->PreemptedAllocations().size());
     } else {
-        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingHeartbeatContext->PreemptedAllocations().size());
+        context->AnnotateResponse()
+            .With("PreemptedAllocations", schedulingHeartbeatContext->PreemptedAllocations().size());
     }
 
     context->Reply();
@@ -853,10 +860,10 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
-            Config_->MaxOfflineNodeAge,
-            node->GetId(),
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node has not been seen for too long, removing it")
+            .With("MaxOfflineNodeAge", Config_->MaxOfflineNodeAge)
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress());
         UnregisterNode(node);
         RemoveNode(node);
     }
@@ -879,13 +886,11 @@ void TNodeShard::UpdateNodeState(
     node->SetRegistrationError(error);
 
     if (oldMasterState != newMasterState || oldSchedulerState != newSchedulerState) {
-        YT_LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, MasterState: %v -> %v, SchedulerState: %v -> %v)",
-            node->GetId(),
-            node->NodeDescriptor().GetDefaultAddress(),
-            oldMasterState,
-            newMasterState,
-            oldSchedulerState,
-            newSchedulerState);
+        YT_TLOG_INFO("Node state changed")
+            .With("NodeId", node->GetId())
+            .With("NodeAddress", node->NodeDescriptor().GetDefaultAddress())
+            .WithFormat("MasterState", "%v -> %v", oldMasterState, newMasterState)
+            .WithFormat("SchedulerState", "%v -> %v", oldSchedulerState, newSchedulerState);
     }
 }
 
@@ -917,12 +922,10 @@ void TNodeShard::RemoveMissingNodes(const std::vector<std::string>& nodeAddresse
     }
 
     for (const auto& node : nodesToUnregister) {
-        YT_LOG_DEBUG(
-            "Node is not found at master, unregister and remove it "
-            "(NodeId: %v, NodeShardId: %v, Address: %v)",
-            node->GetId(),
-            Id_,
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Node is not found at master, unregister and remove it")
+            .With("NodeId", node->GetId())
+            .With("NodeShardId", Id_)
+            .With("Address", node->GetDefaultAddress());
         UnregisterNode(node);
         RemoveNode(node);
     }
@@ -938,10 +941,12 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
     auto now = TInstant::Now();
 
+    MaybeDelay(Config_->TestingOptions->HandleNodesAttributesDelay);
+
     if (HasOngoingNodesAttributesUpdate_) {
-        auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
-        YT_LOG_WARNING(error);
-        return {error};
+        static constexpr auto Message = "Node shard is handling nodes attributes update for too long, skipping new update"_sb;
+        YT_TLOG_WARNING(Message);
+        return {TError(Message)};
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
@@ -960,11 +965,11 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto annotationsYson = attributes.FindYson("annotations");
         auto schedulingOptionsYson = attributes.FindYson("scheduling_options");
 
-        YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
-            nodeId,
-            address,
-            objectId,
-            newState);
+        YT_TLOG_DEBUG("Handling node attributes")
+            .With("NodeId", nodeId)
+            .With("NodeAddress", address)
+            .With("ObjectId", objectId)
+            .With("NewState", newState);
 
         YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
@@ -973,9 +978,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 RegisterNode(nodeId, TNodeDescriptor(address), ENodeState::Offline);
             } else {
                 // Skip nodes that offline both at master and at scheduler.
-                YT_LOG_DEBUG("Skipping node since it is offline both at scheduler and at master (NodeId: %v, NodeAddress: %v)",
-                    nodeId,
-                    address);
+                YT_TLOG_DEBUG("Skipping node since it is offline both at scheduler and at master")
+                    .With("NodeId", nodeId)
+                    .With("NodeAddress", address);
                 continue;
             }
         }
@@ -986,9 +991,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             newState == NNodeTrackerClient::ENodeState::Online &&
             execNode->GetRegistrationError().IsOK())
         {
-            YT_LOG_INFO("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
-                nodeId,
-                address);
+            YT_TLOG_INFO("Node is not registered at scheduler but online at master")
+                .With("NodeId", nodeId)
+                .With("NodeAddress", address);
         }
 
         if (newState == NNodeTrackerClient::ENodeState::Online) {
@@ -1004,17 +1009,15 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         execNode->SetSchedulingOptions(schedulingOptionsYson ? ConvertToAttributes(schedulingOptionsYson) : nullptr);
 
-        static const TString InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
+        static const std::string InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
         auto infinibandCluster = annotationsYson
             ? TryGetString(annotationsYson.AsStringBuf(), InfinibandClusterAnnotationsPath)
             : std::nullopt;
         if (auto nodeInfinibandCluster = execNode->GetInfinibandCluster()) {
-            YT_LOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster,
-                "Node's infiniband cluster tag has changed "
-                "(NodeAddress: %v, OldInfinibandCluster: %v, NewInfinibandCluster: %v)",
-                address,
-                nodeInfinibandCluster,
-                infinibandCluster);
+            YT_TLOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster, "Node's infiniband cluster tag has changed")
+                .With("NodeAddress", address)
+                .With("OldInfinibandCluster", nodeInfinibandCluster)
+                .With("NewInfinibandCluster", infinibandCluster);
         }
         execNode->SetInfinibandCluster(std::move(infinibandCluster));
 
@@ -1038,12 +1041,17 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
-                auto error = TError("Node tags update failed")
-                    << TErrorAttribute("node_id", nodeId)
-                    << TErrorAttribute("address", address)
-                    << TErrorAttribute("tags", tags)
-                    << updateResult;
-                YT_LOG_WARNING(error);
+                static constexpr auto Message = "Node tags update failed"_sb;
+                YT_TLOG_WARNING(Message)
+                    .With("NodeId", nodeId)
+                    .With("Address", address)
+                    .With("Tags", tags)
+                    .With(updateResult);
+                auto error = TError(Message)
+                    .With("node_id", nodeId)
+                    .With("address", address)
+                    .With("tags", tags)
+                    .With(updateResult);
                 errors.push_back(error);
 
                 // State change must happen before aborting allocations.
@@ -1096,7 +1104,10 @@ void TNodeShard::AbortOperationAllocations(
     operationState->ForbidNewAllocations = true;
     auto allocations = operationState->Allocations;
     for (const auto& [allocationId, allocation] : allocations) {
-        YT_LOG_DEBUG(abortError, "Aborting allocation (AllocationId: %v, OperationId: %v)", allocationId, operationId);
+        YT_TLOG_DEBUG("Aborting allocation")
+            .With("AllocationId", allocationId)
+            .With("OperationId", operationId)
+            .With(abortError);
         OnAllocationAborted(allocation, abortError, abortReason);
     }
 
@@ -1114,6 +1125,8 @@ void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
     if (auto* operationState = FindOperationState(operationId)) {
         operationState->ForbidNewAllocations = true;
     }
+
+    MaybeDelay(Config_->TestingOptions->OperationSchedulingSuspensionDelay);
 }
 
 void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
@@ -1178,6 +1191,7 @@ TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId alloca
             .PreemptionReason = allocation->GetPreemptionReason(),
             .PreemptionTimeout = CpuDurationToDuration(allocation->GetPreemptionTimeout()),
             .PreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime(),
+            .AllocationGroupName = allocation->AllocationGroupName(),
         };
     } else {
         result.Running = false;
@@ -1193,16 +1207,17 @@ void TNodeShard::AbortAllocation(TAllocationId allocationId, const TError& error
 
     auto allocation = FindAllocation(allocationId);
     if (!allocation) {
-        YT_LOG_DEBUG(error, "Requested to abort an unknown allocation, ignored (AllocationId: %v)", allocationId);
+        YT_TLOG_DEBUG("Requested to abort an unknown allocation, ignored")
+            .With("AllocationId", allocationId)
+            .With(error);
         return;
     }
 
-    YT_LOG_DEBUG(
-        error,
-        "Aborting allocation by internal request (AllocationId: %v, OperationId: %v, AbortReason: %v)",
-        allocationId,
-        allocation->GetOperationId(),
-        abortReason);
+    YT_TLOG_DEBUG("Aborting allocation by internal request")
+        .With("AllocationId", allocationId)
+        .With("OperationId", allocation->GetOperationId())
+        .With("AbortReason", abortReason)
+        .With(error);
 
     OnAllocationAborted(allocation, error, abortReason);
 }
@@ -1220,6 +1235,10 @@ void TNodeShard::AbortAllocations(const std::vector<TAllocationId>& allocationId
 TNodeYsonList TNodeShard::BuildNodeYsonList() const
 {
     YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
+
+    // NB: A context switch under #BuildNodeYson would let node (un)registration
+    // invalidate the iterator, so it is explicitly forbidden here.
+    TForbidContextSwitchGuard guard;
 
     TNodeYsonList nodeYsons;
     nodeYsons.reserve(std::ssize(IdToNode_));
@@ -1347,11 +1366,9 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
 
     auto it = AllocationIdToScheduleEntry_.find(allocationId);
     if (it == std::end(AllocationIdToScheduleEntry_)) {
-        YT_LOG_WARNING(
-            "No schedule entry for allocation, probably allocation was scheduled by controller too late; aborting allocation in controller "
-            "(OperationId: %v, AllocationId: %v)",
-            operationId,
-            allocationId);
+        YT_TLOG_WARNING("No schedule entry for allocation, probably allocation was scheduled by controller too late; aborting allocation in controller")
+            .With("OperationId", operationId)
+            .With("AllocationId", allocationId);
 
         if (auto* operation = FindOperationState(operationId)) {
             const auto& controller = operation->Controller;
@@ -1370,12 +1387,11 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
 
     auto scheduleAllocationDuration = CpuDurationToDuration(GetCpuInstant() - entry.StartTime);
     if (scheduleAllocationDuration > Config_->ScheduleAllocationDurationLoggingThreshold) {
-        YT_LOG_DEBUG(
-            "Allocation schedule response received (OperationId: %v, AllocationId: %v, Success: %v, Duration: %v)",
-            operationId,
-            allocationId,
-            response.success(),
-            scheduleAllocationDuration.MilliSeconds());
+        YT_TLOG_DEBUG("Allocation schedule response received")
+            .With("OperationId", operationId)
+            .With("AllocationId", allocationId)
+            .With("Success", response.success())
+            .With("Duration", scheduleAllocationDuration.MilliSeconds());
     }
 
     auto result = New<TControllerScheduleAllocationResult>();
@@ -1387,6 +1403,9 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
         FromProto(
             &(result->StartDescriptor->AllocationAttributes),
             response.allocation_attributes());
+        // A successful schedule response always carries the allocation group name.
+        YT_VERIFY(response.has_allocation_group_name());
+        result->StartDescriptor->AllocationGroupName = FromProto<std::string>(response.allocation_group_name());
     }
     for (const auto& protoCounter : response.failed()) {
         result->Failed[static_cast<EScheduleFailReason>(protoCounter.reason())] = protoCounter.value();
@@ -1417,7 +1436,7 @@ void TNodeShard::RemoveOutdatedScheduleAllocationEntries()
     for (auto allocationId : allocationIdsToRemove) {
         auto it = AllocationIdToScheduleEntry_.find(allocationId);
         if (it == std::end(AllocationIdToScheduleEntry_)) {
-            return;
+            continue;
         }
 
         auto& entry = it->second;
@@ -1490,7 +1509,9 @@ void TNodeShard::RegisterAgent(
     NNodeTrackerClient::TAddressMap addresses,
     TIncarnationId incarnationId)
 {
-    YT_LOG_DEBUG("Agent registered at node shard (AgentId: %v, IncarnationId: %v)", id, incarnationId);
+    YT_TLOG_DEBUG("Agent registered at node shard")
+        .With("AgentId", id)
+        .With("IncarnationId", incarnationId);
 
     EmplaceOrCrash(
         RegisteredAgents_,
@@ -1503,7 +1524,8 @@ void TNodeShard::RegisterAgent(
 
 void TNodeShard::UnregisterAgent(TAgentId id)
 {
-    YT_LOG_DEBUG("Agent unregistered from node shard (AgentId: %v)", id);
+    YT_TLOG_DEBUG("Agent unregistered from node shard")
+        .With("AgentId", id);
 
     auto it = GetIteratorOrCrash(RegisteredAgents_, id);
     const auto& info = it->second;
@@ -1543,7 +1565,8 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
     allocation->SetPreemptibleProgressStartTime(newPreemptibleProgressStartTime);
 
     if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
-        YT_LOG_DEBUG("Preemptible progress reset (AllocationId: %v)", allocation->GetId());
+        YT_TLOG_DEBUG("Preemptible progress reset")
+            .With("AllocationId", allocation->GetId());
         auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
             allocation,
             operationState);
@@ -1552,7 +1575,7 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
 }
 
 void TNodeShard::UpdateCumulativeUnutilizedResources(
-    const EUnutilizedResourceReason reason,
+    EUnutilizedResourceReason reason,
     const TJobResources& resources,
     const TCompactVector<NProfiling::TTag, 2>& tags)
 {
@@ -1582,22 +1605,22 @@ NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
             .OperationId = allocation->GetOperationId(),
             .AllocationId = allocation->GetId(),
             .TreeId = allocation->GetTreeId(),
-            .AllocationResources = allocation->ResourceUsage(),
             .AllocationDataCenter = allocation->GetNode()->NodeDescriptor().GetDataCenter(),
             .AllocationInfinibandCluster = allocation->GetNode()->GetInfinibandCluster(),
         };
 
         operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
-    } else {
-        allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
     }
+
+    allocationToSubmitToStrategy.ControllerEpoch = operationState->ControllerEpoch;
 
     return allocationToSubmitToStrategy;
 }
 
 void TNodeShard::UpdateRunningAllocationsStatistics(const std::vector<TRunningAllocationStatisticsUpdate>& updates)
 {
-    YT_LOG_DEBUG("Update running allocation time statistics (UpdateCount: %v)", std::size(updates));
+    YT_TLOG_DEBUG("Update running allocation time statistics")
+        .With("UpdateCount", std::size(updates));
 
     // Allocation statistics currently contain only progress info.
     for (auto [allocationId, progressInfo] : updates) {
@@ -1615,8 +1638,8 @@ void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
     }
     auto node = it->second;
 
-    YT_LOG_INFO("Node lease expired, unregistering (Address: %v)",
-        node->GetDefaultAddress());
+    YT_TLOG_INFO("Node lease expired, unregistering")
+        .With("Address", node->GetDefaultAddress());
 
     UnregisterNode(node);
 
@@ -1671,7 +1694,8 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
 
     node->SetLastSeenTime(TInstant::Now());
 
-    YT_LOG_INFO("Node registered (Address: %v)", address);
+    YT_TLOG_INFO("Node registered")
+        .With("Address", address);
 
     return node;
 }
@@ -1683,17 +1707,17 @@ void TNodeShard::RemoveNode(TExecNodePtr node)
 
     IdToNode_.erase(node->GetId());
 
-    YT_LOG_INFO("Node removed (NodeId: %v, Address: %v, NodeShardId: %v)",
-        node->GetId(),
-        node->GetDefaultAddress(),
-        Id_);
+    YT_TLOG_INFO("Node removed")
+        .With("NodeId", node->GetId())
+        .With("Address", node->GetDefaultAddress())
+        .With("NodeShardId", Id_);
 }
 
 void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 {
     if (node->GetHasOngoingHeartbeat()) {
-        YT_LOG_INFO("Node unregistration postponed until heartbeat is finished (Address: %v)",
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node unregistration postponed until heartbeat is finished")
+            .With("Address", node->GetDefaultAddress());
         node->SetHasPendingUnregistration(true);
     } else {
         DoUnregisterNode(node);
@@ -1718,14 +1742,15 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     ManagerHost_->GetStrategy()->UnregisterNode(node->GetId(), address);
 
-    YT_LOG_INFO("Node unregistered (Address: %v)", address);
+    YT_TLOG_INFO("Node unregistered")
+        .With("Address", address);
 }
 
 void TNodeShard::AbortAllAllocationsAtNode(const TExecNodePtr& node, EAbortReason reason)
 {
     if (node->GetHasOngoingHeartbeat()) {
-        YT_LOG_INFO("Allocations abortion postponed until heartbeat is finished (Address: %v)",
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Allocations abortion postponed until heartbeat is finished")
+            .With("Address", node->GetDefaultAddress());
         node->SetPendingAllocationsAbortionReason(reason);
     } else {
         DoAbortAllAllocationsAtNode(node, reason);
@@ -1739,16 +1764,15 @@ void TNodeShard::DoAbortAllAllocationsAtNode(const TExecNodePtr& node, EAbortRea
         allocationIds.push_back(allocation->GetId());
     }
     const auto& address = node->GetDefaultAddress();
-    YT_LOG_DEBUG(
-        "Aborting all allocations on a node (Address: %v, Reason: %v, AllocationIds: %v)",
-        address,
-        reason,
-        allocationIds);
+    YT_TLOG_DEBUG("Aborting all allocations on a node")
+        .With("Address", address)
+        .With("Reason", reason)
+        .With("AllocationIds", allocationIds);
 
     // Make a copy, the collection will be modified.
     auto allocations = node->Allocations();
     auto error = TError("All allocations on the node were aborted by scheduler")
-        << TErrorAttribute("abort_reason", reason);
+        .With("abort_reason", reason);
     for (const auto& allocation : allocations) {
         OnAllocationAborted(allocation, error, reason);
     }
@@ -1803,9 +1827,13 @@ void TNodeShard::ProcessHeartbeatAllocations(
                 &allocationStatus);
         } catch (const std::exception& ex) {
             if (Config_->CrashOnAllocationHeartbeatProcessingException) {
-                YT_LOG_FATAL(ex, "Failed to process allocation heartbeat (AllocationId: %v)", allocationId);
+                YT_TLOG_FATAL("Failed to process allocation heartbeat")
+                    .With("AllocationId", allocationId)
+                    .With(ex);
             } else {
-                YT_LOG_WARNING(ex, "Failed to process allocation heartbeat (AllocationId: %v)", allocationId);
+                YT_TLOG_WARNING("Failed to process allocation heartbeat")
+                    .With("AllocationId", allocationId)
+                    .With(ex);
                 throw;
             }
         }
@@ -1849,11 +1877,10 @@ void TNodeShard::ProcessHeartbeatAllocations(
                 // This situation is possible if heartbeat from node has timed out,
                 // but we have scheduled some allocations.
                 // TODO(ignat):  YT-15875: consider deadline from node.
-                YT_LOG_INFO(
-                    "Allocation is disappeared from node (Address: %v, AllocationId: %v, OperationId: %v)",
-                    node->GetDefaultAddress(),
-                    allocation->GetId(),
-                    allocation->GetOperationId());
+                YT_TLOG_INFO("Allocation is disappeared from node")
+                    .With("Address", node->GetDefaultAddress())
+                    .With("AllocationId", allocation->GetId())
+                    .With("OperationId", allocation->GetOperationId());
                 missingAllocations.push_back(allocation);
             } else {
                 allocation->SetFoundOnNode(false);
@@ -1861,9 +1888,11 @@ void TNodeShard::ProcessHeartbeatAllocations(
         }
 
         auto error = TError("Allocation disappeared from node")
-            << TErrorAttribute("abort_reason", EAbortReason::DisappearedFromNode);
+            .With("abort_reason", EAbortReason::DisappearedFromNode);
         for (const auto& allocation : missingAllocations) {
-            YT_LOG_DEBUG("Aborting vanished allocation (AllocationId: %v, OperationId: %v)", allocation->GetId(), allocation->GetOperationId());
+            YT_TLOG_DEBUG("Aborting vanished allocation")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
             OnAllocationAborted(allocation, error, EAbortReason::DisappearedFromNode);
         }
     }
@@ -1898,24 +1927,18 @@ void TNodeShard::LogOngoingAllocationsOnHeartbeat(
     const TStateToAllocationList& ongoingAllocationsByState,
     const TExecNodePtr& node) const
 {
+    TForbidContextSwitchGuard guard;
+
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& allocations = ongoingAllocationsByState[allocationState];
         if (allocations.empty() || !strategyProxy->HasMatchingTree()) {
             continue;
         }
 
-        TStringBuilder attributesBuilder;
-        TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
-        strategyProxy->BuildSchedulingAttributesStringForOngoingAllocations(
-            allocations,
-            now,
-            delimitedAttributesBuilder);
-
-        YT_LOG_DEBUG(
-            "Allocations are %lv (%v, NodeAddress: %v)",
-            allocationState,
-            attributesBuilder.Flush(),
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Ongoing allocations on heartbeat")
+            .With("AllocationState", allocationState)
+            .With(strategyProxy->BuildSchedulingAttributeTagsForOngoingAllocations(allocations, now))
+            .With("NodeAddress", node->GetDefaultAddress());
     }
 }
 
@@ -1939,19 +1962,18 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     auto operationState = FindOperationState(operationId);
 
     if (!allocation) {
-        auto Logger = SchedulerLogger().WithTag(
-            "Address: %v, AllocationId: %v, OperationId: %v, AllocationState: %v",
-            address,
-            allocationId,
-            operationId,
-            allocationState);
+        auto Logger = SchedulerLogger()
+            .WithTag("Address", address)
+            .WithTag("AllocationId", allocationId)
+            .WithTag("OperationId", operationId)
+            .WithTag("AllocationState", allocationState);
 
         // We can decide what to do with the allocation of an operation only when all allocations are revived.
         if ((operationState && operationState->WaitingForRevival) ||
             WaitingForRegisterOperationIds_.contains(operationId))
         {
             if (operationState && !operationState->OperationUnreadyLoggedAllocationIds.contains(allocationId)) {
-                YT_LOG_DEBUG("Allocation is skipped since operation allocations are not ready yet");
+                YT_TLOG_DEBUG("Allocation is skipped since operation allocations are not ready yet");
                 operationState->OperationUnreadyLoggedAllocationIds.insert(allocationId);
             }
             return nullptr;
@@ -1959,21 +1981,21 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
 
         switch (allocationState) {
             case EAllocationState::Finished:
-                YT_LOG_DEBUG("Unknown allocation has finished");
+                YT_TLOG_DEBUG("Unknown allocation has finished");
                 break;
 
             case EAllocationState::Running:
                 AddAllocationToAbort(response, {allocationId, /*AbortReason*/ std::nullopt});
-                YT_LOG_DEBUG("Unknown allocation is running, abort it");
+                YT_TLOG_DEBUG("Unknown allocation is running, abort it");
                 break;
 
             case EAllocationState::Waiting:
                 AddAllocationToAbort(response, {allocationId, /*AbortReason*/ std::nullopt});
-                YT_LOG_DEBUG("Unknown allocation is waiting, abort it");
+                YT_TLOG_DEBUG("Unknown allocation is waiting, abort it");
                 break;
 
             case EAllocationState::Finishing:
-                YT_LOG_DEBUG("Unknown allocation is finishing");
+                YT_TLOG_DEBUG("Unknown allocation is finishing");
                 break;
 
             default:
@@ -1996,16 +2018,14 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
                 // Allocation is already finishing, do nothing.
                 break;
             case EAllocationState::Finished:
-                YT_LOG_WARNING(
-                    "Allocation status report was expected from other node (ExpectedAddress: %v)",
-                    node->GetDefaultAddress());
+                YT_TLOG_WARNING("Allocation status report was expected from other node")
+                    .With("ExpectedAddress", node->GetDefaultAddress());
                 break;
             case EAllocationState::Waiting:
             case EAllocationState::Running:
                 AddAllocationToAbort(response, {allocationId, EAbortReason::JobOnUnexpectedNode});
-                YT_LOG_WARNING(
-                    "Allocation status report was expected from other node, abort scheduled (ExpectedAddress: %v)",
-                    node->GetDefaultAddress());
+                YT_TLOG_WARNING("Allocation status report was expected from other node, abort scheduled")
+                    .With("ExpectedAddress", node->GetDefaultAddress());
                 break;
             default:
                 YT_ABORT();
@@ -2020,7 +2040,8 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
             if (auto error = FromProto<TError>(allocationStatus->result().error());
                 !error.IsOK())
             {
-                YT_LOG_DEBUG(error, "Allocation finished with error");
+                YT_TLOG_DEBUG("Allocation finished with error")
+                    .With(error);
 
                 if (ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed) {
                     OnAllocationAborted(allocation, error, EAbortReason::GetSpecFailed);
@@ -2028,7 +2049,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
                     OnAllocationFinished(allocation);
                 }
             } else {
-                YT_LOG_DEBUG("Allocation finished");
+                YT_TLOG_DEBUG("Allocation finished");
 
                 OnAllocationFinished(allocation);
             }
@@ -2043,12 +2064,12 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
             }
             switch (allocationState) {
                 case EAllocationState::Running:
-                    YT_LOG_DEBUG_IF(stateChanged, "Allocation is now running");
+                    YT_TLOG_DEBUG_IF(stateChanged, "Allocation is now running");
                     OnAllocationRunning(allocation, allocationStatus);
                     break;
 
                 case EAllocationState::Waiting:
-                    YT_LOG_DEBUG_IF(stateChanged, "Allocation is now waiting");
+                    YT_TLOG_DEBUG_IF(stateChanged, "Allocation is now waiting");
                     break;
                 default:
                     YT_ABORT();
@@ -2064,7 +2085,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
             break;
 
         case EAllocationState::Finishing:
-            YT_LOG_DEBUG("Allocation is finishing");
+            YT_TLOG_DEBUG("Allocation is finishing");
             break;
 
         default:
@@ -2077,10 +2098,10 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
 bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
 {
     if (ConcurrentHeartbeatComplexity_ >= Config_->SchedulingHeartbeatComplexityLimit) {
-        YT_LOG_DEBUG("Heartbeat complexity limit reached (NodeAddress: %v, TotalHeartbeatComplexity: %v, CurrentComplexity: %v)",
-            node->GetDefaultAddress(),
-            ConcurrentHeartbeatComplexity_.load(),
-            node->GetSchedulingHeartbeatComplexity());
+        YT_TLOG_DEBUG("Heartbeat complexity limit reached")
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("TotalHeartbeatComplexity", ConcurrentHeartbeatComplexity_.load())
+            .With("CurrentComplexity", node->GetSchedulingHeartbeatComplexity());
 
         if (GlobalSensors_) {
             GlobalSensors_->ConcurrentHeartbeatComplexityLimitReachedCounter().Increment();
@@ -2095,10 +2116,10 @@ bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
 bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
 {
     if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
-        YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-            node->GetDefaultAddress(),
-            Config_->HardConcurrentHeartbeatLimit,
-            ConcurrentHeartbeatCount_);
+        YT_TLOG_INFO("Hard heartbeat limit reached")
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("Limit", Config_->HardConcurrentHeartbeatLimit)
+            .With("Count", ConcurrentHeartbeatCount_);
 
         if (GlobalSensors_) {
             GlobalSensors_->HardConcurrentHeartbeatLimitReachedCounter().Increment();
@@ -2110,10 +2131,10 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
     if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
-        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-            node->GetDefaultAddress(),
-            Config_->SoftConcurrentHeartbeatLimit,
-            ConcurrentHeartbeatCount_);
+        YT_TLOG_DEBUG("Soft heartbeat limit reached")
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("Limit", Config_->SoftConcurrentHeartbeatLimit)
+            .With("Count", ConcurrentHeartbeatCount_);
 
         if (GlobalSensors_) {
             GlobalSensors_->SoftConcurrentHeartbeatLimitReachedCounter().Increment();
@@ -2233,18 +2254,16 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
     for (const auto& [allocation, _] : schedulingHeartbeatContext->StartedAllocations()) {
         auto* operationState = FindOperationState(allocation->GetOperationId());
         if (!operationState) {
-            YT_LOG_DEBUG(
-                "Allocation cannot be started since operation is no longer known (AllocationId: %v, OperationId: %v)",
-                allocation->GetId(),
-                allocation->GetOperationId());
+            YT_TLOG_DEBUG("Allocation cannot be started since operation is no longer known")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
             continue;
         }
 
         if (operationState->ForbidNewAllocations) {
-            YT_LOG_DEBUG(
-                "Allocation cannot be started since new allocations are forbidden (AllocationId: %v, OperationId: %v)",
-                allocation->GetId(),
-                allocation->GetOperationId());
+            YT_TLOG_DEBUG("Allocation cannot be started since new allocations are forbidden")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
             if (!operationState->ControllerTerminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledAllocationAborted(
@@ -2263,20 +2282,17 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         const auto& controller = operationState->Controller;
         auto agent = controller->FindAgent();
         if (!agent) {
-            YT_LOG_DEBUG(
-                "Cannot start allocation: agent is no longer known (AllocationId: %v, OperationId: %v)",
-                allocation->GetId(),
-                allocation->GetOperationId());
+            YT_TLOG_DEBUG("Cannot start allocation: agent is no longer known")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
             continue;
         }
         if (agent->GetIncarnationId() != allocation->GetIncarnationId()) {
-            YT_LOG_DEBUG(
-                "Cannot start allocation: wrong agent incarnation "
-                "(AllocationId: %v, OperationId: %v, ExpectedIncarnationId: %v, ActualIncarnationId: %v)",
-                allocation->GetId(),
-                allocation->GetOperationId(),
-                allocation->GetIncarnationId(),
-                agent->GetIncarnationId());
+            YT_TLOG_DEBUG("Cannot start allocation: wrong agent incarnation")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId())
+                .With("ExpectedIncarnationId", allocation->GetIncarnationId())
+                .With("ActualIncarnationId", agent->GetIncarnationId());
             continue;
         }
 
@@ -2299,10 +2315,9 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         auto& allocation = preemptedAllocation.Allocation;
         auto preemptionTimeout = preemptedAllocation.PreemptionTimeout;
         if (!FindOperationState(allocation->GetOperationId()) || allocation->GetUnregistered()) {
-            YT_LOG_DEBUG(
-                "Cannot preempt allocation since operation is no longer known or the allocation is unregistered (AllocationId: %v, OperationId: %v)",
-                allocation->GetId(),
-                allocation->GetOperationId());
+            YT_TLOG_DEBUG("Cannot preempt allocation since operation is no longer known or the allocation is unregistered")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", allocation->GetOperationId());
             continue;
         }
 
@@ -2330,7 +2345,8 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
             allocation,
             operationState);
 
-        allocationToSubmitToStrategy.ResourceUsageUpdated = true;
+        allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
+        allocationToSubmitToStrategy.ResourcesUpdateTime = now;
     }
 }
 
@@ -2396,16 +2412,46 @@ void TNodeShard::SubmitAllocationsToStrategy()
 
             for (const auto& [allocationId, abortReason] : allocationsToAbort) {
                 auto error = TError("Aborting allocation by strategy request")
-                    << TErrorAttribute("abort_reason", abortReason);
+                    .With("abort_reason", abortReason);
                 AbortAllocation(allocationId, error, abortReason);
             }
 
             for (const auto& allocationId : allocationsToPostpone) {
-                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationsToSubmit[allocationId]));
+                auto& allocationUpdate = GetOrCrash(allocationsToSubmit, allocationId);
+
+                // An update produced before a revival must not be replayed after it: revival recreates
+                // an allocation state for every allocation of the controller agent's snapshot, so a
+                // stale finish would retire a live allocation.
+                auto* operationState = FindOperationState(allocationUpdate.OperationId);
+                if (!operationState || operationState->ControllerEpoch != allocationUpdate.ControllerEpoch) {
+                    continue;
+                }
+
+                // The submit map was swapped out while the batch was in flight, so it may already hold
+                // another update for this allocation, produced by a heartbeat or re-added by another
+                // parked batch. Folding the two together is what keeps a finish from being dropped.
+                // NB: try_emplace does not touch |allocationUpdate| when the key is already present.
+                auto [it, inserted] = AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationUpdate));
+                if (!inserted) {
+                    auto& submittedUpdate = it->second;
+                    MergeAllocationUpdates(&submittedUpdate, allocationUpdate);
+                }
+
+                // NB: A concurrent batch's erase loop below may have dropped this allocation from the
+                // per-operation index while this batch was in flight, and an entry missing from the
+                // index survives every purge.
+                operationState->AllocationsToSubmitToStrategy.insert(allocationId);
             }
 
             for (const auto& allocation : allocationUpdates) {
                 if (allocationsToPostpone.contains(allocation.AllocationId)) {
+                    continue;
+                }
+
+                // A newer update for this allocation may have been produced while the batch was in
+                // flight. The per-operation index must keep mirroring the global submit map, otherwise
+                // that update is dropped by the guard above and its entry outlives every purge.
+                if (AllocationsToSubmitToStrategy_.contains(allocation.AllocationId)) {
                     continue;
                 }
 
@@ -2624,16 +2670,14 @@ void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
         GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
     }
 
-    YT_LOG_DEBUG(
-        "Allocation registered "
-        "(AllocationId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v, NodeId: %v, NodeAddress: %v)",
-        allocation->GetId(),
-        allocation->IsRevived(),
-        allocation->GetOperationId(),
-        allocation->GetControllerEpoch(),
-        allocation->GetSchedulingIndex(),
-        node->GetId(),
-        node->GetDefaultAddress());
+    YT_TLOG_DEBUG("Allocation registered")
+        .With("AllocationId", allocation->GetId())
+        .With("Revived", allocation->IsRevived())
+        .With("OperationId", allocation->GetOperationId())
+        .With("ControllerEpoch", allocation->GetControllerEpoch())
+        .With("SchedulingIndex", allocation->GetSchedulingIndex())
+        .With("NodeId", node->GetId())
+        .With("NodeAddress", node->GetDefaultAddress());
 
     if (allocation->IsRevived()) {
         allocation->GetNode()->AllocationsToAbort().erase(allocation->GetId());
@@ -2664,17 +2708,13 @@ void TNodeShard::UnregisterAllocation(const TAllocationPtr& allocation, bool cau
 
         allocationToSubmitToStrategy.Finished = true;
 
-        YT_LOG_DEBUG_IF(
-            !causedByRevival,
-            "Allocation unregistered (AllocationId: %v, OperationId: %v)",
-            allocationId,
-            allocation->GetOperationId());
+        YT_TLOG_DEBUG_IF(!causedByRevival, "Allocation unregistered")
+            .With("AllocationId", allocationId)
+            .With("OperationId", allocation->GetOperationId());
     } else {
-        YT_LOG_DEBUG_IF(
-            !causedByRevival,
-            "Dangling allocation unregistered (AllocationId: %v, OperationId: %v)",
-            allocationId,
-            allocation->GetOperationId());
+        YT_TLOG_DEBUG_IF(!causedByRevival, "Dangling allocation unregistered")
+            .With("AllocationId", allocationId)
+            .With("OperationId", allocation->GetOperationId());
     }
 }
 
@@ -2683,10 +2723,9 @@ void TNodeShard::SendPreemptedAllocationToNode(
     const TAllocationPtr& allocation,
     TDuration preemptionTimeout) const
 {
-    YT_LOG_DEBUG(
-        "Add allocation to preempt (AllocationId: %v, PreemptionTimeout: %v)",
-        allocation->GetId(),
-        preemptionTimeout);
+    YT_TLOG_DEBUG("Add allocation to preempt")
+        .With("AllocationId", allocation->GetId())
+        .With("PreemptionTimeout", preemptionTimeout);
     AddAllocationToPreempt(
         response,
         allocation->GetId(),
@@ -2706,12 +2745,11 @@ void TNodeShard::ProcessPreemptedAllocation(
 
 void TNodeShard::PreemptAllocation(const TAllocationPtr& allocation, TCpuDuration preemptionTimeout)
 {
-    YT_LOG_DEBUG(
-        "Preempting allocation (AllocationId: %v, OperationId: %v, TreeId: %v, Reason: %v)",
-        allocation->GetId(),
-        allocation->GetOperationId(),
-        allocation->GetTreeId(),
-        allocation->GetPreemptionReason());
+    YT_TLOG_DEBUG("Preempting allocation")
+        .With("AllocationId", allocation->GetId())
+        .With("OperationId", allocation->GetOperationId())
+        .With("TreeId", allocation->GetTreeId())
+        .With("Reason", allocation->GetPreemptionReason());
 
     DoPreemptAllocation(allocation, preemptionTimeout);
 }
@@ -2721,11 +2759,10 @@ void TNodeShard::DoPreemptAllocation(
     const TAllocationPtr& allocation,
     TCpuDuration preemptionTimeout)
 {
-    YT_LOG_DEBUG(
-        "Preempting allocation (PreemptionTimeout: %.3g, AllocationId: %v, OperationId: %v)",
-        CpuDurationToDuration(preemptionTimeout).SecondsFloat(),
-        allocation->GetId(),
-        allocation->GetOperationId());
+    YT_TLOG_DEBUG("Preempting allocation")
+        .WithFormat("PreemptionTimeout", "%.3g", CpuDurationToDuration(preemptionTimeout).SecondsFloat())
+        .With("AllocationId", allocation->GetId())
+        .With("OperationId", allocation->GetOperationId());
 
     allocation->SetPreempted(true);
 
@@ -2737,10 +2774,9 @@ void TNodeShard::DoPreemptAllocation(
 void TNodeShard::ProcessAllocationsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node)
 {
     for (auto& [allocationId, abortReason] : node->AllocationsToAbort()) {
-        YT_LOG_DEBUG(
-            "Sent allocation abort request to node (Reason: %v, AllocationId: %v)",
-            abortReason,
-            allocationId);
+        YT_TLOG_DEBUG("Sent allocation abort request to node")
+            .With("Reason", abortReason)
+            .With("AllocationId", allocationId);
         AddAllocationToAbort(response, {allocationId, abortReason});
     }
 

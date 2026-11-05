@@ -20,7 +20,7 @@ from confluent_kafka.avro.error import ClientError
 
 
 def loads(schema_str):
-    """ Parse a schema given a schema string """
+    """Parse a schema given a schema string"""
     try:
         return schema.parse(schema_str)
     except SchemaParseException as e:
@@ -28,7 +28,7 @@ def loads(schema_str):
 
 
 def load(fp):
-    """ Parse a schema from a file path """
+    """Parse a schema from a file path"""
     with open(fp) as f:
         return loads(f.read())
 
@@ -47,11 +47,11 @@ try:
         from avro.errors import SchemaParseException
     except ImportError:
         # avro < 1.11.0
-        from avro.schema import SchemaParseException
+        from avro.schema import SchemaParseException  # type: ignore[attr-defined,no-redef]
 
-    schema.RecordSchema.__hash__ = _hash_func
-    schema.PrimitiveSchema.__hash__ = _hash_func
-    schema.UnionSchema.__hash__ = _hash_func
+    schema.RecordSchema.__hash__ = _hash_func  # type: ignore[method-assign]
+    schema.PrimitiveSchema.__hash__ = _hash_func  # type: ignore[method-assign]
+    schema.UnionSchema.__hash__ = _hash_func  # type: ignore[method-assign]
 
 except ImportError:
-    schema = None
+    schema = None  # type: ignore[assignment]

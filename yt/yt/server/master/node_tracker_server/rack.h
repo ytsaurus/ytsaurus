@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NNodeTrackerServer {
 

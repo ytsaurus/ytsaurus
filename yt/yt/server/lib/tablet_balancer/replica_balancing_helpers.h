@@ -1,8 +1,9 @@
 #pragma once
 
+#include "metric.h"
 #include "public.h"
 
-#include <yt/yt/core/logging/log.h>
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -28,15 +29,17 @@ std::vector<double> GetCumulativeDistribution(
 // major table: [] ...10mb.. [3] ......100mb..... [5]; distribution: 0,  1/11, 1
 // minor metrics:  [.......m0......]     [..m1..]
 // minor by major: [1/10 m0]     [ 9/10 m0 + m1 ]
-std::vector<double> CalculateMajorMetricsBetweenSamePivots(
-    const TRange<double>& minorTableMetrics,
+template <int MetricSize>
+std::vector<TGenericMetric<MetricSize>> CalculateMajorMetricsBetweenSamePivots(
+    const TRange<TGenericMetric<MetricSize>>& minorTableMetrics,
     const TRange<i64>& majorTabletSizes,
     const TRange<i64>& minorTabletSizes,
     const NLogging::TLogger& logger = {},
     bool enableVerboseLogging = false);
 
-std::vector<double> CalculateMajorMetrics(
-    const std::vector<double>& minorTableMetrics,
+template <int MetricSize>
+std::vector<TGenericMetric<MetricSize>> CalculateMajorMetrics(
+    const std::vector<TGenericMetric<MetricSize>>& minorTableMetrics,
     const std::vector<i64>& majorTabletSizes,
     const std::vector<i64>& minorTabletSizes,
     const std::vector<NTableClient::TLegacyOwningKey>& majorTablePivotKeys,

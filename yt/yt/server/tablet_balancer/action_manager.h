@@ -6,9 +6,9 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -34,13 +34,19 @@ struct IActionManager
     // Thread affinity: Control.
     virtual void CancelPendingActions(const std::string& bundleName) = 0;
 
+    // Only for dry-run mode.
     // Thread affinity: Control.
-    virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId) = 0;
+    virtual int GetPendingActionCount(const std::string& bundleName) const = 0;
+    // Thread affinity: Control.
+    virtual TFuture<void> WaitForAllActions() = 0;
+
+    // Thread affinity: Control.
+    virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig = {}) = 0;
     // Thread affinity: Control.
     virtual void Stop() = 0;
 
     // Thread affinity: Control.
-    virtual void Reconfigure(const TActionManagerConfigPtr& config) = 0;
+    virtual void Reconfigure(const TActionManagerConfigPtr& config, int maxUnhealthyBundlesOnReplicaCluster) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IActionManager)
@@ -51,7 +57,9 @@ IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap,
-    IMulticellThrottlerPtr throttler);
+    IMulticellThrottlerPtr throttler,
+    IClusterStateProviderPtr clusterStateProvider,
+    int maxUnhealthyBundlesOnReplicaCluster);
 
 ////////////////////////////////////////////////////////////////////////////////
 

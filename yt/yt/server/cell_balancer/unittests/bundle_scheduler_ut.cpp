@@ -358,7 +358,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenterName);
 
-    const std::string nodeId = input.BundleNodes[bundleName].at(dataCenterName).front();
+    const std::string nodeId = input.NodesAllocatedForBundle[bundleName].at(dataCenterName).front();
 
     GetOrCrash(input.TabletNodes, nodeId)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
@@ -1277,7 +1277,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
 
     GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenterName);
 
-    const std::string proxyName = input.BundleProxies["bigd"].at(dataCenterName).front();
+    const std::string proxyName = input.ProxiesAllocatedForBundle["bigd"].at(dataCenterName).front();
     GetOrCrash(input.RpcProxies, proxyName)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
     {
@@ -1785,8 +1785,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 45,
-            .Chunks = 30,
+            .Nodes = 135,
+            .Chunks = 105,
             .Default = 105_MB,
             .SsdJournal = 75_MB,
         },
@@ -1794,8 +1794,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1045,
-            .Chunks = 2030,
+            .Nodes = 1135,
+            .Chunks = 2105,
             .Default = 106_MB,
             .SsdJournal = 75_MB
         },
@@ -1831,8 +1831,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 27,
-            .Chunks = 18,
+            .Nodes = 81,
+            .Chunks = 63,
             .Default = 63_MB,
             .SsdJournal = 45_MB
         },
@@ -1840,8 +1840,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1200,
-            .Chunks = 800,
+            .Nodes = 3600,
+            .Chunks = 2800,
             .SsdBlobs = 2800_MB,
             .SsdJournal = 2000_MB
         },
@@ -1849,8 +1849,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 2227,
-            .Chunks = 2818,
+            .Nodes = 4681,
+            .Chunks = 4863,
             .SsdBlobs = 2800_MB,
             .Default = 64_MB,
             .SsdJournal = 2045_MB
@@ -1864,8 +1864,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1800,
-            .Chunks = 1200,
+            .Nodes = 5400,
+            .Chunks = 4200,
             .SsdBlobs = 4200_MB,
             .SsdJournal = 3000_MB
         },
@@ -2474,6 +2474,38 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 }
 
 
+TEST_P(TBundleSchedulerTest, CheckCollidingBundleShortNames)
+{
+    const std::string bundleName = "my_b";
+    const std::string baseShortName = "my-b";
+
+    for (int suffix : {1, 10}) {
+        SCOPED_TRACE(suffix);
+
+        auto input = GenerateSimpleInputContext(/*nodeCount*/ 0);
+        SetBundleInfo(input, baseShortName, /*nodeCount*/ 0)->ShortName = baseShortName;
+        for (int index = 1; index < suffix; ++index) {
+            auto shortName = Format("%v%v", baseShortName, index);
+            SetBundleInfo(input, shortName, /*nodeCount*/ 0)->ShortName = shortName;
+        }
+        SetBundleInfo(input, bundleName, /*nodeCount*/ 1);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        auto expectedShortName = Format("%v%v", baseShortName, suffix);
+        EXPECT_EQ(expectedShortName, GetOrCrash(input.BundleToShortName, bundleName));
+        EXPECT_EQ(1, std::ssize(mutations.ChangedBundleShortName));
+        EXPECT_EQ(expectedShortName, GetOrCrash(mutations.ChangedBundleShortName, bundleName));
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+
+        ASSERT_EQ(1, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(
+            GetInstancePodIdTemplate(input.Config->Cluster, expectedShortName, "tab", /*index*/ 1),
+            mutations.NewAllocations.begin()->second->Spec->PodIdTemplate);
+    }
+}
+
 TEST_P(TBundleSchedulerTest, CheckBundleAutoShorteningName)
 {
     const std::string LongBundleName = "m_looooooong_bundle-name";
@@ -2610,6 +2642,139 @@ TEST_P(TBundleSchedulerTest, OfflineRpcProxiesGracePeriod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_P(TBundleSchedulerTest, DeallocateOfflineNodes)
+{
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+    const auto DeallocateOfflineInstanceAfter = TDuration::Hours(2);
+    const std::string bundleName = "bigd";
+
+    auto input = GenerateInputContext(5 * GetDataCenterCount(), DefaultCellCount);
+    auto dataCenters = GetDataCenters(input);
+
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    input.Config->DecommissionReleasedNodes = false;
+
+    THashSet<std::string> offlineNodes;
+
+    for (const auto& dataCenter : dataCenters) {
+        // Alive nodes.
+        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
+
+        // Offline, long enough to be deallocated.
+        for (const auto& nodeName : GenerateNodesForBundle(input, bundleName, 2, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter})) {
+            auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            nodeInfo->State = InstanceStateOffline;
+            nodeInfo->LastSeenTime = TInstant::Now() - DeallocateOfflineInstanceAfter * 2;
+            offlineNodes.insert(nodeName);
+        }
+
+        // Offline, but not long enough to be deallocated.
+        for (const auto& nodeName : GenerateNodesForBundle(input, bundleName, 2, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter})) {
+            auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            nodeInfo->State = InstanceStateOffline;
+            nodeInfo->LastSeenTime = TInstant::Now() - DeallocateOfflineInstanceAfter / 2;
+        }
+    }
+
+    // The option is not set, so offline nodes are kept.
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates[bundleName]->NodeDeallocations));
+
+    // Setting the option, offline nodes will be deallocated.
+    input.DynamicConfig->DeallocateOfflineInstanceAfter = DeallocateOfflineInstanceAfter;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(std::ssize(offlineNodes), std::ssize(mutations.ChangedStates[bundleName]->NodeDeallocations));
+
+    for (const auto& [_, deallocation] : mutations.ChangedStates[bundleName]->NodeDeallocations) {
+        EXPECT_TRUE(offlineNodes.contains(deallocation->InstanceName));
+        EXPECT_EQ(deallocation->Strategy, DeallocationStrategyHulkRequest);
+    }
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    auto& bundleState = mutations.ChangedStates[bundleName];
+    VerifyMultiDCNodeDeallocationRequests(mutations, bundleState, ForEachDataCenter(input, 2));
+}
+
+TEST_P(TBundleSchedulerTest, DeallocateOfflineProxies)
+{
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+    const auto DeallocateOfflineInstanceAfter = TDuration::Hours(2);
+    const std::string bundleName = "bigd";
+
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 5 * GetDataCenterCount());
+    auto dataCenters = GetDataCenters(input);
+
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+
+    THashSet<std::string> offlineProxies;
+
+    for (const auto& dataCenter : dataCenters) {
+        // Alive proxies.
+        GenerateProxiesForBundle(input, bundleName, 5, false, dataCenter);
+
+        // Offline, long enough to be deallocated.
+        for (const auto& proxyName : GenerateProxiesForBundle(input, bundleName, 2, false, dataCenter)) {
+            auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+            proxyInfo->Alive.Reset();
+            proxyInfo->ModificationTime = TInstant::Now() - DeallocateOfflineInstanceAfter * 2;
+            offlineProxies.insert(proxyName);
+        }
+
+        // Offline, but not long enough to be deallocated.
+        for (const auto& proxyName : GenerateProxiesForBundle(input, bundleName, 2, false, dataCenter)) {
+            auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+            proxyInfo->Alive.Reset();
+            proxyInfo->ModificationTime = TInstant::Now() - DeallocateOfflineInstanceAfter / 2;
+        }
+    }
+
+    // The option is not set, so offline proxies are kept.
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates[bundleName]->ProxyDeallocations));
+
+    // Setting the option, offline proxies will be deallocated.
+    input.DynamicConfig->DeallocateOfflineInstanceAfter = DeallocateOfflineInstanceAfter;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(std::ssize(offlineProxies), std::ssize(mutations.ChangedStates[bundleName]->ProxyDeallocations));
+
+    for (const auto& [_, deallocation] : mutations.ChangedStates[bundleName]->ProxyDeallocations) {
+        EXPECT_TRUE(offlineProxies.contains(deallocation->InstanceName));
+        EXPECT_EQ(deallocation->Strategy, DeallocationStrategyHulkRequest);
+    }
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    auto& bundleState = mutations.ChangedStates[bundleName];
+    VerifyMultiDCProxyDeallocationRequests(mutations, bundleState, ForEachDataCenter(input, 2));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_P(TBundleSchedulerTest, CheckResourceLimits)
 {
     const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
@@ -2646,6 +2811,12 @@ TEST_P(TBundleSchedulerTest, CheckResourceLimits)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedTabletStaticMemory));
+
+    bundleInfo->Options->PeerCount = 2;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedTabletStaticMemory));
+    EXPECT_EQ(25_GBs * GetDataCenterCount(), mutations.ChangedTabletStaticMemory["bigd"]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4142,6 +4313,50 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
+TEST_P(TNodeTagsFilterManager, SpareNodeOperationsForRemovedBundle)
+{
+    for (bool releasing : {false, true}) {
+        auto input = GenerateInputContext(DefaultNodeCount);
+        auto dataCenters = GetDataCenters(input);
+        input.Zones["default-zone"]->SpareTargetConfig->TabletNodeCount = GetDataCenterCount();
+        auto nodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+        auto bundleState = New<TBundleControllerState>();
+        input.BundleStates["bigd"] = bundleState;
+        auto& operations = releasing
+            ? bundleState->SpareNodeReleasements
+            : bundleState->SpareNodeAssignments;
+
+        for (const auto& dataCenter : dataCenters) {
+            auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, /*nodeCount*/ 1, {.DC = dataCenter});
+            const auto& nodeName = *spareNodes.begin();
+            input.TabletNodes[nodeName]->UserTags.insert(nodeTagFilter);
+            operations[nodeName] = New<TNodeTagFilterOperationState>();
+        }
+
+        EraseOrCrash(input.Bundles, "bigd");
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        ASSERT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ("spare_node_operations_for_missing_bundle", mutations.AlertsToFire.front().Id);
+        EXPECT_EQ("bigd", mutations.AlertsToFire.front().BundleName);
+
+        for (const auto& dataCenter : dataCenters) {
+            const auto& spareNodes = input.ZoneToSpareNodes.at("default-zone").at(dataCenter);
+            EXPECT_EQ(1, std::ssize(spareNodes.FreeNodes));
+            EXPECT_TRUE(spareNodes.UsedByBundle.empty());
+            EXPECT_TRUE(spareNodes.ReleasingByBundle.empty());
+        }
+
+        operations.clear();
+        mutations = {};
+        ScheduleBundles(input, &mutations);
+
+        CheckEmptyAlerts(mutations);
+    }
+}
+
 TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)
 {
     const auto nodeCountPerDc = 7;
@@ -5244,6 +5459,8 @@ TEST(TDataCentersPriorityTest, MinimizingTabletMoves)
 
 TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
 {
+    NLogging::TLogManager::Get()->ConfigureFromEnv();
+
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(9, SlotCount);
@@ -5293,7 +5510,26 @@ TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(6, std::ssize(mutations.ChangedDecommissionedFlag));
+    // Will not release nodes from dc-2 since dc-1 is not ready.
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_FALSE(decommissioned);
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-1");
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Now dc-1 is ready, releasing nodes from dc-2.
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
@@ -5303,7 +5539,8 @@ TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
 
     for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        EXPECT_EQ(decommissioned, nodeInfo->BundleControllerAnnotations->DataCenter == "dc-2");
+        EXPECT_TRUE(decommissioned);
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-2");
         nodeInfo->Decommissioned = decommissioned;
     }
 

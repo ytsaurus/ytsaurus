@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/http/config.h>
 
+#include <yt/yt/core/https/config.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT::NServer {
@@ -50,8 +52,16 @@ void TServerBootstrapConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThan(65536);
+    registrar.Parameter("monitoring_https_port", &TThis::MonitoringHttpsPort)
+        .Optional()
+        .GreaterThanOrEqual(0)
+        .LessThan(65536);
+    registrar.Parameter("monitoring_https_credentials", &TThis::MonitoringHttpsCredentials)
+        .Optional();
     registrar.Parameter("expose_config_in_orchid", &TThis::ExposeConfigInOrchid)
         .Default(true);
+    registrar.Parameter("skip_sequoia_initialization", &TThis::SkipSequoiaInitialization)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->RpcPort > 0) {
@@ -59,6 +69,12 @@ void TServerBootstrapConfig::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
             }
             config->BusServer->Port = config->RpcPort;
+        }
+        if (config->MonitoringHttpsCredentials && !config->MonitoringHttpsPort) {
+            THROW_ERROR_EXCEPTION("\"monitoring_https_port\" must be set when \"monitoring_https_credentials\" is specified");
+        }
+        if (config->MonitoringHttpsPort && !config->MonitoringHttpsCredentials) {
+            THROW_ERROR_EXCEPTION("\"monitoring_https_credentials\" must be set when \"monitoring_https_port\" is specified");
         }
     });
 }
@@ -70,6 +86,20 @@ NHttp::TServerConfigPtr TServerBootstrapConfig::CreateMonitoringHttpServerConfig
     config->BindRetryCount = BusServer->BindRetryCount;
     config->BindRetryBackoff = BusServer->BindRetryBackoff;
     config->ServerName = "HttpMon";
+    return config;
+}
+
+NHttps::TServerConfigPtr TServerBootstrapConfig::CreateMonitoringHttpsServerConfig()
+{
+    if (!MonitoringHttpsPort) {
+        return nullptr;
+    }
+    auto config = New<NHttps::TServerConfig>();
+    config->Port = *MonitoringHttpsPort;
+    config->BindRetryCount = BusServer->BindRetryCount;
+    config->BindRetryBackoff = BusServer->BindRetryBackoff;
+    config->ServerName = "HttpsMon";
+    config->Credentials = MonitoringHttpsCredentials;
     return config;
 }
 
@@ -88,6 +118,7 @@ void TNativeServerBootstrapConfig::Register(TRegistrar registrar)
 void TDiskLocationConfig::ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig)
 {
     UpdateYsonStructField(MinDiskSpace, dynamicConfig.MinDiskSpace);
+    UpdateYsonStructField(DisableProfiling, dynamicConfig.DisableProfiling);
 }
 
 void TDiskLocationConfig::Register(TRegistrar registrar)
@@ -103,6 +134,8 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
         .Default(UnknownDeviceName);
     registrar.Parameter("device_model", &TThis::DeviceModel)
         .Default(UnknownDeviceModel);
+    registrar.Parameter("disable_profiling", &TThis::DisableProfiling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,6 +145,8 @@ void TDiskLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Optional();
+    registrar.Parameter("disable_profiling", &TThis::DisableProfiling)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

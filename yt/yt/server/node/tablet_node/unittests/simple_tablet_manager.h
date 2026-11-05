@@ -48,6 +48,7 @@ public:
     TTablet* FindOrphanedTablet(TTabletId id) const override;
     TTablet* GetTablet(const TTabletId& id) const override;
     const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const override;
+    NHiveClient::ICellDirectoryPtr GetCellDirectory() const override;
     ITransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;

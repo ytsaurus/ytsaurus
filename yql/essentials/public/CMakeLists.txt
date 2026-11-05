@@ -15,6 +15,3 @@
 add_subdirectory(udf)
 add_subdirectory(decimal)
 add_subdirectory(types)
-add_subdirectory(langver)
-add_subdirectory(issue)
-add_subdirectory(udf_meta)

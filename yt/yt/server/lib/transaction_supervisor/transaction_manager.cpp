@@ -18,7 +18,7 @@ void ToProto(
 {
     protoOptions->set_persistent(options.Persistent);
     protoOptions->set_late_prepare(options.LatePrepare);
-    protoOptions->set_prepare_timestamp(options.PrepareTimestamp);
+    protoOptions->set_prepare_timestamp(ToProto(options.PrepareTimestamp));
     protoOptions->set_prepare_timestamp_cluster_tag(ToProto(options.PrepareTimestampClusterTag));
     ToProto(
         protoOptions->mutable_prerequisite_transaction_ids(),
@@ -31,7 +31,7 @@ void FromProto(
 {
     options->Persistent = protoOptions.persistent();
     options->LatePrepare = protoOptions.late_prepare();
-    options->PrepareTimestamp = protoOptions.prepare_timestamp();
+    options->PrepareTimestamp = FromProto<NTransactionClient::TTimestamp>(protoOptions.prepare_timestamp());
     options->PrepareTimestampClusterTag = FromProto<TClusterTag>(
         protoOptions.prepare_timestamp_cluster_tag());
     FromProto(
@@ -43,7 +43,7 @@ void ToProto(
     NProto::TTransactionCommitOptions* protoOptions,
     const TTransactionCommitOptions& options)
 {
-    protoOptions->set_commit_timestamp(options.CommitTimestamp);
+    protoOptions->set_commit_timestamp(ToProto(options.CommitTimestamp));
     protoOptions->set_commit_timestamp_cluster_tag(ToProto(options.CommitTimestampClusterTag));
 }
 
@@ -51,7 +51,7 @@ void FromProto(
     TTransactionCommitOptions* options,
     const NProto::TTransactionCommitOptions& protoOptions)
 {
-    options->CommitTimestamp = protoOptions.commit_timestamp();
+    options->CommitTimestamp = FromProto<NTransactionClient::TTimestamp>(protoOptions.commit_timestamp());
     options->CommitTimestampClusterTag = FromProto<TClusterTag>(
         protoOptions.commit_timestamp_cluster_tag());
 }

@@ -43,7 +43,14 @@ enum EPileState {
     SYNCHRONIZED = 3 /* "synchronized" */,
     NOT_SYNCHRONIZED = 4 /* "not_synchronized" */,
     SUSPENDED = 5 /* "suspended" */,
-    DISCONNECTED = 6 /* "disconnected" */
+    DISCONNECTED = 6 /* "disconnected" */,
+    INACTIVE = 7 /* "inactive" */
+};
+
+enum class EGrpcCompressionAlgorithm {
+    None,
+    Deflate,
+    Gzip
 };
 
 class TBalancingPolicy {

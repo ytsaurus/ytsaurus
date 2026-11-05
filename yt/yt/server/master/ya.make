@@ -1,3 +1,5 @@
+INCLUDE(${ARCADIA_ROOT}/yt/ya_features.make.inc)
+
 LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
@@ -12,10 +14,15 @@ SRCS(
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
+    cell_master/cypress_integration.cpp
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
     cell_master/hydra_facade.cpp
     cell_master/hive_profiling_manager.cpp
+    cell_master/master_cell_group.cpp
+    cell_master/master_cell_group_manager.cpp
+    cell_master/master_cell_group_proxy.cpp
+    cell_master/master_cell_group_type_handler.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
@@ -49,6 +56,7 @@ SRCS(
     cell_server/cell_proxy_base.cpp
     cell_server/cell_tracker_impl.cpp
     cell_server/cell_tracker_service.cpp
+    cell_server/leader_smoothing.cpp
     cell_server/cell_tracker.cpp
     cell_server/cell_type_handler_base.cpp
     cell_server/cellar_node_tracker_service.cpp
@@ -68,6 +76,7 @@ SRCS(
     chaos_server/chaos_cell_proxy.cpp
     chaos_server/chaos_cell_type_handler.cpp
     chaos_server/chaos_cell.cpp
+    chaos_server/chaos_manager_cell_directory_synchronizer.cpp
     chaos_server/chaos_manager.cpp
     chaos_server/chaos_replicated_table_node_proxy.cpp
     chaos_server/chaos_replicated_table_node_type_handler.cpp
@@ -95,12 +104,14 @@ SRCS(
     chunk_server/chunk_owner_node_proxy.cpp
     chunk_server/chunk_owner_type_handler.cpp
     chunk_server/chunk_placement.cpp
+    chunk_server/chunk_prolongator.cpp
     chunk_server/chunk_proxy.cpp
     chunk_server/chunk_reincarnator.cpp
     chunk_server/chunk_replacer.cpp
     chunk_server/chunk_replica_fetcher.cpp
     chunk_server/chunk_replica.cpp
     chunk_server/chunk_replicator.cpp
+    chunk_server/chunk_statistics.cpp
     chunk_server/chunk_replication_queue.cpp
     chunk_server/chunk_requisition.cpp
     chunk_server/chunk_scanner.cpp
@@ -129,7 +140,6 @@ SRCS(
     chunk_server/dynamic_store_proxy.cpp
     chunk_server/dynamic_store_type_handler.cpp
     chunk_server/dynamic_store.cpp
-    chunk_server/global_sequoia_chunk_refresher.cpp
     chunk_server/helpers.cpp
     chunk_server/job_controller.cpp
     chunk_server/job_registry.cpp
@@ -147,11 +157,11 @@ SRCS(
     chunk_server/proto/data_node_tracker.proto
     chunk_server/proto/chunks_samples.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
-    chunk_server/public.cpp
     chunk_server/incumbency_epoch.cpp
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp
+    chunk_server/sequoia_chunk_refresher.cpp
     chunk_server/sequoia_replicas_modifier.cpp
     chunk_server/stored_chunk_replica.cpp
 
@@ -202,7 +212,7 @@ SRCS(
     cypress_server/scion_node.cpp
     cypress_server/scion_proxy.cpp
     cypress_server/scion_type_handler.cpp
-    cypress_server/sequoia_actions_executor.cpp
+    cypress_server/sequoia_actions_executor_state.cpp
     cypress_server/serialize.cpp
     cypress_server/shard_map_type_handler.cpp
     cypress_server/shard_proxy.cpp
@@ -314,7 +324,6 @@ SRCS(
     security_server/cluster_resources.cpp
     security_server/config.cpp
     security_server/cypress_integration.cpp
-    security_server/detailed_master_memory.cpp
     security_server/group_proxy.cpp
     security_server/group.cpp
     security_server/helpers.cpp
@@ -343,6 +352,8 @@ SRCS(
     sequoia_server/cypress_proxy_type_handler.cpp
     sequoia_server/helpers.cpp
     sequoia_server/ground_update_queue_manager.cpp
+    sequoia_server/revision.cpp
+    sequoia_server/prelock_tracker.cpp
     sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
 
@@ -391,6 +402,7 @@ SRCS(
     tablet_server/public.cpp
     tablet_server/replicated_table_tracker.cpp
     tablet_server/replicated_table_tracker_service.cpp
+    tablet_server/stores_update_throttler.cpp
     tablet_server/table_replica_proxy.cpp
     tablet_server/table_replica_type_handler.cpp
     tablet_server/table_replica.cpp
@@ -444,14 +456,27 @@ SRCS(
     transaction_server/proto/transaction_manager.proto
 )
 
+IF (YT_ENABLE_SEQUOIA)
+    SRCS(
+        cypress_server/sequoia_actions_executor.cpp
+    )
+ELSE()
+    SRCS(
+        cypress_server/sequoia_actions_executor_dummy.cpp
+    )
+ENDIF()
+
 PEERDIR(
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
     library/cpp/getopt
     library/cpp/yt/phdr_cache
+
+    yt/yt/core/https
 
     yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/tracing/jaeger
 
     yt/yt/ytlib/distributed_throttler
 

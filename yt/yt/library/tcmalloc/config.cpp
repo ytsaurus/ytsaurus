@@ -6,6 +6,24 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMemoryProfileRetentionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_dump_count", &TThis::MaxDumpCount)
+        .Optional()
+        .GreaterThan(0);
+    registrar.Parameter("max_dump_age", &TThis::MaxDumpAge)
+        .Optional()
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("max_total_size", &TThis::MaxTotalSize)
+        .Optional()
+        .GreaterThan(0);
+    registrar.Parameter("max_orphan_age", &TThis::MaxOrphanAge)
+        .Default(TDuration::Days(1))
+        .GreaterThan(TDuration::Zero());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void THeapSizeLimitConfig::ApplyDynamicInplace(const TDynamicHeapSizeLimitConfigPtr& dynamicConfig)
 {
     UpdateYsonStructField(ContainerMemoryRatio, dynamicConfig->ContainerMemoryRatio);
@@ -43,10 +61,17 @@ void THeapSizeLimitConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("memory_profile_dump_filename_suffix", &TThis::MemoryProfileDumpFilenameSuffix)
         .Default();
+    registrar.Parameter("memory_profile_retention", &TThis::MemoryProfileRetention)
+        .Default();
 
     registrar.Postprocessor([] (THeapSizeLimitConfig* config) {
         if (config->DumpMemoryProfileOnViolation && !config->MemoryProfileDumpPath) {
-            THROW_ERROR_EXCEPTION("\"memory_profile_dump_path\" must be set when \"dump_memory_profile_on_violation\" is true");
+            THROW_ERROR_EXCEPTION(
+                "\"memory_profile_dump_path\" must be set when \"dump_memory_profile_on_violation\" is true");
+        }
+        if (config->MemoryProfileRetention && !config->MemoryProfileDumpPath) {
+            THROW_ERROR_EXCEPTION(
+                "\"memory_profile_dump_path\" must be set when \"memory_profile_retention\" is configured");
         }
     });
 }
@@ -112,6 +137,8 @@ void TTCMallocConfig::Register(TRegistrar registrar)
         .Default(24_MB);
     registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
         .Default(32_MB);
+    registrar.Parameter("fail_fast_on_oom", &TThis::FailFastOnOom)
+        .Default(true);
 
     registrar.Parameter("heap_size_limit", &TThis::HeapSizeLimit)
         .DefaultNew();
@@ -148,4 +175,3 @@ void TDynamicTCMallocConfig::Register(TRegistrar registrar)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTCMalloc
-

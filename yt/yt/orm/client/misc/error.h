@@ -47,6 +47,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidReferenceMode) (100036))
     ((MigrationConflict) (100037))
     ((ValidationFailed) (100038))
+    ((SessionArenaSpaceLimitExceeded) (100039))
 );
 
 } // namespace NYT::NOrm::NClient

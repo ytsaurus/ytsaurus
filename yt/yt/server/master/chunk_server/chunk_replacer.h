@@ -1,13 +1,12 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
-
-#include <stack>
 
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <stack>
 
 namespace NYT::NChunkServer {
 

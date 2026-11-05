@@ -501,9 +501,9 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
 
     YT_VERIFY(targetSplitCount > 0);
 
-    YT_LOG_DEBUG_IF(verboseLogging, "AllShardCount: %v, TargetSplitCount: %v",
-        allShardCount,
-        targetSplitCount);
+    YT_TLOG_DEBUG_IF(verboseLogging, "Grouping splits by shards")
+        .With("AllShardCount", allShardCount)
+        .With("TargetSplitCount", targetSplitCount);
 
     std::vector<TSharedRange<TRowRange>> groupedSplits;
     std::vector<TRowRange> group;
@@ -523,12 +523,11 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
         currentShardCount += count;
 
         if (count == nextStep) {
-            YT_LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
-                lastSampleCount,
-                currentShardCount,
-                group.front().first,
-                group.back().second,
-                group.size());
+            YT_TLOG_DEBUG_IF(verboseLogging, "Making batch of ranges")
+                .With("LastSampleCount", lastSampleCount)
+                .With("CurrentShardCount", currentShardCount)
+                .WithFormat("Batch", "[%v .. %v]", group.front().first, group.back().second)
+                .With("RangeCount", group.size());
 
             for (size_t i = 0; i + 1 < group.size(); ++i) {
                 YT_QL_CHECK(group[i].second <= group[i + 1].first);
@@ -547,10 +546,9 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
         const auto& partition = *partitionIt;
         TRowRange partitionBounds(GetPivotKey(partition), GetNextPivotKey(partition));
 
-        YT_LOG_DEBUG_IF(verboseLogging, "Iterating over partition %v: [%v .. %v]",
-            partitionBounds,
-            beginIt - begin(ranges),
-            endIt - begin(ranges));
+        YT_TLOG_DEBUG_IF(verboseLogging, "Iterating over partition")
+            .With("PartitionBounds", partitionBounds)
+            .WithFormat("RangeIndexes", "[%v .. %v]", beginIt - begin(ranges), endIt - begin(ranges));
 
 
         auto slice = TRange(beginIt, endIt);

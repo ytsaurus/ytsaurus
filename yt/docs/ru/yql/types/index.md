@@ -6,6 +6,8 @@
 - [Опциональные типы](optional.md)
 - [Контейнеры](containers.md)
 - [Специальные типы](special.md)
+- [Линейные типы](linear.md)
 - [Преобразования типов](cast.md)
 - [Текстовое представление типов данных](type_string.md)
-
+- [Передача параметров в формате JSON](json.md)
+- [Тип YSON](../../user-guide/storage/yson.md)

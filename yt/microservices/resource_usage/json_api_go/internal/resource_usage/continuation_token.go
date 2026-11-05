@@ -27,8 +27,8 @@ func (ct *ContinuationToken) GetExpressionAndPlaceholderValues() (string, map[st
 	}
 
 	return fmt.Sprintf("(%s) > ({continuation_token_values})",
-			strings.Join(keys, ", "),
-		), map[string]any{
-			"continuation_token_values": values,
-		}
+		strings.Join(keys, ", "),
+	), map[string]any{
+		"continuation_token_values": values,
+	}
 }

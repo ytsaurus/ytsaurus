@@ -90,7 +90,7 @@ public:
 
         ReplicateConfigToSecondaryMasters();
 
-        YT_UNUSED_FUTURE(HydraManager_->Reconfigure(Config_->HydraManager));
+        HydraManager_->Reconfigure(Config_->HydraManager);
 
         const auto& janitor = Bootstrap_->GetHydraFacade()->GetLocalJanitor();
         janitor->Reconfigure(Config_->HydraManager);
@@ -124,7 +124,7 @@ private:
         auto unrecognizedOptions = Config_->GetRecursiveUnrecognized();
         if (unrecognizedOptions->GetChildCount() > 0) {
             UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
-                << TErrorAttribute("unrecognized_options", unrecognizedOptions);
+                .With("unrecognized_options", unrecognizedOptions);
         } else {
             UnrecognizedOptionsAlert_ = {};
         }
@@ -191,9 +191,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!HasMutationContext());
 
-        // Wait for config to be applied, so that it has all overrides after LeaderActive call.
-        WaitFor(HydraManager_->Reconfigure(Config_->HydraManager))
-            .ThrowOnError();
+        // NB: Must not yield; called from Hydra lifetime callbacks.
+        HydraManager_->Reconfigure(Config_->HydraManager);
 
         ConfigChanged_.Fire(Config_);
     }

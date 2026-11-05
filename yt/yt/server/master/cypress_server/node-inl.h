@@ -4,6 +4,8 @@
 #include "node.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,8 +402,8 @@ TVersionedBuiltinAttribute<T> TVersionedBuiltinAttribute<T>::Clone() const
 
 template <std::copyable TTime>
 TCypressNode::TExpirationProperties<TTime>::TExpirationProperties(
-    NSecurityServer::TUserPtr user, TTime expiration)
-    : ExpirationValue_(std::in_place_index<0>, std::move(user), std::move(expiration))
+    NSecurityServer::TUserPtr user, TTime expiration, TInstant armingTime)
+    : ExpirationValue_(std::in_place_index<0>, std::move(user), std::move(expiration), std::move(armingTime))
 { }
 
 template <std::copyable TTime>
@@ -416,13 +418,43 @@ TCypressNode::TExpirationProperties<TTime> TCypressNode::TExpirationProperties<T
     return Visit(
         ExpirationValue_,
         [] (const TValue& value) {
-            const auto& [user, expiration] = value;
-            return TExpirationProperties(user.Clone(), expiration);
+            const auto& [user, expiration, armingTime] = value;
+            return TExpirationProperties(user.Clone(), expiration, armingTime);
         },
         [] (const TLastResetInstant& lastResetInstant) {
             return TExpirationProperties(lastResetInstant);
         }
     );
+}
+
+template <std::copyable TTime>
+void TCypressNode::TExpirationProperties<TTime>::TValue::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, User);
+    Save(context, Expiration);
+    Save(context, ArmingTime);
+}
+
+template <std::copyable TTime>
+void TCypressNode::TExpirationProperties<TTime>::TValue::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    // COMPAT(theevilbird)
+    auto version = context.GetVersion();
+    if (version < NCellMaster::EMasterReign::ExpirationArmingTime_26_1 ||
+        (NCellMaster::EMasterReign::Start_26_2 <= version && version < NCellMaster::EMasterReign::ExpirationArmingTime_26_2)) {
+        std::pair<NSecurityServer::TUserPtr, TTime> tmp;
+        Load(context, tmp);
+        User = std::move(tmp.first);
+        Expiration = std::move(tmp.second);
+        ArmingTime = TInstant::Zero();
+    } else {
+        Load(context, User);
+        Load(context, Expiration);
+        Load(context, ArmingTime);
+    }
 }
 
 template <std::copyable TTime>
@@ -452,8 +484,8 @@ std::optional<typename TCypressNode::TExpirationProperties<TTime>::TView> TCypre
         return std::nullopt;
     }
 
-    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
-    return TView(user.Get(), expiration);
+    const auto& [user, expiration, armingTime] = std::get<TValue>(ExpirationValue_);
+    return TView(user.Get(), expiration, armingTime);
 }
 
 template <std::copyable TTime>
@@ -473,7 +505,7 @@ std::optional<NSecurityServer::TUserRawPtr> TCypressNode::TExpirationProperties<
         return std::nullopt;
     }
 
-    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
+    const auto& [user, expiration, armingTime] = std::get<TValue>(ExpirationValue_);
     return user.Get();
 }
 
@@ -484,8 +516,19 @@ std::optional<TTime> TCypressNode::TExpirationProperties<TTime>::GetExpiration()
         return std::nullopt;
     }
 
-    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
+    const auto& [user, expiration, armingTime] = std::get<TValue>(ExpirationValue_);
     return expiration;
+}
+
+template <std::copyable TTime>
+std::optional<TInstant> TCypressNode::TExpirationProperties<TTime>::GetArmingTime() const
+{
+    if (!std::holds_alternative<TValue>(ExpirationValue_)) {
+        return std::nullopt;
+    }
+
+    const auto& [user, expiration, armingTime] = std::get<TValue>(ExpirationValue_);
+    return armingTime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

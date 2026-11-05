@@ -175,6 +175,7 @@ struct TTablePullerCounters
     NProfiling::TEventTimer ThrottleTime;
     NProfiling::TEventTimer RelativeThrottlerThrottleTime;
     NProfiling::TCounter MemoryUsage;
+    NProfiling::TCounter FatalErrorCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +305,14 @@ struct TReplicaCounters
 {
     TReplicaCounters() = default;
 
-    explicit TReplicaCounters(const NProfiling::TProfiler& profiler);
+    TReplicaCounters(
+        const NProfiling::TProfiler& profiler,
+        NTabletClient::ETableReplicaMode mode);
+
+    void SetMode(NTabletClient::ETableReplicaMode mode);
+
+    NProfiling::TGauge SyncReplicaCount;
+    NProfiling::TGauge AsyncReplicaCount;
 
     NProfiling::TGauge LagRowCount;
     NProfiling::TTimeGauge LagTime;
@@ -411,7 +419,8 @@ public:
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight);
 
     void ProfilePartitioning(
         NLsm::EStoreCompactionReason reason,
@@ -419,7 +428,8 @@ public:
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight);
 
     void ProfilePartitionSplit();
     void ProfilePartitionMerge();
@@ -445,6 +455,7 @@ private:
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
         const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight,
         TEnumIndexedArray<NLsm::EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
@@ -509,7 +520,9 @@ public:
     TPullRowsCounters* GetPullRowsCounters(const std::optional<std::string>& userTag);
     TFetchTableRowsCounters* GetFetchTableRowsCounters(const std::optional<std::string>& userTag);
 
-    TReplicaCounters GetReplicaCounters(const std::string& cluster);
+    TReplicaCounters GetReplicaCounters(
+        const std::string& cluster,
+        NTabletClient::ETableReplicaMode mode);
 
     TTablePullerCounters* GetTablePullerCounters();
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
@@ -548,7 +561,7 @@ private:
     std::optional<TLsmCounters> LsmCounters_;
     std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     template <class TCounter, class TCallback = std::monostate>
     TCounter* GetOrCreateCounter(std::optional<TCounter>* counter, TCallback&& callback = {});

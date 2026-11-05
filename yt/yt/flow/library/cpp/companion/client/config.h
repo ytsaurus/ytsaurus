@@ -1,0 +1,84 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/http/public.h>
+#include <yt/yt/core/https/public.h>
+
+#include <yt/yt/core/ypath/public.h>
+
+#include <yt/yt/library/profiling/solomon/config.h>
+
+namespace NYT::NFlow::NCompanion {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Node exporter configuration passed to the companion.
+struct TCompanionMonitoringConfig
+    : public NProfiling::TSolomonExporterConfig
+{
+    REGISTER_YSON_STRUCT(TCompanionMonitoringConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompanionMonitoringConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! User-facing companion configuration (TFlowNodeConfig::Companion).
+//! Contains only fields a user can set in YSON config.
+struct TCompanionConfig
+    : public NYTree::TYsonStruct
+{
+    int Port{};
+    int MonitoringPort{};
+    int CompanionProcessCount{};
+
+    //! HTTP clients handed to the process functions hosted by a C++ companion
+    //! (IRuntimeInitContext::GetHttpClient); mirror the same-named TFlowNodeConfig
+    //! fields. Companions in other languages ignore them. The config travels in the
+    //! companion process environment; an HTTPS private key must use "file_name".
+    NHttp::TClientConfigPtr HttpClientConfig;
+    NHttps::TClientConfigPtr HttpsClientConfig;
+    int HttpPollerThreads{};
+
+    REGISTER_YSON_STRUCT(TCompanionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompanionConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Wire-format config: serialized into YT_FLOW_COMPANION_CONFIG
+//! and stored in the companion singleton state.
+struct TCompanionExecutionConfig
+    : public TCompanionConfig
+{
+    std::string ClusterUrl;
+    NYPath::TYPath PipelinePath;
+    TCompanionMonitoringConfigPtr Monitoring;
+    //! Identifies one worker spawn of the companion; all processes of a multi-process companion share it.
+    std::string SessionId;
+
+    REGISTER_YSON_STRUCT(TCompanionExecutionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompanionExecutionConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Builds a validated run config; |solomonExporterConfig| may be null.
+TCompanionExecutionConfigPtr BuildCompanionExecutionConfig(
+    const TCompanionConfigPtr& userConfig,
+    const std::string& clusterUrl,
+    const NYPath::TYPath& pipelinePath,
+    const NProfiling::TSolomonExporterConfigPtr& solomonExporterConfig = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCompanion

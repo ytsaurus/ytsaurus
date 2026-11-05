@@ -8,7 +8,7 @@ namespace NYT::NTimestampServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TimestampServerLogger, "TimestampServer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TimestampServerLogger, "TimestampServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

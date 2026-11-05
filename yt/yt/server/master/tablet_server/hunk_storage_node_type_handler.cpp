@@ -100,6 +100,7 @@ protected:
                 /*newTabletCount*/ tabletCount,
                 /*pivotKeys*/ {},
                 /*trimmedRowCounts*/ {},
+                /*cumulativeDataWeights*/ {},
                 /*create*/ true);
             tabletManager->Reshard(
                 node,
@@ -107,7 +108,8 @@ protected:
                 /*lastTabletIndex*/ -1,
                 /*newTabletCount*/ tabletCount,
                 /*pivotKeys*/ {},
-                /*trimmedRowCounts*/ {});
+                /*trimmedRowCounts*/ {},
+                /*cumulativeDataWeights*/ {});
         } catch (const std::exception&) {
             this->Destroy(node);
             throw;

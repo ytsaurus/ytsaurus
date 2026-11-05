@@ -1,0 +1,31 @@
+{
+    "spec" = {
+        "computations" = {
+            "checker" = {
+                "computation_class_name" = "TSecretChecker";
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {
+                            "finite" = %true;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "checker" = {
+                "source_streams" = {
+                    "random" = {
+                        "parameters" = {
+                            "partition_count" = 1;
+                            "partition_message_count" = 10;
+                        };
+                    };
+                };
+            };
+        };
+    };
+}

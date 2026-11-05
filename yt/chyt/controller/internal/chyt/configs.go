@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -114,7 +115,7 @@ func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWi
 	}
 }
 
-func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func (c *Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
@@ -143,6 +144,18 @@ func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet 
 
 	if _, ok := configAsMap["path_to_regions_hierarchy_file"]; !ok {
 		configAsMap["path_to_regions_hierarchy_file"] = "./geodata/regions_hierarchy.txt"
+	}
+
+	if speclet.ODBCConfig.EnableOrDefault() {
+		if _, ok := configAsMap["application"]; !ok {
+			// ClickHouse ODBC bridge is launched by the ClickHouse server.
+			// The "application.dir" setting tells ClickHouse where to look for it.
+			// In a YT job sandbox all binaries land in the working directory, so we point
+			// ClickHouse there.
+			configAsMap["application"] = map[string]any{
+				"dir": "./",
+			}
+		}
 	}
 
 	if _, ok := configAsMap["settings"]; !ok {
@@ -182,7 +195,7 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.YTConfig)
 	if err != nil {
 		return
@@ -223,42 +236,52 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	if _, ok := configAsMap["clique_instance_count"]; !ok {
 		configAsMap["clique_instance_count"] = speclet.Resources.InstanceCount
 	}
+	configAsMap["orchid_root"] = c.orchidDir(oplet.Alias())
 	// TODO(max42): put to preprocessor similarly to yt/cpu_limit.
 	if _, ok := configAsMap["worker_thread_count"]; !ok {
 		configAsMap["worker_thread_count"] = *speclet.Resources.InstanceCPU
-	}
-
-	if _, ok := configAsMap["enable_dynamic_tables"]; !ok {
-		configAsMap["enable_dynamic_tables"] = true
 	}
 
 	if _, ok := configAsMap["query_sticky_group_size"]; !ok && speclet.EnableStickyQueryDistribution {
 		configAsMap["query_sticky_group_size"] = speclet.QueryStickyGroupSizeOrDefault()
 	}
 
-	if _, ok := configAsMap["discovery"]; !ok {
-		configAsMap["discovery"] = make(map[string]any)
-	}
-	discovery, err := asMapNode(configAsMap["discovery"])
-	if err != nil {
-		err = fmt.Errorf("invalid discovery config: %v", err)
-		return
-	}
-	if _, ok := discovery["version"]; !ok {
-		discovery["version"] = 2
-		discovery["read_quorum"] = 1
-		discovery["write_quorum"] = 1
-	}
-	if _, ok := discovery["transaction_timeout"]; !ok {
-		discovery["transaction_timeout"] = 30 * 1000
-	}
-	if _, ok := discovery["server_addresses"]; !ok {
-		var serverAddresses []string
-		serverAddresses, err = getDiscoveryServerAddresses(ctx, c.ytc)
-		if err != nil {
-			serverAddresses = []string{}
+	{
+		var discovery map[string]any
+
+		if _, ok := configAsMap["discovery"]; !ok {
+			configAsMap["discovery"] = make(map[string]any)
 		}
-		discovery["server_addresses"] = serverAddresses
+		discovery, err = asMapNode(configAsMap["discovery"])
+		if err != nil {
+			err = fmt.Errorf("invalid discovery config: %v", err)
+			return
+		}
+
+		if versionVal, ok := discovery["version"]; ok {
+			version, ok := versionVal.(int64)
+			if !ok || version != 2 {
+				err = fmt.Errorf("expected discovery version 2, got %v(%T)", versionVal, versionVal)
+				return
+			}
+		}
+
+		if _, ok := discovery["version"]; !ok {
+			discovery["version"] = 2
+			discovery["read_quorum"] = 1
+			discovery["write_quorum"] = 1
+		}
+		if _, ok := discovery["transaction_timeout"]; !ok {
+			discovery["transaction_timeout"] = 30 * 1000
+		}
+		if _, ok := discovery["server_addresses"]; !ok {
+			var serverAddresses []string
+			serverAddresses, err = getDiscoveryServerAddresses(ctx, c.ytc)
+			if err != nil {
+				serverAddresses = []string{}
+			}
+			discovery["server_addresses"] = serverAddresses
+		}
 	}
 
 	if _, ok := configAsMap["health_checker"]; !ok {
@@ -292,6 +315,20 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	}
 	if _, ok := sqlUDFStorage["enabled"]; !ok {
 		sqlUDFStorage["enabled"] = true
+	}
+
+	if dictConfig, ok := configAsMap["dictionary_repository"]; ok {
+		dictionaryRepository, convertErr := asMapNode(dictConfig)
+		if convertErr != nil {
+			err = fmt.Errorf("invalid dictionary_repository config: %v", convertErr)
+			return
+		}
+		if _, ok := dictionaryRepository["root_path"]; ok {
+			err = fmt.Errorf("root_path in dictionary_repository config cannot be set by user")
+			return
+		} else {
+			dictionaryRepository["root_path"] = c.storageArtifactsDir(oplet.Alias())
+		}
 	}
 
 	const always_blocked_headers = "authentication|x-clickhouse-user"
@@ -366,11 +403,7 @@ func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error
 	return config, nil
 }
 
-func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config any) (richPath ypath.Rich, err error) {
-	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
-	if err != nil {
-		return
-	}
+func (c *Controller) uploadFile(ctx context.Context, alias string, filename string, data []byte) (richPath ypath.Rich, err error) {
 	path := c.artifactDir(alias).Child(filename)
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
 	if err != nil {
@@ -380,7 +413,7 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	if err != nil {
 		return
 	}
-	_, err = w.Write(configYson)
+	_, err = w.Write(data)
 	if err != nil {
 		return
 	}
@@ -392,17 +425,39 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	return
 }
 
-func (c Controller) artifactDir(alias string) ypath.Path {
+func (c *Controller) uploadYsonFile(ctx context.Context, alias string, filename string, config any) (ypath.Rich, error) {
+	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
+	if err != nil {
+		return ypath.Rich{}, err
+	}
+	return c.uploadFile(ctx, alias, filename, configYson)
+}
+
+func (c *Controller) artifactDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("artifacts")
 }
 
-func (c Controller) sqlUDFDir(alias string) ypath.Path {
+func (c *Controller) sqlUDFDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("user_defined_sql_functions")
 }
 
-func (c Controller) systemLogTableRootDir(alias string) ypath.Path {
+func (c *Controller) orchidDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("orchids")
+}
+
+func (c *Controller) systemLogTableRootDir(alias string) ypath.Path {
 	return c.artifactDir(alias).Child("system_log_tables")
 }
+
+func (c *Controller) storageArtifactsDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("storage_artifacts")
+}
+
+const (
+	defaultErrorLogFile = "./clickhouse.error.log"
+	defaultDebugLogFile = "./clickhouse.debug.log"
+	defaultInfoLogFile  = "./clickhouse.log"
+)
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
@@ -442,20 +497,21 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		}
 	}
 
+	errorLogFile := defaultErrorLogFile
+	debugLogFile := defaultDebugLogFile
+	infoLogFile := defaultInfoLogFile
+	if speclet.logsDir != nil {
+		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
+		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
+		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
+	}
+
 	ytServerClickHouseConfig := map[string]any{
 		"clickhouse":         clickhouseConfig,
 		"yt":                 ytConfig,
 		"cpu_limit":          r.InstanceCPU,
 		"memory":             r.InstanceMemory.memoryConfig(),
 		"cluster_connection": c.cachedClusterConnection,
-		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
-		// Remove it when all cliques are 2.09+
-		"profile_manager": map[string]any{
-			"global_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-		},
 		"solomon_exporter": map[string]any{
 			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
 			"host": "",
@@ -463,12 +519,13 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
+			"window_size": 72,
 		},
 		"logging": map[string]any{
 			"rotation_check_period": 60000,
 			"writers": map[string]any{
 				"error": map[string]any{
-					"file_name":       "./clickhouse.error.log",
+					"file_name":       errorLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
@@ -476,12 +533,12 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 					"type": "stderr",
 				},
 				"debug": map[string]any{
-					"file_name":       "./clickhouse.debug.log",
+					"file_name":       debugLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
 				"info": map[string]any{
-					"file_name":       "./clickhouse.log",
+					"file_name":       infoLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
@@ -529,13 +586,17 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if nativeAuthenticatorConfig != nil {
 		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
+	// Do not override the default value.
+	if mode := speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault()); mode != ClusterConnectionFromStaticConfig {
+		ytServerClickHouseConfig["cluster_connection_dynamic_config_mode"] = mode
+	}
 	if c.config.AddressResolver != nil {
 		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
 	}
 	if c.config.BusServer != nil {
 		ytServerClickHouseConfig["bus_server"] = c.config.BusServer
 	}
-	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
+	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return err
 	}

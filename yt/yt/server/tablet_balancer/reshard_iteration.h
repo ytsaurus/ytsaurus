@@ -34,6 +34,7 @@ struct IReshardIteration
     virtual const TGroupName& GetGroupName() const = 0;
     virtual const TTabletCellBundlePtr GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
+    virtual void AnnotateInplaceReshardDescriptors(std::vector<TReshardDescriptor>* descriptors) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReshardIteration)

@@ -307,6 +307,225 @@ calculate_consumer_commit_latency_max(rd_kafka_t *rk,
         return max_commit_time;
 }
 
+static rd_kafka_telemetry_metric_value_t
+calculate_share_consumer_poll_idle_ratio_avg(rd_kafka_t *rk,
+                                             rd_kafka_broker_t *rkb_selected,
+                                             rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t share_poll_idle_avg;
+        share_poll_idle_avg.double_value = calculate_avg(
+            rk->rk_telemetry.rd_avg_rollover.rk_avg_share_poll_idle_ratio, 1e6);
+        return share_poll_idle_avg;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_time_between_poll_avg(rd_kafka_t *rk,
+                                      rd_kafka_broker_t *rkb_selected,
+                                      rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t time_between_poll_avg;
+        time_between_poll_avg.double_value = calculate_avg(
+            rk->rk_telemetry.rd_avg_rollover.rk_avg_share_time_between_poll,
+            THREE_ORDERS_MAGNITUDE);
+        return time_between_poll_avg;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_time_between_poll_max(rd_kafka_t *rk,
+                                      rd_kafka_broker_t *rkb_selected,
+                                      rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t time_between_poll_max;
+        time_between_poll_max.int_value = calculate_max(
+            rk->rk_telemetry.rd_avg_rollover.rk_avg_share_time_between_poll,
+            THREE_ORDERS_MAGNITUDE);
+        return time_between_poll_max;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_latency_avg(rd_kafka_t *rk,
+                                  rd_kafka_broker_t *rkb_selected,
+                                  rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t avg_share_fetch_latency;
+        brokers_avg(rk, rkb_avg_share_fetch_latency, THREE_ORDERS_MAGNITUDE,
+                    avg_share_fetch_latency);
+        return avg_share_fetch_latency;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_latency_max(rd_kafka_t *rk,
+                                  rd_kafka_broker_t *rkb_selected,
+                                  rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t max_share_fetch_latency;
+        brokers_max(rk, rkb_avg_share_fetch_latency, THREE_ORDERS_MAGNITUDE,
+                    max_share_fetch_latency);
+        return max_share_fetch_latency;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_bytes_consumed_total(rd_kafka_t *rk,
+                                     rd_kafka_broker_t *rkb_selected,
+                                     rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t bytes_consumed_total;
+        int64_t current =
+            rd_atomic64_get(&rk->rk_telemetry.share_bytes_consumed_total);
+
+        if (!rk->rk_telemetry.delta_temporality)
+                bytes_consumed_total.int_value = current;
+        else
+                bytes_consumed_total.int_value =
+                    current -
+                    rk->rk_telemetry.rk_historic_c.share_bytes_consumed_total;
+
+        return bytes_consumed_total;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_bytes_consumed_rate(rd_kafka_t *rk,
+                                    rd_kafka_broker_t *rkb_selected,
+                                    rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t bytes_consumed_rate;
+        rd_ts_t ts_last = rk->rk_telemetry.rk_historic_c.ts_last;
+        int64_t delta =
+            rd_atomic64_get(&rk->rk_telemetry.share_bytes_consumed_total) -
+            rk->rk_telemetry.rk_historic_c.share_bytes_consumed_total;
+        double seconds = (now_ns - ts_last) / 1e9;
+
+        if (seconds > 1.0)
+                bytes_consumed_rate.double_value = (double)delta / seconds;
+        else
+                bytes_consumed_rate.double_value = (double)delta;
+
+        return bytes_consumed_rate;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_size_avg(rd_kafka_t *rk,
+                               rd_kafka_broker_t *rkb_selected,
+                               rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t avg_share_fetch_size;
+        brokers_avg(rk, rkb_avg_share_fetch_size, 1, avg_share_fetch_size);
+        return avg_share_fetch_size;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_size_max(rd_kafka_t *rk,
+                               rd_kafka_broker_t *rkb_selected,
+                               rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t max_share_fetch_size;
+        brokers_max(rk, rkb_avg_share_fetch_size, 1, max_share_fetch_size);
+        return max_share_fetch_size;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_total(rd_kafka_t *rk,
+                            rd_kafka_broker_t *rkb_selected,
+                            rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t share_fetch_total;
+        int64_t current = rd_atomic64_get(&rk->rk_telemetry.share_fetch_total);
+
+        if (!rk->rk_telemetry.delta_temporality)
+                share_fetch_total.int_value = current;
+        else
+                share_fetch_total.int_value =
+                    current - rk->rk_telemetry.rk_historic_c.share_fetch_total;
+
+        return share_fetch_total;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_fetch_rate(rd_kafka_t *rk,
+                           rd_kafka_broker_t *rkb_selected,
+                           rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t share_fetch_rate;
+        rd_ts_t ts_last = rk->rk_telemetry.rk_historic_c.ts_last;
+        int64_t delta   = rd_atomic64_get(&rk->rk_telemetry.share_fetch_total) -
+                        rk->rk_telemetry.rk_historic_c.share_fetch_total;
+        double seconds = (now_ns - ts_last) / 1e9;
+
+        /* For sub-second intervals (e.g. the first reading) report the raw
+         * delta instead of dividing, to avoid a tiny denominator massively
+         * overstating the rate. Same logic as the other rate metrics. */
+        if (seconds > 1.0)
+                share_fetch_rate.double_value = (double)delta / seconds;
+        else
+                share_fetch_rate.double_value = (double)delta;
+
+        return share_fetch_rate;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_acknowledgements_send_total(rd_kafka_t *rk,
+                                            rd_kafka_broker_t *rkb_selected,
+                                            rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t acknowledgements_send_total;
+        int64_t current =
+            rd_atomic64_get(&rk->rk_telemetry.acknowledgements_send_total);
+
+        if (!rk->rk_telemetry.delta_temporality)
+                acknowledgements_send_total.int_value = current;
+        else
+                acknowledgements_send_total.int_value =
+                    current -
+                    rk->rk_telemetry.rk_historic_c.acknowledgements_send_total;
+
+        return acknowledgements_send_total;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_acknowledgements_send_rate(rd_kafka_t *rk,
+                                           rd_kafka_broker_t *rkb_selected,
+                                           rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t acknowledgements_send_rate;
+        rd_ts_t ts_last = rk->rk_telemetry.rk_historic_c.ts_last;
+        int64_t delta =
+            rd_atomic64_get(&rk->rk_telemetry.acknowledgements_send_total) -
+            rk->rk_telemetry.rk_historic_c.acknowledgements_send_total;
+        double seconds = (now_ns - ts_last) / 1e9;
+
+        /* For sub-second intervals (e.g. the first reading) report the raw
+         * delta instead of dividing, to avoid a tiny denominator massively
+         * overstating the rate. Same logic as the other rate metrics. */
+        if (seconds > 1.0)
+                acknowledgements_send_rate.double_value =
+                    (double)delta / seconds;
+        else
+                acknowledgements_send_rate.double_value = (double)delta;
+
+        return acknowledgements_send_rate;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_heartbeat_total(rd_kafka_t *rk,
+                                rd_kafka_broker_t *rkb_selected,
+                                rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t heartbeat_total;
+        int64_t current = rd_atomic64_get(&rk->rk_telemetry.heartbeat_total);
+
+        if (!rk->rk_telemetry.delta_temporality)
+                heartbeat_total.int_value = current;
+        else
+                heartbeat_total.int_value =
+                    current - rk->rk_telemetry.rk_historic_c.heartbeat_total;
+
+        return heartbeat_total;
+}
+
+static rd_kafka_telemetry_metric_value_t
+calculate_share_heartbeat_rate(rd_kafka_t *rk,
+                               rd_kafka_broker_t *rkb_selected,
+                               rd_ts_t now_ns) {
+        rd_kafka_telemetry_metric_value_t heartbeat_rate;
+        rd_ts_t ts_last = rk->rk_telemetry.rk_historic_c.ts_last;
+        int64_t delta   = rd_atomic64_get(&rk->rk_telemetry.heartbeat_total) -
+                        rk->rk_telemetry.rk_historic_c.heartbeat_total;
+        double seconds = (now_ns - ts_last) / 1e9;
+
+        if (seconds > 1.0)
+                heartbeat_rate.double_value = (double)delta / seconds;
+        else
+                heartbeat_rate.double_value = (double)delta;
+
+        return heartbeat_rate;
+}
+
 static void reset_historical_metrics(rd_kafka_t *rk, rd_ts_t now_ns) {
         rd_kafka_broker_t *rkb;
 
@@ -319,6 +538,19 @@ static void reset_historical_metrics(rd_kafka_t *rk, rd_ts_t now_ns) {
         TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
                 rkb->rkb_telemetry.rkb_historic_c.connects =
                     rd_atomic32_get(&rkb->rkb_c.connects);
+        }
+
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                rk->rk_telemetry.rk_historic_c.share_fetch_total =
+                    rd_atomic64_get(&rk->rk_telemetry.share_fetch_total);
+                rk->rk_telemetry.rk_historic_c.share_bytes_consumed_total =
+                    rd_atomic64_get(
+                        &rk->rk_telemetry.share_bytes_consumed_total);
+                rk->rk_telemetry.rk_historic_c.acknowledgements_send_total =
+                    rd_atomic64_get(
+                        &rk->rk_telemetry.acknowledgements_send_total);
+                rk->rk_telemetry.rk_historic_c.heartbeat_total =
+                    rd_atomic64_get(&rk->rk_telemetry.heartbeat_total);
         }
 }
 
@@ -375,6 +607,44 @@ static const rd_kafka_telemetry_metric_value_calculator_t
             &calculate_consumer_commit_latency_avg,
         [RD_KAFKA_TELEMETRY_METRIC_CONSUMER_COORDINATOR_COMMIT_LATENCY_MAX] =
             &calculate_consumer_commit_latency_max,
+};
+
+static const rd_kafka_telemetry_metric_value_calculator_t SHARE_CONSUMER_METRIC_VALUE_CALCULATORS
+    [RD_KAFKA_TELEMETRY_SHARE_CONSUMER_METRIC__CNT] = {
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_POLL_IDLE_RATIO_AVG] =
+            &calculate_share_consumer_poll_idle_ratio_avg,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_TIME_BETWEEN_POLL_AVG] =
+            &calculate_share_time_between_poll_avg,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_TIME_BETWEEN_POLL_MAX] =
+            &calculate_share_time_between_poll_max,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_TOTAL] =
+            &calculate_share_fetch_total,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_RATE] =
+            &calculate_share_fetch_rate,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_LATENCY_AVG] =
+            &calculate_share_fetch_latency_avg,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_LATENCY_MAX] =
+            &calculate_share_fetch_latency_max,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_ACKNOWLEDGEMENTS_SEND_TOTAL] =
+            &calculate_share_acknowledgements_send_total,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_ACKNOWLEDGEMENTS_SEND_RATE] =
+            &calculate_share_acknowledgements_send_rate,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_THROTTLE_TIME_AVG] =
+            &calculate_throttle_avg,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_THROTTLE_TIME_MAX] =
+            &calculate_throttle_max,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_COORDINATOR_HEARTBEAT_TOTAL] =
+            &calculate_share_heartbeat_total,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_COORDINATOR_HEARTBEAT_RATE] =
+            &calculate_share_heartbeat_rate,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_SIZE_AVG] =
+            &calculate_share_fetch_size_avg,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_FETCH_SIZE_MAX] =
+            &calculate_share_fetch_size_max,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_BYTES_CONSUMED_TOTAL] =
+            &calculate_share_bytes_consumed_total,
+        [RD_KAFKA_TELEMETRY_METRIC_SHARE_CONSUMER_BYTES_CONSUMED_RATE] =
+            &calculate_share_bytes_consumed_rate,
 };
 
 static const char *get_client_rack(const rd_kafka_t *rk) {
@@ -713,6 +983,10 @@ static void serialize_Metric(
  * @brief Encodes the metrics to opentelemetry_proto_metrics_v1_MetricsData and
  * returns the serialized data. Currently only supports encoding of connection
  * creation total by default
+ *
+ * @locks none
+ * @locks_acquired rd_kafka_rdlock()
+ * @locality main thread
  */
 rd_buf_t *rd_kafka_telemetry_encode_metrics(rd_kafka_t *rk) {
         rd_buf_t *rbuf = NULL;
@@ -731,7 +1005,7 @@ rd_buf_t *rd_kafka_telemetry_encode_metrics(rd_kafka_t *rk) {
         size_t i, metric_idx = 0;
 
         if (!metrics_to_encode_count)
-                return NULL;
+                return rd_buf_new(1, 1);
 
         opentelemetry_proto_metrics_v1_MetricsData metrics_data =
             opentelemetry_proto_metrics_v1_MetricsData_init_zero;
@@ -774,7 +1048,8 @@ rd_buf_t *rd_kafka_telemetry_encode_metrics(rd_kafka_t *rk) {
                 rd_avg_rollover(
                     &rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_throttle,
                     &rkb->rkb_telemetry.rd_avg_current.rkb_avg_throttle);
-                if (rk->rk_type == RD_KAFKA_CONSUMER) {
+                if (rk->rk_type == RD_KAFKA_CONSUMER &&
+                    !RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
                         rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover
                                             .rkb_avg_fetch_latency);
                         rd_avg_rollover(&rkb->rkb_telemetry.rd_avg_rollover
@@ -789,26 +1064,60 @@ rd_buf_t *rd_kafka_telemetry_encode_metrics(rd_kafka_t *rk) {
                                         &rkb->rkb_telemetry.rd_avg_current
                                              .rkb_avg_produce_latency);
                 }
+
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover
+                                            .rkb_avg_share_fetch_latency);
+                        rd_avg_rollover(&rkb->rkb_telemetry.rd_avg_rollover
+                                             .rkb_avg_share_fetch_latency,
+                                        &rkb->rkb_telemetry.rd_avg_current
+                                             .rkb_avg_share_fetch_latency);
+                        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover
+                                            .rkb_avg_share_fetch_size);
+                        rd_avg_rollover(&rkb->rkb_telemetry.rd_avg_rollover
+                                             .rkb_avg_share_fetch_size,
+                                        &rkb->rkb_telemetry.rd_avg_current
+                                             .rkb_avg_share_fetch_size);
+                }
         }
 
         if (rk->rk_type == RD_KAFKA_CONSUMER) {
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_poll_idle_ratio);
-                rd_avg_rollover(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_poll_idle_ratio,
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_poll_idle_ratio);
-
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_rebalance_latency);
-                rd_avg_rollover(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_rebalance_latency,
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_rebalance_latency);
-
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_commit_latency);
-                rd_avg_rollover(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_commit_latency,
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_commit_latency);
+                /* TODO: factor out a helper that performs the destroy +
+                 * rollover of a metric's rd_avg_rollover/rd_avg_current pair
+                 * in one call, to reduce the repetition below. */
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_share_poll_idle_ratio);
+                        rd_avg_rollover(&rk->rk_telemetry.rd_avg_rollover
+                                             .rk_avg_share_poll_idle_ratio,
+                                        &rk->rk_telemetry.rd_avg_current
+                                             .rk_avg_share_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_share_time_between_poll);
+                        rd_avg_rollover(&rk->rk_telemetry.rd_avg_rollover
+                                             .rk_avg_share_time_between_poll,
+                                        &rk->rk_telemetry.rd_avg_current
+                                             .rk_avg_share_time_between_poll);
+                } else {
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_poll_idle_ratio);
+                        rd_avg_rollover(&rk->rk_telemetry.rd_avg_rollover
+                                             .rk_avg_poll_idle_ratio,
+                                        &rk->rk_telemetry.rd_avg_current
+                                             .rk_avg_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_rebalance_latency);
+                        rd_avg_rollover(&rk->rk_telemetry.rd_avg_rollover
+                                             .rk_avg_rebalance_latency,
+                                        &rk->rk_telemetry.rd_avg_current
+                                             .rk_avg_rebalance_latency);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_commit_latency);
+                        rd_avg_rollover(&rk->rk_telemetry.rd_avg_rollover
+                                             .rk_avg_commit_latency,
+                                        &rk->rk_telemetry.rd_avg_current
+                                             .rk_avg_commit_latency);
+                }
         }
 
         int resource_attributes_count =
@@ -879,12 +1188,19 @@ rd_buf_t *rd_kafka_telemetry_encode_metrics(rd_kafka_t *rk) {
         for (i = 0; i < metrics_to_encode_count; i++) {
 
                 rd_kafka_telemetry_metric_value_calculator_t
-                    metric_value_calculator =
-                        (rk->rk_type == RD_KAFKA_PRODUCER)
-                            ? PRODUCER_METRIC_VALUE_CALCULATORS
-                                  [metrics_to_encode[i]]
-                            : CONSUMER_METRIC_VALUE_CALCULATORS
-                                  [metrics_to_encode[i]];
+                    metric_value_calculator;
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk))
+                        metric_value_calculator =
+                            SHARE_CONSUMER_METRIC_VALUE_CALCULATORS
+                                [metrics_to_encode[i]];
+                else if (rk->rk_type == RD_KAFKA_PRODUCER)
+                        metric_value_calculator =
+                            PRODUCER_METRIC_VALUE_CALCULATORS
+                                [metrics_to_encode[i]];
+                else
+                        metric_value_calculator =
+                            CONSUMER_METRIC_VALUE_CALCULATORS
+                                [metrics_to_encode[i]];
                 if (info[metrics_to_encode[i]].is_per_broker) {
                         rd_kafka_broker_t *rkb;
 

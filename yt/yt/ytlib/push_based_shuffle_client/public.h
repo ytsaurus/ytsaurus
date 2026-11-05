@@ -1,0 +1,33 @@
+#pragma once
+
+#include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/memory/ref_counted.h>
+
+#include <util/generic/size_literals.h>
+
+namespace NYT::NPushBasedShuffleClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IPushBasedShuffleWriter)
+DECLARE_REFCOUNTED_STRUCT(IPartitionWriteSessionProvider)
+DECLARE_REFCOUNTED_STRUCT(TShuffleWriterConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IPushBasedPartitionReader)
+DECLARE_REFCOUNTED_STRUCT(TShuffleReadBatch)
+DECLARE_REFCOUNTED_STRUCT(TPartitionReaderConfig)
+DECLARE_REFCOUNTED_STRUCT(ISortReader)
+DECLARE_REFCOUNTED_STRUCT(TSortReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr i64 MinShuffleWriterMemoryBudget = 1_MB;
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPushBasedShuffleClient

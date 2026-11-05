@@ -19,19 +19,17 @@ MongoDB.
 .. note:: This module is for internal use and is generally not needed by
    application developers.
 """
+
 from __future__ import annotations
 
-import datetime
 import random
 import struct
+from collections.abc import Iterable, Mapping, MutableMapping
 from io import BytesIO as _BytesIO
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterable,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
     Union,
@@ -39,14 +37,13 @@ from typing import (
 
 import bson
 from bson import CodecOptions, _dict_to_bson, _make_c_string
-from bson.int64 import Int64
 from bson.raw_bson import (
     _RAW_ARRAY_BSON_OPTIONS,
     DEFAULT_RAW_BSON_OPTIONS,
     RawBSONDocument,
     _inflate_bson,
 )
-from pymongo.hello import HelloCompat
+from pymongo.common import MONGOS_EXHAUST_WIRE_VERSION
 from pymongo.monitoring import _EventListeners
 
 try:
@@ -56,13 +53,8 @@ try:
 except ImportError:
     _use_c = False
 from pymongo.errors import (
-    ConfigurationError,
-    CursorNotFound,
     DocumentTooLarge,
-    ExecutionTimeout,
     InvalidOperation,
-    NotPrimaryError,
-    OperationFailure,
     ProtocolError,
 )
 from pymongo.read_preferences import ReadPreference, _ServerMode
@@ -75,7 +67,6 @@ if TYPE_CHECKING:
         _AgnosticClientSession,
         _AgnosticConnection,
         _AgnosticMongoClient,
-        _DocumentOut,
     )
 
 
@@ -150,42 +141,6 @@ def _convert_client_bulk_exception(exception: Exception) -> dict[str, Any]:
         "code": exception.code,  # type: ignore[attr-defined]
         "errtype": exception.__class__.__name__,
     }
-
-
-def _convert_write_result(
-    operation: str, command: Mapping[str, Any], result: Mapping[str, Any]
-) -> dict[str, Any]:
-    """Convert a legacy write result to write command format."""
-    # Based on _merge_legacy from bulk.py
-    affected = result.get("n", 0)
-    res = {"ok": 1, "n": affected}
-    errmsg = result.get("errmsg", result.get("err", ""))
-    if errmsg:
-        # The write was successful on at least the primary so don't return.
-        if result.get("wtimeout"):
-            res["writeConcernError"] = {"errmsg": errmsg, "code": 64, "errInfo": {"wtimeout": True}}
-        else:
-            # The write failed.
-            error = {"index": 0, "code": result.get("code", 8), "errmsg": errmsg}
-            if "errInfo" in result:
-                error["errInfo"] = result["errInfo"]
-            res["writeErrors"] = [error]
-            return res
-    if operation == "insert":
-        # GLE result for insert is always 0 in most MongoDB versions.
-        res["n"] = len(command["documents"])
-    elif operation == "update":
-        if "upserted" in result:
-            res["upserted"] = [{"index": 0, "_id": result["upserted"]}]
-        # Versions of MongoDB before 2.6 don't return the _id for an
-        # upsert if _id is not an ObjectId.
-        elif result.get("updatedExisting") is False and affected == 1:
-            # If _id is in both the update document *and* the query spec
-            # the update document _id takes precedence.
-            update = command["updates"][0]
-            _id = update["u"].get("_id", update["q"].get("_id"))
-            res["upserted"] = [{"index": 0, "_id": _id}]
-    return res
 
 
 _OPTIONS = {
@@ -274,7 +229,6 @@ def _gen_get_more_command(
     batch_size: Optional[int],
     max_await_time_ms: Optional[int],
     comment: Optional[Any],
-    conn: _AgnosticConnection,
 ) -> dict[str, Any]:
     """Generate a getMore command document."""
     cmd: dict[str, Any] = {"getMore": cursor_id, "collection": coll}
@@ -282,7 +236,7 @@ def _gen_get_more_command(
         cmd["batchSize"] = batch_size
     if max_await_time_ms is not None:
         cmd["maxTimeMS"] = max_await_time_ms
-    if comment is not None and conn.max_wire_version >= 9:
+    if comment is not None:
         cmd["comment"] = comment
     return cmd
 
@@ -423,144 +377,6 @@ def _op_msg(
             command[identifier] = docs
 
 
-def _query_impl(
-    options: int,
-    collection_name: str,
-    num_to_skip: int,
-    num_to_return: int,
-    query: Mapping[str, Any],
-    field_selector: Optional[Mapping[str, Any]],
-    opts: CodecOptions[Any],
-) -> tuple[bytes, int]:
-    """Get an OP_QUERY message."""
-    encoded = _dict_to_bson(query, False, opts)
-    if field_selector:
-        efs = _dict_to_bson(field_selector, False, opts)
-    else:
-        efs = b""
-    max_bson_size = max(len(encoded), len(efs))
-    return (
-        b"".join(
-            [
-                _pack_int(options),
-                bson._make_c_string(collection_name),
-                _pack_int(num_to_skip),
-                _pack_int(num_to_return),
-                encoded,
-                efs,
-            ]
-        ),
-        max_bson_size,
-    )
-
-
-def _query_compressed(
-    options: int,
-    collection_name: str,
-    num_to_skip: int,
-    num_to_return: int,
-    query: Mapping[str, Any],
-    field_selector: Optional[Mapping[str, Any]],
-    opts: CodecOptions[Any],
-    ctx: Union[SnappyContext, ZlibContext, ZstdContext],
-) -> tuple[int, bytes, int]:
-    """Internal compressed query message helper."""
-    op_query, max_bson_size = _query_impl(
-        options, collection_name, num_to_skip, num_to_return, query, field_selector, opts
-    )
-    rid, msg = _compress(2004, op_query, ctx)
-    return rid, msg, max_bson_size
-
-
-def _query_uncompressed(
-    options: int,
-    collection_name: str,
-    num_to_skip: int,
-    num_to_return: int,
-    query: Mapping[str, Any],
-    field_selector: Optional[Mapping[str, Any]],
-    opts: CodecOptions[Any],
-) -> tuple[int, bytes, int]:
-    """Internal query message helper."""
-    op_query, max_bson_size = _query_impl(
-        options, collection_name, num_to_skip, num_to_return, query, field_selector, opts
-    )
-    rid, msg = __pack_message(2004, op_query)
-    return rid, msg, max_bson_size
-
-
-if _use_c:
-    _query_uncompressed = _cmessage._query_message
-
-
-def _query(
-    options: int,
-    collection_name: str,
-    num_to_skip: int,
-    num_to_return: int,
-    query: Mapping[str, Any],
-    field_selector: Optional[Mapping[str, Any]],
-    opts: CodecOptions[Any],
-    ctx: Union[SnappyContext, ZlibContext, ZstdContext, None] = None,
-) -> tuple[int, bytes, int]:
-    """Get a **query** message."""
-    if ctx:
-        return _query_compressed(
-            options, collection_name, num_to_skip, num_to_return, query, field_selector, opts, ctx
-        )
-    return _query_uncompressed(
-        options, collection_name, num_to_skip, num_to_return, query, field_selector, opts
-    )
-
-
-_pack_long_long = struct.Struct("<q").pack
-
-
-def _get_more_impl(collection_name: str, num_to_return: int, cursor_id: int) -> bytes:
-    """Get an OP_GET_MORE message."""
-    return b"".join(
-        [
-            _ZERO_32,
-            bson._make_c_string(collection_name),
-            _pack_int(num_to_return),
-            _pack_long_long(cursor_id),
-        ]
-    )
-
-
-def _get_more_compressed(
-    collection_name: str,
-    num_to_return: int,
-    cursor_id: int,
-    ctx: Union[SnappyContext, ZlibContext, ZstdContext],
-) -> tuple[int, bytes]:
-    """Internal compressed getMore message helper."""
-    return _compress(2005, _get_more_impl(collection_name, num_to_return, cursor_id), ctx)
-
-
-def _get_more_uncompressed(
-    collection_name: str, num_to_return: int, cursor_id: int
-) -> tuple[int, bytes]:
-    """Internal getMore message helper."""
-    return __pack_message(2005, _get_more_impl(collection_name, num_to_return, cursor_id))
-
-
-if _use_c:
-    _get_more_uncompressed = _cmessage._get_more_message
-
-
-def _get_more(
-    collection_name: str,
-    num_to_return: int,
-    cursor_id: int,
-    ctx: Union[SnappyContext, ZlibContext, ZstdContext, None] = None,
-) -> tuple[int, bytes]:
-    """Get a **getMore** message."""
-    if ctx:
-        return _get_more_compressed(collection_name, num_to_return, cursor_id, ctx)
-    return _get_more_uncompressed(collection_name, num_to_return, cursor_id)
-
-
 # OP_MSG -------------------------------------------------------------
 
 
@@ -575,18 +391,16 @@ class _BulkWriteContextBase:
     """Private base class for wrapping around AsyncConnection to use with write splitting functions."""
 
     __slots__ = (
-        "db_name",
-        "conn",
-        "op_id",
-        "name",
-        "field",
-        "publish",
-        "start_time",
-        "listeners",
-        "session",
-        "compress",
-        "op_type",
         "codec",
+        "compress",
+        "conn",
+        "db_name",
+        "field",
+        "listeners",
+        "name",
+        "op_id",
+        "op_type",
+        "session",
     )
 
     def __init__(
@@ -594,7 +408,7 @@ class _BulkWriteContextBase:
         database_name: str,
         cmd_name: str,
         conn: _AgnosticConnection,
-        operation_id: int,
+        operation_id: Optional[int],
         listeners: _EventListeners,
         session: Optional[_AgnosticClientSession],
         op_type: int,
@@ -604,10 +418,8 @@ class _BulkWriteContextBase:
         self.conn = conn
         self.op_id = operation_id
         self.listeners = listeners
-        self.publish = listeners.enabled_for_commands
         self.name = cmd_name
         self.field = _FIELD_MAP[self.name]
-        self.start_time = datetime.datetime.now()
         self.session = session
         self.compress = bool(conn.compression_context)
         self.op_type = op_type
@@ -636,34 +448,6 @@ class _BulkWriteContextBase:
         """The maximum size of a BSON command before batch splitting."""
         return self.max_bson_size
 
-    def _succeed(self, request_id: int, reply: _DocumentOut, duration: datetime.timedelta) -> None:
-        """Publish a CommandSucceededEvent."""
-        self.listeners.publish_command_success(
-            duration,
-            reply,
-            self.name,
-            request_id,
-            self.conn.address,
-            self.conn.server_connection_id,
-            self.op_id,
-            self.conn.service_id,
-            database_name=self.db_name,
-        )
-
-    def _fail(self, request_id: int, failure: _DocumentOut, duration: datetime.timedelta) -> None:
-        """Publish a CommandFailedEvent."""
-        self.listeners.publish_command_failure(
-            duration,
-            failure,
-            self.name,
-            request_id,
-            self.conn.address,
-            self.conn.server_connection_id,
-            self.op_id,
-            self.conn.service_id,
-            database_name=self.db_name,
-        )
-
 
 class _BulkWriteContext(_BulkWriteContextBase):
     """A wrapper around AsyncConnection/Connection for use with the collection-level bulk write API."""
@@ -675,7 +459,7 @@ class _BulkWriteContext(_BulkWriteContextBase):
         database_name: str,
         cmd_name: str,
         conn: _AgnosticConnection,
-        operation_id: int,
+        operation_id: Optional[int],
         listeners: _EventListeners,
         session: Optional[_AgnosticClientSession],
         op_type: int,
@@ -702,22 +486,6 @@ class _BulkWriteContext(_BulkWriteContextBase):
         if not to_send:
             raise InvalidOperation("cannot do an empty bulk write")
         return request_id, msg, to_send
-
-    def _start(
-        self, cmd: MutableMapping[str, Any], request_id: int, docs: list[Mapping[str, Any]]
-    ) -> MutableMapping[str, Any]:
-        """Publish a CommandStartedEvent."""
-        cmd[self.field] = docs
-        self.listeners.publish_command_start(
-            cmd,
-            self.db_name,
-            request_id,
-            self.conn.address,
-            self.conn.server_connection_id,
-            self.op_id,
-            self.conn.service_id,
-        )
-        return cmd
 
 
 class _EncryptedBulkWriteContext(_BulkWriteContext):
@@ -748,15 +516,15 @@ def _raise_document_too_large(operation: str, doc_size: int, max_size: int) -> N
     """Internal helper for raising DocumentTooLarge."""
     if operation == "insert":
         raise DocumentTooLarge(
-            "BSON document too large (%d bytes)"
-            " - the connected server supports"
-            " BSON document sizes up to %d"
-            " bytes." % (doc_size, max_size)
+            f"BSON document too large ({doc_size} bytes)"
+            f" - the connected server supports"
+            f" BSON document sizes up to {max_size}"
+            f" bytes."
         )
     else:
         # There's nothing intelligent we can say
         # about size for update and delete
-        raise DocumentTooLarge(f"{operation!r} command document too large")
+        raise DocumentTooLarge(f"{operation} command document too large")
 
 
 # From the Client Side Encryption spec:
@@ -799,8 +567,7 @@ def _batched_op_msg_impl(
         raise InvalidOperation("Unknown command") from None
 
     to_send = []
-    idx = 0
-    for doc in docs:
+    for idx, doc in enumerate(docs):
         # Encode the current operation
         value = _dict_to_bson(doc, False, opts)
         doc_length = len(value)
@@ -821,9 +588,8 @@ def _batched_op_msg_impl(
             break
         buf.write(value)
         to_send.append(doc)
-        idx += 1
         # We have enough documents, return this batch.
-        if idx == max_write_batch_size:
+        if idx + 1 == max_write_batch_size:
             break
 
     # Write type 1 section size
@@ -936,7 +702,7 @@ class _ClientBulkWriteContext(_BulkWriteContextBase):
         database_name: str,
         cmd_name: str,
         conn: _AgnosticConnection,
-        operation_id: int,
+        operation_id: Optional[int],
         listeners: _EventListeners,
         session: Optional[_AgnosticClientSession],
         codec: CodecOptions[Any],
@@ -964,27 +730,6 @@ class _ClientBulkWriteContext(_BulkWriteContextBase):
         if not to_send_ops:
             raise InvalidOperation("cannot do an empty bulk write")
         return request_id, msg, to_send_ops, to_send_ns
-
-    def _start(
-        self,
-        cmd: MutableMapping[str, Any],
-        request_id: int,
-        op_docs: list[Mapping[str, Any]],
-        ns_docs: list[Mapping[str, Any]],
-    ) -> MutableMapping[str, Any]:
-        """Publish a CommandStartedEvent."""
-        cmd["ops"] = op_docs
-        cmd["nsInfo"] = ns_docs
-        self.listeners.publish_command_start(
-            cmd,
-            self.db_name,
-            request_id,
-            self.conn.address,
-            self.conn.server_connection_id,
-            self.op_id,
-            self.conn.service_id,
-        )
-        return cmd
 
 
 _OP_MSG_OVERHEAD = 1000
@@ -1088,9 +833,8 @@ def _client_batched_op_msg_impl(
     to_send_ns_encoded: list[bytes] = []
     total_ops_length = 0
     total_ns_length = 0
-    idx = 0
 
-    for (real_op_type, op_doc), namespace in zip(operations, namespaces):
+    for idx, ((real_op_type, op_doc), namespace) in enumerate(zip(operations, namespaces)):
         op_type = real_op_type
         # Check insert/replace document size if unacknowledged.
         if real_op_type == "insert":
@@ -1142,10 +886,8 @@ def _client_batched_op_msg_impl(
             to_send_ns_encoded.append(ns_doc_encoded)
             total_ns_length += ns_length
 
-        idx += 1
-
         # We have enough documents, return this batch.
-        if idx == max_write_batch_size:
+        if idx + 1 == max_write_batch_size:
             break
 
     # Construct the entire OP_MSG.
@@ -1306,8 +1048,7 @@ def _batched_write_command_impl(
     # Where to write list document length
     list_start = buf.tell() - 4
     to_send = []
-    idx = 0
-    for doc in docs:
+    for idx, doc in enumerate(docs):
         # Encode the current operation
         key = str(idx).encode("utf8")
         value = _dict_to_bson(doc, False, opts)
@@ -1326,7 +1067,6 @@ def _batched_write_command_impl(
         buf.write(_ZERO_8)
         buf.write(value)
         to_send.append(doc)
-        idx += 1
 
     # Finalize the current OP_QUERY message.
     # Close list and command documents
@@ -1342,125 +1082,10 @@ def _batched_write_command_impl(
     return to_send, length
 
 
-class _OpReply:
-    """A MongoDB OP_REPLY response message."""
-
-    __slots__ = ("flags", "cursor_id", "number_returned", "documents")
-
-    UNPACK_FROM = struct.Struct("<iqii").unpack_from
-    OP_CODE = 1
-
-    def __init__(
-        self, flags: int, cursor_id: int, number_returned: int, documents: bytes | memoryview
-    ):
-        self.flags = flags
-        self.cursor_id = Int64(cursor_id)
-        self.number_returned = number_returned
-        self.documents = documents
-
-    def raw_response(
-        self, cursor_id: Optional[int] = None, user_fields: Optional[Mapping[str, Any]] = None
-    ) -> list[bytes | memoryview]:
-        """Check the response header from the database, without decoding BSON.
-
-        Check the response for errors and unpack.
-
-        Can raise CursorNotFound, NotPrimaryError, ExecutionTimeout, or
-        OperationFailure.
-
-        :param cursor_id: cursor_id we sent to get this response -
-            used for raising an informative exception when we get cursor id not
-            valid at server response.
-        """
-        if self.flags & 1:
-            # Shouldn't get this response if we aren't doing a getMore
-            if cursor_id is None:
-                raise ProtocolError("No cursor id for getMore operation")
-
-            # Fake a getMore command response. OP_GET_MORE provides no
-            # document.
-            msg = "Cursor not found, cursor id: %d" % (cursor_id,)
-            errobj = {"ok": 0, "errmsg": msg, "code": 43}
-            raise CursorNotFound(msg, 43, errobj)
-        elif self.flags & 2:
-            error_object: dict[str, Any] = bson.BSON(self.documents).decode()
-            # Fake the ok field if it doesn't exist.
-            error_object.setdefault("ok", 0)
-            if error_object["$err"].startswith(HelloCompat.LEGACY_ERROR):
-                raise NotPrimaryError(error_object["$err"], error_object)
-            elif error_object.get("code") == 50:
-                default_msg = "operation exceeded time limit"
-                raise ExecutionTimeout(
-                    error_object.get("$err", default_msg), error_object.get("code"), error_object
-                )
-            raise OperationFailure(
-                "database error: %s" % error_object.get("$err"),
-                error_object.get("code"),
-                error_object,
-            )
-        if self.documents:
-            return [self.documents]
-        return []
-
-    def unpack_response(
-        self,
-        cursor_id: Optional[int] = None,
-        codec_options: CodecOptions[Any] = _UNICODE_REPLACE_CODEC_OPTIONS,
-        user_fields: Optional[Mapping[str, Any]] = None,
-        legacy_response: bool = False,
-    ) -> list[dict[str, Any]]:
-        """Unpack a response from the database and decode the BSON document(s).
-
-        Check the response for errors and unpack, returning a dictionary
-        containing the response data.
-
-        Can raise CursorNotFound, NotPrimaryError, ExecutionTimeout, or
-        OperationFailure.
-
-        :param cursor_id: cursor_id we sent to get this response -
-            used for raising an informative exception when we get cursor id not
-            valid at server response
-        :param codec_options: an instance of
-            :class:`~bson.codec_options.CodecOptions`
-        :param user_fields: Response fields that should be decoded
-            using the TypeDecoders from codec_options, passed to
-            bson._decode_all_selective.
-        """
-        self.raw_response(cursor_id)
-        if legacy_response:
-            return bson.decode_all(self.documents, codec_options)
-        return bson._decode_all_selective(self.documents, codec_options, user_fields)
-
-    def command_response(self, codec_options: CodecOptions[Any]) -> dict[str, Any]:
-        """Unpack a command response."""
-        docs = self.unpack_response(codec_options=codec_options)
-        assert self.number_returned == 1
-        return docs[0]
-
-    def raw_command_response(self) -> NoReturn:
-        """Return the bytes of the command response."""
-        # This should never be called on _OpReply.
-        raise NotImplementedError
-
-    @property
-    def more_to_come(self) -> bool:
-        """Is the moreToCome bit set on this response?"""
-        return False
-
-    @classmethod
-    def unpack(cls, msg: bytes | memoryview) -> _OpReply:
-        """Construct an _OpReply from raw bytes."""
-        # PYTHON-945: ignore starting_from field.
-        flags, cursor_id, _, number_returned = cls.UNPACK_FROM(msg)
-
-        documents = msg[20:]
-        return cls(flags, cursor_id, number_returned, documents)
-
-
 class _OpMsg:
     """A MongoDB OP_MSG response message."""
 
-    __slots__ = ("flags", "cursor_id", "number_returned", "payload_document")
+    __slots__ = ("cursor_id", "flags", "number_returned", "payload_document")
 
     UNPACK_FROM = struct.Struct("<IBi").unpack_from
     OP_CODE = 2013
@@ -1541,34 +1166,44 @@ class _OpMsg:
         return cls(flags, payload_document)
 
 
-_UNPACK_REPLY: dict[int, Callable[[bytes | memoryview], Union[_OpReply, _OpMsg]]] = {
-    _OpReply.OP_CODE: _OpReply.unpack,
+_UNPACK_REPLY: dict[int, Callable[[bytes | memoryview], _OpMsg]] = {
     _OpMsg.OP_CODE: _OpMsg.unpack,
 }
+
+
+def _check_exhaust_supported(conn: _AgnosticConnection) -> None:
+    """Raise if this connection's server will not continue an exhaust stream.
+
+    mongos gained exhaust getMore in 7.1 (SERVER-57297). Load-balanced deployments
+    are left alone: every cursor pins its connection there anyway, so an older mongos
+    costs nothing extra, and refusing would break clients that work today.
+    """
+    if conn.is_mongos and conn.max_wire_version < MONGOS_EXHAUST_WIRE_VERSION:
+        raise InvalidOperation("Exhaust cursors require MongoDB 7.1+ when connected to mongos.")
 
 
 class _Query:
     """A query operation."""
 
     __slots__ = (
-        "flags",
-        "db",
-        "coll",
-        "ntoskip",
-        "spec",
-        "fields",
-        "codec_options",
-        "read_preference",
-        "limit",
-        "batch_size",
-        "name",
-        "read_concern",
-        "collation",
-        "session",
-        "client",
-        "allow_disk_use",
         "_as_command",
+        "allow_disk_use",
+        "batch_size",
+        "client",
+        "codec_options",
+        "coll",
+        "collation",
+        "db",
         "exhaust",
+        "fields",
+        "flags",
+        "limit",
+        "name",
+        "ntoskip",
+        "read_concern",
+        "read_preference",
+        "session",
+        "spec",
     )
 
     # For compatibility with the _GetMore class.
@@ -1620,20 +1255,11 @@ class _Query:
         return f"{self.db}.{self.coll}"
 
     def use_command(self, conn: _AgnosticConnection) -> bool:
-        use_find_cmd = False
-        if not self.exhaust:
-            use_find_cmd = True
-        elif conn.max_wire_version >= 8:
-            # OP_MSG supports exhaust on MongoDB 4.2+
-            use_find_cmd = True
-        elif not self.read_concern.ok_for_legacy:
-            raise ConfigurationError(
-                "read concern level of %s is not valid "
-                "with a max wire version of %d." % (self.read_concern.level, conn.max_wire_version)
-            )
+        if self.exhaust:
+            _check_exhaust_supported(conn)
 
         conn.validate_session(self.client, self.session)  # type: ignore[arg-type]
-        return use_find_cmd
+        return True
 
     def update_command(self, cmd: dict[str, Any]) -> None:
         self._as_command = cmd, self.db
@@ -1678,75 +1304,41 @@ class _Query:
         return self._as_command
 
     def get_message(
-        self, read_preference: _ServerMode, conn: _AgnosticConnection, use_cmd: bool = False
+        self, read_preference: _ServerMode, conn: _AgnosticConnection
     ) -> tuple[int, bytes, int]:
-        """Get a query message, possibly setting the secondaryOk bit."""
+        """Get a query message"""
         # Use the read_preference decided by _socket_from_server.
         self.read_preference = read_preference
-        if read_preference.mode:
-            # Set the secondaryOk bit.
-            flags = self.flags | 4
-        else:
-            flags = self.flags
 
-        ns = self.namespace()
-        spec = self.spec
-
-        if use_cmd:
-            spec = self.as_command(conn)[0]
-            request_id, msg, size, _ = _op_msg(
-                0,
-                spec,
-                self.db,
-                read_preference,
-                self.codec_options,
-                ctx=conn.compression_context,
-            )
-            return request_id, msg, size
-
-        # OP_QUERY treats ntoreturn of -1 and 1 the same, return
-        # one document and close the cursor. We have to use 2 for
-        # batch size if 1 is specified.
-        ntoreturn = self.batch_size == 1 and 2 or self.batch_size
-        if self.limit:
-            if ntoreturn:
-                ntoreturn = min(self.limit, ntoreturn)
-            else:
-                ntoreturn = self.limit
-
-        if conn.is_mongos:
-            assert isinstance(spec, MutableMapping)
-            spec = _maybe_add_read_preference(spec, read_preference)
-
-        return _query(
-            flags,
-            ns,
-            self.ntoskip,
-            ntoreturn,
+        spec = self.as_command(conn)[0]
+        request_id, msg, size, _ = _op_msg(
+            0,
             spec,
-            None if use_cmd else self.fields,
+            self.db,
+            read_preference,
             self.codec_options,
             ctx=conn.compression_context,
         )
+        return request_id, msg, size
 
 
 class _GetMore:
     """A getmore operation."""
 
     __slots__ = (
-        "db",
-        "coll",
-        "ntoreturn",
-        "cursor_id",
-        "max_await_time_ms",
+        "_as_command",
+        "client",
         "codec_options",
+        "coll",
+        "comment",
+        "conn_mgr",
+        "cursor_id",
+        "db",
+        "exhaust",
+        "max_await_time_ms",
+        "ntoreturn",
         "read_preference",
         "session",
-        "client",
-        "conn_mgr",
-        "_as_command",
-        "exhaust",
-        "comment",
     )
 
     name = "getMore"
@@ -1787,15 +1379,11 @@ class _GetMore:
         return f"{self.db}.{self.coll}"
 
     def use_command(self, conn: _AgnosticConnection) -> bool:
-        use_cmd = False
-        if not self.exhaust:
-            use_cmd = True
-        elif conn.max_wire_version >= 8:
-            # OP_MSG supports exhaust on MongoDB 4.2+
-            use_cmd = True
+        if self.exhaust:
+            _check_exhaust_supported(conn)
 
         conn.validate_session(self.client, self.session)  # type: ignore[arg-type]
-        return use_cmd
+        return True
 
     def update_command(self, cmd: dict[str, Any]) -> None:
         self._as_command = cmd, self.db
@@ -1814,7 +1402,6 @@ class _GetMore:
             self.ntoreturn,
             self.max_await_time_ms,
             self.comment,
-            conn,
         )
         if self.session:
             self.session._apply_to(cmd, False, self.read_preference, conn)  # type: ignore[arg-type]
@@ -1826,49 +1413,22 @@ class _GetMore:
         self._as_command = cmd, self.db
         return self._as_command
 
-    def get_message(
-        self, dummy0: Any, conn: _AgnosticConnection, use_cmd: bool = False
-    ) -> Union[tuple[int, bytes, int], tuple[int, bytes]]:
+    def get_message(self, dummy0: Any, conn: _AgnosticConnection) -> tuple[int, bytes, int]:
         """Get a getmore message."""
-        ns = self.namespace()
-        ctx = conn.compression_context
-
-        if use_cmd:
-            spec = self.as_command(conn)[0]
-            if self.conn_mgr and self.exhaust:
-                flags = _OpMsg.EXHAUST_ALLOWED
-            else:
-                flags = 0
-            request_id, msg, size, _ = _op_msg(
-                flags, spec, self.db, None, self.codec_options, ctx=conn.compression_context
-            )
-            return request_id, msg, size
-
-        return _get_more(ns, self.ntoreturn, self.cursor_id, ctx)
+        spec = self.as_command(conn)[0]
+        flags = _OpMsg.EXHAUST_ALLOWED if (self.conn_mgr and self.exhaust) else 0
+        request_id, msg, size, _ = _op_msg(
+            flags, spec, self.db, None, self.codec_options, ctx=conn.compression_context
+        )
+        return request_id, msg, size
 
 
 class _RawBatchQuery(_Query):
-    def use_command(self, conn: _AgnosticConnection) -> bool:
-        # Compatibility checks.
-        super().use_command(conn)
-        if conn.max_wire_version >= 8:
-            # MongoDB 4.2+ supports exhaust over OP_MSG
-            return True
-        elif not self.exhaust:
-            return True
-        return False
+    pass
 
 
 class _RawBatchGetMore(_GetMore):
-    def use_command(self, conn: _AgnosticConnection) -> bool:
-        # Compatibility checks.
-        super().use_command(conn)
-        if conn.max_wire_version >= 8:
-            # MongoDB 4.2+ supports exhaust over OP_MSG
-            return True
-        elif not self.exhaust:
-            return True
-        return False
+    pass
 
 
 class _CursorAddress(tuple[Any, ...]):

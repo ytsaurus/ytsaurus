@@ -34,7 +34,7 @@ CLI
 ```bash
 yt get //path/to/my/table/@media
 ```
-```
+```yson
 {
   "default" = {
     "replication_factor" = 3;
@@ -92,7 +92,7 @@ By default, the `"default"` medium is specified as primary on create.
 
 The `replication_factor` attribute is a synonym for `@media/<primary_medium_name>/replication_factor`. The attribute has been kept for backward compatibility and ease of access.
 
-### Наследование
+### Inheritance
 
 Attributes `primary_medium` and `media` are [inheritable](../../../user-guide/storage/attributes.md#system_attr). This means they can be set on a directory, a then every newly created chunk owner in the subtree will receive corresponding attribute values automatically. Using the `primary_medium` attribute is preferred in most cases; using `media` this way is not recommended.
 
@@ -130,7 +130,7 @@ yt get //sys/precarious_chunks 42
 yt get //sys/precarious_vital_chunks 0
 ```
 
-## Attributes
+## Attributes { #attributes }
 
 A medium object has the following attributes:
 

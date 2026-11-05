@@ -26,3 +26,23 @@ type SkippedRowInfo struct {
 	Offset FilePosition
 	Attrs  map[string]any
 }
+
+type LargeRowKind string
+
+const (
+	LargeRowKindUncompressed LargeRowKind = "uncompressed"
+	LargeRowKindCompressed   LargeRowKind = "compressed"
+)
+
+// AllLargeRowKinds contains all defined large row kinds.
+var AllLargeRowKinds = []LargeRowKind{
+	LargeRowKindUncompressed,
+	LargeRowKindCompressed,
+}
+
+// LargeRowInfo contains information about a row that approaches the row size limit.
+type LargeRowInfo struct {
+	Kind   LargeRowKind
+	Offset FilePosition
+	Attrs  map[string]any
+}

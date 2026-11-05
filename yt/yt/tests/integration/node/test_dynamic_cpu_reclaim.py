@@ -74,7 +74,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         preemptible_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptible_cpu_x100")
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
         time.sleep(0.2)
         op.abort()
@@ -141,11 +141,11 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     @authors("renadeen")
     @flaky(max_runs=5)
     def test_dynamic_cpu_statistics(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             with_breakpoint("BREAKPOINT; while true; do : ; done"),
             SPEC_WITH_CPU_MONITOR,
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         stats_path = self.wait_and_get_stats_path(job_id)
 
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] <= 15)
@@ -160,15 +160,15 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
         # node has 1.5 CPU, min spare CPU to schedule new jobs is 1
 
-        run_test_vanilla(with_breakpoint("BREAKPOINT", "Op1"), spec=SPEC_WITH_CPU_MONITOR)
-        job_id1 = wait_breakpoint("Op1")[0]
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT", "Op1"), spec=SPEC_WITH_CPU_MONITOR)
+        job_id1 = wait_breakpoint(op1, "Op1")[0]
 
         stats_path = self.wait_and_get_stats_path(job_id1)
         wait(lambda: exists(stats_path + "/preemptible_cpu_x100"))
         wait(lambda: get(stats_path + "/preemptible_cpu_x100")["max"] > 50)
 
-        run_test_vanilla(with_breakpoint("BREAKPOINT", "Op2"))
-        wait_breakpoint("Op2")
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT", "Op2"))
+        wait_breakpoint(op2, "Op2")
 
     @authors("renadeen")
     def test_node_aborts_job_on_lack_of_cpu(self):
@@ -176,7 +176,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
             with_breakpoint("BREAKPOINT; while true; do : ; done", "Op1"),
             spec=SPEC_WITH_CPU_MONITOR,
         )
-        wait_breakpoint("Op1")
+        wait_breakpoint(op1, "Op1")
 
         op2 = run_test_vanilla("while true; do : ; done")
         wait(lambda: len(op2.get_running_jobs()) == 1)
@@ -218,7 +218,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
             with_breakpoint("BREAKPOINT; while true; do : ; done", "Op1"),
             spec=SPEC_WITH_CPU_MONITOR,
         )
-        wait_breakpoint("Op1")
+        wait_breakpoint(op1, "Op1")
 
         op2 = run_test_vanilla("while true; do : ; done", spec={"weight": 0.001}, job_count=2)
         wait(lambda: len(op2.get_running_jobs()) == 2)
@@ -266,7 +266,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
                 }
             },
         )
-        wait_breakpoint("Op1")
+        wait_breakpoint(op1, "Op1")
 
         op2 = run_test_vanilla(
             memory_consume_command,

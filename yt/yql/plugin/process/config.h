@@ -19,10 +19,10 @@ struct TProcessYqlPluginInternalConfig
 {
     int SlotIndex;
     TYqlPluginConfigPtr PluginConfig;
-    TString MaxSupportedYqlVersion;
     TSingletonsConfigPtr SingletonsConfig;
-
-    std::optional<NYson::TYsonString> DynamicGatewaysConfig;
+    TYqlPluginDynamicConfigPtr PluginDynamicConfig;
+    bool UseTokenResolver;
+    std::string TokenServiceSocketPath;
 
     REGISTER_YSON_STRUCT(TProcessYqlPluginInternalConfig);
 

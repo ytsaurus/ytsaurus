@@ -1,9 +1,9 @@
+from yt.common import YT_NULL_TRANSACTION_ID
 from yt.wrapper import YtClient
 from yt.wrapper.testlib.helpers import wait
 
 from yt_commands import (
     create_account,
-    create_domestic_medium,
     create_network_project,
     create_pool,
     create_user,
@@ -48,21 +48,19 @@ class TestResourceUsage(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
 
-    STORE_LOCATION_COUNT = 2
     DEFAULT_MEDIUM = "default"
     TEST_MEDIUM = "test_medium"
+
+    MEDIUM_CONFIG = {
+        DEFAULT_MEDIUM: {},
+        TEST_MEDIUM: {},
+    }
 
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
     NUM_TEST_PARTITIONS = 2
     CLASS_TEST_LIMIT = 24 * 60
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-        config["data_node"]["store_locations"][0]["medium_name"] = cls.DEFAULT_MEDIUM
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.TEST_MEDIUM
 
     def setup_method(self, method: str):
         super(TestResourceUsage, self).setup_method(method)
@@ -87,8 +85,6 @@ class TestResourceUsage(YTEnvSetup):
         )
         if not exists("//sys/users/test_user"):
             create_user("test_user")
-        if not exists(f"//sys/media/{self.TEST_MEDIUM}"):
-            create_domestic_medium(self.TEST_MEDIUM)
         if not exists("//sys/accounts/test_account"):
             create_account("test_account")
         set(
@@ -159,8 +155,6 @@ class TestResourceUsage(YTEnvSetup):
             "import-snapshot",
             "--snapshot-id",
             "latest",
-            "--node-id-dict-cluster",
-            self.Env.get_http_proxy_address(),
         ]
         if extra_args:
             args.extend(extra_args)
@@ -231,6 +225,22 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         logging.info("Handler %s, payload %s, response %s", handler, payload, response)
         return response
 
+    def _assert_versioned_fields(self, response: dict[str, Any]):
+        assert "versioned_fields" in response
+        versioned_fields = response["versioned_fields"]
+        assert isinstance(versioned_fields, dict)
+        fields = response["fields"]
+        for key, value in versioned_fields.items():
+            assert value == f"versioned:{key}"
+            # every versioned_fields entry must have a corresponding non-versioned field
+            assert key in fields, f"{key} not found in fields, but present in versioned_fields"
+        # check that every medium has a versioned counterpart
+        for medium in response.get("mediums", []):
+            medium_field = f"medium:{medium}"
+            versioned_medium_field = f"versioned:medium:{medium}"
+            assert medium_field in versioned_fields, f"medium {medium} not found in versioned_fields"
+            assert versioned_fields[medium_field] == versioned_medium_field
+
     @authors("ilyaibraev")
     def test_get_resource_usage(self, yt_client: YtClient, home_ypath: str):
         yt_client.set(home_ypath + "/@account", "test_account")
@@ -265,6 +275,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         paths = [item["path"] for item in response["items"]]
         assert len(paths) == 10
         assert sorted(created_tables) == sorted(paths)
+
+        self._assert_versioned_fields(response)
 
         # check if all tables and nodes are present
         response = self._run_request(
@@ -456,6 +468,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         paths = [item["path"] for item in response["items"]]
         assert len(paths) == 10
         assert sorted(created_tables) == sorted(paths)
+
+        self._assert_versioned_fields(response)
 
         # check if all tables and nodes are present
         response = self._run_request(
@@ -716,6 +730,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
 
         # Assertions
         for response in [response_without_children, response_with_children_inside_test_dir]:
+            self._assert_versioned_fields(response)
+
             # Recreated
             item = _find_item_by_path(response, table_recreated)
             assert item["recreation_status"] == "recreated"
@@ -998,3 +1014,196 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
 
         chunk_count = yt_client.get(f"{last_table_path}/@resource_usage/chunk_count")
         assert chunk_count > 1
+
+    @authors("ilyaibraev")
+    def test_get_resource_usage_without_path_resolution(self, yt_client: YtClient, home_ypath: str):
+        yt_client.set(f"{home_ypath}/@account", "test_account")
+        table_path = f"{home_ypath}/table"
+        held_table_path = f"{home_ypath}/held_table"
+        yt_client.create("table", table_path, attributes={"primary_medium": self.DEFAULT_MEDIUM})
+        held_table_id = yt_client.create(
+            "table", held_table_path, attributes={"primary_medium": self.TEST_MEDIUM}
+        )
+        yt_client.write_table(table_path, [{"value": "kept"}])
+        yt_client.write_table(held_table_path, [{"value": "held"}] * 5)
+        table_disk_space = yt_client.get(f"{table_path}/@resource_usage/disk_space")
+        held_table_disk_space = yt_client.get(f"{held_table_path}/@resource_usage/disk_space")
+
+        with yt_client.Transaction():
+            yt_client.lock(held_table_path, mode="snapshot")
+            with yt_client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                yt_client.remove(held_table_path)
+                wait(lambda: yt_client.get(f"#{held_table_id}/@path") == f"#{held_table_id}")
+
+                snapshot_timestamp = self.snapshot_runner.build_and_export_master_snapshot(yt_client)
+                snapshot_export = "//sys/admin/snapshots/snapshot_exports/latest"
+                held_rows = [
+                    row for row in yt_client.read_table(snapshot_export)
+                    if row["id"] == held_table_id
+                ]
+                assert any(
+                    row["path"] == f"#{held_table_id}" and row.get("orphaned")
+                    for row in held_rows
+                ), held_rows
+
+                node_id_dict = f"{home_ypath}/missing_node_id_dict"
+                assert not yt_client.exists(node_id_dict)
+                self.run_preprocessing(extra_args=["--node-id-dict", node_id_dict])
+
+                snapshot_id = yt_client.get(f"{snapshot_export}/@key")[:-len("_unified_export")]
+                output_table = (
+                    "//sys/admin/yt-microservices/resource_usage/"
+                    f"{snapshot_timestamp}:{snapshot_id}.resource_usage"
+                )
+                wait(
+                    lambda: yt_client.get(f"{output_table}/@tablet_state") == "mounted",
+                    timeout=60,
+                    error_message=lambda: (
+                        f"Expected {output_table} to be mounted; "
+                        f"tablet_state={yt_client.get(f'{output_table}/@tablet_state')}; "
+                        f"API process returncode={self._resource_usage_json_api_go_process.poll()}"
+                    ),
+                )
+                response = self._run_request(
+                    "get-resource-usage",
+                    {
+                        "cluster": "local",
+                        "account": "test_account",
+                        "timestamp": snapshot_timestamp,
+                        "timestamp_rounding_policy": "closest",
+                        "row_filter": {"exclude_map_nodes": False},
+                    },
+                )
+                assert "items" in response, response
+                items = {(item["path"], item["type"]): item for item in response["items"]}
+                unknown_path = f"//$unknown_nodes/{held_table_id}"
+                for path, node_type, disk_space, medium in [
+                    (table_path, "table", table_disk_space, self.DEFAULT_MEDIUM),
+                    (home_ypath, "map_node", table_disk_space, self.DEFAULT_MEDIUM),
+                    (unknown_path, "table", held_table_disk_space, self.TEST_MEDIUM),
+                    ("//$unknown_nodes", "map_node", held_table_disk_space, self.TEST_MEDIUM),
+                ]:
+                    item = items[(path, node_type)]
+                    assert item["disk_space"] == disk_space, response
+                    assert item[f"medium:{medium}"] == disk_space, response
+                assert items[(unknown_path, "table")]["path_patched"], response
+                assert not items[(table_path, "table")]["path_patched"], response
+                root = items[("/", "map_node")]
+                assert root["disk_space"] == table_disk_space + held_table_disk_space, response
+                assert root[f"medium:{self.DEFAULT_MEDIUM}"] == table_disk_space, response
+                assert root[f"medium:{self.TEST_MEDIUM}"] == held_table_disk_space, response
+
+    @authors("ilyaibraev")
+    def test_table_held_by_zero_usage_transaction(self, yt_client: YtClient, home_ypath: str):
+        tx_title = 'Scheduler "input" transaction for operation 47b86be5-1e18c55f-42e03e8-ab61cbeb'
+        disk_space = 35340978063705
+
+        def build_rows(node_id: str, tx_id: str, orphaned: bool):
+            common = {
+                "id": node_id,
+                "path": "#" + node_id,
+                "account": "acc",
+                "type": "table",
+                "external": False,
+                "inherit_acl": True,
+                "ref_counter": 1,
+                "access_time": "2024-01-01T00:00:00.000000Z",
+                "creation_time": "2024-01-01T00:00:00.000000Z",
+                "modification_time": "2024-01-01T00:00:00.000000Z",
+                "resource_usage": {
+                    "chunk_count": 11006,
+                    "disk_space": disk_space,
+                    "node_count": 1,
+                    "tablet_count": 0,
+                    "master_memory": 0,
+                    "tablet_static_memory": 0,
+                    "chunk_host_cell_master_memory": 0,
+                    "disk_space_per_medium": {self.DEFAULT_MEDIUM: disk_space},
+                    "detailed_master_memory": {"attributes": 0, "chunks": 0, "nodes": 0, "schemas": 0, "tablets": 0},
+                },
+            }
+            row_a = dict(common)
+            row_a.update({
+                "cypress_transaction_id": tx_id,
+                "cypress_transaction_title": tx_title,
+                "versioned_resource_usage": {
+                    "row_count": 0,
+                    "erasure_disk_space": 0,
+                    "data_weight": 0,
+                    "regular_disk_space": 0,
+                    "compressed_data_size": 0,
+                    "chunk_count": 0,
+                    "uncompressed_data_size": 0,
+                },
+            })
+            row_b = dict(common)
+            row_b.update({
+                "orphaned": orphaned,
+            })
+            return row_a, row_b
+
+        def run_scenario(node_id: str, tx_id: str, rows: list[dict]):
+            resolved_path = f"{home_ypath}/held_table_{node_id}"
+            yt_client.insert_rows(
+                "//sys/admin/yt-microservices/node_id_dict/data",
+                [{"cluster": self.Env.get_http_proxy_address(), "node_id": node_id, "path": resolved_path}],
+            )
+            snapshot_ts = self.snapshot_runner.build_and_export_master_snapshot(
+                YtClient(self.Env.get_http_proxy_address()),
+                append_to_snapshot=rows,
+            )
+            self.run_preprocessing(extra_args=[
+                "--node-id-dict-cluster", self.Env.get_http_proxy_address(),
+            ])
+
+            versioned_response = self._run_request(
+                "get-versioned-resource-usage",
+                {
+                    "cluster": "local",
+                    "account": "acc",
+                    "path": resolved_path,
+                    "timestamp": snapshot_ts,
+                    "timestamp_rounding_policy": "closest",
+                    "type": "table",
+                },
+            )
+            children_response = self._run_request(
+                "get-children-and-resource-usage",
+                {
+                    "cluster": "local",
+                    "account": "acc",
+                    "timestamp": snapshot_ts,
+                    "timestamp_rounding_policy": "closest",
+                    "row_filter": {"base_path": home_ypath},
+                },
+            )
+            self._assert_versioned_fields(children_response)
+            items = [item for item in children_response["items"] if item["path"] == resolved_path]
+            assert len(items) == 1, str(children_response)
+            return versioned_response, items[0]
+
+        for node_id, tx_id, reversed_order in [
+            ("3570e-4e2506-4110191-6ff982f0", "e53b-34b34-4e490001-1e3b", False),
+            ("3570e-4e2506-4110191-6ff982f1", "e53b-34b34-4e490001-1e3c", True),
+        ]:
+            row_a, row_b = build_rows(node_id, tx_id, orphaned=True)
+            rows = [row_b, row_a] if reversed_order else [row_a, row_b]
+            versioned_response, item = run_scenario(node_id, tx_id, rows)
+
+            assert item["disk_space"] == disk_space, str(item)
+            assert item[f"medium:{self.DEFAULT_MEDIUM}"] == disk_space, str(item)
+
+            assert tx_id in versioned_response["transactions"], str(versioned_response)
+            assert versioned_response["transactions"][tx_id].get("transaction_title") == tx_title, str(versioned_response)
+
+            assert item["versioned_resource_usage"] is not None, str(item)
+            assert tx_id in item["versioned_resource_usage"], str(item)
+            assert item["versioned_resource_usage"][tx_id].get("transaction_title") == tx_title, str(item)
+
+        node_id, tx_id = "3570e-4e2506-4110191-6ff982f2", "e53b-34b34-4e490001-1e3d"
+        row_a, row_b = build_rows(node_id, tx_id, orphaned=False)
+        versioned_response, item = run_scenario(node_id, tx_id, [row_a, row_b])
+
+        assert item["disk_space"] == disk_space, str(item)
+        assert tx_id not in versioned_response["transactions"], str(versioned_response)
+        assert item["versioned_resource_usage"] is None, str(item)

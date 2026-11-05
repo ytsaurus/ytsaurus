@@ -37,7 +37,6 @@ using NYT::ToProto;
 
 using testing::Return;
 using testing::InSequence;
-using testing::Invoke;
 using testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +45,11 @@ class TElectionTest
     : public testing::Test
 {
 public:
-    void Configure(int peerCount, int selfId)
+    void Configure(
+        int peerCount,
+        int selfId,
+        std::optional<int> quorumPeerCount = std::nullopt,
+        const std::vector<int>& weights = {})
     {
         // NB: During func gauge registration callback holding strong
         // reference to RPC server is put into the queue that is not
@@ -72,11 +75,16 @@ public:
         }
 
         auto cellConfig = New<TCellConfig>();
+        YT_VERIFY(weights.empty() || std::ssize(weights) == peerCount);
         for (int id = 0; id < peerCount; ++id) {
             auto peerConfig = New<TCellPeerConfig>();
             peerConfig->Address = GetPeerAddress(id);
+            if (!weights.empty()) {
+                peerConfig->Weight = weights[id];
+            }
             cellConfig->Peers.push_back(peerConfig);
         }
+        cellConfig->QuorumPeerCount = quorumPeerCount;
 
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, nullptr, selfId);
 
@@ -101,11 +109,11 @@ public:
             .ThrowOnError();
 
         EXPECT_CALL(*CallbacksMock, FormatPriority(_))
-            .WillRepeatedly(Invoke([] (TPeerPriority priority) {
+            .WillRepeatedly([] (TPeerPriority priority) {
                 return Format("{First: %v, Second: %v}",
                     priority.first,
                     priority.second);
-            }));
+            });
     }
 
     void Sleep()
@@ -186,7 +194,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillOnce(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
@@ -215,7 +223,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
@@ -262,7 +270,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
@@ -303,7 +311,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
     int startLeadingCounter = 0;
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
@@ -332,17 +340,17 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
-            .WillOnce(::testing::Invoke([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
+            .WillOnce([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
-            }));
+            });
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
-            .WillOnce(::testing::Invoke([this] (const TError&) {
+            .WillOnce([this] (const TError&) {
                 ElectionManager->Participate();
-            }));
+            });
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
-            .WillOnce(::testing::Invoke([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
+            .WillOnce([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
-            }));
+            });
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
@@ -356,7 +364,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair<i64, i64>(0, 0)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
@@ -384,12 +392,204 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
-            .WillOnce(::testing::Invoke([this] (const TError& /*error*/) {
+            .WillOnce([this] (const TError& /*error*/) {
                 ElectionManager->Participate();
-            }));
+            });
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, ConfigurableQuorum)
+{
+    Configure(6, 0, /*quorumPeerCount*/ 5);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(std::pair(0LL, 0LL)));
+
+    for (int id = 1; id < 4; ++id) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+                auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+                TElectionServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(RpcTimeout);
+
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
+
+                response->set_state(ToProto(EPeerState::Following));
+                response->set_vote_id(0);
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
+                ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
+                response->set_self_id(id);
+                context->Reply();
+            }));
+    }
+
+    // Peers 4-5 never respond, simulating dead peers.
+    for (int id = 4; id < 6; ++id) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [], {
+                // Do not reply.
+            }));
+    }
+
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
+        .Times(0);
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, WeightedQuorumReachedWithFewAlivePeers)
+{
+    // Weights: self = 1, peers 1-3 = 1, peer 4 = 10; total weight 14, default quorum peer count is
+    // 3 (out of 5 voting peers), so quorum weight = ceil(14 * 3 / 5) = 9.
+    Configure(5, 0, /*quorumPeerCount*/ std::nullopt, /*weights*/ {1, 1, 1, 1, 10});
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(std::pair(0LL, 0LL)));
+
+    // Only the heavyweight peer 4 is alive; combined with self (1 + 10 = 11 >= 9), quorum is
+    // reached even though only 2 out of 5 peers are alive.
+    EXPECT_RPC_CALL(*PeerMocks[4], GetStatus)
+        .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+            TElectionServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(RpcTimeout);
+
+            auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+            EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+            const auto& rsp = rspOrError.Value();
+
+            response->set_state(ToProto(EPeerState::Following));
+            response->set_vote_id(0);
+            ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
+            ToProto(response->mutable_priority(), std::pair<i64, i64>(0, 4));
+            response->set_self_id(4);
+            context->Reply();
+        }));
+
+    // Peers 1-3 never respond, simulating dead peers.
+    for (int id = 1; id < 4; ++id) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [], {
+                // Do not reply.
+            }));
+    }
+
+    {
+        InSequence dummy;
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
+    }
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, WeightedQuorumNotReachedDespiteMajorityOfPeersAlive)
+{
+    // Same weights as above; quorum weight is 9.
+    Configure(5, 0, /*quorumPeerCount*/ std::nullopt, /*weights*/ {1, 1, 1, 1, 10});
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(std::pair(0LL, 0LL)));
+
+    // Peers 1-3 (weight 1 each) are alive, but self + peers 1-3 only sum to 4 < 9, so quorum is
+    // not reached even though 4 out of 5 peers are alive.
+    for (int id = 1; id < 4; ++id) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+                auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+                TElectionServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(RpcTimeout);
+
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
+
+                response->set_state(ToProto(EPeerState::Following));
+                response->set_vote_id(0);
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
+                ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
+                response->set_self_id(id);
+                context->Reply();
+            }));
+    }
+
+    // Peer 4 (weight 10) never responds, simulating a dead peer.
+    EXPECT_RPC_CALL(*PeerMocks[4], GetStatus)
+        .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [], {
+            // Do not reply.
+        }));
+
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
+        .Times(0);
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, WeightedQuorumScalesWithConfiguredQuorumPeerCount)
+{
+    // Same weights as above (total weight 14), but with an explicit quorum peer count override of
+    // 4 out of 5 (stricter than the default majority of 3). Quorum weight is proportional to that
+    // override: ceil(14 * 4 / 5) = 12, not just a plain majority of weight (which would be 8).
+    Configure(5, 0, /*quorumPeerCount*/ 4, /*weights*/ {1, 1, 1, 1, 10});
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(std::pair(0LL, 0LL)));
+
+    // Only the heavyweight peer 4 is alive; combined with self (1 + 10 = 11 < 12), quorum is not
+    // reached, even though the same weights reached quorum in WeightedQuorumReachedWithFewAlivePeers
+    // above under the default (unconfigured) quorum peer count.
+    EXPECT_RPC_CALL(*PeerMocks[4], GetStatus)
+        .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+            TElectionServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(RpcTimeout);
+
+            auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+            EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+            const auto& rsp = rspOrError.Value();
+
+            response->set_state(ToProto(EPeerState::Following));
+            response->set_vote_id(0);
+            ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
+            ToProto(response->mutable_priority(), std::pair<i64, i64>(0, 4));
+            response->set_self_id(4);
+            context->Reply();
+        }));
+
+    // Peers 1-3 never respond, simulating dead peers.
+    for (int id = 1; id < 4; ++id) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [], {
+                // Do not reply.
+            }));
+    }
+
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
+        .Times(0);
 
     RunElections();
 }
@@ -444,7 +644,7 @@ TEST_P(TElectionGenericTest, Basic)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 const auto& status = data.Statuses[id - 1];
@@ -526,7 +726,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     EXPECT_CALL(*CallbacksMock, GetPriority())
         .WillRepeatedly(Return(std::pair(0LL, 0LL)));
 
-    for (int id = 1; id < 3; id++) {
+    for (int id = 1; id < 3; ++id) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 TDelayedExecutor::Submit(BIND([=] {

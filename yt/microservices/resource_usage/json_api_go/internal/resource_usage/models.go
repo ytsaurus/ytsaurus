@@ -131,6 +131,7 @@ type ResourceUsageInput struct {
 type ResourceUsageOutput struct {
 	SnapshotTimestamp int64
 	Fields            []string
+	VersionedFields   map[string]string
 	RowCount          int
 	Items             *[]Item
 	Mediums           []string
@@ -150,6 +151,7 @@ type ResourceUsageDiffOutput struct {
 	OldSelectedSnapshot int64
 	NewSelectedSnapshot int64
 	Fields              []string
+	VersionedFields     map[string]string
 	RowCount            int
 	Items               *[]Item
 	Mediums             []string

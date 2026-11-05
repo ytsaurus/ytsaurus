@@ -3,12 +3,33 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
 
+#include <atomic>
+
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NFormats;
 using namespace NHttp;
 using namespace NNet;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+// Monotonically raises |accounted| up to |current| and returns the unaccounted
+// delta. Safe against concurrent calls: parallel callers race to bump the
+// counter, and only the one that actually advances it reports a positive delta;
+// others get zero. Guarantees the returned value is non-negative.
+i64 AccountByteCountDelta(std::atomic<i64>& accounted, i64 current)
+{
+    auto accountedValue = accounted.load();
+    while (accountedValue < current &&
+        !accounted.compare_exchange_weak(accountedValue, current))
+    { }
+    return std::max<i64>(0, current - accountedValue);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +50,7 @@ public:
         , ClientAddress_(clientAddress)
         , OutputFormat_(outputFormat)
         , OutputCompression_(outputCompression)
-        , PrevWriteByteCount_(Underlying_->GetWriteByteCount())
+        , AccountedWriteByteCount_(Underlying_->GetWriteByteCount())
     { }
 
     TFuture<void> Write(const TSharedRef& buffer) override
@@ -37,14 +58,15 @@ public:
         return Underlying_->Write(buffer)
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
-                    auto writeByteCount = Underlying_->GetWriteByteCount();
-                    Api_->IncrementBytesOutProfilingCounters(
-                        User_,
-                        ClientAddress_,
-                        writeByteCount - PrevWriteByteCount_,
-                        OutputFormat_,
-                        OutputCompression_);
-                    PrevWriteByteCount_ = writeByteCount;
+                    auto delta = AccountByteCountDelta(AccountedWriteByteCount_, Underlying_->GetWriteByteCount());
+                    if (delta > 0) {
+                        Api_->IncrementBytesOutProfilingCounters(
+                            User_,
+                            ClientAddress_,
+                            delta,
+                            OutputFormat_,
+                            OutputCompression_);
+                    }
                 }));
     }
 
@@ -66,7 +88,7 @@ private:
     const std::optional<NFormats::TFormat> OutputFormat_;
     const std::optional<TContentEncoding> OutputCompression_;
 
-    i64 PrevWriteByteCount_ = 0;
+    std::atomic<i64> AccountedWriteByteCount_;
 };
 
 class TProfilingInputStream
@@ -86,7 +108,7 @@ public:
         , ClientAddress_(clientAddress)
         , InputFormat_(inputFormat)
         , InputCompression_(inputCompression)
-        , PrevReadByteCount_(Underlying_->GetReadByteCount())
+        , AccountedReadByteCount_(Underlying_->GetReadByteCount())
     { }
 
     TFuture<TSharedRef> Read() override
@@ -94,14 +116,15 @@ public:
         return Underlying_->Read()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& data) {
-                    auto readByteCount = Underlying_->GetReadByteCount();
-                    Api_->IncrementBytesInProfilingCounters(
-                        User_,
-                        ClientAddress_,
-                        readByteCount - PrevReadByteCount_,
-                        InputFormat_,
-                        InputCompression_);
-                    PrevReadByteCount_ = readByteCount;
+                    auto delta = AccountByteCountDelta(AccountedReadByteCount_, Underlying_->GetReadByteCount());
+                    if (delta > 0) {
+                        Api_->IncrementBytesInProfilingCounters(
+                            User_,
+                            ClientAddress_,
+                            delta,
+                            InputFormat_,
+                            InputCompression_);
+                    }
                     return data;
                 }));
     }
@@ -114,7 +137,7 @@ private:
     const std::optional<NFormats::TFormat> InputFormat_;
     const std::optional<TContentEncoding> InputCompression_;
 
-    i64 PrevReadByteCount_ = 0;
+    std::atomic<i64> AccountedReadByteCount_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,7 +43,7 @@ target_link_libraries(yt-python-common PUBLIC
 
 target_sources(yt-python-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/string_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/dynamic_ring_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/helpers.cpp

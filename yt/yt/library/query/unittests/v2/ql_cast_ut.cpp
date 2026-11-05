@@ -133,6 +133,36 @@ TEST_F(TCastExpressionTest, Basic)
     Check("CAST(\"1\" AS `Optional<Double>`)", "", MakeDouble(1.0));
 }
 
+TEST_F(TCastExpressionTest, ImplicitIntegerCastsInModulo)
+{
+    Check("i1 % u1", "i1=-1;u1=3u", MakeUint64(0));
+    Check("u1 % i1", "i1=-1;u1=3u", MakeUint64(3));
+    Check("i1 % u1", "i1=#;u1=3u", MakeNull());
+    Check("i1 % u1", "i1=-9223372036854775808;u1=3u", MakeUint64(2));
+    Check("farm_hash(s1) % i1", "s1=abc;i1=10", MakeUint64(8));
+}
+
+TEST_F(TCastExpressionTest, CaseCastToNull)
+{
+    for (const auto& prefix : {"case b when true", "case when b"}) {
+        for (const auto& [literal, value] : std::vector<std::pair<TStringBuf, TUnversionedValue>>{
+            {"7", MakeInt64(7)},
+            {"true", MakeBoolean(true)},
+            {"'abc'", MakeString("abc")},
+        }) {
+            auto nullThen = Format("%v then CAST(1 AS `Null`) else %v end", prefix, literal);
+            SCOPED_TRACE(nullThen);
+            Check(nullThen, "b=%true", MakeNull());
+            Check(nullThen, "b=%false", value);
+
+            auto nullElse = Format("%v then %v else CAST(1 AS `Null`) end", prefix, literal);
+            SCOPED_TRACE(nullElse);
+            Check(nullElse, "b=%false", MakeNull());
+            Check(nullElse, "b=%true", value);
+        }
+    }
+}
+
 TEST_F(TCastExpressionTest, AnyToBasic)
 {
     Check("CAST(yson_string_to_any(\"123\") AS Int64)", "", MakeInt64(123));
@@ -150,6 +180,42 @@ TEST_F(TCastExpressionTest, ToComposite)
     Check("CAST(yson_string_to_any(\"#\") AS `Optional<Struct<a:String, b: Null>>`)", "", MakeComposite("#"));
     Check("CAST(yson_string_to_any(\"[alyx;#;13.2]\") AS `Struct<a:String, b: Int32?, c: Double?>`)", "",
         MakeComposite("[alyx;#;13.2]"));
+}
+
+TEST_F(TCastExpressionTest, StructDictLayout)
+{
+    CheckThrows(
+        "CAST(yson_string_to_any(\"{a=alyx;b=#;c=13.2}\") AS `Struct<a:String, b:Int32?, c:Double?>`)",
+        /*rowString*/ "",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(yson_string_to_any(\"{a=alyx;b=#;c=13.2}\") AS `Optional<Struct<a:String, b:Int32?, c:Double?>>`)",
+        /*rowString*/ "",
+        "expected \"begin_list\", found \"begin_map\"");
+}
+
+TEST_F(TCastExpressionTest, StructNarrowing)
+{
+    Schema_ = New<TTableSchema>(std::vector{
+        TColumnSchema("s", ParseType("Struct<a:Int64, b:Int64, c:Int64>")),
+    });
+
+    CheckThrows("CAST(s AS `Struct<a:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+    CheckThrows("CAST(s AS `Struct<b:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+    CheckThrows("CAST(s AS `Struct<c:Int64, a:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+
+    CheckThrows(
+        "CAST(s AS `Struct<a:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(s AS `Struct<b:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(s AS `Struct<c:Int64, a:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
 }
 
 TEST_F(TCastExpressionTest, ToAny)
@@ -184,7 +250,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinCastFromString)
     auto split = MakeSplit({
         {"a", EValueType::Int64},
         {"nestedA", EValueType::String},
-        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nestedB", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
 
     auto resultSplit = MakeSplit({

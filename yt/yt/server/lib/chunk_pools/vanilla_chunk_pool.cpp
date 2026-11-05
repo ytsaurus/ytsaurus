@@ -1,7 +1,7 @@
 #include "vanilla_chunk_pool.h"
 
 #include "helpers.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
@@ -22,24 +22,22 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaChunkPool
-    : public TChunkPoolOutputWithNewJobManagerBase
+    : public TChunkPoolOutputWithJobManagerBase
     , public TJobSplittingBase
     , public IVanillaChunkPoolOutput
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
-        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        : TChunkPoolOutputWithJobManagerBase(options.Logger)
         , JobCount_(options.JobCount)
         , RestartCompletedJobs_(options.RestartCompletedJobs)
     {
         Logger = options.Logger;
 
-        ValidateLogger(Logger);
-
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
         for (int index = 0; index < options.JobCount; ++index) {
-            JobManager_->AddJob(std::make_unique<TNewJobStub>());
+            JobManager_->AddJob(std::make_unique<TJobStub>());
         }
     }
 
@@ -68,7 +66,8 @@ public:
 
     void LostAll() override
     {
-        YT_LOG_DEBUG("Lost all cookies (Count: %v)", JobCount_);
+        YT_TLOG_DEBUG("Lost all cookies")
+            .With("Count", JobCount_);
 
         for (TOutputCookie cookie = 0; cookie < JobCount_; ++cookie) {
             JobManager_->Lost(cookie, /*force*/ false);
@@ -91,7 +90,7 @@ public:
         return NullStripeList;
     }
 
-    using TChunkPoolOutputWithNewJobManagerBase::Extract;
+    using TChunkPoolOutputWithJobManagerBase::Extract;
 
     void Extract(IChunkPoolOutput::TCookie cookie) final
     {

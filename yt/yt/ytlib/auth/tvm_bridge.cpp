@@ -73,9 +73,15 @@ public:
         return iter->second.ValueOrThrow();
     }
 
-    TTvmId GetSelfTvmId() override
+    std::optional<TTvmId> TryGetSelfTvmId() override
     {
         return Config_->SelfTvmId;
+    }
+
+    TTvmId GetSelfTvmIdOrThrow() override
+    {
+        THROW_ERROR_EXCEPTION_IF(!Config_->SelfTvmId, "Self TVM id is not set");
+        return *Config_->SelfTvmId;
     }
 
     const TTvmServiceConfigPtr& GetConfig() override
@@ -104,7 +110,7 @@ private:
 
     const TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     THashMap<TTvmId, TErrorOr<std::string>> ServiceIdToTicket_;
 
     TPeriodicExecutorPtr PeriodicExecutor_;
@@ -133,19 +139,18 @@ private:
 
         filterFetchedTickets();
         if (serviceIds.empty()) {
-            YT_LOG_DEBUG("No new tickets to fetch");
+            YT_TLOG_DEBUG("No new tickets to fetch");
             return;
         }
 
         while (true) {
-            YT_LOG_INFO("Fetching missing service tickets (ServiceIds: %v, Count: %v, AttemptIndex: %v/%v)",
-                MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount),
-                serviceIds.size(),
-                backoff.GetInvocationIndex(),
-                backoff.GetInvocationCount());
+            YT_TLOG_INFO("Fetching missing service tickets")
+                .With("ServiceIds", MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount))
+                .With("Count", serviceIds.size())
+                .WithFormat("AttemptIndex", "%v/%v", backoff.GetInvocationIndex(), backoff.GetInvocationCount());
 
             auto req = Proxy_.FetchTickets();
-            req->set_source(Config_->SelfTvmId);
+            req->set_source(ToProto(GetSelfTvmIdOrThrow()));
             ToProto(req->mutable_destinations(), serviceIds);
 
             auto rsp = WaitFor(req->Invoke())
@@ -155,7 +160,7 @@ private:
 
             filterFetchedTickets();
             if (serviceIds.empty()) {
-                YT_LOG_INFO("All tickets fetched successfully");
+                YT_TLOG_INFO("All tickets fetched successfully");
                 return;
             }
             if (!backoff.Next()) {
@@ -163,13 +168,14 @@ private:
             }
 
             auto backoffDuration = backoff.GetBackoff();
-            YT_LOG_DEBUG("There are unfetched tickets, backing off (Duration: %v)", backoffDuration);
+            YT_TLOG_DEBUG("There are unfetched tickets, backing off")
+                .With("Duration", backoffDuration);
             TDelayedExecutor::WaitForDuration(backoffDuration);
         }
 
-        YT_LOG_ERROR("Failed to fetch service tickets (ServiceIds: %v, Count: %v)",
-            MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount),
-            serviceIds.size());
+        YT_TLOG_ERROR("Failed to fetch service tickets")
+            .With("ServiceIds", MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount))
+            .With("Count", serviceIds.size());
 
         THROW_ERROR_EXCEPTION("Failed to fetch service tickets");
     }
@@ -179,7 +185,7 @@ private:
         auto guard = WriterGuard(Lock_);
 
         for (const auto& result : rsp.results()) {
-            auto destination = result.destination();
+            auto destination = FromProto<TTvmId>(result.destination());
 
             if (result.has_ticket()) {
                 auto iter = ServiceIdToTicket_.find(destination);
@@ -187,7 +193,8 @@ private:
                     !iter->second.IsOK() ||
                     iter->second.Value() != result.ticket())
                 {
-                    YT_LOG_DEBUG("Service ticket updated (Destination: %v)", destination);
+                    YT_TLOG_DEBUG("Service ticket updated")
+                        .With("Destination", destination);
                 }
 
                 ServiceIdToTicket_[destination] = std::string(result.ticket());
@@ -200,31 +207,39 @@ private:
                     ServiceIdToTicket_[destination] = error;
                 }
 
-                YT_LOG_WARNING(error, "Failed to fetch service ticket");
+                YT_TLOG_WARNING("Failed to fetch service ticket")
+                    .With(error);
             }
         }
     }
 
     void RefreshTickets()
     {
-        YT_LOG_DEBUG("Refreshing service tickets");
+        auto selfTvmId = TryGetSelfTvmId();
+        if (!selfTvmId) {
+            YT_TLOG_DEBUG("Self TVM id is not set, skipping service ticket refresh");
+            return;
+        }
+
+        YT_TLOG_DEBUG("Refreshing service tickets");
 
         auto req = Proxy_.FetchTickets();
         {
             auto guard = ReaderGuard(Lock_);
-            req->set_source(Config_->SelfTvmId);
+            req->set_source(ToProto(*selfTvmId));
             ToProto(req->mutable_destinations(), GetKeys(ServiceIdToTicket_));
         }
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to refresh service tickets");
+            YT_TLOG_WARNING("Failed to refresh service tickets")
+                .With(rspOrError);
             return;
         }
 
         UpdateServiceTickets(*rspOrError.Value());
 
-        YT_LOG_DEBUG("Service tickets refreshed");
+        YT_TLOG_DEBUG("Service tickets refreshed");
     }
 };
 

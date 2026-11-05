@@ -68,7 +68,7 @@ public:
         std::optional<std::string> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound,
-        TInstant ioStartTime)
+        TCpuInstant ioStartTime)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -90,10 +90,9 @@ public:
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
-        YT_LOG_DEBUG(
-            "Preparing job input transfer (GuesserEnabled: %v, MaxRowsPerRead: %v)",
-            Guesser_.IsEnabled(),
-            MaxRowsPerRead_);
+        YT_TLOG_DEBUG("Preparing job input transfer")
+            .With("GuesserEnabled", Guesser_.IsEnabled())
+            .With("MaxRowsPerRead", MaxRowsPerRead_);
 
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -248,7 +247,7 @@ private:
     const TClientChunkReadOptions ChunkReadOptions_;
     const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
-    const TInstant IOStartTime_;
+    const TCpuInstant IOStartTime_;
 
     IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
@@ -273,11 +272,10 @@ private:
             , UpperBound_(upperBound)
             , CurrentGuess_(currentGuess)
         {
-            YT_LOG_DEBUG(
-                "Initializing optimal row count guesser (Threshold: %v, CurrentGuess: %v, UpperBound: %v)",
-                Threshold_,
-                CurrentGuess_,
-                UpperBound_);
+            YT_TLOG_DEBUG("Initializing optimal row count guesser")
+                .With("Threshold", Threshold_)
+                .With("CurrentGuess", CurrentGuess_)
+                .With("UpperBound", UpperBound_);
         }
 
         bool IsEnabled() const noexcept
@@ -306,12 +304,11 @@ private:
 
             auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
 
-            YT_LOG_DEBUG(
-                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v, UpperBound: %v)",
-                CurrentGuess_,
-                processTime,
-                nextGuess,
-                UpperBound_);
+            YT_TLOG_DEBUG("Updating guess for batch row count")
+                .With("CurrentGuess", CurrentGuess_)
+                .With("ProcessTime", processTime)
+                .With("NextGuess", nextGuess)
+                .With("UpperBound", UpperBound_);
 
             CurrentGuess_ = std::min<i64>(nextGuess, UpperBound_);
 
@@ -331,11 +328,10 @@ private:
     bool IsContextSavingEnabled() const
     {
         auto jobIOConfig = JobSpecHelper_->GetJobIOConfig();
-        YT_LOG_DEBUG(
-            "Checking whether context saving is enabled (PipeCapacity: %v, DeliveryFencedWriterFlag: %v, GuesserEnabled: %v)",
-            jobIOConfig->PipeCapacity,
-            jobIOConfig->UseDeliveryFencedPipeWriter,
-            Guesser_.IsEnabled());
+        YT_TLOG_DEBUG("Checking whether context saving is enabled")
+            .With("PipeCapacity", jobIOConfig->PipeCapacity)
+            .With("DeliveryFencedWriterFlag", jobIOConfig->UseDeliveryFencedPipeWriter)
+            .With("GuesserEnabled", Guesser_.IsEnabled());
         return
             !(jobIOConfig->PipeCapacity.has_value() ||
             jobIOConfig->UseDeliveryFencedPipeWriter ||
@@ -401,9 +397,11 @@ private:
         PipeReaderToWriterByBatches(
             CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
-            options,
-            std::move(batchRorCountOptionsUpdater),
-            pipeDelay);
+            TPipeReaderToWriterByBatchesOptions{
+                .StartingOptions = options,
+                .OptionsUpdater = std::move(batchRorCountOptionsUpdater),
+                .PipeDelay = pipeDelay,
+            });
     }
 
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
@@ -574,7 +572,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::string /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound,
-    TInstant ioStartTime)
+    TCpuInstant ioStartTime)
 {
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla && !jobSpecExt.user_job_spec().is_secondary_distributed()) {

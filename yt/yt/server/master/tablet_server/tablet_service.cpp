@@ -1,5 +1,7 @@
 #include "private.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
+#include "tablet_owner_base.h"
 #include "tablet_service.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -11,6 +13,8 @@
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
+
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
@@ -98,6 +102,12 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitReshard, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortReshard, Unretained(this)),
         });
+
+        transactionManager->RegisterTransactionActionHandlers<TReqTwoPhaseAlter>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareAlter, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitAlter, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortAlter, Unretained(this)),
+        });
     }
 
 private:
@@ -122,11 +132,22 @@ private:
         return node->As<TTabletOwnerBase>();
     }
 
+    static TTableNode* AsTableSafe(TCypressNode* node)
+    {
+        if (!node) {
+            return nullptr;
+        }
+        if (!IsTableType(node->GetType())) {
+            THROW_ERROR_EXCEPTION("%v is not a table", node->GetId());
+        }
+        return node->As<TTableNode>();
+    }
+
 
     void ValidateUsePermissionOnCellBundle(TTabletOwnerBase* table)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto& cellBundle = table->TabletCellBundle();
+        auto cellBundle = table->GetTabletCellBundle();
         securityManager->ValidatePermission(cellBundle.Get(), EPermission::Use);
     }
 
@@ -148,17 +169,16 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex,
-            hintCellId,
-            targetCellIds,
-            freeze,
-            mountTimestamp);
+        YT_TLOG_DEBUG("Preparing table mount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex)
+            .With("CellId", hintCellId)
+            .With("TargetCellIds", targetCellIds)
+            .With("Freeze", freeze)
+            .With("MountTimestamp", mountTimestamp);
 
         ValidateNoParentTransaction(transaction);
 
@@ -171,8 +191,8 @@ private:
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
                 THROW_ERROR_EXCEPTION("%v path mismatch", table->GetCapitalizedObjectName())
-                    << TErrorAttribute("requested_path", path)
-                    << TErrorAttribute("resolved_path", currentPath);
+                    .With("requested_path", path)
+                    .With("resolved_path", currentPath);
             }
 
             ValidateUsePermissionOnCellBundle(table);
@@ -220,17 +240,16 @@ private:
         const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG("Committing table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex,
-            hintCellId,
-            targetCellIds,
-            freeze,
-            mountTimestamp);
+        YT_TLOG_DEBUG("Committing table mount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex)
+            .With("CellId", hintCellId)
+            .With("TargetCellIds", targetCellIds)
+            .With("Freeze", freeze)
+            .With("MountTimestamp", mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -271,17 +290,16 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG("Aborting table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex,
-            hintCellId,
-            targetCellIds,
-            freeze,
-            mountTimestamp);
+        YT_TLOG_DEBUG("Aborting table mount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex)
+            .With("CellId", hintCellId)
+            .With("TargetCellIds", targetCellIds)
+            .With("Freeze", freeze)
+            .With("MountTimestamp", mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -308,14 +326,13 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table unmount (TableId: %v, TransactionId: %v, %v, "
-            "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            force,
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Preparing table unmount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("Force", force)
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         ValidateNoParentTransaction(transaction);
 
@@ -325,7 +342,7 @@ private:
         ValidateUsePermissionOnCellBundle(table);
 
         if (force) {
-            const auto& cellBundle = table->TabletCellBundle();
+            auto cellBundle = table->GetTabletCellBundle();
             securityManager->ValidatePermission(cellBundle.Get(), EPermission::Administer);
         }
 
@@ -357,14 +374,13 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Committing table unmount (TableId: %v, TransactionId: %v, %v, "
-            "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            force,
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Committing table unmount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("Force", force)
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -397,14 +413,13 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Aborting table unmount (TableId: %v, TransactionId: %v, %v, "
-            "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            force,
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Aborting table unmount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("Force", force)
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -430,13 +445,12 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table freeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Preparing table freeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         ValidateNoParentTransaction(transaction);
 
@@ -471,13 +485,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Committing table freeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Committing table freeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -508,13 +521,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Aborting table freeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Aborting table freeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -540,13 +552,12 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table unfreeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Preparing table unfreeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         ValidateNoParentTransaction(transaction);
 
@@ -581,13 +592,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Committing table unfreeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Committing table unfreeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -619,13 +629,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Aborting table unfreeze (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Aborting table unfreeze")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -651,13 +660,12 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table remount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Preparing table remount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         ValidateNoParentTransaction(transaction);
 
@@ -692,13 +700,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Committing table remount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Committing table remount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -727,13 +734,12 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Aborting table remount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Aborting table remount")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -758,21 +764,21 @@ private:
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
+        auto cumulativeDataWeights = FromProto<std::vector<i64>>(request->cumulative_data_weights());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG("Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
-            "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            tabletCount,
-            pivotKeys.size(),
-            trimmedRowCounts.size(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Preparing table reshard")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("TabletCount", tabletCount)
+            .With("PivotKeysSize", pivotKeys.size())
+            .With("TrimmedRowCountsSize", trimmedRowCounts.size())
+            .With("CumulativeDataWeightsSize", cumulativeDataWeights.size())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         ValidateNoParentTransaction(transaction);
 
@@ -794,7 +800,8 @@ private:
             lastTabletIndex,
             tabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
@@ -812,18 +819,18 @@ private:
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
+        auto cumulativeDataWeights = FromProto<std::vector<i64>>(request->cumulative_data_weights());
 
-        YT_LOG_DEBUG("Committing table reshard (TableId: %v, TransactionId: %v, %v, "
-            "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            tabletCount,
-            pivotKeys.size(),
-            trimmedRowCounts.size(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Committing table reshard")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("TabletCount", tabletCount)
+            .With("PivotKeysSize", pivotKeys.size())
+            .With("TrimmedRowCountsSize", trimmedRowCounts.size())
+            .With("CumulativeDataWeightsSize", cumulativeDataWeights.size())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -843,7 +850,8 @@ private:
             lastTabletIndex,
             tabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
@@ -859,15 +867,14 @@ private:
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG("Aborting table reshard (TableId: %v, TransactionId: %v, %v, "
-            "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
-            tableId,
-            transaction->GetId(),
-            NRpc::GetCurrentAuthenticationIdentity(),
-            tabletCount,
-            pivotKeys.size(),
-            firstTabletIndex,
-            lastTabletIndex);
+        YT_TLOG_DEBUG("Aborting table reshard")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity())
+            .With("TabletCount", tabletCount)
+            .With("PivotKeysSize", pivotKeys.size())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
@@ -879,6 +886,134 @@ private:
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortReshard");
+    }
+
+    void HydraPrepareAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        const auto& path = request->path();
+        bool dynamic = request->dynamic();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_TLOG_DEBUG("Preparing table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        ValidateNoParentTransaction(transaction);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+
+        if (table->IsSequoia()) {
+            THROW_ERROR_EXCEPTION("Two-phase table alter is not supported for Sequoia tables");
+        }
+
+        table->ValidateNoCurrentMountTransaction(
+            Format("Cannot alter dynamicity of %v", table->GetLowercaseObjectName()));
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        if (table->IsNative()) {
+            auto currentPath = cypressManager->GetNodePath(table, nullptr);
+            if (path != currentPath) {
+                THROW_ERROR_EXCEPTION("%v path mismatch", table->GetCapitalizedObjectName())
+                    .With("requested_path", path)
+                    .With("resolved_path", currentPath);
+            }
+
+            securityManager->ValidatePermission(table, EPermission::Write);
+
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            switch (config->SecurityManager->AllowAlterWithoutFullRead) {
+                case EAllowAlterWithoutFullRead::Allow: {
+                    break;
+                }
+                case EAllowAlterWithoutFullRead::Deny: {
+                    securityManager->ValidatePermission(table, EPermission::FullRead);
+                    break;
+                }
+                case EAllowAlterWithoutFullRead::AllowAndAlert: {
+                    try {
+                        securityManager->ValidatePermission(table, EPermission::FullRead);
+                    } catch (const std::exception& ex) {
+                        YT_TLOG_ALERT("User requested to alter table but lacks \"full_read\" permission")
+                            .With("TableId", tableId)
+                            .With("User", securityManager->GetAuthenticatedUser())
+                            .With(ex);
+                    }
+                    break;
+                }
+            }
+
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
+
+        tabletManager->PrepareAlter(table, dynamic);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
+
+        YT_LOG_ACCESS(tableId, path, transaction, "PrepareAlter");
+    }
+
+    void HydraCommitAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        bool dynamic = request->dynamic();
+
+        YT_TLOG_DEBUG("Committing table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        table->UnlockCurrentMountTransaction(transaction->GetId());
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        tabletManager->Alter(table, dynamic);
+
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "CommitAlter");
+    }
+
+    void HydraAbortAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        bool dynamic = request->dynamic();
+
+        YT_TLOG_DEBUG("Aborting table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        table->UnlockCurrentMountTransaction(transaction->GetId());
+
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortAlter");
     }
 };
 

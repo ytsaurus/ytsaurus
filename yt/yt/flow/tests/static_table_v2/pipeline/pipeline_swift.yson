@@ -1,0 +1,65 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnectorV2::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["data"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reader_empty" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data_empty"];
+                "source_streams" = {
+                    "table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnectorV2::TSource";
+                        "parameters" = {
+                            "tables" = [];
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                    {name = "event_time"; type = "uint64"; required = %true;};
+                ];
+            };
+            "data_empty" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                    {name = "event_time"; type = "uint64"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {};
+                "source_streams" = {"table" = {"parameters" = {}}};
+            };
+            "reader_empty" = {
+                "parameters" = {};
+                "source_streams" = {"table" = {"parameters" = {}}};
+            };
+        };
+    };
+}

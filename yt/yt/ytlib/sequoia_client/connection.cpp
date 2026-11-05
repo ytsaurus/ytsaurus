@@ -15,7 +15,7 @@ namespace NYT::NSequoiaClient {
 using namespace NApi::NNative;
 using namespace NRpc;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = SequoiaClientLogger;
 
@@ -36,7 +36,7 @@ public:
     {
         Config_.Store(std::move(config));
         DoReconfigure();
-        YT_LOG_DEBUG("Sequoia connection reconfigured");
+        YT_TLOG_DEBUG("Sequoia connection reconfigured");
     }
 
     ISequoiaClientPtr CreateClient(const TAuthenticationIdentity& authenticationIdentity) override
@@ -52,19 +52,25 @@ public:
             std::move(groundClientFuture));
     }
 
+    TInstant GetLastReconfigurationTime() const override
+    {
+        return LastReconfigurationTime_.load(std::memory_order::relaxed);
+    }
+
 private:
     const TWeakPtr<IConnection> LocalConnection_;
     TAtomicIntrusivePtr<TSequoiaConnectionConfig> Config_;
 
     // Protects GroundClientFuture_ and ClientCache_.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TFuture<IClientPtr> GroundClientFuture_;
     TClientCachePtr ClientCache_;
+    std::atomic<TInstant> LastReconfigurationTime_ = {};
 
     void Initialize()
     {
         DoReconfigure();
-        YT_LOG_DEBUG("Sequoia connection initialized");
+        YT_TLOG_DEBUG("Sequoia connection initialized");
     }
 
     void DoReconfigure()
@@ -78,6 +84,7 @@ private:
             auto guard = WriterGuard(Lock_);
             GroundClientFuture_ = std::move(groundClientFuture);
             ClientCache_ = std::move(clientCache);
+            LastReconfigurationTime_.store(TInstant::Now(), std::memory_order::relaxed);
         }
     }
 
@@ -138,7 +145,7 @@ private:
 
         auto localConnection = LocalConnection_.Lock();
         if (!localConnection) {
-            YT_LOG_INFO("Sequoia connection finds local connection destroyed while creating ground client");
+            YT_TLOG_INFO("Sequoia connection finds local connection destroyed while creating ground client");
             return MakeFuture<IClientPtr>(TError("Local connection has been destroyed"));
         }
 
@@ -169,7 +176,7 @@ private:
 
         auto localConnection = LocalConnection_.Lock();
         if (!localConnection) {
-            YT_LOG_INFO("Sequoia connection finds local connection destroyed while creating client cache");
+            YT_TLOG_INFO("Sequoia connection finds local connection destroyed while creating client cache");
             return nullptr;
         }
 

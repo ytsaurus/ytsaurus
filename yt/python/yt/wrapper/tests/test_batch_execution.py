@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, wait
+from .helpers import TEST_DIR, wait, inject_http_error
 
 from yt.wrapper.common import utcnow
 from yt.wrapper.batch_helpers import create_batch_client
@@ -404,6 +404,62 @@ class TestBatchExecution(object):
         batch_client_ref, client_ref = hang_socket()
 
         assert not batch_client_ref() and not client_ref(), "client not destroyed"
+
+    @authors("denvr")
+    def test_nested_retries(self):
+        if yt.config["api_version"] != "v4" or yt.config["backend"] != "http":
+            pytest.skip()
+
+        client = yt.YtClient(config=yt.config.config)
+
+        batch_client = client.create_batch_client()
+        list_result = batch_client.list("/")
+
+        emulate_good_response = {
+            "results": [
+                {
+                    "output": ["some_node"]
+                }
+            ]
+        }
+
+        with inject_http_error(client, "v4/execute_batch", interrupt_from=0, interrupt_till=1, interrupt_every=1, response_data=emulate_good_response):
+            batch_client.commit_batch()
+
+        assert list_result.is_ok()
+        assert list_result.get_result() == ["some_node"]
+        assert not list_result.get_error()
+
+        batch_client = client.create_batch_client()
+        list_result = batch_client.list("/")
+
+        emulate_bad_response = {
+            "results": [
+                {
+                    "error": {
+                        "code": 100,
+                        "message": "Req failed",
+                        "inner_errors": [
+                            {
+                                "code": 1,
+                                "message": "(Error 110: Connection timed out)",
+                            },
+                        ],
+                    }
+
+                }
+            ]
+        }
+
+        with inject_http_error(client, "v4/execute_batch", interrupt_from=0, interrupt_till=1, interrupt_every=1, response_data=emulate_good_response) as cnt_ok:
+            with inject_http_error(client, "v4/execute_batch", interrupt_from=0, interrupt_till=1, interrupt_every=1, response_data=emulate_bad_response) as cnt_err:
+                batch_client.commit_batch()
+
+        assert list_result.is_ok()
+        assert list_result.get_result() == ["some_node"]
+        assert not list_result.get_error()
+        assert cnt_ok.filtered_raises == 1
+        assert cnt_err.filtered_raises == 1
 
 
 @authors("levysotsky")

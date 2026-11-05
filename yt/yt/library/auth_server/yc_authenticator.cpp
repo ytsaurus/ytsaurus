@@ -124,11 +124,10 @@ protected:
             BIND(&TYCAuthenticatorBase::DoCheckYCServiceResponse, MakeStrong(this), callId),
             retryChecker);
 
-        YT_LOG_DEBUG(
-            "Calling YC %v authentication service to get user info (Url: %v, CallId: %v)",
-            GetLogName(),
-            safeUrl,
-            callId);
+        YT_TLOG_DEBUG("Calling YC authentication service to get user info")
+            .With("Service", GetLogName())
+            .With("Url", safeUrl)
+            .With("CallId", callId);
 
         TStringStream outputStream;
         auto writer = CreateJsonWriter(&outputStream);
@@ -157,24 +156,25 @@ protected:
         CallTime_.Record(timer.GetElapsedTime());
 
         if (!result.IsOK()) {
-            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC authentication call failed")
-                << result
-                << TErrorAttribute("call_id", callId);
-            YT_LOG_WARNING(error);
-            THROW_ERROR(error);
+            static constexpr auto Message = "YC authentication call failed"_sb;
+            YT_TLOG_WARNING(Message)
+                .With("CallId", callId)
+                .With(result);
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials, Message)
+                .With(result)
+                .With("call_id", callId);
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
-        auto login = formattedResponse->GetChildValueOrThrow<TString>(AuthenticateLoginField);
+        auto login = formattedResponse->GetChildValueOrThrow<std::string>(AuthenticateLoginField);
         auto groups = formattedResponse->GetChildValueOrDefault<std::vector<std::string>>(
             AuthenticateGroupsField,
             std::vector<std::string>());
 
-        YT_LOG_DEBUG(
-            "YC authenticated (Login: %v, Groups: %v, CallId: %v)",
-            login,
-            groups,
-            callId);
+        YT_TLOG_DEBUG("YC authenticated")
+            .With("Login", login)
+            .With("Groups", groups)
+            .With("CallId", callId);
 
         if (Config_->CheckUserExists) {
             auto error = EnsureUserExists(
@@ -184,8 +184,11 @@ protected:
                 Config_->DefaultUserTags);
 
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Failed to ensure YC user existence (Name: %v, CallId: %v)", login, callId);
-                error <<= TErrorAttribute("call_id", callId);
+                YT_TLOG_WARNING("Failed to ensure YC user existence")
+                    .With("Name", login)
+                    .With("CallId", callId)
+                    .With(error);
+                error.Add("call_id", callId);
                 THROW_ERROR error;
             }
         }
@@ -193,17 +196,16 @@ protected:
         if (Config_->AddUserToGroups) {
             bool added = TryAddUserInGroups(UserManager_, login, groups);
             if (!added) {
-                YT_LOG_WARNING(
-                    "Failed to add user in groups (Name: %v, Groups: %v, CallId: %v)",
-                    login,
-                    groups,
-                    callId);
+                YT_TLOG_WARNING("Failed to add user in groups")
+                    .With("Name", login)
+                    .With("Groups", groups)
+                    .With("CallId", callId);
             }
         }
 
         return TAuthenticationResult{
             .Login = login,
-            .Realm = TString(GetRealm()),
+            .Realm = std::string(GetRealm()),
         };
     }
 
@@ -237,21 +239,19 @@ private:
                         error = TError(
                             EErrorCode::UnexpectedClientYCError,
                             "YC authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
-                        YT_LOG_WARNING(
-                            "YC %s authentication call attempt failed (CallId: %v, StatusCode: %v)",
-                            GetLogName(),
-                            callId,
-                            statusCode);
+                        YT_TLOG_WARNING("YC authentication call attempt failed")
+                            .With("Service", GetLogName())
+                            .With("CallId", callId)
+                            .With("StatusCode", statusCode);
                         break;
                 }
 
             } else {
                 CallErrors_.Increment();
-                YT_LOG_WARNING(
-                    "YC %v authentication service response has server error status code (CallId: %v, StatusCode: %v)",
-                    GetLogName(),
-                    callId,
-                    statusCode);
+                YT_TLOG_WARNING("YC authentication service response has server error status code")
+                    .With("Service", GetLogName())
+                    .With("CallId", callId)
+                    .With("StatusCode", statusCode);
 
                 if (IsRetryableHttpError(statusCode)) {
                     Calls_.Increment();
@@ -270,14 +270,14 @@ private:
 
         if (rspNode->GetType() != ENodeType::Map) {
             return TError("YC authentication service response content has unexpected node type")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rspNode->GetType());
+                .With("expected_result_type", ENodeType::Map)
+                .With("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(AuthenticateLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
             return TError("YC authentication service response content has no login field or login node type is unexpected")
-                << TErrorAttribute("login_field", AuthenticateLoginField);
+                .With("login_field", AuthenticateLoginField);
         }
 
         return {};
@@ -327,11 +327,10 @@ public:
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
 
-        YT_LOG_DEBUG(
-            "Authenticating user with YC IAM token (TokenHash: %v, UserIP: %v, CallId: %v)",
-            tokenHash,
-            userIP,
-            callId);
+        YT_TLOG_DEBUG("Authenticating user with YC IAM token")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP)
+            .With("CallId", callId);
 
         return BIND(&TYCTokenAuthenticator::DoAuthenticate, MakeStrong(this), token, callId)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
@@ -383,11 +382,10 @@ public:
         const auto& userIP = credentials.UserIP;
         auto cookieHash = GetCryptoHash(cookie);
 
-        YT_LOG_DEBUG(
-            "Authenticating user with YC session cookie (CookieHash: %v, UserIP: %v, CallId: %v)",
-            cookieHash,
-            userIP,
-            callId);
+        YT_TLOG_DEBUG("Authenticating user with YC session cookie")
+            .With("CookieHash", cookieHash)
+            .With("UserIP", userIP)
+            .With("CallId", callId);
 
         return BIND(&TYCCookieAuthenticator::DoAuthenticate, MakeStrong(this), cookie, callId)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())

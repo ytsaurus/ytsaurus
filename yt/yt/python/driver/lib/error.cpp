@@ -8,7 +8,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const TString& message, const TError& error)
+Py::Exception CreateYtError(const std::string& message, const TError& error)
 {
     return CreateYtError(message, ConvertTo<Py::Object>(std::vector<TError>({error})));
 }

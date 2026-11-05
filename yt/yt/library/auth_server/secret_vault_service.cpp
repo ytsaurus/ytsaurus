@@ -9,7 +9,7 @@ void FormatValue(
     const ISecretVaultService::TSecretSubrequest& subrequest,
     TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v:%v:%v:%v",
+    builder->AppendFormat("%v:%v:%v:%v:%v",
         subrequest.SecretId,
         subrequest.SecretVersion,
         subrequest.DelegationToken,

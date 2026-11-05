@@ -88,7 +88,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     , SharedStrategy_(Strategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
-    , Logger(SchedulerSimulatorLogger().WithTag("ControlThread"))
+    , Logger(SchedulerSimulatorLogger().WithTag("Thread", "Control"))
 {
     for (const auto& operation : operations) {
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));
@@ -165,10 +165,10 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 
 void TSimulatorControlThread::Run()
 {
-    YT_LOG_INFO("Simulation started (NodeWorkerCount: %v, NodeWorkerThreadCount %v, NodeShardCount: %v)",
-        Config_->NodeWorkerCount,
-        Config_->NodeWorkerThreadCount,
-        Config_->NodeShardCount);
+    YT_TLOG_INFO("Simulation started")
+        .With("NodeWorkerCount", Config_->NodeWorkerCount)
+        .With("NodeWorkerThreadCount", Config_->NodeWorkerThreadCount)
+        .With("NodeShardCount", Config_->NodeShardCount);
 
     std::vector<TFuture<void>> asyncWorkerResults;
     for (const auto& nodeWorker : NodeWorkers_) {
@@ -179,20 +179,18 @@ void TSimulatorControlThread::Run()
     while (JobAndOperationCounter_.HasUnfinishedOperations()) {
         ++iteration;
         if (iteration % Config_->CyclesPerFlush == 0) {
-            YT_LOG_INFO(
-                "Simulated %v cycles (FinishedOperations: %v, RunningOperation: %v, "
-                "TotalOperations: %v, RunningJobs: %v)",
-                iteration,
-                JobAndOperationCounter_.GetFinishedOperationCount(),
-                JobAndOperationCounter_.GetStartedOperationCount(),
-                JobAndOperationCounter_.GetTotalOperationCount(),
-                JobAndOperationCounter_.GetRunningJobCount());
+            YT_TLOG_INFO("Simulated cycles")
+                .With("CycleCount", iteration)
+                .With("FinishedOperations", JobAndOperationCounter_.GetFinishedOperationCount())
+                .With("RunningOperations", JobAndOperationCounter_.GetStartedOperationCount())
+                .With("TotalOperations", JobAndOperationCounter_.GetTotalOperationCount())
+                .With("RunningJobs", JobAndOperationCounter_.GetRunningJobCount());
 
             RunningOperationsMap_.ApplyRead([this] (const auto& pair) {
                 const auto& operation = pair.second;
-                YT_LOG_INFO("%v, (OperationId: %v)",
-                    operation->GetController()->GetLoggingProgress(),
-                    operation->GetId());
+                YT_TLOG_INFO("Operation progress")
+                    .With("Progress", operation->GetController()->GetLoggingProgress())
+                    .With("OperationId", operation->GetId());
             });
         }
 
@@ -216,7 +214,7 @@ void TSimulatorControlThread::Run()
     Strategy_->OnMasterDisconnected();
     StrategyHost_.CloseEventLogger();
 
-    YT_LOG_INFO("Simulation finished");
+    YT_TLOG_INFO("Simulation finished");
 }
 
 
@@ -261,7 +259,9 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     RunningOperationsMap_.Insert(operation->GetId(), operation);
     OperationStatistics_.OnOperationStarted(operation->GetId());
-    YT_LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
+    YT_TLOG_INFO("Operation started")
+        .With("VirtualTimestamp", event.Time)
+        .With("OperationId", operation->GetId());
 
     // Notify scheduler.
     std::vector<std::string> unknownTreeIds;
@@ -284,11 +284,13 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 {
     auto updateTime = event.Time;
 
-    YT_LOG_INFO("Started waiting for struggling node workers (VirtualTimestamp: %v)", event.Time);
+    YT_TLOG_INFO("Started waiting for struggling node workers")
+        .With("VirtualTimestamp", event.Time);
 
     NodeEventQueue_.WaitForStrugglingNodeWorkers(updateTime);
 
-    YT_LOG_INFO("Finished waiting for struggling node workers (VirtualTimestamp: %v)", event.Time);
+    YT_TLOG_INFO("Finished waiting for struggling node workers")
+        .With("VirtualTimestamp", event.Time);
 
     Strategy_->OnFairShareUpdateAt(updateTime);
     Strategy_->OnFairShareProfilingAt(updateTime);
@@ -304,7 +306,8 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 
 void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
 {
-    YT_LOG_INFO("Started logging nodes info (VirtualTimestamp: %v)", event.Time);
+    YT_TLOG_INFO("Started logging nodes info")
+        .With("VirtualTimestamp", event.Time);
 
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
@@ -328,7 +331,8 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
         });
 
     InsertControlThreadEvent(TControlThreadEvent::LogNodes(event.Time + NodesInfoLoggingPeriod_));
-    YT_LOG_INFO("Finished logging nodes info (VirtualTimestamp: %v)", event.Time);
+    YT_TLOG_INFO("Finished logging nodes info")
+        .With("VirtualTimestamp", event.Time);
 }
 
 void TSimulatorControlThread::InsertControlThreadEvent(TControlThreadEvent event)

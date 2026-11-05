@@ -20,7 +20,7 @@ class TRowsIteratorBase
     : public Py::PythonClass<TIteratorClass>
 {
 public:
-    TRowsIteratorBase(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs, const TString& formatName);
+    TRowsIteratorBase(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs, const std::string& formatName);
 
     Py::Object iter() override;
 
@@ -29,8 +29,9 @@ public:
     virtual ~TRowsIteratorBase();
 
 protected:
-    static void InitType(const TString& formatName);
+    static void InitType(const std::string& formatName);
 
+    // TODO(babenko): migrate to std::string (static definitions live in skiff/parser.cpp).
     static TString Name_;
     static TString Doc_;
     static TString TypeName_;
@@ -43,7 +44,7 @@ protected:
 private:
     using TBase = Py::PythonClass<TIteratorClass>;
 
-    const TString FormatName_;
+    const std::string FormatName_;
 
     bool IsStreamExhausted_ = false;
 

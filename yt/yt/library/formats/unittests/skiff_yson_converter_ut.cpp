@@ -13,6 +13,11 @@
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
+#include <library/cpp/yt/coding/varint.h>
+
+#include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/hex.h>
 
 #include <util/stream/mem.h>
@@ -51,7 +56,7 @@ std::string ConvertYsonHex(
     // Yson parsers have a bug when they can't parse some values that end unexpectedly.
     std::string spacedYsonInput = std::string{ysonString} + " ";
 
-    TStringStream out;
+    TStdStringStream out;
     {
         TCheckedInDebugSkiffWriter writer(skiffSchema, &out);
 
@@ -65,12 +70,10 @@ std::string ConvertYsonHex(
         writer.Finish();
     }
 
-    auto result = HexEncode(out.Str());
-    result.to_lower();
-    return result;
+    return AsciiStringToLower(HexEncode(out.Str()));
 }
 
-TString ConvertHexToTextYson(
+std::string ConvertHexToTextYson(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
     TStringBuf hexString,
@@ -78,8 +81,7 @@ TString ConvertHexToTextYson(
 {
     auto converter = CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor("test-field", logicalType), skiffSchema, config);
 
-
-    TStringStream binaryOut;
+    TStdStringStream binaryOut;
     {
         std::string binaryString = HexDecode(hexString);
         TMemoryInput in(binaryString);
@@ -91,7 +93,7 @@ TString ConvertHexToTextYson(
     }
     binaryOut.Finish();
 
-    TStringStream out;
+    TStdStringStream out;
     {
         auto writer = TYsonWriter(&out, EYsonFormat::Text);
         ParseYsonStringBuffer(binaryOut.Str(), EYsonType::Node, &writer);
@@ -173,6 +175,27 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         CreateSimpleTypeSchema(EWireType::String32),
         "\"\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"",
         "10000000f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Yson(),
+        CreateSimpleTypeSchema(EWireType::Int64),
+        "-42",
+        "d6ffffff" "ffffffff");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Date32(),
+        CreateSimpleTypeSchema(EWireType::Int8),
+        "-42",
+        "d6");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(Date32(), CreateSimpleTypeSchema(EWireType::String32), "-42"),
+        "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+        "\"yson32\", got \"string32\"");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertHexToTextYson(Date32(), CreateSimpleTypeSchema(EWireType::String32), "00000000"),
+        "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+        "\"yson32\", got \"string32\"");
 }
 
 TEST(TYsonSkiffConverterTest, TestYson32)
@@ -194,6 +217,12 @@ TEST(TYsonSkiffConverterTest, TestYson32)
         CreateSimpleTypeSchema(EWireType::Yson32),
         "[1;2;[3;];]",
         "0e000000" "5b02023b02043b5b02063b5d3b5d");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Int64(),
+        CreateSimpleTypeSchema(EWireType::Yson32),
+        "-42",
+        "02000000" "0253");
 }
 
 TEST(TYsonSkiffConverterTest, TestOptionalTypes)
@@ -299,7 +328,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         "value expected to be nonempty");
 }
 
-TEST(TYsonSkiffConverterTest, TestListTypes)
+TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedVariant8)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         List(Bool()),
@@ -318,6 +347,42 @@ TEST(TYsonSkiffConverterTest, TestListTypes)
         CreateRepeatedVariant8Schema({CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)})}),
         "[[];[%true;];[%true;%true;];]",
         "00" "ff" "00" "0001ff" "00" "00010001ff" "ff");
+}
+
+TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedBlockVar)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        List(Bool()),
+        CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)}),
+        "[]",
+        "00");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        List(Bool()),
+        CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)}),
+        "[%true;%true;%true;]",
+        "02" "01" "02" "01" "02" "01" "00");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        List(List(Bool())),
+        CreateRepeatedBlockVarSchema({CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)})}),
+        "[[];[%true;];[%true;%true;];]",
+        "02" "00" "02" "020100" "02" "0201020100" "00");
+}
+
+TEST(TYsonSkiffConverterTest, TestListTypesAsMixedWireTypes)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        List(List(Bool())),
+        CreateRepeatedVariant8Schema({CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)})}),
+        "[[];[%true;];[%true;%true;];]",
+        "00" "00" "00" "020100" "00" "0201020100" "ff");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        List(List(Bool())),
+        CreateRepeatedBlockVarSchema({CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)})}),
+        "[[];[%true;];[%true;%true;];]",
+        "02" "ff" "02" "0001ff" "02" "00010001ff" "00");
 }
 
 TEST(TYsonSkiffConverterTest, TestStruct)
@@ -506,7 +571,69 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
     EXPECT_EQ(skiffString, "0f000000" "00000000"sv);
 }
 
-TEST(TYsonSkiffConverterTest, TestDict)
+TEST(TYsonSkiffConverterTest, TestDictAsRepeatedVariant8)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Dict(String(), Int64()),
+        CreateRepeatedVariant8Schema({
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32),
+                CreateSimpleTypeSchema(EWireType::Int64),
+            }),
+        }),
+        "[[\"one\";1;];[\"two\";2;];]",
+        "00" "03000000" "6f6e65" "01000000" "00000000"
+        "00" "03000000" "74776f" "02000000" "00000000"
+        "ff");
+}
+
+TEST(TYsonSkiffConverterTest, TestDictAsRepeatedBlockVar)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Dict(String(), Int64()),
+        CreateRepeatedBlockVarSchema({
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32),
+                CreateSimpleTypeSchema(EWireType::Int64),
+            }),
+        }),
+        "[[\"one\";1;];[\"two\";2;];]",
+        "02" "03000000" "6f6e65" "01000000" "00000000"
+        "02" "03000000" "74776f" "02000000" "00000000"
+        "00");
+}
+
+TEST(TYsonSkiffConverterTest, TestRepeatedBlockVarMultiItemBlocks)
+{
+    // The writer emits one-item blocks only, so these inputs cannot round-trip.
+    const auto listSkiffSchema = CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)});
+    EXPECT_EQ(
+        ConvertHexToTextYson(List(Bool()), listSkiffSchema, "04" "01" "00" "02" "01" "00"),
+        "[%true;%false;%true;]");
+
+    // Count -3, then byte size 3.
+    EXPECT_EQ(
+        ConvertHexToTextYson(List(Bool()), listSkiffSchema, "05" "06" "01" "01" "01" "00"),
+        "[%true;%true;%true;]");
+
+    const auto dictSkiffSchema = CreateRepeatedBlockVarSchema({
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        }),
+    });
+    EXPECT_EQ(
+        ConvertHexToTextYson(
+            Dict(String(), Int64()),
+            dictSkiffSchema,
+            "04"
+            "03000000" "6f6e65" "01000000" "00000000"
+            "03000000" "74776f" "02000000" "00000000"
+            "00"),
+        "[[\"one\";1;];[\"two\";2;];]");
+}
+
+TEST(TYsonSkiffConverterTest, TestMalformedDict)
 {
     const auto logicalType = Dict(String(), Int64());
     const auto skiffSchema = CreateRepeatedVariant8Schema({
@@ -516,21 +643,41 @@ TEST(TYsonSkiffConverterTest, TestDict)
         })
     });
 
-    CHECK_BIDIRECTIONAL_CONVERSION(
-        logicalType,
-        skiffSchema,
-        "[[\"one\";1;];[\"two\";2;];]",
-        "00" "03000000" "6f6e65" "01000000" "00000000"
-        "00" "03000000" "74776f" "02000000" "00000000"
-        "ff");
-
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "01" "01000000" "6f" "01000000" "00000000" "ff"),
-        "Unexpected \"repeated_variant8\" tag");
+        "Unexpected tag of wire type \"repeated_variant8\"");
 
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "00" "01000000" "6f" "01000000" "00000000"),
         "Premature end of stream");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(logicalType, skiffSchema, "[1;]"),
+        "expected \"begin_list\" actual: \"int64_value\"");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(logicalType, skiffSchema, "[[\"one\";1;2;];]"),
+        "expected \"end_list\" actual: \"int64_value\"");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(
+            logicalType,
+            CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::String32)}),
+            "[]"),
+        "Unexpected wire type: expected \"tuple\", got \"string32\"");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(
+            logicalType,
+            CreateRepeatedVariant8Schema({
+                CreateTupleSchema({
+                    CreateSimpleTypeSchema(EWireType::String32),
+                    CreateSimpleTypeSchema(EWireType::Int64),
+                    CreateSimpleTypeSchema(EWireType::Int64),
+                }),
+            }),
+            "[]"),
+        "Wire type \"tuple\" has unexpected child count: expected 2, got 3");
 }
 
 TEST(TYsonSkiffConverterTest, TestTagged)
@@ -639,17 +786,26 @@ public:
             return CreateVariant8Schema(std::move(elements));
         } else if (wireType == EWireType::Variant16) {
             return CreateVariant16Schema(std::move(elements));
+        } else if (wireType == EWireType::VariantVar) {
+            return CreateVariantVarSchema(std::move(elements));
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
-    std::string VariantTagInfix() const
+    std::string MakeVariantTagHex(ui8 tag) const
     {
         auto [metatype, wireType] = GetParam();
-        if (wireType == EWireType::Variant16) {
-            return "00";
+        if (wireType == EWireType::Variant8) {
+            return AsciiStringToLower(HexEncode(&tag, sizeof(tag)));
+        } else if (wireType == EWireType::Variant16) {
+            ui16 variant16Tag = tag;
+            return AsciiStringToLower(HexEncode(&variant16Tag, sizeof(variant16Tag)));
+        } else if (wireType == EWireType::VariantVar) {
+            std::array<char, MaxVarInt32Size> buffer;
+            int size = WriteVarInt32(buffer.data(), tag);
+            return AsciiStringToLower(HexEncode(buffer.data(), size));
         }
-        return {};
+        YT_ABORT();
     }
 };
 
@@ -665,7 +821,7 @@ TEST_P(TYsonSkiffConverterTestVariant, TestVariant)
             CreateSimpleTypeSchema(EWireType::Boolean),
         }),
         "[0;42;]",
-        "00" + VariantTagInfix() + "2a000000" "00000000");
+        MakeVariantTagHex(0) + "2a000000" "00000000");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
         VariantLogicalType({
@@ -677,7 +833,7 @@ TEST_P(TYsonSkiffConverterTestVariant, TestVariant)
             CreateSimpleTypeSchema(EWireType::Boolean),
         }),
         "[1;%true;]",
-        "01" + VariantTagInfix() + "01");
+        MakeVariantTagHex(1) + "01");
 }
 
 TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
@@ -695,8 +851,14 @@ TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
     EXPECT_THROW_WITH_SUBSTRING(ConvertYsonHex(logicalType, skiffSchema, "[]"), "Yson to Skiff conversion error");
     EXPECT_THROW_WITH_SUBSTRING(ConvertYsonHex(logicalType, skiffSchema, "[0]"), "Yson to Skiff conversion error");
 
-    EXPECT_THROW_WITH_SUBSTRING(ConvertHexToTextYson(logicalType, skiffSchema, "02" + VariantTagInfix() + "00"),
+    EXPECT_THROW_WITH_SUBSTRING(ConvertHexToTextYson(logicalType, skiffSchema, MakeVariantTagHex(2) + "00"),
         "Skiff to Yson conversion error");
+
+    auto [metatype, wireType] = GetParam();
+    if (wireType == EWireType::VariantVar) {
+        EXPECT_THROW_WITH_SUBSTRING(ConvertHexToTextYson(logicalType, skiffSchema, "01" "00"),
+            "Variant tag -1 of wire type \"variant_var\" is out of range [0, 2)");
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -704,8 +866,30 @@ INSTANTIATE_TEST_SUITE_P(
     TYsonSkiffConverterTestVariant,
     ::testing::Combine(
         ::testing::ValuesIn({ELogicalMetatype::VariantStruct, ELogicalMetatype::VariantTuple}),
-        ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16}))
+        ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16, EWireType::VariantVar}))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonSkiffConverterTest, TestAggregateState)
+{
+    auto sumAggregate = AggregateState(EAggregateFunction::Sum, Int32());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        sumAggregate,
+        CreateSimpleTypeSchema(EWireType::Int64),
+        "42",
+        "2a00000000000000");
+
+    auto avgAggregate = AggregateState(EAggregateFunction::Avg, Int8());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        avgAggregate,
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("sum"),
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("count"),
+        }),
+        "[6;3;]",
+        "0600000000000000" "0300000000000000");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

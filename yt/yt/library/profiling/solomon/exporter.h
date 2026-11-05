@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/library/profiling/producer.h>
@@ -22,6 +24,24 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Arguments of a Solomon fetch, see #ParseSolomonFetchArgs.
+struct TSolomonFetchArgs
+{
+    //! Set together; if unset, the last collected step is read.
+    std::optional<TInstant> Now;
+    std::optional<TDuration> Period;
+
+    std::optional<TDuration> Grid;
+
+    //! Enables Solomon-specific conversions, e.g. of counters to rates.
+    bool IsSolomonPull = true;
+};
+
+//! Parses the "now" and "period" query parameters and the "X-Solomon-GridSec" header.
+TSolomonFetchArgs ParseSolomonFetchArgs(TStringBuf rawQuery, std::optional<TStringBuf> gridHeader);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSolomonExporter
     : public TRefCounted
 {
@@ -30,8 +50,8 @@ public:
         TSolomonExporterConfigPtr config,
         TSolomonRegistryPtr registry = nullptr);
 
-    void Register(const std::string& prefix, const NYT::NHttp::IServerPtr& server);
-    void Register(const std::string& prefix, const NYT::NHttp::IRequestPathMatcherPtr& handlers);
+    void Register(TStringBuf prefix, const NYT::NHttp::IServerPtr& server);
+    void Register(TStringBuf prefix, const NYT::NHttp::IRequestPathMatcherPtr& handlers);
 
     //! Attempts to read registered sensors in JSON format.
     //! Returns null if exporter is not ready.
@@ -44,6 +64,14 @@ public:
         const TReadOptions& options,
         std::optional<std::string> shard);
 
+    //! Reads sensors as the HTTP shard handler does, for serving Solomon fetches from another HTTP server.
+    //! Unlike #ReadSensors, does not begin or end the stream, so the caller can add its own metrics.
+    //! May wait for read_delay until the requested steps are collected; throws if they are not.
+    void ReadSensorsForFetch(
+        const TSolomonFetchArgs& args,
+        ::NMonitoring::IMetricConsumer* consumer,
+        const std::optional<std::string>& shard = {});
+
     void AttachRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors);
 
     TSharedRef DumpSensors();
@@ -52,6 +80,8 @@ public:
     // There must be at most 1 running exporter per registry.
     void Start();
     void Stop();
+
+    void Reconfigure(const TSolomonExporterDynamicConfigPtr& dynamicConfig);
 
     NYTree::IYPathServicePtr GetSensorService();
 
@@ -110,13 +140,15 @@ private:
         TRemoteRegistry Registry;
     };
 
+    using TRemoteProcessPtr = TIntrusivePtr<TRemoteProcess>;
+
     TSpinLock RemoteProcessLock_;
-    THashSet<TIntrusivePtr<TRemoteProcess>> RemoteProcessList_;
+    THashSet<TRemoteProcessPtr> RemoteProcessList_;
 
     void DoCollect();
     void TransferSensors();
 
-    void HandleIndex(const std::string& prefix, const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
+    void HandleIndex(TStringBuf prefix, const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
     void HandleStatus(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
 
     void HandleDebugSensors(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
@@ -132,13 +164,24 @@ private:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp);
 
+    void ValidateFetchArgs(const TSolomonFetchArgs& args, TDuration gridStep);
+
+    //! Requires #Lock_ to be held by #guard, which is reacquired while waiting for the requested steps.
+    void DoReadSensorsForFetch(
+        const TSolomonFetchArgs& args,
+        TDuration gridStep,
+        const std::optional<std::string>& shard,
+        ::NMonitoring::IMetricConsumer* consumer,
+        TIntrusivePtr<NConcurrency::TAsyncLockReaderGuard>* guard,
+        const NLogging::TLogger& Logger);
+
     void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
     TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
     void CleanResponseCache();
 
-    bool FilterDefaultGrid(const std::string& sensorName);
+    bool FilterDefaultGrid(TStringBuf sensorName);
 
     static void ValidateSummaryPolicy(ESummaryPolicy policy);
 

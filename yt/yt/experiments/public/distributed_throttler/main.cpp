@@ -7,9 +7,9 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/server/lib/discovery_server/public.h>
 #include <yt/yt/server/lib/discovery_server/config.h>
@@ -122,8 +122,7 @@ public:
 
         auto connectionConfig = New<TDiscoveryConnectionConfig>();
         auto addresses = DiscoveryServers_->GetDiscoveryServersAddresses();
-        // TODO(babenko): switch to std::string
-        connectionConfig->Addresses = {addresses.begin(), addresses.end()};
+        connectionConfig->Addresses = addresses;
 
         Connection_ = New<TMockDistributedThrottlerConnection>(connectionConfig);
 
@@ -270,7 +269,7 @@ private:
 
     std::vector<TThroughputThrottlerConfigPtr> ThrottlerConfigs_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UsageLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UsageLock_);
     std::vector<std::vector<i64>> DesiredUsage_;
 
     i64 GetDefaultThrottlerUsage(int factoryIndex)

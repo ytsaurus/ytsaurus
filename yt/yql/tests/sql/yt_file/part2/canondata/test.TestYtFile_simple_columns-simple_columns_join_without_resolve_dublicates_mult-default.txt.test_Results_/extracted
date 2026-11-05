@@ -1,0 +1,50 @@
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>:7:1: Warning: At function: RemovePrefixMembers, At function: Sort, At function: PersistableRepr, At function: OrderedSqlProject
+    	SELECT
+	^
+        <tmp_path>/program.sql:<main>:14:6: Warning: At function: EquiJoin, At tuple
+        	FROM Input JOIN $data as d ON Input.subkey = d.key
+	     ^
+            <tmp_path>/program.sql:<main>:4:136: Warning: At function: RemoveSystemMembers
+            	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                                                       ^
+                <tmp_path>/program.sql:<main>:4:10: Warning: At function: PersistableRepr, At function: OrderedSqlProject
+                	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	         ^
+                    <tmp_path>/program.sql:<main>:4:147: Warning: At function: OrderedFilter, At lambda, At function: Coalesce
+                    	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                                                                  ^
+                        <tmp_path>/program.sql:<main>:4:183: Warning: At function: <
+                        	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                                                                                                      ^
+                            <tmp_path>/program.sql:<main>:4:178: Warning: At function: /
+                            	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                                                                                                 ^
+                                <tmp_path>/program.sql:<main>:4:178: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
+                                	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                                                                                                 ^
+                    <tmp_path>/program.sql:<main>:4:10: Warning: At tuple
+                    	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	         ^
+                        <tmp_path>/program.sql:<main>:4:10: Warning: At function: SqlProjectItem, At lambda
+                        	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	         ^
+                            <tmp_path>/program.sql:<main>:4:17: Warning: At function: SafeCast
+                            	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                ^
+                                <tmp_path>/program.sql:<main>:4:41: Warning: At function: /
+                                	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                        ^
+                                    <tmp_path>/program.sql:<main>:4:41: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
+                                    	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                        ^
+                        <tmp_path>/program.sql:<main>:4:10: Warning: At function: SqlProjectItem, At lambda
+                        	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	         ^
+                            <tmp_path>/program.sql:<main>:4:99: Warning: At function: *
+                            	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                  ^
+                                <tmp_path>/program.sql:<main>:4:99: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
+                                	$data = (SELECT cast(cast(key as uint32)/100 as string) as key, key as kk, cast(subkey as uint32) * 10 as subkey, "data: " || value as value FROM Input WHERE cast(key as uint32)/100 < 5);
+	                                                                                                  ^

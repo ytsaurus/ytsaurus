@@ -37,7 +37,7 @@ class Odin(object):
                  check_log_messages_max_size=16384, juggler_client_host=None, juggler_client_scheme=None,
                  juggler_client_port=None, juggler_host=None, juggler_responsibles=None,
                  secrets=None, yt_enable_proxy_discovery=True, yt_driver_address_resolver_config=None,
-                 yt_driver_logging_config=None):
+                 yt_driver_logging_config=None, yt_enable_tls=False):
         signal.signal(signal.SIGHUP, sighup_handler)
 
         self.db_client_factory = db_client_factory
@@ -105,6 +105,9 @@ class Odin(object):
                 "driver_address_resolver_config": yt_driver_address_resolver_config,
                 "driver_logging_config": yt_driver_logging_config,
             })
+        if yt_enable_tls:
+            self.yt_client_params["config"]["proxy"]["prefer_https"] = True
+            self.yt_client_params["config"]["driver_config"] = {"bus_client": {"encryption_mode": "required"}}
 
         self.secrets = secrets
         if self.secrets is None:

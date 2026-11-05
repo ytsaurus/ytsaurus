@@ -61,7 +61,8 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
-            CellarNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cellar))
+            ENodeHeartbeatType::Cellar,
+            CellarNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Cellar))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
     {
@@ -143,15 +144,24 @@ public:
             }
         }
 
-        if (singleCellarType) {
-            static const std::string tabletCellBundleTagName("tablet_cell_bundle");
-            static const std::string cellBundleTagName("cell_bundle");
-            auto cellarType = *singleCellarType;
+        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        if (dynamicConfig->CellarNode->DeduceProfilingTagFromBundleName.value_or(
+            Bootstrap_->GetConfig()->CellarNode->DeduceProfilingTagFromBundleName))
+        {
+            if (singleCellarType) {
+                static const std::string tabletCellBundleTagName("tablet_cell_bundle");
+                static const std::string cellBundleTagName("cell_bundle");
+                auto cellarType = *singleCellarType;
 
-            SolomonTagAlert_ = UpdateSolomonTags(
-                cellarManager,
-                cellarType,
-                cellarType == ECellarType::Tablet ? tabletCellBundleTagName : cellBundleTagName);
+                SolomonTagAlert_ = UpdateSolomonTags(
+                    cellarManager,
+                    cellarType,
+                    cellarType == ECellarType::Tablet ? tabletCellBundleTagName : cellBundleTagName);
+            }
+        } else {
+            NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
+
+            SolomonTagAlert_ = {};
         }
     }
 
@@ -223,7 +233,7 @@ private:
 
         Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
-        YT_LOG_INFO("Dynamic config changed");
+        YT_TLOG_INFO("Dynamic config changed");
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const

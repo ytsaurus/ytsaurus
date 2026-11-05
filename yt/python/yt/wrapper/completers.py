@@ -57,13 +57,22 @@ def complete_attributes(path):
 def complete_ypath(prefix, parsed_args, **kwargs):
     if parsed_args.proxy:
         yt.config["proxy"]["url"] = parsed_args.proxy
+
     if prefix in ["", "/"]:
-        return ["//"]
+        if yt.config["prefix"]:
+            return [yt.config["prefix"]]
+        else:
+            return ["//"]
+
     try:
         path = yt.TablePath(prefix)
         if "/@" in str(path):
             return complete_attributes(path)
         else:
-            return complete_map_node(path)
+            suggestions = complete_map_node(path)
+            if yt.config["prefix"]:
+                return suggestions + list(map(lambda s: s.replace(yt.config["prefix"], "", 1), suggestions))
+            else:
+                return suggestions
     except Exception as err:
         warn("Caught following exception during completion:\n" + str(err))

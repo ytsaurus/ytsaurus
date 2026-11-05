@@ -2,11 +2,17 @@
 
 #include "config.h"
 #include "handler_base.h"
+#include "helpers.h"
+
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
 #include <yt/yt/ytlib/yql_client/public.h>
@@ -33,6 +39,7 @@ using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +59,7 @@ struct TYqlSettings
 {
     std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
+    EQueryType QueryType;
 
     REGISTER_YSON_STRUCT(TYqlSettings);
 
@@ -61,6 +69,8 @@ struct TYqlSettings
             .Optional();
         registrar.Parameter("execution_mode", &TThis::ExecuteMode)
             .Default(EExecuteMode::Run);
+        registrar.Parameter("query_type", &TThis::QueryType)
+            .Default(EQueryType::Regular);
     }
 };
 
@@ -87,9 +97,8 @@ public:
         const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::NNative::IConnectionPtr& connection,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , Config_(config)
         , Files_(ConvertTo<std::optional<std::vector<TQueryFilePtr>>>(activeQuery.Files).value_or(std::vector<TQueryFilePtr>()))
@@ -97,6 +106,7 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
+        , QueryType_(Settings_->QueryType)
         , Secrets_(MakeSecrets(activeQuery.Secrets))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
@@ -108,6 +118,28 @@ public:
 
     void Start() override
     {
+        if (QueryType_ != EQueryType::Regular) {
+            if (IsIndexed_) {
+                THROW_ERROR_EXCEPTION("Query of type %Qlv must not be indexed", QueryType_);
+            }
+
+            auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(AccessControlObjects_);
+            if (!accessControlObjectList || accessControlObjectList->size() != 1 || (*accessControlObjectList)[0] != AdminAccessControlObjectName) {
+                THROW_ERROR_EXCEPTION("Query of type %Qlv is expected to have only %Qv access control object set",
+                    QueryType_,
+                    AdminAccessControlObjectName);
+            }
+
+            if (CheckAccessControl(User_, AccessControlObjects_, StateClient_, EPermission::Administer) == ESecurityAction::Deny) {
+                THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
+                    "%Qlv permission required to run %Qlv queries",
+                    EPermission::Administer,
+                    QueryType_)
+                    .With("user", User_)
+                    .With("access_control_objects", AccessControlObjects_);
+            }
+        }
+
         auto providerInfo = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
         YqlAgentChannelProvider_ = providerInfo.first;
         YqlAgentChannelProviderConfig_ = providerInfo.second;
@@ -122,7 +154,7 @@ public:
         if (QueryState_ == EYqlQueryState::Running) {
             // Nothing smarter than that for now.
             YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-            StopProgressWriter();
+            YT_UNUSED_FUTURE(StopProgressWriter());
             AsyncQueryResult_.Cancel(TError("Query aborted"));
         }
 
@@ -136,7 +168,7 @@ public:
         if (QueryState_ == EYqlQueryState::Running) {
             // Nothing smarter than that for now.
             YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-            StopProgressWriter();
+            YT_UNUSED_FUTURE(StopProgressWriter());
             AsyncQueryResult_.Cancel(TError("Query detached"));
         }
 
@@ -144,31 +176,177 @@ public:
     }
 
 private:
-    const TString Query_;
+    const std::string Query_;
     const TYqlEngineConfigPtr Config_;
     const std::vector<TQueryFilePtr> Files_;
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
-    const TString Stage_;
+    const std::string Stage_;
     const EExecuteMode ExecuteMode_;
+    const EQueryType QueryType_;
     const IInvokerPtr ProgressInvoker_;
     const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
     TYqlAgentChannelConfigPtr YqlAgentChannelProviderConfig_;
-    TString YqlServiceName_;
+    std::string YqlServiceName_;
 
     IChannelPtr YqlServiceChannel_;
     TPeriodicExecutorPtr ProgressGetterExecutor_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryStateSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueryStateSpinLock_);
     EYqlQueryState QueryState_ = EYqlQueryState::Pending;
+
+    std::optional<ui32> LastInMemoryProgressRevision_;
+    std::optional<ui32> LastSavedProgressRevision_;
+    TYsonString LastSavedYqlProgress_;
+    THashMap<EProgressPart, std::pair<ui32, TYsonString>> ProgressPartsToSave_;
+
+    void OnProgress(const TYqlResponse& rsp)
+    {
+        auto optionalRevision = rsp.has_revision() ? std::optional(rsp.revision()) : std::nullopt;
+        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp, plan);
+        auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp, statistics);
+        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp, progress);
+        auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp, task_info);
+        auto optionalAst = rsp.has_ast() ? std::optional(rsp.ast()) : std::nullopt;
+
+        if (!optionalRevision) {
+            const bool hasContent = optionalPlan || optionalStatistics || optionalTaskInfo || optionalAst ||
+                (optionalProgress && optionalProgress->AsStringBuf() != "{}");
+            if (hasContent) {
+                auto progress = BuildYsonStringFluently()
+                    .BeginMap()
+                        .OptionalItem(FormatEnum(EProgressPart::YqlPlan), optionalPlan)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlStatistics), optionalStatistics)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlProgress), optionalProgress)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlTaskInfo), optionalTaskInfo)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlAst), optionalAst)
+                    .EndMap();
+                TQueryHandlerBase::OnProgress(std::move(progress));
+            }
+            return;
+        }
+        auto revision = *optionalRevision;
+
+        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToSave;
+        auto convertIfPresent = [&] (EProgressPart part, const auto& value) {
+            if (value) {
+                if (part == EProgressPart::YqlProgress) {
+                    // yql_progress carries no revision of its own; Max makes it pass any min-revision filter.
+                    partsToSave[part] = {Max<ui32>(), ConvertToYsonString(*value)};
+                } else {
+                    partsToSave[part] = {revision, ConvertToYsonString(*value)};
+                }
+            }
+        };
+
+        convertIfPresent(EProgressPart::YqlProgress, optionalProgress);
+        convertIfPresent(EProgressPart::YqlPlan, optionalPlan);
+        convertIfPresent(EProgressPart::YqlStatistics, optionalStatistics);
+        convertIfPresent(EProgressPart::YqlTaskInfo, optionalTaskInfo);
+        convertIfPresent(EProgressPart::YqlAst, optionalAst);
+        convertIfPresent(EProgressPart::YqlRevision, optionalRevision);
+
+        {
+            auto moveIfPresent = [&] (EProgressPart part) {
+                if (auto it = partsToSave.find(part); it != partsToSave.end()) {
+                    ProgressPartsToSave_[part] = std::move(it->second);
+                }
+            };
+
+            auto guard = Guard(ProgressSpinLock_);
+            moveIfPresent(EProgressPart::YqlProgress);
+
+            if (LastInMemoryProgressRevision_ && revision <= *LastInMemoryProgressRevision_) {
+                return;
+            }
+            LastInMemoryProgressRevision_ = revision;
+
+            moveIfPresent(EProgressPart::YqlPlan);
+            moveIfPresent(EProgressPart::YqlStatistics);
+            moveIfPresent(EProgressPart::YqlTaskInfo);
+            moveIfPresent(EProgressPart::YqlAst);
+            moveIfPresent(EProgressPart::YqlRevision);
+        }
+    }
+
+    bool TryWriteProgress() override
+    {
+        bool inPartsMode;
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            inPartsMode = LastInMemoryProgressRevision_.has_value();
+        }
+        if (!inPartsMode) {
+            return TQueryHandlerBase::TryWriteProgress();
+        }
+
+        ui32 lastInMemoryProgressRevision = 0;
+        TYsonString lastSavedYqlProgress;
+
+        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToCompressAndSave;
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            lastInMemoryProgressRevision = *LastInMemoryProgressRevision_;
+            lastSavedYqlProgress = LastSavedYqlProgress_;
+
+            for (const auto& [part, revisionWithValue] : ProgressPartsToSave_) {
+                if (part == EProgressPart::YqlProgress) {
+                    // yql_progress carries no revision, so track it by value.
+                    if (LastSavedYqlProgress_ == revisionWithValue.second) {
+                        continue;
+                    }
+                    lastSavedYqlProgress = revisionWithValue.second;
+                } else if (LastSavedProgressRevision_ && *LastSavedProgressRevision_ >= revisionWithValue.first) {
+                    continue;
+                }
+                partsToCompressAndSave[part] = revisionWithValue;
+            }
+        }
+
+        std::vector<NTableClient::TUnversionedRow> newRows;
+        auto rowBuffer = New<NTableClient::TRowBuffer>();
+        for (const auto& [part, revisionWithValue] : partsToCompressAndSave) {
+            auto compressedValue = Compress(revisionWithValue.second.ToString(), MaxDyntableStringSize);
+
+            NRecords::TQueryProgressPartial newRecord{
+                .Key = {.QueryId = QueryId_, .PartName = FormatEnum(part)},
+                .Revision = revisionWithValue.first,
+                .PartValue = compressedValue,
+            };
+            newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, NRecords::TQueryProgressDescriptor::Get()->GetPartialIdMapping()));
+        }
+
+        if (!newRows.empty()) {
+            try {
+                auto transaction = StartIncarnationTransaction().first;
+                transaction->WriteRows(
+                    StateRoot_ + "/query_progresses",
+                    NRecords::TQueryProgressDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(newRows), rowBuffer));
+
+                WaitFor(transaction->Commit())
+                    .ThrowOnError();
+
+                {
+                    auto guard = Guard(ProgressSpinLock_);
+                    LastSavedProgressRevision_ = lastInMemoryProgressRevision;
+                    LastSavedYqlProgress_ = lastSavedYqlProgress;
+                }
+            } catch (const std::exception& ex) {
+                return OnProgressWriteFailed(ex);
+            }
+        }
+        return true;
+    }
 
     void TryStart()
     {
-        YT_LOG_DEBUG("Start YQL query attempt (Stage: %v)", Stage_);
+        YT_TLOG_DEBUG("Start YQL query attempt")
+            .With("Stage", Stage_);
         auto yqlServiceChannel = WaitForFast(YqlAgentChannelProvider_->GetChannel(YqlServiceName_))
             .ValueOrThrow();
 
@@ -184,6 +362,7 @@ private:
         yqlRequest->set_query(Query_);
         yqlRequest->set_settings(ToProto(ConvertToYsonString(SettingsNode_)));
         yqlRequest->set_mode(ToProto(ExecuteMode_));
+        yqlRequest->set_query_type(ToProto(QueryType_));
 
         for (const auto& file : Files_) {
             auto* protoFile = yqlRequest->add_files();
@@ -205,13 +384,14 @@ private:
         {
             auto guard = Guard(QueryStateSpinLock_);
             if (QueryState_ != EYqlQueryState::Pending && QueryState_ != EYqlQueryState::Throttled) {
-                YT_LOG_DEBUG("Start YQL query attempt failed, query is not in pending or throttled state (State: %v)", QueryState_);
+                YT_TLOG_DEBUG("Start YQL query attempt failed, query is not in pending or throttled state")
+                    .With("State", QueryState_);
                 return;
             }
 
-            YT_LOG_DEBUG("Start YQL query (Stage: %v, Channel: %v)",
-                Stage_,
-                yqlServiceChannel->GetEndpointDescription());
+            YT_TLOG_DEBUG("Start YQL query")
+                .With("Stage", Stage_)
+                .With("Channel", yqlServiceChannel->GetEndpointDescription());
 
             QueryState_ = EYqlQueryState::Running;
 
@@ -232,10 +412,18 @@ private:
         proxy.SetDefaultTimeout(YqlAgentChannelProviderConfig_->DefaultProgressRequestTimeout);
         auto req = proxy.GetQueryProgress();
         ToProto(req->mutable_query_id(), QueryId_);
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            if (LastInMemoryProgressRevision_) {
+                req->set_revision(*LastInMemoryProgressRevision_);
+            }
+        }
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error getting query progress (QueryId: %v)", QueryId_);
+            YT_TLOG_INFO("Error getting query progress")
+                .With("QueryId", QueryId_)
+                .With(rspOrError);
             return;
         }
 
@@ -245,17 +433,7 @@ private:
             return;
         }
 
-        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
-        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
-        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
-
-        auto progress = BuildYsonStringFluently()
-            .BeginMap()
-                .OptionalItem("yql_plan", optionalPlan)
-                .OptionalItem("yql_progress", optionalProgress)
-                .OptionalItem("yql_ast", optionalAst)
-            .EndMap();
-        OnProgress(std::move(progress));
+        OnProgress(rsp->yql_response());
     }
 
     void OnYqlResponse(const TErrorOr<TTypedClientResponse<TRspStartQuery>::TResult>& rspOrError)
@@ -263,12 +441,18 @@ private:
         // Waiting to exclude the possibility of overwriting the final progress.
         WaitFor(ProgressGetterExecutor_->Stop())
             .ThrowOnError();
-        StopProgressWriter();
+        WaitFor(StopProgressWriter())
+            .ThrowOnError();
         if (rspOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
 
-        if (rspOrError.FindMatching(NYqlClient::EErrorCode::RequestThrottled) || rspOrError.FindMatching(NYqlClient::EErrorCode::YqlAgentBanned)) {
+        if (rspOrError.FindMatching({
+            NYqlClient::EErrorCode::RequestThrottled,
+            NYqlClient::EErrorCode::YqlAgentBanned,
+            NYqlClient::EErrorCode::YqlAgentNotReady,
+        }))
+        {
             {
                 auto guard = Guard(QueryStateSpinLock_);
                 QueryState_ = EYqlQueryState::Throttled;
@@ -278,33 +462,31 @@ private:
             try {
                 TryStart();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                YT_TLOG_INFO("Unrecoverable error on query start, finishing query")
+                    .With(ex);
                 OnQueryFailed(TError(ex));
             }
             return;
         }
 
         if (!rspOrError.IsOK()) {
+            WriteProgress();
             OnQueryFailed(rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
+        OnProgress(rsp->yql_response());
 
-        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
-        auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), statistics);
-        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
-        auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), task_info);
-        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
-        auto progress = BuildYsonStringFluently()
-            .BeginMap()
-                .OptionalItem("yql_plan", optionalPlan)
-                .OptionalItem("yql_statistics", optionalStatistics)
-                .OptionalItem("yql_progress", optionalProgress)
-                .OptionalItem("yql_task_info", optionalTaskInfo)
-                .OptionalItem("yql_ast", optionalAst)
-            .EndMap();
-        OnProgress(std::move(progress));
+        if (rsp->yql_response().has_error()) {
+            WriteProgress();
+
+            auto error = ConvertTo<TError>(TYsonString(rsp->yql_response().error()));
+            OnQueryFailed(TError("Failed to run query")
+                .With("query_id", QueryId_)
+                .With(std::move(error)));
+            return;
+        }
 
         std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
@@ -325,6 +507,7 @@ private:
                 wireRowsetOrErrors.push_back(error);
             }
         }
+        WriteProgress();
         OnQueryCompletedWire(wireRowsetOrErrors);
     }
 };
@@ -346,7 +529,7 @@ public:
 
         auto proxy = CreateProxy(stage);
 
-        YT_LOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
+        YT_TLOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
 
         auto getYqlAgentInfoRequest = proxy.GetYqlAgentInfo();
         getYqlAgentInfoRequest->SetTimeout(TDuration::Seconds(10));
@@ -358,7 +541,9 @@ public:
 
         FromProto(&availableYqlVersions, getYqlAgentInfoResponse->available_yql_versions());
         FromProto(&defaultYqlUIVersion, getYqlAgentInfoResponse->default_ui_yql_version());
-        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (AvailableVersions: %v, DefaultYqlUIVersion: %v)", availableYqlVersions, defaultYqlUIVersion);
+        YT_TLOG_DEBUG("GetYqlAgentInfo response received")
+            .With("AvailableVersions", availableYqlVersions)
+            .With("DefaultYqlUIVersion", defaultYqlUIVersion);
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -376,7 +561,7 @@ public:
 
         auto proxy = CreateProxy(stage);
 
-        YT_LOG_DEBUG("Sending YQLA GetDeclaredParametersInfo request");
+        YT_TLOG_DEBUG("Sending YQLA GetDeclaredParametersInfo request");
 
         auto getDeclaredParametersInfoRequest = proxy.GetDeclaredParametersInfo();
         getDeclaredParametersInfoRequest->SetTimeout(TDuration::Seconds(10));
@@ -388,23 +573,27 @@ public:
             .ValueOrThrow();
 
         auto declaredParametersInfo = TYsonString(TString(getDeclaredParametersInfoResponse->declared_parameters_info()));
-        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (DeclaredParametersInfo: %v)", declaredParametersInfo);
+        YT_TLOG_DEBUG("GetDeclaredParametersInfo response received")
+            .With("DeclaredParametersInfo", declaredParametersInfo);
 
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
         auto rawParametersNode = ConvertToNode(declaredParametersInfo);
         if (rawParametersNode->GetType() != ENodeType::Map) {
-            YT_LOG_DEBUG("Declared parameters node recieved from YQL facade has incorrect type. Expected map. (NodeType: %v)", rawParametersNode->GetType());
+            YT_TLOG_DEBUG("Declared parameters node received from YQL facade has incorrect type; expected map")
+                .With("NodeType", rawParametersNode->GetType());
             return EmptyMap;
         }
         auto processedParameters = ConvertToNode(EmptyMap)->AsMap();
         for (const auto& [key, valueNode] : rawParametersNode->AsMap()->GetChildren()) {
             if (valueNode->GetType() != ENodeType::List) {
-                YT_LOG_DEBUG("Node with declared parameter info has incorrect type. Expected list. (NodeType: %v)", valueNode->GetType());
+                YT_TLOG_DEBUG("Node with declared parameter info has incorrect type; expected list")
+                    .With("NodeType", valueNode->GetType());
                 continue;
             }
             auto list = valueNode->AsList()->GetChildren();
             if (list.size() != 2 || list[0]->AsString()->GetValue() != "DataType") {
-                YT_LOG_DEBUG("Declared parameter info list has incorrect format. Expected first element to be 'DataType', and second to be parameter type. (ParameterInfoList: %v)", ConvertToYsonString(valueNode));
+                YT_TLOG_DEBUG("Declared parameter info list has incorrect format; expected first element to be 'DataType' and second to be parameter type")
+                    .With("ParameterInfoList", ConvertToYsonString(valueNode));
                 continue;
             }
             processedParameters->AddChild(key, ConvertToNode(list[1]->AsString()->GetValue()));
@@ -445,6 +634,11 @@ public:
         , ProxyEngineProvider_(New<TProxyYqlEngineProvider>(StateClient_, StateRoot_))
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return false;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -455,16 +649,14 @@ public:
             Config_,
             activeQuery,
             DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
-            ControlQueue_->GetInvoker(),
-            NotIndexedQueriesTTL_);
+            ControlQueue_->GetInvoker());
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -478,7 +670,6 @@ private:
     const TActionQueuePtr ControlQueue_;
     const IProxyEngineProviderPtr ProxyEngineProvider_;
     TYqlEngineConfigPtr Config_;
-    TDuration NotIndexedQueriesTTL_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

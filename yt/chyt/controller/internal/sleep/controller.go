@@ -1,6 +1,7 @@
 package sleep
 
 import (
+	"bytes"
 	"context"
 
 	"go.ytsaurus.tech/library/go/core/log"
@@ -92,6 +93,14 @@ func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
 	return yson.MarshalFormat(snapshot, yson.FormatBinary)
 }
 
+func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *strawberry.Oplet) (bool, error) {
+	current, err := c.GetControllerSnapshot()
+	if err != nil {
+		return false, err
+	}
+	return !bytes.Equal(snapshot, current), nil
+}
+
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
 	speclet := parsedSpeclet.(Speclet)
 
@@ -109,7 +118,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
 	return map[string]any{
 		"test_option": speclet.TestOption,

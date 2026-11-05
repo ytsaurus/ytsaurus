@@ -46,6 +46,7 @@ target_link_options(unittester-queue-agent PRIVATE
 )
 
 target_sources(unittester-queue-agent PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/unittests/ytree_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/unittests/queue_export_ut.cpp
 )
 

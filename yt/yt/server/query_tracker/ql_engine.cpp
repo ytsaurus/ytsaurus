@@ -9,6 +9,13 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/client/driver/proxy_discovery_cache.h>
+
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
@@ -38,9 +45,8 @@ public:
         const NRecords::TActiveQuery& activeQuery,
         const TSelectRowsOptions& options,
         const IClientPtr& queryClient,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
         , Options_(options)
@@ -48,7 +54,7 @@ public:
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting QL query");
+        YT_TLOG_DEBUG("Starting QL query");
         OnQueryStarted();
         AsyncQueryResult_ = QueryClient_->SelectRows(Query_, Options_);
         AsyncQueryResult_.Subscribe(BIND(&TQLQueryHandler::OnQueryFinish, MakeWeak(this)).Via(GetCurrentInvoker()));
@@ -67,7 +73,7 @@ public:
     }
 
 private:
-    const TString Query_;
+    const std::string Query_;
     const IClientPtr QueryClient_;
     const TSelectRowsOptions Options_;
 
@@ -97,12 +103,48 @@ public:
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return true;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
+        auto proxyRole = settings->Find<std::string>("rpc_proxy_role").value_or(DefaultRpcProxyRole);
+        auto nativeConnection = ClusterDirectory_->GetConnectionOrThrow(cluster);
+        auto nativeClient = nativeConnection->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User));
+        auto nativeConfig = nativeConnection->GetConfig();
+
+        auto proxyDiscovery = NDriver::CreateProxyDiscoveryCache(New<TAsyncExpiringCacheConfig>(), nativeClient);
+        auto proxies = WaitFor(proxyDiscovery->Discover(NDriver::TProxyDiscoveryRequest{.Role = proxyRole}))
+            .ValueOrThrow();
+        if (proxies.Addresses.empty()) {
+            THROW_ERROR_EXCEPTION("No RPC proxies found for cluster %Qv and role %Qv", cluster, proxyRole);
+        }
+
+        auto tokenAttributes = CreateEphemeralAttributes();
+        tokenAttributes->Set("responsible", "query_tracker");
+        tokenAttributes->Set("query_id", activeQuery.Key.QueryId);
+        auto tokenOptions = TIssueTemporaryTokenOptions{
+            .ExpirationTimeout = nativeConfig->DefaultSelectRowsTimeout + TDuration::Minutes(1),
+        };
+        auto token = WaitFor(nativeClient->IssueTemporaryToken(activeQuery.User, tokenAttributes, tokenOptions))
+            .ValueOrThrow();
+
+        auto rpcConfig = New<NRpcProxy::TConnectionConfig>();
+        rpcConfig->BusClient = nativeConfig->BusClient;
+        rpcConfig->ProxyAddresses = std::move(proxies.Addresses);
+        rpcConfig->EnableProxyDiscovery = false;
+        rpcConfig->DefaultSelectRowsTimeout = nativeConfig->DefaultSelectRowsTimeout;
+        rpcConfig->UdfRegistryPath = nativeConfig->UdfRegistryPath;
+        auto rpcConnection = NRpcProxy::CreateConnection(rpcConfig);
+        auto queryClient = rpcConnection->CreateClient(TClientOptions::FromToken(std::move(token.Token)));
+
         auto options = GetOptions(settings.Get());
-        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions::FromUser(activeQuery.User));
+        options.InputRowLimit = options.InputRowLimit.value_or(nativeConfig->DefaultInputRowLimit);
+        options.OutputRowLimit = options.OutputRowLimit.value_or(nativeConfig->DefaultOutputRowLimit);
         return New<TQLQueryHandler>(
             StateClient_,
             StateRoot_,
@@ -110,14 +152,12 @@ public:
             activeQuery,
             options,
             queryClient,
-            ControlQueue_->GetInvoker(),
-            NotIndexedQueriesTTL_);
+            ControlQueue_->GetInvoker());
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = DynamicPointerCast<TQLEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -131,7 +171,6 @@ private:
     const TActionQueuePtr ControlQueue_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
-    TDuration NotIndexedQueriesTTL_;
 
     static TSelectRowsOptions GetOptions(IAttributeDictionary* settings)
     {
@@ -139,7 +178,7 @@ private:
 
         options.InputRowLimit = settings->Find<i64>("input_row_limit");
         options.OutputRowLimit = settings->Find<i64>("output_row_limit");
-        options.ExecutionPool = settings->Find<TString>("execution_pool");
+        options.ExecutionPool = settings->Find<std::string>("execution_pool");
         options.ExecutionBackend = settings->Find<EExecutionBackend>("execution_backend");
         options.UseLookupCache = settings->Find<bool>("use_lookup_cache");
         options.UdfRegistryPath = settings->Find<TYPath>("udf_registry_path");

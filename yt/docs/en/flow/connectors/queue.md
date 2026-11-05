@@ -1,0 +1,1 @@
+{% include [QYT Connector in {{product-name}} Flow](../../_includes/flow/connectors/queue.md) %}

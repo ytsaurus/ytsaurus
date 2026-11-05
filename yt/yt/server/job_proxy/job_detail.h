@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +34,7 @@ public:
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId) override;
     NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& options = {}) override;
-    std::optional<TString> GetFailContext() override;
+    std::optional<std::string> GetFailContext() override;
     std::vector<NJobAgent::TJobProfile> GetProfiles() override;
     const NControllerAgent::TCoreInfos& GetCoreInfos() const override;
     NApi::TPollJobShellResponse PollJobShell(
@@ -56,11 +58,16 @@ protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
 
-    TInstant IOStartTime_;
+    TCpuInstant IOStartTime_;
 
     std::unique_ptr<IJobProfiler> JobProfiler_;
 
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+
+private:
+    // NB: Replicas of input chunks reach the readers via their chunk specs,
+    // while hunk chunk replicas are only available through the replica cache.
+    void PopulateChunkReplicaCacheWithHunkChunks() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,9 +12,12 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/compression/codec.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 namespace {
@@ -22,6 +25,8 @@ namespace {
 using namespace NTableChunkFormat;
 using namespace NTransactionClient;
 using namespace NCompression;
+
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,7 +155,6 @@ protected:
 
     TMutableVersionedRow Row_;
 
-
     void SetUp() override
     {
         auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter();
@@ -161,27 +165,27 @@ protected:
         Row_.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
-        Row_.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
-        Row_.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
+        Row_.Values()[0] = MakeVersionedInt64Value(8, 11_ts, 3);
+        Row_.Values()[1] = MakeVersionedInt64Value(7, 3_ts, 3);
         // v2
-        Row_.Values()[2] = MakeVersionedBooleanValue(true, 5, 4);
-        Row_.Values()[3] = MakeVersionedBooleanValue(false, 3, 4);
+        Row_.Values()[2] = MakeVersionedBooleanValue(true, 5_ts, 4);
+        Row_.Values()[3] = MakeVersionedBooleanValue(false, 3_ts, 4);
         // v3
-        Row_.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+        Row_.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5_ts, 5);
         // v4
-        Row_.Values()[5] = MakeVersionedInt64Value(1'000, 5, 6);
+        Row_.Values()[5] = MakeVersionedInt64Value(1'000, 5_ts, 6);
         // v5
-        Row_.Values()[6] = MakeVersionedInt64Value(1'000'000, 5, 7);
+        Row_.Values()[6] = MakeVersionedInt64Value(1'000'000, 5_ts, 7);
         // v6
-        Row_.Values()[7] = MakeVersionedInt64Value(1'000'000'000, 5, 8);
+        Row_.Values()[7] = MakeVersionedInt64Value(1'000'000'000, 5_ts, 8);
         // v7
-        Row_.Values()[8] = MakeVersionedSentinelValue(EValueType::Null, 5, 9);
+        Row_.Values()[8] = MakeVersionedSentinelValue(EValueType::Null, 5_ts, 9);
 
-        Row_.WriteTimestamps()[2] = 3;
-        Row_.WriteTimestamps()[1] = 5;
-        Row_.WriteTimestamps()[0] = 11;
+        Row_.WriteTimestamps()[2] = 3_ts;
+        Row_.WriteTimestamps()[1] = 5_ts;
+        Row_.WriteTimestamps()[0] = 11_ts;
 
-        Row_.DeleteTimestamps()[0] = 9;
+        Row_.DeleteTimestamps()[0] = 9_ts;
 
         blockWriter->WriteRow(Row_);
 
@@ -384,10 +388,10 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.Keys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
     row.Keys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
-    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
-    row.Values()[1] = MakeVersionedInt64Value(7, 3, 6);
-    row.Values()[2] = MakeVersionedBooleanValue(true, 5, 7);
-    row.WriteTimestamps()[0] = 5;
+    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5_ts, 5);
+    row.Values()[1] = MakeVersionedInt64Value(7, 3_ts, 6);
+    row.Values()[2] = MakeVersionedBooleanValue(true, 5_ts, 7);
+    row.WriteTimestamps()[0] = 5_ts;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -399,7 +403,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         rows,
         this->Schema_->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
-        /*timestamp*/ 7,
+        7_ts,
         /*produceAllVersions*/ false);
 }
 
@@ -409,7 +413,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.DeleteTimestamps()[0] = 9;
+    row.DeleteTimestamps()[0] = 9_ts;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -420,7 +424,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         rows,
         this->Schema_->GetKeyColumnCount(),
         schemaIdMapping,
-        /*timestamp*/ 9,
+        9_ts,
         /*produceAllVersions*/ false);
 }
 
@@ -430,8 +434,8 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.WriteTimestamps()[0] = 11;
-    row.DeleteTimestamps()[0] = 9;
+    row.WriteTimestamps()[0] = 11_ts;
+    row.DeleteTimestamps()[0] = 9_ts;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -454,13 +458,13 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
     // v2
-    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
+    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5_ts, 3);
 
-    row.WriteTimestamps()[2] = 3;
-    row.WriteTimestamps()[1] = 5;
-    row.WriteTimestamps()[0] = 11;
+    row.WriteTimestamps()[2] = 3_ts;
+    row.WriteTimestamps()[1] = 5_ts;
+    row.WriteTimestamps()[0] = 11_ts;
 
-    row.DeleteTimestamps()[0] = 9;
+    row.DeleteTimestamps()[0] = 9_ts;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);

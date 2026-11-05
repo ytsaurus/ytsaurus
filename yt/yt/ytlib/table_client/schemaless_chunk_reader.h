@@ -61,7 +61,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     std::optional<TPartitionTags> partitionTags = {},
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     std::optional<i64> virtualRowIndex = std::nullopt,
-    int interruptDescriptorKeyLength = 0);
+    int interruptDescriptorKeyLength = 0,
+    IInvokerPtr sessionInvoker = nullptr);
 
 ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,

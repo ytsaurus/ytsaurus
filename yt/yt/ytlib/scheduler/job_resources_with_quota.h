@@ -6,6 +6,9 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
@@ -33,7 +36,10 @@ struct TDiskQuota
 
     explicit operator bool() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TDiskQuota, 0x5e9c3a86);
 };
 
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
@@ -76,7 +82,11 @@ public:
     TJobResources ToJobResources() const;
     void SetJobResources(const TJobResources& jobResources);
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+private:
+    PHOENIX_DECLARE_TYPE(TJobResourcesWithQuota, 0x81cd6db9);
 };
 
 TJobResourcesWithQuota  operator+(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);

@@ -1,0 +1,66 @@
+{
+    "cluster_url" = "<to_be_overridden>";
+    "path" = "//<to_be_overridden>";
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["event_in"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                            "finite" = %true;
+                        };
+                    };
+                };
+            };
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["event_in"];
+                "output_stream_ids" = ["event_out"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["event_out"];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "event_in" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+            "event_out" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {};
+            "writer" = {
+                "parameters" = {"desired_partition_count" = 2;};
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

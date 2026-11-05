@@ -45,7 +45,7 @@ struct TArchiveOperationRequest
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
     NYson::TYsonString RuntimeParameters;
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
     NYson::TYsonString SchedulingAttributesPerPoolTree;
     // COMPAT(omgronny)
     NYson::TYsonString SlotIndexPerPoolTree;
@@ -57,6 +57,8 @@ struct TArchiveOperationRequest
     NYson::TYsonString ControllerFeatures;
     // Archive version >= 46
     NYson::TYsonString ProvidedSpec;
+    // Archive version >= 69
+    NYson::TYsonString CumulativeSpecPatch;
 
     static const std::vector<std::string>& GetAttributeKeys();
     static const std::vector<std::string>& GetProgressAttributeKeys();
@@ -83,7 +85,7 @@ class TOperationsCleaner
 {
 public:
     TOperationsCleaner(
-        TOperationsCleanerConfigPtr config,
+        TSchedulerConfigPtr config,
         IOperationsCleanerHost* host,
         TBootstrap* bootstrap);
 
@@ -97,7 +99,7 @@ public:
 
     void SubmitForRemoval(std::vector<TRemoveOperationRequest> requests);
 
-    void UpdateConfig(const TOperationsCleanerConfigPtr& config);
+    void UpdateConfig(const TSchedulerConfigPtr& config);
 
     void SetArchiveVersion(int version);
     bool IsEnabled() const;

@@ -15,10 +15,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString UncompressedDataSizeField = "uncompressed_data_size";
-static const TString CompressedDataSizeField = "compressed_data_size";
-static const TString MemorySizeField = "memory_size";
-static const TString PartitionCountField = "partition_count";
+static const std::string UncompressedDataSizeField = "uncompressed_data_size";
+static const std::string CompressedDataSizeField = "compressed_data_size";
+static const std::string MemorySizeField = "memory_size";
+static const std::string PartitionCountField = "partition_count";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,6 +177,11 @@ TTabletCellBundlePtr TBundleHolder::CreateBundle() const
     for (const auto& tableHolder : Tables) {
         auto table = tableHolder->CreateTable(bundle);
         EmplaceOrCrash(bundle->Tables, table->Id, table);
+
+        // NB: There may be multiple tables with the same path and different ids
+        // if the table was recreated.
+        bundle->TablesByPath.emplace(table->Path, table);
+
         for (const auto& tabletHolder : tableHolder->Tablets) {
             tabletHolder->CreateTablet(table, bundle->TabletCells);
         }

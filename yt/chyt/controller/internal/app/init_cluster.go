@@ -19,6 +19,9 @@ type ClusterInitializerConfig struct {
 	RobotUsername string `yson:"robot_username"`
 
 	Families []string `yson:"families"`
+
+	// DefaultNetworkProject is the default network project used for oplets.
+	DefaultNetworkProject string `yson:"default_network_project"`
 }
 
 type ClusterInitializer struct {
@@ -46,12 +49,28 @@ func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializer
 	}
 	initializer.familyToInitializer = make(map[string]strawberry.ClusterInitializer)
 	for family, initializerFactory := range familyToInitializerFactory {
-		initializer.familyToInitializer[family] = initializerFactory(l, initializer.ytc, config.StrawberryRoot)
+		familyRoot := config.StrawberryRoot.Child(family)
+		initializer.familyToInitializer[family] = initializerFactory(l, initializer.ytc, familyRoot)
 	}
 	return
 }
 
-func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context) error {
+func (initializer *ClusterInitializer) checkNetworkProject(ctx context.Context) error {
+	if initializer.config.DefaultNetworkProject == "" {
+		return nil
+	}
+	path := ypath.Path("//sys/network_projects").Child(initializer.config.DefaultNetworkProject)
+	exists, err := initializer.ytc.NodeExists(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return yterrors.Err(fmt.Sprintf("network project %q does not exist", initializer.config.DefaultNetworkProject))
+	}
+	return nil
+}
+
+func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context) error {
 	if initializer.config.RobotUsername == "" {
 		return nil
 	}
@@ -64,17 +83,26 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 		return yterrors.Err(fmt.Sprintf("user %v does not exist", initializer.config.RobotUsername))
 	}
 
-	paths := []ypath.Path{
-		initializer.config.StrawberryRoot,
-		ypath.Path("//sys/schemas/access_control_object"),
+	commonPermissions := []yt.Permission{yt.PermissionRead, yt.PermissionWrite}
+	pathToPermissions := map[ypath.Path][]yt.Permission{
+		initializer.config.StrawberryRoot:                 commonPermissions,
+		ypath.Path("//sys/schemas/access_control_object"): {yt.PermissionCreate},
+	}
+	if project := initializer.config.DefaultNetworkProject; project != "" {
+		pathToPermissions[ypath.Path("//sys/network_projects").Child(project)] = []yt.Permission{yt.PermissionUse}
+	}
+	for _, family := range initializer.config.Families {
+		pathToPermissions[initializer.config.StrawberryRoot.Child(family)] = []yt.Permission{
+			yt.PermissionRead, yt.PermissionWrite, yt.PermissionRemove, yt.PermissionAdminister,
+		}
 	}
 	for _, strawberryInitializer := range initializer.familyToInitializer {
-		paths = append(paths, ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace()))
+		namespacePath := ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace())
+		pathToPermissions[namespacePath] = append(pathToPermissions[namespacePath], yt.PermissionRead, yt.PermissionWrite, yt.PermissionRemove)
 	}
 
-	permissions := []yt.Permission{yt.PermissionCreate, yt.PermissionRead}
-
-	for _, path := range paths {
+	for path, permissions := range pathToPermissions {
+		var missingPermissions []yt.Permission
 		for _, permission := range permissions {
 			response, err := initializer.ytc.CheckPermission(
 				ctx,
@@ -86,8 +114,22 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 				return err
 			}
 			if response.Action != yt.ActionAllow {
-				return yterrors.Err(fmt.Sprintf("robot has no permission to %v in %v", permission, path))
+				missingPermissions = append(missingPermissions, permission)
 			}
+		}
+		if len(missingPermissions) == 0 {
+			continue
+		}
+		initializer.l.Info("granting permissions to robot",
+			log.String("path", path.String()),
+			log.String("user", initializer.config.RobotUsername),
+			log.Any("permissions", missingPermissions))
+		if err := initializer.ytc.SetNode(ctx, path.Attr("acl").Child("end"), yt.ACE{
+			Action:      yt.ActionAllow,
+			Subjects:    []string{initializer.config.RobotUsername},
+			Permissions: missingPermissions,
+		}, nil); err != nil {
+			return err
 		}
 	}
 
@@ -106,6 +148,9 @@ func (initializer *ClusterInitializer) createRootsIfNotExists(ctx context.Contex
 	for _, family := range initializer.config.Families {
 		_, err := initializer.ytc.CreateNode(ctx, root.Child(family), yt.NodeMap, &yt.CreateNodeOptions{
 			IgnoreExisting: true,
+			Attributes: map[string]any{
+				"inherit_acl": false,
+			},
 		})
 		if err != nil {
 			return err
@@ -132,6 +177,9 @@ func (initializer *ClusterInitializer) createACONamespaceIfNotExists(ctx context
 
 func (initializer *ClusterInitializer) InitCluster() error {
 	ctx := context.Background()
+	if err := initializer.checkNetworkProject(ctx); err != nil {
+		return err
+	}
 	if err := initializer.createRootsIfNotExists(ctx); err != nil {
 		return err
 	}
@@ -143,7 +191,7 @@ func (initializer *ClusterInitializer) InitCluster() error {
 			return err
 		}
 	}
-	if err := initializer.checkRobotPermissions(ctx); err != nil {
+	if err := initializer.setUpRobotPermissions(ctx); err != nil {
 		return err
 	}
 	return nil

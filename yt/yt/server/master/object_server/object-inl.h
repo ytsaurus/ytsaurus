@@ -71,6 +71,11 @@ inline TObjectId TObject::GetId() const
     return Id_;
 }
 
+Y_FORCE_INLINE EObjectType TObject::GetType() const
+{
+    return NObjectClient::TypeFromId(Id_);
+}
+
 inline int TObject::RefObject()
 {
     YT_VERIFY(RefCounter_ >= 0);
@@ -389,7 +394,7 @@ struct TEphemeralObjectPtrContext
         if (IsCurrent()) {
             func();
         } else {
-            EphemeralPtrUnrefInvoker->Invoke(BIND(std::move(func)));
+            EphemeralPtrUnrefInvoker->Invoke(BIND(std::forward<F>(func)));
         }
     }
 };

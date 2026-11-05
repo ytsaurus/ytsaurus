@@ -1,15 +1,14 @@
 #include "job_tracker_service.h"
-#include "private.h"
-#include "chunk.h"
+
 #include "chunk_manager.h"
-#include "job.h"
-#include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/master_hydra_service.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -77,11 +76,11 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, SequenceNumber: %v",
-            nodeId,
-            node->GetDefaultAddress(),
-            FormatResourceUsage(resourceUsage, resourceLimits),
-            request->sequence_number());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress())
+            .With("ResourceUsage", FormatResourceUsage(resourceUsage, resourceLimits))
+            .With("SequenceNumber", request->sequence_number());
 
         if (!node->ReportedDataNodeHeartbeat()) {
             SyncWithUpstream();

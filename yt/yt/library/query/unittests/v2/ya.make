@@ -5,7 +5,9 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     init.cpp
     ql_cast_ut.cpp
+    ql_hierarchical_join_ut.cpp
     ql_nested_subqueries_ut.cpp
+    ql_union_all_ut.cpp
 )
 
 PEERDIR(
@@ -17,7 +19,7 @@ FORK_SUBTESTS(MODULO)
 IF (SANITIZER_TYPE)
     SPLIT_FACTOR(10)
 ELSE()
-    SPLIT_FACTOR(3)
+    SPLIT_FACTOR(5)
 ENDIF()
 
 SIZE(MEDIUM)

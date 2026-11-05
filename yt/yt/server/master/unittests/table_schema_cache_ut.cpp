@@ -5,6 +5,7 @@
 #include <yt/yt/server/master/table_server/compact_table_schema.h>
 #include <yt/yt/server/master/table_server/table_schema_cache.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
@@ -78,6 +79,40 @@ TEST_F(TTableSchemaCacheTest, DontCacheCorruptedSchema)
             << Endl;
     }
     EXPECT_EQ(foundSchema, std::nullopt);
+}
+
+TEST(TCompactTableSchemaTest, HasNestedAggregateStateColumns)
+{
+    auto aggregateStateType = [] {
+        return AggregateStateLogicalType(
+            EAggregateFunction::Avg,
+            SimpleLogicalType(ESimpleLogicalValueType::Int64));
+    };
+
+    std::vector<TLogicalTypePtr> typesWithAggregateState = {
+        aggregateStateType(),
+        OptionalLogicalType(aggregateStateType()),
+        ListLogicalType(aggregateStateType()),
+        StructLogicalType({{"field", "field", aggregateStateType()}}, {}),
+        TupleLogicalType({aggregateStateType()}),
+        VariantStructLogicalType({{"field", "field", aggregateStateType()}}),
+        VariantTupleLogicalType({aggregateStateType()}),
+        DictLogicalType(aggregateStateType(), SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+        DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64), aggregateStateType()),
+        TaggedLogicalType("tag", aggregateStateType()),
+        ListLogicalType(StructLogicalType({
+            {"field", "field", OptionalLogicalType(aggregateStateType())}
+        }, {})),
+    };
+
+    for (const auto& logicalType : typesWithAggregateState) {
+        TTableSchema schema({TColumnSchema("aggregate", logicalType)});
+        EXPECT_TRUE(New<TCompactTableSchema>(schema)->HasAggregateStateColumns());
+
+        NTableClient::NProto::TTableSchemaExt protoSchema;
+        ToProto(&protoSchema, schema);
+        EXPECT_TRUE(New<TCompactTableSchema>(protoSchema)->HasAggregateStateColumns());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

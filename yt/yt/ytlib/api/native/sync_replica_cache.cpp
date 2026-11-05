@@ -21,7 +21,7 @@ TSyncReplicaCache::TSyncReplicaCache(
     : TAsyncExpiringCache(
         std::move(config),
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        logger.WithTag("Cache: SyncReplicaCache"))
+        logger.WithTag("Cache", "SyncReplica"))
     , Connection_(std::move(connection))
 { }
 

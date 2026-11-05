@@ -1,15 +1,18 @@
-COMMIT_SHA_FETCH := $(shell git rev-parse HEAD)
-
 DOCKER_REGISTRY = ghcr.io
-DOCKER_REPOSITORY = ytsaurus/ytmsvc
+DOCKER_ORGANIZATION = ytsaurus
+DOCKER_REPOSITORY = ytmsvc-nightly
+CHART_REPOSITORY = ytmsvc-chart-nightly
 
-IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_REPOSITORY)
+IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_ORGANIZATION)/$(DOCKER_REPOSITORY)
+CHART_REPO = oci://$(DOCKER_REGISTRY)/$(DOCKER_ORGANIZATION)
 
-COMMIT_SHA = $(COMMIT_SHA_FETCH)
-TODAY = $(shell date -u +%Y-%m-%d)
-IMAGE_TAG = $(TODAY)-$(COMMIT_SHA)
+COMMIT_SHA = $(shell git rev-parse HEAD)
+VERSION = 0.0.1-dev-$(COMMIT_SHA)
 
 BUILD_FLAGS = -r
+
+CHART_DIR = ../charts/ytmsvc-chart
+CHART_PACKAGE = $(CHART_REPOSITORY)-$(VERSION).tgz
 
 TEMP_DIR := $(shell mktemp -d)
 
@@ -44,11 +47,41 @@ docker-build: prepare-binaries
 		--build-context docker=./ \
 		-f ./Dockerfile \
 		--platform linux/amd64 \
-		--tag=$(IMAGE_REPO):$(IMAGE_TAG) ../../microservices/binaries
+		--tag=$(IMAGE_REPO):$(VERSION) ../../microservices/binaries
 
 .PHONY: docker-push
 docker-push:
-	docker push $(IMAGE_REPO):$(IMAGE_TAG)
+	docker push $(IMAGE_REPO):$(VERSION)
 
 .PHONY: docker-release
 docker-release: docker-build docker-push
+
+.PHONY: chart-lint
+chart-lint:
+	helm lint $(CHART_DIR)
+
+.PHONY: chart-package
+chart-package: chart-lint
+	@echo "Packaging chart..."
+	@TMP_DIR=$$(mktemp -d); \
+	trap 'rm -rf "$$TMP_DIR"' EXIT; \
+	mkdir -p "$$TMP_DIR/chart"; \
+	cp -a $(CHART_DIR)/. "$$TMP_DIR/chart/"; \
+	sed 's/^name: .*/name: $(CHART_REPOSITORY)/' "$(CHART_DIR)/Chart.yaml" > "$$TMP_DIR/chart/Chart.yaml"; \
+	sed -e '/^image:/,/^imagePullSecrets:/ s|repository: .*|repository: $(IMAGE_REPO)|' \
+	    -e '/^image:/,/^imagePullSecrets:/ s|tag: .*|tag: "$(VERSION)"|' \
+	    "$(CHART_DIR)/values.yaml" > "$$TMP_DIR/chart/values.yaml"; \
+	helm package "$$TMP_DIR/chart" \
+		--version $(VERSION) \
+		--destination .
+
+.PHONY: chart-push
+chart-push: chart-package
+	helm push $(CHART_PACKAGE) $(CHART_REPO)
+
+.PHONY: clean-chart
+clean-chart:
+	rm -f $(CHART_PACKAGE)
+
+.PHONY: release-all
+release-all: chart-push docker-release

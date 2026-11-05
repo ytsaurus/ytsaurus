@@ -15,7 +15,7 @@ TSkiffTableSwitchPython::TSkiffTableSwitchPython(Py::PythonClassInstance* self, 
     auto tableIndex = ConvertToLongLong(tableIndexArg);
     if (tableIndex < 0 or tableIndex > std::numeric_limits<ui16>::max()) {
         THROW_ERROR_EXCEPTION("Invalid table index, it must fit into ui16")
-            << TErrorAttribute("table_index", tableIndex);
+            .With("table_index", tableIndex);
     }
     TableIndex_ = tableIndex;
 }

@@ -1,0 +1,94 @@
+package tech.ytsaurus.flow.testutils;
+
+import org.junit.jupiter.api.Test;
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.state.StateAccessor;
+import tech.ytsaurus.flow.state.StateDescriptors;
+import tech.ytsaurus.flow.testutils.StateSeeder.CapturedSeed;
+import tech.ytsaurus.typeinfo.TiType;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests {@link StateSeeder} in isolation: seeding a value / clear through a real accessor and
+ * capturing the raw state, without a request builder or the harness.
+ */
+class StateSeederTest {
+
+    private static final TableSchema KEY_SCHEMA = TableSchema.builder()
+            .addValue("k", TiType.string())
+            .build();
+    private static final TableSchema STATE_SCHEMA = TableSchema.builder()
+            .addValue("count", TiType.int64())
+            .build();
+
+    private static Payload key() {
+        return new PayloadBuilder(KEY_SCHEMA).set("k", "k1").finish();
+    }
+
+    @Test
+    void capturesInternalSetAsSerializedBytes() {
+        // raw(...) uses identity serialization, so the captured bytes are exactly what was set.
+        var seed = StateSeeder.capture(
+                StateDescriptors.raw("word-state-raw"), key(), acc -> acc.set(new byte[]{1, 2, 3}), null);
+
+        assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
+        var state = seed.state();
+        assertFalse(state.isReset());
+        assertArrayEquals(
+                new byte[]{1, 2, 3},
+                CodecRegistry.getInstance().getInternalStateValueCodec().decode(state.getBytes()));
+    }
+
+    @Test
+    void capturesExternalSetAsWireBytes() {
+        var value = new PayloadBuilder(STATE_SCHEMA).set("count", 7L).finish();
+
+        var seed = StateSeeder.capture(
+                StateDescriptors.external("/state"), key(), acc -> acc.set(value), STATE_SCHEMA);
+
+        assertEquals(CapturedSeed.Kind.EXTERNAL, seed.kind());
+        var state = seed.state();
+        assertFalse(state.isReset());
+        var decoded = CodecRegistry.getInstance().getPayloadCodec()
+                .codecFor(STATE_SCHEMA).decode(state.getBytes());
+        assertEquals(7L, decoded.get("count", Long.class));
+    }
+
+    @Test
+    void capturesInternalClearAsReset() {
+        var seed = StateSeeder.capture(
+                StateDescriptors.raw("word-state-raw"), key(), StateAccessor::clear, null);
+
+        assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
+        assertTrue(seed.state().isReset());
+    }
+
+    @Test
+    void capturesExternalClearAsReset() {
+        var seed = StateSeeder.capture(
+                StateDescriptors.external("/state"), key(), StateAccessor::clear, STATE_SCHEMA);
+
+        assertEquals(CapturedSeed.Kind.EXTERNAL, seed.kind());
+        assertTrue(seed.state().isReset());
+    }
+
+    @Test
+    void serializesThroughTheDescriptorCodec() {
+        // A yson descriptor must produce non-identity bytes: proves capture() runs the real codec
+        // rather than storing the value raw.
+        var seed = StateSeeder.capture(
+                StateDescriptors.yson("count-state", Long.class), key(), acc -> acc.set(42L), null);
+
+        assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
+        var state = seed.state();
+        assertFalse(state.isReset());
+        assertFalse(state.getBytes().isEmpty());
+    }
+}

@@ -5,7 +5,8 @@
 #include <yt/yt/server/lib/tablet_balancer/public.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -33,6 +34,7 @@ public:
         const TActionDescriptor& descriptor);
 
     bool IsFinished() const;
+    bool IsMove() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletAction)

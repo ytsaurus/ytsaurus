@@ -1,8 +1,8 @@
 #include "raw_pipeline.h"
 #include "raw_transform.h"
 
-#include "../executor.h" // IWYU pragma: keep for IExecutorPtr destructor
-#include "../roren.h"
+#include <yt/cpp/roren/interface/executor.h> // IWYU pragma: keep for IExecutorPtr destructor
+#include <yt/cpp/roren/interface/roren.h>
 
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/yt/string/format.h>

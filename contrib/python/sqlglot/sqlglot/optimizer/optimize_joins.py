@@ -1,14 +1,15 @@
 from __future__ import annotations
-
-import typing as t
+from collections.abc import Iterable
 
 from sqlglot import exp
+from sqlglot.errors import OptimizeError
+from sqlglot._typing import E
 from sqlglot.helper import tsort
 
 JOIN_ATTRS = ("on", "side", "kind", "using", "method")
 
 
-def optimize_joins(expression):
+def optimize_joins(expression: E) -> E:
     """
     Removes cross joins if possible and reorder joins based on predicate dependencies.
 
@@ -19,13 +20,13 @@ def optimize_joins(expression):
     """
 
     for select in expression.find_all(exp.Select):
-        joins = select.args.get("joins", [])
+        joins: list[exp.Join] = select.args.get("joins", [])
 
         if not _is_reorderable(joins):
             continue
 
-        references = {}
-        cross_joins = []
+        references: dict[str, list[exp.Join]] = {}
+        cross_joins: list[tuple[str, exp.Join]] = []
 
         for join in joins:
             tables = other_table_names(join)
@@ -58,13 +59,15 @@ def optimize_joins(expression):
     return expression
 
 
-def reorder_joins(expression):
+def reorder_joins(expression: E) -> E:
     """
     Reorder joins by topological sort order based on predicate references.
     """
     for from_ in expression.find_all(exp.From):
         parent = from_.parent
-        joins = parent.args.get("joins", [])
+        if parent is None:
+            raise OptimizeError("FROM clause without parent expression")
+        joins: list[exp.Join] = parent.args.get("joins", [])
 
         if not _is_reorderable(joins):
             continue
@@ -82,7 +85,7 @@ def reorder_joins(expression):
     return expression
 
 
-def normalize(expression):
+def normalize(expression: E) -> E:
     """
     Remove INNER and OUTER from joins as they are optional.
     """
@@ -101,12 +104,12 @@ def normalize(expression):
     return expression
 
 
-def other_table_names(join: exp.Join) -> t.Set[str]:
+def other_table_names(join: exp.Join) -> set[str]:
     on = join.args.get("on")
     return exp.column_table_names(on, join.alias_or_name) if on else set()
 
 
-def _is_reorderable(joins: t.List[exp.Join]) -> bool:
+def _is_reorderable(joins: Iterable[exp.Join]) -> bool:
     """
     Checks if joins can be reordered without changing query semantics.
 

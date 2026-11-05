@@ -1,0 +1,13 @@
+JAVA_CONTRIB(re2j-1.2)
+
+VERSION(1.2)
+
+LICENSE(BSD-3-Clause)
+
+JAR_RESOURCE(805495282)
+
+SRC_RESOURCE(805495530)
+
+ORIGINAL_SOURCE(https://github.com/google/re2j.git)
+
+END()

@@ -34,9 +34,9 @@ void WaitOperationHasState(const IOperationPtr& operation, const TString& state)
     WaitOperationPredicate(
         operation,
         [&] (const TOperationAttributes& attrs) {
-            YT_LOG_DEBUG("Operation %s state is %s",
-                GetGuidAsString(operation->GetId()).c_str(),
-                ToString(attrs.State).c_str());
+            YT_TLOG_DEBUG("Operation state")
+                .With("OperationId", operation->GetId())
+                .With("State", attrs.State);
             return attrs.State == state;
         },
         "state should become \"" + state + "\"");

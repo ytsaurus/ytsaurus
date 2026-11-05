@@ -47,6 +47,8 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/security_client/acl.h>
 
 #include <yt/yt/client/hydra/version.h>
@@ -61,6 +63,7 @@
 
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/async_consumer.h>
@@ -153,7 +156,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     TGetBasicAttributesContext getBasicAttributesContext;
     if (request->has_permission()) {
@@ -193,9 +196,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         response->set_chunk_count(*getBasicAttributesContext.ChunkCount);
     }
 
-    context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
-        getBasicAttributesContext.ExternalCellTag,
-        getBasicAttributesContext.ExternalTransactionId);
+    context->AnnotateResponse()
+        .With("ExternalCellTag", getBasicAttributesContext.ExternalCellTag)
+        .With("ExternalTransactionId", getBasicAttributesContext.ExternalTransactionId);
     context->Reply();
 }
 
@@ -373,16 +376,13 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
-        YT_LOG_DEBUG_IF(
-            prerequisitesExt.revisions_size() != 0,
-            "Request contains prerequisite revisions (RequestId: %v, AuthenticationIdentity: %v, NodeId: %v, "
-            "OriginalTargetPath: %v, OriginalAdditionalPaths: %v, Revisions: %v)",
-            FromProto<TRequestId>(requestHeader.request_id()),
-            GetCurrentAuthenticationIdentity(),
-            GetId(),
-            GetOriginalRequestTargetYPath(requestHeader),
-            GetOriginalRequestAdditionalPaths(requestHeader),
-            prerequisitesExt.revisions());
+        YT_TLOG_DEBUG_IF(prerequisitesExt.revisions_size() != 0, "Request contains prerequisite revisions")
+            .With("RequestId", FromProto<TRequestId>(requestHeader.request_id()))
+            .With("AuthenticationIdentity", GetCurrentAuthenticationIdentity())
+            .With("NodeId", GetId())
+            .With("OriginalTargetPath", GetOriginalRequestTargetYPath(requestHeader))
+            .With("OriginalAdditionalPaths", GetOriginalRequestAdditionalPaths(requestHeader))
+            .With("Revisions", prerequisitesExt.revisions());
 
         objectManager->ValidatePrerequisites(
             requestHeader,
@@ -413,18 +413,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
         }
     }
 
-    {
-        TStringBuilder builder;
-        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-
-        delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
-
-        if (!ypathExt.target_path().empty()) {
-            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.target_path());
-        }
-
-        context->SetRawRequestInfo(builder.Flush(), true);
-    }
+    context->AnnotateRequest(/*flush*/ false)
+        .With("TargetObjectId", GetVersionedId())
+        .WithIf(!ypathExt.target_path().empty(), "RequestPathSuffix", ypathExt.target_path());
 
     if (GetSuppressModificationTracking(requestHeader)) {
         // Reads of this value occur only in the same thread it was set in, thus
@@ -810,12 +801,12 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (owner->IsUser()) {
-                YT_LOG_ALERT_IF(
+                YT_TLOG_ALERT_IF(
                     owner->AsUser()->GetPendingRemoval(),
-                    "User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
-                    EInternedAttributeKey::Owner.Unintern(),
-                    owner->GetName(),
-                    GetId());
+                    "User pending for removal is being set as an attribute for object")
+                    .With("Attribute", EInternedAttributeKey::Owner.Unintern())
+                    .With("User", owner->GetName())
+                    .With("ObjectId", GetId());
             }
 
             if (!force) {
@@ -876,7 +867,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
             ToYPathLiteral(key))
-            << ex;
+            .With(ex);
     }
 }
 
@@ -890,7 +881,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(TStringBuf key)
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
             ToYPathLiteral(key))
-            << ex;
+            .With(ex);
     }
 }
 
@@ -943,7 +934,7 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }
@@ -952,8 +943,8 @@ void TObjectProxyBase::ValidateAnnotation(const std::string& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {
         THROW_ERROR_EXCEPTION("Annotation is too long")
-            << TErrorAttribute("annotation_length", annotation.size())
-            << TErrorAttribute("maximum_annotation_length", MaxAnnotationLength);
+            .With("annotation_length", annotation.size())
+            .With("maximum_annotation_length", MaxAnnotationLength);
     }
 
     auto isAsciiText = [] (char c) {
@@ -995,6 +986,11 @@ void TObjectProxyBase::RequireLeader() const
     Bootstrap_->GetObjectService()->RequireLeader();
 }
 
+TError TObjectProxyBase::RequireLeaderAsync() const
+{
+    return Bootstrap_->GetObjectService()->RequireLeaderAsync();
+}
+
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
     auto* object = GetObject();
@@ -1009,7 +1005,7 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
         TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const NObjectClient::TCellTagSet& cellTags)
 {
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());
@@ -1180,6 +1176,87 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     CustomAttributes_ = CustomAttributesImpl_.Get();
 }
 
+TFuture<TYsonString> TNontemplateNonversionedObjectProxyBase::FetchFromShepherd(const TYPath& path)
+{
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), NHydra::EPeerKind::Follower));
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+    batchReq->SetUser(user->GetName());
+
+    auto req = TYPathProxy::Get(path);
+    // NB: it's legal to fetch attributes of Sequoia objects this way so it's
+    // marked explicitly.
+    SetAllowResolveFromSequoiaObject(req, true);
+    batchReq->AddRequest(req);
+
+    return batchReq->Invoke()
+        .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
+                    path)
+                    .With(cumulativeError);
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
+            return TYsonString(rsp->value());
+        })
+        .AsyncVia(TDispatcher::Get()->GetHeavyInvoker()));
+}
+
+std::vector<TFuture<TYsonString>> TNontemplateNonversionedObjectProxyBase::FetchYsonFromSwarm(
+    TInternedAttributeKey key)
+{
+    YT_VERIFY(IsPrimaryMaster());
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+
+    std::vector<TFuture<TYsonString>> asyncResults;
+
+    for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetUser(user->GetName());
+
+        auto attribute = key.Unintern();
+        auto path = FromObjectId(Object_->GetId()) + "/@" + attribute;
+        auto req = TYPathProxy::Get(path);
+        // NB: it's legal to fetch attributes of Sequoia objects this way so
+        // it's marked explicitly.
+        SetAllowResolveFromSequoiaObject(req, true);
+        batchReq->AddRequest(req, "get");
+
+        asyncResults.push_back(batchReq->Invoke()
+            .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+                if (!cumulativeError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Error fetching attribute %Qv from cell %v",
+                        attribute,
+                        cellTag)
+                        .With(cumulativeError);
+                }
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
+                return TYsonString(rsp->value());
+            })
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())));
+    }
+
+    return asyncResults;
+}
+
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
@@ -1192,7 +1269,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
     const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     auto attributeFilter = request->has_attributes()
         ? FromProto<TAttributeFilter>(request->attributes())
@@ -1231,7 +1308,7 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RemoveObject(Object_);

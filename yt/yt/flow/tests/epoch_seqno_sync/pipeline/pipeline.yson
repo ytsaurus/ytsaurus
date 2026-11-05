@@ -1,0 +1,46 @@
+{
+    "spec" = {
+        "computations" = {
+            "probe" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+                "processing_function" = "NYT::NFlow::NEpochSeqNoSync::TSeqNoProbeFunction";
+                "processing_function_parameters" = {
+                    "seq_nos_table_path" = "//path/to/seq_nos";
+                };
+                "output_stream_ids" = ["words"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["words"];
+                        "parameters" = {
+                            "queue_path" = "//path/to/output_queue";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "probe" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

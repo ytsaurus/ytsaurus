@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, wait_no_assert, ls, get, set, remove,
+    authors, raises_yt_error, wait, wait_no_assert, ls, get, set, remove,
     exists, create_user, print_debug, update_pool_tree_config_option,
     create_pool, add_member, map, run_test_vanilla, run_sleeping_vanilla,
     update_op_parameters, create_test_tables, execute_command, make_ace,
@@ -14,12 +14,13 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
-    scheduler_orchid_operation_path)
+    scheduler_orchid_operation_path, scheduler_new_orchid_pool_tree_path)
 from yt_helpers import create_custom_pool_tree_with_one_node
 import yt_error_codes
 
 from yt.test_helpers import are_almost_equal
 from yt.common import YtError, YtResponseError
+import yt.yson as yson
 
 import io
 import pytest
@@ -104,6 +105,66 @@ class TestRuntimeParameters(YTEnvSetup):
              iter=5)
         wait(lambda: get(annotations_path) == {"foo": "bar"})
 
+    @authors("yaishenka")
+    @pytest.mark.parametrize("resource", ["user_slots", "cpu", "network", "memory", "gpu"])
+    def test_invalid_runtime_resource_limits(self, resource):
+        initial_limit = {"cpu": 1.0, "memory": 1024 ** 3}.get(resource, 1)
+        op = run_sleeping_vanilla(spec={
+            "scheduling_options_per_pool_tree": {
+                "default": {"resource_limits": {resource: initial_limit}},
+            },
+        })
+        op.ensure_running()
+
+        limits_path = (
+            op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
+            + "/resource_limits"
+        )
+        wait(lambda: get(limits_path + "/" + resource) == initial_limit)
+        orchid_resource = "user_memory" if resource == "memory" else resource
+        orchid_limit_path = (
+            scheduler_orchid_operation_path(op.id) + "/resource_limits/" + orchid_resource
+        )
+        tree_path = scheduler_new_orchid_pool_tree_path("default")
+        wait(lambda: get(tree_path + "/node_count") == self.NUM_NODES)
+        tree_limit = get(tree_path + "/resource_limits/" + orchid_resource)
+        initial_effective_limit = min(initial_limit, tree_limit)
+        wait(lambda: get(orchid_limit_path, default=None) == initial_effective_limit)
+
+        overflow = {
+            "cpu": 92233720368547760.0,
+            "memory": yson.YsonUint64(2 ** 63),
+        }.get(resource, 2 ** 31)
+        for value in [float("inf"), float("-inf"), float("nan"), -1, 1e100, overflow]:
+            with raises_yt_error(resource):
+                update_op_parameters(op.id, parameters={
+                    "scheduling_options_per_pool_tree": {
+                        "default": {"resource_limits": {resource: value}},
+                    },
+                })
+            assert get(limits_path + "/" + resource) == initial_limit
+            assert get(orchid_limit_path) == initial_effective_limit
+
+        valid_limit = 0.5 if resource == "cpu" else 0
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {"resource_limits": {resource: valid_limit}},
+            },
+        })
+        wait(lambda: get(limits_path + "/" + resource) == valid_limit)
+        wait(lambda: get(orchid_limit_path) == valid_limit)
+        op.ensure_running()
+
+    @authors("yaishenka")
+    @pytest.mark.parametrize("per_tree", [False, True])
+    def test_invalid_initial_cpu_limits(self, per_tree):
+        for cpu in [float("inf"), float("-inf"), float("nan"), -1.0, 1e100, 92233720368547760.0]:
+            spec = {"resource_limits": {"cpu": cpu}}
+            if per_tree:
+                spec = {"scheduling_options_per_pool_tree": {"default": spec}}
+            with raises_yt_error("cpu"):
+                run_sleeping_vanilla(spec=spec)
+
     @authors("renadeen")
     def test_change_pool_of_default_pooltree(self):
         create_pool("initial_pool")
@@ -167,7 +228,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
         wait(lambda: op.get_state() == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Max running operation count in pool"):
             update_op_parameters(op.id, parameters={"pool": "full_pool"})
 
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool")
@@ -177,7 +238,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
         wait(lambda: op.get_state() == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
                 "default": {"pool": "ephemeral$subpool"}}
             })
@@ -215,7 +276,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_test_vanilla(":", spec={"pool": "child"})
         op.wait_for_state("pending")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Max running operation count in pool"):
             # core was in TPoolTree::ChangeOperationPool.
             update_op_parameters(op.id, parameters={"pool": "parent"})
 
@@ -272,7 +333,7 @@ class TestRuntimeParameters(YTEnvSetup):
         response.wait()
         assert not response.is_ok()
         error = YtResponseError(response.error())
-        assert error.contains_text("Max running operation count of pool \"busy\" violated")
+        assert error.contains_text("Max running operation count in pool \"busy\" of tree \"default\" is violated")
 
     @authors("omgronny")
     @pytest.mark.parametrize("slot_index_source", ["slot_index_per_pool_tree", "scheduling_attributes_per_pool_tree"])
@@ -399,7 +460,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() == "materializing", iter=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation runtime parameters update is forbidden"):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
         op.abort()
@@ -423,7 +484,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() in ["reviving_jobs"], iter=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation runtime parameters update is forbidden"):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
         op.abort()
@@ -549,7 +610,6 @@ class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

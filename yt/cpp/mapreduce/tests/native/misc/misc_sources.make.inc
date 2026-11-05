@@ -5,11 +5,11 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/enable_debug_command_line_arguments_spec_flag.cpp
     ${MISC_SRCS_ROOT}/batch_request.cpp
     ${MISC_SRCS_ROOT}/canonize_path.cpp
+    ${MISC_SRCS_ROOT}/cluster_liveness.cpp
     ${MISC_SRCS_ROOT}/custom_client_config.cpp
     ${MISC_SRCS_ROOT}/cypress_client.cpp
     ${MISC_SRCS_ROOT}/distributed_table_api.cpp
-#   TODO(achains): Enable After YT-26108 or use with -DYT_RECIPE_BUILD_FROM_SOURCE=yes
-#   ${MISC_SRCS_ROOT}/distributed_file_api.cpp
+    ${MISC_SRCS_ROOT}/distributed_file_api.cpp
     ${MISC_SRCS_ROOT}/error.cpp
     ${MISC_SRCS_ROOT}/file_cache_replication_factor.cpp
     ${MISC_SRCS_ROOT}/file_io.cpp
@@ -20,6 +20,7 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/protobuf_table_io.cpp
     ${MISC_SRCS_ROOT}/raw_io.cpp
     ${MISC_SRCS_ROOT}/redirect_stdout_to_stderr_spec_flag.cpp
+    ${MISC_SRCS_ROOT}/request_with_retry.cpp
     ${MISC_SRCS_ROOT}/retry_config_provider.cpp
     ${MISC_SRCS_ROOT}/schema.cpp
     ${MISC_SRCS_ROOT}/security_client.cpp

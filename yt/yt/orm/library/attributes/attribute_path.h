@@ -22,13 +22,14 @@ EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern,
 
 using TSplitResult = std::pair<std::optional<NYPath::TYPath>, NYPath::TYPath>;
 // If the path is a full prefix of the pattern (up to the list-index indicators on asterisk places)
-// returns the prefix(from patterm) and remaining pattern suffix.
-TSplitResult TryConsumePrefix(const NYPath::TYPath& pattern, const NYPath::TYPath& path);
+// returns the prefix(from pattern) and remaining pattern suffix.
+TSplitResult TryConsumePrefix(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path);
 // Return first literal from the path (with starting slash) if any.
-TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int rootLength = 1);
+TSplitResult GetAttributePathRoot(NYPath::TYPathBuf path, int rootLength = 1);
 
+bool PathContainsAsterisk(NYPath::TYPathBuf path);
 // Split pattern by asterisk. Always return first part, optional part is set if there is asterisk.
-std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>> SplitPatternByAsterisk(const NYPath::TYPath& path);
+std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>> SplitPatternByAsterisk(NYPath::TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

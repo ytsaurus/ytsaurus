@@ -31,7 +31,7 @@ TEST(TLocalHostNameSanitizerTest, SingleDataCenterSanitizing)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("m*-cluster-vla.vla.yp-c.yandex.net", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("m*-cluster-vla.vla.yp-c.yandex.net", *sanitizedHost);
     }
 
     for (const auto& peerAddress : peers) {
@@ -56,7 +56,7 @@ TEST(TLocalHostNameSanitizerTest, CrossDataCenterSanitizing)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("m*.yp-c.yandex.net", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("m*.yp-c.yandex.net", *sanitizedHost);
     }
 }
 
@@ -71,7 +71,7 @@ TEST(TLocalHostNameSanitizerTest, DifferentHostNameLengths)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("eu-north1-c-4ct*.hw.company.yt", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("eu-north1-c-4ct*.hw.company.yt", *sanitizedHost);
     }
 }
 
@@ -86,7 +86,7 @@ TEST(TLocalHostNameSanitizerTest, PeerEqualToCommonPrefix)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("abc.cX*", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("abc.cX*", *sanitizedHost);
     }
 }
 
@@ -101,7 +101,7 @@ TEST(TLocalHostNameSanitizerTest, PeerEqualToCommonSuffix)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("*cX.cZ", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("*cX.cZ", *sanitizedHost);
     }
 }
 
@@ -116,7 +116,7 @@ TEST(TLocalHostNameSanitizerTest, NoCommonParts)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("*", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("*", *sanitizedHost);
     }
 }
 
@@ -130,7 +130,7 @@ TEST(TLocalHostNameSanitizerTest, EqualPeers)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("abc", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("abc", *sanitizedHost);
     }
 }
 
@@ -144,7 +144,7 @@ TEST(TLocalHostNameSanitizerTest, PrefixAndSuffixOverlap)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("abc.c*Z", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("abc.c*Z", *sanitizedHost);
     }
 }
 

@@ -8,8 +8,9 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/ytlib
+    yt/yt/core
     yt/yt/library/coredumper
+    yt/yt/ytlib/admin
 )
 
 END()

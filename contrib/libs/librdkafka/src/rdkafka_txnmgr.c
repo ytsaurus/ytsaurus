@@ -2029,7 +2029,7 @@ rd_kafka_error_t *rd_kafka_send_offsets_to_transaction(
         rd_kafka_topic_partition_list_sort_by_topic(valid_offsets);
 
         rko                    = rd_kafka_op_new_cb(rk, RD_KAFKA_OP_TXN,
-                                 rd_kafka_txn_op_send_offsets_to_transaction);
+                                                    rd_kafka_txn_op_send_offsets_to_transaction);
         rko->rko_u.txn.offsets = valid_offsets;
         rko->rko_u.txn.cgmetadata =
             rd_kafka_consumer_group_metadata_dup(cgmetadata);
@@ -2956,6 +2956,11 @@ static void rd_kafka_txn_handle_FindCoordinator(rd_kafka_t *rk,
                 rd_snprintf(errstr, sizeof(errstr),
                             "Transaction coordinator %" PRId32 " is unknown",
                             NodeId);
+                err = RD_KAFKA_RESP_ERR__UNKNOWN_BROKER;
+        }
+        if (rkb && rkb->rkb_source != RD_KAFKA_LEARNED) {
+                rd_kafka_broker_destroy(rkb);
+                rkb = NULL;
                 err = RD_KAFKA_RESP_ERR__UNKNOWN_BROKER;
         }
         rd_kafka_rdunlock(rk);

@@ -3,6 +3,7 @@
 #include "alien_cluster_client_cache_base.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -18,16 +19,17 @@ class TAlienClusterClientCache
 {
 public:
     TAlienClusterClientCache(
-        NApi::NNative::IConnectionPtr localConnection,
-        NYT::NApi::NNative::TClientOptions clientOptions,
+        IConnectionPtr localConnection,
+        TClientOptions clientOptions,
         TDuration evictionPeriod)
         : TAlienClusterClientCacheBase(evictionPeriod)
         , LocalConnection_(std::move(localConnection))
         , LocalClient_(LocalConnection_->CreateNativeClient(clientOptions))
         , ClientOptions_(std::move(clientOptions))
+        , LocalDc_(LocalConnection_->GetStaticConfig()->Datacenter)
     { }
 
-    NApi::NNative::IClientPtr GetClient(const std::string& clusterName) override
+    IClientPtr GetClient(const std::string& clusterName) override
     {
         auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
         if (!alienConnection) {
@@ -38,12 +40,12 @@ public:
         auto guard = Guard(CachedClientsLock_);
         CheckAndRemoveExpired(now, false);
 
-        auto it = CachedClients_.try_emplace(clusterName, nullptr);
-        if (it.second || it.first->second->GetConnection()->IsTerminated()) {
-            it.first->second = alienConnection->CreateNativeClient(ClientOptions_);
+        auto [it, inserted] = CachedClients_.try_emplace(clusterName, nullptr);
+        if (inserted || it->second->GetConnection()->IsTerminated()) {
+            it->second = alienConnection->CreateNativeClient(ClientOptions_);
         }
 
-        return it.first->second;
+        return it->second;
     }
 
     void ForceRemoveExpired() override
@@ -53,9 +55,14 @@ public:
         CheckAndRemoveExpired(now, true);
     }
 
-    const NApi::NNative::IClientPtr& GetLocalClient() const override
+    const IClientPtr& GetLocalClient() const override
     {
         return LocalClient_;
+    }
+
+    const std::optional<std::string>& GetLocalDc() const override
+    {
+        return LocalDc_;
     }
 
     TDuration GetEvictionPeriod() const override
@@ -64,18 +71,19 @@ public:
     }
 
 private:
-    const NApi::NNative::IConnectionPtr LocalConnection_;
-    const NApi::NNative::IClientPtr LocalClient_;
-    const NApi::NNative::TClientOptions ClientOptions_;
+    const IConnectionPtr LocalConnection_;
+    const IClientPtr LocalClient_;
+    const TClientOptions ClientOptions_;
+    const std::optional<std::string> LocalDc_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedClientsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CachedClientsLock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IAlienClusterClientCachePtr CreateAlienClusterClientCache(
     IConnectionPtr localConnection,
-    NApi::NNative::TClientOptions clientOptions,
+    TClientOptions clientOptions,
     TDuration evictionPeriod)
 {
     return New<TAlienClusterClientCache>(
@@ -87,4 +95,3 @@ IAlienClusterClientCachePtr CreateAlienClusterClientCache(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

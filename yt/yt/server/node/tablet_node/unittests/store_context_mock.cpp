@@ -51,6 +51,11 @@ const TTabletManagerConfigPtr& TStoreContextMock::GetTabletManagerConfig()
     return result;
 }
 
+bool TStoreContextMock::GetAccountActiveStoreLookupHashTableToTabletStatic() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

@@ -20,13 +20,13 @@ IChunkSliceFetcherPtr TMockChunkSliceFetcherFactory::CreateChunkSliceFetcher()
 void TMockChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
 {
     // NB: This is a very bad way to persist pointers, but it is ok for unittests.
-    registrar.template VirtualField<1>("FetchersAddress_", [] (TThis* this_, auto& context) {
-        auto fetchersAddress = Load<intptr_t>(context);
-        this_->Fetchers_ = reinterpret_cast<std::vector<TStrictMockChunkSliceFetcherPtr>*>(fetchersAddress);
-    }, [] (const TThis* this_, auto& context) {
-        auto fetchersAddress = reinterpret_cast<intptr_t>(this_->Fetchers_);
-        NYT::Save(context, fetchersAddress);
-    })();
+    registrar.template PropertyField<1,
+        [] (const TThis* this_) {
+            return reinterpret_cast<intptr_t>(this_->Fetchers_);
+        },
+        [] (TThis* this_, intptr_t fetchersAddress) {
+            this_->Fetchers_ = reinterpret_cast<std::vector<TStrictMockChunkSliceFetcherPtr>*>(fetchersAddress);
+        }>("FetchersAddress_")();
     PHOENIX_REGISTER_FIELD(2, CurrentIndex_);
 }
 

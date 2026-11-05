@@ -1,0 +1,15 @@
+#pragma once
+
+#include <optional>
+#include <string>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the build-specific default network project for Flow vanilla jobs.
+std::optional<std::string> GetDefaultVanillaNetworkProject();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

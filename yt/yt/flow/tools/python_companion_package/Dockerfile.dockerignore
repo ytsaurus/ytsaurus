@@ -1,0 +1,11 @@
+# The build context is the whole checkout; only the paths the Dockerfile COPYs are needed, so
+# everything else is excluded rather than sent to the builder.
+*
+!yt/yt/flow/tools/python_companion_package
+!yt/yt/flow/library/python/companion
+!yt/yt/flow/library/python/runner
+!yt/yt/flow/library/cpp/companion/proto
+!yt/yt/flow/library/cpp/common/proto
+!yt/yt_proto/yt/core/misc/proto
+!yt/yt_proto/yt/core/ytree/proto
+!yt/yt_proto/yt/core/yson/proto

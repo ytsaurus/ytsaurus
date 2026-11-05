@@ -4,8 +4,6 @@ from yt_commands import authors, wait, get, set, ls, create, write_table, start_
 
 from yt_helpers import get_current_time, parse_yt_time
 
-import pytest
-
 import time
 
 import os
@@ -13,7 +11,6 @@ import os
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRff(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 5
@@ -94,7 +91,6 @@ class TestRff(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRffMulticell(TestRff):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

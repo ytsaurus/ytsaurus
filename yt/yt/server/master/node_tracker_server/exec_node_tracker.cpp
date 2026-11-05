@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
@@ -80,11 +81,11 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/exec_node_heartbeat_time") {
-            YT_LOG_DEBUG("Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState(),
-                jobProxyVersion);
+            YT_TLOG_DEBUG("Processing exec node heartbeat")
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("State", node->GetLocalState())
+                .With("JobProxyVersion", jobProxyVersion);
 
             nodeTracker->UpdateLastSeenTime(node);
             node->JobProxyVersion() = jobProxyVersion;

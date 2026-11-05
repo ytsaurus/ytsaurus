@@ -1,4 +1,8 @@
 import gdb
+import json
+import struct
+
+from libcxx_printers import rep_field
 
 # Defined in util/system/context_x86_64.asm
 MJB_RBX = 0
@@ -227,6 +231,41 @@ def format_string_multiline(value):
         return str(value)
 
 
+def read_std_string(value):
+    representation = rep_field(value)
+    short = representation['__s']
+    if short['__is_long_']:
+        long = representation['__l']
+        data = long['__data_']
+        size = long['__size_']
+    else:
+        data = short['__data_']
+        size = short['__size_']
+    return bytes(gdb.selected_inferior().read_memory(data, int(size)))
+
+
+def format_logging_tags(logging_tags):
+    # Keep this in sync with TTaggedPayloadReader:
+    # library/cpp/yt/logging/tagged_payload.cpp
+    payload = read_std_string(logging_tags['Payload_']['Underlying_'])
+    offset = 0
+    result = []
+    while offset < len(payload):
+        key_size = struct.unpack_from('<I', payload, offset)[0]
+        offset += 4
+        key_size &= 0x7fffffff
+        key = payload[offset:offset + key_size].decode('utf-8', 'replace')
+        offset += key_size
+
+        value_size = struct.unpack_from('<I', payload, offset)[0]
+        offset += 4
+        value = payload[offset:offset + value_size].decode('utf-8', 'replace')
+        offset += value_size
+
+        result.append('{}: {}'.format(key, value))
+    return json.dumps(', '.join(result), ensure_ascii=False)
+
+
 def get_waiting_fibers():
     global cached_waiting_fibers
     if not cached_waiting_fibers is None:
@@ -274,10 +313,56 @@ def get_compact_vector_elements(compact_vector):
     return result
 
 
+def _try_get_trace_context_via_callback_frame():
+    # Newer binaries: TCallback::operator() spills |BindState_.Get()| to the
+    # stack under the well-known typed name |fiberBindState|. The bind state's
+    # vtable identifies whether it's a TBindState<true, ...> instantiation
+    # (i.e. carries TPropagatingStorage). If so, Storage_ lives at offset
+    # sizeof(TBindStateBase) within the derived object — it is the first
+    # member of TPropagateMixin<true>, which is the second base class.
+    #
+    # Reading via the vtable + layout rather than via a |dynamic_type| /
+    # |lookup_type| cast lets the printer work even when the bound callable
+    # is an unnamed lambda (whose synthetic gdb name |$_1| can't be parsed
+    # as a C++ type).
+    base_ptr = gdb.parse_and_eval('fiberBindState')
+    if int(base_ptr) == 0:
+        return None, False
+    vptr_val = gdb.parse_and_eval('*(unsigned long*){}'.format(int(base_ptr)))
+    sym_line = gdb.execute('info symbol {:#x}'.format(int(vptr_val)), to_string=True)
+    if 'TBindState<true' not in sym_line:
+        # Propagate=false: bind state present but no propagating storage to
+        # report. Mark as handled so the walk stops at this frame.
+        return None, True
+    tbsb_size = gdb.lookup_type('NYT::NDetail::TBindStateBase').sizeof
+    storage_addr = int(base_ptr) + tbsb_size
+    impl_ptr = gdb.parse_and_eval('*(unsigned long*){}'.format(storage_addr))
+    if int(impl_ptr) == 0:
+        return None, True
+    return gdb.parse_and_eval(
+        '{{NYT::NTracing::TTraceContext}} NYT::NTracing::TryGetTraceContextFromPropagatingStorage('
+        '*(NYT::NConcurrency::TPropagatingStorage*){})'.format(storage_addr)), True
+
+
+def _try_get_trace_context_via_bind_state_frame():
+    # COMPAT(babenko): older binaries spilled |state| to the stack inside
+    # TBindState::Run under the name |unoptimizedState| specifically so the
+    # printer could find it. Current binaries spill in TCallback::operator()
+    # as |fiberBindState| (see _try_get_trace_context_via_callback_frame).
+    # Drop this fallback once no live binaries predating the rework remain.
+    is_null = int(gdb.parse_and_eval('unoptimizedState->Storage_.IsNull()'))
+    if is_null:
+        return None, True
+    return gdb.parse_and_eval(
+        '{NYT::NTracing::TTraceContext} '
+        'NYT::NTracing::TryGetTraceContextFromPropagatingStorage(unoptimizedState->Storage_)'), True
+
+
 def find_trace_context():
     frame = gdb.selected_frame()
     prev = frame
     thread = gdb.selected_thread()
+    trace_context = None
     try:
         # For some reason it's faster to get full backtrace and check if frame present by hand
         # than checking output of select-frame.
@@ -285,26 +370,33 @@ def find_trace_context():
         if frames.find('NYT::NConcurrency::NDetail::RunInFiberContext') == -1:
             return None
         gdb.execute('select-frame function NYT::NConcurrency::NDetail::RunInFiberContext(NYT::NConcurrency::TFiber*, NYT::TCallback<void ()>)')
-        # Try locating TBindState::Run frame above.
-        # In release build it's likely to be right on top of RunInFiberContext due to inlining.
-        # In debug build we need to skip TCallback::operator().
+        # Walk newer frames trying two extraction strategies: the newer
+        # |fiberBindState| path (works on TCallback::operator() frames against
+        # current binaries) and the COMPAT(babenko) |unoptimizedState| path
+        # (works on TBindState::Run frames against pre-rework binaries).
         frame = gdb.selected_frame().newer()
-        trace_context = None
         i = 0
-        while True:
-            if not frame:
-                break
+        while frame:
             frame.select()
-            try:
-                is_null = int(gdb.parse_and_eval('unoptimizedState->Storage_.IsNull()'))
-                if not is_null:
+            for extractor in (
+                _try_get_trace_context_via_callback_frame,
+                _try_get_trace_context_via_bind_state_frame,
+            ):
+                try:
+                    tc, found = extractor()
+                except gdb.error:
+                    continue
+                if not found:
+                    continue
+                if tc is not None:
                     thread.switch()
                     frame.select()
-                    trace_context = gdb.parse_and_eval('{NYT::NTracing::TTraceContext} NYT::NTracing::TryGetTraceContextFromPropagatingStorage(unoptimizedState->Storage_)')
+                    trace_context = tc
                 else:
                     gdb.write(f'Trace context at frame[{i}] is null\n')
-            except gdb.error:
-                pass
+                break
+            if trace_context is not None:
+                break
             prev = frame
             frame = frame.newer()
             i += 1
@@ -354,7 +446,7 @@ class PrintFibersWithTraceTagsCommand(gdb.Command):
                 trace_context = find_trace_context()
                 if not trace_context is None:
                     try:
-                        gdb.write('Logging tag: {}\n'.format(trace_context['LoggingTag_']))
+                        gdb.write('Logging tag: {}\n'.format(format_logging_tags(trace_context['LoggingTags_'])))
                     except:
                         pass
                     try:

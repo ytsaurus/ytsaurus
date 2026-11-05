@@ -42,15 +42,15 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
 class TControllerFeatures
 {
 public:
-    void AddTag(TString name, auto value);
+    void AddTag(const std::string& name, auto value);
     void AddSingular(TStringBuf name, double value);
-    void AddSingular(const TString& name, const NYTree::INodePtr& node);
+    void AddSingular(const std::string& name, const NYTree::INodePtr& node);
     void AddCounted(TStringBuf name, double value);
     void CalculateJobStatisticsAverage();
 
 private:
-    THashMap<TString, NYson::TYsonString> Tags_;
-    THashMap<TString, double> Features_;
+    THashMap<std::string, NYson::TYsonString> Tags_;
+    THashMap<std::string, double> Features_;
 
     friend void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer);
 };
@@ -84,20 +84,39 @@ void SafeUpdateAggregatedJobStatistics(
 
 struct TDockerImageSpec
 {
-    TString Registry;
-    TString Image;
-    TString Tag;
-    TString Digest;
+    std::string Registry;
+    std::string Image;
+    std::string Tag;
+    std::string Digest;
 
     bool IsInternal = false;
 
-    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
-    TString GetDockerImage() const;
+    TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config);
+    std::string GetDockerImage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
+struct TDockerImageConfig
+{
+    std::vector<std::string> Env;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDockerImageHint
+{
+    std::vector<NYPath::TRichYPath> Layers;
+    TDockerImageConfig Config;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reads an internal docker image's _tags document and returns the hint
+// published by the docker registry: the base layers and, when published
+// as node attributes, the image config (ENV).
+// Throws on any failure.
+TDockerImageHint GetDockerImageHint(
     const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage);
 

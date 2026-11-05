@@ -70,7 +70,7 @@ After this, external clients will be able to resolve pod FQDNs to their real IP 
 
 In this mode, proxy pods don't receive a dedicated pod IP from the Kubernetes cluster's internal network. Instead, they use the physical server's (node's) network interface on which they are running.
 
-To enable the mode, add the `hostNetwork: true` field at the root level of the [operator](install-ytsaurus#operator) specification:
+To enable the mode, add the `hostNetwork: true` field at the root level of the [operator](../../../admin-guide/install-ytsaurus#operator) specification:
 
 ```yaml
 apiVersion: cluster.ytsaurus.tech/v1

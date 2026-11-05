@@ -693,7 +693,7 @@ Join-Reduce:
        const TOperationOptions& options = TOperationOptions())
    ```
 
-You can specify a null pointer as `mapper`, which will make the operation skip the Map stage when running, and the function's second version will additionally start the [reduce_combiner](../../../user-guide/data-processing/operations/reduce.md#reduce_combiner) stage.
+You can specify a null pointer as `mapper`, which will make the operation skip the Map stage when running, and the function's second version will additionally start the [reduce_combiner](../../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner) stage.
 
 The operation start call parameters usually include:
 
@@ -835,7 +835,7 @@ TOperationAttributes GetOperation(
 
 ### ListOperations
 
-Get a list of operations [that match the filters](../../../api/commands.md#list_operation).
+Get a list of operations [that match the filters](../../../api/commands.md#list_operations).
 
 ```c++
 TListOperationsResult ListOperations(
@@ -1028,6 +1028,8 @@ TMaybe<TYPath> GetFileFromCache(
 ## Environment variables
 
 Currently these settings are available only from environment variables and are the same for all `IClient` instances. However, we are going to redesign this functionality so that almost everything can be configured directly from the code and changed at the individual `IClient` level.
+
+`YT_USER` is not listed because the `yt/cpp/mapreduce` client described on this page does not use this variable: the token determines the user. `GetClientOptionsFromEnv` belongs to C++ NApi and handles `YT_USER` according to [different rules](../../../user-guide/storage/auth.md#user-selection).
 
 | *Variable* | *Type* | *Value* |
 | ------------------------------------- | ------- | ------------------------------------------------------------ |

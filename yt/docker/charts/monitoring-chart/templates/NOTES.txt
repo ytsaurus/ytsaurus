@@ -1,0 +1,90 @@
+{{- if .Values.dashboards.enabled }}
+{{- $ui := .Values.ui | default dict }}
+{{- $chart := $ui.chart | default dict }}
+{{- $chartName := $chart.name | default "" }}
+{{- $chartNs := $chart.namespace | default "" }}
+{{- $expectedGrafana := $ui.grafanaPublicUrl | default "" }}
+{{- $expectedPrometheus := $ui.prometheusInternalUrl | default "" }}
+
+{{- $grafanaHint := "" }}
+{{- if $expectedGrafana }}{{ $grafanaHint = printf " Suggested value: %s" $expectedGrafana }}{{ end }}
+
+{{- $prometheusHint := "" }}
+{{- if $expectedPrometheus }}{{ $prometheusHint = printf " Suggested value: %s" $expectedPrometheus }}{{ end }}
+
+{{- $consequences := "" }}
+{{- if .Values.dashboards.grafana.enabled }}
+{{- $consequences = printf "%s         * External redirects: The 'Grafana' button won't appear in the YTsaurus UI without GRAFANA_BASE_URL.%s\n" $consequences $grafanaHint }}
+{{- end }}
+{{- if .Values.dashboards.cypress.enabled }}
+{{- $consequences = printf "%s         * Built-in UI dashboards: Metrics won't be displayed in the YTsaurus UI without PROMETHEUS_BASE_URL.%s\n" $consequences $prometheusHint }}
+{{- end }}
+
+{{- if or (empty $chartName) (empty $chartNs) }}
+WARNING: YTsaurus UI chart name or namespace is not configured (ui.chart.name / ui.chart.namespace).
+{{ $consequences | trimSuffix "\n" }}
+{{- else }}
+  {{- $deployList := lookup "apps/v1" "Deployment" $chartNs "" }}
+  {{- $uiDeployments := list }}
+  
+  {{- if $deployList }}
+    {{- range $d := $deployList.items }}
+      {{- $labels := $d.metadata.labels | default dict }}
+      {{- if eq (index $labels "app.kubernetes.io/instance" | default "") $chartName }}
+        {{- $uiDeployments = append $uiDeployments $d }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- if eq (len $uiDeployments) 0 }}
+    {{- if not .Release.IsDryRun }}
+WARNING: YTsaurus UI deployment with label app.kubernetes.io/instance={{ $chartName }} not found in namespace {{ $chartNs }}.
+{{ $consequences | trimSuffix "\n" }}
+    {{- end }}
+  {{- else }}
+    {{- range $uiDeployment := $uiDeployments }}
+      {{- $grafanaUrl := "" }}
+      {{- $prometheusUrl := "" }}
+      {{- $hasGrafanaUrl := false }}
+      {{- $hasPrometheusUrl := false }}
+
+      {{- range $container := $uiDeployment.spec.template.spec.containers }}
+        {{- range $env := $container.env | default list }}
+          {{- if eq $env.name "GRAFANA_BASE_URL" }}
+            {{- $hasGrafanaUrl = true }}
+            {{- $grafanaUrl = $env.value }}
+          {{- else if eq $env.name "PROMETHEUS_BASE_URL" }}
+            {{- $hasPrometheusUrl = true }}
+            {{- $prometheusUrl = $env.value }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+
+      {{- if $.Values.dashboards.grafana.enabled }}
+        {{- if not $hasGrafanaUrl }}
+WARNING: GRAFANA_BASE_URL environment variable is not set in YTsaurus UI deployment {{ $uiDeployment.metadata.namespace }}/{{ $uiDeployment.metadata.name }}.
+         The external redirect "Grafana" button will not be available in the YTsaurus UI.{{ $grafanaHint }}
+        {{- else if and $expectedGrafana (ne $grafanaUrl $expectedGrafana) }}
+WARNING: GRAFANA_BASE_URL in YTsaurus UI deployment {{ $uiDeployment.metadata.namespace }}/{{ $uiDeployment.metadata.name }} does not match ui.grafanaPublicUrl.
+         Redirects from the YTsaurus UI to external Grafana might point to an incorrect address.
+         Current:  {{ $grafanaUrl }}
+         Expected: {{ $expectedGrafana }}
+        {{- end }}
+      {{- end }}
+
+      {{- if $.Values.dashboards.cypress.enabled }}
+        {{- if not $hasPrometheusUrl }}
+WARNING: PROMETHEUS_BASE_URL environment variable is not set in YTsaurus UI deployment {{ $uiDeployment.metadata.namespace }}/{{ $uiDeployment.metadata.name }}.
+         Built-in YTsaurus UI dashboards (stored in Cypress) will not be able to fetch and display metrics.{{ $prometheusHint }}
+        {{- else if and $expectedPrometheus (ne $prometheusUrl $expectedPrometheus) }}
+WARNING: PROMETHEUS_BASE_URL in YTsaurus UI deployment {{ $uiDeployment.metadata.namespace }}/{{ $uiDeployment.metadata.name }} does not match ui.prometheusInternalUrl.
+         Built-in YTsaurus UI dashboards might fail to fetch metrics due to incorrect Prometheus address.
+         Current:  {{ $prometheusUrl }}
+         Expected: {{ $expectedPrometheus }}
+        {{- end }}
+      {{- end }}
+
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

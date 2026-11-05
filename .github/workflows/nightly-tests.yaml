@@ -2,7 +2,7 @@ name: YTsaurus CI Nightly Trigger
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,6 +10,7 @@ jobs:
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: nightly-dev
+      priority: HIGH
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}

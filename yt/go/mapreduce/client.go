@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/tink/go/aead"
-	"github.com/google/tink/go/keyset"
-	"github.com/google/tink/go/tink"
+	"github.com/tink-crypto/tink-go/v2/aead"
+	"github.com/tink-crypto/tink-go/v2/keyset"
+	"github.com/tink-crypto/tink-go/v2/tink"
 
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
@@ -210,14 +210,18 @@ func (mr *client) writeFileToTmpDir(
 
 	writeErrCh := make(chan error, 1)
 	go func() {
-		_, err = io.Copy(w, r)
-		writeErrCh <- err
+		_, writeErr := io.Copy(w, r)
+		writeErrCh <- writeErr
 	}()
 
 	select {
 	case <-ctx.Done():
+		<-writeErrCh
+		_ = w.Close()
+		return tmpPath, ctx.Err()
 	case err = <-writeErrCh:
 		if err != nil {
+			_ = w.Close()
 			return
 		}
 	}

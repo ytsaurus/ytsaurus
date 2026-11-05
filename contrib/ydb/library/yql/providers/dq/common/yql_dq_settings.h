@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yql/essentials/core/yql_type_annotation.h>
+#include <yql/essentials/core/yql_expr_type_annotation.h>
 #include <yql/essentials/providers/common/config/yql_dispatch.h>
 #include <yql/essentials/providers/common/config/yql_setting.h>
 
@@ -11,6 +13,8 @@
 
 #include <util/generic/size_literals.h>
 #include <util/random/random.h>
+
+#include <functional>
 
 namespace NYql {
 
@@ -71,6 +75,7 @@ struct TDqSettings {
         static constexpr ui64 EnableSpillingNodes = 0;
         static constexpr bool EnableSpillingInChannels = false;
         static constexpr EValuePackerVersion ValuePackerVersion = EValuePackerVersion::V0;
+        static constexpr bool EnableSortConstraintProcessing = false;
     };
 
     using TPtr = std::shared_ptr<TDqSettings>;
@@ -159,6 +164,9 @@ public:
     NCommon::TConfSetting<bool, Static> DisableCheckpoints;
     NCommon::TConfSetting<bool, Static> UseGraceJoinCoreForMap;
     NCommon::TConfSetting<TString, Static> Scheduler;
+    // Target DQ clique for remote graph execution (pragma dq.Clique).
+    NCommon::TConfSetting<TString, Static> Clique;
+    NCommon::TConfSetting<bool, Static> _EnableSortConstraintProcessing;
 
     // This options will be passed to executor_actor and worker_actor
     template <typename TProtoConfig>
@@ -279,11 +287,15 @@ public:
     }
 };
 
-struct TDqConfiguration: public TDqSettings, public NCommon::TSettingDispatcher {
+using TDqCliqueValidator = std::function<void(const TString& cliqueValue)>;
+
+struct TDqConfiguration: public NCommon::TDispatcherAndSettings<TDqSettings> {
     using TPtr = TIntrusivePtr<TDqConfiguration>;
 
-    TDqConfiguration();
+    explicit TDqConfiguration(bool strictConfigValidation = false);
     TDqConfiguration(const TDqConfiguration&) = delete;
+
+    TDqCliqueValidator CliqueValidator;
 
     template <class TProtoConfig, typename TFilter>
     void Init(const TProtoConfig& config, const TFilter& filter) {

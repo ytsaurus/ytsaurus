@@ -91,6 +91,12 @@ struct rd_kafka_q_s {
          * Shall return 1 if op was handled, else 0. */
         rd_kafka_q_serve_cb_t *rkq_serve;
         void *rkq_opaque;
+        rd_ts_t rkq_ts_last_poll_start; /**< Timestamp of last queue
+                                         *   poll() call start
+                                         *   Only relevant for a consumer. */
+        rd_ts_t rkq_ts_last_poll_end;   /**< Timestamp of last queue
+                                         *   poll() call end
+                                         *   Only relevant for a consumer. */
 
 #if ENABLE_DEVEL
         char rkq_name[64]; /* Debugging: queue name (FUNC:LINE) */
@@ -841,6 +847,13 @@ rd_kafka_op_t *rd_kafka_q_pop_serve(rd_kafka_q_t *rkq,
                                     rd_kafka_q_serve_cb_t *callback,
                                     void *opaque);
 rd_kafka_op_t *
+rd_kafka_q_pop_serve_maybe_consume(rd_kafka_q_t *rkq,
+                                   rd_ts_t timeout_us,
+                                   int32_t version,
+                                   rd_kafka_q_cb_type_t cb_type,
+                                   rd_kafka_q_serve_cb_t *callback,
+                                   void *opaque);
+rd_kafka_op_t *
 rd_kafka_q_pop(rd_kafka_q_t *rkq, rd_ts_t timeout_us, int32_t version);
 int rd_kafka_q_serve(rd_kafka_q_t *rkq,
                      int timeout_ms,
@@ -848,6 +861,12 @@ int rd_kafka_q_serve(rd_kafka_q_t *rkq,
                      rd_kafka_q_cb_type_t cb_type,
                      rd_kafka_q_serve_cb_t *callback,
                      void *opaque);
+int rd_kafka_q_serve_maybe_consume(rd_kafka_q_t *rkq,
+                                   int timeout_ms,
+                                   int max_cnt,
+                                   rd_kafka_q_cb_type_t cb_type,
+                                   rd_kafka_q_serve_cb_t *callback,
+                                   void *opaque);
 
 
 int rd_kafka_q_move_cnt(rd_kafka_q_t *dstq,
@@ -859,6 +878,21 @@ int rd_kafka_q_serve_rkmessages(rd_kafka_q_t *rkq,
                                 int timeout_ms,
                                 rd_kafka_message_t **rkmessages,
                                 size_t rkmessages_size);
+/**
+ * @brief Serve up to one share-consumer op from \p rkq.
+ *
+ * On success with a non-empty SHARE_FETCH_RESPONSE op, \c *rkmessages_out
+ * is set to a newly-allocated rd_kafka_messages_t sized exactly to the op's
+ * payload. The caller takes ownership and must release it with
+ * rd_kafka_messages_destroy().
+ *
+ * On error / empty queue / non-fetch ops, \c *rkmessages_out is NULL.
+ * The returned rd_kafka_error_t (if non-NULL) is owned by the caller.
+ */
+rd_kafka_error_t *
+rd_kafka_q_serve_share_rkmessages(rd_kafka_q_t *rkq,
+                                  int timeout_ms,
+                                  rd_kafka_messages_t **rkmessages_out);
 rd_kafka_resp_err_t rd_kafka_q_wait_result(rd_kafka_q_t *rkq, int timeout_ms);
 
 int rd_kafka_q_apply(rd_kafka_q_t *rkq,

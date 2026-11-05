@@ -9,9 +9,13 @@
 #include <library/cpp/threading/future/async.h>
 #include <util/thread/pool.h>
 
+#include <util/network/sock.h>
+#include <util/network/socket.h>
 #include <util/system/event.h>
 #include <util/system/thread.h>
+#include <util/string/ascii.h>
 
+#include <atomic>
 #include <thread>
 
 Y_UNIT_TEST_SUITE(SimpleHttp) {
@@ -202,6 +206,78 @@ Y_UNIT_TEST_SUITE(SimpleHttp) {
         }
     };
 
+    struct TObservedRedirectRequest {
+        TString Path;
+        TString UserAgent;
+        TString RequestId;
+        bool HasNotForwarded;
+    };
+
+    class TRedirectHeaders: public TRequestReplier {
+        ui16 Port_;
+        TVector<TObservedRedirectRequest>* Requests_;
+
+    public:
+        TRedirectHeaders(ui16 port, TVector<TObservedRedirectRequest>* requests)
+            : Port_(port)
+            , Requests_(requests)
+        {
+        }
+
+        bool DoReply(const TReplyParams& params) override {
+            const auto path = TParsedHttpFull(params.Input.FirstLine()).Path;
+            const auto& headers = params.Input.Headers();
+            Requests_->push_back({
+                TString(path),
+                GetHeaderValue(headers, "User-Agent"),
+                GetHeaderValue(headers, "X-Request-ID"),
+                headers.HasHeader("X-Not-Forwarded"),
+            });
+
+            if (path == "/redirect_headers") {
+                params.Output << "HTTP/1.1 307 Internal Redirect\r\n"
+                                 "Location: http://localhost:"
+                              << Port_
+                              << "/redirect_headers_target\r\n";
+                if (const auto* requestId = headers.FindHeader("X-Request-ID")) {
+                    params.Output << "X-Request-ID: " << requestId->Value() << "\r\n";
+                }
+                params.Output << "\r\n";
+                return true;
+            }
+
+            THttpResponse resp(HTTP_FORBIDDEN);
+            if (const auto* requestId = headers.FindHeader("X-Request-ID")) {
+                resp.AddHeader("X-Request-ID", requestId->Value());
+            }
+            resp.SetContent("denied");
+            resp.OutTo(params.Output);
+            return true;
+        }
+
+    private:
+        static TString GetHeaderValue(const THttpHeaders& headers, TStringBuf name) {
+            const auto* header = headers.FindHeader(name);
+            return header ? header->Value() : TString();
+        }
+    };
+
+    class TFourArgumentProcessResponseClient: public TSimpleHttpClient {
+        bool* Processed_;
+
+    public:
+        TFourArgumentProcessResponseClient(const TString& host, ui16 port, bool* processed)
+            : TSimpleHttpClient(host, port)
+            , Processed_(processed)
+        {
+        }
+
+    private:
+        void ProcessResponse(const TStringBuf, THttpInput&, IOutputStream*, const unsigned) const override {
+            *Processed_ = true;
+        }
+    };
+
     static void TestRedirectCountParam(int maxRedirectCount, int redirectCount) {
         TPortManager pm;
         ui16 port = pm.GetPort(80);
@@ -304,6 +380,21 @@ Y_UNIT_TEST_SUITE(SimpleHttp) {
             Sleep(TDuration::MilliSeconds(1000));
             UNIT_ASSERT_VALUES_EQUAL(0, server.GetClientCount());
         }
+    }
+
+    Y_UNIT_TEST(keepAliveDefaultAndPreCancelledToken) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        NMock::TMockServer server(createOptions(port, true), []() { return new TPong; });
+
+        TKeepAliveHttpClient cl("localhost", port);
+        TStringStream response;
+        UNIT_ASSERT_VALUES_EQUAL(200, cl.DoGet("/ping", &response));
+        UNIT_ASSERT_VALUES_EQUAL("pong", response.Str());
+
+        NThreading::TCancellationTokenSource cancel;
+        cancel.Cancel();
+        UNIT_ASSERT_EXCEPTION(cl.DoGet("/ping", nullptr, {}, nullptr, cancel.Token()), NThreading::TOperationCancelledException);
     }
 
     Y_UNIT_TEST(simpleMessages) {
@@ -485,6 +576,128 @@ Y_UNIT_TEST_SUITE(SimpleHttp) {
         UNIT_ASSERT_VALUES_EQUAL(0, server.GetClientCount());
     }
 
+    static void TestRedirectHeaders(TStringBuf userAgentHeader, TStringBuf requestIdHeader) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TVector<TObservedRedirectRequest> requests;
+        NMock::TMockServer server(createOptions(port, true), [port, &requests]() { return new TRedirectHeaders(port, &requests); });
+
+        TRedirectableHttpClient cl("localhost", port);
+        TKeepAliveHttpClient::THeaders headers = {
+            {TString(userAgentHeader), "test-agent"},
+            {TString(requestIdHeader), "test-request-id"},
+            {"X-Not-Forwarded", "secret"},
+        };
+        TStringStream output;
+        TString error;
+
+        try {
+            cl.DoGet("/redirect_headers", &output, headers);
+        } catch (const THttpRequestException& e) {
+            error = e.what();
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(2, requests.size());
+        UNIT_ASSERT_VALUES_EQUAL("/redirect_headers", requests[0].Path);
+        UNIT_ASSERT_VALUES_EQUAL("test-agent", requests[0].UserAgent);
+        UNIT_ASSERT_VALUES_EQUAL("test-request-id", requests[0].RequestId);
+        UNIT_ASSERT(requests[0].HasNotForwarded);
+        UNIT_ASSERT_VALUES_EQUAL("/redirect_headers_target", requests[1].Path);
+        UNIT_ASSERT_VALUES_EQUAL("test-agent", requests[1].UserAgent);
+        UNIT_ASSERT_VALUES_EQUAL("test-request-id", requests[1].RequestId);
+        UNIT_ASSERT(!requests[1].HasNotForwarded);
+        UNIT_ASSERT_C(error.Contains("Got 403 at http://localhost/redirect_headers_target"), error);
+        UNIT_ASSERT_C(error.Contains("\nX-Request-ID: test-request-id"), error);
+        UNIT_ASSERT_VALUES_EQUAL("denied", output.Str());
+    }
+
+    Y_UNIT_TEST(redirectableForwardsSelectedHeadersAndReportsResponseRequestId) {
+        TestRedirectHeaders("User-Agent", "X-Request-ID");
+        TestRedirectHeaders("uSeR-aGeNt", "x-request-id");
+    }
+
+    template <class TClient>
+    static void TestResponseRequestId() {
+        const TVector<TVector<TString>> headerCases = {
+            {},
+            {"X-Request-ID"},
+            {"x-ReQuEsT-iD"},
+            {"X-Amz-Request-Id"},
+            {"x-aMz-ReQuEsT-iD"},
+            {"X-Request-ID", "X-Amz-Request-Id"},
+        };
+        for (const auto& headerNames : headerCases) {
+            TPortManager pm;
+            ui16 port = pm.GetPort(80);
+            NMock::TMockServer server(createOptions(port, true), []() {
+                class TErrorResponse: public TRequestReplier {
+                public:
+                    bool DoReply(const TReplyParams& params) override {
+                        THttpResponse resp(HTTP_FORBIDDEN);
+                        for (TStringBuf name : {TStringBuf("X-Request-ID"), TStringBuf("X-Amz-Request-Id")}) {
+                            if (const auto* requestId = params.Input.Headers().FindHeader(name)) {
+                                resp.AddHeader(requestId->Name(), requestId->Value());
+                            }
+                        }
+                        resp.SetContent("denied");
+                        resp.OutTo(params.Output);
+                        return true;
+                    }
+                };
+                return new TErrorResponse;
+            });
+            TClient client("localhost", port);
+            TStringStream output;
+            TString error;
+            TKeepAliveHttpClient::THeaders headers;
+            for (const auto& headerName : headerNames) {
+                headers.emplace(headerName, "request-id-from-request");
+            }
+            try {
+                client.DoGet("/error", &output, headers);
+            } catch (const THttpRequestException& e) {
+                UNIT_ASSERT_VALUES_EQUAL(e.GetStatusCode(), HTTP_FORBIDDEN);
+                error = e.what();
+            }
+
+            UNIT_ASSERT_C(error.Contains("Got 403 at "), error);
+            UNIT_ASSERT_C(error.Contains("Full http response:\n"), error);
+            for (const auto& headerName : headerNames) {
+                const TStringBuf responseHeader = AsciiEqualsIgnoreCase(headerName, "X-Amz-Request-Id")
+                                                      ? TStringBuf("X-Amz-Request-Id")
+                                                      : TStringBuf("X-Request-ID");
+                UNIT_ASSERT_C(error.Contains(TString("\n") + responseHeader + ": request-id-from-request"), error);
+            }
+            if (headerNames.empty()) {
+                UNIT_ASSERT_C(!error.Contains("X-Request-ID"), error);
+                UNIT_ASSERT_C(!error.Contains("X-Amz-Request-Id"), error);
+            }
+            UNIT_ASSERT_VALUES_EQUAL("denied", output.Str());
+        }
+    }
+
+    Y_UNIT_TEST(simpleReportsResponseRequestId) {
+        TestResponseRequestId<TSimpleHttpClient>();
+    }
+
+    Y_UNIT_TEST(redirectableReportsResponseRequestId) {
+        TestResponseRequestId<TRedirectableHttpClient>();
+    }
+
+    Y_UNIT_TEST(fourArgumentProcessResponseOverrideRemainsSupported) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        NMock::TMockServer server(createOptions(port, true), []() { return new TPong; });
+        bool processed = false;
+        TFourArgumentProcessResponseClient client("localhost", port, &processed);
+        TStringStream output;
+
+        client.DoGet("/ping", &output);
+
+        UNIT_ASSERT(processed);
+        UNIT_ASSERT_VALUES_EQUAL("pong", output.Str());
+    }
+
     Y_UNIT_TEST(keepaliveSuccessful) {
         auto test = [](bool keepalive, i64 clientCount) {
             TPortManager pm;
@@ -612,5 +825,223 @@ Y_UNIT_TEST_SUITE(SimpleHttp) {
         UNIT_ASSERT_NO_EXCEPTION(cl2.DoGet("/ping"));
         Sleep(TDuration::MilliSeconds(500));
         UNIT_ASSERT_NO_EXCEPTION(cl.DoGet("/ping"));
+    }
+
+    // Byte-exact server. THttpServer frames replies through THttpOutput and therefore cannot
+    // emit a body shorter than the Content-Length it announces, which is the case under test.
+    // One thread per connection: a redirect keeps the original connection open while it
+    // fetches the target, so serving them one at a time would deadlock.
+    class TRawHttpServer {
+    public:
+        struct TReply {
+            TString Bytes;
+            bool CloseAfter = false;
+        };
+
+        TRawHttpServer(ui16 port, TVector<TReply> script)
+            : Script_(std::move(script))
+            , Port_(port)
+        {
+            CheckedSetSockOpt((SOCKET)Listener_, SOL_SOCKET, SO_REUSEADDR, 1, "TRawHttpServer");
+            TSockAddrInet addr("127.0.0.1", port);
+            TBaseSocket::Check(Listener_.Bind(&addr), "bind");
+            TBaseSocket::Check(Listener_.Listen(4), "listen");
+            Acceptor_ = std::thread([this] { Accept(); });
+        }
+
+        ~TRawHttpServer() {
+            Stop_.store(true);
+            WakeUpAcceptor();
+            Acceptor_.join();
+            for (auto& conn : Connections_) {
+                conn.join();
+            }
+        }
+
+        size_t Served() const {
+            return Served_.load();
+        }
+
+    private:
+        static constexpr long PollMs = 100;
+
+        // Accept() blocks; a self-connect lands in the backlog and releases it.
+        void WakeUpAcceptor() {
+            TInetStreamSocket waker;
+            TSockAddrInet addr("127.0.0.1", Port_);
+            waker.Connect(&addr);
+        }
+
+        void Accept() {
+            while (!Stop_.load()) {
+                auto conn = MakeAtomicShared<TStreamSocket>();
+                if (Listener_.Accept(conn.Get()) < 0 || Stop_.load()) {
+                    return;
+                }
+                SetSocketTimeout((SOCKET)*conn, 0, PollMs);
+                Connections_.emplace_back([this, conn] { Serve(*conn); });
+            }
+        }
+
+        void Serve(TStreamSocket& conn) {
+            while (ReadRequest(conn)) {
+                const size_t idx = Served_.fetch_add(1);
+                if (idx >= Script_.size()) {
+                    return;
+                }
+
+                const TReply& reply = Script_[idx];
+                conn.Send(reply.Bytes.data(), reply.Bytes.size());
+                if (reply.CloseAfter) {
+                    try {
+                        conn.ShutDown(SHUT_WR); // clean FIN mid-body
+                    } catch (const TSystemError&) {
+                        // peer hung up first, nothing left to half-close
+                    }
+                    return;
+                }
+            }
+        }
+
+        // The receive timeout keeps this responsive to Stop_ on an idle connection.
+        bool ReadRequest(TStreamSocket& conn) {
+            TString head;
+            char c = 0;
+            while (!head.EndsWith("\r\n\r\n")) {
+                if (Stop_.load()) {
+                    return false;
+                }
+
+                const ssize_t got = conn.Recv(&c, 1);
+                if (got == 1) {
+                    head += c;
+                } else if (got == -EAGAIN || got == -EWOULDBLOCK) {
+                    continue;
+                } else {
+                    return false; // peer closed, or a real error
+                }
+            }
+            return true;
+        }
+
+    private:
+        TVector<TReply> Script_;
+        ui16 Port_ = 0;
+        TInetStreamSocket Listener_;
+        std::atomic<size_t> Served_{0};
+        std::atomic<bool> Stop_{false};
+        std::thread Acceptor_;
+        TVector<std::thread> Connections_;
+    };
+
+    static TString Truncated(size_t announced, TStringBuf sent) {
+        return TStringBuilder() << "HTTP/1.1 200 OK\r\nContent-Length: " << announced
+                                << "\r\nConnection: Keep-Alive\r\n\r\n" << sent;
+    }
+
+    Y_UNIT_TEST(truncatedBodyIsToleratedByDefault) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {{Truncated(100, "truncated"), true}});
+
+        TSimpleHttpClient cl("127.0.0.1", port);
+
+        TStringStream s;
+        UNIT_ASSERT_NO_EXCEPTION(cl.DoGet("/ping", &s));
+        UNIT_ASSERT_VALUES_EQUAL("truncated", s.Str());
+    }
+
+    Y_UNIT_TEST(strictContentLengthViaOptions) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {{Truncated(100, "truncated"), true}});
+
+        TSimpleHttpClient cl(TSimpleHttpClientOptions().Host("127.0.0.1").Port(port).StrictContentLength(true));
+
+        TStringStream s;
+        UNIT_ASSERT_EXCEPTION(cl.DoGet("/ping", &s), THttpTruncatedBodyException);
+    }
+
+    Y_UNIT_TEST(strictContentLengthSurvivesRedirect) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {
+                                        {TStringBuilder() << "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" << port
+                                                          << "/ping2\r\nContent-Length: 0\r\nConnection: Keep-Alive\r\n\r\n",
+                                         false},
+                                        {Truncated(100, "truncated"), true},
+                                    });
+
+        TRedirectableHttpClient cl(TSimpleHttpClientOptions().Host("127.0.0.1").Port(port).StrictContentLength(true));
+
+        TStringStream s;
+        UNIT_ASSERT_EXCEPTION(cl.DoGet("/ping", &s), THttpTruncatedBodyException);
+    }
+
+    // A truncation on a reused connection must not be mistaken for the stale-connection case
+    // that the THttpReadException handler retries: the body is already partly in `output`.
+    Y_UNIT_TEST(strictContentLengthDoesNotRetryTruncatedBody) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {
+                                        {"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: Keep-Alive\r\n\r\nfull", false},
+                                        {Truncated(100, "truncated"), true},
+                                        {"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: Keep-Alive\r\n\r\nAGAIN", false},
+                                    });
+
+        TKeepAliveHttpClient cl("127.0.0.1", port, TDuration::Seconds(5), TDuration::Seconds(30), true, false, true);
+
+        {
+            TStringStream s;
+            UNIT_ASSERT_VALUES_EQUAL(200u, cl.DoGet("/ping", &s));
+            UNIT_ASSERT_VALUES_EQUAL("full", s.Str());
+        }
+        {
+            TStringStream s;
+            UNIT_ASSERT_EXCEPTION(cl.DoGet("/ping", &s), THttpTruncatedBodyException);
+            UNIT_ASSERT_VALUES_EQUAL("truncated", s.Str());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(2u, server.Served());
+    }
+
+    // HEAD answers carry Content-Length with no body; strict mode must not read it as truncation.
+    Y_UNIT_TEST(strictContentLengthAllowsHeadResponse) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {{"HTTP/1.1 200 OK\r\nContent-Length: 1024\r\nConnection: Keep-Alive\r\n\r\n", false}});
+
+        TKeepAliveHttpClient cl("127.0.0.1", port, TDuration::Seconds(5), TDuration::Seconds(30), true, false, true);
+
+        TStringStream s;
+        TKeepAliveHttpClient::THttpCode code = 0;
+        UNIT_ASSERT_NO_EXCEPTION(code = cl.DoRequest("HEAD", "/ping", "", &s));
+        UNIT_ASSERT_VALUES_EQUAL(200u, code);
+        UNIT_ASSERT_VALUES_EQUAL("", s.Str());
+    }
+
+    Y_UNIT_TEST(strictContentLengthAllowsRawHeadRequest) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {{"HTTP/1.1 200 OK\r\nContent-Length: 1024\r\nConnection: Keep-Alive\r\n\r\n", false}});
+
+        TKeepAliveHttpClient cl("127.0.0.1", port, TDuration::Seconds(5), TDuration::Seconds(30), true, false, true);
+
+        TStringStream s;
+        const TString raw = "HEAD /ping HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n";
+        UNIT_ASSERT_NO_EXCEPTION(cl.DoRequestRaw(raw, &s));
+        UNIT_ASSERT_VALUES_EQUAL("", s.Str());
+    }
+
+    // 304 may carry Content-Length with no body; the status code must survive strict mode.
+    Y_UNIT_TEST(strictContentLengthKeepsStatusCodeForNotModified) {
+        TPortManager pm;
+        ui16 port = pm.GetPort(80);
+        TRawHttpServer server(port, {{"HTTP/1.1 304 Not Modified\r\nContent-Length: 42\r\nConnection: Keep-Alive\r\n\r\n", false}});
+
+        TSimpleHttpClient cl(TSimpleHttpClientOptions().Host("127.0.0.1").Port(port).StrictContentLength(true));
+
+        TStringStream s;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cl.DoGet("/ping", &s), THttpRequestException, "304");
     }
 }

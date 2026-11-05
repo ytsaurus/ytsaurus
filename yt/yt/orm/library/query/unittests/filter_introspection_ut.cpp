@@ -63,6 +63,18 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("", "/meta/id").Value, std::nullopt);
 }
 
+TEST(TFilterIntrospectionTest, DefinedAttributeValueIn)
+{
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id] IN (42)", "/meta/id").TryMoveAs<i64>(), 42);
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id] IN (42, 42)", "/meta/id").TryMoveAs<i64>(), 42);
+    EXPECT_FALSE(IntrospectFilterForDefinedAttributeValue("[/meta/id] IN (42, 84)", "/meta/id"));
+    EXPECT_EQ(
+        IntrospectFilterForDefinedAttributeValue("([/meta/id], [/spec/year]) IN ((42, 2004), (42, 2005))", "/meta/id").TryMoveAs<i64>(),
+        42);
+    EXPECT_FALSE(IntrospectFilterForDefinedAttributeValue(
+        "([/meta/id], [/spec/year]) IN ((42, 2004), (42, 2005))", "/spec/year"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool RunIntrospectFilterForDefinedReference(

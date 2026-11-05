@@ -72,7 +72,6 @@ TEST(TSymbolizeTest, FillLinesAndFunctions)
         << "function name is " << name;
 }
 
-
 TEST(TSymbolizeTest, GetBuildId)
 {
     if (!IsProfileBuild()) {

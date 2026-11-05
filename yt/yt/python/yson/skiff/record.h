@@ -23,15 +23,15 @@ public:
         TIntrusivePtr<TSkiffSchema> schema,
         const std::vector<Py::Object>& denseFields,
         const THashMap<ui16, Py::Object>& sparseFields,
-        const THashMap<TString, Py::Object>& otherFields);
+        const THashMap<std::string, Py::Object>& otherFields);
 
     ~TSkiffRecord();
 
     Py::Object GetField(ui16 index);
-    Py::Object GetField(const TString& key);
+    Py::Object GetField(const std::string& key);
 
     void SetField(ui16 index, const Py::Object& value);
-    void SetField(const TString& key, const Py::Object& value);
+    void SetField(const std::string& key, const Py::Object& value);
 
     Py::Object GetDenseField(ui16 index);
     void SetDenceField(ui16 index, const Py::Object& value);
@@ -39,9 +39,9 @@ public:
     Py::Object GetSparseField(ui16 index);
     void SetSparseField(ui16 index, const Py::Object& value);
 
-    void SetOtherField(const TString& key, const Py::Object& value);
+    void SetOtherField(const std::string& key, const Py::Object& value);
 
-    THashMap<TString, Py::Object>* GetOtherFields();
+    THashMap<std::string, Py::Object>* GetOtherFields();
     THashMap<ui16, Py::Object>* GetSparseFields();
 
     TIntrusivePtr<TSkiffRecord> DeepCopy();
@@ -55,7 +55,7 @@ private:
 
     std::vector<Py::Object> DenseFields_;
     THashMap<ui16, Py::Object> SparseFields_;
-    THashMap<TString, Py::Object> OtherFields_;
+    THashMap<std::string, Py::Object> OtherFields_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +120,7 @@ private:
 
     ui16 NextDenseFieldIndex_;
     THashMap<ui16, Py::Object>::const_iterator SparseFieldsIterator_;
-    THashMap<TString, Py::Object>::const_iterator OtherFieldsIterator_;
+    THashMap<std::string, Py::Object>::const_iterator OtherFieldsIterator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

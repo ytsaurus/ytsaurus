@@ -3,11 +3,10 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, get, exists, set, create, move, remove, read_file, write_file,
     get_file_from_cache, put_file_to_cache, start_transaction, abort_transaction,
-    make_ace, create_user)
+    make_ace, create_user, raises_yt_error)
 
-from yt.common import date_string_to_datetime, YtError
+from yt.common import date_string_to_datetime
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import hashlib
 import pytest
@@ -16,14 +15,12 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFileCache(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_get_file_from_cache(self):
         cache_path = "//tmp/file_cache"
         create("file", "//tmp/file")
@@ -59,13 +56,12 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("", cache_path) == ""
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
         write_file("//tmp/file", b"abacaba")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             put_file_to_cache(
                 "//tmp/file",
                 hashlib.md5(b"abacaba").hexdigest(),
@@ -74,10 +70,10 @@ class TestFileCache(YTEnvSetup):
 
         write_file("//tmp/file", b"abacaba", compute_md5=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("MD5 mismatch"):
             put_file_to_cache("//tmp/file", "invalid_hash", cache_path="//tmp/cache")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             put_file_to_cache("//tmp/file", hashlib.md5(b"abacaba").hexdigest())
 
         path = put_file_to_cache("//tmp/file", hashlib.md5(b"abacaba").hexdigest(), cache_path="//tmp/cache")
@@ -116,7 +112,7 @@ class TestFileCache(YTEnvSetup):
             attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "use")]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             put_file_to_cache(
                 "//tmp/file",
                 hashlib.md5(b"aba").hexdigest(),

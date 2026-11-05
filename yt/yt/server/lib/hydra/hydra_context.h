@@ -20,7 +20,7 @@ public:
         TPhysicalVersion compatOnlyPhysicalVersion,
         TInstant timestamp,
         ui64 randomSeed,
-        TSharedRef localHostNameOverride);
+        TStringBuf localHostNameOverride);
 
     THydraContext(
         TLogicalVersion logicalVersion,
@@ -29,7 +29,7 @@ public:
         TInstant timestamp,
         ui64 randomSeed,
         TIntrusivePtr<TRandomGenerator> randomGenerator,
-        TSharedRef localHostNameOverride);
+        TStringBuf localHostNameOverride);
 
     TLogicalVersion GetVersion() const;
     TPhysicalVersion GetPhysicalVersion() const;
@@ -39,7 +39,7 @@ public:
     ui64 GetRandomSeed() const;
     const TIntrusivePtr<TRandomGenerator>& RandomGenerator();
 
-    const TSharedRef& GetLocalHostName() const;
+    TStringBuf GetLocalHostName() const;
 
 protected:
     explicit THydraContext(THydraContext* parent, TLogicalVersion childVersion);
@@ -54,7 +54,7 @@ private:
     const ui64 RandomSeed_;
     const TIntrusivePtr<TRandomGenerator> RandomGenerator_;
 
-    const TSharedRef LocalHostName_;
+    const TStringBuf LocalHostName_;
 
     static TLogicalVersion MaybeRotateVersion(
         TLogicalVersion logicalVersion,

@@ -18,7 +18,7 @@ class THorizontalBlockWriter
 {
 public:
     explicit THorizontalBlockWriter(
-        TTableSchemaPtr schema,
+        const TTableSchemaPtr& schema,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         i64 reserveSize = 128_KB);
 

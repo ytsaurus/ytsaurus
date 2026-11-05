@@ -162,7 +162,7 @@ public:
         , ReadBlocksOptions_(std::move(readOptions))
         , WriteBlocksOptions_(std::move(writeOptions))
     {
-        YT_VERIFY(erasedIndices.size() == writers.size());
+        YT_VERIFY(ErasedIndices_.size() == Writers_.size());
     }
 
     TFuture<void> Run()
@@ -260,7 +260,7 @@ private:
 
         // Validate repaired parts checksums.
         if (placementExt.part_checksums_size() != 0) {
-            YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
+            YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetParams().TotalPartCount);
 
             for (int index = 0; index < std::ssize(Writers_); ++index) {
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
@@ -342,7 +342,7 @@ public:
     {
         for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto size = Ranges_[index].Size();
-            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size);
+            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size, {.InitializeStorage = false});
             TotalBytes_ += size;
         }
     }
@@ -447,7 +447,7 @@ public:
                 ParityPartSplitInfo_.GetBlockRanges(erasedIndex, PlacementExt_));
         }
 
-        auto dataPartCount = Codec_->GetDataPartCount();
+        auto dataPartCount = Codec_->GetParams().DataPartCount;
 
         std::vector<TPartRange> repairRanges;
 
@@ -568,7 +568,7 @@ private:
         std::vector<TBlock> result(BlockIndexes_.size());
         int partBlockSaverIndex = 0;
         int partReaderIndex = 0;
-        for (int partIndex = 0; partIndex < Codec_->GetDataPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < Codec_->GetParams().DataPartCount; ++partIndex) {
             auto blocksPlacementInPart = DataBlocksPlacementInParts_[partIndex];
 
             std::vector<TBlock> blocks;
@@ -591,13 +591,14 @@ private:
 
                     if (actualChecksum != expectedChecksum) {
                         auto error = TError("Invalid block checksum in repaired part")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("block_index", blockIndex)
-                            << TErrorAttribute("expected_checksum", expectedChecksum)
-                            << TErrorAttribute("actual_checksum", actualChecksum)
-                            << TErrorAttribute("recalculated_checksum", GetChecksum(blocks[index].Data));
+                            .With("chunk_id", ChunkId_)
+                            .With("block_index", blockIndex)
+                            .With("expected_checksum", expectedChecksum)
+                            .With("actual_checksum", actualChecksum)
+                            .With("recalculated_checksum", GetChecksum(blocks[index].Data));
 
-                        YT_LOG_ALERT(error);
+                        YT_TLOG_ALERT("Invalid block checksum in repaired part")
+                            .With(error);
                         THROW_ERROR error;
                     }
                 }
@@ -756,6 +757,41 @@ TFuture<void> AdaptiveRepairErasedParts(
     const NLogging::TLogger& logger,
     NProfiling::TCounter adaptivelyRepairedCounter)
 {
+    return AdaptiveRepairErasedPartsWithCallback(
+        chunkId,
+        codec,
+        std::move(config),
+        erasedIndices,
+        allReaders,
+        std::move(writerFactory),
+        [=] (
+            const TPartIndexList& unavailableIndices,
+            const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders,
+            const std::vector<IChunkWriterPtr>& writers)
+        {
+            return RepairErasedParts(
+                codec,
+                unavailableIndices,
+                availableReaders,
+                writers,
+                readOptions,
+                writeOptions);
+        },
+        logger,
+        std::move(adaptivelyRepairedCounter));
+}
+
+TFuture<void> AdaptiveRepairErasedPartsWithCallback(
+    TChunkId chunkId,
+    ICodec* codec,
+    TErasureReaderConfigPtr config,
+    const TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
+    TPartWriterFactory writerFactory,
+    TRepairErasedPartsCallback repairErasedParts,
+    const NLogging::TLogger& logger,
+    NProfiling::TCounter adaptivelyRepairedCounter)
+{
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
 
@@ -776,13 +812,7 @@ TFuture<void> AdaptiveRepairErasedParts(
             auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
             YT_VERIFY(writers.size() == bannedIndices.size());
 
-            auto future = RepairErasedParts(
-                codec,
-                bannedIndices,
-                availableReaders,
-                writers,
-                readOptions,
-                writeOptions);
+            auto future = repairErasedParts(bannedIndices, availableReaders, writers);
 
             return future.Apply(BIND([=] (const TError& repairError) {
                 if (repairError.IsOK()) {
@@ -793,11 +823,12 @@ TFuture<void> AdaptiveRepairErasedParts(
                     .Apply(BIND([=] (const TError& cancelError) {
                         if (!cancelError.IsOK()) {
                             const auto& Logger = logger;
-                            YT_LOG_WARNING(cancelError, "Failed to cancel chunk writers");
+                            YT_TLOG_WARNING("Failed to cancel chunk writers")
+                                .With(cancelError);
                             return TError(
                                 NChunkClient::EErrorCode::UnrecoverableRepairError,
                                 "Failed to cancel chunk writers")
-                                << cancelError;
+                                .With(cancelError);
                         }
                         return repairError;
                     }));
@@ -808,4 +839,3 @@ TFuture<void> AdaptiveRepairErasedParts(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

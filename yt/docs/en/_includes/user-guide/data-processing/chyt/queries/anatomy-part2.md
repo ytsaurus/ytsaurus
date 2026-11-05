@@ -8,7 +8,7 @@ However, if the query affects {{product-name}} tables , then it's always execute
 
 This query splits `//path/to/table` into roughly equal sections, with each section being processed independently on one of the clique nodes. Essentially, each instance receives a modified query, where `//path/to/table` in the FROM clause is replaced by an expression in the form `ytSubquery(...)`, with the description of the next table section encoded in the argument.
 
-![](../../../../../../images/chyt_inside_clique.png)
+![](../../../../../../_images/chyt_inside_clique.png)
 
 Thus, query execution boils down to executing a number of remote subqueries on the clique's instances. The image above illustrates this mechanism.
 

@@ -64,6 +64,7 @@ struct IChaosLeaseManager
 
     virtual NTransactionSupervisor::ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const = 0;
 
+    virtual void OnChaosLeaseUpdated(TChaosLeaseId chaosLeaseId, TTimestamp timestamp) = 0;
     virtual void HandleChaosLeaseStateTransition(TChaosLease* chaosLease) = 0;
 
     //! ChaosLeaseManager migration protocol for chaos leases is different from

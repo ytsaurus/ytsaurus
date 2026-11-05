@@ -1,7 +1,6 @@
 #include "chunk_tree_balancer.h"
+
 #include "chunk_list.h"
-#include "chunk_owner_base.h"
-#include "chunk_manager.h"
 #include "config.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -23,6 +22,10 @@ TChunkTreeBalancer::TChunkTreeBalancer(
 bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerMode settingsMode)
 {
     if (!root->Parents().Empty()) {
+        return false;
+    }
+
+    if (root->GetKind() != EChunkListKind::Static) {
         return false;
     }
 
@@ -51,14 +54,13 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
     return false;
 }
 
-TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkList* root)
+TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::RebalanceStaticChunkListSubtree(TChunkList* root)
 {
     YT_VERIFY(root->GetKind() == EChunkListKind::Static);
-
-    auto oldStatistics = root->Statistics();
+    YT_VERIFY(root->Parents().empty());
 
     // Special case: no chunks in the chunk tree.
-    if (oldStatistics.ChunkCount == 0) {
+    if (root->Statistics().ChunkCount == 0) {
         Callbacks_->ClearChunkList(root);
         return {};
     }
@@ -69,34 +71,7 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkLis
     YT_VERIFY(!newChildren.empty());
     YT_VERIFY(newChildren.front() != root);
 
-    // Rewrite the root with newChildren.
-
-    // Add temporary references to the old children.
-    auto oldChildren = root->Children();
-    for (auto child : oldChildren) {
-        Callbacks_->RefObject(child);
-    }
-
-    // Replace the children list.
-    Callbacks_->ClearChunkList(root);
-    Callbacks_->AttachToChunkList(root, newChildren);
-
-    // Release the temporary references added above.
-    for (auto child : oldChildren) {
-        Callbacks_->UnrefObject(child);
-    }
-
-    const auto& newStatistics = root->Statistics();
-    YT_VERIFY(newStatistics.RowCount == oldStatistics.RowCount);
-    YT_VERIFY(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
-    YT_VERIFY(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
-    YT_VERIFY(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
-    YT_VERIFY(newStatistics.DataWeight == -1 ||
-        oldStatistics.DataWeight == -1 ||
-        newStatistics.DataWeight == oldStatistics.DataWeight);
-    YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
-    YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
-    YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+    UpdateRootChunkListChildren(root, newChildren);
 
     // Should we schedule a requisition update here? We shouldn't. Here's why.
     // First of all, it would be prohibitively expensive (trust me, I checked).
@@ -151,9 +126,11 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::AppendChunkTree(
     while (!stack.empty()) {
         auto& currentEntry = stack.top();
         auto* currentChunkTree = currentEntry.ChunkTree;
+        YT_VERIFY(currentChunkTree->GetType() != EObjectType::ChunkList ||
+            !currentChunkTree->AsChunkList()->IsHunkRelated());
 
         if (currentChunkTree->GetType() == EObjectType::ChunkList &&
-            currentChunkTree->AsChunkList()->Statistics().Rank > 1)
+            currentChunkTree->AsChunkList()->GetRank() > 1)
         {
             auto* currentChunkList = currentChunkTree->AsChunkList();
             YT_VERIFY(currentChunkList->GetKind() == EChunkListKind::Static);
@@ -190,7 +167,7 @@ bool TChunkTreeBalancer::AppendChild(
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
         if (std::ssize(lastChild->Children()) < settings->MinChunkListSize) {
-            YT_VERIFY(lastChild->Statistics().Rank <= 1);
+            YT_VERIFY(lastChild->GetRank() <= 1);
             YT_VERIFY(std::ssize(lastChild->Children()) <= settings->MaxChunkListSize);
             Callbacks_->FlushObjectUnrefs();
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
@@ -237,7 +214,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
     Callbacks_->FlushObjectUnrefs();
     YT_VERIFY(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
 
-    YT_VERIFY(lastChunkList->Statistics().Rank <= 1);
+    YT_VERIFY(lastChunkList->GetRank() <= 1);
     const auto& settings = GetConfig()->GetSettingsForMode(EChunkTreeBalancerMode::Strict);
     YT_VERIFY(std::ssize(lastChunkList->Children()) < settings->MinChunkListSize);
 
@@ -284,6 +261,46 @@ void TChunkTreeBalancer::MergeChunkTrees(
 const TDynamicChunkTreeBalancerConfigPtr& TChunkTreeBalancer::GetConfig() const
 {
     return Callbacks_->GetConfig();
+}
+
+void TChunkTreeBalancer::UpdateRootChunkListChildren(
+    TChunkList* root,
+    TRange<TChunkTreeRawPtr> newChildren)
+{
+    auto oldStatistics = root->Statistics();
+
+    // Add temporary references to the old children.
+    auto oldChildren = root->Children();
+    for (auto child : oldChildren) {
+        Callbacks_->RefObject(child);
+    }
+
+    // Replace the children list.
+    Callbacks_->ClearChunkList(root);
+    Callbacks_->AttachToChunkList(root, newChildren);
+
+    // Release the temporary references added above.
+    for (auto child : oldChildren) {
+        Callbacks_->UnrefObject(child);
+    }
+
+    const auto& newStatistics = root->Statistics();
+    YT_VERIFY(newStatistics.RowCount == oldStatistics.RowCount);
+    YT_VERIFY(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
+    YT_VERIFY(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
+    YT_VERIFY(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
+    YT_VERIFY(newStatistics.DataWeight == -1 ||
+        oldStatistics.DataWeight == -1 ||
+        newStatistics.DataWeight == oldStatistics.DataWeight);
+    YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
+    YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
+    YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+    YT_VERIFY(newStatistics.HunkDataWeight == oldStatistics.HunkDataWeight);
+    YT_VERIFY(newStatistics.LogicalHunkDataWeight == oldStatistics.LogicalHunkDataWeight);
+    YT_VERIFY(newStatistics.HunkDataSize == oldStatistics.HunkDataSize);
+    YT_VERIFY(newStatistics.HunkRegularDiskSpace == oldStatistics.HunkRegularDiskSpace);
+    // NB: We do not compare HunkErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

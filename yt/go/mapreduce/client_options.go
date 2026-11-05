@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	defaultTmpDir   = "//tmp/go_binary"
-	defaultCacheDir = defaultTmpDir + "/file_cache"
+	defaultTmpDir      = "//tmp/go_binary"
+	defaultCacheDir    = defaultTmpDir + "/file_cache"
+	defaultJobStateDir = "//tmp/go_job_state"
 )
 
 type Option interface {
@@ -65,6 +66,10 @@ type Config struct {
 	//
 	// Default value is '//tmp/go_binary/file_cache'.
 	CacheDirPath ypath.Path
+	// JobStateDirPath is the directory where the job state is uploaded.
+	//
+	// Default value is '//tmp/go_job_state'.
+	JobStateDirPath ypath.Path
 }
 
 func DefaultConfig() *Config {
@@ -72,5 +77,6 @@ func DefaultConfig() *Config {
 		CreateOutputTables: true,
 		TmpDirPath:         defaultTmpDir,
 		CacheDirPath:       defaultCacheDir,
+		JobStateDirPath:    defaultJobStateDir,
 	}
 }

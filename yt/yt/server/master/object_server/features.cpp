@@ -40,7 +40,7 @@ std::vector<NCompression::ECodec> GetCompressionCodecs(
         ? *configuredForbiddenCodecs
         : NCompression::GetForbiddenCodecs();
     std::vector<NCompression::ECodec> result;
-    for (auto id : TEnumTraits<NCompression::ECodec>::GetDomainValues()) {
+    for (auto id : TEnumTraits<NCompression::ECodec>::GetUniqueDomainValues()) {
         if (!codecs.contains(id)) {
             result.push_back(id);
         }
@@ -76,7 +76,7 @@ TYsonString CreateFeatureRegistryYson(
             .Item("primitive_types").List(GetPrimitiveTypes())
             .Item("compression_codecs").List(GetCompressionCodecs(configuredForbiddenCompressionCodecs))
             .Item("erasure_codecs").List(GetErasureCodecs())
-            .Item("query_memory_limit_in_tablet_nodes").Value(true)
+            .Item("force_zero_major_timestamp").Value(true)
             .Item("node_flavors").List(GetNodeFlavors())
         .EndMap();
 }
@@ -84,4 +84,3 @@ TYsonString CreateFeatureRegistryYson(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

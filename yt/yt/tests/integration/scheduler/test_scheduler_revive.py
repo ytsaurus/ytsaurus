@@ -8,7 +8,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, map_reduce, print_debug, update_op_parameters,
+    authors, map_reduce, print_debug, raises_yt_error, update_op_parameters,
     wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create, ls, get, set, remove, exists, create_user,
     create_pool, create_pool_tree, abort_transaction, read_table, write_table,
@@ -231,7 +231,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
         assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
@@ -279,7 +279,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -310,7 +310,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"annotations": {"abc": "def"}, "description": {"foo": "bar"}},
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -367,7 +367,7 @@ class TestSchedulerRestart(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         bad_acl = [
@@ -505,7 +505,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "running")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            with pytest.raises(YtError):
+            # Agent dies before the connect -> ECONNREFUSED; mid-request on an open one -> ECONNRESET.
+            with raises_yt_error("Connection refused|Connection reset by peer"):
                 op.complete()
 
         self._wait_for_state(op, "running")
@@ -537,7 +538,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation is in .* state"):
             op.complete()
 
         self._wait_for_state(op, "running")
@@ -572,7 +573,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation is in .* state"):
             op.complete()
 
         self._wait_for_state(op, "running")
@@ -640,7 +641,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -651,7 +652,6 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
 
 @authors("levysotsky")
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentZombieOrchids(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -750,7 +750,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
                 "resource_limits": {"user_slots": 1},
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -873,7 +873,7 @@ class OperationReviveBase(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "aborting"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation .* aborted"):
             op.track()
 
         assert op.get_state() == "aborted"
@@ -1066,7 +1066,7 @@ class OperationReviveBase(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "failing"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         assert op.get_state() == "failed"
@@ -1499,7 +1499,7 @@ class TestJobRevival(TestJobRevivalBase):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=15)
+        job_ids = wait_breakpoint(op, job_count=15)
 
         assert len(job_ids) == 15
 
@@ -1718,7 +1718,31 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
         self._kill_and_start("controller_agents")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot revive operation when spec option .* is set"):
+            op.track()
+
+    @authors("apollo1321")
+    def test_vanilla_fail_on_job_restart_stall(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "sleep 1000",
+                    },
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+
+        self._wait_for_single_job(op.id)
+        op.wait_for_fresh_snapshot()
+
+        self._kill_and_start("controller_agents")
+
+        wait(lambda: op.get_state() == "failed")
+        with raises_yt_error("Reviving operation without job revival"):
             op.track()
 
 

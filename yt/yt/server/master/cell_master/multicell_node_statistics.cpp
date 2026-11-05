@@ -3,10 +3,13 @@
 #include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
+#include "multicell_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 namespace NYT::NCellMaster {
 
@@ -21,7 +24,7 @@ constexpr auto& Logger = CellMasterLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
-using NObjectClient::TCellTag;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,12 +39,12 @@ const NProto::TCellStatistics& TMulticellNodeStatistics::GetClusterStatistics() 
     return ClusterCellStatisics_;
 }
 
-NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(NObjectClient::TCellTag cellTag) const
+NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(TCellTag cellTag) const
 {
     return GetOrDefault(MasterCellStatistics_, cellTag);
 }
 
-i64 TMulticellNodeStatistics::GetChunkCount(NObjectClient::TCellTag cellTag) const
+i64 TMulticellNodeStatistics::GetChunkCount(TCellTag cellTag) const
 {
     if (Bootstrap_->GetCellTag() == cellTag) {
         return Bootstrap_->GetChunkManager()->Chunks().GetSize();
@@ -95,24 +98,24 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
         if (cellTag == multicellManager->GetPrimaryCellTag()) {
-            YT_LOG_INFO("Persisted primary cell statistics (%v)",
-                request->statistics());
+            YT_TLOG_INFO("Persisted primary cell statistics")
+                .With(NProto::MakeCellStatisticsTags(request->statistics()));
 
             LocalCellStatistics_ = request->statistics();
 
             RecomputeClusterCellStatistics();
         } else {
-            YT_LOG_INFO("Received cell statistics gossip message (CellTag: %v, %v)",
-                cellTag,
-                request->statistics());
+            YT_TLOG_INFO("Received cell statistics gossip message")
+                .With("CellTag", cellTag)
+                .With(NProto::MakeCellStatisticsTags(request->statistics()));
 
             if (multicellManager->IsRegisteredMasterCell(cellTag)) {
                 MasterCellStatistics_[cellTag] = request->statistics();
             }
         }
     } else {
-        YT_LOG_INFO("Received cell statistics gossip message (%v)",
-            request->statistics());
+        YT_TLOG_INFO("Received cell statistics gossip message")
+            .With(NProto::MakeCellStatisticsTags(request->statistics()));
         ClusterCellStatisics_ = request->statistics();
     }
 }
@@ -126,21 +129,22 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
     YT_VERIFY(multicellManager->IsSecondaryMaster());
 
     auto cellRoles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
-    if (None(cellRoles & EMasterCellRoles::CypressNodeHost)) {
-        // NB: alerting this cell is not having the 'Cypress node host' role would
+    constexpr auto nodeHostRoles = EMasterCellRoles::CypressNodeHost | EMasterCellRoles::SequoiaNodeHost;
+    if (None(cellRoles & nodeHostRoles)) {
+        // NB: alerting this cell is not having a node host role would
         // probably be a bit too fragile.
-        YT_LOG_INFO(
-            "Received node multicell statistics but cell doesn't have %Qlv role", EMasterCellRoles::CypressNodeHost);
+        YT_TLOG_INFO("Received node multicell statistics but cell does not have any of the required roles")
+            .With("Roles", nodeHostRoles);
     }
 
-    YT_LOG_INFO("Received multicell statistics gossip message (%v)",
-        request->statistics());
+    YT_TLOG_INFO("Received multicell statistics gossip message")
+        .With("Statistics", request->statistics());
 
     for (const auto& cellStatistics : request->statistics()) {
         auto cellTag = FromProto<TCellTag>(cellStatistics.cell_tag());
         if (cellTag == multicellManager->GetCellTag()) {
-            // No point in overwriting local statistics - they're persisted
-            // periodically anyway.
+            // Secondary cells persist their local statistics via the primary's gossip.
+            LocalCellStatistics_ = cellStatistics.statistics();
             continue;
         }
         // Registering every secondary cell at every secondary cell may happen too late.
@@ -157,23 +161,21 @@ void TMulticellNodeStatistics::FinishUpdate()
     // Send statistics to secondary cells.
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-    auto allCellTags = multicellManager->GetRegisteredMasterCellTags();
-    std::ranges::sort(allCellTags);
+    auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
+    auto nonNodeHostCellTags = multicellManager->GetRegisteredMasterCellTags();
 
-    auto portalCellTags = multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost);
-    YT_VERIFY(std::ranges::is_sorted(portalCellTags));
-
-    NObjectClient::TCellTagList nonPortalCellTags;
-    std::ranges::set_difference(allCellTags, portalCellTags, std::back_inserter(nonPortalCellTags));
-
-    if (!portalCellTags.empty()) {
-        auto multicellRequest = GetMulticellStatistics();
-        multicellManager->PostToMasters(multicellRequest, portalCellTags, /*reliable*/ false);
+    for (auto cellTag : nodeHostCellTags) {
+        nonNodeHostCellTags.erase(cellTag);
     }
 
-    if (!nonPortalCellTags.empty()) {
+    if (!nodeHostCellTags.empty()) {
+        auto multicellRequest = GetMulticellStatistics();
+        multicellManager->PostToMasters(multicellRequest, nodeHostCellTags, /*reliable*/ false);
+    }
+
+    if (!nonNodeHostCellTags.empty()) {
         auto clusterRequest = GetClusterCellStatistics();
-        multicellManager->PostToMasters(clusterRequest, nonPortalCellTags, /*reliable*/ false);
+        multicellManager->PostToMasters(clusterRequest, nonNodeHostCellTags, /*reliable*/ false);
     }
 }
 

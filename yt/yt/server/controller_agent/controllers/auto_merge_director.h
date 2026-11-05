@@ -93,7 +93,6 @@ private:
 
     NLogging::TSerializableLogger Logger;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TAutoMergeDirector, 0x3d47f1c2);
 };
 

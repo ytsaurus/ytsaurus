@@ -1,5 +1,7 @@
 #include "cg_cache.h"
 
+#include <yt/yt/library/query/engine_api/query_engine_config.h>
+
 #include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
 namespace NYT::NQueryClient {
@@ -9,19 +11,6 @@ namespace NYT::NQueryClient {
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TCodegenCacheConfig::Register(TRegistrar registrar)
-{
-    registrar.Preprocessor([] (TThis* config) {
-        config->Capacity = 512;
-        config->ShardCount = 1;
-    });
-}
-
-void TCodegenCacheDynamicConfig::Register(TRegistrar /*registrar*/)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,12 +48,13 @@ public:
     {
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
-            YT_LOG_DEBUG("Codegen cache miss: generating query evaluator");
+            YT_TLOG_DEBUG("Codegen cache miss: generating query evaluator");
 
             try {
                 cookie.EndInsert(CompileWithLogging(id, fingerprint, compileCallback, codegenTime, Logger));
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to compile a query fragment");
+                YT_TLOG_DEBUG("Failed to compile a query fragment")
+                    .With(ex);
                 cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
             }
         }
@@ -80,7 +70,7 @@ public:
         TDuration* const codegenTime,
         const NLogging::TLogger& Logger)
     {
-        YT_LOG_DEBUG("Codegen cache disabled");
+        YT_TLOG_DEBUG("Codegen cache disabled");
         return CompileWithLogging(id, fingerprint, compileCallback, codegenTime, Logger);
     }
 
@@ -95,11 +85,11 @@ private:
         const NLogging::TLogger& Logger)
     {
         auto traceContextGuard = NTracing::TChildTraceContextGuard("QueryClient.Compile");
-        YT_LOG_DEBUG("Started compiling fragment");
+        YT_TLOG_DEBUG("Started compiling fragment");
         auto timingGuard = TValueIncrementingTimingGuard<TFiberWallTimer>(codegenTime);
         auto image = compileCallback();
         auto cachedImage = New<TCachedCGQueryImage>(id, fingerprint, std::move(image));
-        YT_LOG_DEBUG("Finished compiling fragment");
+        YT_TLOG_DEBUG("Finished compiling fragment");
         return cachedImage;
     }
 };

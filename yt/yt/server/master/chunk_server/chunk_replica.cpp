@@ -1,4 +1,5 @@
 #include "chunk_replica.h"
+
 #include "chunk.h"
 #include "medium_base.h"
 
@@ -141,9 +142,8 @@ void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, T
 void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
 {
     // Only applicable to offshore replicas. Domestic replicas require real node ids.
-    YT_LOG_ALERT_IF(value.GetPtr()->IsOffshore(),
-        "Attempted to serialize domestic medium as offshore (MediumName: %v)",
-        value.GetPtr()->GetName());
+    YT_TLOG_ALERT_IF(value.GetPtr()->IsOffshore(), "Attempted to serialize domestic medium as offshore")
+        .With("MediumName", value.GetPtr()->GetName());
 
     TChunkReplicaWithMedium replica(
         NNodeTrackerClient::OffshoreNodeId,
@@ -198,34 +198,39 @@ void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkRepli
 
 void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{ChunkId: %v, ReplicaIndex: %v, NodeId: %v, LocationIndex: %v, ReplicaState: %v}",
+    builder->AppendFormat("{ChunkId: %v, ReplicaIndex: %v, NodeId: %v, LocationIndex: %v, ReplicaState: %v, MediumIndex: %v}",
         value.ChunkId,
         value.ReplicaIndex,
         value.NodeId,
         value.LocationIndex,
-        value.ReplicaState);
+        value.ReplicaState,
+        value.MediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildReplicasListYson(
     IYsonConsumer* consumer,
-    const std::vector<TChunkReplicaWithLocationIndex>& replicas)
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicas)
 {
     BuildYsonFluently(consumer)
         .DoListFor(replicas, [] (auto fluent, const auto& replica) {
-            fluent
+            auto list = fluent
                 .Item()
                 .BeginList()
                     .Item().Value(replica.LocationIndex)
                     .Item().Value(replica.ReplicaIndex)
-                    .Item().Value(replica.NodeId)
-                .EndList();
+                    .Item().Value(replica.NodeId);
+
+            if (replica.ReplicaState != EChunkReplicaState::Generic) {
+                list.Item().Value(static_cast<ui64>(replica.ReplicaState));
+            }
+            list.EndList();
         });
 }
 
 TYsonString GetReplicasListYson(
-    const std::vector<TChunkReplicaWithLocationIndex>& replicas)
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicas)
 {
     return BuildYsonStringFluently()
         .Do([&] (auto fluent) {
@@ -234,8 +239,8 @@ TYsonString GetReplicasListYson(
 }
 
 TYsonString GetReplicasYson(
-    const std::vector<TChunkReplicaWithLocationIndex>& replicasToAdd,
-    const std::vector<TChunkReplicaWithLocationIndex>& replicasToRemove)
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicasToAdd,
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicasToRemove)
 {
     return BuildYsonStringFluently()
         .BeginList()
@@ -250,14 +255,15 @@ TYsonString GetReplicasYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkReplicaWithLocationIndexFormatter::operator()(
+void TChunkReplicaWithLocationIndexAndStateFormatter::operator()(
     TStringBuilderBase* builder,
-    const TChunkReplicaWithLocationIndex& replica) const
+    const TChunkReplicaWithLocationIndexAndState& replica) const
 {
-    builder->AppendFormat("{NodeId: %v, ReplicaIndex: %v, LocationIndex: %v}",
+    builder->AppendFormat("{NodeId: %v, ReplicaIndex: %v, LocationIndex: %v, ReplicaState: %v}",
         replica.NodeId,
         replica.ReplicaIndex,
-        replica.LocationIndex);
+        replica.LocationIndex,
+        replica.ReplicaState);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

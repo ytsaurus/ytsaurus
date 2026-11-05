@@ -70,6 +70,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NCellMaster {
@@ -103,13 +105,15 @@ public:
     NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
+    const NObjectClient::TCellTagSet& GetSecondaryCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
     const TDynamicClusterConfigPtr& GetDynamicConfig() const;
+    const IMasterCellGroupManagerPtr& GetMasterCellGroupManager() const;
     const IMulticellManagerPtr& GetMulticellManager() const;
     const IMulticellStatisticsCollectorPtr& GetMulticellStatisticsCollector() const;
+    const NCypressServer::ISequoiaActionsExecutorPtr& GetSequoiaActionsExecutor() const;
     const NIncumbentServer::IIncumbentManagerPtr& GetIncumbentManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
@@ -154,6 +158,7 @@ public:
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
+    const NSequoiaServer::IPrelockTrackerPtr& GetPrelockTracker() const;
     const NSequoiaServer::ICypressProxyTrackerPtr& GetCypressProxyTracker() const;
     const NSequoiaServer::IGroundUpdateQueueManagerPtr& GetGroundUpdateQueueManager() const;
     const NHiveServer::IHiveManagerPtr& GetHiveManager() const;
@@ -176,11 +181,11 @@ public:
     TFuture<void> Run() final;
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);
-    void ReplayChangelogs(std::vector<TString> changelogFileNames);
+    void ReplayChangelogs(std::vector<std::string> changelogFileNames);
     void FinishRecoveryDryRun();
     void BuildSnapshot();
     void FinishDryRun();
@@ -204,10 +209,11 @@ protected:
     NObjectClient::TCellTag PrimaryCellTag_;
 
     // Strong deterministic order is important here.
-    std::set<NObjectClient::TCellTag> SecondaryCellTags_;
+    NObjectClient::TCellTagSet SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;
+    IMasterCellGroupManagerPtr MasterCellGroupManager_;
     IMulticellManagerPtr MulticellManager_;
     IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
     IHiveProfilingManagerPtr HiveProfilingManager_;
@@ -218,6 +224,7 @@ protected:
     NApi::NNative::IClientPtr RootClient_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
@@ -262,6 +269,7 @@ protected:
     NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
+    NSequoiaServer::IPrelockTrackerPtr PrelockTracker_;
     NSequoiaServer::ICypressProxyTrackerPtr CypressProxyTracker_;
     NSequoiaServer::IGroundUpdateQueueManagerPtr GroundUpdateQueueManager_;
     NHiveServer::IHiveManagerPtr HiveManager_;
@@ -285,11 +293,11 @@ protected:
     void InitializeTimestampProvider();
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);
-    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
+    void DoReplayChangelogs(const std::vector<std::string>& changelogFileNames);
     void DoFinishRecoveryDryRun();
     void DoBuildSnapshot();
     void DoFinishDryRun();

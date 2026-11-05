@@ -14,6 +14,7 @@ TEST_SRCS(
     test_get_supported_features.py
     test_io_tracking.py
     test_logging.py
+    test_monitoring.py
     test_orchid.py
     test_schema.py
     test_schema_unified.py

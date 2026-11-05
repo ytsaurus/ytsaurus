@@ -3,6 +3,7 @@
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_builder.h>
@@ -27,7 +28,6 @@ using ::testing::StrictMock;
 using ::testing::NiceMock;
 using ::testing::HasSubstr;
 using ::testing::ContainsRegex;
-using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::AllOf;
@@ -101,7 +101,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinProfilerRegistry joinProfilerRegistry = {});
+    TJoinProfilerRegistry joinProfilerRegistry = TJoinProfilerRegistry({}, {}, nullptr, {}));
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,

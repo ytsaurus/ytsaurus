@@ -32,9 +32,16 @@ struct TTable
     //! Thus, OperandIndex is always 0 or 1.
     int OperandIndex = 0;
     bool Dynamic = false;
+    //! Allow to read data not only from a persistent storage, but also from a RAM-accumulated buffer not yet flushed.
+    bool EnableDynamicStoreRead = false;
     bool IsPartitioned = false;
     //! Total row count in the table from row_count attribute. Make sense only for static tables.
     std::optional<i64> RowCount;
+    //! Revision of the table's chunk merger info, bumped by master every time
+    //! ChunkMerger replaces the table's chunk list. Used to proactively detect
+    //! chunk spec cache staleness caused by chunk merging (which does not bump
+    //! #ContentRevision).
+    i64 ChunkMergerRevision = 0;
 
     //! Only for dynamic tables.
     NTabletClient::TTableMountInfoPtr TableMountInfo;

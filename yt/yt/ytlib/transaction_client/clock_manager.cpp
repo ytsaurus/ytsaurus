@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -70,7 +70,7 @@ public:
         if (clockClusterTag != NativeCellTag_ && clockClusterTag != InvalidCellTag)
         {
             THROW_ERROR_EXCEPTION("%v: clock source is configured to non-native clock", message)
-                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+                .With("clock_cluster_tag", clockClusterTag);
         }
     }
 
@@ -84,7 +84,8 @@ public:
         auto clockClusterTag = newConfig->ClockClusterTag;
         ClockClusterTag_ = clockClusterTag;
 
-        YT_LOG_DEBUG("Clock manager reconfigured (ClockClusterTag: %v)", clockClusterTag);
+        YT_TLOG_DEBUG("Clock manager reconfigured")
+            .With("ClockClusterTag", clockClusterTag);
     }
 
 private:
@@ -95,7 +96,7 @@ private:
     std::atomic<TCellTag> ClockClusterTag_;
 
     THashMap<TCellTag, ITimestampProviderPtr> TimestampProviderMap_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     IConnectionPtr GetNativeConnectionOrThrow()
     {

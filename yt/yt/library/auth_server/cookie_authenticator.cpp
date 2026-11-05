@@ -17,14 +17,14 @@ using namespace NConcurrency;
 
 struct TCookieAuthenticatorCacheKey
 {
-    THashMap<TString, TString> Cookies;
-    TString UserIPFactor;
+    THashMap<std::string, std::string> Cookies;
+    std::string UserIPFactor;
 
     operator size_t() const
     {
         size_t result = 0;
 
-        std::vector<std::pair<TString, TString>> cookies(Cookies.begin(), Cookies.end());
+        std::vector<std::pair<std::string, std::string>> cookies(Cookies.begin(), Cookies.end());
         std::sort(cookies.begin(), cookies.end());
         for (const auto& cookie : cookies) {
             HashCombine(result, cookie);

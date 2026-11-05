@@ -172,7 +172,7 @@ private:
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(TObjectId::FromString(key));
-        if (!transaction) {
+        if (!IsObjectAlive(transaction)) {
             return nullptr;
         }
 

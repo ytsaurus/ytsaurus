@@ -36,7 +36,7 @@ TNonversionedMapObjectProxyBase<TObject>::TNonversionedMapObjectProxyBase(
     TObjectTypeMetadata* metadata,
     TObject* object)
     : TBase(bootstrap, metadata, object)
-    , THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>(TBase::CreatePermissionValidator())
+    , THierarchicPermissionValidator<TObject>(TBase::CreatePermissionValidator())
 { }
 
 template <class TObject>
@@ -163,10 +163,10 @@ int TNonversionedMapObjectProxyBase<TObject>::GetChildCount() const
 }
 
 template <class TObject>
-std::vector<std::pair<std::string, INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
+auto TNonversionedMapObjectProxyBase<TObject>::GetChildren() const -> std::vector<std::pair<TKey, TValue>>
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    std::vector<std::pair<std::string, INodePtr>> result;
+    std::vector<std::pair<TKey, TValue>> result;
     result.reserve(keyToChild.size());
     for (const auto& [key, child] : keyToChild) {
         result.emplace_back(key, GetProxy(child));
@@ -176,24 +176,24 @@ std::vector<std::pair<std::string, INodePtr>> TNonversionedMapObjectProxyBase<TO
 }
 
 template <class TObject>
-std::vector<std::string> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
+auto TNonversionedMapObjectProxyBase<TObject>::GetKeys() const -> std::vector<TKey>
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
     return NYT::GetKeys(keyToChild);
 }
 
 template <class TObject>
-INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const std::string& key) const
+auto TNonversionedMapObjectProxyBase<TObject>::FindChild(TKeyView key) const -> TValue
 {
-    auto* child = TBase::GetThisImpl()->FindChild(key);
+    auto* child = TBase::GetThisImpl()->FindChild(TKey(key));
     return child
         ? GetProxy(child)
         : nullptr;
 }
 
 template <class TObject>
-std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
-    const IConstNodePtr& child) const
+auto TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
+    const IConstNodePtr& child) const -> std::optional<TKey>
 {
     auto childProxy = FromNode(child);
     const auto* childImpl = childProxy->GetThisImpl();
@@ -202,8 +202,8 @@ std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKe
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
-    const std::string& /*key*/,
-    const INodePtr& /*child*/)
+    TKeyView /*key*/,
+    const TValue& /*child*/)
 {
     THROW_ERROR_EXCEPTION("Use TNonversionedMapObjectFactoryBase::AttachChild() instead");
 }
@@ -220,7 +220,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
     auto* childImpl = childProxy->GetThisImpl();
     if (childImpl->IsRoot()) {
         THROW_ERROR_EXCEPTION("Root object cannot have a parent")
-            << TErrorAttribute("id", childImpl->GetId());
+            .With("id", childImpl->GetId());
     }
 
     ValidateChildName(key);
@@ -270,7 +270,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRemoveChild(
 }
 
 template <class TObject>
-bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const std::string& key)
+bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(TKeyView key)
 {
     auto child = FindChild(key);
     if (!child) {
@@ -354,12 +354,12 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-TCompactVector<NObjectServer::TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
+TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
     TObject* object)
 {
     return AccumulateOverMapObjectSubtree(
         object,
-        TCompactVector<NObjectServer::TObject*, 1>(),
+        TCompactVector<TObject*, 1>(),
         [root = object] (auto* currentObject, auto* descendants) {
             if (currentObject != root) {
                 descendants->push_back(currentObject);
@@ -368,7 +368,7 @@ TCompactVector<NObjectServer::TObject*, 1> TNonversionedMapObjectProxyBase<TObje
 }
 
 template <class TObject>
-NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
+TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
 {
     return object->GetParent();
 }
@@ -476,7 +476,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
             auto* impl = TBase::GetThisImpl();
             if (!impl->GetParent()) {
                 THROW_ERROR_EXCEPTION("Cannot change parent for a nameless %Qlv", impl->GetType())
-                    << TErrorAttribute("id", impl->GetId());
+                    .With("id", impl->GetId());
             }
 
             auto newParentName = ConvertTo<std::string>(value);
@@ -557,8 +557,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateAttachChildSubtreeSize(
     auto newSubtreeSize = child->GetThisImpl()->GetSubtreeSize() + GetTopmostAncestorSubtreeSize(impl);
     if (newSubtreeSize > subtreeSizeLimit) {
         THROW_ERROR_EXCEPTION("Subtree size limit exceeded for %v", impl->GetLowercaseObjectName())
-            << TErrorAttribute("new_subtree_size", newSubtreeSize)
-            << TErrorAttribute("subtree_size_limit", subtreeSizeLimit);
+            .With("new_subtree_size", newSubtreeSize)
+            .With("subtree_size_limit", subtreeSizeLimit);
     }
 }
 
@@ -614,8 +614,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InactiveObjectLifeStage,
             "Inactive life stage during object removal")
-            << TErrorAttribute("life_stage", impl->GetLifeStage())
-            << TErrorAttribute("id", impl->GetId());
+            .With("life_stage", impl->GetLifeStage())
+            .With("id", impl->GetId());
     }
 
     for (const auto& [_, childImpl] : impl->KeyToChild()) {
@@ -752,20 +752,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
         THROW_ERROR_EXCEPTION("\"ignore_type_mismatch\" option is not supported for nonversioned map objects");
     }
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
-        type,
-        ignoreExisting,
-        recursive,
-        force,
-        ignoreTypeMismatch);
+    context->AnnotateRequest()
+        .With("Type", type)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("Recursive", recursive)
+        .With("Force", force)
+        .With("IgnoreTypeMismatch", ignoreTypeMismatch);
 
     auto proxy = Create(type, path, explicitAttributes.Get());
     const auto& objectId = proxy->GetId();
 
     response->set_cell_tag(ToProto(TBase::Bootstrap_->GetCellTag()));
     ToProto(response->mutable_node_id(), objectId);
-    context->SetResponseInfo("ObjectId: %v",
-        objectId);
+    context->AnnotateResponse()
+        .With("ObjectId", objectId);
 
     context->Reply();
 }
@@ -782,7 +782,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
     auto* impl = TBase::GetThisImpl();
     auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
     if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot copy or move an object of type %Qv, expected type %Qv",
+        THROW_ERROR_EXCEPTION("Cannot copy or move an object of type %Qlv, expected type %Qlv",
             sourceObject->GetType(),
             impl->GetType());
     }
@@ -853,20 +853,24 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    context->SetRequestInfo("SourcePath: %v, Mode: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
-        sourcePath,
-        mode,
-        recursive,
-        ignoreExisting,
-        force);
+    context->AnnotateRequest()
+        .With("SourcePath", sourcePath)
+        .With("Mode", mode)
+        .With("Recursive", recursive)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("Force", force);
 
     auto clonedProxy = Copy(sourcePath, targetPath, mode, ignoreExisting);
 
     ToProto(response->mutable_node_id(), clonedProxy->GetId());
 
-    context->SetResponseInfo("%v: %v",
-        targetPath.empty() ? "ExistingObjectId" : "ObjectId",
-        clonedProxy->GetId());
+    if (targetPath.empty()) {
+        context->AnnotateResponse()
+            .With("ExistingObjectId", clonedProxy->GetId());
+    } else {
+        context->AnnotateResponse()
+            .With("ObjectId", clonedProxy->GetId());
+    }
 
     context->Reply();
 
@@ -958,7 +962,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
             "Failed to attach child %Qv to %v",
             key,
             parent->GetObject()->template As<TObject>()->GetLowercaseObjectName())
-            << ex;
+            .With(ex);
     }
 }
 
@@ -1021,7 +1025,9 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
         }
     } catch (const std::exception& ex) {
         const auto& Logger = NObjectServer::ObjectServerLogger;
-        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event (EventType: %v)", event.Type);
+        YT_TLOG_FATAL("Unhandled exception during rollback of factory event")
+            .With("EventType", event.Type)
+            .With(ex);
     }
 }
 

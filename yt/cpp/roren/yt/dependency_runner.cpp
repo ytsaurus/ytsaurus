@@ -141,7 +141,8 @@ void TDependencyRunner::StartAllAvailable(ITransactionPtr tx, const TStartOperat
     const TStartOperationContext& context)
 {
     auto operation = YtGraph_->StartOperation(tx, operationNodeId, context);
-    YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
+    YT_TLOG_DEBUG("Operation was started")
+        .With("OperationId", operation->GetId());
 
     return operation->Watch();
 }

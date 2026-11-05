@@ -1,6 +1,6 @@
 # Batch processing of requests
 
-This section contains information about batch processing of requests (batch requests), with usage examples for the [Python](../../../user-guide/storage/batch-requests.md#python_api), [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api), and [Java](../../../user-guide/storage/batch-requests.md#java_api) APIs.
+This section contains information about batch processing of requests (batch requests), with usage examples for the [Python](../../../user-guide/storage/batch-requests.md#python_api){% if audience == "internal" %}, [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api), and [Java](../../../user-guide/storage/batch-requests.md#java_api) APIs {% else %} and [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api){% endif %}.
 
 When working with the {{product-name}} system, each command generates a separate request to the master server. A request has its own cost, often higher than the execution of a command. Therefore, combining several commands into a single request can significantly speed up processes that send many easy commands to [Cypress](../../../user-guide/storage/cypress.md) and are waiting for a response most of the time. This request is called a **batch request**. The Cypress master server will execute the commands from the batch request in random order and return all the obtained results. Errors that occur during the execution of individual commands do not affect other commands.
 
@@ -93,6 +93,8 @@ int main()
 */
 ```
 
+{% if audience == "internal" %}
+
 ## Java API { #java_api }
 
 In the Java API, there is an `executeBatch` method that enables you to create an object of the `BatchRequest` type to execute multiple commands within a single batch request if you have a Cypress client `yt.cypress()`. All commands sent via `BatchRequest` return objects of the `future` type, which will be executed after calling the `execute` method.
@@ -112,3 +114,5 @@ boolean result = futures.forAll(x -> {
 	return node.isBooleanNode() && node.boolValue();
 });
 ```
+
+{% endif %}

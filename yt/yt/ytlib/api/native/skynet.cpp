@@ -49,7 +49,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     const NYPath::TRichYPath& richPath,
     const TLocateSkynetShareOptions& options)
 {
-    auto Logger = ApiLogger().WithTag("Path: %v", richPath.GetPath());
+    auto Logger = ApiLogger().WithTag("Path", richPath.GetPath());
 
     TGetUserObjectBasicAttributesOptions getAttributesOptions;
     getAttributesOptions.ReadFrom = EMasterChannelKind::Cache;
@@ -76,7 +76,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     bool dynamic;
     TTableSchemaPtr schema;
     {
-        YT_LOG_INFO("Requesting chunk count");
+        YT_TLOG_INFO("Requesting chunk count");
 
         auto connection = client->GetNativeConnection();
         auto proxy = CreateObjectServiceReadProxy(
@@ -117,7 +117,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
     auto skynetShareLocations = New<TSkynetSharePartsLocations>();
 
-    YT_LOG_INFO("Fetching table chunks");
+    YT_TLOG_INFO("Fetching table chunks");
 
     skynetShareLocations->ChunkSpecs = FetchChunkSpecs(
         client,

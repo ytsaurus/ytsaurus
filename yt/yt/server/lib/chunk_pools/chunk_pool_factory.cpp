@@ -148,6 +148,11 @@ public:
         return std::nullopt;
     }
 
+    std::optional<ui64> GetSamplingSeed() const override
+    {
+        return std::nullopt;
+    }
+
     i64 GetSamplingDataWeightPerJob() const override
     {
         YT_ABORT();

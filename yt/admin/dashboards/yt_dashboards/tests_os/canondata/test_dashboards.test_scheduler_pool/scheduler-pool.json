@@ -1,0 +1,1480 @@
+{
+    "panels": [
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "options": {
+                "content": "<h2>Resources</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cores",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "D"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "E"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_usage_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_demand_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Resource demand",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_effective_strong_guarantee_resources_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Effective strong guarantee",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_strong_guarantee_resources_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured strong guarantee",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_resource_limits_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured limit",
+                    "refId": "E"
+                }
+            ],
+            "title": "CPU",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "D"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "E"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_usage_user_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_demand_user_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Resource demand",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_effective_strong_guarantee_resources_user_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Effective strong guarantee",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_strong_guarantee_resources_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured strong guarantee",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_resource_limits_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured limit",
+                    "refId": "E"
+                }
+            ],
+            "title": "Memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "GPUs",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "D"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "E"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_usage_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_demand_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Resource demand",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_effective_strong_guarantee_resources_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Effective strong guarantee",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_strong_guarantee_resources_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured strong guarantee",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_specified_resource_limits_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Configured limit",
+                    "refId": "E"
+                }
+            ],
+            "title": "GPU",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Operations",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_running_operation_count\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_lightweight_running_operation_count\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Lightweight usage",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_max_running_operation_count\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Limit",
+                    "refId": "C"
+                }
+            ],
+            "title": "Running Operations",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Operations",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_total_operation_count\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_max_operation_count\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Limit",
+                    "refId": "B"
+                }
+            ],
+            "title": "Total Operations",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 9,
+                "w": 24,
+                "x": 0,
+                "y": 14
+            },
+            "options": {
+                "content": "**Demand**: amount of resources needed to run all waiting and running jobs in the pool.<br>\n**Usage**: model resource consumption of the pool from scheduler's point of view. Represents the number of resources that are reserved for operations in the pool. Actual resource consumption may differ.<br>\n**Configured Strong Guarantee**: amount of resources guaranteed for the pool that is specified in pool's config.<br>\n**Effective Strong Guarantee**: amount of resources guaranteed for the pool that is derived from **Configured Strong Guarantee**. In case of cluster resources shortage, **Effective Strong Guarantee** can be lower than **Configured Strong Guarantee**.<br>\n**Configured Limit**: maximum amount of resources given to the pool that is specified in pool's config.\n\n**Running Operations**: number of operations in the pool which are running, i.e. are considered for job scheduling. Also displays the number of \"lightweight\" running operations, which are not accounted in the running operation count limit.<br>\n**Total Operations**: total number of operations in the pool, includes \"Running operation count\". The difference between Total Operations and Running Operations is the size of the queue of operations that are waiting to be started.\n\n\nYou can learn more about quotas in the [documentation](https://ytsaurus.tech/docs/en/user-guide/storage/quotas).",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 23
+            },
+            "options": {
+                "content": "<h2>Detailed Resource Distribution</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cluster share",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 25
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_usage_share\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Dominant usage share",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_demand_share\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Dominant demand share",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_fair_share_total\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Dominant fair share",
+                    "refId": "C"
+                }
+            ],
+            "title": "Dominant Shares",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cluster share",
+                        "hideFrom": {
+                            "legend": false
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 25
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_fair_share_total_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "CPU",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_fair_share_total_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Memory",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_fair_share_total_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "GPU",
+                    "refId": "C"
+                }
+            ],
+            "title": "Fair Share per Resource",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cluster share",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": false
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 25
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_fair_share_strong_guarantee\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Strong guarantee",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_fair_share_integral_guarantee\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Integral guarantee",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_dominant_fair_share_weight_proportional\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Weight proportional",
+                    "refId": "C"
+                }
+            ],
+            "title": "Dominant Fair Share per Type",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 3,
+                "w": 24,
+                "x": 0,
+                "y": 31
+            },
+            "options": {
+                "content": "**Usage**, **Demand**, **Fair share**: share of the cluster that is used, demanded or should be given to the pool. For example, 1.0 or 100% corresponds to the total amount of resources in the cluster.<br>\n**Fair Share** can be split into three parts: strong guarantee, integral guarantee and free resources, which are distributed between pools in proportion to their weights.<br>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 34
+            },
+            "options": {
+                "content": "<h2>Job Metrics</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "IO operations/sec",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "iops"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 6,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_user_job_io_total\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "User job IO rate",
+                    "refId": "A"
+                }
+            ],
+            "title": "Local Disk IO",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cores",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "D"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 6,
+                "x": 6,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_user_job_cpu_system\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "User job system",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_user_job_cpu_user\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "User job user",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_job_proxy_cpu_system\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "Job proxy system",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_job_proxy_cpu_user\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "Job proxy user",
+                    "refId": "D"
+                }
+            ],
+            "title": "CPU",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "mbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "mbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 6,
+                "x": 12,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_user_job_memory_mb\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "User job memory",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_job_proxy_memory_mb\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval])",
+                    "legendFormat": "Job proxy memory",
+                    "refId": "B"
+                }
+            ],
+            "title": "Memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Sum of device fractions",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 6,
+                "x": 18,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_gpu_load\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval]) / 1000.0",
+                    "legendFormat": "Load",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_metrics_gpu_utilization_gpu\", pool=~\"$pool\", tree=~\"$tree\"}[$__rate_interval]) / 1000.0",
+                    "legendFormat": "Utilization",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_resource_usage_gpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Usage",
+                    "refId": "C"
+                }
+            ],
+            "title": "GPU",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 5,
+                "w": 24,
+                "x": 0,
+                "y": 42
+            },
+            "options": {
+                "content": "**Local Disk IO**: total amount of I/O operations per second (IOPS) of all user jobs in the pool.<br>\n**CPU**: total detailed CPU usage statistics of all user jobs and their job proxies in the pool.<br>\n**Memory**: total detailed RAM usage of user job and job proxy.<br>\n**GPU**: total detailed GPU utilization statistics of all user jobs in the pool.\n\nConsult [documentation](https://ytsaurus.tech/docs/en/user-guide/problems/jobstatistics) for more information on the corresponding job statistics.",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 47
+            },
+            "options": {
+                "content": "<h2>Integral guarantees</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "CPU * secs",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 49
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_accumulated_resource_volume_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Accumulated CPU volume",
+                    "refId": "A"
+                }
+            ],
+            "title": "Accumulated Resource Volume: CPU",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes * secs",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 49
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_accumulated_resource_volume_user_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Accumulated memory volume",
+                    "refId": "A"
+                }
+            ],
+            "title": "Accumulated Resource Volume: Memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Cluster share * secs",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 49
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_accumulated_volume_dominant_share\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Accumulated dominant resource share",
+                    "refId": "A"
+                }
+            ],
+            "title": "Accumulated resource volume share",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "CPU * secs",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 4,
+                "y": 55
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_accepted_free_volume_cpu\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Accepted free CPU volume",
+                    "refId": "A"
+                }
+            ],
+            "title": "Accepted Free Volume: CPU",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Memory * secs",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 12,
+                "y": 55
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_accepted_free_volume_user_memory\", pool=~\"$pool\", tree=~\"$tree\"}",
+                    "legendFormat": "Accepted free memory volume",
+                    "refId": "A"
+                }
+            ],
+            "title": "Accepted Free Volume: Memory",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 24,
+                "x": 0,
+                "y": 61
+            },
+            "options": {
+                "content": "The following metrics are only relevant for pools with burst or relaxed integral guarantees.\n\n**Accumulated Resource Volume Share**: amount of virtual resources accumulated in the pool which can be spent on integral guarantees.<br>\n**Accumulated Resource Volume (CPU/Memory)**: approximate amount of accumulated resources computed based on accumulated volume share and the current total resource amount in the cluster.<br>\n**Accepted Free Volume (CPU/Memory)**: virtual resource volume which was obtained by the pool via redistribution of other pools' unused integral resource flows.\n\nConsult [documentation](https://ytsaurus.tech/docs/en/user-guide/data-processing/scheduler/integral-guarantees) for more information on intergral guarantees.",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "hide": 0,
+                "label": "Tree",
+                "name": "tree",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "<Root>",
+                    "value": "<Root>"
+                },
+                "hide": 0,
+                "label": "Pool",
+                "name": "pool",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "<Root>",
+                        "value": "<Root>"
+                    }
+                ],
+                "query": "<Root>",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ],
+        "permissions": [
+            {
+                "cluster": "$cluster",
+                "ignorePaths": [
+                    "//sys/pool_trees/$tree/<Root>"
+                ],
+                "path": "//sys/pool_trees/$tree/$pool",
+                "permission": "use"
+            },
+            {
+                "cluster": "$cluster",
+                "path": "//sys/pool_trees/$tree",
+                "permission": "use"
+            }
+        ]
+    },
+    "title": "Scheduler pool [Autogenerated]"
+}

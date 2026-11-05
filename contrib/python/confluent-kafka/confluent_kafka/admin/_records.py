@@ -23,5 +23,6 @@ class DeletedRecords:
     low_watermark: int
         The "low watermark" for the topic partition on which the deletion was executed.
     """
-    def __init__(self, low_watermark):
+
+    def __init__(self, low_watermark: int) -> None:
         self.low_watermark = low_watermark

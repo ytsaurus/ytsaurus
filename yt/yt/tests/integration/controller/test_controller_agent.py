@@ -30,7 +30,6 @@ from collections import defaultdict
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -78,13 +77,12 @@ class TestControllerAgentOrchid(YTEnvSetup):
 
         assert list(get(orchid_path)) == []
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         assert list(get(orchid_path)) == [str(op.id)]
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -95,7 +93,6 @@ class TestControllerAgentConfig(YTEnvSetup):
         assert get("//sys/controller_agents/config/@type") == "document"
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentRegistration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -116,6 +113,7 @@ class TestControllerAgentRegistration(YTEnvSetup):
 
 class TestControllerMemoryUsage(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory usage.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_SCHEDULERS = 1
 
     DELTA_HTTP_PROXY_CONFIG = {
@@ -242,9 +240,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert False, "Must not exist alive operations"
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
 
@@ -339,7 +337,6 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerControllerThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -384,7 +381,6 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCustomControllerQueues(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -451,7 +447,6 @@ class TestCustomControllerQueues(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobSpecFailed(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -629,7 +624,6 @@ class TestControllerAgentTags(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationControllerResourcesCheck(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -691,6 +685,7 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
 
 class TestOperationControllerLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -719,13 +714,14 @@ class TestOperationControllerLimit(YTEnvSetup):
                 "allocation_release_delay": 1000 ** 2,
             },
         })
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestMemoryOverconsumptionThreshold(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -755,12 +751,13 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
         })
 
         wait(lambda: "memory_overconsumption" in op.get_alerts())
-        wait_breakpoint()
+        wait_breakpoint(op)
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -769,8 +766,8 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "operation_controller_memory_overconsumption_threshold": 10 * 1024 ** 2,
-                "total_controller_memory_limit": 50 * 1024 ** 2,
+                "operation_controller_memory_overconsumption_threshold": 50 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
             },
         }
     }
@@ -798,20 +795,21 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
             track=False,
             spec={
                 "testing": {
-                    "allocation_size": 100 * 1024 ** 2,
+                    "allocation_size": 500 * 1024 ** 2,
                     "allocation_release_delay": 60000,
                 },
             })
 
         time.sleep(1)
 
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -820,7 +818,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "total_controller_memory_limit": 100 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
             },
         }
     }
@@ -852,7 +850,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
             track=False,
             spec={
                 "testing": {
-                    "allocation_size": 400 * 1024 ** 2,
+                    "allocation_size": 500 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             })
@@ -865,9 +863,9 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentMemoryAlert(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -876,8 +874,8 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "total_controller_memory_limit": 50 * 1024 ** 2,
-                "operation_controller_memory_overconsumption_threshold": 100 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
+                "operation_controller_memory_overconsumption_threshold": 180 * 1024 ** 2,
             },
         },
     }
@@ -912,7 +910,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_size": 100 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },
@@ -922,7 +920,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_size": 100 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },
@@ -932,7 +930,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 400 * 1024 ** 2,
+                    "allocation_size": 600 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },
@@ -946,7 +944,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
         release_breakpoint()
         op1.track()
         op2.track()
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op3.track()
 
 
@@ -1003,7 +1001,7 @@ class TestMemoryWatchdog(YTEnvSetup):
                 track=False,
             ))
 
-        wait_breakpoint()
+        wait_breakpoint(big_ops)
         release_breakpoint()
         small_ops = []
         for _ in range(2):
@@ -1056,7 +1054,7 @@ class TestMemoryWatchdog(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: all(all(counter[name].get_delta() != 0 for name in counter_names) for _, counter in counters.items()))
 
@@ -1168,7 +1166,6 @@ class TestLivePreview(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobFailTolerance(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1296,7 +1293,6 @@ class TestJobFailTolerance(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAllocationJobLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
@@ -1342,7 +1338,7 @@ class TestAllocationJobLimit(YTEnvSetup):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id1 = job_ids[0]
@@ -1351,7 +1347,7 @@ class TestAllocationJobLimit(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id2 = job_ids[0]
@@ -1391,7 +1387,7 @@ class TestAllocationJobLimit(YTEnvSetup):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_id1, = wait_breakpoint()
+        job_id1, = wait_breakpoint(op)
 
         print_debug("job_id1: ", job_id1)
 
@@ -1399,7 +1395,7 @@ class TestAllocationJobLimit(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint()
+        job_id2, = wait_breakpoint(op)
 
         wait(lambda: normally_finished_allocation_counter.get_delta() == 1)
         assert aborted_allocation_counter.get_delta() == 0
@@ -1416,7 +1412,6 @@ class TestAllocationJobLimit(YTEnvSetup):
         op.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestEnableMultipleJobsOption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
@@ -1450,13 +1445,13 @@ class TestEnableMultipleJobsOption(YTEnvSetup):
             spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
-        job_id1, = wait_breakpoint()
+        job_id1, = wait_breakpoint(op)
 
         allocation_id1 = get_allocation_id_from_job_id(job_id1)
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint()
+        job_id2, = wait_breakpoint(op)
 
         assert job_id1 != job_id2
         allocation_id2 = get_allocation_id_from_job_id(job_id2)
@@ -1468,7 +1463,6 @@ class TestEnableMultipleJobsOption(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentTraceLogging(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1

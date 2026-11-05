@@ -3,9 +3,9 @@
 #include "raw_transform.h"
 #include "raw_data_flow.h"
 
-#include "../input.h"
-#include "../key_value.h"
-#include "../type_tag.h"
+#include <yt/cpp/roren/interface/input.h>
+#include <yt/cpp/roren/interface/key_value.h>
+#include <yt/cpp/roren/interface/type_tag.h>
 
 namespace NRoren::NPrivate {
 

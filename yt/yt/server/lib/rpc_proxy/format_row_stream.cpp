@@ -21,6 +21,8 @@
 
 #include <library/cpp/yt/memory/range.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NConcurrency;
@@ -89,8 +91,8 @@ public:
 private:
     const TNameTablePtr NameTable_;
 
-    TString Data_;
-    TStringOutput OutputStream_;
+    std::string Data_;
+    TStdStringOutput OutputStream_;
     IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
 
     const ISchemalessFormatWriterPtr Writer_;
@@ -186,7 +188,7 @@ public:
         , SchemalessWriter_(CreateSchemalessFromApiWriterAdapter(StaticPointerCast<ITableWriter>(TableWriter_)))
         , ValueConsumer_(
             SchemalessWriter_,
-            ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))
+            ConvertTo<TTypeConversionConfigPtr>(Format_.Attributes()))
         , Output_(CreateParserForFormat(Format_, &ValueConsumer_))
     {
     }

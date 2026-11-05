@@ -68,7 +68,7 @@ def check_backtraces(actual_output):
     bar_count = 0
     async_stop_count = 0
     for line in actual_output.split("\n"):
-        if line.find("0x0000000000000000 in ?? ()") != -1:
+        if line.find("ContextTrampoLine ()") != -1:
             fiber_count += 1
         if line.find("Filtered out 1 running fiber(s)"):
             filtered_running_fibers = True
@@ -96,23 +96,19 @@ def check_tags(actual_output):
             assert logging_tag is None
             logging_tag = line
     assert tags == 'Tags: "tag" = "value", "tag0" = "value0"'
-    assert logging_tag == 'Logging tag: "LoggingTag"'
+    assert logging_tag == 'Logging tag: "Tag: Value"'
 
 
 @authors("shishmak")
+@pytest.mark.skipif(arcadia_interop.yatest_common is None, reason="Requires yatest_common")
 def test_print_yt_fibers():
-    if arcadia_interop.yatest_common is None:
-        pytest.skip()
-
     actual_output = print_fibers("print_yt_fibers")
     check_backtraces(actual_output)
 
 
 @authors("shishmak")
+@pytest.mark.skipif(arcadia_interop.yatest_common is None, reason="Requires yatest_common")
 def test_print_yt_fibers_with_tags():
-    if arcadia_interop.yatest_common is None:
-        pytest.skip()
-
     actual_output = print_fibers("print_yt_fibers_with_tags")
     check_backtraces(actual_output)
     check_tags(actual_output)

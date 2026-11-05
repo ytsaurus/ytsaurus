@@ -97,6 +97,10 @@ public:
             | EYtSettingType::WithQB | EYtSettingType::View | EYtSettingType::UserSchema
             | EYtSettingType::UserColumns | EYtSettingType::IgnoreTypeV3;
 
+        if (State_->Types->EngineType == EEngineType::Ytflow) {
+            accepted |= EYtSettingType::Consumer;
+        }
+
         if (!TYtTableInfo::Validate(*input, accepted, ctx)) {
             return TStatus::Error;
         }
@@ -399,8 +403,8 @@ public:
             | EYtSettingType::UserSchema
             | EYtSettingType::UserColumns
             | EYtSettingType::StatColumns
-            | EYtSettingType::SysColumns
-            | EYtSettingType::QLFilter;
+            | EYtSettingType::SysColumns;
+
         if (!ValidateSettings(*input.Ref().Child(TYtSection::idx_Settings), acceptedSettings, ctx)) {
             return TStatus::Error;
         }
@@ -742,6 +746,14 @@ public:
                                 "Read of dynamic table \"" << tableName << "\" is not supported after commit without native dyntable read. Please add PRAGMA yt.UseNativeDynamicTableRead;"));
                             return TStatus::Error;
                         }
+                    }
+
+                    if (auto reserved = FindReservedColumnName(GetSeqItemType(*table.Ref().GetTypeAnn()), *State_)) {
+                        ctx.AddError(TIssue(ctx.GetPosition(table.Pos()), TStringBuilder()
+                            << "Cannot read table " << TString{tableName}.Quote() << ": column "
+                            << TString{*reserved}.Quote() << " has reserved prefix "
+                            << TString{SystemMemberPrefix}.Quote()));
+                        return TStatus::Error;
                     }
 
                     if (!NYql::HasSetting(table.Settings().Ref(), EYtSettingType::UserSchema)) {

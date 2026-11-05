@@ -39,6 +39,9 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_accounts_profiling", &TThis::EnableAccountsProfiling)
         .Default(true);
+    registrar.Parameter("enable_detailed_master_memory_profiling", &TThis::EnableDetailedMasterMemoryProfiling)
+        .Default(true)
+        .DontSerializeDefault();
     registrar.Parameter("enable_delayed_membership_closure_recomputation", &TThis::EnableDelayedMembershipClosureRecomputation)
         .Default(true);
     registrar.Parameter("membership_closure_recomputation_period", &TThis::MembershipClosureRecomputePeriod)
@@ -77,6 +80,18 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_alter_without_full_read", &TThis::AllowAlterWithoutFullRead)
         .Default(EAllowAlterWithoutFullRead::Allow);
+
+    registrar.Parameter("check_all_ace_columns_full_read", &TThis::CheckAllAceColumnsFullRead)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("allow_change_request_limits_for_root", &TThis::AllowChangeRequestLimitsForRoot)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("forward_authenticated_user", &TThis::ForwardAuthenticatedUser)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

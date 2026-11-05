@@ -4,8 +4,8 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString WarningPrefix = "==";
-static const TString WarningSuffix =
+static const std::string WarningPrefix = "==";
+static const std::string WarningSuffix =
     "False positive error reports may follow\n"
     "For details see https://github.com/google/sanitizers/issues/189\n";
 

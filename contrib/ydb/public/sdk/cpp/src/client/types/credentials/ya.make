@@ -1,4 +1,5 @@
 LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
     credentials.cpp
@@ -14,4 +15,5 @@ END()
 
 RECURSE(
     oauth2_token_exchange
+    oidc
 )

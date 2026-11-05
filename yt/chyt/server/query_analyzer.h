@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <Core/SortDescription.h>
+
 #include <Storages/MergeTree/KeyCondition.h>
 
 #include <Planner/TableExpressionData.h>
@@ -29,6 +31,7 @@ DEFINE_ENUM(EReadInOrderMode,
 
 struct TQueryAnalysisResult
 {
+    DB::QueryTreeNodePtr QueryTree;
     std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
     std::vector<std::vector<TTablePtr>> Tables;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
@@ -36,6 +39,8 @@ struct TQueryAnalysisResult
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
+    DB::SortDescription SubquerySortDescription;
+    DB::SortDescription CoordinatorSortDescription;
     bool EnableMinMaxOptimization = false;
     NYTree::IAttributeDictionaryPtr AnalysisVariables = NYTree::CreateEphemeralAttributes();
 };
@@ -118,10 +123,6 @@ public:
     //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
 
-    //! TQueryAnalyzer materializes global joins when parsing query tree from SelectQueryInfo.
-    //! For further processing, it may be useful to get the resulting query tree.
-    DB::QueryTreeNodePtr GetParsedQueryTree() const;
-
     bool HasJoinWithTwoTables() const;
     bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
@@ -158,6 +159,7 @@ private:
     //! If the query can be done using only min/max column statistics.
     bool EnableMinMaxOptimization_ = false;
 
+
     bool Prepared_ = false;
 
     int KeyColumnCount_ = 0;
@@ -166,6 +168,9 @@ private:
     std::optional<DB::QueryProcessingStage::Enum> OptimizedQueryProcessingStage_;
 
     EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
+
+    DB::SortDescription SubquerySortDescription_;
+    DB::SortDescription CoordinatorSortDescription_;
 
     std::vector<DB::QueryTreeNodePtr> JoinKeyRightExpressions_;
 
@@ -178,7 +183,7 @@ private:
 
     void OptimizeQueryProcessingStage();
 
-    void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
+    void InferReadInOrderModeAndSortDescription(bool assumeNoNullKeys, bool assumeNoNanKeys);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

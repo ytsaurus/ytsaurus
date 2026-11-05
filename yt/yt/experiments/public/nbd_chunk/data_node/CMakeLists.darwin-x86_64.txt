@@ -22,6 +22,7 @@ target_link_libraries(data_node PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   ytserver
+  lib-nbd-chunk
   yt-server-node
   yt-library-program
   yt-yt-ytlib

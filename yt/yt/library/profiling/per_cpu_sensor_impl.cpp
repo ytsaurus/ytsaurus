@@ -1,0 +1,145 @@
+#include "per_cpu_sensor_impl.h"
+
+#include "summary.h"
+
+#include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/yt/system/access_spreader.h>
+
+namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPerCpuCounter::Increment(i64 delta)
+{
+    int stripeIndex = GetCurrentAccessStripe(PerCpuShardCount);
+    Shards_[stripeIndex].Value.fetch_add(delta, std::memory_order::relaxed);
+}
+
+i64 TPerCpuCounter::GetValue()
+{
+    i64 total = 0;
+    for (const auto& shard : Shards_) {
+        total += shard.Value.load();
+    }
+    return total;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPerCpuTimeCounter::Add(TDuration delta)
+{
+    int stripeIndex = GetCurrentAccessStripe(PerCpuShardCount);
+    Shards_[stripeIndex].Value.fetch_add(delta.GetValue(), std::memory_order::relaxed);
+}
+
+TDuration TPerCpuTimeCounter::GetValue()
+{
+    TDuration total = TDuration::Zero();
+    for (const auto& shard : Shards_) {
+        total += TDuration::FromValue(shard.Value.load());
+    }
+    return total;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+__int128 TPerCpuGauge::TWrite::Pack()
+{
+    static_assert(sizeof(TWrite) == 16);
+
+    __int128 i;
+    memcpy(&i, this, 16);
+    return i;
+}
+
+TPerCpuGauge::TWrite TPerCpuGauge::TWrite::Unpack(__int128 i)
+{
+    TWrite w;
+    memcpy(&w, &i, 16);
+    return w;
+}
+
+void TPerCpuGauge::Update(double value)
+{
+    int stripeIndex = GetCurrentAccessStripe(PerCpuShardCount);
+    TCpuInstant timestamp = GetApproximateCpuInstant();
+
+    TWrite write{value, timestamp};
+#ifdef __clang__
+    Shards_[stripeIndex].Value.store(write.Pack(), std::memory_order::relaxed);
+#else
+    auto guard = Guard(Shards_[stripeIndex].Lock);
+    Shards_[stripeIndex].Value = write;
+#endif
+}
+
+double TPerCpuGauge::GetValue()
+{
+    double lastValue = 0.0;
+    TCpuInstant maxTimestamp = 0;
+
+    for (const auto& shard : Shards_) {
+#ifdef __clang__
+        auto write = TWrite::Unpack(shard.Value.load());
+#else
+        auto guard = Guard(shard.Lock);
+        auto write = shard.Value;
+#endif
+
+        if (write.Timestamp > maxTimestamp) {
+            maxTimestamp = write.Timestamp;
+            lastValue = write.Value;
+        }
+    }
+
+    return lastValue;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void TPerCpuSummary<T>::Record(T value)
+{
+    auto& shard = Shards_[GetCurrentAccessStripe(PerCpuShardCount)];
+    auto guard = Guard(shard.Lock);
+    shard.Value.Record(value);
+    shard.Empty.store(false, std::memory_order::release);
+}
+
+template <class T>
+TSummarySnapshot<T> TPerCpuSummary<T>::GetSummary()
+{
+    TSummarySnapshot<T> value;
+    for (const auto& shard : Shards_) {
+        if (shard.Empty.load(std::memory_order::acquire)) {
+            continue;
+        }
+        auto guard = Guard(shard.Lock);
+        value += shard.Value;
+    }
+    return value;
+}
+
+template <class T>
+TSummarySnapshot<T> TPerCpuSummary<T>::GetSummaryAndReset()
+{
+    TSummarySnapshot<T> value;
+    for (auto& shard : Shards_) {
+        if (shard.Empty.load(std::memory_order::acquire)) {
+            continue;
+        }
+        auto guard = Guard(shard.Lock);
+        value += shard.Value;
+        shard.Value = {};
+        shard.Empty.store(true, std::memory_order::release);
+    }
+    return value;
+}
+
+template class TPerCpuSummary<double>;
+template class TPerCpuSummary<TDuration>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NProfiling

@@ -118,7 +118,7 @@ class TInputCluster
     : public TRefCounted
 {
 public:
-    using TPathToInputTablesMapping = THashMap<TString, std::vector<TInputTablePtr>>;
+    using TPathToInputTablesMapping = THashMap<NYPath::TYPath, std::vector<TInputTablePtr>>;
 
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TClusterName, Name);
     DEFINE_BYREF_RW_PROPERTY(NApi::NNative::IClientPtr, Client, nullptr);
@@ -141,12 +141,12 @@ public:
     // NB: Note that this is local client, not <this cluster's client>.
     void InitializeClient(NApi::NNative::IClientPtr localClient);
 
-    void Persist(const TPersistenceContext& context);
-
     NLogging::TLogger GetLogger() const;
 
 private:
     NLogging::TSerializableLogger Logger;
+
+    PHOENIX_DECLARE_TYPE(TInputCluster, 0xe1f2a3b4);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputCluster)
@@ -181,11 +181,15 @@ public:
 
     bool CanInterruptJobs() const;
     bool HasRowLevelAcl() const;
+    bool HasSkippedInputChunks() const;
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
-    NChunkClient::TInputChunkPtr GetInputChunk(NChunkClient::TChunkId chunkId, int chunkIndex) const;
-
-    void Persist(const TPersistenceContext& context);
+    NChunkClient::TInputChunkPtr GetInputChunk(
+        NChunkClient::TChunkId chunkId,
+        std::optional<int> chunkIndex = {}) const;
+    NChunkClient::TInputChunkPtr FindInputChunk(
+        NChunkClient::TChunkId chunkId,
+        std::optional<int> chunkIndex = {}) const;
 
     void RegisterUnavailableInputChunks(bool reportIfFound = false);
     void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;
@@ -225,7 +229,7 @@ public:
 
     // NB: Asserts that there is only one input table.
     TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
-        const std::optional<std::vector<TString>>& attributeKeys) const;
+        const std::optional<std::vector<std::string>>& attributeKeys) const;
 
 private:
     // NB: InputManager does not outlive its host.
@@ -244,7 +248,7 @@ private:
         TTaskPtr Task;
         int WaitingChunkCount = 0;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TStripeDescriptor, 0x4b2c8f31);
     };
 
     using TStripeDescriptorPtr = TIntrusivePtr<TStripeDescriptor>;
@@ -258,13 +262,15 @@ private:
 
         int GetTableIndex() const;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TInputChunkDescriptor, 0x7d5a21e4);
     };
 
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap_;
 
     bool InputHasOrderedDynamicStores_ = false;
     bool InputHasStaticTableWithHunks_ = false;
+
+    bool HasSkippedInputChunks_ = false;
 
     void FetchInputTablesAttributes();
 
@@ -292,7 +298,9 @@ private:
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(
         const TInputClusterPtr& cluster,
-        bool fetchHunkChunks = false) const;
+        NChunkClient::EChunkListContentType chunkListContentType) const;
+
+    PHOENIX_DECLARE_TYPE(TInputManager, 0xc5d6e7f8);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputManager)

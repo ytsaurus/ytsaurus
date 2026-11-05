@@ -6,6 +6,7 @@
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -16,6 +17,8 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/master/table_server/table_node.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -23,6 +26,8 @@
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 #include <util/string/cast.h>
 
@@ -51,8 +56,8 @@ TYsonString CombineObjectIds(
     const std::vector<TObjectId>& objectIds,
     const std::vector<std::vector<TObjectId>>& remoteObjectIds)
 {
-    TString result;
-    TStringOutput stringOutput(result);
+    std::string result;
+    TStdStringOutput stringOutput(result);
 
     auto writer = CreateYsonWriter(
         &stringOutput,

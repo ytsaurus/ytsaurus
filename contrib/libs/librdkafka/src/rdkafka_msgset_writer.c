@@ -114,9 +114,9 @@ rd_kafka_msgset_writer_select_MsgVersion(rd_kafka_msgset_writer_t *msetw) {
                 int feature;
                 int16_t ApiVersion;
         } compr_req[RD_KAFKA_COMPRESSION_NUM] = {
-                [RD_KAFKA_COMPRESSION_LZ4] = {RD_KAFKA_FEATURE_LZ4, 0},
+            [RD_KAFKA_COMPRESSION_LZ4] = {RD_KAFKA_FEATURE_LZ4, 0},
 #if WITH_ZSTD
-                [RD_KAFKA_COMPRESSION_ZSTD] = {RD_KAFKA_FEATURE_ZSTD, 7},
+            [RD_KAFKA_COMPRESSION_ZSTD] = {RD_KAFKA_FEATURE_ZSTD, 7},
 #endif
         };
 
@@ -145,12 +145,16 @@ rd_kafka_msgset_writer_select_MsgVersion(rd_kafka_msgset_writer_t *msetw) {
          * by both client and broker, else disable compression.
          */
         if (msetw->msetw_compression &&
-            (rd_kafka_broker_ApiVersion_supported(
-                 rkb, RD_KAFKAP_Produce, 0,
-                 compr_req[msetw->msetw_compression].ApiVersion, NULL) == -1 ||
-             (compr_req[msetw->msetw_compression].feature &&
-              !(msetw->msetw_rkb->rkb_features &
-                compr_req[msetw->msetw_compression].feature)))) {
+            (
+                /* ApiVersion is smaller than the minimum one */
+                !rd_kafka_broker_ApiVersion_at_least(
+                    rkb, RD_KAFKAP_Produce,
+                    compr_req[msetw->msetw_compression].ApiVersion) ||
+                /* There's a corresponding feature and it isn't supported
+                 * by this broker. */
+                (compr_req[msetw->msetw_compression].feature &&
+                 !(msetw->msetw_rkb->rkb_features &
+                   compr_req[msetw->msetw_compression].feature)))) {
                 if (unlikely(
                         rd_interval(&rkb->rkb_suppress.unsupported_compression,
                                     /* at most once per day */
@@ -705,8 +709,8 @@ rd_kafka_msgset_writer_write_msg_v2(rd_kafka_msgset_writer_t *msetw,
                                             sizeof(varint_OffsetDelta), Offset);
         sz_KeyLen   = rd_uvarint_enc_i32(varint_KeyLen, sizeof(varint_KeyLen),
                                        rkm->rkm_key
-                                           ? (int32_t)rkm->rkm_key_len
-                                           : (int32_t)RD_KAFKAP_BYTES_LEN_NULL);
+                                             ? (int32_t)rkm->rkm_key_len
+                                             : (int32_t)RD_KAFKAP_BYTES_LEN_NULL);
         sz_ValueLen = rd_uvarint_enc_i32(
             varint_ValueLen, sizeof(varint_ValueLen),
             rkm->rkm_payload ? (int32_t)rkm->rkm_len
@@ -815,16 +819,10 @@ static int rd_kafka_msgset_writer_write_msgq(rd_kafka_msgset_writer_t *msetw,
         size_t max_msg_size =
             RD_MIN((size_t)msetw->msetw_rkb->rkb_rk->rk_conf.max_msg_size,
                    (size_t)msetw->msetw_rkb->rkb_rk->rk_conf.batch_size);
-        rd_ts_t int_latency_base;
         rd_ts_t MaxTimestamp = 0;
         rd_kafka_msg_t *rkm;
         int msgcnt        = 0;
         const rd_ts_t now = rd_clock();
-
-        /* Internal latency calculation base.
-         * Uses rkm_ts_timeout which is enqueue time + timeout */
-        int_latency_base =
-            now + ((rd_ts_t)rktp->rktp_rkt->rkt_conf.message_timeout_ms * 1000);
 
         /* Acquire BaseTimestamp from first message. */
         rkm = TAILQ_FIRST(&rkmq->rkmq_msgs);
@@ -891,8 +889,7 @@ static int rd_kafka_msgset_writer_write_msgq(rd_kafka_msgset_writer_t *msetw,
                 msetw->msetw_messages_kvlen += rkm->rkm_len + rkm->rkm_key_len;
 
                 /* Add internal latency metrics */
-                rd_avg_add(&rkb->rkb_avg_int_latency,
-                           int_latency_base - rkm->rkm_ts_timeout);
+                rd_avg_add(&rkb->rkb_avg_int_latency, now - rkm->rkm_ts_enq);
 
                 /* MessageSet v2's .MaxTimestamp field */
                 if (unlikely(MaxTimestamp < rkm->rkm_timestamp))

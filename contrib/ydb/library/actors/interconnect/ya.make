@@ -13,6 +13,7 @@ ENDIF()
 
 SRCS(
     channel_scheduler.h
+    event_destructor.h
     event_filter.h
     event_holder_pool.h
     events_local.h
@@ -22,10 +23,11 @@ SRCS(
     interconnect_common.h
     interconnect_counters.cpp
     interconnect.h
+    interconnect_direct_session.h
     interconnect_handshake.cpp
     interconnect_handshake.h
-    interconnect_host_metrics_aggregator.cpp
-    interconnect_host_metrics_aggregator.h
+    interconnect_metrics_aggregator.cpp
+    interconnect_metrics_aggregator.h
     interconnect_impl.h
     interconnect_mon.cpp
     interconnect_mon.h
@@ -34,6 +36,9 @@ SRCS(
     interconnect_proxy_wrapper.cpp
     interconnect_proxy_wrapper.h
     interconnect_resolve.cpp
+    interconnect_session_iface.h
+    interconnect_session_pool_mapping.cpp
+    interconnect_session_pool_mapping.h
     interconnect_stream.cpp
     interconnect_stream.h
     interconnect_tcp_input_session.cpp
@@ -43,6 +48,11 @@ SRCS(
     interconnect_tcp_server.h
     interconnect_tcp_session.cpp
     interconnect_tcp_session.h
+    interconnect_tcp_session_v2.cpp
+    interconnect_tcp_session_v2.h
+    interconnect_uring_engine.h
+    interconnect_uring_engine_client.cpp
+    interconnect_uring_engine_client.h
     interconnect_zc_processor.cpp
     interconnect_zc_processor.h
     load.cpp
@@ -50,24 +60,49 @@ SRCS(
     packet.cpp
     packet.h
     profiler.h
+    rdma_sync_actor.cpp
     slowpoke_actor.h
+    subscriber_liveness_checker.cpp
+    subscriber_liveness_checker.h
     subscription_manager.cpp
     subscription_manager.h
     types.cpp
     types.h
+    v2_probes.cpp
+    v2_event_serializer.cpp
+    v2_event_serializer.h
+    xdc_limits.h
+    v2_io_buffers.h
+    v2_serialize_window.h
     watchdog_timer.h
 )
+
+PEERDIR(
+    contrib/ydb/library/uring
+)
+
+IF (OS_LINUX)
+    SRCS(
+        uring_context.cpp
+        uring_context.h
+        interconnect_uring_engine.cpp
+    )
+ELSE()
+    SRCS(
+        interconnect_uring_engine_stub.cpp
+    )
+ENDIF()
 
 PEERDIR(
     contrib/libs/libc_compat
     contrib/libs/openssl
     contrib/libs/xxhash
     contrib/ydb/library/actors/core
-    contrib/ydb/library/actors/dnscachelib
     contrib/ydb/library/actors/dnsresolver
     contrib/ydb/library/actors/helpers
     contrib/ydb/library/actors/interconnect/address
     contrib/ydb/library/actors/interconnect/poller
+    contrib/ydb/library/actors/interconnect/retro_tracing
     contrib/ydb/library/actors/interconnect/rdma
     contrib/ydb/library/actors/interconnect/rdma/cq_actor
     contrib/ydb/library/actors/prof
@@ -83,7 +118,6 @@ PEERDIR(
     library/cpp/monlib/service/pages/resources
     library/cpp/monlib/service/pages/tablesorter
     library/cpp/openssl/init
-    library/cpp/packedtypes
 )
 
 END()
@@ -98,7 +132,12 @@ IF (OS_LINUX)
     )
 ENDIF()
 
+RECURSE(
+    bench
+)
+
 RECURSE_FOR_TESTS(
+    benchmark
     ut
     ut_fat
     ut_huge_cluster

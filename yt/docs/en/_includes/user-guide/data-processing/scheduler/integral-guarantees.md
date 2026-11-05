@@ -80,11 +80,11 @@ Suppose there is a production process that requires 2000 CPUs 12 hours a day and
 
 The figure shows a graph of CPU usage and demand for a burst pool with a `burst_integral` guarantee of 500 CPU cores and a `resource_flow` of 100 CPU cores.
 
-![](../../../../../images/pool_consumption.png)
+![](../../../../../_images/pool_consumption.png)
 
 The figure below shows a graph of the volume of accumulated resource for the same pool. You can see how the volume of virtual resource decreases when operations are running in the pool, and then the resource is again accumulated to the specified limit.
 
-![](../../../../../images/pool_accumulated_resource_ratio_volume.png)
+![](../../../../../_images/pool_accumulated_resource_ratio_volume.png)
 
 ## Combination with strong guarantees
 

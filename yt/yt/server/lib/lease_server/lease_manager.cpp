@@ -44,9 +44,6 @@ class TLease final
     , public TRefTracked<TLease>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, PersistentRefCounter);
-    DEFINE_BYVAL_RW_PROPERTY(int, TransientRefCounter);
-
     DEFINE_BYVAL_RW_PROPERTY(TCellId, OwnerCellId);
 
 public:
@@ -75,6 +72,26 @@ public:
     int RefTransiently(bool force) override;
     int UnrefTransiently() override;
 
+    int GetPersistentRefCounter() const override
+    {
+        return PersistentRefCounter_;
+    }
+
+    void SetPersistentRefCounter(int value)
+    {
+        PersistentRefCounter_ = value;
+    }
+
+    int GetTransientRefCounter() const
+    {
+        return TransientRefCounter_;
+    }
+
+    void SetTransientRefCounter(int value)
+    {
+        TransientRefCounter_ = value;
+    }
+
     void SetState(ELeaseState newState)
     {
         YT_VERIFY(HasHydraContext());
@@ -91,11 +108,9 @@ public:
 
         // COMPAT(h0pless): Old snapshots are missing OwnerCellId_ due to a bug.
         if (context.GetVersion() < static_cast<int>(ELeaseManagerReign::PersistentLeaseOwnerCellId)) {
-            YT_LOG_ALERT("Loaded a lease object from an older snapshot; "
-                "the lease is likely stuck, consider forcing transaction abort "
-                "(LeaseId: %v, ContextVersion: %v)",
-                Id_,
-                context.GetVersion());
+            YT_TLOG_ALERT("Loaded a lease object from an older snapshot; the lease is likely stuck, consider forcing transaction abort")
+                .With("LeaseId", Id_)
+                .With("ContextVersion", context.GetVersion());
         } else {
             Persist(context, OwnerCellId_);
         }
@@ -104,6 +119,9 @@ public:
 private:
     const TLeaseId Id_;
     TLeaseManager* const Owner_;
+
+    int PersistentRefCounter_ = 0;
+    int TransientRefCounter_ = 0;
 
     ELeaseState State_ = ELeaseState::Unknown;
 };
@@ -119,6 +137,7 @@ class TLeaseManager
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TLeaseId leaseId, TCellId cellId), LeaseRevoked);
+    DEFINE_SIGNAL_OVERRIDE(void(ILease* lease), LeaseRemoved);
 
 public:
     TLeaseManager(
@@ -234,9 +253,9 @@ public:
                 }
             }
 
-            YT_LOG_INFO("Lease manager is decommissioned");
+            YT_TLOG_INFO("Lease manager is decommissioned");
         } else {
-            YT_LOG_INFO("Lease manager is no longer decommissioned");
+            YT_TLOG_INFO("Lease manager is no longer decommissioned");
         }
 
         Decommission_ = decommission;
@@ -247,6 +266,14 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Decommission_ && LeaseMap_.empty();
+    }
+
+    void Reconfigure(TLeaseManagerDynamicConfigPtr dynamicConfig) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        AutomatonInvoker_->Invoke(
+            BIND(&TLeaseManager::DoReconfigure, MakeWeak(this), std::move(dynamicConfig)));
     }
 
     IServicePtr GetRpcService() override
@@ -353,6 +380,17 @@ private:
         }
     }
 
+    void DoReconfigure(TLeaseManagerDynamicConfigPtr dynamicConfig)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        Config_->ApplyDynamicInplace(*dynamicConfig);
+
+        if (LeaseRemovalExecutor_) {
+            LeaseRemovalExecutor_->SetPeriod(Config_->LeaseRemovalPeriod);
+        }
+    }
+
     void HydraRegisterLease(NProto::TReqRegisterLease* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -362,11 +400,9 @@ private:
         auto ownerCellId = NHiveServer::GetHiveMutationSenderId();
 
         if (Decommission_) {
-            YT_LOG_DEBUG(
-                "Lease manager is decommissioned, ignoring lease registration "
-                "(LeaseId: %v, OwnerCellId: %v)",
-                leaseId,
-                ownerCellId);
+            YT_TLOG_DEBUG("Lease manager is decommissioned, ignoring lease registration")
+                .With("LeaseId", leaseId)
+                .With("OwnerCellId", ownerCellId);
             return;
         }
 
@@ -375,10 +411,9 @@ private:
         lease->SetState(ELeaseState::Active);
         lease->SetOwnerCellId(ownerCellId);
 
-        YT_LOG_DEBUG(
-            "Lease registered (LeaseId: %v, OwnerCellId: %v)",
-            leaseId,
-            ownerCellId);
+        YT_TLOG_DEBUG("Lease registered")
+            .With("LeaseId", leaseId)
+            .With("OwnerCellId", ownerCellId);
     }
 
     void HydraRevokeLease(NProto::TReqRevokeLease* request)
@@ -390,16 +425,14 @@ private:
         auto force = request->force();
         auto* lease = LeaseMap_.Find(leaseId);
         if (!lease) {
-            YT_LOG_DEBUG(
-                "Requested to remove non-existent lease, ignored (LeaseId: %v)",
-                leaseId);
+            YT_TLOG_DEBUG("Requested to remove non-existent lease, ignored")
+                .With("LeaseId", leaseId);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Revoking lease (LeaseId: %v, Force: %v)",
-            leaseId,
-            force);
+        YT_TLOG_DEBUG("Revoking lease")
+            .With("LeaseId", leaseId)
+            .With("Force", force);
 
         if (force) {
             DoRemoveLease(lease);
@@ -420,10 +453,9 @@ private:
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto cellId = GetHiveMutationSenderId();
 
-        YT_LOG_DEBUG(
-            "Lease was revoked (LeaseId: %v, CellId: %v)",
-            leaseId,
-            cellId);
+        YT_TLOG_DEBUG("Lease was revoked")
+            .With("LeaseId", leaseId)
+            .With("CellId", cellId);
 
         LeaseRevoked_.Fire(leaseId, cellId);
     }
@@ -437,9 +469,8 @@ private:
             auto leaseId = FromProto<TLeaseId>(protoLeaseId);
             auto* lease = LeaseMap_.Find(leaseId);
             if (!lease) {
-                YT_LOG_DEBUG(
-                    "Requested to remove a non-existing lease, ignored (LeaseId: %v)",
-                    leaseId);
+                YT_TLOG_DEBUG("Requested to remove a non-existing lease, ignored")
+                    .With("LeaseId", leaseId);
 
                 // NB: Technically should not be needed, but protects us from bugs.
                 LeaseIdsToRemove_.erase(leaseId);
@@ -447,20 +478,18 @@ private:
             }
 
             if (lease->GetState() != ELeaseState::Revoking) {
-                YT_LOG_ALERT("Requested to remove lease which is not in \"revoking\" state, ignored "
-                    "(LeaseId: %v, LeaseState: %v)",
-                    lease->GetId(),
-                    lease->GetState());
+                YT_TLOG_ALERT("Requested to remove lease which is not in \"revoking\" state, ignored")
+                    .With("LeaseId", lease->GetId())
+                    .With("LeaseState", lease->GetState());
 
                 LeaseIdsToRemove_.erase(leaseId);
                 continue;
             }
 
             if (lease->GetPersistentRefCounter() != 0) {
-                YT_LOG_ALERT("Requested to remove lease with non-zero persistent refcounter, ignored "
-                    "(LeaseId: %v, PersistentRefCounter: %v)",
-                    lease->GetId(),
-                    lease->GetPersistentRefCounter());
+                YT_TLOG_ALERT("Requested to remove lease with non-zero persistent refcounter, ignored")
+                    .With("LeaseId", lease->GetId())
+                    .With("PersistentRefCounter", lease->GetPersistentRefCounter());
 
                 LeaseIdsToRemove_.erase(leaseId);
                 continue;
@@ -495,7 +524,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
-        context->SetRequestInfo("LeaseId: %v", leaseId);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId);
 
         NProto::TReqRegisterLease req;
         ToProto(req.mutable_lease_id(), leaseId);
@@ -510,9 +540,9 @@ private:
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto force = request->force();
-        context->SetRequestInfo("LeaseId: %v, Force: %v",
-            leaseId,
-            force);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Force", force);
 
         NProto::TReqRevokeLease req;
         ToProto(req.mutable_lease_id(), leaseId);
@@ -529,10 +559,10 @@ private:
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
         auto force = request->force();
-        context->SetRequestInfo("LeaseId: %v, Persistent: %v, Force: %v",
-            leaseId,
-            persistent,
-            force);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Persistent", persistent)
+            .With("Force", force);
 
         if (persistent) {
             NProto::TReqToggleLeaseRefCounter req;
@@ -555,9 +585,9 @@ private:
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
-        context->SetRequestInfo("LeaseId: %v, Persistent: %v",
-            leaseId,
-            persistent);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Persistent", persistent);
 
         if (persistent) {
             NProto::TReqToggleLeaseRefCounter req;
@@ -580,19 +610,17 @@ private:
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced persistently")
-                << TErrorAttribute("lease_id", lease->GetId())
-                << TErrorAttribute("lease_state", lease->GetState());
+                .With("lease_id", lease->GetId())
+                .With("lease_state", lease->GetState());
         }
 
         auto persistentRefCounter = lease->GetPersistentRefCounter() + 1;
         lease->SetPersistentRefCounter(persistentRefCounter);
 
-        YT_LOG_DEBUG(
-            "Lease referenced persistently "
-            "(LeaseId: %v, PersistentRefCounter: %v -> %v)",
-            lease->GetId(),
-            persistentRefCounter - 1,
-            persistentRefCounter);
+        YT_TLOG_DEBUG("Lease referenced persistently")
+            .With("LeaseId", lease->GetId())
+            .With("OldPersistentRefCounter", persistentRefCounter - 1)
+            .With("NewPersistentRefCounter", persistentRefCounter);
 
         return persistentRefCounter;
     }
@@ -606,12 +634,10 @@ private:
         YT_VERIFY(persistentRefCounter >= 0);
         lease->SetPersistentRefCounter(persistentRefCounter);
 
-        YT_LOG_DEBUG(
-            "Lease unreferenced persistently "
-            "(LeaseId: %v, PersistentRefCounter: %v -> %v)",
-            lease->GetId(),
-            persistentRefCounter + 1,
-            persistentRefCounter);
+        YT_TLOG_DEBUG("Lease unreferenced persistently")
+            .With("LeaseId", lease->GetId())
+            .With("OldPersistentRefCounter", persistentRefCounter + 1)
+            .With("NewPersistentRefCounter", persistentRefCounter);
 
         if (IsLeader()) {
             MaybeRemoveLease(lease);
@@ -627,19 +653,17 @@ private:
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced transiently")
-                << TErrorAttribute("lease_id", lease->GetId())
-                << TErrorAttribute("lease_state", lease->GetState());
+                .With("lease_id", lease->GetId())
+                .With("lease_state", lease->GetState());
         }
 
         auto transientRefCounter = lease->GetTransientRefCounter() + 1;
         lease->SetTransientRefCounter(transientRefCounter);
 
-        YT_LOG_DEBUG(
-            "Lease referenced transiently "
-            "(LeaseId: %v, TransientRefCounter: %v -> %v)",
-            lease->GetId(),
-            transientRefCounter - 1,
-            transientRefCounter);
+        YT_TLOG_DEBUG("Lease referenced transiently")
+            .With("LeaseId", lease->GetId())
+            .With("OldTransientRefCounter", transientRefCounter - 1)
+            .With("NewTransientRefCounter", transientRefCounter);
 
         return transientRefCounter;
     }
@@ -651,12 +675,10 @@ private:
         auto transientRefCounter = lease->GetTransientRefCounter() - 1;
         lease->SetTransientRefCounter(transientRefCounter);
 
-        YT_LOG_DEBUG(
-            "Lease unreferenced transiently "
-            "(LeaseId: %v, TransientRefCounter: %v -> %v)",
-            lease->GetId(),
-            transientRefCounter + 1,
-            transientRefCounter);
+        YT_TLOG_DEBUG("Lease unreferenced transiently")
+            .With("LeaseId", lease->GetId())
+            .With("OldTransientRefCounter", transientRefCounter + 1)
+            .With("NewTransientRefCounter", transientRefCounter);
 
         MaybeRemoveLease(lease);
 
@@ -672,9 +694,8 @@ private:
             lease->GetPersistentRefCounter() == 0 &&
             lease->GetTransientRefCounter() == 0)
         {
-            YT_LOG_DEBUG(
-                "Lease is no longer needed, adding lease to removal queue (LeaseId: %v)",
-                lease->GetId());
+            YT_TLOG_DEBUG("Lease is no longer needed, adding lease to removal queue")
+                .With("LeaseId", lease->GetId());
             LeaseIdsToRemove_.insert(lease->GetId());
             LeaseRemovalExecutor_->ScheduleOutOfBand();
         }
@@ -688,7 +709,7 @@ private:
         // NB: Lease may die below.
         auto leaseId = lease->GetId();
         auto ownerCellId = lease->GetOwnerCellId();
-        LeaseMap_.Release(leaseId);
+        auto leaseHolder = LeaseMap_.Release(leaseId);
 
         LeaseIdsToRemove_.erase(leaseId);
 
@@ -702,9 +723,10 @@ private:
             HiveManager_->PostMessage(mailbox, message);
         }
 
-        YT_LOG_DEBUG(
-            "Lease removed (LeaseId: %v)",
-            leaseId);
+        LeaseRemoved_.Fire(lease);
+
+        YT_TLOG_DEBUG("Lease removed")
+            .With("LeaseId", leaseId);
     }
 
     void ScheduleRemoveLeases()
@@ -727,12 +749,13 @@ private:
         ToProto(request.mutable_lease_ids(), leaseIdsToRemove);
         auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, request);
 
-        YT_LOG_DEBUG("Scheduled lease removal (LeaseCount: %v)",
-            leaseIdsToRemove.size());
+        YT_TLOG_DEBUG("Scheduled lease removal")
+            .With("LeaseCount", leaseIdsToRemove.size());
 
         auto error = WaitFor(mutation->Commit());
 
-        YT_LOG_DEBUG_UNLESS(error.IsOK(), error, "Failed to remove leases");
+        YT_TLOG_DEBUG_UNLESS(error.IsOK(), "Failed to remove leases")
+            .With(error);
     }
 
 

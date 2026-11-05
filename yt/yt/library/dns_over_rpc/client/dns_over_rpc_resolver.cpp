@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NDns {
 
@@ -59,9 +59,9 @@ public:
                 NRpc::TDispatcher::Get()->GetLightInvoker());
         }
 
-        YT_LOG_DEBUG("Resolve request batched (HostName: %v, Options: %v)",
-            hostName,
-            options);
+        YT_TLOG_DEBUG("Resolve request batched")
+            .With("HostName", hostName)
+            .With("Options", options);
 
         return promise.ToFuture();
     }
@@ -72,7 +72,7 @@ private:
     const NYT::NBus::IBusClientPtr BusClient_;
     const IChannelPtr Channel_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TDelayedExecutorCookie BatchingTimeoutCookie_;
     google::protobuf::RepeatedPtrField<NProto::TReqResolve_TSubrequest> Subrequests_;
     std::vector<TPromise<TNetworkAddress>> Promises_;
@@ -91,8 +91,8 @@ private:
         BatchingTimeoutCookie_ = {};
         guard.Release();
 
-        YT_LOG_DEBUG("Started resolving batched requests (Count: %v)",
-            req->subrequests_size());
+        YT_TLOG_DEBUG("Started resolving batched requests")
+            .With("Count", req->subrequests_size());
 
         req->Invoke()
             .Subscribe(BIND(&TDnsOverRpcResolver::OnBatchResolved, MakeStrong(this), Passed(std::move(promises)))
@@ -104,16 +104,17 @@ private:
         const TDnsOverRpcServiceProxy::TErrorOrRspResolvePtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error resolving batched requests");
+            YT_TLOG_WARNING("Error resolving batched requests")
+                .With(rspOrError);
             auto error = TError("DNS-over-RPC resolve failed")
-                << rspOrError;
+                .With(rspOrError);
             for (const auto& promise : promises) {
                 promise.Set(error);
             }
             return;
         }
 
-        YT_LOG_DEBUG("Finished resolving batched requests");
+        YT_TLOG_DEBUG("Finished resolving batched requests");
 
         const auto& rsp = rspOrError.Value();
         YT_VERIFY(std::ssize(promises) == rsp->subresponses_size());

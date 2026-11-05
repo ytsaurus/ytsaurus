@@ -4,7 +4,8 @@
 
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/config.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_move_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/resharder.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
@@ -16,6 +17,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -24,13 +27,14 @@
 
 namespace NYT::NTabletBalancer::NDryRun {
 
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TabletBalancer");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TabletBalancer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,18 +49,18 @@ const std::vector<std::string> DefaultPerformanceCountersKeys{
 void PrintDescriptors(const std::vector<TMoveDescriptor>& descriptors)
 {
     for (const auto& descriptor : descriptors) {
-        YT_LOG_INFO("TMoveDescriptor(CellId: %v, TabletId: %v)",
-            descriptor.TabletCellId,
-            descriptor.TabletId);
+        YT_TLOG_INFO("Move descriptor")
+            .With("CellId", descriptor.TabletCellId)
+            .With("TabletId", descriptor.TabletId);
     }
 }
 
 void PrintDescriptors(const std::vector<TReshardDescriptor>& descriptors)
 {
     for (const auto& descriptor : descriptors) {
-        YT_LOG_INFO("TReshardDescriptor(Tablets: %v,  TabletCount: %v)",
-            descriptor.Tablets,
-            descriptor.TabletCount);
+        YT_TLOG_INFO("Reshard descriptor")
+            .With("Tablets", descriptor.Tablets)
+            .With("TabletCount", descriptor.TabletCount);
     }
 }
 
@@ -78,17 +82,17 @@ void ApplyMoveDescriptors(
 
 std::vector<TReshardDescriptor> ReshardBundleParameterized(
     const TTabletCellBundlePtr& bundle,
-    const TString& parameterizedConfig,
-    const TString& group)
+    const std::string& parameterizedConfig,
+    const TGroupName& group)
 {
     auto commonParameterizedConfig = ConvertTo<TParameterizedBalancingConfigPtr>(TYsonString(parameterizedConfig));
     auto groupConfig = GetOrCrash(bundle->Config->Groups, group)->Parameterized;
 
     auto enable = groupConfig->EnableReshard.value_or(false);
     if (!enable) {
-        YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
-            bundle->Name,
-            group);
+        YT_TLOG_DEBUG("Balancing tablets via parameterized reshard is disabled")
+            .With("BundleName", bundle->Name)
+            .With("Group", group);
         return {};
     }
 
@@ -104,7 +108,8 @@ std::vector<TReshardDescriptor> ReshardBundleParameterized(
 
     std::vector<TReshardDescriptor> descriptors;
     for (const auto& [id, table] : bundle->Tables) {
-        YT_LOG_DEBUG("Performing table parameterized reshard (TableId: %v)", id);
+        YT_TLOG_DEBUG("Performing table parameterized reshard")
+            .With("TableId", id);
         auto tableDescriptors = resharder->BuildTableActionDescriptors(table);
         descriptors.insert(descriptors.end(), tableDescriptors.begin(), tableDescriptors.end());
     }
@@ -138,11 +143,13 @@ std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle
         }
 
         if (tablets.empty()) {
-            YT_LOG_DEBUG("Table skipped since it has 0 mounted tablets (TableId: %v)", table->Id);
+            YT_TLOG_DEBUG("Table skipped since it has 0 mounted tablets")
+                .With("TableId", table->Id);
             continue;
         }
 
-        YT_LOG_DEBUG("Resharding table (TableId: %v)", table->Id);
+        YT_TLOG_DEBUG("Resharding table")
+            .With("TableId", table->Id);
         auto tableDescriptors = MergeSplitTabletsOfTable(
             std::move(tablets),
             /*minDesiredTabletSize*/ 0,
@@ -157,45 +164,40 @@ std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle
 
 void ValidateBundle(const TTabletCellBundlePtr& bundle)
 {
-    YT_LOG_ERROR_IF(bundle->TabletCells.empty(), "Bundle has no cells");
-    YT_LOG_ERROR_IF(bundle->Tables.empty(), "Bundle has no tables");
-    YT_LOG_ERROR_IF(bundle->NodeStatistics.empty(), "Bundle has no nodes");
+    YT_TLOG_ERROR_IF(bundle->TabletCells.empty(), "Bundle has no cells");
+    YT_TLOG_ERROR_IF(bundle->Tables.empty(), "Bundle has no tables");
+    YT_TLOG_ERROR_IF(bundle->NodeStatistics.empty(), "Bundle has no nodes");
 
-    YT_LOG_DEBUG_UNLESS(bundle->TabletCells.empty(),
-        "Reporting cell count (CellCount: %v)",
-        bundle->TabletCells.size());
+    YT_TLOG_DEBUG_UNLESS(bundle->TabletCells.empty(), "Reporting cell count")
+        .With("CellCount", bundle->TabletCells.size());
 
-    YT_LOG_DEBUG_UNLESS(bundle->Tables.empty(),
-        "Reporting table count (TableCount: %v)",
-        bundle->Tables.size());
+    YT_TLOG_DEBUG_UNLESS(bundle->Tables.empty(), "Reporting table count")
+        .With("TableCount", bundle->Tables.size());
 
-    YT_LOG_DEBUG_UNLESS(bundle->NodeStatistics.empty(),
-        "Reporting node count (NodeCount: %v)",
-        bundle->NodeStatistics.size());
+    YT_TLOG_DEBUG_UNLESS(bundle->NodeStatistics.empty(), "Reporting node count")
+        .With("NodeCount", bundle->NodeStatistics.size());
 
     for (const auto& [id, table] : bundle->Tables) {
-        YT_LOG_ERROR_IF(table->Tablets.empty(), "Table has no tablets (TableId: %v)", id);
+        YT_TLOG_ERROR_IF(table->Tablets.empty(), "Table has no tablets")
+            .With("TableId", id);
 
-        YT_LOG_DEBUG_UNLESS(table->Tablets.empty(),
-            "Reporting tablet count (TableId: %v, TabletCount: %v)",
-            id,
-            table->Tablets.size());
+        YT_TLOG_DEBUG_UNLESS(table->Tablets.empty(), "Reporting tablet count")
+            .With("TableId", id)
+            .With("TabletCount", table->Tablets.size());
     }
 }
 
 TTabletActionBatch Balance(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
-    const TString& parameterizedConfig)
+    const TGroupName& group,
+    const std::string& parameterizedConfig)
 {
     switch (mode) {
         case EBalancingMode::InMemoryMove: {
             return TTabletActionBatch{
                 .MoveDescriptors = ReassignInMemoryTablets(
                     bundle,
-                    /*movableTables*/ std::nullopt,
-                    /*ignoreTableWiseConfig*/ false,
                     Logger())
                 };
         }
@@ -214,6 +216,9 @@ TTabletActionBatch Balance(
                     config,
                     group,
                     /*metricTracker*/ nullptr,
+                    CreateThreadPool(
+                        4,
+                        "Worker"),
                     Logger())
             };
         }
@@ -230,7 +235,6 @@ TTabletActionBatch Balance(
             return TTabletActionBatch{
                 .MoveDescriptors = ReassignOrdinaryTablets(
                     bundle,
-                    /*movableTables*/ std::nullopt,
                     Logger())
             };
         }
@@ -246,13 +250,13 @@ TTabletActionBatch Balance(
 TTabletActionBatch BalanceAndPrintDescriptors(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
-    const TString& parameterizedConfig)
+    const TGroupName& group,
+    const std::string& parameterizedConfig)
 {
     ValidateBundle(bundle);
-    YT_LOG_INFO("Balancing iteration started");
+    YT_TLOG_INFO("Balancing iteration started");
     auto descriptors = Balance(mode, bundle, group, parameterizedConfig);
-    YT_LOG_INFO("Balancing iteration finished");
+    YT_TLOG_INFO("Balancing iteration finished");
     PrintDescriptors(descriptors);
     return descriptors;
 }

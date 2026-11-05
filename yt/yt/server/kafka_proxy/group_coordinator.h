@@ -24,7 +24,7 @@ DEFINE_REFCOUNTED_TYPE(IGroupCoordinator)
 struct IGroupCoordinatorManager
     : public TRefCounted
 {
-    virtual std::optional<IGroupCoordinatorPtr> GetGroupCoordinator(const NKafka::TGroupId& groupId) = 0;
+    virtual IGroupCoordinatorPtr FindGroupCoordinator(const NKafka::TGroupId& groupId) = 0;
     virtual IGroupCoordinatorPtr GetOrCreateGroupCoordinator(const NKafka::TGroupId& groupId) = 0;
     virtual void OnDynamicConfigChanged(const TGroupCoordinatorConfigPtr& config) = 0;
 };

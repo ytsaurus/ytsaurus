@@ -1,0 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+  tech.ytsaurus.flow.spring.FlowEnvironmentPostProcessor

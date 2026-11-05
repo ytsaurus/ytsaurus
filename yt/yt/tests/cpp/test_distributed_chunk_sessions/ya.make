@@ -6,12 +6,14 @@ ALLOCATOR(YT)
 
 SRCS(
     test_distributed_chunk_sessions.cpp
+    test_node_directory.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/query/engine
+    yt/yt/server/lib/distributed_chunk_session_server
     yt/yt/tests/cpp/test_base
     yt/yt/ytlib
     yt/yt/core/test_framework
@@ -29,7 +31,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

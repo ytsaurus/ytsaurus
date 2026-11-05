@@ -4,6 +4,7 @@
 #include <base/strong_typedef.h>
 
 #include <atomic>
+#include <vector>
 
 namespace LatencyBuckets
 {

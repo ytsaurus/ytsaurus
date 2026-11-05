@@ -108,6 +108,7 @@ TSchedulerInputState GenerateSimpleInputContext(
     input.Config->EnableNetworkLimits = true;
 
     input.DynamicConfig = New<TBundleControllerDynamicConfig>();
+    input.DynamicConfig->FlushLogAfterMutations = true;
 
     {
         auto zoneInfo = New<TZoneInfo>();
@@ -141,6 +142,7 @@ TSchedulerInputState GenerateMultiDCInputContext(
     input.Config->EnableNetworkLimits = true;
 
     input.DynamicConfig = New<TBundleControllerDynamicConfig>();
+    input.DynamicConfig->FlushLogAfterMutations = true;
 
     {
         auto zoneInfo = New<TZoneInfo>();

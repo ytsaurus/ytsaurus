@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../type_tag.h"
+#include <yt/cpp/roren/interface/type_tag.h>
 
 #include <util/generic/string.h>
 #include <util/generic/hash.h>

@@ -97,13 +97,9 @@ private:
 
     TSharedRange<NTableClient::TRowRange> ReadRange_;
 
-    // Separate range containing MinKey_ and UpperBoundKey_.
-    // Cannot use MinKey_ and UpperBoundKey_ as is because they need to be captured in row buffer.
-    TSharedRange<NTableClient::TRowRange> ClippingRange_;
-
     const NTableClient::TKeyComparer KeyComparer_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkColumnMappingLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ChunkColumnMappingLock_);
     NTableClient::TChunkColumnMappingPtr ChunkColumnMapping_;
 
     TTimestamp MaxClipTimestamp_ = NullTimestamp;

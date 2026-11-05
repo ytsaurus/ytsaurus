@@ -76,15 +76,11 @@ public:
             if (auto unfoldedColumn = attributes->FindAndRemove<std::string>("unfolded_column")) {
                 attributes->Remove("unfolded_table_column");
                 attributes->Remove("unfolded_index_column");
-                return TUnfoldedColumns{
-                    .TableColumn = *unfoldedColumn,
-                    .IndexColumn = *unfoldedColumn,
-                };
+                return TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
             } else {
-                return TUnfoldedColumns{
-                    .TableColumn = attributes->GetAndRemove<std::string>("unfolded_table_column"),
-                    .IndexColumn = attributes->GetAndRemove<std::string>("unfolded_index_column"),
-                };
+                return TUnfoldedColumns(
+                    attributes->GetAndRemove<std::string>("unfolded_table_column"),
+                    attributes->GetAndRemove<std::string>("unfolded_index_column"));
             }
         };
         auto unfoldedColumns = kind == ESecondaryIndexKind::Unfolding
@@ -94,10 +90,19 @@ public:
         auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(
             EInternedAttributeKey::EvaluatedColumnsSchema.Unintern());
 
+        auto [table, indexTable] = Bootstrap_->GetTableManager()->ValidateSecondaryIndexCreationAndGetTables(
+            kind,
+            tableId,
+            indexTableId,
+            predicate,
+            unfoldedColumns,
+            evaluatedColumns);
+
         return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
             hintId,
             kind,
-            tableId,
+            table,
+            indexTable,
             indexTableId,
             std::move(predicate),
             std::move(unfoldedColumns),
@@ -113,16 +118,16 @@ private:
         auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
         auto* indexTable = tableManager->FindTableNode(secondaryIndex->GetIndexTableId());
         if (table) {
-            YT_LOG_DEBUG("Drop index links from table due to index removal (IndexId: %v, TableId: %v)",
-                secondaryIndex->GetId(),
-                secondaryIndex->GetTableId());
+            YT_TLOG_DEBUG("Drop index links from table due to index removal")
+                .With("IndexId", secondaryIndex->GetId())
+                .With("TableId", secondaryIndex->GetTableId());
             EraseOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
             secondaryIndex->SetTableId({});
         }
         if (indexTable) {
-            YT_LOG_DEBUG("Drop index links from index table due to index removal (IndexId: %v, TableId: %v)",
-                secondaryIndex->GetId(),
-                secondaryIndex->GetIndexTableId());
+            YT_TLOG_DEBUG("Drop index links from index table due to index removal")
+                .With("IndexId", secondaryIndex->GetId())
+                .With("TableId", secondaryIndex->GetIndexTableId());
             indexTable->SetIndexTo(nullptr);
             secondaryIndex->SetIndexTableId({});
         }
@@ -135,12 +140,12 @@ private:
         return CreateSecondaryIndexProxy(Bootstrap_, &Metadata_, secondaryIndex);
     }
 
-    TCellTagList DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
+    TCellTagSet DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
     {
         auto cellTag = secondaryIndex->GetExternalCellTag();
         return cellTag == NObjectClient::NotReplicatedCellTagSentinel
-            ? TCellTagList{}
-            : TCellTagList{cellTag};
+            ? EmptyCellTags()
+            : TCellTagSet{cellTag};
     }
 
     TAccessControlDescriptor* DoFindAcd(TSecondaryIndex* secondaryIndex) override

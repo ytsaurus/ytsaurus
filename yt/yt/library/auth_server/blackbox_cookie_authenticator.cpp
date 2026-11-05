@@ -58,7 +58,7 @@ public:
         auto sessionId = GetOrCrash(cookies, BlackboxSessionIdCookieName);
 
         std::vector<TErrorAttribute> errorAttributes;
-        std::optional<TString> sslSessionId;
+        std::optional<std::string> sslSessionId;
         auto cookieIt = cookies.find(BlackboxSslSessionIdCookieName);
         if (cookieIt != cookies.end()) {
             sslSessionId = cookieIt->second;
@@ -66,15 +66,15 @@ public:
 
         auto sessionIdMD5 = GetMD5HexDigestUpperCase(sessionId);
         errorAttributes.emplace_back("sessionid_md5", sessionIdMD5);
-        TString sslSessionIdMD5 = "<empty>";
+        std::string sslSessionIdMD5 = "<empty>";
         if (sslSessionId) {
             sslSessionIdMD5 = GetMD5HexDigestUpperCase(*sslSessionId);
             errorAttributes.emplace_back("sslsessionid_md5", sslSessionIdMD5);
         }
         auto userIP = FormatUserIP(credentials.UserIP);
 
-        std::optional<TString> sessguard;
-        TString sessguardMD5 = "<empty>";
+        std::optional<std::string> sessguard;
+        std::string sessguardMD5 = "<empty>";
         std::string origin = Config_->Domain;
         auto sessguardIt = cookies.find(BlackboxSessguardCookieName);
         if (Config_->EnableSessguard && sessguardIt != cookies.end()) {
@@ -83,16 +83,16 @@ public:
             errorAttributes.emplace_back("sessguard_md5", sessguardMD5);
         }
 
-        auto authArgs = Format("SessionIdMD5: %v, SslSessionIdMD5: %v, SessguardMD5: %v, UserIP: %v",
-            sessionIdMD5,
-            sslSessionIdMD5,
-            sessguardMD5,
-            userIP);
+        auto authTags = NLogging::TLoggingTagList()
+            .With("SessionIdMD5", sessionIdMD5)
+            .With("SslSessionIdMD5", sslSessionIdMD5)
+            .With("SessguardMD5", sessguardMD5)
+            .With("UserIP", userIP);
 
-        YT_LOG_DEBUG("Authenticating user via session cookie (%v)",
-            authArgs);
+        YT_TLOG_DEBUG("Authenticating user via session cookie")
+            .With(authTags);
 
-        THashMap<TString, TString> params{
+        THashMap<std::string, std::string> params{
             {"sessionid", sessionId},
             {"host", Config_->Domain},
             {"userip", userIP},
@@ -114,7 +114,7 @@ public:
             .Apply(BIND(
                 &TBlackboxCookieAuthenticator::OnCallResult,
                 MakeStrong(this),
-                std::move(authArgs),
+                std::move(authTags),
                 std::move(errorAttributes)));
     }
 
@@ -124,21 +124,21 @@ private:
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
-        const TString& authArgs,
+        const NLogging::TLoggingTagList& authTags,
         const std::vector<TErrorAttribute>& errorAttributes,
         const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            YT_LOG_DEBUG(result, "Authentication failed (%v)",
-                authArgs);
-            result <<= errorAttributes;
+            YT_TLOG_DEBUG("Authentication failed")
+                .With(authTags)
+                .With(result);
+            result.Add(errorAttributes);
         } else {
-            YT_LOG_DEBUG(
-                "Authentication successful (%v, Login: %v, Realm: %v)",
-                authArgs,
-                result.Value().Login,
-                result.Value().Realm);
+            YT_TLOG_DEBUG("Authentication successful")
+                .With(authTags)
+                .With("Login", result.Value().Login)
+                .With("Realm", result.Value().Realm);
         }
         return MakeFuture(result);
     }
@@ -152,12 +152,12 @@ private:
 
         auto status = TryCheckedEnumCast<EBlackboxStatus>(statusId.Value());
         if (status != EBlackboxStatus::Valid && status != EBlackboxStatus::NeedReset) {
-            auto error = GetByYPath<TString>(data, "/error");
+            auto error = GetByYPath<std::string>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             auto statusString = status.has_value() ? Format("%lv", *status) : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
-                << TErrorAttribute("reason", reason)
-                << TErrorAttribute("blackbox_status_string", statusString);
+                .With("reason", reason)
+                .With("blackbox_status_string", statusString);
         }
 
         auto login = BlackboxService_->GetLogin(data);
@@ -165,13 +165,13 @@ private:
         // Sanity checks.
         if (!login.IsOK()) {
             return TError("Blackbox returned invalid response")
-                << login;
+                .With(login);
         }
 
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:cookie";
-        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        auto userTicket = GetByYPath<std::string>(data, "/user_ticket");
         if (userTicket.IsOK()) {
             result.UserTicket = userTicket.Value();
         } else if (Config_->GetUserTicket) {

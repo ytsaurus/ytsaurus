@@ -15,7 +15,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/mpsc_stack.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NDataNode {
 

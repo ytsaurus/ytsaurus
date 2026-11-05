@@ -1,0 +1,14 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+message TGrpcServerConfig {
+    optional string Bind = 1;
+    optional uint32 Port = 2;
+    optional string CertFilePath = 3; // prefixed (file://, classpath:// file path to cert)
+    optional string KeyFilePath = 4; // prefixed (file://, classpath:// file path to key)
+}
+
+message TGrpcClientConfig {
+    optional string DomainNameOverride = 1;
+    optional string CaCertPath = 2; // prefixed (file://, classpath:// file path to key)
+}

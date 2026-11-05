@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_reader_host.h"
+
 #include "chunk_reader_options.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
@@ -32,6 +33,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/adaptive_hedging_manager.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -87,7 +89,7 @@ struct TChunkInfo final
 {
     NErasure::ECodec ErasureCodecId;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     TInstant LastAccessTime;
     TReplicasWithRevision ReplicasWithRevision;
 };
@@ -119,17 +121,18 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
         return true;
     }
 
-    auto* codec = NErasure::GetCodec(codecId);
+    auto* codec = NErasure::GetCodecOrThrow(codecId);
+    const auto& codecParams = codec->GetParams();
 
     NErasure::TPartIndexSet erasedPartIndexes;
-    for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+    for (int index = 0; index < codecParams.TotalPartCount; ++index) {
         erasedPartIndexes.set(index);
     }
     for (const auto& replica : replicasWithRevision.Replicas) {
         erasedPartIndexes.reset(replica.ReplicaIndex);
     }
 
-    if (static_cast<int>(erasedPartIndexes.count()) <= codec->GetGuaranteedRepairablePartCount()) {
+    if (static_cast<int>(erasedPartIndexes.count()) <= codecParams.GuaranteedRepairablePartCount) {
         return false;
     }
 
@@ -146,7 +149,7 @@ TProbingPenalty PenalizeBannedNode(TProbingPenalty penalty)
     return {penalty.first, penalty.second + 1e20};
 }
 
-}  // namespace
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +168,7 @@ public:
         , NodeDirectory_(Host_->Client->GetNativeConnection()->GetNodeDirectory())
         , NodeStatusDirectory_(Host_->Client->GetNativeConnection()->GetNodeStatusDirectory())
         , Networks_(Host_->Client->GetNativeConnection()->GetNetworks())
-        , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
+        , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , PeerInfoCache_(New<TPeerInfoCache>(
             Config_->PeerInfoExpirationTimeout,
@@ -180,8 +183,8 @@ public:
     }
 
     TFuture<TReadFragmentsResponse> ReadFragments(
-        TClientChunkReadOptions options,
-        std::vector<TChunkFragmentRequest> requests) override;
+        std::vector<TChunkFragmentRequest> requests,
+        TClientChunkReadOptions options) override;
 
 private:
     class TProbingSessionBase;
@@ -204,7 +207,7 @@ private:
     NProfiling::TCounter FailedProbingRequestCounter_;
 
     // TODO(babenko): maybe implement sharding
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkIdToChunkInfoLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ChunkIdToChunkInfoLock_);
     THashMap<TChunkId, TChunkInfoPtr> ChunkIdToChunkInfo_;
 
 
@@ -281,8 +284,8 @@ private:
             if (IsChunkLost(chunkInfo->ReplicasWithRevision, chunkInfo->ErasureCodecId)) {
                 entryGuard.Release();
                 ChunkIdToChunkInfo_.erase(it);
-                YT_LOG_DEBUG("Dropped lost chunk from chunk info cache (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Dropped lost chunk from chunk info cache")
+                    .With("ChunkId", chunkId);
             }
         }
     }
@@ -332,8 +335,8 @@ protected:
     {
         ChunkIds_ = std::move(chunkIds);
 
-        YT_LOG_DEBUG("Chunk fragment reader probing session started (ChunkCount: %v)",
-            ChunkIds_.size());
+        YT_TLOG_DEBUG("Chunk fragment reader probing session started")
+            .With("ChunkCount", ChunkIds_.size());
 
         auto futures = GetAllyReplicas();
 
@@ -353,8 +356,8 @@ protected:
             TryDiscardChunkReplicas(chunkId);
         }
 
-        YT_LOG_DEBUG("Some chunks are lost (ChunkIds: %v)",
-            lostChunkIds);
+        YT_TLOG_DEBUG("Some chunks are lost")
+            .With("ChunkIds", lostChunkIds);
     }
 
     // Returns whether probing session may be stopped.
@@ -426,8 +429,9 @@ private:
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
             if (!probingInfo.PeerInfoOrError.IsOK()) {
-                YT_LOG_ERROR(probingInfo.PeerInfoOrError, "Failed to obtain peer info (NodeId: %v)",
-                    probingInfo.NodeId);
+                YT_TLOG_ERROR("Failed to obtain peer info")
+                    .With("NodeId", probingInfo.NodeId)
+                    .With(probingInfo.PeerInfoOrError);
 
                 OnPeerInfoFailed(probingInfo.NodeId, probingInfo.PeerInfoOrError);
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
@@ -486,20 +490,20 @@ private:
             if (!probingRspOrError.IsOK()) {
                 YT_VERIFY(probingRspOrError.GetCode() != EErrorCode::NoSuchChunk);
 
-                YT_LOG_ERROR(probingRspOrError, "Failed to probe peer (NodeId: %v, Address: %v)",
-                    probingInfo.NodeId,
-                    peerInfo->Address);
+                YT_TLOG_ERROR("Failed to probe peer")
+                    .With("NodeId", probingInfo.NodeId)
+                    .With("Address", peerInfo->Address)
+                    .With(probingRspOrError);
 
                 MaybeMarkNodeSuspicious(probingRspOrError, probingInfo);
 
                 if (suspicionMarkTime && Config_->SuspiciousNodeGracePeriod) {
                     auto now = NProfiling::GetInstant();
                     if (*suspicionMarkTime + *Config_->SuspiciousNodeGracePeriod < now) {
-                        YT_LOG_DEBUG("Discarding seeds due to node being suspicious "
-                            "(NodeId: %v, Address: %v, SuspicionTime: %v)",
-                            probingInfo.NodeId,
-                            peerInfo->Address,
-                            suspicionMarkTime);
+                        YT_TLOG_DEBUG("Discarding seeds due to node being suspicious")
+                            .With("NodeId", probingInfo.NodeId)
+                            .With("Address", peerInfo->Address)
+                            .With("SuspicionTime", suspicionMarkTime);
                         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
                             TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndex.Id);
                         }
@@ -517,9 +521,9 @@ private:
             }
 
             if (suspicionMarkTime) {
-                YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
-                    probingInfo.NodeId,
-                    peerInfo->Address);
+                YT_TLOG_DEBUG("Node is not suspicious anymore")
+                    .With("NodeId", probingInfo.NodeId)
+                    .With("Address", peerInfo->Address);
                 Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                     probingInfo.NodeId,
                     peerInfo->Address,
@@ -533,9 +537,9 @@ private:
             YT_VERIFY(std::ssize(probingInfo.ChunkIndexes) == probingRsp->subresponses_size());
 
             if (probingRsp->net_throttling()) {
-                YT_LOG_DEBUG("Peer is net-throttling (Address: %v, NetQueueSize: %v)",
-                    peerInfo->Address,
-                    probingRsp->net_queue_size());
+                YT_TLOG_DEBUG("Peer is net-throttling")
+                    .With("Address", peerInfo->Address)
+                    .With("NetQueueSize", probingRsp->net_queue_size());
             }
 
             auto mapGuard = ReaderGuard(Reader_->ChunkIdToChunkInfoLock_);
@@ -550,17 +554,17 @@ private:
                 TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
-                    YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
-                        chunkIdWithIndex,
-                        peerInfo->Address);
+                    YT_TLOG_DEBUG("Chunk is missing from node")
+                        .With("ChunkId", chunkIdWithIndex)
+                        .With("Address", peerInfo->Address);
                     continue;
                 }
 
                 if (subresponse.disk_throttling()) {
-                    YT_LOG_DEBUG("Peer is disk-throttling (Address: %v, ChunkId: %v, DiskQueueSize: %v)",
-                        peerInfo->Address,
-                        chunkIdWithIndex,
-                        subresponse.disk_queue_size());
+                    YT_TLOG_DEBUG("Peer is disk-throttling")
+                        .With("Address", peerInfo->Address)
+                        .With("ChunkId", chunkIdWithIndex)
+                        .With("DiskQueueSize", subresponse.disk_queue_size());
                 }
 
                 auto& replicasWithRevision = chunkProbingResults[chunkIndex].ReplicasWithRevision;
@@ -579,8 +583,8 @@ private:
         Reader_->SuccessfulProbingRequestCounter_.Increment(successfulProbingRequestCount);
         Reader_->FailedProbingRequestCounter_.Increment(failedProbingRequestCount);
 
-        YT_LOG_DEBUG("Chunk fragment reader probing session completed (WallTime: %v)",
-            Timer_.GetElapsedTime());
+        YT_TLOG_DEBUG("Chunk fragment reader probing session completed")
+            .With("WallTime", Timer_.GetElapsedTime());
 
         OnFinished(
             std::ssize(probingInfos),
@@ -712,9 +716,10 @@ private:
         if (!probingInfo.SuspicionMarkTime &&
             Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
         {
-            YT_LOG_WARNING(error, "Node is marked as suspicious (NodeId: %v, Address: %v)",
-                probingInfo.NodeId,
-                peerInfo->Address);
+            YT_TLOG_WARNING("Node is marked as suspicious")
+                .With("NodeId", probingInfo.NodeId)
+                .With("Address", peerInfo->Address)
+                .With(error);
             Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 probingInfo.NodeId,
                 peerInfo->Address,
@@ -734,7 +739,7 @@ public:
         : TProbingSessionBase(
             reader,
             MakeOptions(),
-            reader->Logger().WithTag("PeriodicProbingSessionId: %v", TGuid::Create()))
+            reader->Logger().WithTag("PeriodicProbingSessionId", TGuid::Create()))
     { }
 
     void Run()
@@ -866,11 +871,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Erased chunk infos within periodic probing session "
-            "(ExpiredChunkCount: %v, NonexistentChunkCount: %v, LostChunkCount: %v)",
-            ExpiredChunkIds_.size(),
-            NonexistentChunkIds_.size(),
-            LostChunkIds_.size());
+        YT_TLOG_DEBUG("Erased chunk infos within periodic probing session")
+            .With("ExpiredChunkCount", ExpiredChunkIds_.size())
+            .With("NonexistentChunkCount", NonexistentChunkIds_.size())
+            .With("LostChunkCount", LostChunkIds_.size());
     }
 };
 
@@ -995,8 +999,8 @@ private:
 
         TryDiscardLostChunkReplicas(lostChunkIds);
 
-        YT_LOG_DEBUG("Added chunk infos within populating probing session (ChunkCount: %v)",
-            ChunkIdToInfo_.size());
+        YT_TLOG_DEBUG("Added chunk infos within populating probing session")
+            .With("ChunkCount", ChunkIdToInfo_.size());
 
         Promise_.TrySet();
     }
@@ -1093,7 +1097,7 @@ private:
 
     using TPerPeerPlanPtr = TIntrusivePtr<TPerPeerPlan>;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
     std::vector<TFuture<void>> PendingFutures_;
 
@@ -1112,16 +1116,17 @@ private:
 
     void OnError(TError error)
     {
-        YT_LOG_DEBUG(error, "Error recorded while reading chunk fragments");
+        YT_TLOG_DEBUG("Error recorded while reading chunk fragments")
+            .With(error);
         Errors_.push_back(std::move(error));
     }
 
     void BanPeer(const TPeerInfoPtr& peerInfo)
     {
         if (State_->BannedNodeIds.insert(peerInfo->NodeId).second) {
-            YT_LOG_DEBUG("Peer banned (NodeId: %v, Address: %v)",
-                peerInfo->NodeId,
-                peerInfo->Address);
+            YT_TLOG_DEBUG("Peer banned")
+                .With("NodeId", peerInfo->NodeId)
+                .With("Address", peerInfo->Address);
         }
     }
 
@@ -1138,20 +1143,18 @@ private:
         if (Promise_.TrySet(std::move(result))) {
             AccountExtraMediumBandwidth();
 
-            YT_LOG_DEBUG("Chunk fragment read session completed "
-                "(RetryIndex: %v/%v, WallTime: %v, ReadRequestCount: %v, HedgingReadRequestCount: %v)",
-                State_->RetryIndex + 1,
-                Reader_->Config_->RetryCountLimit,
-                Timer_.GetElapsedTime(),
-                BackendReadRequestCount_,
-                BackendHedgingReadRequestCount_);
+            YT_TLOG_DEBUG("Chunk fragment read session completed")
+                .WithFormat("RetryIndex", "%v/%v", State_->RetryIndex + 1, Reader_->Config_->RetryCountLimit)
+                .With("WallTime", Timer_.GetElapsedTime())
+                .With("ReadRequestCount", BackendReadRequestCount_)
+                .With("HedgingReadRequestCount", BackendHedgingReadRequestCount_);
         }
     }
 
     void OnFailed()
     {
         Promise_.TrySet(TError("Failed to read chunk fragments")
-            << std::move(Errors_));
+            .With(std::move(Errors_)));
     }
 
     void DoRun()
@@ -1239,8 +1242,8 @@ private:
 
     void PopulateChunkInfos(std::vector<TChunkId> chunkIds, std::vector<TChunkInfoPtr> chunkInfos)
     {
-        YT_LOG_DEBUG("Some chunk infos are missing; will populate the cache (ChunkIds: %v)",
-            chunkIds);
+        YT_TLOG_DEBUG("Some chunk infos are missing; will populate the cache")
+            .With("ChunkIds", chunkIds);
 
         // NB: We omit applying cancellation here.
         auto subsession = New<TPopulatingProbingSession>(Reader_, Options_, Logger);
@@ -1317,18 +1320,14 @@ private:
 
         int unavailableChunkCount = std::ssize(ChunkIdToChunkState_) - PendingChunkCount_ - cachedChunkCount;
 
-        YT_LOG_DEBUG("Chunk fragment read session started "
-            "(RetryIndex: %v/%v, PendingFragmentCount: %v, "
-            "TotalChunkCount: %v, UnavailableChunkCount: %v, CachedChunkCount: %v, "
-            "TotalNodeCount: %v, SuspiciousNodeCount: %v)",
-            State_->RetryIndex + 1,
-            Reader_->Config_->RetryCountLimit,
-            PendingFragmentCount_,
-            ChunkIdToChunkState_.size(),
-            unavailableChunkCount,
-            cachedChunkCount,
-            nodeIds.size(),
-            NodeIdToSuspicionMarkTime_.size());
+        YT_TLOG_DEBUG("Chunk fragment read session started")
+            .WithFormat("RetryIndex", "%v/%v", State_->RetryIndex + 1, Reader_->Config_->RetryCountLimit)
+            .With("PendingFragmentCount", PendingFragmentCount_)
+            .With("TotalChunkCount", ChunkIdToChunkState_.size())
+            .With("UnavailableChunkCount", unavailableChunkCount)
+            .With("CachedChunkCount", cachedChunkCount)
+            .With("TotalNodeCount", nodeIds.size())
+            .With("SuspiciousNodeCount", NodeIdToSuspicionMarkTime_.size());
 
         NextRound(/*isHedged*/ false);
     }
@@ -1350,16 +1349,19 @@ private:
             // TODO(akozhikhov): Support cancellation of primary requests?
             PrimaryRequestStartTime_ = TInstant::Now();
             if (Options_.AdaptiveHedgingManager) {
-                Options_.AdaptiveHedgingManager->RegisterRequest(
-                    Promise_.ToFuture().AsVoid(),
-                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this))
-                        .Via(SessionInvoker_));
+                if (auto hedgingPrice = ComputeHedgingPrice()) {
+                    Options_.AdaptiveHedgingManager->RegisterRequest(
+                        Promise_.ToFuture().AsVoid(),
+                        *hedgingPrice,
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this), *hedgingPrice)
+                            .Via(SessionInvoker_));
+                }
             } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
                 if (hedgingDelay == TDuration::Zero()) {
-                    StartSecondaryRequest();
+                    StartSecondaryRequest(/*hedgingPrice*/ 0);
                 } else {
                     TDelayedExecutor::Submit(
-                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this)),
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this), /*hedgingPrice*/ 0),
                         *hedgingDelay,
                         SessionInvoker_);
                 }
@@ -1367,7 +1369,7 @@ private:
         }
     }
 
-    void StartSecondaryRequest()
+    void StartSecondaryRequest(int hedgingPrice)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -1376,8 +1378,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            TInstant::Now() - PrimaryRequestStartTime_);
+        YT_TLOG_DEBUG("Hedging deadline reached")
+            .With("Delay", TInstant::Now() - PrimaryRequestStartTime_)
+            .With("HedgingPrice", hedgingPrice);
 
         NextRound(/*isHedged*/ true);
     }
@@ -1415,6 +1418,36 @@ private:
         return peerInfoToPlan;
     }
 
+    std::optional<int> ComputeHedgingPrice() const
+    {
+        int chunkCount = 0;
+        int price = 0;
+        for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
+            if (chunkState.ReplicasWithRevision.IsEmpty()) {
+                continue;
+            }
+
+            if (chunkState.Controller->IsDone()) {
+                continue;
+            }
+
+            ++chunkCount;
+            auto codecId = chunkState.Controller->GetCodecId();
+            if (codecId == NErasure::ECodec::None) {
+                ++price;
+            } else {
+                auto* codec = NErasure::GetCodecOrThrow(codecId);
+                price += codec->GetParams().DataPartCount;
+            }
+        }
+
+        return chunkCount == 0
+            // NB: This can happen e.g. if the requests have already been processed prior to scheduling hedged request.
+            ? std::nullopt
+            // NB: This is an upper bound, but it shall be good enough for out purposes.
+            : std::make_optional(price / chunkCount);
+    }
+
     void AcquireThrottler(i64 amount)
     {
         BytesThrottled_ += amount;
@@ -1429,10 +1462,18 @@ private:
         return CombinedDataByteThrottler_->Throttle(amount);
     }
 
-    void ReleaseThrottledBytes(i64 throttledBytes)
+    void MaybeReleaseThrottledBytes(const TError& error, i64 throttledBytes)
     {
-        YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v)",
-            throttledBytes);
+        YT_VERIFY(!error.IsOK());
+
+        if (error.FindMatching(NYT::EErrorCode::Timeout) ||
+            error.FindMatching(NYT::EErrorCode::Canceled))
+        {
+            return;
+        }
+
+        YT_TLOG_DEBUG("Releasing excess throttled bytes")
+            .With("ThrottledBytes", throttledBytes);
 
         NetworkThrottler_->Release(throttledBytes);
     }
@@ -1445,10 +1486,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Accounting for extra medium bandwidth in chunk fragment reader "
-            "(TotalBytesReadFromDisk: %v, ThrottledBytes: %v)",
-            TotalBytesReadFromDisk_,
-            BytesThrottled_);
+        YT_TLOG_DEBUG("Accounting for extra medium bandwidth in chunk fragment reader")
+            .With("TotalBytesReadFromDisk", TotalBytesReadFromDisk_)
+            .With("ThrottledBytes", BytesThrottled_);
 
         MediumThrottler_->Acquire(extraBytesToThrottle);
     }
@@ -1485,7 +1525,7 @@ private:
             auto throttlingError = TError(
                 NChunkClient::EErrorCode::ReaderThrottlingFailed,
                 "Failed to apply throttling in fragment chunk reader")
-                << error;
+                .With(error);
 
             SessionInvoker_->Invoke(BIND(
                 &TSimpleReadFragmentsSession::OnGotChunkFragments,
@@ -1538,11 +1578,11 @@ private:
 
             i64 dataByteSize = GetDataByteSize(req);
 
-            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, IsHedged: %v, ChunkIds: %v)",
-                peerInfo->Address,
-                dataByteSize,
-                isHedged,
-                MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
+            YT_TLOG_DEBUG("Requesting chunk fragments")
+                .With("Address", peerInfo->Address)
+                .With("ByteSize", dataByteSize)
+                .With("IsHedged", isHedged)
+                .With("ChunkIds", MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
                     builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));
 
@@ -1573,9 +1613,9 @@ private:
         if (!NodeIdToSuspicionMarkTime_.contains(peerInfo->NodeId) &&
             Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
         {
-            YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
-                peerInfo->NodeId,
-                peerInfo->Address);
+            YT_TLOG_DEBUG("Node is marked as suspicious")
+                .With("NodeId", peerInfo->NodeId)
+                .With("Address", peerInfo->Address);
             Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peerInfo->NodeId,
                 peerInfo->Address,
@@ -1613,17 +1653,16 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (!rspOrError.IsOK()) {
-            ReleaseThrottledBytes(throttledBytes);
+            MaybeReleaseThrottledBytes(rspOrError, throttledBytes);
         } else {
             i64 receivedAttachmentsSize = GetByteSize(rspOrError.Value()->Attachments());
             if (receivedAttachmentsSize > throttledBytes) {
                 // NB: This may happen in case of full block reads.
                 // We cannot rely on receivedAttachmentsSize always being not less than throttledBytes, i.e. due to missing chunk.
                 AcquireThrottler(receivedAttachmentsSize - throttledBytes);
-                YT_LOG_DEBUG("Performed post throttling after receiving fragments "
-                    "(ReceivedAttachmentSize: %v, UnthrottledBytes: %v)",
-                    receivedAttachmentsSize,
-                    receivedAttachmentsSize - throttledBytes);
+                YT_TLOG_DEBUG("Performed post throttling after receiving fragments")
+                    .With("ReceivedAttachmentSize", receivedAttachmentsSize)
+                    .With("UnthrottledBytes", receivedAttachmentsSize - throttledBytes);
             }
         }
 
@@ -1672,13 +1711,13 @@ private:
 
         if (rsp->net_throttling()) {
             auto error = TError("Peer net is throttled")
-                << TErrorAttribute("address", peerInfo->Address);
+                .With("address", peerInfo->Address);
             OnError(error);
             return;
         }
 
-        YT_LOG_DEBUG("Chunk fragments received (Address: %v)",
-            peerInfo->Address);
+        YT_TLOG_DEBUG("Chunk fragments received")
+            .With("Address", peerInfo->Address);
 
         if (rsp->has_chunk_reader_statistics()) {
             HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
@@ -1709,8 +1748,8 @@ private:
 
                 if (subresponse.disk_throttling()) {
                     OnError(TError("Peer disk is throttled")
-                        << TErrorAttribute("address", peerInfo->Address)
-                        << TErrorAttribute("chunk_id", chunkId));
+                        .With("address", peerInfo->Address)
+                        .With("chunk_id", chunkId));
                     continue;
                 }
 
@@ -1719,8 +1758,8 @@ private:
                     // because replica set may happen to be out of date due to eventually consistent nature of DRT.
                     Reader_->DropChunkReplicasFromPeer(chunkId, peerInfo);
                     OnError(TError("Peer does not contain chunk")
-                        << TErrorAttribute("address", peerInfo->Address)
-                        << TErrorAttribute("chunk_id", chunkId));
+                        .With("address", peerInfo->Address)
+                        .With("chunk_id", chunkId));
                     continue;
                 }
 
@@ -1729,6 +1768,13 @@ private:
                     item.PeerIndex,
                     subresponse,
                     fragments);
+
+                if (!State_->Response.MemoryGuard) {
+                    State_->Response.MemoryGuard = TMemoryUsageTrackerGuard::Build(Options_.MemoryUsageTracker);
+                }
+
+                auto newFragmentSize = GetByteSize(fragments);
+                State_->Response.MemoryGuard.IncreaseSize(newFragmentSize);
 
                 if (controller.IsDone()) {
                     if (--PendingChunkCount_ == 0) {
@@ -1820,9 +1866,9 @@ public:
         : Reader_(std::move(reader))
         , Options_(std::move(options))
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
-        , Logger(Reader_->Logger().WithTag("ChunkFragmentReadSessionId: %v, ReadSessionId: %v",
-            TGuid::Create(),
-            Options_.ReadSessionId))
+        , Logger(Reader_->Logger()
+            .WithTag("ChunkFragmentReadSessionId", TGuid::Create())
+            .WithTag("ReadSessionId", Options_.ReadSessionId))
     {
         State_->Requests = std::move(requests);
         State_->Response.Fragments.resize(State_->Requests.size());
@@ -1832,7 +1878,7 @@ public:
     {
         if (!Promise_.IsSet()) {
             Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Chunk fragment read session destroyed")
-                << TErrorAttribute("elapsed_time", Timer_.GetElapsedTime()));
+                .With("elapsed_time", Timer_.GetElapsedTime()));
         }
     }
 
@@ -1862,26 +1908,32 @@ private:
 
     std::vector<TError> Errors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
     TFuture<void> SessionFuture_ = OKFuture;
 
 
     void OnFatalError(TError error)
     {
-        YT_LOG_WARNING(error, "Chunk fragment read failed");
-        Promise_.TrySet(std::move(error) << std::move(Errors_));
+        YT_TLOG_WARNING("Chunk fragment read failed")
+            .With(error);
+        Promise_.TrySet(std::move(error).With(std::move(Errors_)));
     }
 
-    void OnSuccess()
+    void OnSuccess(i64 totalReadFragmentSize)
     {
+        if (State_->Response.MemoryGuard) {
+            // Discount fragments that are not featured in the final result, like the erasure repair ones.
+            State_->Response.MemoryGuard.SetSize(totalReadFragmentSize);
+        }
+
         Promise_.TrySet(std::move(State_->Response));
     }
 
     void Preprocess()
     {
         if (State_->Requests.empty()) {
-            OnSuccess();
+            OnSuccess(/*totalReadFragmentSize*/ 0);
             return;
         }
 
@@ -1901,7 +1953,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Invalid chunk id in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1909,7 +1961,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Missing block size in fragment read request for erasure chunk")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1917,8 +1969,8 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Non-positive block size in fragment read request")
-                    << makeErrorAttributes()
-                    << TErrorAttribute("block_size", *request.BlockSize));
+                    .With(makeErrorAttributes())
+                    .With("block_size", *request.BlockSize));
                 return;
             }
 
@@ -1926,7 +1978,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative block index in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1934,7 +1986,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative block offset in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1942,7 +1994,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative length in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1950,8 +2002,8 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Fragment read request is out of block range")
-                    << makeErrorAttributes()
-                    << TErrorAttribute("block_size", *request.BlockSize));
+                    .With(makeErrorAttributes())
+                    .With("block_size", *request.BlockSize));
                 return;
             }
 
@@ -1972,13 +2024,13 @@ private:
             OnFatalError(TError(
                 NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded,
                 "Chunk fragment reader has exceeded retry count limit")
-                << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
+                .With("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
         }
 
         if (Timer_.GetElapsedTime() >= Reader_->Config_->ReadTimeLimit) {
             OnFatalError(TError(NChunkClient::EErrorCode::ReaderTimeout, "Chunk fragment reader has exceeded read time limit")
-                << TErrorAttribute("read_time_limit", Reader_->Config_->ReadTimeLimit));
+                .With("read_time_limit", Reader_->Config_->ReadTimeLimit));
             return;
         }
 
@@ -2020,9 +2072,11 @@ private:
         int totalFragmentCount = std::ssize(State_->Requests);
 
         int totalReadFragmentCount = 0;
+        i64 totalReadFragmentSize = 0;
         for (const auto& fragment : State_->Response.Fragments) {
             if (fragment) {
                 ++totalReadFragmentCount;
+                totalReadFragmentSize += std::ssize(fragment);
             }
         }
 
@@ -2033,7 +2087,7 @@ private:
         State_->ReadFragmentCount = totalReadFragmentCount;
 
         if (State_->ReadFragmentCount == totalFragmentCount) {
-            OnSuccess();
+            OnSuccess(totalReadFragmentSize);
             return;
         }
 
@@ -2044,24 +2098,21 @@ private:
 
         // NB: We perform backoff only in case of coming across some failed reads.
         if (subsessionResult.RegisteredFragmentCount == newlyReadFragmentCount) {
-            YT_LOG_DEBUG("All registered fragments were read; will continue immediately "
-                "(TotalFragmentCount: %v, TotalReadFragmentCount: %v, ReadFragmentCount: %v)",
-                totalFragmentCount,
-                State_->ReadFragmentCount,
-                newlyReadFragmentCount);
+            YT_TLOG_DEBUG("All registered fragments were read; will continue immediately")
+                .With("TotalFragmentCount", totalFragmentCount)
+                .With("TotalReadFragmentCount", State_->ReadFragmentCount)
+                .With("ReadFragmentCount", newlyReadFragmentCount);
 
             SessionInvoker_->Invoke(BIND(&TRetryingReadFragmentsSession::DoRun, MakeStrong(this)));
             return;
         }
 
-        YT_LOG_DEBUG("Not all registered fragments were read; will backoff and retry "
-            "(TotalFragmentCount: %v, TotalReadFragmentCount: %v, "
-            "RegisteredFragmentCount: %v, ReadFragmentCount: %v, RetryBackoffTime: %v)",
-            totalFragmentCount,
-            State_->ReadFragmentCount,
-            subsessionResult.RegisteredFragmentCount,
-            newlyReadFragmentCount,
-            Reader_->Config_->RetryBackoffTime);
+        YT_TLOG_DEBUG("Not all registered fragments were read; will backoff and retry")
+            .With("TotalFragmentCount", totalFragmentCount)
+            .With("TotalReadFragmentCount", State_->ReadFragmentCount)
+            .With("RegisteredFragmentCount", subsessionResult.RegisteredFragmentCount)
+            .With("ReadFragmentCount", newlyReadFragmentCount)
+            .With("RetryBackoffTime", Reader_->Config_->RetryBackoffTime);
 
         ++State_->RetryIndex;
 
@@ -2095,8 +2146,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IChunkFragmentReader::TReadFragmentsResponse> TChunkFragmentReader::ReadFragments(
-    TClientChunkReadOptions options,
-    std::vector<TChunkFragmentRequest> requests)
+    std::vector<TChunkFragmentRequest> requests,
+    TClientChunkReadOptions options)
 {
     auto session = New<TRetryingReadFragmentsSession>(
         this,

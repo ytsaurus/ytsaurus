@@ -3,6 +3,8 @@ COMMIT_SHA_FETCH := $(shell git rev-parse HEAD)
 DOCKER_REGISTRY = ghcr.io
 DOCKER_REPOSITORY = ytsaurus/build-env
 
+DOCKER_BUILDKIT ?= 1
+
 IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_REPOSITORY)
 
 COMMIT_SHA = $(COMMIT_SHA_FETCH)
@@ -15,7 +17,7 @@ docker-push:
 
 .PHONY: docker-build
 docker-build:
-	docker build \
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build \
 		--tag=$(IMAGE_REPO):latest \
 		--tag=$(IMAGE_REPO):$(IMAGE_TAG) .
 

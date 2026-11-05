@@ -83,7 +83,7 @@ public:
         EResourceLimiterLockType lockType = EResourceLimiterLockType::SOFT
     );
 
-    TResourceGuard(TResourceGuard&& other);
+    TResourceGuard(TResourceGuard&& other) noexcept;
 
     ~TResourceGuard();
 

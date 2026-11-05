@@ -109,6 +109,8 @@ def create_response_error(underlying_error):
         error = YtNoInSyncReplicas(underlying_error)
     elif sample_error.is_authentication_error():
         error = YtAuthenticationError(underlying_error)
+    elif sample_error.is_flow_view_keeper_not_initialized():
+        error = YtFlowViewKeeperNotInitialized(underlying_error)
     else:
         error = sample_error
     return error
@@ -327,6 +329,11 @@ class YtChunkNotPreloaded(YtResponseError):
 
 class YtNoInSyncReplicas(YtResponseError):
     """No in-sync replicas found"""
+    pass
+
+
+class YtFlowViewKeeperNotInitialized(YtResponseError):
+    """Flow controller has not built its flow view yet"""
     pass
 
 

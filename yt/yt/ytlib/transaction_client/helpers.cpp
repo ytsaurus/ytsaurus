@@ -92,7 +92,7 @@ TTransactionId MakeTabletTransactionId(
     return MakeId(
         type,
         cellTag,
-        startTimestamp,
+        startTimestamp.Underlying(),
         hash);
 }
 

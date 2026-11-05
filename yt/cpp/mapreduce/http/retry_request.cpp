@@ -12,6 +12,8 @@
 
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT {
@@ -67,14 +69,25 @@ NHttpClient::IHttpResponsePtr RequestWithoutRetry(
     TMaybe<TStringBuf> body,
     const TRequestConfig& config)
 {
+    auto traceContext = context.Config->EnableClientTracing
+        ? NTracing::CreateTraceContextFromCurrent(header.GetMethod())
+        : nullptr;
+    NTracing::TCurrentTraceContextGuard traceContextGuard(traceContext);
+
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        header.SetUserTicket(context.UserTicket);
     } else {
         header.SetToken(context.Token);
     }
 
     if (context.ImpersonationUser) {
         header.SetImpersonationUser(*context.ImpersonationUser);
+    }
+
+    if (traceContext) {
+        auto traceparent = FormatTraceParentHeader(traceContext->GetTraceId(), traceContext->GetSpanId());
+        header.SetTraceparent(traceparent);
     }
 
     if (header.HasMutationId()) {
@@ -95,14 +108,25 @@ NHttpClient::IHttpRequestPtr StartRequestWithoutRetry(
     THttpHeader& header,
     const TRequestConfig& config)
 {
+    auto traceContext = context.Config->EnableClientTracing
+        ? NTracing::CreateTraceContextFromCurrent(header.GetMethod())
+        : nullptr;
+    NTracing::TCurrentTraceContextGuard traceContextGuard(traceContext);
+
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        header.SetUserTicket(context.UserTicket);
     } else {
         header.SetToken(context.Token);
     }
 
     if (context.ImpersonationUser) {
         header.SetImpersonationUser(*context.ImpersonationUser);
+    }
+
+    if (traceContext) {
+        auto traceparent = FormatTraceParentHeader(traceContext->GetTraceId(), traceContext->GetSpanId());
+        header.SetTraceparent(traceparent);
     }
 
     auto requestId = CreateGuidAsString();

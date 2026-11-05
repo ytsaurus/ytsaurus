@@ -61,4 +61,26 @@ int rd_kafka_ssl_hmac(rd_kafka_broker_t *rkb,
                       int itcnt,
                       rd_chariov_t *out);
 
+int rd_kafka_ssl_read_cert_chain_from_BIO(BIO *in,
+                                          STACK_OF(X509) * chainp,
+                                          pem_password_cb *password_cb,
+                                          void *password_cb_opaque);
+
+int rd_kafka_ssl_probe_and_set_default_ca_location(rd_kafka_t *rk,
+                                                   const char *ctx_identifier,
+                                                   SSL_CTX *ctx);
+
+char *rd_kafka_ssl_error0(rd_kafka_t *rk,
+                          rd_kafka_broker_t *rkb,
+                          const char *ctx_identifier,
+                          char *errstr,
+                          size_t errstr_size);
+
+#ifdef _WIN32
+int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
+                                      const char *ctx_identifier,
+                                      SSL_CTX *ctx,
+                                      const char *store_names);
+#endif
+
 #endif /* _RDKAFKA_SSL_H_ */

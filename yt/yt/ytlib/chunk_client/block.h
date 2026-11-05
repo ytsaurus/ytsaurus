@@ -3,9 +3,10 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <vector>
 

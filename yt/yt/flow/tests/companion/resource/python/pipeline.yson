@@ -1,0 +1,120 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["rows"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+            "mapper" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["rows"];
+                "output_stream_ids" = ["mapped"];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                    "greeting" = {
+                        "alias" = "greeting_view";
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["mapped"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                ];
+            };
+            "mapped" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "greeting"; type = "string";};
+                    {name = "suffix"; type = "string";};
+                    {name = "dependency_value"; type = "string";};
+                    {name = "pid"; type = "int64";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {};
+                "dependencies" = {};
+            };
+            "greeting_dependency" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionResource";
+                "parameters" = {
+                    "companion_resource_class" = "__main__.GreetingDependencyResource";
+                };
+                "dependencies" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+            };
+            "greeting" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionResource";
+                "parameters" = {
+                    "companion_resource_class" = "GreetingResource";
+                    "greeting" = "hello";
+                };
+                "dependencies" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                    "greeting_dependency" = {
+                        "alias" = "dependency";
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {};
+            "mapper" = {};
+        };
+        "resources" = {
+            "greeting_dependency" = {
+                "parameters" = {
+                    "value" = "dependency-v1";
+                };
+            };
+            "greeting" = {
+                "parameters" = {
+                    "suffix" = "v1";
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

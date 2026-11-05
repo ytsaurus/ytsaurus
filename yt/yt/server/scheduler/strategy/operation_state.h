@@ -15,7 +15,7 @@ class TStrategyOperationState
     : public TRefCounted
 {
 public:
-    using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
+    using TTreeIdToPoolNameMap = THashMap<std::string, TPoolName>;
 
     DEFINE_BYVAL_RO_PROPERTY(IOperationPtr, Host);
     DEFINE_BYVAL_RO_PROPERTY(TOperationControllerPtr, Controller);

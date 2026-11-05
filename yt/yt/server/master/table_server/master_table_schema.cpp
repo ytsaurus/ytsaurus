@@ -95,9 +95,9 @@ bool TMasterTableSchema::UnrefBy(TAccount* account, int delta)
 
     auto it = ReferencingAccounts_.find(account);
     if (it == ReferencingAccounts_.end()) {
-        YT_LOG_ALERT("Attempting to unref schema by account that holds no recorded refs (SchemaId: %v, Account: %v)",
-            Id_,
-            account->GetName());
+        YT_TLOG_ALERT("Attempting to unref schema by account that holds no recorded refs")
+            .With("SchemaId", Id_)
+            .With("Account", account->GetName());
         return false;
     }
 
@@ -107,10 +107,9 @@ bool TMasterTableSchema::UnrefBy(TAccount* account, int delta)
         return true;
     }
 
-    YT_LOG_ALERT_UNLESS(it->second > 0,
-        "Negative account ref count on schema detected (SchemaId: %v, Account: %v)",
-        Id_,
-        account->GetName());
+    YT_TLOG_ALERT_UNLESS(it->second > 0, "Negative account ref count on schema detected")
+        .With("SchemaId", Id_)
+        .With("Account", account->GetName());
     return false;
 }
 
@@ -128,9 +127,9 @@ bool TMasterTableSchema::IsExported(TCellTag cellTag) const
 void TMasterTableSchema::AlertIfNonEmptyExportCount()
 {
     if (!CellTagToExportCount_.empty()) {
-        YT_LOG_ALERT("Table schema being destroyed has non-empty export count (SchemaId: %v, ExportCount: %v)",
-            GetId(),
-            CellTagToExportCount_.size());
+        YT_TLOG_ALERT("Table schema being destroyed has non-empty export count")
+            .With("SchemaId", GetId())
+            .With("ExportCount", CellTagToExportCount_.size());
     }
 }
 
@@ -189,10 +188,10 @@ void TMasterTableSchema::ExportRef(TCellTag cellTag)
         ++it->second;
     }
 
-    YT_LOG_DEBUG("Schema export counter incremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
-        GetId(),
-        cellTag,
-        it->second);
+    YT_TLOG_DEBUG("Schema export counter incremented")
+        .With("SchemaId", GetId())
+        .With("CellTag", cellTag)
+        .With("ExportCounter", it->second);
 }
 
 // NB: UnexportRef should be only called on native cells.
@@ -206,11 +205,11 @@ void TMasterTableSchema::UnexportRef(TCellTag cellTag, int decreaseBy)
 
     it->second -= decreaseBy;
 
-    YT_LOG_DEBUG("Schema export counter decremented (SchemaId: %v, CellTag: %v, ExportCounter: %v, DecreaseBy: %v)",
-        GetId(),
-        cellTag,
-        it->second,
-        decreaseBy);
+    YT_TLOG_DEBUG("Schema export counter decremented")
+        .With("SchemaId", GetId())
+        .With("CellTag", cellTag)
+        .With("ExportCounter", it->second)
+        .With("DecreaseBy", decreaseBy);
 
     if (it->second != 0) {
         return;

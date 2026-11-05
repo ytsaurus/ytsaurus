@@ -3,6 +3,8 @@
 #include "tablet_cell_proxy.h"
 #include "tablet_manager.h"
 
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
+
 #include <yt/yt/server/master/cell_server/cell_type_handler_base.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -40,7 +42,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
 
         auto* cell = DoCreateObject(id, attributes);
-        cell->GossipStatistics().Initialize(Bootstrap_);
+        InitializeGossipValue(&cell->GossipStatistics(), Bootstrap_);
 
         return cell;
     }

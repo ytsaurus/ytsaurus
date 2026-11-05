@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NChunkClient {
 
@@ -29,7 +29,7 @@ public:
     void Clear();
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<std::string, TMediumDescriptorPtr> NameToDescriptor_;
     // TODO(cherepashka, achulkov2): Once masters start providing medium ids, we should switch to using medium ids as keys.
     // This will be implemented in hand with supporting offshore media without medium indices.

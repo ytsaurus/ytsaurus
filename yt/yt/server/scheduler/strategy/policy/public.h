@@ -63,11 +63,14 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (ResourceLimitsViolated)
     (IncompatibleSchedulingSegment)
     (FullHostAggressivePreemption)
-    (EvictionFromSchedulingModule)
     (OperationBoundToOtherModule)
     (NodeUnschedulable)
-    (OperationUnregistered)
     (UnexpectedAllocation)
+    (ModuleReconsiderationTimeout)
+    (PriorityModuleBinding)
+    (NodeUnregistered)
+    (NodeSchedulingModuleChanged)
+    (ModuleOverreservation)
 );
 
 DEFINE_ENUM(EAllocationUpdateStatus,

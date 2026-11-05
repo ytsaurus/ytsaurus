@@ -1198,6 +1198,48 @@ constraints, enabling table inheritance hierarchies in PostgreSQL.
 
     Table("some_table", metadata, ..., postgresql_inherits=("t1", "t2", ...))
 
+For schema-qualified parent table names, use :class:`.quoted_name` with
+``quote=False`` to prevent the dotted name from being quoted as a single
+identifier::
+
+    from sqlalchemy.sql import quoted_name
+
+    Table(
+        "some_table",
+        metadata,
+        ...,
+        postgresql_inherits=quoted_name(
+            "my_schema.some_supertable", quote=False
+        ),
+    )
+
+SQLAlchemy does not automatically copy the columns from the inherited tables
+mentioned in the ``postgresql_inherits`` argument into the new
+:class:`_schema.Table`. To populate the new table columns reflection may be
+used, or a function similar to the following one::
+
+    def get_parent_columns(tbl: sa.Table) -> list[sa.Column]:
+        return [
+            sa.Column(
+                c.name,
+                c.type,
+                key=c.key,
+                nullable=c.nullable,
+                # Set system=true to omit from the CREATE TABLE statement
+                system=True,
+            )
+            for c in tbl.columns
+        ]
+
+
+    documents = Table(
+        "some_table",
+        metadata,
+        *get_parent_columns(some_supertable),
+        # ... # add other columns here normally if needed
+        postgresql_inherits="some_supertable",
+    )
+
 ``ON COMMIT``
 ^^^^^^^^^^^^^
 
@@ -1388,6 +1430,29 @@ that are subject to the action::
       )
 
 .. versionadded:: 2.0.40
+
+
+``NULLS NOT DISTINCT``
+^^^^^^^^^^^^^^^^^^^^^^
+
+By default, two ``null`` values are not considered equal for unique constraints
+and indexes. Therefore, seemingly duplicate rows may be stored if one of the
+values in the constraint is ``null``. This default behavior is implementation
+defined, so other SQL dialects may behave differently than PostgreSQL.
+
+The ``NULLS NOT DISTINCT`` clause can be used to change this behavior, treating
+null values as equal and preventing unintended duplicate rows. The opposite
+``NULLS DISTINCT`` clause can also be used to make PostgreSQL's default behavior
+explict.
+
+The ``postgresql_nulls_not_distinct`` parameter can be set to ``True`` to
+add the ``NULLS NOT DISTINCT`` clause, or ``False`` to add ``NULLS DISTINCT``.
+Not setting it, or passing ``None``, will not add a clause and keep the default
+behavior.
+
+This feature requires PostgreSQL 15 or later.
+
+.. versionadded:: 2.0.16
 
 
 .. _postgresql_table_valued_overview:
@@ -2097,7 +2162,9 @@ class PGCompiler(compiler.SQLCompiler):
         return "string_agg%s" % self.function_argspec(fn)
 
     def visit_sequence(self, seq, **kw):
-        return "nextval('%s')" % self.preparer.format_sequence(seq)
+        return "nextval(%s)" % self.preparer._format_sequence_string_literal(
+            seq
+        )
 
     def limit_clause(self, select, **kw):
         text = ""
@@ -2930,8 +2997,42 @@ class PGTypeCompiler(compiler.GenericTypeCompiler):
         return "JSONPATH"
 
 
+class _CompilerSequence:
+    """Minimal stand-in for :class:`.Sequence`.
+
+    Used for the implicit sequence behind a SERIAL column, where no
+    :class:`.Sequence` object exists but a name still has to be rendered
+    through :meth:`.IdentifierPreparer.format_sequence`.
+
+    """
+
+    __slots__ = ("name", "schema")
+
+    # the schema handed to us has already been resolved against the
+    # schema translate map, so don't let format_sequence() translate it
+    # a second time
+    _use_schema_map = False
+
+    def __init__(self, name, schema=None):
+        self.name = name
+        self.schema = schema
+
+
 class PGIdentifierPreparer(compiler.IdentifierPreparer):
     reserved_words = RESERVED_WORDS
+
+    def _format_sequence_string_literal(self, sequence):
+        """Render a sequence name as a SQL string literal.
+
+        ``nextval()`` and friends take the sequence as a string rather than
+        as an identifier, so the quoted identifier produced by
+        :meth:`.format_sequence` has to be escaped a second time for the
+        enclosing literal.
+
+        """
+        return "'%s'" % self.format_sequence(
+            sequence, use_schema=True
+        ).replace("'", "''")
 
     def _unquote_identifier(self, value):
         if value[0] == self.initial_quote:
@@ -3118,8 +3219,8 @@ class PGExecutionContext(default.DefaultExecutionContext):
     def fire_sequence(self, seq, type_):
         return self._execute_scalar(
             (
-                "select nextval('%s')"
-                % self.identifier_preparer.format_sequence(seq)
+                "select nextval(%s)"
+                % self.identifier_preparer._format_sequence_string_literal(seq)
             ),
             type_,
         )
@@ -3156,13 +3257,12 @@ class PGExecutionContext(default.DefaultExecutionContext):
                 else:
                     effective_schema = None
 
-                if effective_schema is not None:
-                    exc = 'select nextval(\'"%s"."%s"\')' % (
-                        effective_schema,
-                        seq_name,
+                exc = (
+                    "select nextval(%s)"
+                    % self.identifier_preparer._format_sequence_string_literal(
+                        _CompilerSequence(seq_name, effective_schema)
                     )
-                else:
-                    exc = "select nextval('\"%s\"')" % (seq_name,)
+                )
 
                 return self._execute_scalar(exc, column.type)
 
@@ -3478,7 +3578,11 @@ class PGDialect(default.DefaultDialect):
         self.do_begin(connection.connection)
 
     def do_prepare_twophase(self, connection, xid):
-        connection.exec_driver_sql("PREPARE TRANSACTION '%s'" % xid)
+        connection.execute(
+            sql.text("PREPARE TRANSACTION :xid").bindparams(
+                sql.bindparam("xid", xid, literal_execute=True)
+            )
+        )
 
     def do_rollback_twophase(
         self, connection, xid, is_prepared=True, recover=False
@@ -3490,7 +3594,11 @@ class PGDialect(default.DefaultDialect):
                 # Must find out a way how to make the dbapi not
                 # open a transaction.
                 connection.exec_driver_sql("ROLLBACK")
-            connection.exec_driver_sql("ROLLBACK PREPARED '%s'" % xid)
+            connection.execute(
+                sql.text("ROLLBACK PREPARED :xid").bindparams(
+                    sql.bindparam("xid", xid, literal_execute=True)
+                )
+            )
             connection.exec_driver_sql("BEGIN")
             self.do_rollback(connection.connection)
         else:
@@ -3502,7 +3610,11 @@ class PGDialect(default.DefaultDialect):
         if is_prepared:
             if recover:
                 connection.exec_driver_sql("ROLLBACK")
-            connection.exec_driver_sql("COMMIT PREPARED '%s'" % xid)
+            connection.execute(
+                sql.text("COMMIT PREPARED :xid").bindparams(
+                    sql.bindparam("xid", xid, literal_execute=True)
+                )
+            )
             connection.exec_driver_sql("BEGIN")
             self.do_rollback(connection.connection)
         else:
@@ -3642,7 +3754,11 @@ class PGDialect(default.DefaultDialect):
     def get_schema_names(self, connection, **kw):
         query = (
             select(pg_catalog.pg_namespace.c.nspname)
-            .where(pg_catalog.pg_namespace.c.nspname.not_like("pg_%"))
+            .where(
+                ~pg_catalog.pg_namespace.c.nspname.startswith(
+                    "pg_", autoescape=True
+                )
+            )
             .order_by(pg_catalog.pg_namespace.c.nspname)
         )
         return connection.scalars(query).all()
@@ -4507,7 +4623,7 @@ class PGDialect(default.DefaultDialect):
     @util.memoized_property
     def _fk_regex_pattern(self):
         # optionally quoted token
-        qtoken = r'(?:"[^"]+"|[\w]+?)'
+        qtoken = r'(?:"(?:[^"]|"")+"|[\w]+?)'
 
         # https://www.postgresql.org/docs/current/static/sql-createtable.html
         return re.compile(
@@ -5179,9 +5295,7 @@ class PGDialect(default.DefaultDialect):
                 util.warn("Could not parse CHECK constraint text: %r" % src)
                 sqltext = ""
             else:
-                sqltext = re.compile(
-                    r"^[\s\n]*\((.+)\)[\s\n]*$", flags=re.DOTALL
-                ).sub(r"\1", m.group(1))
+                sqltext = util.strip_outer_parens(m.group(1))
             entry = {
                 "name": check_name,
                 "sqltext": sqltext,

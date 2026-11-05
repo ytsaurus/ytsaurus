@@ -11,21 +11,15 @@ class MockGitHubPackagesClient:
     def __init__(self, auth=MagicMock()):
         pass
 
-    def get_commit_info(self, repo: str, commit_hash: str):
+    def get_commit_info(self, org: str, repo: str, commit_hash: str):
         if commit_hash == "lastcommit":
-            return {
-                "commit": {"author": {"date": "2025-10-29T12:24:45Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-10-29T12:24:45Z"}}}
         elif commit_hash == "81deb0a1e700bcc38d8fb1653b9577515a370d97":
-            return {
-                "commit": {"author": {"date": "2025-12-01T12:00:00Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-12-01T12:00:00Z"}}}
         elif commit_hash == "e6756828dc868ad2f8e643e65326b33d997796d5":
-            return {
-                "commit": {"author": {"date": "2025-12-07T00:00:00Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-12-07T00:00:00Z"}}}
 
-    def get_package_versions(self, package_name):
+    def get_package_versions(self, org: str, package_name):
         storage = {
             "ytop-chart": [
                 {"metadata": {"container": {"tags": ["0.27.0"]}}},
@@ -35,7 +29,13 @@ class MockGitHubPackagesClient:
             ],
             "ytsaurus-nightly": [
                 {"metadata": {"container": {"tags": ["dev-2025-10-29-lastcommit-relwithdebinfo"]}}},
-                {"metadata": {"container": {"tags": ["dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"]}}},
+                {
+                    "metadata": {
+                        "container": {
+                            "tags": ["dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"]
+                        }
+                    }
+                },
             ],
             "ytop-chart-release": [
                 {"metadata": {"container": {"tags": ["0.0.1"]}}},
@@ -55,15 +55,34 @@ class MockGitHubPackagesClient:
             ],
             "default": [
                 {"metadata": {"container": {"tags": ["dev-2025-10-29-7c7787c3c12fe6c18fcea4ea3da34537278fab63"]}}},
-            ]
+            ],
         }
 
         return storage.get(package_name, storage.get("default"))
 
 
+class MockYandexContainerRegistryClient:
+    def __init__(self, auth=MagicMock()):
+        pass
+
+    def get_image_tags(self, org: str, image_name: str):
+        storage = {
+            "ytsaurus/query-tracker": [
+                {"tags": ["nightly-fc6f03ceb8d241b7979332e34dec6a302c4dd16d"]},
+            ],
+        }
+
+        return storage.get(image_name, [{"tags": ["nightly-7c7787c3c12fe6c18fcea4ea3da34537278fab63"]}])
+
+
 @pytest.fixture(scope="session")
 def ghcr_client():
     return MockGitHubPackagesClient
+
+
+@pytest.fixture(scope="session")
+def yandex_cr_client():
+    return MockYandexContainerRegistryClient
 
 
 @pytest.fixture(scope="session")
@@ -74,6 +93,7 @@ def configs():
         "tests/configs/components.yaml",
         "tests/configs/compat-ytsaurus.yaml",
         "tests/configs/compat-operator.yaml",
+        "tests/configs/upgrades.yaml",
     )
 
     for cfg in configs:

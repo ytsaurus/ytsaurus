@@ -1,4 +1,4 @@
-#include <contrib/ydb/library/yql/providers/dq/runtime/task_command_executor.h>
+#include <yt/yql/providers/dq/runtime/task_command_executor.h>
 
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
 #include <yt/yql/providers/yt/mkql_dq/yql_yt_dq_transform.h>

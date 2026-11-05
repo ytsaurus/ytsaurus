@@ -11,9 +11,9 @@ The {{product-name}} web interface allows to upload small Microsoft Excel spread
 To upload data and create a {{product-name}} table at the same time, use the **Create object** menu on the directory page.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_create.png){ .center }
+![](../../../_images/excel_upload_create.png){ .center }
 {% else %}
-![](../../images/excel_upload_create.png){ .center }
+![](../../_images/excel_upload_create.png){ .center }
 {% endif %}
 
 Be sure to set the **Column names** and the **Types** toggles to the correct values in the upload menu.
@@ -29,9 +29,9 @@ If no types are specified, all columns use `any` as their type.
 {% endnote %}
 
 {% if audience == "public" %}
-![](../../../images/excel_upload.png){ .center }
+![](../../../_images/excel_upload.png){ .center }
 {% else %}
-![](../../images/excel_upload.png){ .center }
+![](../../_images/excel_upload.png){ .center }
 {% endif %}
 
 ## Uploading into an existing table
@@ -39,9 +39,9 @@ If no types are specified, all columns use `any` as their type.
 To upload data into an existing {{product-name}} table, click the **Upload** button on the table page.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_existing.png){ .center }
+![](../../../_images/excel_upload_existing.png){ .center }
 {% else %}
-![](../../images/excel_upload_existing.png){ .center }
+![](../../_images/excel_upload_existing.png){ .center }
 {% endif %}
 
 {% note warning "Attention" %}
@@ -53,9 +53,9 @@ The Excel spreadsheet must include columns from the {{product-name}} table schem
 Use the **Append** toggle in the upload menu to choose the upload mode. The on state corresponds to rows being appended at the end of the {{product-name}} table, the off state means that the table will be overwritten.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_append.png){ .center }
+![](../../../_images/excel_upload_append.png){ .center }
 {% else %}
-![](../../images/excel_upload_append.png){ .center }
+![](../../_images/excel_upload_append.png){ .center }
 {% endif %}
 
 ## Upload limitations
@@ -70,9 +70,9 @@ Use the **Append** toggle in the upload menu to choose the upload mode. The on s
 The interface provides a way to specify the required row and column subset.
 
 {% if audience == "public" %}
-![](../../../images/excel_download.png){ .center }
+![](../../../_images/excel_download.png){ .center }
 {% else %}
-![](../../images/excel_download.png){ .center }
+![](../../_images/excel_download.png){ .center }
 {% endif %}
 
 The first row of the output contains column names, while the second one their types.

@@ -1,6 +1,7 @@
 import yt.wrapper as yt
 
 from yt.mcp.lib.tools.list_dir import ListDir, Search
+from yt.mcp.lib.tools.cypress import CreateNode, CopyNode, MoveNode, RemoveNode, SetAttribute
 
 from .conftest import authors
 
@@ -57,8 +58,8 @@ class TestSimpleTool:
         result = self._request(client, ListDir(), cluster=client.config["proxy"]["url"], directory="//tmp/test_list_dir")
 
         assert result == [
-            {"value": "some_table_1", "attributes": {"row_count": 0, "resource_usage": {"node_count": 1, "chunk_count": 0, "disk_space_per_medium": {}, "disk_space": 0, "chunk_host_cell_master_memory": 0, "master_memory": 0, "detailed_master_memory": {"nodes": 0, "chunks": 0, "attributes": 0, "tablets": 0, "schemas": 0}, "tablet_count": 0, "tablet_static_memory": 0}, "primary_medium": "default", "type": "table", "account": "tmp", "creation_time": "<datetime>"}},  # noqa
-            {"value": "some_table_2", "attributes": {"row_count": 0, "resource_usage": {"node_count": 1, "chunk_count": 0, "disk_space_per_medium": {}, "disk_space": 0, "chunk_host_cell_master_memory": 0, "master_memory": 0, "detailed_master_memory": {"nodes": 0, "chunks": 0, "attributes": 0, "tablets": 0, "schemas": 0}, "tablet_count": 0, "tablet_static_memory": 0}, "primary_medium": "default", "type": "table", "account": "tmp", "creation_time": "<datetime>"}},  # noqa
+            {"value": "some_table_1", "attributes": {"row_count": 0, "resource_usage": {"node_count": 1, "chunk_count": 0, "disk_space_per_medium": {}, "disk_space": 0, "chunk_host_cell_master_memory": 0, "master_memory": 0, "detailed_master_memory": {"nodes": 0, "chunks": 0, "attributes": 0, "tablets": 0, "schemas": 0}, "tablet_count": 0, "tablet_static_memory": 0}, "primary_medium": "default", "type": "table", "account": "tmp", "creation_time": "<datetime>", "modification_time": "<datetime>"}},  # noqa
+            {"value": "some_table_2", "attributes": {"row_count": 0, "resource_usage": {"node_count": 1, "chunk_count": 0, "disk_space_per_medium": {}, "disk_space": 0, "chunk_host_cell_master_memory": 0, "master_memory": 0, "detailed_master_memory": {"nodes": 0, "chunks": 0, "attributes": 0, "tablets": 0, "schemas": 0}, "tablet_count": 0, "tablet_static_memory": 0}, "primary_medium": "default", "type": "table", "account": "tmp", "creation_time": "<datetime>", "modification_time": "<datetime>"}},  # noqa
         ]
 
     @authors("denvr")
@@ -74,3 +75,71 @@ class TestSimpleTool:
             {"value": "//tmp/test_list_dir/some_table_1", "attributes": {"type": "table", "account": "tmp", "creation_time": "<datetime>"}},
             {"value": "//tmp/test_list_dir/some_table_2", "attributes": {"type": "table", "account": "tmp", "creation_time": "<datetime>"}},
         ]
+
+    @authors("dab512")
+    def test_cypress_mutations(self):
+        client = yt.YtClient(config=yt.config)
+        cluster = client.config["proxy"]["url"]
+
+        # create
+        self._request(client, CreateNode(), cluster=cluster, type="map_node", path="//tmp/test_cypress_mut")
+        assert client.exists("//tmp/test_cypress_mut")
+        self._request(client, CreateNode(), cluster=cluster, type="table", path="//tmp/test_cypress_mut/t")
+        assert client.exists("//tmp/test_cypress_mut/t")
+
+        # set attribute via legacy //node/@attr path form
+        self._request(client, SetAttribute(), cluster=cluster, path="//tmp/test_cypress_mut/t/@my_attr", value="my_value")
+        assert client.get("//tmp/test_cypress_mut/t/@my_attr") == "my_value"
+
+        # set attribute via (path, attribute, value) form
+        self._request(client, SetAttribute(), cluster=cluster,
+                      path="//tmp/test_cypress_mut/t", attribute="my_attr2", value="my_value2")
+        assert client.get("//tmp/test_cypress_mut/t/@my_attr2") == "my_value2"
+
+        # copy
+        self._request(client, CopyNode(), cluster=cluster,
+                      source_path="//tmp/test_cypress_mut/t", destination_path="//tmp/test_cypress_mut/t_copy")
+        assert client.exists("//tmp/test_cypress_mut/t_copy")
+
+        # move
+        self._request(client, MoveNode(), cluster=cluster,
+                      source_path="//tmp/test_cypress_mut/t_copy", destination_path="//tmp/test_cypress_mut/t_moved")
+        assert not client.exists("//tmp/test_cypress_mut/t_copy")
+        assert client.exists("//tmp/test_cypress_mut/t_moved")
+
+        # remove
+        self._request(client, RemoveNode(), cluster=cluster, path="//tmp/test_cypress_mut/t_moved")
+        assert not client.exists("//tmp/test_cypress_mut/t_moved")
+
+    @authors("dab512")
+    def test_write_path_blacklist(self):
+        # Mutations on forbidden prefixes (default: //sys, //logs) must be rejected
+        # by helper_check_write_path before any yt_client call is made.
+        client = yt.YtClient(config=yt.config)
+        cluster = client.config["proxy"]["url"]
+
+        with pytest.raises(Exception, match="Write operations are forbidden under //sys"):
+            self._request(
+                client, CreateNode(), cluster=cluster,
+                type="map_node", path="//sys/test_blacklisted_create",
+            )
+        with pytest.raises(Exception, match="Write operations are forbidden under //sys"):
+            self._request(
+                client, RemoveNode(), cluster=cluster, path="//sys/test_blacklisted_remove",
+            )
+        with pytest.raises(Exception, match="Write operations are forbidden under //sys"):
+            self._request(
+                client, SetAttribute(), cluster=cluster,
+                path="//sys", attribute="my_attr", value="x",
+            )
+        # MoveNode rejects when source or destination is in blacklist
+        with pytest.raises(Exception, match="Write operations are forbidden under //sys"):
+            self._request(
+                client, MoveNode(), cluster=cluster,
+                source_path="//tmp/safe_src", destination_path="//sys/blacklisted_dst",
+            )
+        with pytest.raises(Exception, match="Write operations are forbidden under //sys"):
+            self._request(
+                client, CopyNode(), cluster=cluster,
+                source_path="//tmp/safe_src", destination_path="//sys/blacklisted_dst",
+            )

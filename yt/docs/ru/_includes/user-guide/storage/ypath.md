@@ -158,7 +158,7 @@ YPath представляет собой язык описания путей, 
 
 При отсутствии префикса `<prefix>` и суффикса `<suffix>` сложный YPath может иметь, например, такой вид:
 
-```
+```yson
 <
   append = %true;
   compression_codec = lz4;
@@ -293,7 +293,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 
 Пример: после канонизации пути `<append=true>//home/user/table[#10:#20]` получается следующая YSON-структура:
 
-```
+```yson
 <
   append = true;
   ranges = [
@@ -317,7 +317,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 
 Внутри системы это будет развернуто в широкую запись:
 
-```
+```yson
   ranges = [
     {
       lower_limit = {row_index = 10};
@@ -412,7 +412,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 
 Пусть таблица `//tmp/t` имеет две ключевые колонки и содержит следующие ключи:
 
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -422,20 +422,20 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 ```
 
 Срез `//tmp/t[(b):]`, он же `<ranges = [{lower_limit = {key = [b]}}]>//tmp/t`:
-```
+```yson
 ["b"; 2];
 ["b"; 4];
 ["c"; 0];
 ```
 
 Срез `//tmp/t[(b, 2, 56):]` (обратите внимание, что ключ в срезе может иметь больше значений, чем количество ключевых колонок в таблице):
-```
+```yson
 ["b"; 4];
 ["c"; 0];
 ```
 
 Срез `//tmp/t[:(c, 0)]`:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -444,7 +444,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 ```
 
 Срез `//tmp/t[(b)]`:
-```
+```yson
 ["b"; 2];
 ["b"; 4];
 ```
@@ -481,7 +481,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 #### Примеры
 
 Рассмотрим таблицу `//tmp/t` с теми же ключами, что и в примере выше:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -491,7 +491,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 ```
 
 Срез `<ranges = [{lower_limit = {key_bound = [">"; ["a"; 3]]}}]>//tmp/t`:
-```
+```yson
 ["a"; 5];
 ["b"; 2];
 ["b"; 4];
@@ -499,7 +499,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 ```
 
 Срез `<ranges = [{upper_limit = {key_bound = ["<="; ["b"]]}}]>//tmp/t`:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];

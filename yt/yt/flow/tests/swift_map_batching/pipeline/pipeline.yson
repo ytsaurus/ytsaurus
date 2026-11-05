@@ -1,0 +1,75 @@
+{
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["event_in"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "Batcher" = {
+                "computation_class_name" = "NExample::TBatcher";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(group_key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "group_key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event_in"];
+                "output_stream_ids" = ["event_batched"];
+                "parameters" = {
+                    "allow_batching_with_relaxed_guarantees" = %true;
+                };
+            };
+            "Writer" = {
+                "computation_class_name" = "NExample::TWriter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "0u"; "type" = "uint64"; required = %true;};
+                ];
+                "input_stream_ids" = ["event_batched"];
+                "output_stream_ids" = ["sink_event"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["sink_event"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "event_in" = {
+                "schema" = [
+                    {"name" = "event_id"; "type" = "int64";};
+                    {"name" = "group_key"; "type" = "uint64";};
+                ];
+            };
+            "event_batched" = {
+                "schema" = [
+                    {"name" = "event_ids"; "type" = "string";};
+                ];
+            };
+            "sink_event" = {
+                "schema" = [
+                    {"name" = "event_id"; "type" = "int64";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Batcher" = {
+                "parameters" = {"desired_partition_count" = 5;};
+            };
+            "Writer" = {
+                "parameters" = {"desired_partition_count" = 1;};
+            };
+        };
+    };
+}

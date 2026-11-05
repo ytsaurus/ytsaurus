@@ -47,7 +47,7 @@ public:
         auto resultOrError = Evaluator_->Evaluate(attributePayloads, rowBuffer);
         if (!resultOrError.IsOK()) {
             return TError("Error matching the filter")
-                << resultOrError;
+                .With(resultOrError);
         }
 
         const auto& resultValue = resultOrError.Value();

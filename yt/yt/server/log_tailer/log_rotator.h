@@ -19,13 +19,13 @@ public:
 
 private:
 
-    static TString GetLogSegmentPath(const TString& logFilePath, int segmentId);
+    static std::string GetLogSegmentPath(const std::string& logFilePath, int segmentId);
 
     TBootstrap* const Bootstrap_;
     const TLogRotationConfigPtr Config_;
 
     NConcurrency::TPeriodicExecutorPtr LogRotatorExecutor_;
-    std::vector<TString> LogFilePaths_;
+    std::vector<std::string> LogFilePaths_;
 
     int RotationCount_ = 0;
 

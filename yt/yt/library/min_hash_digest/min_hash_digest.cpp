@@ -32,7 +32,7 @@ TMinHash<TTimestampComparator>::TMinHash(int capacity, TMinHashItems<TTimestampC
 { }
 
 template <class TTimestampComparator>
-i64 TMinHash<TTimestampComparator>::GetWeight() const
+i64 TMinHash<TTimestampComparator>::ComputeWeight() const
 {
     return sizeof(TMinHash<TTimestampComparator>) +
         Items_.capacity() * sizeof(TTimestampedHash<TTimestampComparator>);
@@ -121,8 +121,8 @@ TMinHash<TTimestampComparator> TMinHash<TTimestampComparator>::Merge(
     return {capacity, std::move(items)};
 }
 
-template struct TMinHash<std::less<ui32>>;
-template struct TMinHash<std::greater<ui32>>;
+template class TMinHash<std::less<ui32>>;
+template class TMinHash<std::greater<ui32>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +136,9 @@ TMinHashAccumulator<TTimestampComparator>::TMinHashAccumulator(int capacity)
 template <class TTimestampComparator>
 void TMinHashAccumulator<TTimestampComparator>::Add(TFingerprint hash, ui32 timestamp)
 {
-    EnsureCompacted();
+    if (ssize(ItemsBuffer_) == Capacity_ * 2) {
+        CompactBuffer();
+    }
 
     ItemsBuffer_.push_back({
         .Hash = hash,
@@ -147,19 +149,15 @@ void TMinHashAccumulator<TTimestampComparator>::Add(TFingerprint hash, ui32 time
 template <class TTimestampComparator>
 TMinHash<TTimestampComparator> TMinHashAccumulator<TTimestampComparator>::Finish()
 {
-    EnsureCompacted();
+    CompactBuffer();
 
     // NB(dave11ar): shrink to fit is useless, |ItemsBuffer_| will be destroyed immediately after serializing.
     return {Capacity_, std::move(ItemsBuffer_)};
 }
 
 template <class TTimestampComparator>
-void TMinHashAccumulator<TTimestampComparator>::EnsureCompacted()
+void TMinHashAccumulator<TTimestampComparator>::CompactBuffer()
 {
-    if (ssize(ItemsBuffer_) < Capacity_ * 2) {
-        return;
-    }
-
     std::sort(ItemsBuffer_.begin(), ItemsBuffer_.end());
 
     auto uniqueIterator = std::unique(
@@ -186,7 +184,7 @@ TMinHashDigest::TMinHashDigest(IMemoryUsageTrackerPtr memoryTracker)
 TMinHashDigest::~TMinHashDigest()
 {
     if (MemoryTracker_) {
-        MemoryTracker_->Release(GetWeight());
+        MemoryTracker_->Release(ComputeWeight());
     }
 }
 
@@ -337,16 +335,16 @@ ui32 TMinHashDigest::CalculateSufficientTimestamp(
     return intersectionTimestamps[sufficientIntersectionIndex];
 }
 
-i64 TMinHashDigest::GetWeight() const
+i64 TMinHashDigest::ComputeWeight() const
 {
-    return sizeof(TMinHashDigest) + WriteMinHash_.GetWeight() + DeleteMinHash_.GetWeight();
+    return sizeof(TMinHashDigest) + WriteMinHash_.ComputeWeight() + DeleteMinHash_.ComputeWeight();
 }
 
 void TMinHashDigest::TrackMemory()
 {
     if (MemoryTracker_) {
         // NB(dave11ar): We can acquire after initialization because tablet_background is limitless.
-        MemoryTracker_->Acquire(GetWeight());
+        MemoryTracker_->Acquire(ComputeWeight());
     }
 }
 

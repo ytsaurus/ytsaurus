@@ -84,9 +84,9 @@ TSharedRef TruncateRowset(TSharedRange<NTableClient::TUnversionedRow>& rows)
 void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchemaAndSchemafulRowset, i64 ValueLengthLimit)
 {
     try {
-        YT_LOG_DEBUG("Processing wire rowset");
+        YT_TLOG_DEBUG("Processing wire rowset");
         // Process schema.
-        YT_LOG_DEBUG("Reading schema");
+        YT_TLOG_DEBUG("Reading schema");
         TWireProtocolOptions readerOptions;
         readerOptions.MaxStringValueLength = ValueLengthLimit;
         readerOptions.MaxAnyValueLength = ValueLengthLimit;
@@ -99,14 +99,14 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         newRecord.Schema = ConvertToYsonString(schemaNode);
 
         // Process schemaful rowset.
-        YT_LOG_DEBUG("Reading schemaful rowset");
+        YT_TLOG_DEBUG("Reading schemaful rowset");
         auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
         auto schemaData = IWireProtocolReader::GetSchemaData(schema);
         TSharedRange<NTableClient::TUnversionedRow> rows;
         try {
             rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to read resulting rowset. Try using INSERT INTO to save result") << ex;
+            THROW_ERROR_EXCEPTION("Failed to read resulting rowset. Try using INSERT INTO to save result").With(ex);
         }
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(rows.size());
@@ -118,24 +118,28 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         }
         if (rowset.Size() <= MaxStringValueLength) {
             // Fast path. Copy full rowset.
-            YT_LOG_DEBUG("Copying full rowset of size %v", rowset.Size());
+            YT_TLOG_DEBUG("Copying full rowset")
+                .With("Size", rowset.Size());
             newRecord.Error = TError();
             newRecord.Rowset = TString(rowset.ToStringBuf());
         } else {
             // Slow path. Truncate rowset.
-            YT_LOG_DEBUG("Truncating rowset of size %v", rowset.Size());
+            YT_TLOG_DEBUG("Truncating rowset")
+                .With("Size", rowset.Size());
             newRecord.IsTruncated = true;
             auto truncatedRowset = TruncateRowset(rows);
-            YT_LOG_DEBUG("Copying truncated rowset of size %v", truncatedRowset.Size());
+            YT_TLOG_DEBUG("Copying truncated rowset")
+                .With("Size", truncatedRowset.Size());
             newRecord.Error = TError();
             newRecord.Rowset = TString(truncatedRowset.ToStringBuf());
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to save rowset");
+        YT_TLOG_WARNING("Failed to save rowset")
+            .With(ex);
         newRecord.Schema = ConvertToYsonString(TString());
         newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
         newRecord.IsTruncated = true;
-        newRecord.Error = TError("Failed to save rowset") << ex;
+        newRecord.Error = TError("Failed to save rowset").With(ex);
         newRecord.Rowset = TString();
     }
 }
@@ -151,8 +155,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     const NYPath::TYPath& stateRoot,
     const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
-    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-    const TDuration notIndexedQueriesTTL)
+    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
     , ControlInvoker_(std::move(controlInvoker))
@@ -162,32 +165,40 @@ TQueryHandlerBase::TQueryHandlerBase(
     , Incarnation_(activeQuery.Incarnation)
     , User_(activeQuery.User)
     , Engine_(activeQuery.Engine)
+    , AccessControlObjects_(activeQuery.AccessControlObjects)
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
+    , IsIndexed_(activeQuery.IsIndexed)
     , AcquisitionTime_(TInstant::Now())
-    , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
-    , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
-    , NotIndexedQueriesTTL_(notIndexedQueriesTTL)
+    , Logger(NQueryTracker::Logger()
+        .WithTag("QueryId", activeQuery.Key.QueryId)
+        .WithTag("Engine", activeQuery.Engine))
+    , ProgressWriter_(New<TPeriodicExecutor>(
+        ControlInvoker_,
+        BIND([weakThis = MakeWeak(this)] {
+            if (auto self = weakThis.Lock()) {
+                self->TryWriteProgress();
+            }
+        }),
+        Config_->QueryProgressWritePeriod))
 {
-    YT_LOG_INFO("Query handler instantiated");
+    YT_TLOG_INFO("Query handler instantiated");
 }
 
 void TQueryHandlerBase::StartProgressWriter()
 {
-    YT_LOG_INFO("Starting progress writer");
+    YT_TLOG_INFO("Starting progress writer");
     ProgressWriter_->Start();
 }
 
-void TQueryHandlerBase::StopProgressWriter()
+TFuture<void> TQueryHandlerBase::StopProgressWriter()
 {
-    YT_LOG_INFO("Stopping progress writer");
-    if (ProgressWriter_) {
-        YT_UNUSED_FUTURE(ProgressWriter_->Stop());
-    }
+    YT_TLOG_INFO("Stopping progress writer");
+    return ProgressWriter_->Stop();
 }
 
 std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTransaction(EQueryState previousState) const
 {
-    YT_LOG_DEBUG("Starting incarnation transaction");
+    YT_TLOG_DEBUG("Starting incarnation transaction");
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
     TLookupRowsOptions options;
@@ -239,13 +250,15 @@ std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTran
             previousState,
             optionalRecords[0]->State);
     }
-    YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
+    YT_TLOG_DEBUG("Incarnation transaction started")
+        .With("TransactionId", transaction->GetId());
     return {transaction, *optionalRecords[0]};
 }
 
 void TQueryHandlerBase::OnProgress(TYsonString progress)
 {
-    YT_LOG_DEBUG("Query progress received (ProgressBytes: %v)", progress.AsStringBuf().size());
+    YT_TLOG_DEBUG("Query progress received")
+        .With("ProgressBytes", progress.AsStringBuf().size());
 
     auto guard = Guard(ProgressSpinLock_);
     std::swap(Progress_, progress);
@@ -254,7 +267,8 @@ void TQueryHandlerBase::OnProgress(TYsonString progress)
 
 void TQueryHandlerBase::OnQueryFailed(const TError& error)
 {
-    YT_LOG_INFO(error, "Query failed");
+    YT_TLOG_INFO("Query failed")
+        .With(error);
 
     while (true) {
         if (TryWriteQueryState(EQueryState::Failing, EQueryState::Running, error, {})) {
@@ -266,7 +280,7 @@ void TQueryHandlerBase::OnQueryFailed(const TError& error)
 
 void TQueryHandlerBase::OnQueryStarted()
 {
-    YT_LOG_INFO("Query started");
+    YT_TLOG_INFO("Query started");
 
     while (true) {
         if (TryWriteQueryState(EQueryState::Running, EQueryState::Pending, {}, {})) {
@@ -284,7 +298,7 @@ void TQueryHandlerBase::OnQueryStarted(std::optional<std::string> assignedEngine
 
 void TQueryHandlerBase::OnQueryThrottled()
 {
-    YT_LOG_INFO("Query throttled");
+    YT_TLOG_INFO("Query throttled");
 
     while (true) {
         if (TryWriteQueryState(EQueryState::Pending, EQueryState::Running, {}, {})) {
@@ -320,16 +334,17 @@ void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& r
 
 void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
-    YT_LOG_INFO("Query completed (ResultCount: %v)", wireRowsetOrErrors.size());
+    YT_TLOG_INFO("Query completed")
+        .With("ResultCount", wireRowsetOrErrors.size());
     for (const auto& [index, wireRowsetOrError] : Enumerate(wireRowsetOrErrors)) {
         if (wireRowsetOrError.IsOK()) {
-            YT_LOG_DEBUG("Result rowset (Index: %v, WireRowsetBytes: %v)",
-                index,
-                wireRowsetOrError.Value().Rowset.size());
+            YT_TLOG_DEBUG("Result rowset")
+                .With("Index", index)
+                .With("WireRowsetBytes", wireRowsetOrError.Value().Rowset.size());
         } else {
-            YT_LOG_DEBUG("Result error (Index: %v, Error: %v)",
-                index,
-                static_cast<TError>(wireRowsetOrError));
+            YT_TLOG_DEBUG("Result error")
+                .With("Index", index)
+                .With(static_cast<TError>(wireRowsetOrError));
         }
     }
 
@@ -341,20 +356,33 @@ void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRow
     }
 }
 
-void TQueryHandlerBase::TryWriteProgress()
+void TQueryHandlerBase::WriteProgress()
+{
+    YT_TLOG_DEBUG("Writing query progress");
+
+    while (true) {
+        if (TryWriteProgress()) {
+            break;
+        }
+        TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
+    }
+}
+
+bool TQueryHandlerBase::TryWriteProgress()
 {
     TYsonString progress;
     int progressVersion;
     {
         auto guard = Guard(ProgressSpinLock_);
         if (LastSavedProgressVersion_ == ProgressVersion_) {
-            return;
+            return true;
         }
         progress = Progress_;
         progressVersion = ProgressVersion_;
     }
 
-    YT_LOG_DEBUG("Trying to save progress (Version: %v)", progressVersion);
+    YT_TLOG_DEBUG("Trying to save progress")
+        .With("Version", progressVersion);
     try {
         auto transaction = StartIncarnationTransaction().first;
         auto rowBuffer = New<TRowBuffer>();
@@ -376,22 +404,35 @@ void TQueryHandlerBase::TryWriteProgress()
 
         LastSavedProgressVersion_ = progressVersion;
 
-        YT_LOG_DEBUG("Query progress written");
+        YT_TLOG_DEBUG("Query progress written");
     } catch (const std::exception& ex) {
-        if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {
-            if (errorException->Error().FindMatching(NQueryTrackerClient::EErrorCode::IncarnationMismatch)) {
-                YT_LOG_INFO(ex, "Stopping trying to write query progress due to incarnation mismatch");
-                Detach();
-            }
-        }
-        YT_LOG_ERROR(ex, "Failed to write query progress");
+        return OnProgressWriteFailed(ex);
     }
+
+    return true;
+}
+
+bool TQueryHandlerBase::OnProgressWriteFailed(const std::exception& ex)
+{
+    if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {
+        if (errorException->Error().FindMatching(NQueryTrackerClient::EErrorCode::IncarnationMismatch)) {
+            YT_TLOG_INFO("Stopping trying to write query progress due to incarnation mismatch")
+                .With(ex);
+            Detach();
+            return true;
+        }
+    }
+    YT_TLOG_ERROR("Failed to write query progress")
+        .With(ex);
+    return false;
 }
 
 bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
     try {
-        YT_LOG_INFO("Writing query state (State: %v, PreviousState: %v)", state, previousState);
+        YT_TLOG_INFO("Writing query state")
+            .With("State", state)
+            .With("PreviousState", previousState);
         ITransactionPtr transaction;
         TActiveQuery record;
         std::tie(transaction, record) = StartIncarnationTransaction(previousState);
@@ -420,9 +461,9 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
             std::vector newRows{
                 newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
             };
-            YT_LOG_DEBUG("Writing active query state (FinishTime: %v, ResultCount: %v)",
-                newRecord.FinishTime,
-                newRecord.ResultCount);
+            YT_TLOG_DEBUG("Writing active query state")
+                .With("FinishTime", newRecord.FinishTime)
+                .With("ResultCount", newRecord.ResultCount);
             transaction->WriteRows(
                 StateRoot_ + "/active_queries",
                 TActiveQueryDescriptor::Get()->GetNameTable(),
@@ -438,7 +479,9 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     },
                 };
                 if (!record.IsIndexed) {
-                    newRecord.TTL = NotIndexedQueriesTTL_.MilliSeconds();
+                    if (auto ttl = Config_->NotIndexedQueriesTtl) {
+                        newRecord.Ttl = ttl->MilliSeconds();
+                    }
                 }
                 if (wireRowsetOrError.IsOK()) {
                     NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value(), Config_->ResultingRowsetValueLengthLimit);
@@ -446,13 +489,13 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     newRecord.Error = static_cast<TError>(wireRowsetOrError);
                     newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
                 }
-                YT_LOG_DEBUG("Writing finished query result (Index: %v, ErrorMessageSize: %v, RowsetSize: %v)",
-                    index,
-                    newRecord.Error ? newRecord.Error->GetMessage().size() : 0,
-                    newRecord.Rowset && *newRecord.Rowset ? (**newRecord.Rowset).size() : 0);
+                YT_TLOG_DEBUG("Writing finished query result")
+                    .With("Index", index)
+                    .With("ErrorMessageSize", newRecord.Error ? newRecord.Error->GetMessage().size() : 0)
+                    .With("RowsetSize", newRecord.Rowset && *newRecord.Rowset ? (**newRecord.Rowset).size() : 0);
                 newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryResultDescriptor::Get()->GetPartialIdMapping()));
             }
-            YT_LOG_INFO("Writing finished query result");
+            YT_TLOG_INFO("Writing finished query result");
             transaction->WriteRows(
                 StateRoot_ + "/finished_query_results",
                 TFinishedQueryResultDescriptor::Get()->GetNameTable(),
@@ -472,16 +515,19 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
             stateTimeGauge.Update(time);
         }
 
-        YT_LOG_INFO("Query state written (State: %v)", state);
+        YT_TLOG_INFO("Query state written")
+            .With("State", state);
         return true;
     } catch (const std::exception& ex) {
         if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {
             if (errorException->Error().FindMatching(NQueryTrackerClient::EErrorCode::IncarnationMismatch)) {
-                YT_LOG_INFO(ex, "Stopping trying to write query state due to incarnation mismatch");
+                YT_TLOG_INFO("Stopping trying to write query state due to incarnation mismatch")
+                    .With(ex);
                 return true;
             }
         }
-        YT_LOG_ERROR(ex, "Failed to write query state, backing off");
+        YT_TLOG_ERROR("Failed to write query state, backing off")
+            .With(ex);
         return false;
     }
 }

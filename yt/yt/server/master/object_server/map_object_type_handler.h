@@ -42,7 +42,6 @@ public:
 
 protected:
     static constexpr int MaxNameLength_ = 100;
-    static constexpr const char* NameRegex_ = "[A-Za-z0-9-_]+";
 
     IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;

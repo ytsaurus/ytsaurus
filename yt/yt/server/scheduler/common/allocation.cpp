@@ -43,6 +43,7 @@ TAllocation::TAllocation(
     // , SchedulingStage_(schedulingStage)
     , NetworkPriority_(networkPriority)
     , Logger_(CreateLogger())
+    , AllocationGroupName_(startDescriptor.AllocationGroupName)
     , Codicil_(Format("AllocationId: %v, OperationId: %v",
         Id_,
         OperationId_))
@@ -61,10 +62,10 @@ bool TAllocation::IsRevived() const
 
 NLogging::TLogger TAllocation::CreateLogger()
 {
-    return SchedulerLogger().WithTag("AllocationId: %v, OperationId: %v, Address: %v",
-        Id_,
-        OperationId_,
-        Node_ ? Node_->GetDefaultAddress() : "<unknown>");
+    return SchedulerLogger()
+        .WithTag("AllocationId", Id_)
+        .WithTag("OperationId", OperationId_)
+        .WithTag("Address", Node_ ? Node_->GetDefaultAddress() : "<unknown>");
 }
 
 TDuration TAllocation::GetPreemptibleProgressDuration() const

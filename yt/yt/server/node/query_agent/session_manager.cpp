@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NQueryAgent {
 
@@ -66,7 +66,7 @@ public:
 
             it = DistributedSessionMap_.find(sessionId);
             if (it == DistributedSessionMap_.end()) {
-                EmplaceOrCrash(DistributedSessionMap_, sessionId, std::move(session));
+                EmplaceOrCrash(DistributedSessionMap_, sessionId, session);
                 return session;
             } else {
                 return it->second;
@@ -100,12 +100,12 @@ public:
 
     void OnDistributedSessionLeaseExpired(TDistributedSessionId sessionId) override
     {
-        YT_LOG_DEBUG("Distributed query session lease expired (SessionId: %v)",
-            sessionId);
+        YT_TLOG_DEBUG("Distributed query session lease expired")
+            .With("SessionId", sessionId);
 
         if (CloseDistributedSession(sessionId)) {
-            YT_LOG_DEBUG("Distributed query session closed by expiration (SessionId: %v)",
-                sessionId);
+            YT_TLOG_DEBUG("Distributed query session closed by expiration")
+                .With("SessionId", sessionId);
         }
     }
 

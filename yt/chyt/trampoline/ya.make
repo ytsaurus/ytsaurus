@@ -15,3 +15,4 @@ PEERDIR(
 
 END()
 
+RECURSE(jdbc)

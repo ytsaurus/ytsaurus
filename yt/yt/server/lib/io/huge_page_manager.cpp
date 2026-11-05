@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #ifdef _linux_
 #include <sys/mman.h>
@@ -116,10 +116,10 @@ public:
         Profiler_.AddFuncGauge("/huge_page_blob_size", MakeStrong(this), [this] {
             return GetHugePageBlobSize();
         });
-        profiler.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
             return GetHugePageSize() * GetUsedHugePageCount();
         });
-        profiler.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
             return GetHugePageMemoryLimit();
         });
     }
@@ -133,22 +133,25 @@ public:
 
         if (freeBlobs.empty()) {
             YT_VERIFY(HugePageAllocator_);
-            auto result = HugePageAllocator_->AllocateHugePageBlob(GetHugePagePerBlob(), *this);
-
+            auto pageCount = GetHugePagePerBlob();
+            auto result = HugePageAllocator_->AllocateHugePageBlob(pageCount, *this);
             if (!result.IsOK()) {
                 return result.Wrap();
             }
 
             auto blob = result.Value();
-            hugeBlob = TSharedMutableRef(blob, New<THugePageBlobHolder>(blob, MakeWeak(this), HugePageAllocator_));
-            UsedHugePageCount_ += GetHugePagePerBlob();
+            hugeBlob = TSharedMutableRef(blob, New<THugePageAllocationHolder>(
+                blob,
+                HugePageAllocator_,
+                MakeWeak(this),
+                pageCount));
         } else {
-            auto blob = freeBlobs.back();
+            hugeBlob = std::move(freeBlobs.back());
             freeBlobs.pop_back();
-            hugeBlob = TSharedMutableRef(blob, New<THugePageBlobHolder>(blob, MakeWeak(this), HugePageAllocator_));
         }
 
-        return hugeBlob;
+        auto blob = TMutableRef(hugeBlob.Begin(), hugeBlob.Size());
+        return TSharedMutableRef(blob, New<THugePageBlobHolder>(std::move(hugeBlob), MakeWeak(this)));
     }
 
     i64 GetHugePageMemoryLimit() const override
@@ -180,14 +183,18 @@ public:
     {
         YT_VERIFY(config);
 
-        auto guard = Guard(Lock_);
+        TFreeBlobs freeBlobs;
+        {
+            auto guard = Guard(Lock_);
 
-        auto currentPagesPerBlob = GetHugePagePerBlob();
-        if (config->PagesPerBlob != currentPagesPerBlob) {
-            HugePageSizeToFreeBlobs_.erase(GetHugePageBlobSize());
+            auto currentPagesPerBlob = GetHugePagePerBlob();
+            auto newPagesPerBlob = config->PagesPerBlob.value_or(StaticConfig_->PagesPerBlob);
+            if (newPagesPerBlob != currentPagesPerBlob) {
+                freeBlobs.swap(HugePageSizeToFreeBlobs_);
+            }
+
+            DynamicConfig_ = config;
         }
-
-        DynamicConfig_ = config;
     }
 
 protected:
@@ -197,58 +204,86 @@ protected:
     IHugePageAllocatorPtr HugePageAllocator_;
 
 private:
-    class THugePageBlobHolder
+    class THugePageAllocationHolder
         : public TSharedRangeHolder
     {
     public:
-        THugePageBlobHolder(
+        THugePageAllocationHolder(
             TMutableRef data,
+            IHugePageAllocatorPtr hugePageAllocator,
             TWeakPtr<THugePageManager> manager,
-            IHugePageAllocatorPtr hugePageAllocator)
-            : TSharedRangeHolder()
-            , Data_(std::move(data))
-            , Manager_(std::move(manager))
+            int pageCount)
+            : Data_(data)
             , HugePageAllocator_(std::move(hugePageAllocator))
+            , Manager_(std::move(manager))
+            , PageCount_(pageCount)
         {
-            YT_VERIFY(HugePageAllocator_);
+            auto lockedManager = Manager_.Lock();
+            YT_VERIFY(lockedManager);
+            lockedManager->UpdateUsedHugePageCount(PageCount_);
         }
 
-        ~THugePageBlobHolder() override
+        ~THugePageAllocationHolder() override
         {
-            if (auto lockedManager = Manager_.Lock()) {
-                lockedManager->UnlockHugePageBlob(Data_);
-            } else {
-                HugePageAllocator_->DeallocateHugePageBlob(Data_);
+            HugePageAllocator_->DeallocateHugePageBlob(Data_);
+            // Detached allocations stay charged until backing memory and tracker bytes are released.
+            if (auto manager = Manager_.Lock()) {
+                manager->UpdateUsedHugePageCount(-PageCount_);
             }
         }
 
     private:
         const TMutableRef Data_;
-        const TWeakPtr<THugePageManager> Manager_;
         const IHugePageAllocatorPtr HugePageAllocator_;
+        const TWeakPtr<THugePageManager> Manager_;
+        const int PageCount_;
     };
 
-    i64 HugePageSize_ = 0;
+    class THugePageBlobHolder
+        : public TSharedRangeHolder
+    {
+    public:
+        THugePageBlobHolder(TSharedMutableRef data, TWeakPtr<THugePageManager> manager)
+            : Data_(std::move(data))
+            , Manager_(std::move(manager))
+        { }
+
+        ~THugePageBlobHolder() override
+        {
+            if (auto lockedManager = Manager_.Lock()) {
+                lockedManager->UnlockHugePageBlob(std::move(Data_));
+            }
+        }
+
+    private:
+        TSharedMutableRef Data_;
+        const TWeakPtr<THugePageManager> Manager_;
+    };
+
+    const i64 HugePageSize_;
     std::atomic<int> UsedHugePageCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
-    THashMap<i64, std::vector<TMutableRef>> HugePageSizeToFreeBlobs_;
+    using TFreeBlobs = THashMap<i64, std::vector<TSharedMutableRef>>;
+    TFreeBlobs HugePageSizeToFreeBlobs_;
 
     int GetHugePagePerBlob() const
     {
         return DynamicConfig_.Acquire()->PagesPerBlob.value_or(StaticConfig_->PagesPerBlob);
     }
 
-    void UnlockHugePageBlob(TMutableRef blob)
+    void UpdateUsedHugePageCount(int delta)
+    {
+        UsedHugePageCount_ += delta;
+    }
+
+    void UnlockHugePageBlob(TSharedMutableRef blob)
     {
         auto guard = Guard(Lock_);
 
         if (std::ssize(blob) == GetHugePageBlobSize()) {
-            HugePageSizeToFreeBlobs_[blob.Size()].push_back(blob);
-        } else {
-            UsedHugePageCount_ -= blob.Size() / HugePageSize_;
-            HugePageAllocator_->DeallocateHugePageBlob(std::move(blob));
+            HugePageSizeToFreeBlobs_[blob.Size()].push_back(std::move(blob));
         }
     }
 };
@@ -276,9 +311,9 @@ private:
         auto hugePageSize = hugePageManager.GetHugePageSize();
         if (usedHugePageCount + pageCount > HugePageCount_) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_count", HugePageCount_)
-                << TErrorAttribute("used_huge_page_count", usedHugePageCount);
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_count", HugePageCount_)
+                .With("used_huge_page_count", usedHugePageCount);
         }
 #ifdef _linux_
         void* page = mmap(
@@ -291,7 +326,7 @@ private:
 
         if (page == MAP_FAILED || !page) {
             return TError("Failed to allocate huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();
@@ -307,11 +342,10 @@ private:
 
         const auto Logger = IOLogger;
         if (result == -1) {
-            YT_LOG_ERROR(
-                TSystemError(),
-                "Failed to munmap huge page blob (Address: %p, Size: %v)",
-                hugePageBlob.Begin(),
-                hugePageBlob.Size());
+            YT_TLOG_ERROR("Failed to munmap huge page blob")
+                .WithFormat("Address", "%p", hugePageBlob.Begin())
+                .With("Size", hugePageBlob.Size())
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();
@@ -337,21 +371,21 @@ private:
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
         if (freeHugePageMemory < pageCount * hugePageSize) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_memory", freeHugePageMemory)
-                << TErrorAttribute("used_huge_page_memory", GetHugePageMemory(hugePageManager));
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_memory", freeHugePageMemory)
+                .With("used_huge_page_memory", GetHugePageMemory(hugePageManager));
         }
 #ifdef _linux_
         void* page = ::aligned_malloc(pageCount * hugePageSize, hugePageSize);
 
         if (!page) {
             return TError("Failed to allocate aligned huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 
         if (::madvise(page, pageCount * hugePageSize, MADV_HUGEPAGE) != 0) {
             return TError("Failed to mark memory MADV_HUGEPAGE")
-                << TSystemError(errno);
+                .With(TSystemError(errno));
         }
 #else
         YT_UNIMPLEMENTED();
@@ -370,12 +404,12 @@ private:
 #endif
     }
 
-    int GetFreeHugePageMemory(const IHugePageManager& hugePageManager) const
+    i64 GetFreeHugePageMemory(const IHugePageManager& hugePageManager) const
     {
         return hugePageManager.GetHugePageMemoryLimit() - GetHugePageMemory(hugePageManager);
     }
 
-    int GetHugePageMemory(const IHugePageManager& hugePageManager) const
+    i64 GetHugePageMemory(const IHugePageManager& hugePageManager) const
     {
         return hugePageManager.GetUsedHugePageCount() * hugePageManager.GetHugePageSize();
     }

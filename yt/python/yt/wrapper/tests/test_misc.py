@@ -4,12 +4,12 @@ import stat
 from typing import List, Dict, Generator
 
 from .conftest import authors, yt_env_multicluster_v4  # noqa
-from .helpers import (TEST_DIR, wait, get_default_resource_limits,
+from .helpers import (TEST_DIR, CUSTOM_MEDIUM, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
-from yt.wrapper.errors import YtRetriableError, YtConfigError, YtResponseError
+from yt.wrapper.errors import YtRetriableError, YtConfigError, YtResponseError, YtResolveError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.spec_builders import MapSpecBuilder, MapperSpecBuilder
@@ -122,6 +122,83 @@ def test_ypath_join():
     assert ypath_join("a", YPath("//b")) == "//b"
 
 
+@authors("asklit")
+def test_ypath_join_method_preserves_attributes():
+    path = YPath("<cluster=foo;my_attr=10>//a")
+    joined_path = path.join("b")
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "foo", "my_attr": 10}
+
+    joined_path = YPath("//a").join("<b_attr=some_val>b", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"b_attr": "some_val"}
+
+    joined_path = YPath("<same=left;left_attr=value>//a").join(
+        "<same=right;right_attr=value>b", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {
+        "same": "right",
+        "left_attr": "value",
+        "right_attr": "value",
+    }
+
+    joined_path = YPath("<cluster=foo>//a{key,value}[#1:#10]").join(
+        "<columns=[other]>b[#20:#30]", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {
+        "cluster": "foo",
+        "columns": ["other"],
+        "ranges": [{
+            "lower_limit": {"row_index": 20},
+            "upper_limit": {"row_index": 30},
+        }],
+    }
+
+    joined_path = YPath("<cluster=foo;left_attr=value>//a").join(
+        "<cluster=bar;right_attr=value>//b")
+
+    assert str(joined_path) == "//b"
+    assert joined_path.attributes == {"cluster": "bar", "right_attr": "value"}
+
+    path = YPath("<my_attr={nested=value}>//a")
+    joined_path = path.join("b")
+    joined_path.attributes["my_attr"]["nested"] = "other"
+
+    assert path.attributes == {"my_attr": {"nested": "value"}}
+    assert joined_path.attributes == {"my_attr": {"nested": "other"}}
+
+    joined_path = YPath.join("//a", "b")
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {}
+
+    joined_path = YPath("<cluster=foo>//a").join("")
+
+    assert str(joined_path) == "//a/"
+    assert joined_path.attributes == {"cluster": "foo"}
+
+    joined_path = YPath("<cluster=foo>//a").join("<columns=bar>b")
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "foo"}
+
+    joined_path = YPath("<cluster=hahn;attr=left>//a").join(
+        "<cluster=arnold;attr=right>b", with_attributes=True)
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "arnold", "attr": "right"}
+
+    joined_path = YPath("//a").join("some_strange_path_<#_with_strange_simbols")
+    assert str(joined_path) == "//a/some_strange_path_<#_with_strange_simbols"
+    assert joined_path.attributes == {}
+
+    joined_path = YPath("<cluster=hahn>//a").join("some_strange_path_<#_with_strange_simbols")
+    assert str(joined_path) == "//a/some_strange_path_<#_with_strange_simbols"
+    assert joined_path.attributes == {"cluster": "hahn"}
+
+
 @authors("ostyakov")
 def test_ypath_split():
     assert ypath_split("/") == ("/", "")
@@ -186,42 +263,45 @@ class TestYtBinary(object):
         if yatest_common is None:
             pytest.skip()
 
-        env = get_environment_for_binary_test(yt_env_job_archive)
-        env.update({
-            "YT_LOG_LEVEL": "DEBUG",
-            "YT_SPEC": '{"secure_vault": {"ENV": "MY_TOKEN"}}',
-        })
-
         yt.write_table(TEST_DIR + "/input", [{"x": 10}])
-        # TODO(ignat): use compiled yt
-        proc = subprocess.Popen(
-            [
-                get_python(), get_binary_path("yt"),
-                "map", "cat",
-                "--format", "yson",
-                "--src", TEST_DIR + "/input",
-                "--dst", TEST_DIR + "/output",
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
 
-        stdout, stderr = proc.communicate()
+        for backend in ["http", "rpc"]:
+            env = get_environment_for_binary_test(yt_env_job_archive)
+            env.update({
+                "YT_LOG_LEVEL": "DEBUG",
+                "YT_SPEC": '{"secure_vault": {"ENV": "MY_TOKEN"}}',
+            })
+            env["YT_CONFIG_PATCHES"] = env["YT_CONFIG_PATCHES"].replace("\"backend\"=\"http\"", f"\"backend\"=\"{backend}\"")
 
-        if proc.returncode != 0:
-            print("Process stdout", stdout, file=sys.stderr)
-            print("Process stderr", stderr, file=sys.stderr)
-        assert proc.returncode == 0
+            # TODO(ignat): use compiled yt
+            proc = subprocess.Popen(
+                [
+                    get_python(), get_binary_path("yt"),
+                    "map", "cat",
+                    "--format", "yson",
+                    "--src", TEST_DIR + "/input",
+                    "--dst", TEST_DIR + "/output",
+                ],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
 
-        start_op_line = None
-        for line in stderr.split(b"\n"):
-            if b"Executing " not in line:
-                assert b"MY_TOKEN" not in line
-            if b"start_op" in line:
-                start_op_line = line
-        assert start_op_line is not None
-        assert b"secure_vault" in start_op_line
-        assert b"hidden" in start_op_line
+            stdout, stderr = proc.communicate()
+
+            if proc.returncode != 0:
+                print("Process stdout", stdout, file=sys.stderr)
+                print("Process stderr", stderr, file=sys.stderr)
+            assert proc.returncode == 0
+
+            start_op_line = None
+            for line in stderr.split(b"\n"):
+                if b"Executing " not in line:
+                    assert b"MY_TOKEN" not in line
+                if b"start_op" in line and b"secure_vault" in line:
+                    assert b"MY_TOKEN" not in line
+                    assert b"hidden" in line
+                    start_op_line = line
+            assert start_op_line is not None
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
@@ -1325,6 +1405,15 @@ class TestGetSupportedFeatures(object):
 
 
 @pytest.mark.usefixtures("yt_env")
+class TestCheckClusterLiveness(object):
+    @authors("dagorokhov")
+    def test_check_cluster_liveness(self):
+        yt.check_cluster_liveness()
+        with pytest.raises(YtResolveError, match="Cluster liveness subrequest failed"):
+            yt.check_cluster_liveness(check_tablet_cell_bundle="b")
+
+
+@pytest.mark.usefixtures("yt_env")
 class TestRunCommandWithLock(object):
     @authors("ignat")
     def test_conflict(self, yt_env):
@@ -1825,6 +1914,41 @@ class TestClientConfigFromCluster(object):
         env_alias_client = yt.YtClient(config=config)
         assert env_alias_client.get(node_path) == "value"
 
+    @authors("denvr")
+    def test_config_annotations(self):
+        DIR = "//tmp/dir1"
+        FILE = "//tmp/file1"
+        DOCUMENT = "//tmp/doc1"
+        TABLE = "//tmp/table1"
+        TABLE_DST = "//tmp/table1_dst"
+
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val;_some_attr_with_attr=<attr1=val1>some_str_val_2;}"}):
+            client = yt.YtClient(config=yt.config.config)
+            client.create("map_node", DIR)
+            client.create("file", FILE)
+            client.create("document", DOCUMENT)
+            client.create("table", TABLE)
+        for path in [DIR, FILE, TABLE]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr", "_some_attr_with_attr"]).attributes
+            assert attrs["_some_attr"] == "some_str_val"
+            assert attrs["_some_attr_with_attr"] == yson.loads(b"<attr1=val1>some_str_val_2")
+            assert "some_bad_attr" not in attrs["_some_attr"]
+        for path in [DOCUMENT]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
+            assert attrs == {}
+
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{\"_some_attr_2\": {\"some_key\": \"some_str_val_2\"}}"}):
+            client.run_map(
+                "cat",
+                source_table=TABLE,
+                destination_table=TABLE_DST,
+                format="yson"
+            )
+        attrs = yt.get(TABLE_DST, attributes=["some_bad_attr", "_some_attr", "_some_attr_2"]).attributes
+        assert attrs["_some_attr_2"] == {"some_key": "some_str_val_2"}
+        assert "some_bad_attr" not in attrs["_some_attr"]
+        assert "_some_attr" not in attrs["_some_attr"]
+
 
 class _ConfigFile:
     def __init__(self, content: bytes, is_readable: bool, file_name: str):
@@ -2106,13 +2230,10 @@ class TestFileConfig:
 
 
 @authors("ignat")
-@pytest.mark.usefixtures("yt_env_additional_media")
+@pytest.mark.usefixtures("yt_env_custom_medium")
 class TestMedia:
     def test_simple(self):
-        yt.create("domestic_medium", attributes={"name": "custom_medium"})
-        yt.create("file", "//tmp/test_file", attributes={"primary_medium": "custom_medium"})
-
-        yt.set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/custom_medium", 10 * 1024**3)
+        yt.create("file", "//tmp/test_file", attributes={"primary_medium": CUSTOM_MEDIUM})
 
         FILE_PAYLOAD = b"PAYLOAD"
         yt.write_file("//tmp/test_file", FILE_PAYLOAD)
@@ -2194,6 +2315,13 @@ def test_operations_with_other_cluster(yt_env_multicluster_v4):  # noqa
 
 @pytest.mark.usefixtures("yt_env")
 class TestProxyDiscovery(object):
+
+    def setup_method(self, method):
+        self._config = deepcopy(yt.config.config)
+
+    def teardown_method(self, method):
+        yt.config.config = self._config
+
     @authors("nadya73")
     def test_hosts(self):
         if yt.config["backend"] == "native":
@@ -2212,8 +2340,11 @@ class TestProxyDiscovery(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
+        yt.config["proxy"]["enable_proxy_discovery"] = True
         yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = False
         yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
 
         table = TEST_DIR + "/table"
 
@@ -2226,7 +2357,8 @@ class TestProxyDiscovery(object):
         yt.config["proxy"]["http_proxy_role"] = "data"
         check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
 
-        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+        with pytest.raises(yt.YtError, match="No proxies found for role \"unknown_role\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.config["proxy"]["http_proxy_role"] = "unknown_role"
             yt.read_table(table)
 
@@ -2234,6 +2366,75 @@ class TestProxyDiscovery(object):
         yt.config["proxy"]["network_name"] = "default"
         check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
 
-        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+        with pytest.raises(yt.YtError, match="No proxies found for role \"data\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.config["proxy"]["network_name"] = "unknown_network"
+            yt.read_table(table)
+
+    @authors("asklit")
+    def test_proxy_role_change(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = True
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role_fly"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+    @authors("asklit")
+    def test_proxy_role_fallback_logging(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = True
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role_log"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        if yatest_common is not None:
+            log_content = "".join(open(yatest_common.test_output_path() + ".log").read())
+            warning_message = "No proxies found for role \"unknown_role_log\" on cluster, falling back to light proxy"
+            assert log_content.count(warning_message) == 1
+
+    @authors("asklit")
+    def test_unknown_proxy_role_raises_error_without_allow_light(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = False
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role"
+        with pytest.raises(yt.YtError, match="No proxies found for role \"unknown_role\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.read_table(table)

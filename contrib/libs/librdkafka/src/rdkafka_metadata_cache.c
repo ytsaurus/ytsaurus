@@ -252,24 +252,20 @@ int rd_kafka_metadata_partition_id_cmp(const void *_a, const void *_b) {
         return RD_CMP(a->id, b->id);
 }
 
-
 /**
- * @brief Add (and replace) cache entry for topic.
+ * @brief Creates a new metadata cache entry.
  *
- * This makes a copy of \p topic
+ * @param mdt Topic to insert in the cache entry.
+ * @param mdti Topic to insert in the cache entry (internal structure).
+ * @param include_racks Include partition racks.
  *
- * @locks_required rd_kafka_wrlock()
+ * @return The new metadata cache entry, to free with `rd_free`.
  */
-static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert(
-    rd_kafka_t *rk,
+static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_entry_new(
     const rd_kafka_metadata_topic_t *mtopic,
     const rd_kafka_metadata_topic_internal_t *metadata_internal_topic,
-    rd_ts_t now,
-    rd_ts_t ts_expires,
-    rd_bool_t include_racks,
-    rd_kafka_metadata_broker_internal_t *brokers_internal,
-    size_t broker_cnt) {
-        struct rd_kafka_metadata_cache_entry *rkmce, *old, *old_by_id = NULL;
+    rd_bool_t include_racks) {
+        struct rd_kafka_metadata_cache_entry *rkmce;
         rd_tmpabuf_t tbuf;
         int i;
 
@@ -363,6 +359,21 @@ static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert(
                 rkmce->rkmce_mtopic.partitions[i].isrs        = NULL;
                 rkmce->rkmce_mtopic.partitions[i].isr_cnt     = 0;
         }
+
+        return rkmce;
+}
+
+/**
+ * @brief Add (and replace) cache entry for topic.
+ *
+ * @locks_required rd_kafka_wrlock()
+ */
+static struct rd_kafka_metadata_cache_entry *
+rd_kafka_metadata_cache_insert(rd_kafka_t *rk,
+                               struct rd_kafka_metadata_cache_entry *rkmce,
+                               rd_ts_t now,
+                               rd_ts_t ts_expires) {
+        struct rd_kafka_metadata_cache_entry *old, *old_by_id = NULL;
         TAILQ_INSERT_TAIL(&rk->rk_metadata_cache.rkmc_expiry, rkmce,
                           rkmce_link);
         rk->rk_metadata_cache.rkmc_cnt++;
@@ -379,9 +390,14 @@ static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert(
                 /* If topic id isn't zero insert cache entry into this tree */
                 old_by_id = RD_AVL_INSERT(&rk->rk_metadata_cache.rkmc_avl_by_id,
                                           rkmce, rkmce_avlnode_by_id);
-        } else if (old && !RD_KAFKA_UUID_IS_ZERO(
-                              old->rkmce_metadata_internal_topic.topic_id)) {
-                /* If it had a topic id, remove it from the tree */
+        }
+        if (old &&
+            !RD_KAFKA_UUID_IS_ZERO(
+                old->rkmce_metadata_internal_topic.topic_id) &&
+            rd_kafka_Uuid_cmp(rkmce->rkmce_metadata_internal_topic.topic_id,
+                              old->rkmce_metadata_internal_topic.topic_id) !=
+                0) {
+                /* If it had a different topic id, remove it from the tree */
                 RD_AVL_REMOVE_ELM(&rk->rk_metadata_cache.rkmc_avl_by_id, old);
         }
         if (old) {
@@ -389,10 +405,8 @@ static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert(
                 rd_kafka_metadata_cache_delete(rk, old, 0);
         }
         if (old_by_id && old_by_id != old) {
-                /* If there was a different cache entry in this tree,
-                 * remove and free it. */
-                RD_AVL_REMOVE_ELM(&rk->rk_metadata_cache.rkmc_avl, old_by_id);
-                rd_kafka_metadata_cache_delete(rk, old_by_id, 0);
+                rd_dassert(
+                    !*"Different cache entries for topic name and topic id");
         }
 
         /* Explicitly not freeing the tmpabuf since rkmce points to its
@@ -400,6 +414,27 @@ static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert(
         return rkmce;
 }
 
+/**
+ * @brief Add (and replace) cache entry for topic.
+ *
+ * This makes a copy of \p mtopic and \p metadata_internal_topic ,
+ *
+ * @locks_required rd_kafka_wrlock()
+ */
+static struct rd_kafka_metadata_cache_entry *rd_kafka_metadata_cache_insert_new(
+    rd_kafka_t *rk,
+    const rd_kafka_metadata_topic_t *mtopic,
+    const rd_kafka_metadata_topic_internal_t *metadata_internal_topic,
+    rd_ts_t now,
+    rd_ts_t ts_expires,
+    rd_bool_t include_racks) {
+        /* Create entry */
+        struct rd_kafka_metadata_cache_entry *rkmce =
+            rd_kafka_metadata_cache_entry_new(mtopic, metadata_internal_topic,
+                                              include_racks);
+        /* Insert/replace entry */
+        return rd_kafka_metadata_cache_insert(rk, rkmce, now, ts_expires);
+}
 
 /**
  * @brief Purge the metadata cache
@@ -440,6 +475,142 @@ void rd_kafka_metadata_cache_expiry_start(rd_kafka_t *rk) {
                                      rd_kafka_metadata_cache_evict_tmr_cb, rk);
 }
 
+#define rd_kafka_metadata_cache_topic_update_replace_partition(                \
+    current_partition, new_partition, current_partition_cnt,                   \
+    new_partition_cnt, partition)                                              \
+        ((partition) < (current_partition_cnt) &&                              \
+                 (partition) >= (new_partition_cnt)                            \
+             ? rd_false                                                        \
+         : (partition) < (new_partition_cnt) &&                                \
+                 (partition) >= (current_partition_cnt)                        \
+             ? rd_true                                                         \
+             : (new_partition).leader_epoch == -1 ||                           \
+                   (new_partition).leader_epoch >=                             \
+                       (current_partition.leader_epoch));
+
+
+static struct rd_kafka_metadata_cache_entry *
+rd_kafka_metadata_cache_topic_update_merge_partitions(
+    rd_kafka_t *rk,
+    struct rd_kafka_metadata_cache_entry *rkmce_current,
+    const rd_kafka_metadata_topic_t *mdt,
+    const rd_kafka_metadata_topic_internal_t *mdti,
+    rd_bool_t include_racks,
+    rd_bool_t has_reliable_epochs) {
+        rd_tmpabuf_t tbuf;
+        struct rd_kafka_metadata_cache_entry *rkmce;
+        size_t i, current_partition_cnt, new_partition_cnt, partition_cnt;
+
+        if (!has_reliable_epochs || !rkmce_current ||
+            /* Different topic ids */
+            rd_kafka_Uuid_cmp(
+                mdti->topic_id,
+                rkmce_current->rkmce_metadata_internal_topic.topic_id) != 0) {
+                return rd_kafka_metadata_cache_entry_new(mdt, mdti,
+                                                         include_racks);
+        }
+
+        current_partition_cnt = rkmce_current->rkmce_mtopic.partition_cnt;
+        new_partition_cnt     = mdt->partition_cnt;
+        partition_cnt = RD_MAX(current_partition_cnt, new_partition_cnt);
+
+        rd_tmpabuf_new(&tbuf, sizeof(*rkmce), rd_true /*assert on fail*/);
+        rd_tmpabuf_add_alloc(&tbuf, sizeof(*rkmce));
+        rd_tmpabuf_add_alloc(&tbuf, strlen(mdt->topic) + 1);
+        rd_tmpabuf_add_alloc(&tbuf, partition_cnt * sizeof(*mdt->partitions));
+        rd_tmpabuf_add_alloc(&tbuf, partition_cnt * sizeof(*mdti->partitions));
+
+        for (i = 0; include_racks && i < partition_cnt; i++) {
+                size_t j;
+                rd_kafka_metadata_partition_internal_t *partition_internal;
+                rd_bool_t replace_partition =
+                    rd_kafka_metadata_cache_topic_update_replace_partition(
+                        rkmce_current->rkmce_metadata_internal_topic
+                            .partitions[i],
+                        mdti->partitions[i], current_partition_cnt,
+                        new_partition_cnt, i);
+
+                partition_internal =
+                    replace_partition
+                        ? &mdti->partitions[i]
+                        : &rkmce_current->rkmce_metadata_internal_topic
+                               .partitions[i];
+                rd_tmpabuf_add_alloc(&tbuf, partition_internal->racks_cnt *
+                                                sizeof(char *));
+                for (j = 0; j < partition_internal->racks_cnt; j++) {
+                        rd_tmpabuf_add_alloc(
+                            &tbuf, strlen(partition_internal->racks[j]) + 1);
+                }
+        }
+
+        rd_tmpabuf_finalize(&tbuf);
+
+        rkmce = rd_tmpabuf_alloc(&tbuf, sizeof(*rkmce));
+
+        rkmce->rkmce_mtopic = *mdt;
+
+        rkmce->rkmce_metadata_internal_topic = *mdti;
+
+        /* Copy topic name */
+        rkmce->rkmce_mtopic.topic = rd_tmpabuf_write_str(&tbuf, mdt->topic);
+
+        /* Allocate partition array */
+        rkmce->rkmce_mtopic.partitions =
+            rd_tmpabuf_alloc(&tbuf, partition_cnt * sizeof(*mdt->partitions));
+
+        /* Allocate partition array (internal) */
+        rkmce->rkmce_metadata_internal_topic.partitions =
+            rd_tmpabuf_alloc(&tbuf, partition_cnt * sizeof(*mdti->partitions));
+
+        for (i = 0; i < partition_cnt; i++) {
+                struct rd_kafka_metadata_partition *partition;
+                rd_kafka_metadata_partition_internal_t *partition_internal;
+
+                rd_bool_t replace_partition =
+                    rd_kafka_metadata_cache_topic_update_replace_partition(
+                        rkmce_current->rkmce_metadata_internal_topic
+                            .partitions[i],
+                        mdti->partitions[i], current_partition_cnt,
+                        new_partition_cnt, i);
+
+                if (replace_partition) {
+                        partition          = &mdt->partitions[i];
+                        partition_internal = &mdti->partitions[i];
+                } else {
+                        partition = &rkmce_current->rkmce_mtopic.partitions[i];
+                        partition_internal =
+                            &rkmce_current->rkmce_metadata_internal_topic
+                                 .partitions[i];
+                }
+
+                rkmce->rkmce_mtopic.partitions[i] = *partition;
+                rkmce->rkmce_metadata_internal_topic.partitions[i] =
+                    *partition_internal;
+
+                if (include_racks) {
+                        size_t j;
+                        rkmce->rkmce_metadata_internal_topic.partitions[i]
+                            .racks = rd_tmpabuf_alloc(
+                            &tbuf,
+                            partition_internal->racks_cnt * sizeof(char *));
+                        rkmce->rkmce_metadata_internal_topic.partitions[i]
+                            .racks_cnt = partition_internal->racks_cnt;
+                        for (j = 0; j < partition_internal->racks_cnt; j++) {
+                                rkmce->rkmce_metadata_internal_topic
+                                    .partitions[i]
+                                    .racks[j] = rd_tmpabuf_write_str(
+                                    &tbuf, partition_internal->racks[j]);
+                        }
+                } else {
+                        rkmce->rkmce_metadata_internal_topic.partitions[i]
+                            .racks = NULL;
+                        rkmce->rkmce_metadata_internal_topic.partitions[i]
+                            .racks_cnt = 0;
+                }
+        }
+        return rkmce;
+}
+
 /**
  * @brief Update the metadata cache for a single topic
  *        with the provided metadata.
@@ -456,8 +627,12 @@ void rd_kafka_metadata_cache_expiry_start(rd_kafka_t *rk) {
  * For permanent errors (authorization failures), we keep
  * the entry cached for metadata.max.age.ms.
  *
- * @param only_existing Update only existing metadata cache entries,
- *                      either valid or hinted.
+ * @param mdt Topic to insert in the cache entry.
+ * @param mdti Topic to insert in the cache entry (internal structure).
+ * @param propagate Propagate metadata cache changes now.
+ * @param include_racks Include partition racks.
+ * @param has_reliable_leader_epochs Comes from a broker with reliable leader
+ * epochs.
  *
  * @return 1 on metadata change, 0 when no change was applied
  *
@@ -469,47 +644,64 @@ void rd_kafka_metadata_cache_expiry_start(rd_kafka_t *rk) {
 int rd_kafka_metadata_cache_topic_update(
     rd_kafka_t *rk,
     const rd_kafka_metadata_topic_t *mdt,
-    const rd_kafka_metadata_topic_internal_t *mdit,
+    const rd_kafka_metadata_topic_internal_t *mdti,
     rd_bool_t propagate,
     rd_bool_t include_racks,
-    rd_kafka_metadata_broker_internal_t *brokers,
-    size_t broker_cnt,
-    rd_bool_t only_existing) {
-        struct rd_kafka_metadata_cache_entry *rkmce = NULL;
-        rd_ts_t now                                 = rd_clock();
+    rd_bool_t has_reliable_leader_epochs) {
+        rd_ts_t now        = rd_clock();
         rd_ts_t ts_expires = now + (rk->rk_conf.metadata_max_age_ms * 1000);
-        int changed        = 1;
-        if (only_existing) {
-                if (likely(mdt->topic != NULL)) {
-                        rkmce = rd_kafka_metadata_cache_find(rk, mdt->topic, 0);
-                } else {
-                        rkmce = rd_kafka_metadata_cache_find_by_id(
-                            rk, mdit->topic_id, 1);
-                }
-                if (!rkmce)
-                        return 0;
-        }
+        int changed        = 0;
 
         if (likely(mdt->topic != NULL)) {
-                /* Cache unknown topics for a short while (100ms) to allow the
-                 * cgrp logic to find negative cache hits. */
-                if (mdt->err == RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART)
+                struct rd_kafka_metadata_cache_entry *rkmce,
+                    *rkmce_current                           = NULL;
+                rd_kafka_metadata_topic_internal_t mdti_copy = *mdti;
+                switch (mdt->err) {
+                case RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART:
+                        /* Cache unknown topics for metadata.propagation.max.ms
+                         * to allow the cgrp logic to find negative cache hits.
+                         * and to avoid false reappearances of the topic
+                         * after deletion. */
                         ts_expires = RD_MIN(ts_expires, now + (100 * 1000));
 
-                if (!mdt->err ||
-                    mdt->err == RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED ||
-                    mdt->err == RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART)
-                        rd_kafka_metadata_cache_insert(
-                            rk, mdt, mdit, now, ts_expires, include_racks,
-                            brokers, broker_cnt);
-                else
-                        changed = rd_kafka_metadata_cache_delete_by_name(
-                            rk, mdt->topic);
+                        /* Continue */
+                case RD_KAFKA_RESP_ERR_NO_ERROR:
+                        rkmce_current =
+                            rd_kafka_metadata_cache_find(rk, mdt->topic, 1);
+                        if (mdt->err ==
+                                RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART &&
+                            rkmce_current &&
+                            RD_KAFKA_UUID_IS_ZERO(mdti->topic_id) &&
+                            !RD_KAFKA_UUID_IS_ZERO(
+                                rkmce_current->rkmce_metadata_internal_topic
+                                    .topic_id)) {
+                                /* Keep the existing topic id to detect
+                                 * if the same id is received again
+                                 * as existing */
+                                mdti_copy.topic_id =
+                                    rkmce_current->rkmce_metadata_internal_topic
+                                        .topic_id;
+                        }
+
+                        /* Continue */
+                case RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED:
+                        rkmce =
+                            rd_kafka_metadata_cache_topic_update_merge_partitions(
+                                rk, rkmce_current, mdt, &mdti_copy,
+                                include_racks, has_reliable_leader_epochs);
+                        /* Insert/replace entry */
+                        rd_kafka_metadata_cache_insert(rk, rkmce, now,
+                                                       ts_expires);
+                        changed = 1;
+                        break;
+                default:
+                        break;
+                }
         } else {
                 /* Cache entry found but no topic name:
                  * delete it. */
                 changed = rd_kafka_metadata_cache_delete_by_topic_id(
-                    rk, mdit->topic_id);
+                    rk, mdti->topic_id);
         }
 
         if (changed && propagate)
@@ -603,7 +795,6 @@ void rd_kafka_metadata_cache_purge_hints_by_id(rd_kafka_t *rk,
  * @param dst rd_list_t(char *topicname)
  * @param err is the error to set on hint cache entries,
  *            typically ERR__WAIT_CACHE.
- * @param replace replace existing valid entries
  *
  * @returns the number of topic hints inserted.
  *
@@ -612,8 +803,7 @@ void rd_kafka_metadata_cache_purge_hints_by_id(rd_kafka_t *rk,
 int rd_kafka_metadata_cache_hint(rd_kafka_t *rk,
                                  const rd_list_t *topics,
                                  rd_list_t *dst,
-                                 rd_kafka_resp_err_t err,
-                                 rd_bool_t replace) {
+                                 rd_kafka_resp_err_t err) {
         const char *topic;
         rd_ts_t now        = rd_clock();
         rd_ts_t ts_expires = now + (rk->rk_conf.socket_timeout_ms * 1000);
@@ -627,9 +817,8 @@ int rd_kafka_metadata_cache_hint(rd_kafka_t *rk,
                     RD_ZERO_INIT;
                 /*const*/ struct rd_kafka_metadata_cache_entry *rkmce;
 
-                /* !replace: Dont overwrite valid entries */
-                if (!replace && (rkmce = rd_kafka_metadata_cache_find(
-                                     rk, topic, 0 /*any*/))) {
+                if ((rkmce =
+                         rd_kafka_metadata_cache_find(rk, topic, 0 /*any*/))) {
                         if (RD_KAFKA_METADATA_CACHE_VALID(rkmce) ||
                             (dst && rkmce->rkmce_mtopic.err !=
                                         RD_KAFKA_RESP_ERR__NOENT))
@@ -638,9 +827,9 @@ int rd_kafka_metadata_cache_hint(rd_kafka_t *rk,
                         /* FALLTHRU */
                 }
 
-                rd_kafka_metadata_cache_insert(rk, &mtopic,
-                                               &metadata_internal_topic, now,
-                                               ts_expires, rd_false, NULL, 0);
+                rd_kafka_metadata_cache_insert_new(rk, &mtopic,
+                                                   &metadata_internal_topic,
+                                                   now, ts_expires, rd_false);
                 cnt++;
 
                 if (dst)
@@ -665,8 +854,7 @@ int rd_kafka_metadata_cache_hint(rd_kafka_t *rk,
 int rd_kafka_metadata_cache_hint_rktparlist(
     rd_kafka_t *rk,
     const rd_kafka_topic_partition_list_t *rktparlist,
-    rd_list_t *dst,
-    int replace) {
+    rd_list_t *dst) {
         rd_list_t topics;
         int r;
 
@@ -674,8 +862,8 @@ int rd_kafka_metadata_cache_hint_rktparlist(
         rd_kafka_topic_partition_list_get_topic_names(rktparlist, &topics,
                                                       0 /*dont include regex*/);
         rd_kafka_wrlock(rk);
-        r = rd_kafka_metadata_cache_hint(
-            rk, &topics, dst, RD_KAFKA_RESP_ERR__WAIT_CACHE, replace);
+        r = rd_kafka_metadata_cache_hint(rk, &topics, dst,
+                                         RD_KAFKA_RESP_ERR__WAIT_CACHE);
         rd_kafka_wrunlock(rk);
 
         rd_list_destroy(&topics);
@@ -811,20 +999,27 @@ void rd_kafka_metadata_cache_propagate_changes(rd_kafka_t *rk) {
 }
 
 /**
+ * @param mdtip If non NULL, it's set to a pointer to internal topic metadata,
+ *              or to NULL if not found in cache.
  * @returns the shared metadata for a topic, or NULL if not found in
  *          cache.
  *
  * @locks rd_kafka_*lock()
  */
-const rd_kafka_metadata_topic_t *
-rd_kafka_metadata_cache_topic_get(rd_kafka_t *rk,
-                                  const char *topic,
-                                  int valid) {
+const rd_kafka_metadata_topic_t *rd_kafka_metadata_cache_topic_get(
+    rd_kafka_t *rk,
+    const char *topic,
+    const rd_kafka_metadata_topic_internal_t **mdtip,
+    int valid) {
         struct rd_kafka_metadata_cache_entry *rkmce;
 
-        if (!(rkmce = rd_kafka_metadata_cache_find(rk, topic, valid)))
+        if (!(rkmce = rd_kafka_metadata_cache_find(rk, topic, valid))) {
+                if (mdtip)
+                        *mdtip = NULL;
                 return NULL;
-
+        }
+        if (mdtip)
+                *mdtip = &rkmce->rkmce_metadata_internal_topic;
         return &rkmce->rkmce_mtopic;
 }
 
@@ -838,6 +1033,7 @@ rd_kafka_metadata_cache_topic_get(rd_kafka_t *rk,
  *
  * @param mtopicp: pointer to topic metadata
  * @param mpartp: pointer to partition metadata
+ * @param mdpip: pointer to internal partition metadata
  * @param valid: only return valid entries (no hints)
  *
  * @returns -1 if topic was not found in cache, 0 if topic was found
@@ -849,18 +1045,22 @@ int rd_kafka_metadata_cache_topic_partition_get(
     rd_kafka_t *rk,
     const rd_kafka_metadata_topic_t **mtopicp,
     const rd_kafka_metadata_partition_t **mpartp,
+    const rd_kafka_metadata_partition_internal_t **mdpip,
     const char *topic,
     int32_t partition,
     int valid) {
 
         const rd_kafka_metadata_topic_t *mtopic;
+        const rd_kafka_metadata_topic_internal_t *mdti;
         const rd_kafka_metadata_partition_t *mpart;
         rd_kafka_metadata_partition_t skel = {.id = partition};
 
         *mtopicp = NULL;
         *mpartp  = NULL;
+        *mdpip   = NULL;
 
-        if (!(mtopic = rd_kafka_metadata_cache_topic_get(rk, topic, valid)))
+        if (!(mtopic =
+                  rd_kafka_metadata_cache_topic_get(rk, topic, &mdti, valid)))
                 return -1;
 
         *mtopicp = mtopic;
@@ -877,6 +1077,8 @@ int rd_kafka_metadata_cache_topic_partition_get(
                 return 0;
 
         *mpartp = mpart;
+        if (mdpip)
+                *mdpip = &mdti->partitions[mpart->id];
 
         return 1;
 }
@@ -923,17 +1125,21 @@ int rd_kafka_metadata_cache_topics_count_exists(rd_kafka_t *rk,
  *
  * Element type is (char *topic_name).
  *
+ * @param exclude_valid Exclude topics that have up to date metadata info.
+ *
  * @returns the number of elements added to \p topics
  *
  * @locks_required rd_kafka_*lock()
  */
-int rd_kafka_metadata_cache_topics_to_list(rd_kafka_t *rk, rd_list_t *topics) {
+int rd_kafka_metadata_cache_topics_to_list(rd_kafka_t *rk,
+                                           rd_list_t *topics,
+                                           rd_bool_t exclude_valid) {
         const struct rd_kafka_metadata_cache_entry *rkmce;
         int precnt = rd_list_cnt(topics);
 
         TAILQ_FOREACH(rkmce, &rk->rk_metadata_cache.rkmc_expiry, rkmce_link) {
                 /* Ignore topics that have up to date metadata info */
-                if (RD_KAFKA_METADATA_CACHE_VALID(rkmce))
+                if (exclude_valid && RD_KAFKA_METADATA_CACHE_VALID(rkmce))
                         continue;
 
                 if (rd_list_find(topics, rkmce->rkmce_mtopic.topic,

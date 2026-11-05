@@ -4,6 +4,9 @@
 
 #include "scheduling_tag.h"
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
@@ -28,7 +31,7 @@ struct TAllocationAttributes
     };
 
     std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
-    std::optional<TString> CudaToolkitVersion;
+    std::optional<std::string> CudaToolkitVersion;
     TDiskRequest DiskRequest;
     bool AllowIdleCpuPolicy = false;
     int PortCount = 0;
@@ -52,6 +55,9 @@ struct TAllocationStartDescriptor
     const TAllocationId Id;
     const TJobResourcesWithQuota ResourceLimits;
     TAllocationAttributes AllocationAttributes;
+
+    //! Name of the allocation group this allocation belongs to.
+    std::string AllocationGroupName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +105,7 @@ struct TPoolTreeControllerSettings
     bool AllowIdleCpuPolicy;
 };
 
-using TPoolTreeControllerSettingsMap = THashMap<TString, TPoolTreeControllerSettings>;
+using TPoolTreeControllerSettingsMap = THashMap<std::string, TPoolTreeControllerSettings>;
 
 void ToProto(
     NControllerAgent::NProto::TPoolTreeControllerSettingsMap* protoPoolTreeControllerSettingsMap,
@@ -137,7 +143,10 @@ struct TCompositeNeededResources
 
     void VerifyNonNegative() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCompositeNeededResources, 0xa3ef8fdb);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/);
@@ -146,7 +155,7 @@ TCompositeNeededResources operator+(const TCompositeNeededResources& lhs, const 
 TCompositeNeededResources operator-(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
 TCompositeNeededResources operator-(const TCompositeNeededResources& rhs);
 
-TString FormatResources(const TCompositeNeededResources& resources);
+std::string FormatResources(const TCompositeNeededResources& resources);
 
 void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededResources, const TCompositeNeededResources& neededResources);
 void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources);
@@ -162,9 +171,12 @@ struct TAllocationGroupResources
     TJobResourcesWithQuota MinNeededResources;
     int AllocationCount = 0;
 
-    void Persist(const TStreamPersistenceContext& context);
-
     bool operator==(const TAllocationGroupResources& other) const = default;
+
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAllocationGroupResources, 0xb4f09aec);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/);

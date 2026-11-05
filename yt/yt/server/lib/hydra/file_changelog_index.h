@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -137,7 +137,7 @@ private:
     static constexpr int RecordsPerChunk = 10240;
     using TChunk = TSharedMutableRange<TRecord>;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkListLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ChunkListLock_);
     std::vector<TChunk> ChunkList_;
 
 

@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -90,9 +92,10 @@ struct TOperationControllerReviveResult
         TInstant PreemptibleProgressStartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;
-        TString TreeId;
+        std::string TreeId;
         NNodeTrackerClient::TNodeId NodeId;
         std::string NodeAddress;
+        std::string AllocationGroupName;
     };
 
     bool RevivedFromSnapshot = false;
@@ -159,6 +162,9 @@ struct IOperationControllerHost
     virtual void Disconnect(const TError& error) = 0;
 
     virtual const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const = 0;
+
+    virtual const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const = 0;
+    virtual const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const = 0;
 
     virtual void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) = 0;
     virtual void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) = 0;
@@ -468,7 +474,7 @@ struct IOperationController
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) = 0;
+        const std::string& treeId) = 0;
 
     //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().
     //! Used to account such failures in operation progress.
@@ -548,7 +554,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //virtual TString GetLoggingProgress() const = 0;
+    //virtual std::string GetLoggingProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
     /*!
@@ -642,7 +648,7 @@ struct IOperationController
 
     virtual const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const = 0;
 
-    virtual TString WriteCoreDump() const = 0;
+    virtual std::string WriteCoreDump() const = 0;
 
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 

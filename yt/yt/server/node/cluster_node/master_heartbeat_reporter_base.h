@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/ytlib/cell_master_client/public.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -23,11 +25,13 @@ public:
     TMasterHeartbeatReporterBase(
         IBootstrapBase* bootstrap,
         bool reportHeartbeatsToAllSecondaryMasters,
+        NNodeTrackerServer::ENodeHeartbeatType heartbeatType,
         NLogging::TLogger logger);
 
     void Initialize();
     void StartNodeHeartbeats();
     void ScheduleOutOfBandMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags);
     void Reconfigure(const NConcurrency::TRetryingPeriodicExecutorOptions& options);
 
 protected:
@@ -35,6 +39,7 @@ protected:
     IBootstrapBase* const Bootstrap_;
 
     const bool ReportHeartbeatsToAllSecondaryMasters_;
+    const NNodeTrackerServer::ENodeHeartbeatType HeartbeatType_;
 
     THashSet<NObjectClient::TCellTag> MasterCellTags_;
     THashMap<NObjectClient::TCellTag, NConcurrency::TAsyncReaderWriterLock> ExecutorLockPerMaster_;

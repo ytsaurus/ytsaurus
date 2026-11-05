@@ -48,6 +48,7 @@ TFuture<void> IssueLeasesForCell(
         auto masterChannel = findMasterChannel(coordinatorCellTag);
         THROW_ERROR_EXCEPTION_UNLESS(
             masterChannel,
+            NRpc::EErrorCode::Unavailable,
             "Failed to issue leases for prerequisite transactions: unknown master cell tag %v",
             coordinatorCellTag);
 

@@ -36,7 +36,7 @@ struct TCellMoveDescriptor
 class TNodeHolder
 {
 public:
-    TNodeHolder(const NNodeTrackerServer::TNode* node, int totalSlots, const TCellSet& slots);
+    TNodeHolder(const NNodeTrackerServer::TNode* node, int totalSlots, TCellSet slots);
 
     const NNodeTrackerServer::TNode* GetNode() const;
     int GetTotalSlots() const;
@@ -66,6 +66,7 @@ struct ICellBalancerProvider
     virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) = 0;
     virtual bool IsVerboseLoggingEnabled() = 0;
     virtual bool IsBalancingRequired() = 0;
+    virtual bool IsTabletCellSmoothingEnabled() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellBalancerProvider)

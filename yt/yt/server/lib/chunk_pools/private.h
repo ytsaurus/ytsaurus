@@ -17,22 +17,20 @@ using NControllerAgent::IPersistent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder)
-DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder)
+DECLARE_REFCOUNTED_STRUCT(ISortedJobBuilder)
 
-DECLARE_REFCOUNTED_CLASS(TNewJobManager)
-DECLARE_REFCOUNTED_CLASS(TLegacyJobManager)
+DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 struct IShuffleChunkPool;
 
 class TInputStreamDirectory;
 
-class TNewJobStub;
+class TJobStub;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolLogger, "ChunkPool");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolStructuredLogger, "ChunkPool");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChunkPoolLogger, "ChunkPool");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChunkPoolStructuredLogger, "ChunkPool");
 
 ////////////////////////////////////////////////////////////////////////////////
 

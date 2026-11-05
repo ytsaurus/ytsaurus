@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(4.1.1.4)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(961148386)
+
+SRC_RESOURCE(961145978)
+
+ORIGINAL_SOURCE(https://android.git.kernel.org/)
+
+END()

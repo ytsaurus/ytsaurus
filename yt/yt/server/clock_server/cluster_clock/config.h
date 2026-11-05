@@ -53,7 +53,7 @@ struct TClusterClockBootstrapConfig
 
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     //! Primary master cell tag
     NObjectClient::TCellTag ClockClusterTag;

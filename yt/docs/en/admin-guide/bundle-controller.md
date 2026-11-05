@@ -41,18 +41,17 @@ A single Bundle controller instance is sufficient for proper operation; however,
 
 After launching the component, you need to configure the cluster by properly marking up bundles and tablet nodes to allow the Bundle controller to take over.
 
-To simplify the setup of a typical scenario, you can use a script: [bundle_controller_tools.py](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/dynamic_tables/bundle_controller_tools). There are two ways to run the script.
-- Compile a binary in advance using the `ya make` command.
-- Run `__main__.py` directly using the Python interpreter. This requires the system to have the `ytsaurus-client` pip package installed.
-For the script to work, save the token in `~/.yt/token` or use one of the alternative token configuration methods described in the Python API [documentation][../api/python/userdoc#configuration_token]. The cluster address is specified using the `YT_PROXY` variable or the `--proxy` argument.
+To simplify the setup of a typical scenario, starting from version 0.13.54, the `ytsaurus-client` package includes the `yt admin bundle-controller` command ([source code](https://github.com/ytsaurus/ytsaurus/blob/main/yt/python/yt/admin/bundle_controller.py)). In earlier versions, the same functionality is available via the standalone utility [bundle_controller_tools](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/dynamic_tables/bundle_controller_tools). To use it, save the token in `~/.yt/token` or use one of the alternative token configuration methods described in the Python API [documentation](../api/python/userdoc#configuration_token). The cluster address is specified using the `YT_PROXY` variable or the `--proxy` argument.
 
-We recommend running the script using the `init --init-all` command. When you run the script, you must specify the `--cpu` and `--memory` flags to indicate the number of CPU cores and the amount of RAM (in bytes) for the tablet node instances. If the cluster contains instances of different sizes, it is recommended to set parameters based on the smallest instance.
+All subcommands support the `--dry-run` flag (to display the list of actions without changing the cluster) and the `--yes` flag (to skip interactive confirmations).
 
-The following sections describe the setup steps performed by the script.
+We recommend running the command `yt admin bundle-controller init --init-all`. When you run it, you must specify the `--cpu` and `--memory` flags to indicate the number of CPU cores and the amount of RAM (in bytes) for the tablet node instances. If the cluster contains instances of different sizes, it is recommended to set parameters based on the smallest instance.
+
+The following sections describe the setup steps performed by the command.
 
 ### System directories
 
-**When running `bundle_controller_tools.py init`, system directories are created automatically. To skip this step, you can use the `--no-init-system-directories` flag.**
+**When running `yt admin bundle-controller init`, system directories are created automatically. To skip this step, you can use the `--no-init-system-directories` flag.**
 
 To start using the Bundle controller, create the following directories:
 
@@ -64,7 +63,7 @@ You must also create an account named `bundle_system_quotas`.
 
 ### Zone zone\_default
 
-**To automatically set up the zone, run `bundle_controller_tools.py init` with the `--init-default-zone` flag.**
+**To automatically set up the zone, run `yt admin bundle-controller init` with the `--init-default-zone` flag.**
 
 Instances of each type are linked to a certain bundle or are in the spare pool. Each bundle and instance belongs to a specific zone. In the zone config, specify the size of the instances (CPU and RAM) present in the cluster, as well as the default settings for thread pools and node memory categories.
 
@@ -82,7 +81,7 @@ The zone config is located at `//sys/bundle_controller/controller/zones/zone_def
 
 The configuration of tablet nodes is specified in the `tablet_node_sizes` attribute. This is a map consisting of a single `regular` field (instance type). It looks like this:
 
-```
+```yson
 {
     "default_config" = {
         "cpu_limits" = {
@@ -122,7 +121,7 @@ In the current version, RPC proxy management is not fully supported.
 
 The RPC proxy configuration is specified in the `rpc_proxy_sizes` attribute. This is a map consisting of a single `regular` field (instance type). It looks like this:
 
-```
+```yson
  {
    "resource_guarantee" = {
         "net_bytes" = 0;
@@ -136,21 +135,21 @@ The meanings of the fields are the same as for tablet nodes.
 
 ### Instance annotations
 
-**To automatically configure instances, run `bundle_controller_tools.py init` with the `--init-tablet-nodes` flag.**
+**To automatically configure instances, run `yt admin bundle-controller init` with the `--init-nodes` flag.**
 
 All tablet nodes managed by the Bundle controller must be labeled with certain attributes. These attributes are described in detail below, see [Adding nodes to the cluster](#new_instance).
 
 ### Bundle setup
 
-**To automatically configure bundles, run `bundle_controller_tools.py init` with the `--init-bundle <bundle-name>`, `--init-all-bundles`, or `--init-all` flag.**
+**To automatically configure bundles, run `yt admin bundle-controller init` with the `--init-bundles` or `--init-all` flag.**
 
 For the Bundle controller to start managing existing bundles, set the attributes specified in the [Creating a bundle](#create_bundle) section. If the `node_tag_filter` attribute was set on those existing bundles, first set it to `""` (an empty string).
 
-The `bundle_controller_tools.py` script calculates the necessary number of nodes for each existing bundle based on the current number of tablet cells. If you need to assign more or fewer nodes, use the `--bundle-node-count` argument, which accepts a YSON map in the format `{<bundle_name>=<node_count>}`.
+The `yt admin bundle-controller init` command calculates the necessary number of nodes for each existing bundle based on the current number of tablet cells. If you need to assign more or fewer nodes, use the `--bundle-node-count` argument, which accepts a YSON map in the format `{<bundle_name>=<node_count>}`.
 
 #### Accounts for changelogs and snapshots
 
-**To automatically configure changelog and snapshot accounts, run `bundle_controller_tools.py init` with the `--init-bundle-system-quotas` or `--init-all` flag.**
+**To automatically configure changelog and snapshot accounts, run `yt admin bundle-controller init` with the `--init-bundle-system-quotas` or `--init-all` flag.**
 
 The Bundle controller can manage accounts that store changelogs and snapshots of tablet cells. The accounts are controlled by the `changelog_account` and `snapshot_account` fields in the bundle options in the `//sys/tablet_cell_bundles/<bundle_name>/@options` attribute. Accounts managed by the Bundle controller are named `<bundle_name>_bundle_system_quotas` and are children of the root account `bundle_system_quotas`. The Bundle controller automatically adjusts the quotas of the parent and child accounts when the number of tablet cells changes.
 
@@ -167,11 +166,11 @@ The `bundle_controller` section of the Bundle controller's static config contain
 
 ## Creating a bundle { #create_bundle }
 
-**To create a bundle, you can use the `bundle_controller_tools.py create-bundle <bundle_name>` script.**
+**To create a bundle, you can use the `yt admin bundle-controller create-bundle <bundle_name>` command.**
 
 For a bundle to be managed by the Bundle controller, it must have the `enable_bundle_controller = %true` and `zone = "zone_default"` attributes. You must also set the `bundle_controller_target_config` attribute with the following structure:
 
-```
+```yson
 {
     "cpu_limits" = {
         "lookup_thread_pool_size" = 2;
@@ -224,11 +223,11 @@ You must also set the `cpu` and `memory` fields in the bundle’s `resource_limi
 
 ## Adding nodes to the cluster { #new_instance }
 
-After adding instances to the cluster, mark them with the `bundle_controller_annotations` attribute. To do this, you can use the `bundle_controller_tools.py` script with the `--init-tablet-nodes` flag.
+After adding instances to the cluster, mark them with the `bundle_controller_annotations` attribute. To do this, you can use the `yt admin bundle-controller init` command with the `--init-nodes` flag.
 
 The `bundle_controller_annotations` attribute looks like this:
 
-```
+```yson
 {
     "allocated" = %true;
     "allocated_for_bundle" = "spare";
@@ -263,7 +262,7 @@ Bundle resources are located in the `//sys/tablet_cell_bundles/<bundle_name>/@re
 
 To manage resources, you need the `write` permission for the bundle. The cluster administrator is responsible for managing resources. You should grant node quotas so that the total quota of all bundles does not exceed the number of nodes in the cluster, taking into account the spare pool for node failures.
 
-To simplify the setup of `cpu` and `memory` limits, the `bundle_controller_tools.py` script has a special command, `set-bundle-resource-limits`. It accepts a limit on the number of nodes and sets the limits according to the zone config.
+To simplify the setup of `cpu` and `memory` limits, use the `yt admin bundle-controller set-bundle-resource-limits` command. It accepts a limit on the number of nodes and sets the limits according to the zone config.
 
 ## Managing a bundle
 
@@ -271,9 +270,73 @@ You can manage bundles by clicking `Edit bundle` on the necessary bundle page in
 
 To manage a bundle, you need the `manage` permission for it.
 
-## Disabling the Bundle controller
+## Bundle drills { #drills }
 
-To switch the Bundle controller to read-only mode, set the `//sys/@disable_bundle_controller` attribute to `%true`. The Bundle controller will stop performing any actions on the cluster; however, you can still monitor the state of bundles from the user interface.
+The bundle has a drills mode to simulate a bundle outage in a single cluster (for example, during disaster recovery drills). 
+
+Enable this mode by setting the `enable_drills_mode` attribute in `bundle_controller_target_config` for the cluster which you want to "shut down".
+
+Enable drills mode:
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/enable_drills_mode %true
+```
+
+Disable drills mode:
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/enable_drills_mode %false
+```
+
+Set the flag on the bundle in the cluster which you want to cover. For example, if you waht to run drills for a bundle on `seneca-sas`, you should set `enable_drills_mode = %true` for this bundle on `seneca-sas`.
+
+### How it works { #drills-how }
+
+When drills mode is enabled, Bundle controller:
+
+- Removes the `node_tag_filter` from the bundle nodes, which drives tablet cells off the nodes, and switches the bundle to a separate drills filter like `<zone>/<bundle_name>_drills_mode_on`.
+- Disables tablet cell liveness checks (`mute_tablet_cells_check` and `mute_tablet_cell_snapshots_check`) to avoid raising alerts during drills.
+
+When (`enable_drills_mode = %false`) is disabled, these actions are rolled back in the reverse order: the regular `node_tag_filter` is restored, and after a grace period finished, liveness checks are re-enabled.
+
+While drills mode is active, the bundle shows the `bundle_has_drills_mode_enabled` alert.
+
+### Limitations and precautions { #drills-caveats }
+
+Using drills mode can be dangerous when working with asynchronous replicas. If a replica suddenly disappears during drills, async replication transactions may "stick" and prevent tablets from unmounting. In this state, tablets go into `freezing` for a long time.
+
+The risk persists even if you do not unmount tables manually: background tablet balancing may unmount them on its own and trigger the same problem.
+
+As a workaround during drills, we recommend disabling tablet balancing. The absence of balancing for several hours generally does not affect bundle performance.
+
+## Forbidden data centers { #forbidden-data-centers }
+
+To prevent a bundle from running in specific data centers (for example, to simulate a DC failure during drills or to evacuate a bundle from a DC with network issues), use the `forbidden_data_centers` attribute in `bundle_controller_target_config`. This attribute saves a list of DC names where the bundle nodes and RPC proxies must not be placed.
+
+Set the list (one or multiple DCs):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '["sas"]'
+```
+
+Remove the restriction (return to normal placement across all DCs):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '[]'
+```
+
+### How it works { #forbidden-dc-how }
+
+The forbidden DCs are placed at the end of the bundle's preferred DC order. As long as the bundle has enough allowed DCs for placement, Bundle controller:
+
+- Stops assigning a new tablet nodes and RPC proxies in the forbidden DCs.
+- Releases already allocated nodes and proxies in the forbidden DCs and moves them to allowed DCs.
+
+While the `forbidden_data_centers` list is not empty, the bundle shows the `bundle_has_forbidden_dc` alert. It is informational and only confirms that the config has been applied.
+
+## Disabling Bundle controller
+
+To switch Bundle controller to read-only mode, set the `//sys/@disable_bundle_controller` attribute to `%true`. Bundle controller will stop performing any actions on the cluster, but you can still see the bundle states in the UI.
 
 ## Troubleshooting { #faq }
 
@@ -287,5 +350,5 @@ To switch the Bundle controller to read-only mode, set the `//sys/@disable_bundl
 The bundle UI displays two statuses: `Health` is the state of tablet cells, and `State` is the state of the Bundle controller. If the `State` shows `Failed`, click it to find out what went wrong. In some cases, the issue may be caused by violations of the Bundle controller invariants (for example, if `resource_guarantee` in the zone, nodes, and bundles settings do not match). Recommended course of action:
 
 - Disable the Bundle controller by setting the `//sys/@disable_bundle_controller` attribute to `%true`.
-- Run the `bundle_controller_tools.py drop-allocations <bundle_name>` command. This command will remove incorrect node allocation requests.
-- Make sure the configuration is correct (for example, by running `bundle_controller_tools.py init --init-all --cpu <cpu_guarantee> --memory <memory_guarantee>`).
+- Run the `yt admin bundle-controller drop-allocations <bundle_name>` command. This command will remove incorrect node allocation requests.
+- Make sure the configuration is correct (for example, by running `yt admin bundle-controller init --init-all --cpu <cpu_guarantee> --memory <memory_guarantee>`).

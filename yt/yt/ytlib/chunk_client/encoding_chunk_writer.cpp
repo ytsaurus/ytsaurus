@@ -20,7 +20,8 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     IChunkWriterPtr chunkWriter,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IInvokerPtr compressionInvokerOverride)
     : Meta_(New<TMemoryTrackedDeferredChunkMeta>(
         TMemoryUsageTrackerGuard::Acquire(
             options->MemoryUsageTracker,
@@ -35,7 +36,8 @@ TEncodingChunkWriter::TEncodingChunkWriter(
         ChunkWriter_,
         WriteBlocksOptions_,
         blockCache,
-        std::move(logger)))
+        std::move(logger),
+        std::move(compressionInvokerOverride)))
 {
     MiscExt_.set_compression_codec(ToProto(options->CompressionCodec));
     MiscExt_.set_erasure_codec(ToProto(ChunkWriter_->GetErasureCodecId()));
@@ -49,7 +51,7 @@ void TEncodingChunkWriter::WriteBlock(
 {
     VerifyBlockType(blockType);
 
-    BlockCount_.fetch_add(1, std::memory_order_relaxed);
+    BlockCount_.fetch_add(1, std::memory_order::relaxed);
 
     i64 blockSize = GetByteSize(vectorizedBlock);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
@@ -64,7 +66,7 @@ void TEncodingChunkWriter::WriteBlock(
 {
     VerifyBlockType(blockType);
 
-    BlockCount_.fetch_add(1, std::memory_order_relaxed);
+    BlockCount_.fetch_add(1, std::memory_order::relaxed);
 
     LargestBlockSize_ = std::max(LargestBlockSize_, std::ssize(block));
     EncodingWriter_->WriteBlock(std::move(block), blockType, groupIndex);
@@ -87,7 +89,7 @@ void TEncodingChunkWriter::Close()
     WaitFor(ChunkWriter_->Close(WriteBlocksOptions_, Config_->WorkloadDescriptor, Meta_))
         .ThrowOnError();
 
-    Closed_.store(true, std::memory_order_relaxed);
+    Closed_.store(true, std::memory_order::relaxed);
 }
 
 TFuture<void> TEncodingChunkWriter::GetReadyEvent() const
@@ -112,11 +114,11 @@ TChunkId TEncodingChunkWriter::GetChunkId() const
 
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
-    if (Closed_.load(std::memory_order_relaxed)) {
+    if (Closed_.load(std::memory_order::relaxed)) {
         return ChunkWriter_->GetDataStatistics();
     } else {
         NProto::TDataStatistics result;
-        if (BlockCount_.load(std::memory_order_relaxed) > 0) {
+        if (BlockCount_.load(std::memory_order::relaxed) > 0) {
             result.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
             result.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
             result.set_chunk_count(1);

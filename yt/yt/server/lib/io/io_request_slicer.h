@@ -27,7 +27,7 @@ public:
 
 private:
     template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandler>
-    std::vector<TSlicedRequest> SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handler) const;
+    std::vector<TSlicedRequest> SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handler, bool alignOffset = true) const;
 
 private:
     const i64 DesiredRequestSize_;

@@ -1,1 +1,4 @@
-RECURSE(rpc_proxy)
+RECURSE(
+    rpc_proxy
+    common
+)

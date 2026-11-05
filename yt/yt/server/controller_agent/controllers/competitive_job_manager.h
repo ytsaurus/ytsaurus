@@ -117,7 +117,6 @@ private:
         const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
         NJobTrackerClient::EJobState state) = 0;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TCompetitiveJobManagerBase, 0x7f9f0ccb);
 };
 

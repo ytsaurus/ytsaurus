@@ -161,7 +161,7 @@ void *rd_list_remove(rd_list_t *rl, void *match_elem);
  */
 void *rd_list_remove_cmp(rd_list_t *rl,
                          void *match_elem,
-                         int (*cmp)(void *_a, void *_b));
+                         int (*cmp)(const void *_a, const void *_b));
 
 
 /**
@@ -188,7 +188,7 @@ void *rd_list_pop(rd_list_t *rl);
  */
 int rd_list_remove_multi_cmp(rd_list_t *rl,
                              void *match_elem,
-                             int (*cmp)(void *_a, void *_b));
+                             int (*cmp)(const void *_a, const void *_b));
 
 
 /**
@@ -198,6 +198,16 @@ int rd_list_remove_multi_cmp(rd_list_t *rl,
  * and for descending order implement (b - a).
  */
 void rd_list_sort(rd_list_t *rl, int (*cmp)(const void *, const void *));
+
+
+/**
+ * @brief Check if list is sorted using comparator.
+ *
+ * @returns rd_true if the list is sorted in ascending order, rd_false
+ * otherwise.
+ */
+rd_bool_t rd_list_is_sorted(const rd_list_t *rl,
+                            int (*cmp)(const void *, const void *));
 
 
 /**

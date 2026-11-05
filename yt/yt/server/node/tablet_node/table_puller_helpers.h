@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -19,7 +19,7 @@ class TBannedReplicaTracker
 public:
     struct TBanInfo
     {
-        int Counter;
+        int Counter = 0;
         TError LastError;
     };
 
@@ -47,31 +47,48 @@ public:
     using TReplicaOrError = TErrorOr<std::tuple<
         NChaosClient::TReplicaId,
         NChaosClient::TReplicaInfo*,
-        NHiveClient::TTimestamp>>;
+        NTransactionClient::TTimestamp>>;
 
-public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
-        const TBannedReplicaTracker& bannedReplicaTracker,
-        bool stronglyPreferLocalQueue);
+        std::optional<int> replicaBanDuration,
+        bool forceSameClusterQueue);
 
     TReplicaOrError PickQueueReplica(
         NChaosClient::TReplicaId selfUpstreamReplicaId,
         const NChaosClient::TReplicationCardPtr& replicationCard,
         const NChaosClient::TReplicationProgress& replicationProgress,
+        const THashSet<std::string>& extraSameDcQueueClusters,
         TInstant now);
 
     void ResetLastPulledFromReplicaId();
+    TBannedReplicaTracker& GetBannedReplicaTracker();
 
 private:
     const NLogging::TLogger Logger;
-    const TBannedReplicaTracker& BannedReplicaTracker_;
-    const bool StronglyPreferLocalQueue_;
+    const bool ForceSameClusterQueue_;
 
+    TBannedReplicaTracker BannedReplicaTracker_;
     NChaosClient::TReplicaId LastPulledFromReplicaId_;
     TInstant NextPermittedTimeForProgressBehindAlert_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+class TIterationTimeTracker
+{
+public:
+    TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration);
+    TDuration CalculateSmoothedIterationDuration(TInstant currentIterationInstant);
+
+private:
+    const int PreviousIterationWeight_;
+    const int CurrentIterationWeight_;
+
+    TInstant LastIterationInstant_;
+    TDuration SmoothedIterationDuration_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

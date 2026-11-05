@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NScheduler {
 
@@ -52,8 +52,6 @@ struct TExecNodeDescriptor
     TBooleanFormulaTags Tags;
     std::optional<std::string> InfinibandCluster;
     NYTree::IAttributeDictionaryPtr SchedulingOptions;
-
-    void Persist(const TStreamPersistenceContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptor)

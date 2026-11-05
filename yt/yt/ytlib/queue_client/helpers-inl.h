@@ -36,4 +36,4 @@ TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NQueueClient
+} // namespace NYT::NQueueClient

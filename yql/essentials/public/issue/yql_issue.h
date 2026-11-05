@@ -1,5 +1,7 @@
 #pragma once
 
+#include <library/cpp/containers/cow_string/cow_string.h>
+
 #include <util/system/types.h>
 #include <util/generic/hash.h>
 #include <util/generic/maybe.h>
@@ -13,12 +15,14 @@
 #include <google/protobuf/message.h>
 
 #include <utility>
+#include <type_traits>
 
 #include "yql_issue_id.h"
 
 namespace NYql {
 
 void SanitizeNonAscii(TString& s);
+void SanitizeNonAscii(TCowString& s);
 
 ///////////////////////////////////////////////////////////////////////////////
 // TPosition
@@ -26,16 +30,23 @@ void SanitizeNonAscii(TString& s);
 struct TPosition {
     ui32 Column = 0U;
     ui32 Row = 0U;
-    TString File;
+    TCowString File;
 
     TPosition() = default;
 
-    TPosition(ui32 column, ui32 row, TString file = {})
+    TPosition(ui32 column, ui32 row, TCowString file = {})
         : Column(column)
         , Row(row)
         , File(std::move(file))
     {
         SanitizeNonAscii(File);
+    }
+
+    template <typename T>
+        requires std::is_same_v<std::remove_cvref_t<T>, TString>
+    TPosition(ui32 column, ui32 row, T&& file)
+        : TPosition(column, row, TCowString(std::forward<T>(file)))
+    {
     }
 
     explicit operator bool() const {
@@ -158,7 +169,7 @@ public:
         return CombineHashes(
             CombineHashes(
                 (size_t)CombineHashes(IntHash(Position.Row), IntHash(Position.Column)),
-                ComputeHash(Position.File)),
+                ComputeHash(TStringBuf(Position.File))),
             (size_t)CombineHashes((size_t)IntHash(static_cast<int>(IssueCode)), ComputeHash(Message_)));
     }
 
@@ -240,15 +251,9 @@ public:
     {
     }
 
-    inline TIssues(const TIssues& rhs)
-        : Issues_(rhs.Issues_)
-    {
-    }
+    inline TIssues(const TIssues& rhs) = default;
 
-    inline TIssues& operator=(const TIssues& rhs) {
-        Issues_ = rhs.Issues_;
-        return *this;
-    }
+    inline TIssues& operator=(const TIssues& rhs) = default;
 
     inline TIssues(TIssues&& rhs)
         : Issues_(std::move(rhs.Issues_))
@@ -356,13 +361,13 @@ TMaybe<TPosition> TryParseTerminationMessage(TStringBuf& message);
 } // namespace NYql
 
 template <>
-void Out<NYql::TPosition>(IOutputStream& out, const NYql::TPosition& pos);
+void Out<NYql::TPosition>(IOutputStream& out, const NYql::TPosition& value);
 
 template <>
-void Out<NYql::TRange>(IOutputStream& out, const NYql::TRange& pos);
+void Out<NYql::TRange>(IOutputStream& out, const NYql::TRange& value);
 
 template <>
-void Out<NYql::TIssue>(IOutputStream& out, const NYql::TIssue& error);
+void Out<NYql::TIssue>(IOutputStream& out, const NYql::TIssue& value);
 
 template <>
 struct THash<NYql::TIssue> {

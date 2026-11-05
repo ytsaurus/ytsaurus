@@ -52,6 +52,8 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/tracing/jaeger/config.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -199,6 +201,10 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("max_master_cell_group_count", &TThis::MaxMasterCellGroupCount)
+        .GreaterThan(0)
+        .Default(10);
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
@@ -368,6 +374,9 @@ void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServic
         authManagerConfig->EnableValidation = false;
         authManagerConfig->EnableSubmission = false;
         authManagerConfig->TvmService = nullptr;
+
+        auto jaegerTracerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
+        jaegerTracerConfig->TvmService = nullptr;
     }
 }
 
@@ -418,6 +427,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_descending_sort_order", &TThis::EnableDescendingSortOrder)
         .Default(false);
     registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
+        .Default(false);
+    registrar.Parameter("enable_aggregate_state_type", &TThis::EnableAggregateStateType)
         .Default(false);
 
     // Column renaming and removal.

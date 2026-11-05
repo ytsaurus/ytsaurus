@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "lock.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -9,7 +9,6 @@
 
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/cluster_resources.h>
-#include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
 #include <yt/yt/server/master/tablet_server/public.h>
 
@@ -17,15 +16,17 @@
 
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
 
-#include <yt/yt/ytlib/cypress_client/public.h>
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/library/erasure/public.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <queue>
 #include <variant>
@@ -280,10 +281,10 @@ public:
     class TExpirationProperties
     {
     public:
-        using TView = std::pair<NSecurityServer::TUserRawPtr, TTime>;
+        using TView = std::tuple<NSecurityServer::TUserRawPtr, TTime, TInstant>;
 
         TExpirationProperties() = default;
-        TExpirationProperties(NSecurityServer::TUserPtr user, TTime time);
+        TExpirationProperties(NSecurityServer::TUserPtr user, TTime time, TInstant armingTime);
         explicit TExpirationProperties(TInstant lastReset);
 
         TExpirationProperties Clone() const;
@@ -297,10 +298,20 @@ public:
         std::optional<TInstant> GetLastResetTime() const;
         std::optional<NSecurityServer::TUserRawPtr> GetUser() const;
         std::optional<TTime> GetExpiration() const;
+        std::optional<TInstant> GetArmingTime() const;
 
     private:
         using TLastResetInstant = TInstant;
-        using TValue = std::pair<NSecurityServer::TUserPtr, TTime>;
+
+        struct TValue {
+            NSecurityServer::TUserPtr User;
+            TTime Expiration;
+            TInstant ArmingTime;
+
+            void Save(NCellMaster::TSaveContext& context) const;
+            void Load(NCellMaster::TLoadContext& context);
+        };
+
         // NB: Don't reorder the types; tags are used for persistence.
         std::variant<TValue, TLastResetInstant> ExpirationValue_;
     };
@@ -353,9 +364,8 @@ public:
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
 
-    // COMPAT(shakurov): delete the #branchIsOk parameters.
-    TInstant GetTouchTime(bool branchIsOk = false) const;
-    void SetTouchTime(TInstant touchTime, bool branchIsOk = false);
+    TInstant GetTouchTime() const;
+    void SetTouchTime(TInstant touchTime);
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 
@@ -379,11 +389,13 @@ public:
     std::optional<TExpirationTimeProperties::TView> GetExpirationTimePropertiesView() const;
     std::optional<TInstant> GetExpirationTime() const;
     std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeUser() const;
+    std::optional<TInstant> GetExpirationTimeArmingTime() const;
     std::optional<TInstant> GetExpirationTimeLastResetTime() const;
 
     std::optional<TExpirationTimeoutProperties::TView> GetExpirationTimeoutPropertiesView() const;
     std::optional<TDuration> GetExpirationTimeout() const;
     std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeoutUser() const;
+    std::optional<TInstant> GetExpirationTimeoutArmingTime() const;
     std::optional<TInstant> GetExpirationTimeoutLastResetTime() const;
 
     //! Returns the static type of the node.

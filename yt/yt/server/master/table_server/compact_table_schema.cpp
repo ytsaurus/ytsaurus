@@ -3,6 +3,7 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
@@ -46,6 +47,9 @@ TCompactTableSchema::TCompactTableSchema(const TTableSchema& schema)
         if (column.MaxInlineHunkSize()) {
             HasHunkColumns_ = true;
         }
+        if (HasAggregateStateType(column.LogicalType())) {
+            HasAggregateStateColumns_ = true;
+        }
     }
 }
 
@@ -71,6 +75,11 @@ bool TCompactTableSchema::IsSorted() const
 bool TCompactTableSchema::HasHunkColumns() const
 {
     return HasHunkColumns_;
+}
+
+bool TCompactTableSchema::HasAggregateStateColumns() const
+{
+    return HasAggregateStateColumns_;
 }
 
 bool TCompactTableSchema::HasNontrivialSchemaModification() const
@@ -156,6 +165,9 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
         }
         if (column.has_max_inline_hunk_size()) {
             HasHunkColumns_ = true;
+        }
+        if (HasAggregateStateType(column.logical_type())) {
+            HasAggregateStateColumns_ = true;
         }
     }
 }

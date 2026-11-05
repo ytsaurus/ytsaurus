@@ -54,6 +54,8 @@ spec:
             - "--allowed-host-suffixes"
             - {{ .Values.cors.allowedHostSuffixes | join "," | quote }}
             {{- end }}
+            - "--logs-timezone"
+            - {{ .Values.microservices.accessLogViewer.api.config.logsTimezone | quote }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.accessLogViewer.image "root" .) }}

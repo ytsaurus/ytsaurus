@@ -85,7 +85,16 @@ def get_unit_list_variable(unit, name):
 
 def get_values_list(unit, key):
     res = map(str.strip, (unit.get_subst(key) or '').strip().split())
-    return [r for r in res if r and r not in ['""', "''"]]
+    return [r.replace('${"$"}', '$') for r in res if r and r not in ['""', "''"]]
+
+
+def get_escaped_values_list(unit, key):
+    """Like get_values_list, but respects backslash-escaped spaces when splitting."""
+    raw = (unit.get_subst(key) or '').strip()
+    if not raw:
+        return []
+    res = [r.strip() for r in shlex.split(raw)]
+    return [r.replace('${"$"}', '$') for r in res if r and r not in ['""', "''"]]
 
 
 def _get_test_tags(unit, spec_args=None):
@@ -254,29 +263,6 @@ def _resolve_module_files(unit, mod_dir, file_paths):
     return resolved_files
 
 
-def _resolve_config_path(unit, test_runner, rel_to):
-    config_path = unit.get("ESLINT_CONFIG_PATH") if test_runner == "eslint" else unit.get("TS_TEST_CONFIG_PATH")
-    arc_config_path = unit.resolve_arc_path(config_path)
-    abs_config_path = unit.resolve(arc_config_path)
-    if not abs_config_path:
-        raise Exception("{} config not found: {}".format(test_runner, config_path))
-
-    unit.onsrcs([arc_config_path])
-    abs_rel_to = unit.resolve(unit.resolve_arc_path(unit.get(rel_to)))
-    return os.path.relpath(abs_config_path, start=abs_rel_to)
-
-
-def _get_ts_test_data_dirs(unit):
-    return sorted(
-        set(
-            [
-                os.path.dirname(_common.rootrel_arc_src(p, unit))
-                for p in (get_values_list(unit, "_TS_TEST_DATA_VALUE") or [])
-            ]
-        )
-    )
-
-
 @_common.cache_by_second_arg
 def get_linter_configs(unit, config_paths):
     rel_config_path = _common.rootrel_arc_src(config_paths, unit)
@@ -375,16 +361,6 @@ class Classpath:
         return value
 
 
-class ConfigPath:
-    KEY = 'CONFIG-PATH'
-    required = True
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        test_runner, rel_to = flat_args
-        return _resolve_config_path(unit, test_runner, rel_to=rel_to)
-
-
 class CustomDependencies:
     KEY = 'CUSTOM-DEPENDENCIES'
 
@@ -418,15 +394,6 @@ class CustomDependencies:
             deps.extend([os.path.dirname(r.strip().split(" ")[0]) for r in recipes_lines])
 
         return " ".join(deps)
-
-
-class EslintConfigPath:
-    KEY = 'ESLINT_CONFIG_PATH'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        test_runner, rel_to = flat_args
-        return _resolve_config_path(unit, test_runner, rel_to=rel_to)
 
 
 class ParallelTestsInSingleNode:
@@ -681,7 +648,9 @@ class LintConfigs:
 
         # default config
         linter_name = spec_args['NAME'][0]
-        default_configs_path = spec_args.get('DEFAULT_CONFIGS')[0]
+        if not (default_configs_path := spec_args.get('DEFAULT_CONFIGS')):
+            return
+        default_configs_path = default_configs_path[0]
         assert_file_exists(unit, default_configs_path)
         config = get_linter_configs(unit, default_configs_path).get(linter_name)
         if not config:
@@ -714,7 +683,21 @@ class LintConfigs:
 class LintExtraParams:
     KEY = 'LINT-EXTRA-PARAMS'
 
-    _CUSTOM_CLANG_FORMAT_ALLOWED_PATHS = ('ads', 'bigrt', 'grut', 'yabs', 'maps', 'yt')
+    _CUSTOM_CLANG_FORMAT_ALLOWED_PATHS = (
+        'adfox',
+        'ads',
+        'alice/agents/booking',
+        'bigrt',
+        'grut',
+        'quality/antifraud',
+        'quality/circle_metrics',
+        'quality/user_sessions',
+        'quality/webfresh',
+        'search/web/configurable_rearrange',
+        'yabs',
+        'maps',
+        'yt',
+    )
     # HACK: YA-3039 Due to the mass usage of PY_NAMESPACE / TOP_LEVEL in these projects
     # it makes it difficult to run ruff checks in build root - it complains
     # about unsorted imports a lot. Let them run in source root instead.
@@ -811,14 +794,6 @@ class NodejsRootVarName:
         return unit.get("NODEJS-ROOT-VAR-NAME")
 
 
-class NodeModulesBundleFilename:
-    KEY = 'NODE-MODULES-BUNDLE-FILENAME'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        return spec_args.get('nm_bundle')
-
-
 class PythonPaths:
     KEY = 'PYTHON-PATHS'
 
@@ -858,8 +833,19 @@ class Requirements:
         return serialize_list(requirements)
 
     @classmethod
-    def from_unit_with_full_network(cls, unit, flat_args, spec_args):
-        requirements = sorted(set(["network:full"] + get_values_list(unit, "TEST_REQUIREMENTS_VALUE")))
+    def from_unit_with_cpu(cls, unit, flat_args, spec_args):
+        requirements = get_values_list(unit, "TEST_REQUIREMENTS_VALUE")
+
+        defaults = {
+            "cpu": "cpu:4",
+            "ram": "ram:16",
+            "ram_disk": "ram_disk:4",
+        }
+
+        for prefix, value in defaults.items():
+            if not any(r and r.startswith(f"{prefix}:") for r in requirements):
+                requirements.append(value)
+
         return serialize_list(requirements)
 
 
@@ -959,11 +945,6 @@ class Tag:
     def from_unit(cls, unit, flat_args, spec_args):
         tags = serialize_list(get_values_list(unit, "TEST_TAGS_VALUE"))
         return tags
-
-    @classmethod
-    def from_unit_fat_external_no_retries(cls, unit, flat_args, spec_args):
-        tags = sorted(set(["ya:fat", "ya:external", "ya:noretries"] + get_values_list(unit, "TEST_TAGS_VALUE")))
-        return serialize_list(tags)
 
 
 class TestClasspath:
@@ -1124,81 +1105,12 @@ class DockerImage:
         return serialize_list(images)
 
 
-class TsConfigPath:
-    KEY = 'TS_CONFIG_PATH'
-
-    DEFAULT_VALUE = "tsconfig.json"
-
-    @classmethod
-    def from_unit(cls, unit, flat_args, spec_args):
-        ts_config_paths = get_values_list(unit, cls.KEY)
-
-        # Special case: resolve path, relative to test dir
-        if unit.get("TS_TEST_FOR") == "yes" and unit.get("TS_CONFIG_PATH_CHANGED") == "yes":
-            tsconfig_path_test = os.path.join(unit.get("MODDIR"), ts_config_paths[0])
-            tsconfig_path_for = os.path.relpath(tsconfig_path_test, unit.get("TS_TEST_FOR_PATH"))
-
-            return tsconfig_path_for
-
-        return ts_config_paths[0]
-
-
-class TsStylelintConfig:
-    KEY = 'TS_STYLELINT_CONFIG'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        test_config = unit.get('_TS_STYLELINT_CONFIG')
-        abs_test_config = unit.resolve(unit.resolve_arc_path(test_config))
-        if not abs_test_config:
-            ymake.report_configure_error(
-                f"Config for stylelint not found: {test_config}.\n"
-                "Set the correct value in `TS_STYLELINT(<config_filename>)` macro in the `ya.make` file."
-            )
-
-        return test_config
-
-
-class TsBiomeConfig:
-    KEY = 'TS_BIOME_CONFIG'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        # config can be empty
-        test_config = unit.get('_TS_BIOME_CONFIG')
-        abs_test_config = unit.resolve(unit.resolve_arc_path(test_config))
-        if not abs_test_config:
-            ymake.report_configure_error(
-                f"Config for biome not found: {test_config}.\n"
-                "Set the correct value in `TS_BIOME(<config_filename>)` macro in the `ya.make` file."
-            )
-
-        return {cls.KEY: test_config}
-
-
-class TsTestDataDirs:
-    KEY = 'TS-TEST-DATA-DIRS'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        value = serialize_list(_get_ts_test_data_dirs(unit))
-        return value
-
-
-class TsTestDataDirsRename:
-    KEY = 'TS-TEST-DATA-DIRS-RENAME'
-
-    @classmethod
-    def value(cls, unit, flat_args, spec_args):
-        return unit.get("_TS_TEST_DATA_DIRS_RENAME_VALUE")
-
-
 class TsTestForPath:
     KEY = 'TS-TEST-FOR-PATH'
 
     @classmethod
     def value(cls, unit, flat_args, spec_args):
-        return unit.get("TS_TEST_FOR_PATH")
+        return unit.get("TS_FOR_PATH")
 
 
 class TsCheckType:
@@ -1208,6 +1120,22 @@ class TsCheckType:
     @classmethod
     def value(cls, unit, flat_args, spec_args):
         return spec_args.get("TS_CHECK_TYPE", None)
+
+
+class TsCheckHasCoverage:
+    KEY = 'TS-CHECK-HAS-COVERAGE'
+
+    @classmethod
+    def value(cls, unit, flat_args, spec_args):
+        return spec_args.get("TS_CHECK_HAS_COVERAGE", "no")
+
+
+class TsCheckCommand:
+    KEY = 'TS-CHECK-COMMAND'
+
+    @classmethod
+    def value(cls, unit, flat_args, spec_args):
+        return spec_args.get("TS_CHECK_COMMAND", "")
 
 
 class TestedProjectFilename:
@@ -1260,42 +1188,6 @@ class TestedProjectName:
 
 class TestFiles:
     KEY = 'TEST-FILES'
-
-    # XXX: this is a workaround to support very specific linting settings.
-    # Do not use it as a general mechanism!
-    _MAPS_RENDERER_PREFIX = 'maps/renderer'
-    _MAPS_RENDERER_INCLUDE_LINTER_TEST_PATHS = (
-        'maps/renderer/cartograph',
-        'maps/renderer/denormalization',
-        'maps/renderer/libs/api',
-        'maps/renderer/libs/data_sets/geojson_data_set',
-        'maps/renderer/libs/data_sets/yt_data_set',
-        'maps/renderer/libs/design',
-        'maps/renderer/libs/geosx',
-        'maps/renderer/libs/geojson_to_yt',
-        'maps/renderer/libs/gltf',
-        'maps/renderer/libs/golden',
-        'maps/renderer/libs/hd3d',
-        'maps/renderer/libs/icongen',
-        'maps/renderer/libs/image',
-        'maps/renderer/libs/kv_storage',
-        'maps/renderer/libs/mapreduce',
-        'maps/renderer/libs/marking',
-        'maps/renderer/libs/mesh',
-        'maps/renderer/libs/serializers',
-        'maps/renderer/libs/style2',
-        'maps/renderer/libs/style2_layer_bundle',
-        'maps/renderer/libs/terrain',
-        'maps/renderer/libs/threading',
-        'maps/renderer/libs/vec',
-        'maps/renderer/libs/yql',
-        'maps/renderer/libs/yt',
-        'maps/renderer/tilemill',
-        'maps/renderer/tools/fontograph',
-        'maps/renderer/tools/terrain_cli',
-        'maps/renderer/tools/mapcheck2/lib',
-        'maps/renderer/tools/mapcheck2/tests',
-    )
 
     # XXX: this is a workaround to support very specific linting settings.
     # Do not use it as a general mechanism!
@@ -1353,45 +1245,9 @@ class TestFiles:
 
     @classmethod
     def ts_check_srcs(cls, unit, flat_args, spec_args):
-        test_files = get_values_list(unit, "_TS_GLOB_FILES")
-        rel_to = "TS_TEST_FOR_PATH" if unit.get("TS_TEST_FOR") else "MODDIR"
+        test_files = get_escaped_values_list(unit, "_TS_GLOB_FILES")
+        rel_to = "TS_FOR_PATH" if unit.get("TS_FOR") else "MODDIR"
         test_files = _resolve_module_files(unit, unit.get(rel_to), test_files)
-        value = serialize_list(test_files)
-        return value
-
-    @classmethod
-    def ts_test_srcs(cls, unit, flat_args, spec_args):
-        test_files = get_values_list(unit, "_TS_TEST_SRCS_VALUE")
-        test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
-        value = serialize_list(test_files)
-        return value
-
-    @classmethod
-    def tsc_typecheck_input_files(cls, unit, flat_args, spec_args):
-        typecheck_files = get_values_list(unit, "TS_INPUT_FILES")
-        typecheck_test_files = get_values_list(unit, "TS_INPUT_TEST_FILES")
-        test_files = [_common.resolve_common_const(f) for f in typecheck_files + typecheck_test_files]
-        value = serialize_list(test_files)
-        return value
-
-    @classmethod
-    def ts_lint_srcs(cls, unit, flat_args, spec_args):
-        test_files = get_values_list(unit, "_TS_LINT_SRCS_VALUE")
-        test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
-        value = serialize_list(test_files)
-        return value
-
-    @classmethod
-    def stylesheets(cls, unit, flat_args, spec_args):
-        test_files = get_values_list(unit, "_TS_STYLELINT_FILES")
-        test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
-        value = serialize_list(test_files)
-        return value
-
-    @classmethod
-    def ts_biome_srcs(cls, unit, flat_args, spec_args):
-        test_files = get_values_list(unit, "_TS_BIOME_FILES")
-        test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
         value = serialize_list(test_files)
         return value
 
@@ -1419,13 +1275,6 @@ class TestFiles:
     @classmethod
     def cpp_linter_files(cls, unit, flat_args, spec_args):
         upath = unit.path()[3:]
-
-        if upath.startswith(cls._MAPS_RENDERER_PREFIX):
-            for path in cls._MAPS_RENDERER_INCLUDE_LINTER_TEST_PATHS:
-                if os.path.commonpath([upath, path]) == path:
-                    break
-            else:
-                raise HaltDartConstruction()
 
         if upath.startswith(cls._MAPS_B2BGEO_PREFIX):
             for path in cls._MAPS_B2BGEO_INCLUDE_LINTER_TEST_PATHS:
@@ -1559,6 +1408,23 @@ class TestRecipes:
     @classmethod
     def value(cls, unit, flat_args, spec_args):
         return prepare_recipes(unit.get_subst("TEST_RECIPES_VALUE"))
+
+
+class TestPersistentRecipes:
+    KEY = 'TEST-PERSISTENT-RECIPES'
+
+    @classmethod
+    def value(cls, unit, flat_args, spec_args):
+        data = unit.get_subst("TEST_PERSISTENT_RECIPES_VALUE")
+        if not data or not data.strip():
+            return None
+        # Replace delimiter token with newline — same pattern as USE_RECIPE/format_recipes.
+        # Each USE_PERSISTENT_RECIPE call becomes one line; paths within a call are
+        # space-separated on that line.
+        formatted = data.replace('"USE_PERSISTENT_RECIPE_DELIM"', "\n")
+        if not formatted.strip():
+            return None
+        return base64.b64encode(formatted.encode('utf-8'))
 
 
 class TestRunnerBin:

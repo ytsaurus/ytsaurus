@@ -27,7 +27,7 @@ class TCHToYTConverter
 public:
     TCHToYTConverter(
         DB::DataTypePtr dataType,
-        TCompositeSettingsPtr settings);
+        TConversionSettingsPtr settings);
 
     TCHToYTConverter(TCHToYTConverter&& other);
 

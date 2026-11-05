@@ -90,9 +90,8 @@ void TIntermediateChunkScraper::UpdateChunkScraper()
 
     auto intermediateChunks = GetChunksCallback_();
 
-    YT_LOG_DEBUG(
-        "Update intermediate chunk scraper (ChunkCount: %v)",
-        intermediateChunks.size());
+    YT_TLOG_DEBUG("Update intermediate chunk scraper")
+        .With("ChunkCount", intermediateChunks.size());
 
     for (auto oldChunk : LastUpdateChunks_) {
         if (!intermediateChunks.contains(oldChunk)) {

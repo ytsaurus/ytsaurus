@@ -1,0 +1,54 @@
+#include "counter.h"
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleEmaCounter::TSimpleEmaCounter(TDuration window)
+    : Counter_({window})
+{ }
+
+void TSimpleEmaCounter::Update(double total, TInstant now)
+{
+    Total_ = total;
+    Counter_.Update(Total_, now);
+}
+
+void TSimpleEmaCounter::Inc(double count, TInstant now)
+{
+    Total_ += count;
+    Counter_.Update(Total_, now);
+}
+
+void TSimpleEmaCounter::ResetRate(TInstant now)
+{
+    Counter_ = NYT::TEmaCounter<double, 1>(Counter_.WindowDurations);
+    Counter_.Update(Total_, now);
+}
+
+std::optional<double> TSimpleEmaCounter::GetLastRate() const
+{
+    if (!Counter_.LastTimestamp) {
+        return {};
+    }
+    return Counter_.GetRate(0, *Counter_.LastTimestamp);
+}
+
+std::optional<double> TSimpleEmaCounter::GetDecayedRate(TInstant now) const
+{
+    return Counter_.GetRate(0, now);
+}
+
+double TSimpleEmaCounter::GetTotal() const
+{
+    return Total_;
+}
+
+void TSimpleEmaCounter::SetWindow(TDuration window)
+{
+    Counter_.WindowDurations[0] = window;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

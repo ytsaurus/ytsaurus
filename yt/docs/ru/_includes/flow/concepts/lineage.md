@@ -1,0 +1,48 @@
+# Lineage в {{product-name}} Flow
+
+Lineage *(с англ. родословная)* — это информация о том, из каких входных [сообщений](../../../flow/concepts/glossary.md#message) и [таймеров](../../../flow/concepts/glossary.md#timer) был получен конкретный выходной результат [компьютейшена](../../../flow/concepts/glossary.md#computation). Эта информация используется фреймворком в момент обработки для вычисления метаданных и обеспечения гарантий порядка, но не сохраняется в самом выходном сообщении.
+
+## Зачем нужен lineage {#why-lineage}
+
+Lineage используется фреймворком в двух целях:
+
+1. **Вычисление метаполей.** На основе родительских сообщений Flow автоматически заполняет метаполя выходных сообщений: `EventTimestamp`, `AlignmentTimestamp` и другие. Для Swift-компьютейшенов и [passthrough](../../../flow/concepts/glossary.md#passthrough) `AlignmentTimestamp` наследуется от родителей без изменений — это гарантирует корректную [приоритизацию](../../../flow/concepts/ordering.md) сообщений в downstream-компьютейшенах.
+
+2. **Гарантии порядка производных сообщений.** Если у двух сообщений совпадают [ключи группировки](../../../flow/concepts/glossary.md#key) по всей цепочке lineage от источника до текущего компьютейшена, то их относительный порядок обработки сохраняется. Подробнее — в разделе [Порядок обработки сообщений](../../../flow/concepts/ordering.md#ordering-guarantees).
+
+## Поведение по умолчанию {#default-behavior}
+
+В большинстве случаев явно управлять lineage не нужно — фреймворк устанавливает родителей автоматически:
+
+| Тип функции | Родитель выходного сообщения |
+|---|---|
+| `IProcessFunction::ProcessMessage` / `RowFunction` | текущее входное сообщение |
+| `IBatchProcessFunction::Process` / `BatchFunction` | все сообщения текущего батча |
+| Обработчик таймера | текущий таймер |
+
+## Когда задавать lineage явно {#explicit-lineage}
+
+По умолчанию родителем выходного сообщения считается весь текущий батч. Явный lineage позволяет сузить это множество до конкретного подмножества входных объектов, что делает вычисление `EventTimestamp` и `AlignmentTimestamp` более точным.
+
+В Swift-компьютейшене сужение обязательно: у каждого выходного сообщения должен быть ровно один родитель (несколько — только при [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees)). При обработке по одному сообщению фреймворк назначает родителя автоматически; в batch-обработке его задаёт пользовательский код. В Transform-компьютейшене явный lineage необязателен.
+
+## API {#api}
+
+Lineage устанавливается через метод `SetParents` / `set_parent_ids` / `setParentIds` / `WithParentIDs` на объекте `OutputCollector`. Метод возвращает **новый** коллектор с привязанным контекстом lineage — все вызовы `AddMessage` / `add_message` / `addMessage` на нём будут нести этот lineage.
+
+Подробнее об использовании в каждом языке:
+- [C++](../../../flow/cpp/process-functions.md)
+- [Java](../../../flow/java/computation.md#output-collector)
+- [Python](../../../flow/python/computation.md#output-collector)
+- [Go](../../../flow/go/computation.md#output-collector)
+
+## Статистика преобразования {#conversion-statistics}
+
+Flow оценивает отношение выхода ко входу для каждой пары потоков, отдельно по количеству сообщений и размеру в байтах. Статистика учитывает обработанные сообщения, а не гарантированно доставленные.
+
+## См. также
+
+- [Порядок обработки сообщений](../../../flow/concepts/ordering.md)
+- [Computation](../../../flow/concepts/computation.md)
+- [Основные понятия (глоссарий)](../../../flow/concepts/glossary.md)
+- [Computation (Go)](../../../flow/go/computation.md)

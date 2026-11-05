@@ -15,7 +15,7 @@ namespace NYT::NTabletBalancer {
 
 TTableProfilingCounters& TTableRegistry::GetProfilingCounters(
     const TTable* table,
-    const TString& groupName)
+    const std::string& groupName)
 {
     auto guard = ReaderGuard(ProfilingCountersLock_);
     auto it = ProfilingCounters_.find(table->Id);
@@ -42,7 +42,7 @@ TTableProfilingCounters& TTableRegistry::GetProfilingCounters(
 
 TTableProfilingCounters TTableRegistry::InitializeProfilingCounters(
     const TTable* table,
-    const TString& groupName) const
+    const std::string& groupName) const
 {
     TTableProfilingCounters profilingCounters{.BundleName = table->Bundle->Name, .GroupName = groupName};
     auto profiler = TabletBalancerProfiler()

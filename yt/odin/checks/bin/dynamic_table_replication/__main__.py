@@ -383,7 +383,15 @@ def run_check(yt_client, logger, options, states):
 
     try:
         if is_meta_cluster() or is_chaos_meta_cluster():
-            check_replication_not_banned()
+            try:
+                check_replication_not_banned()
+            except ManuallyDisabledReplicationError:
+                if is_meta_cluster():
+                    min_sync_replica_count = 1 if is_replica_cluster() else 0
+                    max_sync_replica_count = random.randint(min_sync_replica_count, 3)
+                    maybe_create_replicated_table(0, min_sync_replica_count, max_sync_replica_count)
+                raise
+
         if is_replica_cluster():
             check_incoming_replication_enabled()
 

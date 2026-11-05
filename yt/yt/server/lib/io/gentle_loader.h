@@ -18,7 +18,7 @@ struct IRandomFileProvider
 {
     struct TFileInfo
     {
-        TString Path;
+        std::string Path;
         i64 DiskSpace = 0;
     };
 
@@ -49,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(IGentleLoader)
 
 IGentleLoaderPtr CreateGentleLoader(
     TGentleLoaderConfigPtr config,
-    TString locationRoot,
+    std::string locationRoot,
     IIOEngineWorkloadModelPtr engine,
     IRandomFileProviderPtr fileProvider,
     IInvokerPtr invoker,

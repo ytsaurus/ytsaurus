@@ -30,14 +30,14 @@ void ApplyMoveDescriptors(
 TTabletActionBatch Balance(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
-    const TString& parameterizedConfig);
+    const TGroupName& group,
+    const std::string& parameterizedConfig);
 
 TTabletActionBatch BalanceAndPrintDescriptors(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
-    const TString& parameterizedConfig);
+    const TGroupName& group,
+    const std::string& parameterizedConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

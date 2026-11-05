@@ -22,6 +22,15 @@ var (
 	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 )
 
+func containsAnyErrorCode(err error, brokenStateSignalErrorCodes []yterrors.ErrorCode) bool {
+	for _, code := range brokenStateSignalErrorCodes {
+		if yterrors.ContainsErrorCode(err, code) {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
 	OpAliasFamilyDelimiter      = "::"
@@ -78,7 +87,7 @@ func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
 	}
 	diff := make(map[string]FieldDiff)
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(oldSpeclet)) {
-		if field.Anonymous {
+		if field.Anonymous || !field.IsExported() {
 			continue
 		}
 		if field.Tag.Get("requires_restart") == "false" {
@@ -119,6 +128,41 @@ func getYSONTimePointerOrNil(t yson.Time) *yson.Time {
 		return nil
 	} else {
 		return &t
+	}
+}
+
+func ApplyControllerConfigOverrides(ctlCfgYson, overridesYson yson.RawValue) (yson.RawValue, error) {
+	if len(overridesYson) == 0 {
+		return ctlCfgYson, nil
+	}
+
+	var ctlCfg map[string]any
+	if len(ctlCfgYson) > 0 {
+		if err := yson.Unmarshal(ctlCfgYson, &ctlCfg); err != nil {
+			return nil, fmt.Errorf("failed to parse controller config: %w", err)
+		}
+	}
+	if ctlCfg == nil {
+		ctlCfg = make(map[string]any)
+	}
+
+	var overrides map[string]any
+	if err := yson.Unmarshal(overridesYson, &overrides); err != nil {
+		return nil, fmt.Errorf("failed to parse controller overrides: %w", err)
+	}
+	mergeConfigMaps(ctlCfg, overrides)
+	return yson.Marshal(ctlCfg)
+}
+
+func mergeConfigMaps(config, overrides map[string]any) {
+	for key, value := range overrides {
+		configMap, configIsMap := config[key].(map[string]any)
+		overridesMap, overridesIsMap := value.(map[string]any)
+		if configIsMap && overridesIsMap {
+			mergeConfigMaps(configMap, overridesMap)
+		} else {
+			config[key] = value
+		}
 	}
 }
 

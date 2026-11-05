@@ -42,7 +42,7 @@ public:
     struct TNode
     {
         i64 DataWeight = 0;
-        //! Nodes is active if it was online during the whole operation.
+        //! Node is active while it is online and has positive IO weight.
         //! The total IO weight of such nodes is considered as what we have in a worst-case
         //! scenario, i.e. the data weight allowed for a node `x` is calculated
         //! as a `(x.IOWeight() / ActiveNodeTotalIOWeight_) * TotalDataWeight_ * Options_->Tolerance`.
@@ -69,7 +69,6 @@ private:
 
     NLogging::TSerializableLogger Logger;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TDataBalancer, 0x6f1d3e7b);
 
     TNode& GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId);

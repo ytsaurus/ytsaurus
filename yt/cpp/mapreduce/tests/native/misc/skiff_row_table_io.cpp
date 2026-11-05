@@ -1,5 +1,6 @@
 #include <yt/cpp/mapreduce/client/skiff.h>
 
+#include <yt/cpp/mapreduce/interface/format.h>
 #include <yt/cpp/mapreduce/interface/skiff_row.h>
 
 #include <yt/cpp/mapreduce/io/skiff_row_table_reader.h>
@@ -10,6 +11,48 @@
 
 using namespace NYT;
 using namespace NYT::NTesting;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(SkiffSchemaSerializationTest, EmptyTupleFormatSerialization)
+{
+    const auto schema = NSkiff::CreateTupleSchema({});
+    const auto format = NYT::NDetail::CreateSkiffFormat(NSkiff::CreateVariant16Schema({schema}));
+    const auto& encoded = format.Config.GetAttributes()["skiff_schema_registry"]["0"];
+    ASSERT_TRUE(encoded.AsMap().contains("children"));
+    EXPECT_TRUE(encoded["children"].AsList().empty());
+
+    NSkiff::TSkiffSchemaPtr restored;
+    NYT::NDetail::Deserialize(restored, encoded);
+    EXPECT_EQ(restored->GetWireType(), NSkiff::EWireType::Tuple);
+    EXPECT_TRUE(restored->GetChildren().empty());
+}
+
+TEST(SkiffSchemaSerializationTest, NestedEmptyTupleFormatSerialization)
+{
+    const auto schema = NSkiff::CreateTupleSchema({
+        NSkiff::CreateTupleSchema({})->SetName("empty_struct"),
+        NSkiff::CreateTupleSchema({
+            NSkiff::CreateTupleSchema({}),
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int64),
+        })->SetName("tuple"),
+    });
+    const auto format = NYT::NDetail::CreateSkiffFormat(NSkiff::CreateVariant16Schema({schema}));
+    const auto& encoded = format.Config.GetAttributes()["skiff_schema_registry"]["0"];
+
+    NSkiff::TSkiffSchemaPtr restored;
+    NYT::NDetail::Deserialize(restored, encoded);
+    ASSERT_EQ(restored->GetChildren().size(), 2u);
+    EXPECT_EQ(restored->GetChildren()[0]->GetName(), "empty_struct");
+    EXPECT_TRUE(restored->GetChildren()[0]->GetChildren().empty());
+
+    const auto& nested = restored->GetChildren()[1];
+    EXPECT_EQ(nested->GetName(), "tuple");
+    ASSERT_EQ(nested->GetChildren().size(), 2u);
+    EXPECT_EQ(nested->GetChildren()[0]->GetWireType(), NSkiff::EWireType::Tuple);
+    EXPECT_TRUE(nested->GetChildren()[0]->GetChildren().empty());
+    EXPECT_EQ(nested->GetChildren()[1]->GetWireType(), NSkiff::EWireType::Int64);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

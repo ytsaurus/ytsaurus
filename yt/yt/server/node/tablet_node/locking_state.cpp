@@ -55,11 +55,10 @@ TError TLockingState::TryLock(TTransactionId transactionId, EObjectLockMode lock
             YT_ABORT();
     };
 
-    YT_LOG_DEBUG_IF(locked,
-        "Object is locked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
-        ObjectId_,
-        transactionId,
-        lockMode);
+    YT_TLOG_DEBUG_IF(locked, "Object is locked by transaction")
+        .With("ObjectId", ObjectId_)
+        .With("TransactionId", transactionId)
+        .With("LockMode", lockMode);
 
     return {};
 }
@@ -82,11 +81,10 @@ bool TLockingState::Unlock(TTransactionId transactionId, EObjectLockMode lockMod
     }
 
     if (unlocked) {
-        YT_LOG_DEBUG(
-            "Object is unlocked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
-            ObjectId_,
-            transactionId,
-            lockMode);
+        YT_TLOG_DEBUG("Object is unlocked by transaction")
+            .With("ObjectId", ObjectId_)
+            .With("TransactionId", transactionId)
+            .With("LockMode", lockMode);
     }
 
     return unlocked;

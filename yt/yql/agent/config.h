@@ -9,6 +9,7 @@
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -21,6 +22,20 @@
 namespace NYT::NYqlAgent {
 
 using NYqlPlugin::TYqlPluginConfig;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTokenServiceConfig
+    : public NYTree::TYsonStruct
+{
+    std::string UnixSocketPath;
+
+    REGISTER_YSON_STRUCT(TTokenServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTokenServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +54,20 @@ struct TYqlAgentConfig
 
     std::vector<std::string> InsecureSecretPathSubjects;
 
+    bool UseTokenResolver;
+    TTokenServiceConfigPtr TokenService;
+
+    bool UseQtWorkerYqlPlugin;
+
+    //! Port in the qtworker subprocess worker.conf.
+    int QtWorkerInspectorPort;
+
+    //! Path to the base gateways.conf used by qtworker and qtworker plugin.
+    std::optional<TString> QtWorkerGatewaysConfigPath;
+
+    NYPath::TYPath UdfMetaPath;
+    std::string UdfMetaUser;
+
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 
     static void Register(TRegistrar registrar);
@@ -53,6 +82,7 @@ struct TYqlAgentDynamicConfig
 {
     int MaxSimultaneousQueries;
     TDuration StateCheckPeriod;
+    TDuration ProtoConfigsUpdatePeriod;
 
     //! Fields from NYql::TGatewaysConfig with snake case keys.
     NYTree::INodePtr GatewaysConfig;
@@ -87,6 +117,11 @@ struct TYqlAgentServerConfig
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
+
+    //! Directory path where proto gateway configs are stored.
+    //! Files are expected to be named '<flavor>.conf' inside this directory.
+    TString ProtoDynamicConfigsPath;
+    std::set<TString> SupportedFlavors;
 
     REGISTER_YSON_STRUCT(TYqlAgentServerConfig);
 

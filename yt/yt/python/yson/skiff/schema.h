@@ -15,6 +15,11 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSupportedWireType(NSkiff::EWireType wireType);
+NSkiff::EWireType GetSupportedWireTypeOrThrow(const NSkiff::TSkiffSchemaPtr& skiffSchema);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSkiffSchema
     : public TRefCounted
 {
@@ -37,13 +42,13 @@ public:
 
     NSkiffExt::TFieldDescription GetDenseField(ui16 index);
     NSkiffExt::TFieldDescription GetSparseField(ui16 index);
-    ui16 GetFieldIndex(const TString& name);
-    bool HasField(const TString& name);
+    ui16 GetFieldIndex(const std::string& name);
+    bool HasField(const std::string& name);
 
     std::shared_ptr<NSkiff::TSkiffSchema> GetSkiffSchema();
 
 private:
-    THashMap<TString, ui16> FieldIndices_;
+    THashMap<std::string, ui16> FieldIndices_;
     NSkiffExt::TSkiffTableDescription TableDescription_;
 
     std::shared_ptr<NSkiff::TSkiffSchema> SkiffSchema_;

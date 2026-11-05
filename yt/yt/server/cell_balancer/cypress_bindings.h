@@ -138,6 +138,7 @@ struct TBundleConfig
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, double> FairSharePoolWeights;
     bool InitChaosBundles;
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
@@ -286,6 +287,9 @@ struct TBundleInfo
     TAbcInfoPtr Abc;
     bool BundleHotfix;
 
+    // Not registered as YSON struct field.
+    bool Spare = false;
+
     REGISTER_YSON_STRUCT(TBundleInfo);
 
     static void Register(TRegistrar registrar);
@@ -356,8 +360,8 @@ struct TZoneInfo
 
     std::optional<std::string> ShortName;
 
-    int MaxTabletNodeCount;
-    int MaxRpcProxyCount;
+    std::optional<int> MaxTabletNodeCount;
+    std::optional<int> MaxRpcProxyCount;
 
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
@@ -403,6 +407,7 @@ struct TAllocationRequestStatus
     : public NYTree::TYsonStruct
 {
     std::string State;
+    std::string YPCluster;
     std::string NodeId;
     std::string PodId;
 
@@ -743,7 +748,8 @@ struct TTabletNodeInfo
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
 
-    ELocalNodeState LocalState; // Not registered as yson struct field.
+    // Not registered as YSON struct field.
+    ELocalNodeState LocalState = ELocalNodeState::Unknown;
 
     bool IsOnline() const override;
 
@@ -753,6 +759,25 @@ struct TTabletNodeInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletNodeInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TDataNodeInfo)
+
+struct TDataNodeInfo
+    : public NYTree::TYsonStruct
+{
+    std::string Host;
+    std::string Switch;
+    std::string State;
+    TInstant LastSeenTime;
+
+    REGISTER_YSON_STRUCT(TDataNodeInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -809,6 +834,7 @@ struct TBundleDynamicConfig
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, double> FairSharePoolWeights;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

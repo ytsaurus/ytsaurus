@@ -149,6 +149,7 @@ struct IChaosManager
     virtual void GrantShortcuts(
         TChaosObjectBase* chaosObject,
         const std::vector<NObjectClient::TCellId>& coordinatorCellIds,
+        TTimestamp eraStartTimestamp,
         bool strict = true) = 0;
 
     virtual void RevokeShortcuts(

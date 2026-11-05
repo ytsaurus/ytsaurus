@@ -38,7 +38,7 @@ public:
         IBlackboxServicePtr blackboxService,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , BlackboxSevice_(std::move(blackboxService))
+        , BlackboxService_(std::move(blackboxService))
         , RejectedTokensCounter_(profiler.Counter("/rejected_tokens"))
         , InvalidBlackboxResponsesCounter_(profiler.Counter("/invalid_responses"))
         , TokenScopeCheckErrorsCounter_(profiler.Counter("/scope_check_errors"))
@@ -55,13 +55,12 @@ public:
         auto userIP = FormatUserIP(credentials.UserIP);
         auto tokenHash = GetCryptoHash(token);
 
-        YT_LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
-            tokenHash,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user with token via Blackbox")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP);
 
-        THashMap<TString, TString> params{
-            // TODO(babenko): migrate to std::string
-            {"oauth_token", TString(token)},
+        THashMap<std::string, std::string> params{
+            {"oauth_token", token},
             {"userip", userIP},
         };
 
@@ -69,7 +68,7 @@ public:
             params["get_user_ticket"] = "yes";
         }
 
-        return BlackboxSevice_->Call("oauth", params)
+        return BlackboxService_->Call("oauth", params)
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -78,27 +77,28 @@ public:
 
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr BlackboxSevice_;
+    const IBlackboxServicePtr BlackboxService_;
 
     const TCounter RejectedTokensCounter_;
     const TCounter InvalidBlackboxResponsesCounter_;
     const TCounter TokenScopeCheckErrorsCounter_;
 
 
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)
+    TAuthenticationResult OnCallResult(const std::string& tokenHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            YT_LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
-                tokenHash);
+            YT_TLOG_DEBUG("Blackbox authentication failed")
+                .With("TokenHash", tokenHash)
+                .With(result);
             THROW_ERROR result
-                << TErrorAttribute("token_hash", tokenHash);
+                .With("token_hash", tokenHash);
         }
 
-        YT_LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
-            tokenHash,
-            result.Value().Login,
-            result.Value().Realm);
+        YT_TLOG_DEBUG("Blackbox authentication successful")
+            .With("TokenHash", tokenHash)
+            .With("Login", result.Value().Login)
+            .With("Realm", result.Value().Realm);
         return result.Value();
     }
 
@@ -112,17 +112,17 @@ private:
         }
 
         if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
-            auto error = GetByYPath<TString>(data, "/error");
+            auto error = GetByYPath<std::string>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             RejectedTokensCounter_.Increment();
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
-                << TErrorAttribute("reason", reason);
+                .With("reason", reason);
         }
 
-        auto login = BlackboxSevice_->GetLogin(data);
-        auto oauthClientId = GetByYPath<TString>(data, "/oauth/client_id");
-        auto oauthClientName = GetByYPath<TString>(data, "/oauth/client_name");
-        auto oauthScope = GetByYPath<TString>(data, "/oauth/scope");
+        auto login = BlackboxService_->GetLogin(data);
+        auto oauthClientId = GetByYPath<std::string>(data, "/oauth/client_id");
+        auto oauthClientName = GetByYPath<std::string>(data, "/oauth/client_name");
+        auto oauthScope = GetByYPath<std::string>(data, "/oauth/scope");
 
         // Sanity checks.
         if (!login.IsOK() || !oauthClientId.IsOK() || !oauthClientName.IsOK() || !oauthScope.IsOK()) {
@@ -152,8 +152,8 @@ private:
             if (!matchedScope) {
                 TokenScopeCheckErrorsCounter_.Increment();
                 return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
-                    << TErrorAttribute("provided_scopes", providedScopes)
-                    << TErrorAttribute("allowed_scope", Config_->Scope);
+                    .With("provided_scopes", providedScopes)
+                    .With("allowed_scope", Config_->Scope);
             }
         }
 
@@ -161,7 +161,7 @@ private:
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:token:" + oauthClientId.Value() + ":" + oauthClientName.Value();
-        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        auto userTicket = GetByYPath<std::string>(data, "/user_ticket");
         if (userTicket.IsOK()) {
             result.UserTicket = userTicket.Value();
         } else if (Config_->GetUserTicket) {
@@ -205,9 +205,9 @@ public:
         const auto& token = *credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
-        YT_LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
-            tokenHash,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user with token via Cypress")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP);
 
         auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/tokens",
@@ -230,7 +230,7 @@ private:
 private:
     static void SanitizeToken(TError* error, const std::string& token)
     {
-        auto message = TString(error->GetMessage());
+        auto message = std::string(error->GetMessage());
         SubstGlobal(message, token, "<redacted>");
         error->SetMessage(message);
         for (auto& innerError : *error->MutableInnerErrors()) {
@@ -238,7 +238,7 @@ private:
         }
     }
 
-    TAuthenticationResult OnCallResult(const std::string& token, const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
+    TAuthenticationResult OnCallResult(const std::string& token, const std::string& tokenHash, const TErrorOr<TYsonString>& callResult)
     {
         if (!callResult.IsOK()) {
             TError error = callResult;
@@ -246,35 +246,38 @@ private:
                 SanitizeToken(&error, token);
             }
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
-                    tokenHash);
+                YT_TLOG_DEBUG("Token is missing in Cypress")
+                    .With("TokenHash", tokenHash)
+                    .With(callResult);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                     "Token is missing in Cypress")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << callResult;
+                    .With("token_hash", tokenHash)
+                    .With(callResult);
             } else {
-                YT_LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
-                    tokenHash);
+                YT_TLOG_DEBUG("Cypress authentication failed")
+                    .With("TokenHash", tokenHash)
+                    .With(callResult);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << callResult;
+                    .With("token_hash", tokenHash)
+                    .With(callResult);
             }
         }
 
         const auto& ysonString = callResult.Value();
         try {
             TAuthenticationResult authResult;
-            authResult.Login = ConvertTo<TString>(ysonString);
+            authResult.Login = ConvertTo<std::string>(ysonString);
             authResult.Realm = Config_->Realm;
-            YT_LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
-                tokenHash,
-                authResult.Login);
+            YT_TLOG_DEBUG("Cypress authentication successful")
+                .With("TokenHash", tokenHash)
+                .With("Login", authResult.Login);
             return authResult;
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
-                tokenHash);
+            YT_TLOG_DEBUG("Cypress contains malformed authentication entry")
+                .With("TokenHash", tokenHash)
+                .With(callResult);
             THROW_ERROR_EXCEPTION("Malformed Cypress authentication entry")
-                << TErrorAttribute("token_hash", tokenHash);
+                .With("token_hash", tokenHash);
         }
     }
 };
@@ -292,7 +295,7 @@ struct TTokenAuthenticatorCacheKey
 {
     std::optional<std::string> Token;
     std::optional<std::string> TokenSha256;
-    TString UserIPFactor;
+    std::string UserIPFactor;
 
     operator size_t() const
     {
@@ -367,59 +370,15 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        return New<TAuthenticationSession>(this, credentials)->GetResult();
+        return New<TCompositeAuthSession<ITokenAuthenticator, TTokenCredentials, TAuthenticationResult>>(
+            Authenticators_,
+            credentials,
+            TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed"))
+            ->GetResult();
     }
 
 private:
     const std::vector<ITokenAuthenticatorPtr> Authenticators_;
-
-    class TAuthenticationSession
-        : public TRefCounted
-    {
-    public:
-        TAuthenticationSession(
-            TIntrusivePtr<TCompositeTokenAuthenticator> owner,
-            const TTokenCredentials& credentials)
-            : Owner_(std::move(owner))
-            , Credentials_(credentials)
-        {
-            InvokeNext();
-        }
-
-        TFuture<TAuthenticationResult> GetResult()
-        {
-            return Promise_;
-        }
-
-    private:
-        const TIntrusivePtr<TCompositeTokenAuthenticator> Owner_;
-        const TTokenCredentials Credentials_;
-
-        TPromise<TAuthenticationResult> Promise_ = NewPromise<TAuthenticationResult>();
-        std::vector<TError> Errors_;
-        size_t CurrentIndex_ = 0;
-
-    private:
-        void InvokeNext()
-        {
-            if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
-                Promise_.Set(TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
-                    << Errors_);
-                return;
-            }
-
-            const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
-            authenticator->Authenticate(Credentials_).Subscribe(
-                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
-                    if (result.IsOK()) {
-                        Promise_.Set(result.Value());
-                    } else {
-                        Errors_.push_back(result);
-                        InvokeNext();
-                    }
-                }));
-        }
-    };
 };
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
@@ -436,8 +395,8 @@ class TNoopTokenAuthenticator
 public:
     TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& /*credentials*/) override
     {
-        static const auto Realm = TString("noop");
-        static const auto UserTicket = TString("");
+        static const auto Realm = std::string("noop");
+        static const auto UserTicket = std::string("");
         TAuthenticationResult result{
             .Login = NRpc::RootUserName,
             .Realm = Realm,

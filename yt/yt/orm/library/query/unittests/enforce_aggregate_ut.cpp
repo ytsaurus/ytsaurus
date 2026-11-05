@@ -10,11 +10,10 @@
 
 using namespace NYT::NQueryClient::NAst;
 
-namespace NYT::NOrm::NServer::NObjects::NTests {
+namespace NYT::NOrm::NQuery::NTests {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 std::string MakeAggregatedQuery(TStringBuf query)
 {
@@ -23,8 +22,6 @@ std::string MakeAggregatedQuery(TStringBuf query)
     auto* aggregatedExpression = EnforceAggregate(&parsed->AstHead, expression);
     return FormatExpression(*aggregatedExpression);
 }
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,4 +70,5 @@ TEST(TEnforceAggregateTest, AggregatedAndUnaggregatedInSingleExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects::NTests
+} // namespace
+} // namespace NYT::NOrm::NQuery::NTests

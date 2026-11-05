@@ -29,6 +29,7 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     NQueryClient::TConstQueryPtr query,
     NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
     std::vector<NQueryClient::TDataSource> dataSources,
+    const std::vector<TSharedRef>& attachments,
     NQueryClient::IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,

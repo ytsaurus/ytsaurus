@@ -86,7 +86,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterConnector");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "MasterConnector");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,10 +204,9 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
-        YT_LOG_DEBUG(
-            "Issuing temporary operation token (OperationId: %v, User: %v)",
-            operation->GetId(),
-            operation->GetAuthenticatedUser());
+        YT_TLOG_DEBUG("Issuing temporary operation token")
+            .With("OperationId", operation->GetId())
+            .With("User", operation->GetAuthenticatedUser());
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("operation_id", operation->GetId());
@@ -237,8 +236,8 @@ public:
         auto operationId = operation->GetId();
 
         try {
-            YT_LOG_INFO("Creating operation node (OperationId: %v)",
-                operationId);
+            YT_TLOG_INFO("Creating operation node")
+                .With("OperationId", operationId);
 
             if (operation->Spec()->IssueTemporaryToken) {
                 YT_VERIFY(operation->GetTemporaryTokenNodeId());
@@ -310,41 +309,39 @@ public:
             }
 
             if (operation->Spec()->IssueTemporaryToken) {
-                YT_LOG_DEBUG(
-                    "Removing expiration timeout from issued operation token (TokenNodeId: %v, User: %v, OperationId: %v)",
-                    operation->GetTemporaryTokenNodeId(),
-                    operation->GetAuthenticatedUser(),
-                    operationId);
+                YT_TLOG_DEBUG("Removing expiration timeout from issued operation token")
+                    .With("TokenNodeId", operation->GetTemporaryTokenNodeId())
+                    .With("User", operation->GetAuthenticatedUser())
+                    .With("OperationId", operationId);
 
                 WaitFor(ClearTokenExpirationTimeout(*operation->GetTemporaryTokenNodeId()))
                     .ThrowOnError();
 
-                YT_LOG_DEBUG(
-                    "Persisting temporary token expiration timeout removal in operation node (OperationId: %v, User: %v)",
-                    operationId,
-                    operation->GetAuthenticatedUser());
+                YT_TLOG_DEBUG("Persisting temporary token expiration timeout removal in operation node")
+                    .With("OperationId", operationId)
+                    .With("User", operation->GetAuthenticatedUser());
 
                 WaitFor(Bootstrap_->GetClient()->SetNode(
                     Format("%v/@need_to_clear_temporary_token_expiration_timeout", GetOperationPath(operationId)),
                     ConvertToYsonString(false)))
                     .ThrowOnError();
 
-                YT_LOG_INFO("Finalized temporary operation token (OperationId: %v, TokenNodeId: %v, User: %v)",
-                    operationId,
-                    operation->GetTemporaryTokenNodeId(),
-                    operation->GetAuthenticatedUser());
+                YT_TLOG_INFO("Finalized temporary operation token")
+                    .With("OperationId", operationId)
+                    .With("TokenNodeId", operation->GetTemporaryTokenNodeId())
+                    .With("User", operation->GetAuthenticatedUser());
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error creating operation node %v", operationId)
-                << ex;
+                .With(ex);
             if (IsMasterDisconnectionError(error)) {
                 error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
             THROW_ERROR error;
         }
 
-        YT_LOG_INFO("Operation node created (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Operation node created")
+            .With("OperationId", operationId);
     }
 
     bool TryReportOperationHeavyAttributesInArchive(const TOperationPtr& operation)
@@ -364,9 +361,9 @@ public:
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Operation heavy attributes report transaction started (TransactionId: %v, OperationId: %v)",
-            transaction->GetId(),
-            operationId);
+        YT_TLOG_DEBUG("Operation heavy attributes report transaction started")
+            .With("TransactionId", transaction->GetId())
+            .With("OperationId", operationId);
 
         auto operationIdAsGuid = operationId.Underlying();
         NRecords::TOrderedByIdPartial record{
@@ -391,16 +388,15 @@ public:
             .WithTimeout(Config_->OperationHeavyAttributesArchivationTimeout));
 
         if (!error.IsOK()) {
-            YT_LOG_WARNING(
-                error,
-                "Operation heavy attributes report in archive failed (TransactionId: %v, OperationId: %v)",
-                transaction->GetId(),
-                operationId);
+            YT_TLOG_WARNING("Operation heavy attributes report in archive failed")
+                .With("TransactionId", transaction->GetId())
+                .With("OperationId", operationId)
+                .With(error);
         } else {
-            YT_LOG_DEBUG("Operation heavy attributes reported successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
-                transaction->GetId(),
-                orderedByIdRowsDataWeight,
-                operationId);
+            YT_TLOG_DEBUG("Operation heavy attributes reported successfully")
+                .With("TransactionId", transaction->GetId())
+                .With("DataWeight", orderedByIdRowsDataWeight)
+                .With("OperationId", operationId);
         }
         return error.IsOK();
     }
@@ -431,8 +427,8 @@ public:
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
-        YT_LOG_INFO("Updating initialized operation node (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Updating initialized operation node")
+            .With("OperationId", operationId);
 
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
@@ -471,8 +467,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
-        YT_LOG_INFO("Flushing operation node (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Flushing operation node")
+            .With("OperationId", operation->GetId());
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
@@ -502,17 +498,17 @@ public:
 
         return batchReq->Invoke().Apply(BIND([operationId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto error = TError("Error getting operation node progress attributes")
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_id", operationId);
             if (!batchRspOrError.IsOK()) {
                 THROW_ERROR error
-                    << batchRspOrError;
+                    .With(batchRspOrError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
             if (!rspOrError.IsOK()) {
                 THROW_ERROR error
-                    << rspOrError;
+                    .With(rspOrError);
             }
 
             const auto& rsp = rspOrError.Value();
@@ -528,7 +524,7 @@ public:
             cellTag);
         if (!connection) {
             return MakeFuture(TError("Unknown cell tag %v of user transaction", cellTag)
-                << TErrorAttribute("transaction_id", transactionId));
+                .With("transaction_id", transactionId));
         }
 
         auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
@@ -538,17 +534,17 @@ public:
 
         return batchReq->Invoke().Apply(BIND([transactionId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto error = TError("Error checking user transaction")
-                << TErrorAttribute("transaction_id", transactionId);
+                .With("transaction_id", transactionId);
             if (!batchRspOrError.IsOK()) {
                 THROW_ERROR error
-                    << batchRspOrError;
+                    .With(batchRspOrError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
             auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspGetBasicAttributes>(0);
             if (!rspOrError.IsOK()) {
                 THROW_ERROR error
-                    << rspOrError;
+                    .With(rspOrError);
             }
         }));
     }
@@ -568,7 +564,7 @@ public:
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         if (StoringStrategyState_) {
-            YT_LOG_INFO("Skip storing persistent strategy state because the previous attempt hasn't finished yet");
+            YT_TLOG_INFO("Skip storing persistent strategy state because the previous attempt hasn't finished yet");
 
             return;
         }
@@ -578,7 +574,7 @@ public:
             StoringStrategyState_ = false;
         });
 
-        YT_LOG_INFO("Storing persistent strategy state");
+        YT_TLOG_INFO("Storing persistent strategy state");
 
         auto batchReq = StartObjectBatchRequest();
 
@@ -593,12 +589,12 @@ public:
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
-        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
-        auto rspOrError = WaitFor(proxy.Execute(req));
+        auto rspOrError = GetCumulativeError(WaitFor(batchReq->Invoke()));
         if (!rspOrError.IsOK()) {
-            YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
+            YT_TLOG_ERROR("Error storing persistent strategy state")
+                .With(rspOrError);
         } else {
-            YT_LOG_INFO("Persistent strategy state successfully stored");
+            YT_TLOG_INFO("Persistent strategy state successfully stored");
         }
     }
 
@@ -614,7 +610,8 @@ public:
         GetCumulativeError(WaitFor(batchReq->Invoke()))
             .ThrowOnError();
 
-        YT_LOG_INFO("Last metering log time written to Cypress (LastMeteringLogTime: %v)", time);
+        YT_TLOG_INFO("Last metering log time written to Cypress")
+            .With("LastMeteringLogTime", time);
     }
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time)
@@ -631,7 +628,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
-        savedAlert <<= TErrorAttribute("alert_type", alertType);
+        savedAlert.Add("alert_type", alertType);
         Alerts_[alertType] = std::move(savedAlert);
     }
 
@@ -796,7 +793,7 @@ private:
         }
         State_ = EMasterConnectorState::Connecting;
 
-        YT_LOG_INFO("Connecting to master");
+        YT_TLOG_INFO("Connecting to master");
 
         YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -847,7 +844,8 @@ private:
         YT_VERIFY(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
-            YT_LOG_WARNING(error, "Error connecting to master");
+            YT_TLOG_WARNING("Error connecting to master")
+                .With(error);
             DoCleanup();
             StartConnecting(/*immediately*/ false);
             return;
@@ -860,7 +858,7 @@ private:
         State_.store(EMasterConnectorState::Connected);
         ConnectionTime_.store(TInstant::Now());
 
-        YT_LOG_INFO("Master connected");
+        YT_TLOG_INFO("Master connected");
 
         LockTransaction_->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -878,7 +876,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Disconnect(TError("Lock transaction aborted")
-            << error);
+            .With(error));
     }
 
     bool DoesOperationsArchiveExist()
@@ -950,7 +948,8 @@ private:
         {
             auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
+            // TODO(dgolear): Switch to std::string.
+            auto path = TYPath(Format("//sys/scheduler/instances/%v", ToYPathLiteral(GetDefaultAddress(ServiceAddresses_))));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -997,7 +996,8 @@ private:
 
             Owner_->LockTransaction_ = transactionOrError.Value();
 
-            YT_LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
+            YT_TLOG_INFO("Lock transaction started")
+                .With("LockTransactionId", Owner_->LockTransaction_->GetId());
         }
 
         // - Take lock.
@@ -1038,7 +1038,7 @@ private:
 
         void SyncClusterDirectory()
         {
-            YT_LOG_INFO("Sync cluster directory started");
+            YT_TLOG_INFO("Sync cluster directory started");
             WaitFor(Owner_
                 ->Bootstrap_
                 ->GetClient()
@@ -1046,12 +1046,12 @@ private:
                 ->GetClusterDirectorySynchronizer()
                 ->Sync(/*force*/ true))
                 .ThrowOnError();
-            YT_LOG_INFO("Sync cluster directory finished");
+            YT_TLOG_INFO("Sync cluster directory finished");
         }
 
         void SyncMediumDirectory()
         {
-            YT_LOG_INFO("Sync medium directory started");
+            YT_TLOG_INFO("Sync medium directory started");
             WaitFor(Owner_
                 ->Bootstrap_
                 ->GetClient()
@@ -1059,13 +1059,13 @@ private:
                 ->GetMediumDirectorySynchronizer()
                 ->NextSync(/*force*/ true))
                 .ThrowOnError();
-            YT_LOG_INFO("Sync medium directory finished");
+            YT_TLOG_INFO("Sync medium directory finished");
         }
 
         // - Request operations and their states.
         void ListOperations()
         {
-            YT_LOG_INFO("Started listing existing operations");
+            YT_TLOG_INFO("Started listing existing operations");
 
             auto createBatchRequest = BIND(
                 &TImpl::StartObjectBatchRequest,
@@ -1078,16 +1078,16 @@ private:
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
 
             for (const auto& [operationId, state] : listOperationsResult.OperationsToRevive) {
-                YT_LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
-                    operationId,
-                    state);
+                YT_TLOG_DEBUG("Found operation in Cypress")
+                    .With("OperationId", operationId)
+                    .With("State", state);
                 OperationIds_.push_back(operationId);
             }
 
             auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
             operationsCleaner->SubmitForArchivation(std::move(listOperationsResult.OperationsToArchive));
 
-            YT_LOG_INFO("Finished listing existing operations");
+            YT_TLOG_INFO("Finished listing existing operations");
         }
 
         struct TOperationDataToParse final
@@ -1132,13 +1132,14 @@ private:
                         secureVault = secureVaultNode->AsMap();
                     } else {
                         // TODO(max42): (YT-5651) Do not just ignore such a situation!
-                        YT_LOG_WARNING("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
-                            rspValues.OperationId,
-                            secureVaultNode->GetType(),
-                            ENodeType::Map);
+                        YT_TLOG_WARNING("Invalid secure vault node type")
+                            .With("OperationId", rspValues.OperationId)
+                            .With("ActualType", secureVaultNode->GetType())
+                            .With("ExpectedType", ENodeType::Map);
                     }
                 } else if (attributesNode->Get<bool>("has_secure_vault", false)) {
-                    YT_LOG_INFO("Operation secure vault is missing; operation skipped (OperationId: %v)", rspValues.OperationId);
+                    YT_TLOG_INFO("Operation secure vault is missing; operation skipped")
+                        .With("OperationId", rspValues.OperationId);
                     result.IncompleteOperationRemoveRequests.push_back(TRemoveOperationRequest{
                         .Id = rspValues.OperationId,
                         .DependentNodeIds = std::move(dependentNodeIds),
@@ -1147,8 +1148,8 @@ private:
                 }
 
                 if (attributesNode->Get<bool>("need_to_clear_temporary_token_expiration_timeout", false)) {
-                    YT_LOG_INFO("Operation temporary token has non-null expiration timeout; operation skipped (OperationId: %v)",
-                        rspValues.OperationId);
+                    YT_TLOG_INFO("Operation temporary token has non-null expiration timeout; operation skipped")
+                        .With("OperationId", rspValues.OperationId);
                     result.IncompleteOperationRemoveRequests.push_back(TRemoveOperationRequest{
                         .Id = rspValues.OperationId,
                         .DependentNodeIds = std::move(dependentNodeIds),
@@ -1158,7 +1159,8 @@ private:
 
                 try {
                     if (attributesNode->Get<bool>("banned", false)) {
-                        YT_LOG_INFO("Operation manually banned (OperationId: %v)", rspValues.OperationId);
+                        YT_TLOG_INFO("Operation manually banned")
+                            .With("OperationId", rspValues.OperationId);
                         continue;
                     }
                     auto operation = TryCreateOperationFromAttributes(
@@ -1169,8 +1171,9 @@ private:
                         cancelableOperationInvoker);
                     result.Operations.push_back(operation);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
-                        rspValues.OperationId);
+                    YT_TLOG_ERROR("Error creating operation from Cypress node")
+                        .With("OperationId", rspValues.OperationId)
+                        .With(ex);
                     if (!skipOperationsWithMalformedSpecDuringRevival) {
                         throw;
                     }
@@ -1215,8 +1218,8 @@ private:
 
             std::vector<TRemoveOperationRequest> operationRemovalRequests;
 
-            YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
-                operationsCount);
+            YT_TLOG_INFO("Fetching attributes and secure vaults for unfinished operations")
+                .With("UnfinishedOperationCount", operationsCount);
 
             auto batchReq = Owner_->StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
@@ -1260,7 +1263,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
 
-            YT_LOG_INFO("Attributes for unfinished operations fetched");
+            YT_TLOG_INFO("Attributes for unfinished operations fetched");
 
             {
                 const auto chunkSize = Owner_->Config_->ParseOperationAttributesBatchSize;
@@ -1286,18 +1289,18 @@ private:
 
                         if (!secureVaultRspOrError.IsOK() &&
                             secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                            THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
+                            THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v",
                                 operationId)
-                                << secureVaultRspOrError;
+                                .With(secureVaultRspOrError);
                         }
 
-                        auto atttibutesNodeStr = TYsonString(attributesRsp->value());
+                        auto attributesNodeStr = TYsonString(attributesRsp->value());
                         TYsonString secureVaultYson;
                         if (secureVaultRspOrError.IsOK()) {
                             secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
                         }
 
-                        operationsDataToProcessBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
+                        operationsDataToProcessBatch.push_back({std::move(attributesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
                     futures.push_back(BIND(
@@ -1311,7 +1314,7 @@ private:
                         .AsyncVia(Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker())
                         .Run());
                 }
-                YT_LOG_INFO("Operation attributes batches for parsing formed");
+                YT_TLOG_INFO("Operation attributes batches for parsing formed");
 
                 Result_.Operations.reserve(OperationIds_.size());
                 auto result = WaitFor(AllSucceeded(futures)).ValueOrThrow();
@@ -1349,7 +1352,7 @@ private:
             auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
             operationsCleaner->SubmitForRemoval(std::move(operationRemovalRequests));
 
-            YT_LOG_INFO("Operation objects created from attributes");
+            YT_TLOG_INFO("Operation objects created from attributes");
         }
 
         TOperationPtr TryCreateOperationFromAttributes(
@@ -1454,7 +1457,7 @@ private:
 
         void DoInitPersistentStrategyState()
         {
-            YT_LOG_INFO("Requesting persistent strategy state");
+            YT_TLOG_INFO("Requesting persistent strategy state");
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             batchReq->AddRequest(TYPathProxy::Get(StrategyStatePath), "get_strategy_state");
@@ -1474,12 +1477,11 @@ private:
                     auto value = rspOrError.ValueOrThrow()->value();
                     try {
                         strategyState = ConvertTo<NStrategy::TPersistentStrategyStatePtr>(TYsonString(value));
-                        YT_LOG_INFO("Successfully fetched strategy state");
+                        YT_TLOG_INFO("Successfully fetched strategy state");
                     } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(
-                            ex,
-                            "Failed to deserialize strategy state; will drop it (Value: %v)",
-                            ConvertToYsonString(value, EYsonFormat::Text));
+                        YT_TLOG_WARNING("Failed to deserialize strategy state; will drop it")
+                            .With("Value", ConvertToYsonString(value, EYsonFormat::Text))
+                            .With(ex);
                     }
                 }
             }
@@ -1489,7 +1491,7 @@ private:
 
         void StrictUpdateWatchers()
         {
-            YT_LOG_INFO("Request common watcher updates");
+            YT_TLOG_INFO("Request common watcher updates");
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
                 watcher.Requester(batchReq);
@@ -1498,18 +1500,20 @@ private:
             auto watcherResponses = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Handling common watcher update results");
+            YT_TLOG_INFO("Handling common watcher update results");
 
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
                 Owner_->RunWatcherHandler(watcher, watcherResponses, /*strictMode*/ true);
             }
 
-            YT_LOG_INFO("Common watchers update results handled");
+            YT_TLOG_INFO("Common watchers update results handled");
 
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
-                YT_LOG_INFO("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
+                YT_TLOG_INFO("Updating custom watcher")
+                    .With("WatcherType", watcher.WatcherType);
                 Owner_->ExecuteCustomWatcherUpdate(watcher, /*strictMode*/ true);
-                YT_LOG_INFO("Custom watcher updated (WatcherType: %v)", watcher.WatcherType);
+                YT_TLOG_INFO("Custom watcher updated")
+                    .With("WatcherType", watcher.WatcherType);
             }
 
             Owner_->SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, TError());
@@ -1520,7 +1524,7 @@ private:
             try {
                 Owner_->MasterHandshake_.Fire(Result_);
             } catch (const std::exception&) {
-                YT_LOG_WARNING("Master handshake failed, disconnecting scheduler");
+                YT_TLOG_WARNING("Master handshake failed, disconnecting scheduler");
                 Owner_->MasterDisconnected_.Fire();
                 throw;
             }
@@ -1538,15 +1542,16 @@ private:
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_last_metering_log_time");
             if (!rspOrError.IsOK()) {
                 if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    YT_LOG_INFO(rspOrError, "Last metering log time is missing");
+                    YT_TLOG_INFO("Last metering log time is missing")
+                        .With(rspOrError);
                     Result_.LastMeteringLogTime = TInstant::Now();
                 } else {
                     rspOrError.ThrowOnError();
                 }
             } else {
                 Result_.LastMeteringLogTime = ConvertTo<TInstant>(TYsonString(rspOrError.ValueOrThrow()->value()));
-                YT_LOG_INFO("Last metering log time read from Cypress (LastMeteringLogTime: %v)",
-                    Result_.LastMeteringLogTime);
+                YT_TLOG_INFO("Last metering log time read from Cypress")
+                    .With("LastMeteringLogTime", Result_.LastMeteringLogTime);
             }
         }
     };
@@ -1554,12 +1559,12 @@ private:
     void GetTransactionsAndRevivalDescriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
     {
         auto operationId = operation->GetId();
-        auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
+        auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const std::string& name = std::string()) -> ITransactionPtr {
             if (!transactionId) {
-                if (name) {
-                    YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
-                        name,
-                        operationId);
+                if (!name.empty()) {
+                    YT_TLOG_DEBUG("Missing operation transaction")
+                        .With("TransactionType", name)
+                        .With("OperationId", operationId);
                 }
                 return nullptr;
             }
@@ -1575,9 +1580,10 @@ private:
                     .ThrowOnError();
                 return transaction;
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
-                    operationId,
-                    transactionId);
+                YT_TLOG_WARNING("Error attaching operation transaction")
+                    .With("OperationId", operationId)
+                    .With("TransactionId", transactionId)
+                    .With(ex);
                 return nullptr;
             }
         };
@@ -1610,8 +1616,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
-            operations.size());
+        YT_TLOG_INFO("Fetching operation revival descriptors")
+            .With("OperationCount", operations.size());
 
         {
             auto batchReq = StartObjectBatchRequest(
@@ -1635,8 +1641,8 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Fetched operation transaction ids, starting to ping them (OperationCount: %v)",
-                operations.size());
+            YT_TLOG_INFO("Fetched operation transaction ids, starting to ping them")
+                .With("OperationCount", operations.size());
 
             std::vector<TFuture<void>> futures;
             for (const auto& operation : operations) {
@@ -1651,8 +1657,8 @@ private:
                     attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing attributes of operation")
-                        << TErrorAttribute("operation_id", operationId)
-                        << ex;
+                        .With("operation_id", operationId)
+                        .With(ex);
                 }
                 futures.push_back(
                     BIND(&TImpl::GetTransactionsAndRevivalDescriptor, MakeStrong(this))
@@ -1674,8 +1680,8 @@ private:
             }
         }
 
-        YT_LOG_INFO("Fetching committed flags (OperationCount: %v)",
-            operationsToFetchCommittedFlag.size());
+        YT_TLOG_INFO("Fetching committed flags")
+            .With("OperationCount", operationsToFetchCommittedFlag.size());
 
         {
             auto getBatchKey = [] (const TOperationPtr& operation) {
@@ -1727,8 +1733,8 @@ private:
                             }
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Error parsing revival attributes of operation")
-                                << TErrorAttribute("operation_id", operation->GetId())
-                                << ex;
+                                .With("operation_id", operation->GetId())
+                                .With(ex);
                         }
                     };
 
@@ -1752,8 +1758,8 @@ private:
             }
         }
 
-        YT_LOG_INFO("Revival descriptors fetched (OperationCount: %v)",
-            operations.size());
+        YT_TLOG_INFO("Revival descriptors fetched")
+            .With("OperationCount", operations.size());
     }
 
 
@@ -1803,9 +1809,10 @@ private:
 
         auto expected = EMasterConnectorState::Connected;
         if (State_.compare_exchange_strong(expected, EMasterConnectorState::Disconnecting)) {
-            YT_LOG_WARNING(error, "Disconnecting master");
+            YT_TLOG_WARNING("Disconnecting master")
+                .With(error);
             MasterDisconnected_.Fire();
-            YT_LOG_WARNING("Master disconnected");
+            YT_TLOG_WARNING("Master disconnected");
         }
 
         DoCleanup();
@@ -1857,7 +1864,7 @@ private:
 
         YT_VERIFY(!error.IsOK());
 
-        Disconnect(TError("Failed to update operation node") << error);
+        Disconnect(TError("Failed to update operation node").With(error));
     }
 
     void DoUpdateOperationNode(const TOperationPtr& operation)
@@ -1965,11 +1972,12 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
 
-            YT_LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
+            YT_TLOG_DEBUG("Operation node updated")
+                .With("OperationId", operation->GetId());
         } catch (const std::exception& ex) {
             auto error = TError("Error updating operation node %v",
                 operation->GetId())
-                << ex;
+                .With(ex);
             if (IsMasterDisconnectionError(error)) {
                 error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
@@ -2007,8 +2015,8 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating initialized operation node %v",
             operationId);
 
-        YT_LOG_INFO("Initialized operation node updated (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Initialized operation node updated")
+            .With("OperationId", operationId);
     }
 
     ITransactionPtr StartWatcherLockTransaction(const TCustomWatcherRecord& watcher)
@@ -2028,12 +2036,12 @@ private:
 
         if (!transactionOrError.IsOK()) {
             THROW_ERROR transactionOrError.Wrap("Failed to start lock transaction for watcher")
-                << TErrorAttribute("watcher_type", watcher.WatcherType);
+                .With("watcher_type", watcher.WatcherType);
         }
 
-        YT_LOG_INFO("Watcher lock transaction created (WatcherType: %v, TransactionId: %v)",
-            watcher.WatcherType,
-            transactionOrError.Value()->GetId());
+        YT_TLOG_INFO("Watcher lock transaction created")
+            .With("WatcherType", watcher.WatcherType)
+            .With("TransactionId", transactionOrError.Value()->GetId());
 
         return transactionOrError.Value();
     }
@@ -2042,7 +2050,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Making custom watcher request (WatcherType: %v)", watcher.WatcherType);
+        YT_TLOG_DEBUG("Making custom watcher request")
+            .With("WatcherType", watcher.WatcherType);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
@@ -2059,14 +2068,15 @@ private:
             } catch (const std::exception& ex) {
                 HandleWatcherError(
                     TError("Watcher failed to take lock")
-                        << ex
-                        << TErrorAttribute("watcher_type", watcher.WatcherType),
+                        .With(ex)
+                        .With("watcher_type", watcher.WatcherType),
                     strictMode,
                     watcher.AlertType);
                 return;
             }
 
-            YT_LOG_INFO("Lock for watcher acquired (WatcherType: %v)", watcher.WatcherType);
+            YT_TLOG_INFO("Lock for watcher acquired")
+                .With("WatcherType", watcher.WatcherType);
 
             TPrerequisiteOptions prerequisiteOptions;
             prerequisiteOptions.PrerequisiteTransactionIds.push_back(watcherLockTransaction->GetId());
@@ -2078,7 +2088,7 @@ private:
         if (!batchRspOrError.IsOK()) {
             HandleWatcherError(
                 batchRspOrError.Wrap("Watcher batch request failed")
-                    << TErrorAttribute("watcher_type", watcher.WatcherType),
+                    .With("watcher_type", watcher.WatcherType),
                 strictMode,
                 watcher.AlertType);
             return;
@@ -2087,11 +2097,13 @@ private:
             YT_UNUSED_FUTURE(watcherLockTransaction->Abort());
         }
 
-        YT_LOG_DEBUG("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
+        YT_TLOG_DEBUG("Updating custom watcher")
+            .With("WatcherType", watcher.WatcherType);
 
         RunWatcherHandler(watcher, batchRspOrError.Value(), strictMode);
 
-        YT_LOG_DEBUG("Finished updating custom watcher (WatcherType: %v)", watcher.WatcherType);
+        YT_TLOG_DEBUG("Finished updating custom watcher")
+            .With("WatcherType", watcher.WatcherType);
     }
 
     void UpdateWatchers()
@@ -2099,7 +2111,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
-        YT_LOG_DEBUG("Making common watcher requests");
+        YT_TLOG_DEBUG("Making common watcher requests");
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
         for (const auto& watcher : CommonWatcherRecords_) {
@@ -2115,10 +2127,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
-        YT_LOG_DEBUG("Updating common watchers");
+        YT_TLOG_DEBUG("Updating common watchers");
 
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_WARNING(batchRspOrError, "Error updating common watchers");
+            YT_TLOG_WARNING("Error updating common watchers")
+                .With(batchRspOrError);
             return;
         }
 
@@ -2127,7 +2140,7 @@ private:
             RunWatcherHandler(watcher, batchRsp, /*strictMode*/ false);
         }
 
-        YT_LOG_DEBUG("Common watchers updated");
+        YT_TLOG_DEBUG("Common watchers updated");
     }
 
     void RunWatcherHandler(const TWatcherRecord& watcher, TObjectServiceProxy::TRspExecuteBatchPtr responses, bool strictMode)
@@ -2156,7 +2169,8 @@ private:
         if (alertType) {
             SetSchedulerAlert(*alertType, error);
         }
-        YT_LOG_WARNING(error);
+        YT_TLOG_WARNING("Watcher handler failed")
+            .With(error);
     }
 
     void UpdateAlerts()
@@ -2177,7 +2191,8 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error updating scheduler alerts");
+            YT_TLOG_WARNING("Error updating scheduler alerts")
+                .With(rspOrError);
         }
     }
 
@@ -2200,19 +2215,20 @@ private:
 
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING(rspOrError, "Error updating lock transaction timeout (TransactionId: %v)",
-                    LockTransaction_->GetId());
+                YT_TLOG_WARNING("Error updating lock transaction timeout")
+                    .With("TransactionId", LockTransaction_->GetId())
+                    .With(rspOrError);
             } else {
                 THROW_ERROR_EXCEPTION("Error updating lock transaction timeout")
-                    << rspOrError
-                    << TErrorAttribute("transaction_id", LockTransaction_->GetId());
+                    .With(rspOrError)
+                    .With("transaction_id", LockTransaction_->GetId());
             }
             return;
         }
 
-        YT_LOG_DEBUG("Lock transaction timeout updated (TransactionId: %v, Timeout: %v)",
-            LockTransaction_->GetId(),
-            timeout.MilliSeconds());
+        YT_TLOG_DEBUG("Lock transaction timeout updated")
+            .With("TransactionId", LockTransaction_->GetId())
+            .With("Timeout", timeout.MilliSeconds());
     }
 };
 

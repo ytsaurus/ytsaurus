@@ -24,6 +24,7 @@ target_link_libraries(data_node PUBLIC
   build-cow-on
   yt-yt-core
   ytserver
+  lib-nbd-chunk
   yt-server-node
   yt-library-program
   yt-yt-ytlib

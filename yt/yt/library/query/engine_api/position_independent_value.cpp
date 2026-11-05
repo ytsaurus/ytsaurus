@@ -18,6 +18,8 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NTableClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFingerprint GetFarmFingerprint(const TPIValue& value)

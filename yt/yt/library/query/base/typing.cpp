@@ -93,7 +93,7 @@ TTypeId TTypingCtx::GetTypeId(const TLogicalTypePtr& logicalType)
         }
         default:
             THROW_ERROR_EXCEPTION("Unsupported logical type")
-                << TErrorAttribute("type", ToString(*logicalType));
+                .With("type", ToString(*logicalType));
     }
     Y_UNREACHABLE();
 }
@@ -263,7 +263,7 @@ std::vector<TTypingCtx::TFunctionSignature> TTypingCtx::GetFunctionSignatures(TS
     }
 
     THROW_ERROR_EXCEPTION("No known function")
-        << TErrorAttribute("name", name);
+        .With("name", name);
 }
 
 // Additional types are 0 in case no result type.
@@ -419,8 +419,8 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
     if (matches.empty()) {
         // Use %Qv to match errors in unittests.
         THROW_ERROR_EXCEPTION("No matching function %Qv", name)
-            << TErrorAttribute("signatures", Format("%v", MakeFormattableView(signatures, signatureFormatter)))
-            << TErrorAttribute("argument_types", Format("%v", MakeFormattableView(argumentTypes, [&] (auto* builder, const auto& typeId) {
+            .With("signatures", Format("%v", MakeFormattableView(signatures, signatureFormatter)))
+            .With("argument_types", Format("%v", MakeFormattableView(argumentTypes, [&] (auto* builder, const auto& typeId) {
                 builder->AppendFormat("%v", *GetLogicalType(typeId));
             })));
     } else if (std::ssize(matches) == 1) {
@@ -439,13 +439,13 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
         return result;
     } else {
         THROW_ERROR_EXCEPTION("Ambiguous resolution for function %Qv", name)
-            << TErrorAttribute("signatures", Format("%v", MakeFormattableView(signatures, signatureFormatter)))
-            << TErrorAttribute("matches", Format("%v", MakeFormattableView(matches, [&] (auto* builder, const auto& match) {
+            .With("signatures", Format("%v", MakeFormattableView(signatures, signatureFormatter)))
+            .With("matches", Format("%v", MakeFormattableView(matches, [&] (auto* builder, const auto& match) {
                 builder->AppendFormat("SignatureIndex: %v, Types: %v", match.first, MakeFormattableView(match.second, [&] (auto* builder, const auto& typeId) {
                     builder->AppendFormat("%v", *GetLogicalType(typeId));
                 }));
             })))
-            << TErrorAttribute("argument_types", Format("%v", MakeFormattableView(argumentTypes, [&] (auto* builder, const auto& typeId) {
+            .With("argument_types", Format("%v", MakeFormattableView(argumentTypes, [&] (auto* builder, const auto& typeId) {
                 builder->AppendFormat("%v", *GetLogicalType(typeId));
             })));
     }

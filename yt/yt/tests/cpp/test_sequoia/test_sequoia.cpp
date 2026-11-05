@@ -3,7 +3,10 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -13,6 +16,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/sequoia_client/public.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -34,7 +39,7 @@ const auto Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSequoiaTest
+class TSequoiaTestBase
     : public TApiTestBase
 {
 public:
@@ -62,7 +67,8 @@ public:
         auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Cypress transaction started (TransactionId: %v)", tx->GetId());
+        YT_TLOG_DEBUG("Cypress transaction started")
+            .With("TransactionId", tx->GetId());
 
         return tx;
     }
@@ -78,12 +84,18 @@ private:
     }
 };
 
-TString Prettify(const TYsonString& yson)
+////////////////////////////////////////////////////////////////////////////////
+
+class TSequoiaTest
+    : public TSequoiaTestBase
+{ };
+
+std::string Prettify(const TYsonString& yson)
 {
     return ConvertToYsonString(yson, EYsonFormat::Pretty).ToString();
 }
 
-TString Prettify(TStringBuf yson)
+std::string Prettify(TYsonStringBuf yson)
 {
     return Prettify(TYsonString(yson));
 }
@@ -113,7 +125,7 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
     auto rsp = WaitFor(Client_->GetNode("//sequoia/a"))
         .ValueOrThrow();
 
-    YSON_EXPECT_EQ("{b = {}}", rsp);
+    YSON_EXPECT_EQ(TYsonStringBuf("{b = {}}"), rsp);
 }
 
 TEST_F(TSequoiaTest, TestRowLockConflict)
@@ -170,13 +182,11 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         }
     }
 
-    YT_LOG_DEBUG(
-        "Concurrent node creations are finished (RequestCount: %v, CreatedNodeCount: %v, "
-        "LockConflictCount: %v, AlreadyExistsErrorCount: %v)",
-        RequestCount,
-        createdNodeCount,
-        lockConflictCount,
-        nodeExistsCount);
+    YT_TLOG_DEBUG("Concurrent node creations are finished")
+        .With("RequestCount", RequestCount)
+        .With("CreatedNodeCount", createdNodeCount)
+        .With("LockConflictCount", lockConflictCount)
+        .With("AlreadyExistsErrorCount", nodeExistsCount);
 
     // TODO(kvk1920): implement per-request option to disable Sequoia retries
     // and rewrite this test in the following way: if Sequoia retries are
@@ -203,15 +213,15 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", topmostTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", nestedTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", dependentTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     WaitFor(topmostTx->Abort())
         .ThrowOnError();
@@ -220,7 +230,7 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", nestedTx->GetId()))).ValueOrThrow());
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", dependentTx->GetId()))).ValueOrThrow());
 
-    YT_LOG_DEBUG("All 3 transactions are aborted");
+    YT_TLOG_DEBUG("All 3 transactions are aborted");
 
     // All these transactions are expected to be aborted in TearDownTestCase().
     auto tx1 = StartCypressTransaction({.AutoAbort = false});
@@ -251,17 +261,15 @@ TEST_F(TSequoiaTest, TestConcurrentCommitTx)
             WaitFor(barrier)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG(
-                "Request started (TransactionId: %v, InFlightRequestCount: %v)",
-                transactions[txIndex]->GetId(),
-                inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
+            YT_TLOG_DEBUG("Request started")
+                .With("TransactionId", transactions[txIndex]->GetId())
+                .With("InFlightRequestCount", inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
 
             auto finally = Finally([&] {
-                YT_LOG_DEBUG(
-                    "Request finished (TransactionId: %v, InFlightRequestCount: %v, FinishedRequestCount: %v)",
-                    transactions[txIndex]->GetId(),
-                    inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1,
-                    finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1);
+                YT_TLOG_DEBUG("Request finished")
+                    .With("TransactionId", transactions[txIndex]->GetId())
+                    .With("InFlightRequestCount", inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1)
+                    .With("FinishedRequestCount", finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1);
             });
 
             WaitFor(transactions[txIndex]->Commit())
@@ -309,7 +317,9 @@ TEST_F(TSequoiaTest, TestConcurrentCommitTx)
         }
     }
 
-    YT_LOG_DEBUG("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted);
+    YT_TLOG_DEBUG("All transactions finished")
+        .With("Committed", committed)
+        .With("AlreadyAborted", alreadyAborted);
 }
 
 TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
@@ -363,7 +373,10 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
-            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
+            YT_TLOG_DEBUG("Request executed")
+                .With("StartTimestamp", startTimestamp)
+                .With("EndTimestamp", endTimestamp)
+                .With(error);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -378,21 +391,21 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
     auto [startCommitTimestamp, endCommitTimestamp, commitError] = commitResult.Value();
     YT_VERIFY(commitError.IsOK());
 
-    YT_LOG_DEBUG(
-        "Commit request (StartTimestamp: %v, EndTimestamp: %v)",
-        startCommitTimestamp,
-        endCommitTimestamp);
+    YT_TLOG_DEBUG("Commit request")
+        .With("StartTimestamp", startCommitTimestamp)
+        .With("EndTimestamp", endCommitTimestamp);
 
-    int createdNodeCount = 0, prerequisiteCheckFailedCount = 0;
+    auto createdNodeCount = 0;
+    auto prerequisiteCheckFailedCount = 0;
+    auto leaseIssueFailedCount = 0;
     for (int requestIndex : std::views::iota(0, RequestCount)) {
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Create request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Create request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (error.IsOK()) {
             YT_VERIFY(startTimestamp < endCommitTimestamp);
@@ -400,17 +413,19 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         } else if (error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
             YT_VERIFY(startCommitTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
+        } else if (error.GetMessage().contains("Failed to issue leases for prerequisite transactions")) {
+            ++leaseIssueFailedCount;
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Creations with prerequisite transaction are finished "
-        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
-        createdNodeCount,
-        prerequisiteCheckFailedCount,
-        prerequisiteTx->GetId());
+    YT_TLOG_DEBUG("Creations with prerequisite transaction are finished")
+        .With("CreatedNodeCount", createdNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount)
+        .With("LeaseIssueFailedCount", leaseIssueFailedCount)
+        .With("PrerequisiteTransactionId", prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
 
@@ -420,8 +435,8 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
     YT_VERIFY(error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed);
 
     WaitFor(Client_->SetNode(
-            "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
-            ConvertToYsonString(true)))
+        "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
+        ConvertToYsonString(true)))
         .ThrowOnError();
 }
 
@@ -486,7 +501,10 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
-            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
+            YT_TLOG_DEBUG("Request executed")
+                .With("StartTimestamp", startTimestamp)
+                .With("EndTimestamp", endTimestamp)
+                .With(error);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -501,21 +519,19 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
     auto [startCommitTimestamp, endCommitTimestamp, commitError] = commitResult.Value();
     YT_VERIFY(commitError.IsOK());
 
-    YT_LOG_DEBUG(
-        "Commit request (StartTimestamp: %v, EndTimestamp: %v)",
-        startCommitTimestamp,
-        endCommitTimestamp);
+    YT_TLOG_DEBUG("Commit request")
+        .With("StartTimestamp", startCommitTimestamp)
+        .With("EndTimestamp", endCommitTimestamp);
 
     int listedNodeCount = 0, prerequisiteCheckFailedCount = 0;
     for (int requestIndex : std::views::iota(0, RequestCount)) {
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Create request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Create request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (error.IsOK()) {
             YT_VERIFY(startTimestamp < endCommitTimestamp);
@@ -524,16 +540,15 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
             YT_VERIFY(startCommitTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Lists with prerequisite transaction are finished "
-        "(ListedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
-        listedNodeCount,
-        prerequisiteCheckFailedCount,
-        prerequisiteTx->GetId());
+    YT_TLOG_DEBUG("Lists with prerequisite transaction are finished")
+        .With("ListedNodeCount", listedNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount)
+        .With("PrerequisiteTransactionId", prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
 
@@ -628,11 +643,10 @@ TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Copy request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Copy request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (result.IsOK()) {
             YT_VERIFY(startTimestamp < endSetTimestamp);
@@ -641,15 +655,14 @@ TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
             YT_VERIFY(startSetTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(result);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Copyings with prerequisite revision are finished "
-        "(CopiedNodeCount: %v, PrerequisiteCheckFailedCount: %v)",
-        copiedNodeCount,
-        prerequisiteCheckFailedCount);
+    YT_TLOG_DEBUG("Copyings with prerequisite revision are finished")
+        .With("CopiedNodeCount", copiedNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
 TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
@@ -708,11 +721,10 @@ TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Set request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Set request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (result.IsOK()) {
             ++setNodeCount;
@@ -729,15 +741,14 @@ TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
             YT_VERIFY(intersectingRequestIndex >= 0 && intersectingRequestIndex < RequestCount);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(result);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Sets with prerequisite revision are finished "
-        "(SetNodeCount: %v, PrerequisiteCheckFailedCount: %v)",
-        setNodeCount,
-        prerequisiteCheckFailedCount);
+    YT_TLOG_DEBUG("Sets with prerequisite revision are finished")
+        .With("SetNodeCount", setNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
 TEST_F(TSequoiaTest, TestTransactionAbortConflict)
@@ -866,14 +877,14 @@ TEST_F(TSequoiaTest, TestTransactionAbortNoStarvation)
                 .Run());
     }
 
-    YT_LOG_DEBUG("Started setting node values");
+    YT_TLOG_DEBUG("Started setting node values");
     barrierPromise.Set();
 
-    YT_LOG_DEBUG("Aborting topmost transaction (TransactionId: %v)",
-        topmostTransaction->GetId());
+    YT_TLOG_DEBUG("Aborting topmost transaction")
+        .With("TransactionId", topmostTransaction->GetId());
     WaitFor(topmostTransaction->Abort())
         .ThrowOnError();
-    YT_LOG_DEBUG("Topmost transaction aborted");
+    YT_TLOG_DEBUG("Topmost transaction aborted");
 
     WaitFor(AllSet(resultFutures))
         .ThrowOnError();
@@ -884,7 +895,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     constexpr int ThreadCount = 4;
     constexpr int RequestCount = 20;
 
-    WaitFor(Client_->SetNode("//sequoia/@unexisting_attr", ConvertToYsonString(ConvertToNode(123))))
+    WaitFor(Client_->SetNode("//sequoia/@some_user_attr", ConvertToYsonString(ConvertToNode(123))))
         .ThrowOnError();
 
     auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentResponseKeeperRequests");
@@ -898,7 +909,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     std::vector<TFuture<void>> responses;
 
     auto registerRequest = [&] (auto batchReq) {
-        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@unexisting_attr");
+        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@some_user_attr");
         SetMutationId(req, mutationId, /*retry*/ true);
 
         batchReq->AddRequest(req);
@@ -909,7 +920,8 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
             auto rsp = batchRsp->template GetResponse<NCypressClient::TCypressYPathProxy::TRspRemove>(0);
-            YT_LOG_DEBUG(TError(rsp), "Response finished");
+            YT_TLOG_DEBUG("Response finished")
+                .With(TError(rsp));
             rsp.ThrowOnError();
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -930,70 +942,72 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     WaitFor(AllSet(responses))
         .ThrowOnError();
 
-    int okWithRetries = 0;
-    int okWithoutRetries = 0;
     int sequoiaRetriableErrors = 0;
+    int okRequests = 0;
     for (int i : std::views::iota(0, RequestCount)) {
         const auto& error = responses[i].GetOrCrash();
         if (error.IsOK()) {
-            ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
+            ++okRequests;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
             ++sequoiaRetriableErrors;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
-            YT_LOG_FATAL(error, "Unexpected retriable error when retries were enabled");
+            YT_TLOG_FATAL("Unexpected retriable error when retries were enabled")
+                .With(error);
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG("Requests finished (OkWithRetries: %v, OkWithoutRetries: %v, SequoiaRetriableErrors: %v)",
-        okWithRetries,
-        okWithoutRetries,
-        sequoiaRetriableErrors);
+    YT_TLOG_DEBUG("Requests finished")
+        .With("OkRequests", okRequests)
+        .With("SequoiaRetriableErrors", sequoiaRetriableErrors);
 
-    EXPECT_LE(okWithoutRetries, 1);
-    EXPECT_GE(okWithRetries, RequestCount / 2);
+    // Every request with Sequoia retries should succeed thanks to PRK.
+    EXPECT_GE(okRequests, RequestCount / 2);
 }
 
 TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
 {
     constexpr auto IterationCount = 20;
 
-    auto threadPool = CreateThreadPool(2, "ConcurrentNodereplacement");
+    auto threadPool = CreateThreadPool(2, "ConcurrentNodeReplacement");
     auto invoker = threadPool->GetInvoker();
 
     for (int iteration : std::views::iota(0, IterationCount)) {
-        YT_LOG_DEBUG("Starting iteration %v", iteration);
+        YT_TLOG_DEBUG("Starting iteration")
+            .With("Iteration", iteration);
 
         WaitFor(Client_->CreateNode("//sequoia/a", EObjectType::MapNode))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Node \"//sequoia/a\" created");
+        YT_TLOG_DEBUG("Node \"//sequoia/a\" created");
 
         auto barrier = NewPromise<void>();
         auto conncurrentReplaceFuture = BIND([client = Client_, barrier = barrier.ToFuture()] () {
             WaitFor(barrier)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Concurrent worker started");
+            YT_TLOG_DEBUG("Concurrent worker started");
 
             WaitFor(Client_->CreateNode("//sequoia/b", EObjectType::MapNode))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Node \"//sequoia/b\" created");
+            YT_TLOG_DEBUG("Node \"//sequoia/b\" created");
 
             TMoveNodeOptions moveOptions = {};
             moveOptions.Force = true;
             WaitFor(Client_->MoveNode("//sequoia/b", "//sequoia/a", moveOptions))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
+            YT_TLOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
         })
             .AsyncVia(invoker)
             .Run();
 
         auto now = TInstant::Now();
-        YT_LOG_DEBUG("(Old creation time: %v)", now);
+        YT_TLOG_DEBUG("Recorded creation time before replacement")
+            .With("OldCreationTime", now);
 
         TDelayedExecutor::Submit(BIND([&] { barrier.Set(); }), TDuration::MicroSeconds(50));
 
@@ -1004,7 +1018,8 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
                 .ValueOrThrow();
 
             auto creationTime = ConvertTo<TInstant>(creationTimeString);
-            YT_LOG_DEBUG("Creation time fetched (CurrentCreationTime: %v)", creationTime);
+            YT_TLOG_DEBUG("Creation time fetched")
+                .With("CurrentCreationTime", creationTime);
 
             if (creationTime >= now) {
                 break;
@@ -1023,9 +1038,9 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
 
 TEST_F(TSequoiaTest, TestLatency)
 {
-    WaitFor(Client_->CreateNode("//latency", EObjectType::MapNode)).ThrowOnError();
+    WaitFor(Client_->CreateNode("//sequoia/latency", EObjectType::MapNode)).ThrowOnError();
     auto finally = Finally([] {
-        Y_UNUSED(WaitFor(Client_->RemoveNode("//latency", {.Recursive = true, .Force = true})));
+        Y_UNUSED(WaitFor(Client_->RemoveNode("//sequoia/latency", {.Recursive = true, .Force = true})));
     });
 
     constexpr auto AttemptCount = 40;
@@ -1044,7 +1059,7 @@ TEST_F(TSequoiaTest, TestLatency)
                     .ValueOrThrow();
            }
 
-            auto path = Format("//latency/%v", attempt);
+            auto path = Format("//sequoia/latency/%v", attempt);
             {
                 NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
                 WaitFor(tx->CreateNode(path, EObjectType::MapNode))
@@ -1075,8 +1090,349 @@ TEST_F(TSequoiaTest, TestLatency)
             .ValueOrThrow();
     }
 
-    YT_LOG_DEBUG("Mean time per test: %vms", total.MilliSeconds() / AttemptCount);
+    YT_TLOG_DEBUG("Mean time per test")
+        .WithFormat("MeanTime", "%vms", total.MilliSeconds() / AttemptCount);
 }
+
+TEST_F(TSequoiaTest, TestSequoiaPrelockDisable)
+{
+    using namespace NCypressClient;
+
+    auto parentNodeId = WaitFor(Client_->CreateNode("//sequoia/prelock_disable", EObjectType::MapNode))
+        .ValueOrThrow();
+    TNodeId targetNodeId = {};
+    do {
+        WaitFor(Client_->RemoveNode("//sequoia/prelock_disable/*")).ThrowOnError();
+        targetNodeId = WaitFor(Client_->CreateNode("//sequoia/prelock_disable/m", EObjectType::MapNode))
+            .ValueOrThrow();
+    } while (CellTagFromId(parentNodeId) == CellTagFromId(targetNodeId));
+
+    auto startTx = [&] (TStringBuf title, TTransactionId parentId = {}) {
+        TTransactionStartOptions options;
+        options.ReplicateToMasterCellTags = {CellTagFromId(parentNodeId), CellTagFromId(targetNodeId)};
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", title);
+        options.ParentId = parentId;
+        return WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
+            .ValueOrThrow();
+    };
+
+    auto tx1 = startTx("Parent");
+    auto tx2 = startTx("Nested", tx1->GetId());
+
+    auto setArtificialCommitDelay = [&] (TDuration delay) {
+        TSetNodeOptions options;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
+        options.SuppressTransactionCoordinatorSync = true;
+        return Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(delay),
+            options)
+            .AsVoid();
+    };
+
+    auto restore = Finally([&] {
+        YT_UNUSED_FUTURE(setArtificialCommitDelay(TDuration::Zero()));
+
+        YT_UNUSED_FUTURE(Client_->SetNode("//sys/@config/sequoia_manager/enable_prelock_tracker", ConvertToYsonString(true)));
+    });
+
+    auto tryLock = [&] () ->TError {
+        auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+        auto channel = nativeConnection
+            ->GetMasterCellDirectory()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(targetNodeId));
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+        auto req = TCypressYPathProxy::Lock(FromObjectId(targetNodeId));
+        SetTransactionId(req, tx1->GetId());
+        req->set_mode(ToProto(ELockMode::Exclusive));
+
+        auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_timestamp(ToProto(timestamp));
+        SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(req);
+        batchReq->SetSuppressStronglyOrderedTransactionBarrier(true);
+        batchReq->SetSuppressTransactionCoordinatorSync(true);
+        batchReq->SetSuppressUpstreamSync(true);
+
+        return WaitFor(batchReq->Invoke())
+            .ValueOrThrow()
+            ->GetResponse<TCypressYPathProxy::TRspLock>(0);
+    };
+
+    // NB: TDelayedExecutor::WaitForDuration can be used in fibers only.
+    auto threadPool = CreateThreadPool(1, "TestSequoiaPrelockDisable");
+    WaitFor(BIND([&] {
+        WaitFor(setArtificialCommitDelay(TDuration::MilliSeconds(2000))).ThrowOnError();
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        TRemoveNodeOptions options;
+        options.TransactionId = tx2->GetId();
+        TFuture<void> removalFuture;
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Remove"));
+            removalFuture = Client_->RemoveNode(FromObjectId(targetNodeId), options);
+        }
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Lock1"));
+            auto lockError1 = tryLock();
+            // NB: actually, it's OK to acquire lock under parent transaction.
+            // But current implementation is a bit suboptimal here and has
+            // false-positive conflict detection.
+            EXPECT_EQ(lockError1.GetCode(), NSequoiaClient::EErrorCode::SequoiaRetriableError);
+        }
+
+        {
+            TSetNodeOptions options;
+            options.SuppressStronglyOrderedTransactionBarrier = true;
+            options.SuppressTransactionCoordinatorSync = true;
+            WaitFor(
+                Client_->SetNode(
+                    "//sys/@config/sequoia_manager/enable_prelock_tracker",
+                    ConvertToYsonString(false),
+                    options))
+                .ThrowOnError();
+        }
+
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Lock2"));
+            tryLock().ThrowOnError();
+        }
+
+        WaitFor(removalFuture).ThrowOnError();
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run())
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETestSequoiaPrelocksTransaction,
+    (Self)
+    (Parent)
+    (Ancestor)
+    (Nested)
+    (Concurrent)
+);
+
+struct TSequoiaTestPrelocksParams
+{
+    ETestSequoiaPrelocksTransaction Transaction;
+    std::optional<std::string> ExpectedErrorMessage;
+    NCypressClient::ELockMode Mode;
+    std::optional<std::string> Attribute;
+    std::optional<std::string> Child;
+};
+
+class TSequoiaTestPrelocks
+    : public TSequoiaTestBase
+    , public testing::WithParamInterface<TSequoiaTestPrelocksParams>
+{ };
+
+std::vector<TSequoiaTestPrelocksParams> GenerateTestSequoiaPrelocksParams()
+{
+    using namespace NCypressClient;
+
+    std::vector<TSequoiaTestPrelocksParams> cases;
+
+    const std::tuple<ELockMode, std::optional<std::string>, std::optional<std::string>> LockKinds[] = {
+        {ELockMode::Exclusive, std::nullopt, std::nullopt},
+        {ELockMode::Shared, std::nullopt, std::nullopt},
+        {ELockMode::Shared, "some_atr", std::nullopt},
+        {ELockMode::Shared, std::nullopt, "some_child"},
+    };
+
+    for (auto tx : TEnumTraits<ETestSequoiaPrelocksTransaction>::GetDomainValues()) {
+        for (auto [mode, attribute, child] : LockKinds) {
+            std::optional<std::string> expectedErrorMessage;
+            if (tx != ETestSequoiaPrelocksTransaction::Self) {
+                if (attribute) {
+                    expectedErrorMessage = "since this attribute is being locked by transaction";
+                } else if (child) {
+                    expectedErrorMessage = "since this child is being locked by transaction";
+                } else {
+                    expectedErrorMessage = "\"exclusive\" lock is being taken";
+                }
+            }
+
+            cases.push_back({
+                .Transaction = tx,
+                .ExpectedErrorMessage = expectedErrorMessage,
+                .Mode = mode,
+                .Attribute = attribute,
+                .Child = child,
+            });
+        }
+    }
+
+    // Snapshot locks are validated differently.
+    cases.push_back({ETestSequoiaPrelocksTransaction::Self, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Parent, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Ancestor, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Nested, std::nullopt, ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Concurrent, std::nullopt, ELockMode::Snapshot});
+
+    return cases;
+}
+
+TEST_P(TSequoiaTestPrelocks, Test)
+{
+    using namespace NCypressClient;
+
+    auto parentNodeId = WaitFor(Client_->CreateNode("//sequoia/race_2pc_execute", EObjectType::MapNode))
+        .ValueOrThrow();
+
+    TNodeId targetNodeId = {};
+    do {
+        WaitFor(Client_->RemoveNode("//sequoia/race_2pc_execute/*")).ThrowOnError();
+        targetNodeId = WaitFor(Client_->CreateNode("//sequoia/race_2pc_execute/m", EObjectType::MapNode)).ValueOrThrow();
+    } while (CellTagFromId(targetNodeId) == CellTagFromId(parentNodeId));
+
+    YT_TLOG_DEBUG("Test nodes created")
+        .With("ParentId", parentNodeId)
+        .With("NodeId", targetNodeId);
+
+    TEnumIndexedArray<ETestSequoiaPrelocksTransaction, ITransactionPtr> tx;
+    auto startTx = [&] (ETestSequoiaPrelocksTransaction thisTx, const ITransactionPtr& parent) {
+        TTransactionStartOptions options;
+        options.ReplicateToMasterCellTags = {CellTagFromId(parentNodeId), CellTagFromId(targetNodeId)};
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", ToString(thisTx));
+        if (parent) {
+            options.ParentId = parent->GetId();
+        }
+        tx[thisTx] = WaitFor(Client_->StartTransaction(ETransactionType::Master, options)).ValueOrThrow();
+    };
+
+    startTx(ETestSequoiaPrelocksTransaction::Concurrent, nullptr);
+    startTx(ETestSequoiaPrelocksTransaction::Ancestor, nullptr);
+    startTx(ETestSequoiaPrelocksTransaction::Parent, tx[ETestSequoiaPrelocksTransaction::Ancestor]);
+    startTx(ETestSequoiaPrelocksTransaction::Self, tx[ETestSequoiaPrelocksTransaction::Parent]);
+    startTx(ETestSequoiaPrelocksTransaction::Nested, tx[ETestSequoiaPrelocksTransaction::Self]);
+
+    auto resetArtificialCommitDelay = [&] {
+        TSetNodeOptions options;
+        options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
+        YT_UNUSED_FUTURE(Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(0),
+            options));
+    };
+
+    auto finally = Finally(resetArtificialCommitDelay);
+
+    auto threadPool = CreateThreadPool(2, "TestPrelocks");
+
+    auto removalFinished = BIND([&] {
+        NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
+
+        YT_TLOG_DEBUG("Planning removal");
+
+        WaitFor(Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(1000)))
+            .ThrowOnError();
+
+        // Wait for config to be applied to all cells.
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        TRemoveNodeOptions options;
+        options.TransactionId = tx[ETestSequoiaPrelocksTransaction::Self]->GetId();
+        auto future = Client_->RemoveNode(FromObjectId(targetNodeId), options);
+        return future;
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run();
+
+    auto lockAttemptFinished = BIND([&] {
+        NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
+
+        YT_TLOG_DEBUG("Planning locking");
+
+        auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+        auto channel = nativeConnection
+            ->GetMasterCellDirectory()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(targetNodeId));
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+        auto req = TCypressYPathProxy::Lock(FromObjectId(targetNodeId));
+        SetTransactionId(req, tx[GetParam().Transaction]->GetId());
+        req->set_mode(ToProto(GetParam().Mode));
+
+        // Waitable flag doesn't matter here since any conflict with prelock has to
+        // be retried.
+        req->set_waitable(true);
+
+        if (GetParam().Child) {
+            req->set_child_key(*GetParam().Child);
+        }
+        if (GetParam().Attribute) {
+            req->set_attribute_key(*GetParam().Attribute);
+        }
+
+        auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_timestamp(ToProto(timestamp));
+        SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(req);
+        batchReq->SetSuppressStronglyOrderedTransactionBarrier(true);
+        batchReq->SetSuppressTransactionCoordinatorSync(true);
+        batchReq->SetSuppressUpstreamSync(true);
+
+        WaitFor(removalFinished)
+            .ThrowOnError();
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+        resetArtificialCommitDelay();
+
+        auto batchRsp = batchRspOrError.ValueOrThrow();
+        batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
+            .ThrowOnError();
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run();
+
+    WaitFor(removalFinished).ThrowOnError();
+
+    auto error = WaitFor(lockAttemptFinished);
+    if (!GetParam().ExpectedErrorMessage) {
+        error.ThrowOnError();
+    } else {
+        EXPECT_EQ(error.GetCode(), NSequoiaClient::EErrorCode::SequoiaRetriableError);
+        EXPECT_TRUE(error.GetMessage().contains(*GetParam().ExpectedErrorMessage));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    TSequoiaTestPrelocks,
+    ::testing::ValuesIn(GenerateTestSequoiaPrelocksParams()),
+    [] (const ::testing::TestParamInfo<TSequoiaTestPrelocks::ParamType>& info) {
+        TStringBuilder builder;
+        builder.AppendFormat("%v_%v", info.param.Transaction, info.param.Mode);
+        if (info.param.Mode == NCypressClient::ELockMode::Shared) {
+            if (info.param.Child) {
+                builder.AppendString("_child");
+            }
+            if (info.param.Attribute) {
+                builder.AppendString("_attribute");
+            }
+        }
+        return std::string(builder.Flush());
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 

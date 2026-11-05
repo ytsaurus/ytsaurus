@@ -1,0 +1,8 @@
+{
+    literal = "Typed literal";
+    reference = "Schema-position column reference";
+    farm_hash = "farm_hash(T...) -> Uint64; T in {Int64, Uint64, Boolean, String}; arity >= 1";
+    modulo_int64 = "%(Int64, Int64) -> Int64";
+    modulo_uint64 = "%(Uint64, Uint64) -> Uint64";
+    uint64_from_int64 = "uint64(Int64) -> Uint64";
+}

@@ -43,7 +43,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NCellarClient::NProto, RequestHeartbeat)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         if (Bootstrap_->IsConnected()) {
             auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());

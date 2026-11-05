@@ -147,7 +147,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): maybe make job manager implement IPersistentChunkPoolOutput itself?
-template <class TJobManager>
 class TChunkPoolOutputWithJobManagerBase
     : public TChunkPoolOutputBase
 {
@@ -178,14 +177,10 @@ public:
 protected:
     TIntrusivePtr<TJobManager> JobManager_;
 
-    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
 };
 
-using TChunkPoolOutputWithLegacyJobManagerBase = TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
-using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
-
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::RegisterMetadata(auto&& registrar)
+void TChunkPoolOutputWithJobManagerBase::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobManager_);
 }
@@ -288,6 +283,10 @@ struct IShuffleChunkPool
 {
     virtual IPersistentChunkPoolInputPtr GetInput() = 0;
     virtual IPersistentChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
+
+    virtual bool AreOutputsFinalized() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(), OutputsFinalized);
 
     // TODO(apollo1321): These methods should be removed. It is better to fix and use counters.
     virtual i64 GetTotalDataSliceCount() const = 0;

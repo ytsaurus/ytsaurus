@@ -64,7 +64,7 @@ public:
     void Initialize();
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode);
 
 private:
@@ -82,6 +82,7 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
@@ -93,7 +94,7 @@ private:
     void DoStart();
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode);
 
     NYTree::IYPathServicePtr CreateCellOrchidService() const;

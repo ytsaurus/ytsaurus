@@ -8,4 +8,6 @@ JAR_RESOURCE(2493290151)
 
 SRC_RESOURCE(2493290550)
 
+ORIGINAL_SOURCE(http://github.com/projectlombok/lombok)
+
 END()

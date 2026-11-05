@@ -12,7 +12,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NDiskManager {
 
@@ -80,7 +80,7 @@ private:
     const IDiskManagerProxyPtr DiskManagerProxy_;
     const IDiskInfoProviderPtr DiskInfoProvider_;
 
-    NThreading::TAtomicObject<TError> DiskIdsMismatchedAlert_;
+    TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<std::string> OldDiskIds_;
 
     void BuildOrchid(IYsonConsumer* consumer)
@@ -99,11 +99,11 @@ private:
 
         // Fast path.
         if (!diskInfosOrError.IsOK()) {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT(
                 Logger,
                 diskInfosOrError.FindMatching(NRpc::EErrorCode::NoSuchService) ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Info,
-                diskInfosOrError,
-                "Failed to list disk infos");
+                "Failed to list disk infos")
+                .With(diskInfosOrError);
             return;
         }
 
@@ -141,12 +141,12 @@ private:
                 !checkDisks(configDiskIds, diskIds) ||
                 !checkDisks(diskIds, configDiskIds))
             {
-                YT_LOG_WARNING("Mismatching disk ids found");
+                YT_TLOG_WARNING("Mismatching disk ids found");
                 DiskIdsMismatchedAlert_.Store(TError(NDiskManager::EErrorCode::DiskIdsMismatched, "Disk ids mismatched")
-                    << TErrorAttribute("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
-                    << TErrorAttribute("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
-                    << TErrorAttribute("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
-                    << TErrorAttribute("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end())));
+                    .With("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
+                    .With("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
+                    .With("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
+                    .With("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end())));
             }
         }
 

@@ -22,6 +22,9 @@ struct TInstanceRackInfo
     THashMap<std::string, int> RackToBundleInstances;
     THashMap<std::string, int> RackToSpareInstances;
 
+    int BundleNodeCountWithoutRack = 0;
+    int SpareNodeCountWithoutRack = 0;
+
     // Spare instances needed for minus one rack guarantee.
     int RequiredSpareNodeCount = 0;
 };
@@ -70,8 +73,8 @@ struct TSchedulerInputState
     TSystemAccountPtr RootSystemAccount;
 
     using TBundleToInstanceMapping = THashMap<std::string, TDataCenterToInstanceMap>;
-    TBundleToInstanceMapping BundleNodes;
-    TBundleToInstanceMapping BundleProxies;
+    TBundleToInstanceMapping NodesAllocatedForBundle;
+    TBundleToInstanceMapping ProxiesAllocatedForBundle;
 
     THashMap<std::string, std::string> PodIdToInstanceName;
 

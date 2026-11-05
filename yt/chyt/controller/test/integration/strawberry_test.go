@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"math/rand"
 	"reflect"
 	"sort"
@@ -10,10 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/sleep"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func createStrawberryOp(t *testing.T, env *helpers.Env, alias string) {
@@ -433,4 +436,203 @@ func TestControllerUpdate(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 400)
 	waitIncarnation(t, env, "test10", 2)
+}
+
+type startOperationErrorClient struct {
+	yt.Client
+	err error
+}
+
+func (c *startOperationErrorClient) StartOperation(
+	ctx context.Context,
+	opType yt.OperationType,
+	spec any,
+	options *yt.StartOperationOptions,
+) (yt.OperationID, error) {
+	if c.err != nil {
+		return yt.NullOperationID, c.err
+	}
+	return c.Client.StartOperation(ctx, opType, spec, options)
+}
+
+func (c *startOperationErrorClient) setErr(err error) {
+	c.err = err
+}
+
+func TestOpletBrokenAfterRepeatedAuthorizationError(t *testing.T) {
+	env := helpers.PrepareEnv(t, "sleep")
+
+	alias := "test11"
+	createStrawberryOp(t, env, alias)
+
+	const MaxConsecutiveBrokenStateSignalRetries = 3
+
+	authError := yterrors.Err(yterrors.CodeAuthorizationError, "authorization error (simulated)")
+	systemClient := &startOperationErrorClient{Client: env.YT, err: authError}
+
+	oplet := strawberry.NewOplet(strawberry.OpletOptions{
+		AgentInfo: strawberry.AgentInfo{
+			StrawberryRoot:                         env.StrawberryRoot,
+			Stage:                                  "default",
+			BrokenStateSignalErrorCodes:            []yterrors.ErrorCode{yterrors.CodeAuthorizationError},
+			MaxConsecutiveBrokenStateSignalRetries: MaxConsecutiveBrokenStateSignalRetries,
+		},
+		Alias:        alias,
+		Controller:   sleep.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, "test", nil),
+		Logger:       env.L.Logger(),
+		SystemClient: systemClient,
+	})
+
+	for i := 0; i < 30 && !oplet.Broken(); i++ {
+		_ = oplet.Pass(env.Ctx, false /*checkOpLiveness*/)
+		time.Sleep(time.Millisecond * 300)
+	}
+
+	require.True(t, oplet.Broken())
+	require.Equal(t, "too many consecutive restart attempts", oplet.BrokenReason())
+
+	// The operation start kept failing, so no yt operation was ever created.
+	require.Nil(t, getOp(t, env, alias))
+
+	systemClient.setErr(nil)
+	setSpecletOption(t, env, alias, "test_option", 1)
+	oplet.OnCypressNodeChanged()
+
+	for i := 0; i < 30 && (oplet.Broken() || !oplet.HasYTOperation()); i++ {
+		_ = oplet.Pass(env.Ctx, false /*checkOpLiveness*/)
+		time.Sleep(time.Millisecond * 300)
+	}
+
+	require.False(t, oplet.Broken())
+	require.True(t, oplet.HasYTOperation())
+
+	// The restart finally succeeded, so a yt operation must have been created.
+	require.NotNil(t, getOp(t, env, alias))
+}
+
+func TestOpletRecoversAfterSpecletFixed(t *testing.T) {
+	env := helpers.PrepareEnv(t, "sleep")
+
+	alias := "test12"
+	createStrawberryOp(t, env, alias)
+
+	oplet := strawberry.NewOplet(strawberry.OpletOptions{
+		AgentInfo: strawberry.AgentInfo{
+			StrawberryRoot: env.StrawberryRoot,
+			Stage:          "default",
+		},
+		Alias:        alias,
+		Controller:   sleep.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, "test", nil),
+		Logger:       env.L.Logger(),
+		SystemClient: env.YT,
+	})
+
+	require.NoError(t, oplet.Pass(env.Ctx, false /*checkOpLiveness*/))
+	require.False(t, oplet.Broken())
+
+	specletPath := env.StrawberryRoot.JoinChild(alias, "speclet").Attr("value")
+
+	err := env.YT.SetNode(env.Ctx, specletPath, map[string]any{
+		"active":                    "not_a_bool",
+		"family":                    "sleep",
+		"stage":                     "default",
+		"restart_on_speclet_change": true,
+		"pool":                      "test_pool",
+	}, nil)
+	require.NoError(t, err)
+	oplet.OnCypressNodeChanged()
+
+	_ = oplet.Pass(env.Ctx, false /*checkOpLiveness*/)
+	require.True(t, oplet.Broken())
+	require.Contains(t, oplet.BrokenReason(), "failed to parse strawberry speclet")
+
+	err = env.YT.SetNode(env.Ctx, specletPath, map[string]any{
+		"active":                    true,
+		"family":                    "sleep",
+		"stage":                     "default",
+		"restart_on_speclet_change": true,
+		"pool":                      "test_pool",
+	}, nil)
+	require.NoError(t, err)
+	oplet.OnCypressNodeChanged()
+
+	for i := 0; i < 30 && (oplet.Broken() || !oplet.HasYTOperation()); i++ {
+		_ = oplet.Pass(env.Ctx, false /*checkOpLiveness*/)
+		time.Sleep(time.Millisecond * 300)
+	}
+
+	require.False(t, oplet.Broken())
+	require.True(t, oplet.HasYTOperation())
+	require.NotNil(t, getOp(t, env, alias))
+}
+
+type controllerWithNeedsRestart struct {
+	strawberry.Controller
+	needsRestart bool
+}
+
+func (c *controllerWithNeedsRestart) CheckState(ctx context.Context, oplet *strawberry.Oplet) (strawberry.ControllerOpletState, error) {
+	return strawberry.ControllerOpletState{
+		Health:       strawberry.OpletHealthGood,
+		NeedsRestart: c.needsRestart,
+	}, nil
+}
+
+func (c *controllerWithNeedsRestart) setNeedsRestart(v bool) {
+	c.needsRestart = v
+}
+
+func TestOpletBrokenAfterControllerRequestedRestartFails(t *testing.T) {
+	env := helpers.PrepareEnv(t, "sleep")
+
+	alias := "test13"
+	createStrawberryOp(t, env, alias)
+
+	const MaxConsecutiveBrokenStateSignalRetries = 1
+
+	authError := yterrors.Err(yterrors.CodeAuthorizationError, "authorization error (simulated)")
+	systemClient := &startOperationErrorClient{Client: env.YT}
+	controller := &controllerWithNeedsRestart{
+		Controller: sleep.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, "test", nil),
+	}
+
+	oplet := strawberry.NewOplet(strawberry.OpletOptions{
+		AgentInfo: strawberry.AgentInfo{
+			StrawberryRoot:                         env.StrawberryRoot,
+			Stage:                                  "default",
+			BrokenStateSignalErrorCodes:            []yterrors.ErrorCode{yterrors.CodeAuthorizationError},
+			MaxConsecutiveBrokenStateSignalRetries: MaxConsecutiveBrokenStateSignalRetries,
+		},
+		Alias:        alias,
+		Controller:   controller,
+		Logger:       env.L.Logger(),
+		SystemClient: systemClient,
+	})
+
+	for i := 0; i < 30 && !oplet.HasYTOperation(); i++ {
+		require.NoError(t, oplet.Pass(env.Ctx, false /*checkOpLiveness*/))
+		time.Sleep(time.Millisecond * 300)
+	}
+	require.True(t, oplet.HasYTOperation())
+	require.False(t, oplet.Broken())
+
+	controller.setNeedsRestart(true)
+	systemClient.setErr(authError)
+
+	require.Error(t, oplet.Pass(env.Ctx, false /*checkOpLiveness*/))
+
+	require.True(t, oplet.Broken())
+	require.Equal(t, "too many consecutive restart attempts", oplet.BrokenReason())
+
+	systemClient.setErr(nil)
+	setSpecletOption(t, env, alias, "test_option", 1)
+	oplet.OnCypressNodeChanged()
+
+	for i := 0; i < 30 && (oplet.Broken() || !oplet.HasYTOperation()); i++ {
+		_ = oplet.Pass(env.Ctx, false /*checkOpLiveness*/)
+		time.Sleep(time.Millisecond * 300)
+	}
+
+	require.False(t, oplet.Broken())
+	require.True(t, oplet.HasYTOperation())
 }

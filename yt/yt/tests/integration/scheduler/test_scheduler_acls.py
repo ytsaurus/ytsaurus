@@ -254,11 +254,11 @@ class TestSchedulerAclsBase(YTEnvSetup):
             authenticated_user=self.operation_authenticated_user,
             spec=spec,
         )
-        (job_id,) = wait_breakpoint(breakpoint_name=breakpoint_name)
+        (job_id,) = wait_breakpoint(op, breakpoint_name=breakpoint_name)
         if should_update_operation_parameters:
             update_op_parameters(op.id, parameters={"acl": self.spec["acl"]})
         release_breakpoint(breakpoint_name=breakpoint_name)
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
         return op, job_id
 
@@ -280,7 +280,7 @@ class TestSchedulerAclsBase(YTEnvSetup):
             spec=spec,
         )
         try:
-            (job_id,) = wait_breakpoint(breakpoint_name=breakpoint_name)
+            (job_id,) = wait_breakpoint(op, breakpoint_name=breakpoint_name)
             if should_update_operation_parameters:
                 update_op_parameters(op.id, parameters={"acl": saved_acl})
             wait(op.get_running_jobs)
@@ -289,7 +289,7 @@ class TestSchedulerAclsBase(YTEnvSetup):
 
             release_breakpoint(breakpoint_name=breakpoint_name)
         finally:
-            with raises_yt_error(yt_error_codes.Scheduler.NoSuchOperation, required=False):
+            with raises_yt_error(code=yt_error_codes.Scheduler.NoSuchOperation, required=False):
                 op.complete()
             try:
                 op.track()
@@ -550,14 +550,14 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                 }
             ],
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             with self._run_op_context_manager(spec=spec) as (op, job_id):
                 pass
 
     @authors("bystrovserg")
     def test_acl_errors(self):
         # Wrong permissions.
-        with pytest.raises(YtError):
+        with raises_yt_error("Only .* permissions are allowed in operation ACL, got .*"):
             with self._run_op_context_manager(
                 spec={
                     "acl": [make_ace("allow", self.manage_and_read_user, ["read", "write"])],
@@ -584,7 +584,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             },
         )
 
-        wait_breakpoint(breakpoint_name=breakpoint_name)
+        wait_breakpoint(op, breakpoint_name=breakpoint_name)
 
         @wait_no_assert
         def transaction_and_intermediate_exist():
@@ -600,7 +600,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                 authenticated_user=self.no_rights_user,
             )
         else:
-            with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                 read_table(
                     op.get_path() + "/intermediate",
                     tx=scheduler_transaction_id,
@@ -648,7 +648,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -670,7 +670,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             }
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         actions = [
             get_job_fail_context,
@@ -688,7 +688,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
     def test_aco_and_acl_in_operations(self):
         acl = self.spec["acl"]
 
-        with raises_yt_error(yt_error_codes.Scheduler.CannotUseBothAclAndAco):
+        with raises_yt_error(code=yt_error_codes.Scheduler.CannotUseBothAclAndAco):
             run_test_vanilla(
                 command="sleep 1",
                 spec={
@@ -704,9 +704,9 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             }
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
-        with raises_yt_error(yt_error_codes.Scheduler.CannotUseBothAclAndAco):
+        with raises_yt_error(code=yt_error_codes.Scheduler.CannotUseBothAclAndAco):
             update_op_parameters(op.id, parameters={"acl": acl})
 
         update_op_parameters(op.id, parameters={"aco_name": "new_aco"})
@@ -772,7 +772,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             spec=spec,
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -799,7 +799,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             spec=spec,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -823,7 +823,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             spec=spec,
         )
         after_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -905,7 +905,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=self.spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def validate_operations(list_result, expected):
             assert [op["id"] for op in list_result["operations"]] == expected
@@ -935,7 +935,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def test_permission():
             # Test read permission
@@ -981,7 +981,7 @@ class TestSchedulerBaseAco(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def test_permission(should_have_manage_permission):
             self._validate_permission(self.global_readers, True, op.id, "read")
@@ -1021,7 +1021,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -1045,7 +1045,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
             spec=spec,
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -1072,7 +1072,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
             spec=spec,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if should_archive_operation:
             release_breakpoint()
@@ -1096,7 +1096,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
             spec=spec,
         )
         after_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if not use_acl:
             # list_operations does not work with aco_name as expected.
@@ -1182,7 +1182,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
             command=with_breakpoint("BREAKPOINT"),
             spec=self.spec,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def validate_operations(list_result, expected):
             assert [op["id"] for op in list_result["operations"]] == expected

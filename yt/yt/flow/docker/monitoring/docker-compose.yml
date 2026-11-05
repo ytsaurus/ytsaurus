@@ -1,0 +1,85 @@
+##
+## Local YT Flow monitoring stack: Prometheus + Grafana + an aggr-rules sidecar.
+##
+## Shared by two consumers:
+##   * the runnable example (yt/yt/flow/examples/docker) -- `docker compose up`;
+##   * the Python integration tests (--test-param MONITORING_STACK=1), which additionally enable the
+##     `test` profile to bring up the reaper.
+##
+## All services use host networking so Prometheus reaches the flow processes (and Grafana/aggr reach
+## Prometheus) directly on localhost. Ports and images default to the public values but are overridable
+## via the environment (the tests pass the images pinned in yt.config["admin"] and a chosen port).
+##
+## Scrape targets come from file-based service discovery (targets/*.json): the example ships static
+## files, the tests write them once the flow ports are known.
+##
+
+services:
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    network_mode: host
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+      - "--web.listen-address=0.0.0.0:${PROMETHEUS_PORT:-9090}"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./targets:/etc/prometheus/targets:ro
+      - ./rules:/rules
+
+  # Aggregation-layer stand-in: generates the host="Aggr" recording rules the flow dashboards query.
+  aggr-rules:
+    image: ${AGGR_RULES_IMAGE:-python:3-alpine}
+    network_mode: host
+    depends_on:
+      - prometheus
+    entrypoint: ["python3", "/app/aggr_rules.py"]
+    environment:
+      PROMETHEUS_URL: "http://localhost:${PROMETHEUS_PORT:-9090}"
+      AGGR_RULES_PATH: "/rules/host-aggr.yml"
+    volumes:
+      - ./aggr_rules.py:/app/aggr_rules.py:ro
+      - ./rules:/rules
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    network_mode: host
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_SERVER_HTTP_PORT: "${GRAFANA_PORT:-3000}"
+      PROMETHEUS_PORT: "${PROMETHEUS_PORT:-9090}"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  # Reaper (tests only): guarantees the stack is torn down when the test process dies, even on SIGKILL
+  # (e.g. the IDE "Stop" button), which no in-process cleanup can survive. Lives in the docker daemon,
+  # watches the owning test PID over the host PID namespace, and once it is gone force-removes the
+  # project's containers, itself last. Identifies itself by the compose service label (hostname is the
+  # host's under network_mode: host, so it cannot be used here).
+  reaper:
+    image: ${REAPER_IMAGE:-docker:cli}
+    profiles: ["test"]
+    network_mode: host
+    pid: host
+    environment:
+      OWNER_PID: "${OWNER_PID:-}"
+      PROJECT: "${COMPOSE_PROJECT:-}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while kill -0 "$$OWNER_PID" 2>/dev/null; do sleep 2; done
+        all=$$(docker ps -aq --filter "label=com.docker.compose.project=$$PROJECT")
+        self=$$(docker ps -aq --filter "label=com.docker.compose.project=$$PROJECT" --filter "label=com.docker.compose.service=reaper")
+        others=$$(echo "$$all" | grep -vxF "$$self" || true)
+        [ -n "$$others" ] && docker rm -f -v $$others
+        [ -n "$$self" ] && docker rm -f -v "$$self" 2>/dev/null || true

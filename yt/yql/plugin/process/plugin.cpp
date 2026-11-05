@@ -6,7 +6,7 @@
 #include "process.h"
 
 #include <yt/yql/plugin/config.h>
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
@@ -32,6 +32,8 @@
 #include <library/cpp/yson/parser.h>
 #include <library/cpp/yson/writer.h>
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
+
+#include <util/generic/yexception.h>
 
 namespace NYT::NYqlPlugin::NProcess {
 
@@ -63,11 +65,19 @@ public:
     TProcessYqlPlugin(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
+        TYqlPluginDynamicConfigPtr initialDynamicConfig,
         TConnectionCompoundConfigPtr clusterConnectionConfig,
-        TString maxSupportedYqlVersion,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
         : Config_(std::move(config))
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, singletonsConfig, clusterConnectionConfig, std::move(maxSupportedYqlVersion)))
+        , DynamicConfig_(std::move(initialDynamicConfig))
+        , ConfigTemplate_(BuildPluginConfigTemplate(
+            Config_,
+            singletonsConfig,
+            clusterConnectionConfig,
+            useTokenResolver,
+            std::move(tokenServiceSocketPath)))
         , DynamicConfigVersion_(0)
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
@@ -79,7 +89,7 @@ public:
         , ProcessesLimitGauge_(profiler.Gauge("/processes_limit"))
     {
         if (Config_->EnableDQ) {
-            InitializeDqControllerYqlPlugin(singletonsConfig, maxSupportedYqlVersion);
+            InitializeDqControllerYqlPlugin(singletonsConfig);
         }
         ProcessesLimitGauge_.Update(Config_->ProcessPluginConfig->SlotCount);
         InitializeProcessPool();
@@ -92,40 +102,48 @@ public:
         }
     }
 
-    // Acquires subprocess for query and routes call to it. Acquired process will
-    // also be used in subsequent Run call. If Run call did not happen in one
-    // minute, the process will be reinitialized.
     TClustersResult GetUsedClusters(
         TQueryId queryId,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) override
     {
-        // Yql agent calls this method first when staring query, so we acquire
-        // process in this call and then use it in Run() as well.
-        TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
 
-        if (!acquiredProcess) {
+        if (!pluginProcessOrError.IsOK()) {
             return TClustersResult{
-                .YsonError = ConvertToYsonString(TError("No available slots to acquire")).ToString()
+                .YsonError = ConvertToYsonString<TError>(pluginProcessOrError).ToString()
             };
         }
 
-        YT_LOG_INFO("Acquired slot for query (SlotIndex: %v, QueryId: %v)", acquiredProcess->SlotIndex(), queryId);
+        auto pluginProcess = pluginProcessOrError.Value();
 
-        return acquiredProcess->GetUsedClusters(queryId, queryText, settings, files);
+        return pluginProcess->GetUsedClusters(queryId, queryText, settings, files);
     }
 
-    // Gets an acquired in GetUsedClusters subprocess and routes Run call to it.
+    TClustersResult GetClustersInfo(TQueryId queryId) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            return TClustersResult{
+                .YsonError = ConvertToYsonString<TError>(pluginProcessOrError).ToString(),
+            };
+        }
+        return pluginProcessOrError.Value()->GetClustersInfo(queryId);
+    }
+
+    // Gets an acquired in RegisterQuery subprocess and routes Run call to it.
     // Marks subprocess as active so it would not reinitialize. Long blocking call
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) override
+        int executeMode,
+        NYqlClient::EQueryType queryType) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
 
@@ -137,25 +155,28 @@ public:
 
         auto pluginProcess = pluginProcessOrError.Value();
 
-        YT_LOG_INFO("Starting query in subprocess (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
-
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
-            .Via(Invoker_));
+        YT_TLOG_INFO("Starting query in subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", pluginProcess->SlotIndex());
 
         auto result = pluginProcess->Run(
             queryId,
             user,
+            queryIdentityToken,
             credentials,
             queryText,
             settings,
             files,
-            executeMode);
+            executeMode,
+            queryType);
 
-        YT_LOG_INFO("Query finished (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
+        YT_TLOG_INFO("Query finished")
+            .With("QueryId", queryId)
+            .With("SlotIndex", pluginProcess->SlotIndex());
         return result;
     }
 
-    TQueryResult GetProgress(TQueryId queryId) override
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -165,7 +186,7 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
-        return pluginProcess->GetProgress(queryId);
+        return pluginProcess->GetProgress(queryId, /*revision*/ std::nullopt);
     }
 
     TAbortResult Abort(TQueryId queryId) override
@@ -184,6 +205,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
         TYsonString credentials) override
@@ -194,31 +216,47 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
+        TGetDeclaredParametersInfoResult result;
+        TError error;
 
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
-            .Via(Invoker_));
+        auto makeCommonError = [&] {
+            return TError("Failed to get declared parameters in process plugin")
+                .With("query_id", queryId)
+                .With("slot_index", pluginProcess->SlotIndex());
+        };
 
-        return pluginProcess->GetDeclaredParametersInfo(
-            queryId,
-            user,
-            queryText,
-            settings,
-            credentials);
+        try {
+            result = pluginProcess->GetDeclaredParametersInfo(
+                queryId,
+                user,
+                queryIdentityToken,
+                queryText,
+                settings,
+                credentials);
+        } catch (const std::exception& ex) {
+            error = makeCommonError()
+                .With(ex);
+        } catch (...) {
+            error = makeCommonError()
+                .With("message", CurrentExceptionMessage());
+        }
+
+        if (!error.IsOK()) {
+            YT_TLOG_INFO("GetDeclaredParametersInfo call failed")
+                .With(error);
+            THROW_ERROR error;
+        }
+
+        return result;
     }
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) override
     {
         auto guard = WriterGuard(ProcessesLock_);
-        YT_LOG_INFO("Updating dynamic config");
+        YT_TLOG_INFO("Updating dynamic config");
 
-        CurrentDynamicGatewaysConfig_ = config.GatewaysConfig;
+        DynamicConfig_ = config;
         ++DynamicConfigVersion_;
-
-        if (config.MaxSupportedYqlVersion) {
-            CurrentDynamicMaxYqlLangVersion_ = config.MaxSupportedYqlVersion.ToString();
-        } else {
-            CurrentDynamicMaxYqlLangVersion_.reset();
-        }
 
         if (DqControllerYqlPlugin_) {
             DqControllerYqlPlugin_->OnDynamicConfigChanged(config);
@@ -226,11 +264,17 @@ public:
 
         while (!StandbyProcessesQueue_.Empty()) {
             auto process = *StandbyProcessesQueue_.Pop();
-            YT_LOG_DEBUG("Stopping process for dynamic config update (SlotIndex: %v)", process->SlotIndex());
+            YT_TLOG_DEBUG("Stopping process for dynamic config update")
+                .With("SlotIndex", process->SlotIndex());
             process->Stop();
         }
 
-        YT_LOG_INFO("Dynamic config updated");
+        YT_TLOG_INFO("Dynamic config updated");
+    }
+
+    void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override
+    {
+        // Not implemented
     }
 
     IMapNodePtr GetOrchidNode() const override
@@ -244,15 +288,102 @@ public:
             .EndMap()->AsMap();
     }
 
+    // Acquires subprocess for query and routes call to it.
+    // Acquired process will also be used in subsequent GetClustersInfo,
+    // GetUsedClusters and Run calls.
+    // If Run call did not happen in one minute, the process will be reinitialized.
+    void RegisterQuery(TQueryId queryId, TYsonString settings) override
+    {
+        // Yql agent calls this method first when staring query, so we acquire
+        // process in this call and then use it in GetClustersInfo(),
+        // GetUsedClusters() and Run() as well.
+        TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
+
+        if (!acquiredProcess) {
+            THROW_ERROR_EXCEPTION("No available slots to acquire");
+        }
+
+        YT_TLOG_INFO("Acquired slot for query")
+            .With("SlotIndex", acquiredProcess->SlotIndex())
+            .With("QueryId", queryId);
+
+        try {
+            acquiredProcess->RegisterQuery(queryId, std::move(settings));
+        } catch (...) {
+            OnQueryFinish(queryId, acquiredProcess);
+            throw;
+        }
+    }
+
+    void UnregisterQuery(TQueryId queryId) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            THROW_ERROR pluginProcessOrError;
+        }
+
+        auto pluginProcess = pluginProcessOrError.Value();
+        TError error;
+
+        auto makeQueryCleanupError = [&](TStringBuf message) {
+            return TError(std::string(message), TError::DisableFormat)
+                .With("query_id", queryId)
+                .With("slot_index", pluginProcess->SlotIndex());
+        };
+
+        auto makeCommonUnregisterError = [&] {
+            return makeQueryCleanupError(
+                "Failed to unregister query in process plugin");
+        };
+
+        auto makeCommonFinishError = [&] {
+            return makeQueryCleanupError(
+                "Failed to finish query cleanup in process plugin");
+        };
+
+        auto appendError = [&](auto&& extraError) {
+            if (error.IsOK()) {
+                error = std::move(extraError);
+            } else if (!extraError.IsOK()) {
+                error.Add(std::move(extraError));
+            }
+        };
+
+        try {
+            pluginProcess->UnregisterQuery(queryId);
+        } catch (const std::exception& ex) {
+            error = makeCommonUnregisterError()
+                .With(ex);
+        } catch (...) {
+            error = makeCommonUnregisterError()
+                .With("message", CurrentExceptionMessage());
+        }
+
+        try {
+            OnQueryFinish(queryId, pluginProcess);
+        } catch (const std::exception& ex) {
+            appendError(makeCommonFinishError()
+                .With(TError(ex)));
+        } catch (...) {
+            appendError(makeCommonFinishError()
+                .With("message", CurrentExceptionMessage()));
+        }
+
+        if (!error.IsOK()) {
+            YT_TLOG_INFO("UnregisterQuery call failed")
+                .With(error);
+            THROW_ERROR error;
+        }
+    }
+
 private:
     static TString SocketName;
 
     TYqlPluginConfigPtr Config_;
+    TYqlPluginDynamicConfigPtr DynamicConfig_;
     TProcessYqlPluginInternalConfigPtr ConfigTemplate_;
 
     int DynamicConfigVersion_;
-    std::optional<TYsonString> CurrentDynamicGatewaysConfig_;
-    std::optional<TString> CurrentDynamicMaxYqlLangVersion_;
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
@@ -270,13 +401,13 @@ private:
     TGauge ActiveProcessesGauge_;
     TGauge ProcessesLimitGauge_;
 
-
     TYqlExecutorProcessPtr AcquireSlotForQuery(TQueryId queryId) noexcept
     {
         auto acquiredProcess = StandbyProcessesQueue_.Pop();
 
         if (!acquiredProcess) {
-            YT_LOG_ERROR("Standby processes queue has been shutdown; Can't acquire process for query (QueryId: %v)", queryId);
+            YT_TLOG_ERROR("Standby processes queue has been shut down; cannot acquire process for query")
+                .With("QueryId", queryId);
             return nullptr;
         }
 
@@ -302,7 +433,8 @@ private:
         auto guard = ReaderGuard(ProcessesLock_);
 
         if (!RunningYqlQueries_.contains(queryId)) {
-            YT_LOG_WARNING("Query was not found in running queries (QueryId: %v)", queryId);
+            YT_TLOG_WARNING("Query was not found in running queries")
+                .With("QueryId", queryId);
             return TError("Query %v was not found in running queries", queryId);
         }
 
@@ -324,7 +456,9 @@ private:
         if (process->ActiveQueryId()) {
             return;
         }
-        YT_LOG_WARNING("Query did not start after acquiring process; restarting process (SlotIndex: %v, QueryId: %v)", process->SlotIndex(), queryId);
+        YT_TLOG_WARNING("Query did not start after acquiring process; restarting process")
+            .With("SlotIndex", process->SlotIndex())
+            .With("QueryId", queryId);
         process->Stop();
         CleanupAfterQueryFinish(queryId);
     }
@@ -332,7 +466,8 @@ private:
     void StartPluginInProcess(TYqlExecutorProcessPtr process)
     {
         int slotIndex = process->SlotIndex();
-        YT_LOG_DEBUG("Starting plugin in process (SlotIndex: %v)", slotIndex);
+        YT_TLOG_DEBUG("Starting plugin in process")
+            .With("SlotIndex", slotIndex);
 
         bool success = process->WaitReady();
 
@@ -342,14 +477,16 @@ private:
         };
 
         if (!success) {
-            YT_LOG_ERROR("All attempts to start plugin in process failed, restarting process (SlotIndex: %v)", slotIndex);
+            YT_TLOG_ERROR("All attempts to start plugin in process failed, restarting process")
+                .With("SlotIndex", slotIndex);
             restartProcess();
             return;
         }
 
         auto guard = WriterGuard(ProcessesLock_);
         if (process->DynamicConfigVersion() < DynamicConfigVersion_) {
-            YT_LOG_DEBUG("Dynamic config was updated during process start; restarting process (SlotIndex: %v)", slotIndex);
+            YT_TLOG_DEBUG("Dynamic config was updated during process start; restarting process")
+                .With("SlotIndex", slotIndex);
             restartProcess();
             return;
         }
@@ -359,17 +496,23 @@ private:
 
         process->SubscribeOnFinish(
             BIND([slotIndex, process, this](const TErrorOr<void> result) {
-                YT_LOG_DEBUG(result, "Process finished (SlotIndex: %v)", slotIndex);
+                YT_TLOG_DEBUG("Process finished")
+                    .With("SlotIndex", slotIndex)
+                    .With(result);
                 CleanupAfterQueryFinish(process->ActiveQueryId());
                 YT_UNUSED_FUTURE(StartPluginProcess(slotIndex));
             }).Via(Invoker_));
 
-        YT_LOG_INFO("Successfully started plugin in subprocess (SlotIndex: %v)", slotIndex);
+        YT_TLOG_INFO("Successfully started plugin in subprocess")
+            .With("SlotIndex", slotIndex);
     }
 
     void OnQueryFinish(TQueryId queryId, TYqlExecutorProcessPtr process)
     {
-        YT_LOG_DEBUG("Query finished, cleaning up and restarting process (QueryId: %v, SlotIndex: %v)", queryId, process->SlotIndex());
+        YT_TLOG_DEBUG("Query finished, cleaning up and restarting process")
+            .With("QueryId", queryId)
+            .With("SlotIndex", process->SlotIndex());
+
         CleanupAfterQueryFinish(queryId);
         process->Stop();
     }
@@ -377,33 +520,38 @@ private:
     void InitializeProcessPool()
     {
         try {
-            YT_LOG_INFO("Initializing process pool");
+            YT_TLOG_INFO("Initializing process pool");
             std::vector<TFuture<void>> futures;
             for (int i = 0; i < Config_->ProcessPluginConfig->SlotCount; ++i) {
                 futures.emplace_back(StartPluginProcess(i));
             }
 
             WaitFor(AllSucceeded(futures)).ThrowOnError();
-            YT_LOG_INFO("Process pool initialized");
-        } catch (std::exception e) {
-            YT_LOG_ERROR(e, "Failed to initialize");
+            YT_TLOG_INFO("Process pool initialized");
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to initialize")
+                .With(ex);
         }
     }
 
     TFuture<void> StartPluginProcess(int slotIndex)
     {
-        YT_LOG_INFO("Starting yql plugin process (SlotIndex: %v)", slotIndex);
+        YT_TLOG_INFO("Starting yql plugin process")
+            .With("SlotIndex", slotIndex);
 
         return BIND_NO_PROPAGATE(&TProcessYqlPlugin::StartProcess, Passed(this), slotIndex)
             .AsyncVia(StartProcessInvoker_)
             .Run()
             .Apply(BIND_NO_PROPAGATE([this, slotIndex](const TErrorOr<TYqlExecutorProcessPtr>& result) {
                 if (!result.IsOK()) {
-                    YT_LOG_WARNING(result, "Failed to start yql plugin process, trying again (SlotIndex: %v)", slotIndex);
+                    YT_TLOG_WARNING("Failed to start yql plugin process, trying again")
+                        .With("SlotIndex", slotIndex)
+                        .With(result);
                     YT_UNUSED_FUTURE(StartPluginProcess(slotIndex));
                     return;
                 }
-                YT_LOG_DEBUG("Successfully started process, starting yql plugin in process (SlotIndex: %v)", slotIndex);
+                YT_TLOG_DEBUG("Successfully started process, starting yql plugin in process")
+                    .With("SlotIndex", slotIndex);
                 StartPluginInProcess(result.Value());
             }));
     }
@@ -420,7 +568,8 @@ private:
 
     TYqlExecutorProcessPtr StartProcess(int slotIndex)
     {
-        YT_LOG_DEBUG("Starting plugin process (SlotIndex: %v)", slotIndex);
+        YT_TLOG_DEBUG("Starting plugin process")
+            .With("SlotIndex", slotIndex);
         auto guard = ReaderGuard(ProcessesLock_);
         auto workingDirectory = GetSlotPath(slotIndex);
         NFS::MakeDirRecursive(workingDirectory, MODE0711);
@@ -430,12 +579,12 @@ private:
             NFS::Remove(unixDomainSocketPath);
         }
 
-        auto serverConfig = NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
-        auto clientConfig = NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
+        auto serverConfig = NBus::NTcp::TBusServerConfig::CreateUds(unixDomainSocketPath);
+        auto clientConfig = NBus::NTcp::TBusClientConfig::CreateUds(unixDomainSocketPath);
 
         auto config = BuildProcessConfig(slotIndex, serverConfig);
 
-        auto client = NBus::CreateBusClient(clientConfig);
+        auto client = NBus::NTcp::CreateBusClient(clientConfig);
 
         auto process = New<TSimpleProcess>(YqlAgentProgramName);
 
@@ -460,7 +609,7 @@ private:
             Config_->ProcessPluginConfig->RunRequestTimeout);
     }
 
-    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::TBusServerConfigPtr serverConfig)
+    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::NTcp::TBusServerConfigPtr serverConfig)
     {
         auto config = NYTree::CloneYsonStruct(ConfigTemplate_);
 
@@ -484,11 +633,7 @@ private:
 
         config->SetSingletonConfig(config->SingletonsConfig->GetSingletonConfig<NLogging::TLogManagerConfig>());
 
-        config->DynamicGatewaysConfig = CurrentDynamicGatewaysConfig_;
-
-        if (CurrentDynamicMaxYqlLangVersion_.has_value()) {
-            config->MaxSupportedYqlVersion = CurrentDynamicMaxYqlLangVersion_.value();
-        }
+        config->PluginDynamicConfig = DynamicConfig_;
 
         return config;
     }
@@ -502,18 +647,22 @@ private:
             Serialize(config, &writer);
             writer.Flush();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to write process config");
+            YT_TLOG_ERROR("Failed to write process config")
+                .With(ex);
             throw;
         }
 
-        YT_LOG_DEBUG("Yql plugin config successfully written (SlotIndex: %v, ConfigPath: %v)", config->SlotIndex, configPath);
+        YT_TLOG_DEBUG("Yql plugin config successfully written")
+            .With("SlotIndex", config->SlotIndex)
+            .With("ConfigPath", configPath);
     }
 
     static TProcessYqlPluginInternalConfigPtr BuildPluginConfigTemplate(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
         TConnectionCompoundConfigPtr clusterConnectionConfig,
-        TString maxSupportedYqlVersion)
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
     {
         auto result = New<TProcessYqlPluginInternalConfig>();
 
@@ -525,20 +674,26 @@ private:
         result->ClusterConnection = clusterConnectionConfig;
 
         result->PluginConfig = config;
-        result->MaxSupportedYqlVersion = maxSupportedYqlVersion;
 
+        result->UseTokenResolver = useTokenResolver;
+        result->TokenServiceSocketPath = std::move(tokenServiceSocketPath);
         return result;
     }
 
-    void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig, std::string maxSupportedYqlVersion)
+    void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig)
     {
-        auto options = ConvertToOptions(
+        const bool startDqManager = Config_->EnableDQ
+            && !Config_->DQManagerConfig->YTBackends.empty();
+        auto options = ConvertToNativePluginOptions(
             Config_,
+            DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            maxSupportedYqlVersion,
-            true);
-        DqControllerYqlPlugin_ = CreateBridgeYqlPlugin(std::move(options));
+            /*startDqManager*/ startDqManager,
+            /*enableClique*/ false,
+            ConfigTemplate_->UseTokenResolver,
+            ConfigTemplate_->TokenServiceSocketPath);
+        DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));
     }
 };
 
@@ -551,11 +706,20 @@ TString TProcessYqlPlugin::SocketName = "yql-plugin.sock";
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TYqlPluginConfigPtr pluginConfig,
     TSingletonsConfigPtr singletonsConfig,
+    TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     TConnectionCompoundConfigPtr clusterConnectionConfig,
-    TString maxSupportedYqlVersion,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    bool useTokenResolver,
+    std::string tokenServiceSocketPath)
 {
-    return std::make_unique<TProcessYqlPlugin>(std::move(pluginConfig), singletonsConfig, clusterConnectionConfig, maxSupportedYqlVersion, profiler);
+    return std::make_unique<TProcessYqlPlugin>(
+        std::move(pluginConfig),
+        std::move(singletonsConfig),
+        std::move(pluginInitialDynamicConfig),
+        std::move(clusterConnectionConfig),
+        profiler,
+        useTokenResolver,
+        std::move(tokenServiceSocketPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

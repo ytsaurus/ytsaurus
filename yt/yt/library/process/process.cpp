@@ -22,6 +22,7 @@
 #include <util/generic/guid.h>
 
 #include <util/string/ascii.h>
+#include <util/string/join.h>
 #include <util/string/util.h>
 
 #include <util/system/env.h>
@@ -36,7 +37,7 @@
     #include <spawn.h>
 #endif
 
-#if defined(__APPLE__)
+#if defined(_unix_)
     #define YT_USE_POSIX_SPAWN_API
 #endif
 
@@ -52,7 +53,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Process");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Process");
 
 static constexpr pid_t InvalidProcessId = -1;
 
@@ -71,32 +72,34 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_init(&Actions_) != 0,
             TError("Failed to initialize spawn file actions object")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 
     ~TPosixSpawnFileActions()
     {
         auto res = ::posix_spawn_file_actions_destroy(&Actions_);
-        YT_LOG_FATAL_UNLESS(
-            res != 0,
-            "Failed to destroy spawn file actions object");
+        YT_TLOG_FATAL_IF(res != 0, "Failed to destroy spawn file actions object");
     }
 
     void AddDup2FileAction(int oldFD, int newFD)
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_adddup2(&Actions_, oldFD, newFD) != 0,
-            TError("Failed to add dup2 file action (OldFD: %v, NewFD: %v)", oldFD, newFD)
-                << TError::FromSystem());
+            TError("Failed to add dup2 file action")
+                .With("old_fd", oldFD)
+                .With("new_fd", newFD)
+                .With(TError::FromSystem()));
     }
 
-    void AddChdirFileAction(TString path)
+#ifdef __APPLE__
+    void AddChdirFileAction(const std::string& path)
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_addchdir_np(&Actions_, path.c_str()) != 0,
-            TError("Failed to add chdir file actions (Path: %v)", path)
-                << TError::FromSystem());
+            TError("Failed to add chdir file action for path %v", path)
+                .With(TError::FromSystem()));
     }
+#endif
 
     posix_spawn_file_actions_t* Get()
     {
@@ -117,16 +120,12 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_init(&Actions_) != 0,
             TError("Failed to initialize spawnattrs object")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 
     ~TPosixSpawnAttrs()
     {
-        auto res = ::posix_spawnattr_destroy(&Actions_);
-
-        YT_LOG_FATAL_UNLESS(
-            res != 0,
-            "Failed to destroy spawnattrs object");
+        YT_TLOG_FATAL_IF(::posix_spawnattr_destroy(&Actions_) != 0, "Failed to destroy spawnattrs object");
     }
 
     void AddResetAllSignals()
@@ -136,8 +135,8 @@ public:
 
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigdefault(&Actions_, &allBlocked) != 0,
-            TError("Failed to set default signal handlers for spawnattrs")
-                << TError::FromSystem());
+            TError("Failed to set spawnattrs default signal handlers")
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETSIGDEF);
     }
@@ -146,8 +145,8 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigmask(&Actions_, sigset) != 0,
-            TError("Failed to set signal mask for spawnattrs")
-                << TError::FromSystem());
+            TError("Failed to set spawnattrs signal mask")
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETSIGMASK);
     }
@@ -156,8 +155,8 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setpgroup(&Actions_, 0) != 0,
-            TError("Failed to set pgroup value to 0 of spawnattrs")
-                << TError::FromSystem());
+            TError("Failed to set spawnattrs pgroup")
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETPGROUP);
     }
@@ -170,23 +169,23 @@ public:
 private:
     posix_spawnattr_t Actions_;
 
-    void UpdateFlags(int mask)
+    void UpdateFlags(short mask)
     {
         auto currentFlags = GetFlags();
-
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setflags(&Actions_, currentFlags | mask) != 0,
-            TError("Failed to set flags to spawnattrs (OldFlags: %v, Mask: %v)", currentFlags, mask)
-                << TError::FromSystem());
+            TError("Failed to set spawnattrs flags")
+                .With(TError::FromSystem()));
     }
 
     short GetFlags() const
     {
-        short flags;
+        // Initialize to make MSAN happy.
+        short flags = 0;
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_getflags(&Actions_, &flags) != 0,
-            TError("Failed to flags from spawnattrs")
-                << TError::FromSystem());
+            TError("Failed to get spawnattrs flags")
+                .With(TError::FromSystem()));
         return flags;
     }
 };
@@ -195,21 +194,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorOr<TString> ResolveBinaryPath(const TString& binary)
+TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
 {
     auto Logger = NYT::Logger()
-        .WithTag("Binary: %v", binary);
+        .WithTag("Binary", binary);
 
-    YT_LOG_DEBUG("Resolving binary path");
+    YT_TLOG_DEBUG("Resolving binary path");
 
     std::vector<TError> accumulatedErrors;
 
     auto test = [&] (const char* path) {
-        YT_LOG_DEBUG("Probing path (Path: %v)", path);
+        YT_TLOG_DEBUG("Probing path")
+            .With("Path", path);
         if (access(path, R_OK | X_OK) == 0) {
             return true;
         } else {
-            auto error = TError("Cannot run %Qlv", path) << TError::FromSystem();
+            auto error = TError("Cannot run %Qlv", path).With(TError::FromSystem());
             accumulatedErrors.push_back(std::move(error));
             return false;
         }
@@ -221,12 +221,14 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
             "Cannot resolve binary %Qlv",
             binary);
         error.MutableInnerErrors()->swap(accumulatedErrors);
-        YT_LOG_DEBUG(error, "Error resolving binary path");
+        YT_TLOG_DEBUG("Error resolving binary path")
+            .With(error);
         return error;
     };
 
-    auto success = [&] (const TString& path) {
-        YT_LOG_DEBUG("Binary resolved (Path: %v)", path);
+    auto success = [&] (const std::string& path) {
+        YT_TLOG_DEBUG("Binary resolved")
+            .With("Path", path);
         return path;
     };
 
@@ -243,8 +245,9 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     // In this case, try to locate somewhere nearby.
     {
         auto execPathDirName = GetDirName(GetExecPath());
-        YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %v)", execPathDirName);
-        auto probe = TString::Join(execPathDirName, "/", binary);
+        YT_TLOG_DEBUG("Looking in our exec path directory")
+            .With("ExecPathDir", execPathDirName);
+        auto probe = JoinSeq("/", {execPathDirName, binary});
         if (test(probe.c_str())) {
             return success(probe);
         }
@@ -256,7 +259,8 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     TStringBuf envPath(envPathStr);
     TStringBuf envPathItem;
 
-    YT_LOG_DEBUG("Looking for binary in PATH (Path: %v)", envPathStr);
+    YT_TLOG_DEBUG("Looking for binary in PATH")
+        .With("Path", envPathStr);
 
     while (envPath.NextTok(':', envPathItem)) {
         if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
@@ -273,7 +277,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
         buffer[index] = 0;
 
         if (test(buffer.data())) {
-            return success(TString(buffer.data(), index));
+            return success(std::string(buffer.data(), index));
         }
     }
 
@@ -333,7 +337,8 @@ void Wait4OrDie(pid_t id, int* status, int options, rusage* rusage)
 {
     auto res = HandleEintr(::wait4, id, status, options, rusage);
     if (res == -1) {
-        YT_LOG_FATAL(TError::FromSystem(), "Wait4 failed");
+        YT_TLOG_FATAL("Wait4 failed")
+            .With(TError::FromSystem());
     }
 }
 
@@ -344,6 +349,22 @@ bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
         return false;
     }
     return true;
+}
+
+std::string ShellQuote(TStringBuf str)
+{
+    std::string result;
+    result.reserve(str.size() + 2);
+    result += '\'';
+    for (char c : str) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += '\'';
+    return result;
 }
 
 #if !defined(YT_USE_POSIX_SPAWN_API)
@@ -374,7 +395,7 @@ bool TryResetSignals()
 ////////////////////////////////////////////////////////////////////////////////
 
 TProcessBase::TProcessBase(TStringBuf path)
-    : Path_(TString(path))
+    : Path_(path)
     , ProcessId_(InvalidProcessId)
 { }
 
@@ -399,14 +420,14 @@ void TProcessBase::AddArguments(std::initializer_list<TStringBuf> args)
     }
 }
 
-void TProcessBase::AddArguments(const std::vector<TString>& args)
+void TProcessBase::AddArguments(const std::vector<std::string>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcessBase::SetWorkingDirectory(const TString& path)
+void TProcessBase::SetWorkingDirectory(const std::string& path)
 {
     WorkingDirectory_ = path;
 }
@@ -451,9 +472,9 @@ public:
         const auto& action = SpawnActions_[actionIndex];
 
         return TError("%v", action.ErrorMessage)
-            << TError::FromSystem(errorCode);
+            .With(TError::FromSystem(errorCode));
     #else
-        THROW_ERROR_EXPECTION("Unsupported platform");
+        THROW_ERROR_EXCEPTION("Unsupported platform");
     #endif
     }
 #endif
@@ -489,13 +510,17 @@ public:
     #endif
     }
 
-    void AddChdirSpawnAction(const TString& workingDirectory)
+    void AddChdirSpawnAction(const std::string& workingDirectory)
     {
     #if defined(YT_USE_POSIX_SPAWN_API)
+    #ifdef __APPLE__
         SpawnFileActions_.AddChdirFileAction(workingDirectory);
+    #endif
+        // On Linux, chdir is handled at the PrepareSpawnActions level by wrapping with /bin/sh.
+        Y_UNUSED(workingDirectory);
     #else
         SpawnActions_.push_back(TSpawnAction{
-            [&] {
+            [workingDirectory = TString(workingDirectory)] {
                 NFs::SetCurrentWorkingDirectory(workingDirectory);
                 return true;
             },
@@ -563,7 +588,7 @@ private:
     struct TSpawnAction
     {
         std::function<bool()> Callback;
-        TString ErrorMessage;
+        std::string ErrorMessage;
     };
 
     std::vector<TSpawnAction> SpawnActions_;
@@ -587,7 +612,7 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             result != 0,
             TError("Failed to spawn process with posix_spawn")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
 
         return pid;
     }
@@ -602,8 +627,8 @@ private:
 
         if (pid < 0) {
             THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-                << TErrorAttribute("path", Path_)
-                << TError::FromSystem();
+                .With("path", Path_)
+                .With(TError::FromSystem());
         }
 
         if (pid == 0) {
@@ -648,9 +673,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProcess::TSimpleProcess(TStringBuf path, bool copyEnv, TDuration pollPeriod)
-    // TString is guaranteed to be zero-terminated.
-    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
+TSimpleProcess::TSimpleProcess(const std::string& path, bool copyEnv, TDuration pollPeriod)
     : TProcessBase(path)
     , PollPeriod_(pollPeriod)
     , PipeFactory_(3)
@@ -718,7 +741,7 @@ TFuture<void> TProcessBase::Spawn()
 
             if (retryIndex == 0) {
                 THROW_ERROR_EXCEPTION("Failed to resolve binary path %v", Path_)
-                    << innerErrors;
+                    .With(innerErrors);
             }
 
             TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
@@ -729,7 +752,7 @@ TFuture<void> TProcessBase::Spawn()
         FinishedPromise_.TrySet(TError(EProcessErrorCode::CannotStartProcess,
             "Cannot spawn child process %v",
             ResolvedPath_)
-            << ex);
+            .With(ex));
     }
     return FinishedPromise_.ToFuture().ToUncancelable();
 }
@@ -763,7 +786,7 @@ void TSimpleProcess::DoSpawn()
 
     if (!TrySetSignalMask(&allBlocked, &oldSignals)) {
         THROW_ERROR_EXCEPTION("Failed to block all signals")
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 
     PrepareSpawnActions(&oldSignals);
@@ -784,7 +807,8 @@ void TSimpleProcess::DoSpawn()
 
     AsyncWaitExecutor_->Start();
 
-    YT_LOG_INFO("Process spawned (Pid: %v)", ProcessId_);
+    YT_TLOG_INFO("Process spawned")
+        .With("Pid", ProcessId_);
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -801,10 +825,10 @@ void TSimpleProcess::CleanUpParent()
 void TSimpleProcess::PrepareErrorPipe()
 {
 #if defined(YT_USE_POSIX_SPAWN_API)
-    YT_LOG_DEBUG("Spawning new process (Path: %v, Arguments: %v, Environment: %v)",
-        ResolvedPath_,
-        Args_,
-        Env_);
+    YT_TLOG_DEBUG("Spawning new process")
+        .With("Path", ResolvedPath_)
+        .With("Arguments", Args_)
+        .With("Environment", Env_);
 #else
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
     Pipe_ = pipeFactory.Create();
@@ -812,11 +836,11 @@ void TSimpleProcess::PrepareErrorPipe()
 
     pipeFactory.Clear();
 
-    YT_LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v, Arguments: %v, Environment: %v)",
-        ResolvedPath_,
-        Pipe_,
-        Args_,
-        Env_);
+    YT_TLOG_DEBUG("Spawning new process")
+        .With("Path", ResolvedPath_)
+        .With("ErrorPipe", Pipe_)
+        .With("Arguments", Args_)
+        .With("Environment", Env_);
 #endif
 }
 
@@ -831,7 +855,8 @@ void TSimpleProcess::ValidateSpawnResult()
 {
 #if defined (YT_USE_POSIX_SPAWN_API)
 
-    YT_LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
+    YT_TLOG_DEBUG("Child process spawned successfully")
+        .With("Pid", ProcessId_);
     return;
 #else
     auto result = SpawnState_->ValidateSpawnResult();
@@ -842,7 +867,8 @@ void TSimpleProcess::ValidateSpawnResult()
         // * child killed by signal before exec
         // * child killed by signal after exec
         // So we treat kill-before-exec the same way as kill-after-exec.
-        YT_LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
+        YT_TLOG_DEBUG("Child process spawned successfully")
+            .With("Pid", ProcessId_);
         return;
     }
 
@@ -855,12 +881,38 @@ void TSimpleProcess::ValidateSpawnResult()
 #endif
 }
 
+void TSimpleProcess::WrapArgsWithShell()
+{
+    // posix_spawn_file_actions_addchdir_np is not available on Linux.
+    // Wrap the command: /bin/sh -c "cd 'DIR' && exec 'BIN' 'arg1' ..."
+    TStringBuilder shellCmdBuilder;
+    shellCmdBuilder.AppendFormat("cd %v && exec %v",
+        ShellQuote(WorkingDirectory_),
+        ShellQuote(ResolvedPath_));
+    // Args_ has a trailing nullptr; iterate up to (but not including) it,
+    // skipping Args_[0] which is conventionally argv[0] (the program name).
+    for (size_t index = 1; index + 1 < Args_.size(); ++index) {
+        shellCmdBuilder.AppendFormat(" %v", ShellQuote(Args_[index]));
+    }
+
+    ResolvedPath_ = "/bin/sh";
+    Args_.clear();
+    Args_.push_back(Capture("/bin/sh"));
+    Args_.push_back(Capture("-c"));
+    Args_.push_back(Capture(shellCmdBuilder.Flush()));
+    Args_.push_back(nullptr);
+}
+
 void TSimpleProcess::PrepareSpawnActions(sigset_t* oldSignals)
 {
     SpawnState_->AddSignalSafetySpawnActions(oldSignals);
 
     if (!WorkingDirectory_.empty()) {
+#if defined(YT_USE_POSIX_SPAWN_API) && !defined(__APPLE__)
+        WrapArgsWithShell();
+#else
         SpawnState_->AddChdirSpawnAction(WorkingDirectory_);
+#endif
     }
 
     if (CreateProcessGroup_) {
@@ -908,9 +960,10 @@ void TSimpleProcess::AsyncPeriodicTryWait()
 
     Finished_ = true;
     auto error = ProcessInfoToError(processInfo);
-    YT_LOG_DEBUG(error, "Process finished (Pid: %v, MajorFaults: %v)",
-        ProcessId_,
-        rusage.ru_majflt);
+    YT_TLOG_DEBUG("Process finished")
+        .With("Pid", ProcessId_)
+        .With("MajorFaults", rusage.ru_majflt)
+        .With(error);
 
     FinishedPromise_.Set(error);
 #else
@@ -929,7 +982,8 @@ void TSimpleProcess::Kill(int signal)
         return;
     }
 
-    YT_LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
+    YT_TLOG_DEBUG("Killing child process")
+        .With("Pid", ProcessId_);
 
     bool result = false;
     if (!CreateProcessGroup_) {
@@ -940,7 +994,7 @@ void TSimpleProcess::Kill(int signal)
 
     if (!result) {
         THROW_ERROR_EXCEPTION("Failed to kill child process %v", ProcessId_)
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
     return;
 #else
@@ -948,7 +1002,7 @@ void TSimpleProcess::Kill(int signal)
 #endif
 }
 
-TString TProcessBase::GetPath() const
+std::string TProcessBase::GetPath() const
 {
     return Path_;
 }
@@ -968,7 +1022,7 @@ bool TProcessBase::IsFinished() const
     return Finished_;
 }
 
-TString TProcessBase::GetCommandLine() const
+std::string TProcessBase::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -1012,7 +1066,7 @@ TString TProcessBase::GetCommandLine() const
 
 const char* TProcessBase::Capture(TStringBuf arg)
 {
-    StringHolders_.push_back(TString(arg));
+    StringHolders_.push_back(std::string(arg));
     return StringHolders_.back().c_str();
 }
 

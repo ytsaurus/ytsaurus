@@ -29,14 +29,14 @@ class TPathVisitorMixin
 public:
     /// Policy flags.
     // Allows a "fragment" path missing the leading slash. COMPAT.
-    DEFINE_BYVAL_RW_PROPERTY(bool, LeadingSlashOptional, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LeadingSlashOptional);
     // Having reached the end of the tokenizer path, visit everything in the field/map/repeated.
     // Does not throw when visiting absent fields.
-    DEFINE_BYVAL_RW_PROPERTY(bool, VisitEverythingAfterPath, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(VisitEverythingAfterPath);
     // Do not throw if the path leads into a missing field/key/index.
     DEFINE_BYVAL_RW_PROPERTY(EMissingFieldPolicy, MissingFieldPolicy, EMissingFieldPolicy::Throw);
     // Visit all fields/entries when the path has a "*".
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowAsterisk, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(AllowAsterisk);
     // How to handle relative indexes.
     DEFINE_BYVAL_RW_PROPERTY(ERelativeIndexPolicy, RelativeIndexPolicy, ERelativeIndexPolicy::Allow);
 
@@ -83,7 +83,7 @@ protected:
     TStringBuf GetTokenizerInput() const;
     TStringBuf GetTokenizerPrefix() const;
     TStringBuf GetToken() const;
-    const TString& GetLiteralValue() const;
+    const std::string& GetLiteralValue() const;
     const NYPath::TYPath& GetCurrentPath() const;
 
     // Throws if the token type is wrong.
@@ -201,12 +201,12 @@ protected:
     void VisitMapEntry(
         TVisitParam&& target,
         TMapIterator mapIterator,
-        TString key,
+        TStringBuf key,
         EVisitReason reason);
 
     // The key was not found in the map.
     template <typename TVisitParam, typename TMapKey>
-    void OnMapKeyError(TVisitParam&& target, TMapKey mapKey, TString key, EVisitReason reason);
+    void OnMapKeyError(TVisitParam&& target, TMapKey mapKey, TStringBuf key, EVisitReason reason);
 
     // Other section.
     // The parameter is an INodePtr.

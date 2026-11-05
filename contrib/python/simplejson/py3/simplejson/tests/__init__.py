@@ -20,7 +20,17 @@ class TestMissingSpeedups(unittest.TestCase):
             "PyPy doesn't need speedups! :)"
         elif getattr(getattr(sys, "implementation", None), "name", None) == "graalpy":
             "GraalPy doesn't need speedups! :)"
-        elif hasattr(self, "skipTest"):
+        elif os.environ.get('CIBUILDWHEEL') == '1':
+            try:
+                from simplejson._speedups import make_encoder
+                self.fail(
+                    "make_encoder imported OK here but "
+                    "_import_c_make_encoder() returned None earlier")
+            except ImportError as e:
+                self.fail(
+                    "C extension (_speedups) failed to load in "
+                    "cibuildwheel: %s" % (e,))
+        else:
             self.skipTest("_speedups.so is missing!")
 
 
@@ -31,13 +41,7 @@ def additional_tests(suite=None, project_dir=None):
 
     if suite is None:
         suite = unittest.TestSuite()
-    try:
-        import doctest
-    except ImportError:
-        if sys.version_info < (2, 7):
-            # doctests in 2.6 depends on cStringIO
-            return suite
-        raise
+    import doctest
     for mod in (simplejson, simplejson.encoder, simplejson.decoder):
         suite.addTest(doctest.DocTestSuite(mod))
     if project_dir is not None:

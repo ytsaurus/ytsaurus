@@ -1,20 +1,18 @@
 #include "cypress_integration.h"
 
-#include "private.h"
-#include "chunk_location.h"
 #include "chunk.h"
-#include "chunk_view.h"
-#include "chunk_list.h"
+#include "chunk_manager.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
-#include "domestic_medium.h"
 #include "chunks_samples.h"
+#include "data_node_tracker.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_statistics_collector.h>
-
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
@@ -23,6 +21,8 @@
 #include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -193,7 +193,7 @@ private:
             maxChunks = std::ranges::min(std::ssize(GetOrCrash(chunksSample, cellTags.front())), limit);
         }
 
-        for (i64 i = 0; i < maxChunks; ++i) {
+        for (i64 index = 0; index < maxChunks; ++index) {
             for (auto cellTag : cellTags) {
                 if (limit == 0) {
                     return result;
@@ -201,11 +201,11 @@ private:
 
                 const auto& cellChunkIds = GetOrCrash(chunksSample, cellTag);
                 // Cell tags are descending sorted by the number of chunks.
-                if (std::ssize(cellChunkIds) <= i) {
+                if (std::ssize(cellChunkIds) <= index) {
                     break;
                 }
 
-                result[cellTag].push_back(cellChunkIds[i]);
+                result[cellTag].push_back(cellChunkIds[index]);
                 --limit;
             }
         }
@@ -331,7 +331,7 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ false)
             .ValueOrThrow();
 
         // The above call is involves context switch, chunk may have died.
@@ -493,7 +493,12 @@ private:
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkIds(limit));
         } else {
-            Bootstrap_->GetObjectService()->RequireLeader();
+            if (auto error = Bootstrap_->GetObjectService()->RequireLeaderAsync(); !error.IsOK()) {
+                return MakeFuture<std::vector<TObjectId>>(std::move(error));
+            }
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();
@@ -505,6 +510,7 @@ private:
                 // TODO(nadya02): Set the correct timeout here.
                 proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetUser(userNameToForward);
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
                 req->set_limit(limit);
                 batchReq->AddRequest(req, "enumerate");
@@ -565,23 +571,27 @@ private:
 
             void Invoke(const IYPathServiceContextPtr& context) override
             {
-                Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    try {
-                        if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
-                            if (context->GetMethod() == "Exists") {
-                                TNonexistingService::Get()->Invoke(context);
-                                return;
+                Invoker_->Invoke(MakeGuardedCallback(
+                    BIND([=, this, this_ = MakeStrong(this)] {
+                        try {
+                            if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
+                                if (context->GetMethod() == "Exists") {
+                                    TNonexistingService::Get()->Invoke(context);
+                                    return;
+                                }
+                                THROW_ERROR_EXCEPTION(
+                                    NYTree::EErrorCode::ResolveError,
+                                    "Chunk %v does not satisfy filtering criterion",
+                                    ChunkId_);
                             }
-                            THROW_ERROR_EXCEPTION(
-                                NYTree::EErrorCode::ResolveError,
-                                "Chunk %v does not satisfy filtering criterion",
-                                ChunkId_);
+                            Underlying_->Invoke(context);
+                        } catch (const std::exception& ex) {
+                            context->Reply(ex);
                         }
-                        Underlying_->Invoke(context);
-                    } catch (const std::exception& ex) {
-                        context->Reply(ex);
-                    }
-                }));
+                    }),
+                    BIND([=] {
+                        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
+                    })));
             }
 
             TResolveResult Resolve(
@@ -616,7 +626,7 @@ private:
 
         auto readInvoker = Bootstrap_
             ->GetObjectService()
-            ->CreateLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
+            ->CreateEpochLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
 
         // Protect from possible epoch switch rendering |RequireLeader| check above useless.
         auto epochInvoker = Bootstrap_
@@ -638,10 +648,15 @@ private:
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkCount());
         } else {
-            Bootstrap_->GetObjectService()->RequireLeader();
+            if (auto error = Bootstrap_->GetObjectService()->RequireLeaderAsync(); !error.IsOK()) {
+                return MakeFuture<i64>(std::move(error));
+            }
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
 
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(channels.size());
@@ -650,7 +665,7 @@ private:
                 // TODO(nadya02): Set the correct timeout here.
                 proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto req = TYPathProxy::Get(GetWellKnownPath(GetLocalChunkMapType()) + "/@count");
-                responseFutures.push_back(proxy.Execute(req));
+                responseFutures.push_back(proxy.ExecuteAs(userNameToForward, req));
             }
 
             return AllSucceeded(std::move(responseFutures))

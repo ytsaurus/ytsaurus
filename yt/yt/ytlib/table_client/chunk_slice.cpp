@@ -232,6 +232,7 @@ public:
         std::vector<TChunkSlice> slices;
 
         bool sliceStarted = false;
+        bool firstSliceEmitted = false;
         TOwningKeyBound currentSliceLowerBound;
         i64 currentSliceStartRowIndex = 0;
 
@@ -241,6 +242,7 @@ public:
         {
             YT_VERIFY(!sliceStarted);
             sliceStarted = true;
+            firstSliceEmitted = true;
 
             currentSliceLowerBound = sliceLowerBound;
             currentSliceStartRowIndex = sliceStartRowIndex;
@@ -303,11 +305,31 @@ public:
                 continue;
             }
 
+            if (!firstSliceEmitted && blockIndex > 0 && !blockLowerBound.IsInclusive) {
+                // NB(coteeq): When slicing by keys, we generally assume that we
+                // either took the previous block or previous block does not
+                // satisfy SliceLowerBound_. This is not always the case when
+                // SliceStartRowIndex_ is non-trivial.
+                // Take this example of a two-block chunk:
+                //
+                // |AAAAB|BBBBB|
+                //
+                // If SliceStartRowIndex_ = 5, we should completely skip the
+                // first block and completely take the second one. When we look
+                // at second block, blockLowerBound = `>[B]`. This would lead
+                // to the slice `(>[B], #5), (<=[B], #10)` which is obviously
+                // an empty slice.
+                //
+                // This case is kind of similar to the
+                // `!SliceByKeys_ && blockIndex > 0` case handled above.
+                blockLowerBound = blockLowerBound.ToggleInclusiveness();
+            }
+
             // Block is completely to the right of the request by keys.
             if (SliceComparator_.IsRangeEmpty(blockLowerBound, SliceUpperBound_)) {
                 break;
             }
-            // Block is completely to the right of the request by keys.
+            // Block is completely to the right of the request by row indices.
             if (SliceEndRowIndex_ <= blockStartRowIndex) {
                 break;
             }
@@ -613,8 +635,8 @@ std::optional<THashSet<int>> GetBlockFilter(
             return {};
         }
 
-        for (const auto& columName : *columnStableNames) {
-            if (auto columnId = nameTable->FindId(columName.Underlying())) {
+        for (const auto& columnName : *columnStableNames) {
+            if (auto columnId = nameTable->FindId(columnName.Underlying())) {
                 YT_VERIFY(*columnId < columnMetaExt->columns_size());
                 auto columnMeta = columnMetaExt->columns(*columnId);
                 for (const auto& segment : columnMeta.segments()) {

@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 
-#include <yt/yt/server/lib/nbd/chunk_handler.h>
+#include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -29,8 +29,8 @@ namespace NYT::NNbd {
 using namespace NConcurrency;
 using namespace NRpc;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,8 +74,9 @@ protected:
 
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
-        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
-        auto busServer = NYT::NBus::CreateBusServer(NYT::NBus::TBusServerConfig::CreateTcp(config->Port));
+        // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
+        auto busServer = NYT::NBus::NTcp::CreateBusServer(NYT::NBus::NTcp::TBusServerConfig::CreateTcp(config->Port));
         auto rpcServer = NRpc::NBus::CreateBusServer(busServer);
 
         auto queue = New<TActionQueue>("RPC");
@@ -89,7 +90,7 @@ protected:
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

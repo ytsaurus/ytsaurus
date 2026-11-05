@@ -23,7 +23,7 @@ struct IMoveIteration
     virtual void LogDisabledBalancing() const = 0;
 
     virtual const std::string& GetBundleName() const = 0;
-    virtual const TString& GetGroupName() const = 0;
+    virtual const std::string& GetGroupName() const = 0;
     virtual const TTabletCellBundlePtr& GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
     virtual const TTabletBalancingGroupConfigPtr& GetGroupConfig() const = 0;
@@ -31,7 +31,7 @@ struct IMoveIteration
     virtual EBalancingMode GetBalancingMode() const = 0;
     virtual TStringBuf GetActionSubtypeName() const = 0;
 
-    virtual TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const = 0;
+    virtual TGuard<NYT::TSpinLock> StartApplyingActions() const = 0;
     virtual void ApplyMoveAction(const TTabletPtr& tablet, TTabletCellId cellId) const = 0;
 };
 
@@ -50,18 +50,20 @@ IMoveIterationPtr CreateInMemoryMoveIteration(
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
-    TString groupName,
-    TBundleSnapshotPtr bundleSnapshot,
-    TTableParameterizedMetricTrackerPtr metricTracker,
-    TTabletBalancingGroupConfigPtr groupConfig,
-    TTabletBalancerDynamicConfigPtr dynamicConfig);
-
-IMoveIterationPtr CreateReplicaMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
+    NConcurrency::IThreadPoolPtr workerPool);
+
+IMoveIterationPtr CreateReplicaMoveIteration(
+    std::string groupName,
+    TBundleSnapshotPtr bundleSnapshot,
+    TTableParameterizedMetricTrackerPtr metricTracker,
+    TTabletBalancingGroupConfigPtr groupConfig,
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    NConcurrency::IThreadPoolPtr workerPool,
     std::string selfClusterName);
 
 ////////////////////////////////////////////////////////////////////////////////

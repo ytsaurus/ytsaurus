@@ -1,7 +1,7 @@
 # Background compaction
 
 A tablet of a sorted dynamic table is an [LSM tree](https://en.wikipedia.org/wiki/Log-structured_merge-tree). When a row is written, it enters the dynamic store. As the dynamic store gets filled with data, it is flushed to the chunks on the disk. A background compaction process periodically combines several chunks. It is needed to:
-- Apply [delete tombstones](../../../user-guide/dynamic-tables/sorted-dynamic-tables#udalenie-stroki) and physically delete rows.
+- Apply [delete tombstones](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#deleting-rows) and physically delete rows.
 - Delete old versions.
 - Reduce overlapping store count, the number of chunks in which a fixed key may need to be searched.
 

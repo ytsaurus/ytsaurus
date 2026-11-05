@@ -1,5 +1,7 @@
 #include "tablet.h"
 
+#include <yt/yt/core/logging/serializable_tag.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -45,7 +47,7 @@ void TTablet::CopyMetaFrom(const TTablet* tablet)
     Mounted_ = tablet->Mounted_;
     MountConfig_ = tablet->MountConfig_;
     MountRevision_ = tablet->MountRevision_;
-    LoggingTag_ = tablet->LoggingTag_;
+    LoggingTags_ = tablet->LoggingTags_;
 
     OverlappingStoreCount_ = tablet->OverlappingStoreCount_;
     EdenOverlappingStoreCount_ = tablet->EdenOverlappingStoreCount_;
@@ -63,7 +65,7 @@ void TTablet::Persist(const TStreamPersistenceContext& context)
     Persist(context, Mounted_);
     Persist<TNonNullableIntrusivePtrSerializer<>>(context, MountConfig_);
     Persist(context, MountRevision_);
-    Persist(context, LoggingTag_);
+    Persist(context, LoggingTags_);
     Persist(context, IsForcedRotationPossible_);
     Persist(context, IsOverflowRotationNeeded_);
     Persist(context, LastPeriodicRotationTime_);

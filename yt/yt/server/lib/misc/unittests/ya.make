@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    format_manager_ut.cpp
     max_min_balancer_ut.cpp
     release_queue_ut.cpp
 )

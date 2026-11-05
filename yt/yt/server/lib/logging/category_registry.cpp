@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NLogging {
@@ -22,10 +24,10 @@ TStructuredCategoryRegistry* TStructuredCategoryRegistry::Get()
     return topicRegistry;
 }
 
-void TStructuredCategoryRegistry::RegisterStructuredCategory(TString name, TTableSchemaPtr schema)
+void TStructuredCategoryRegistry::RegisterStructuredCategory(std::string name, TTableSchemaPtr schema)
 {
     auto guard = Guard(SpinLock_);
-    YT_VERIFY(Categories_.insert({name, schema}).second);
+    EmplaceOrCrash(Categories_, std::move(name), std::move(schema));
 }
 
 void TStructuredCategoryRegistry::DumpCategories(IYsonConsumer* consumer)
@@ -44,7 +46,7 @@ void TStructuredCategoryRegistry::DumpCategories(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger CreateSchemafulLogger(TString category, TTableSchemaPtr schema)
+TLogger CreateSchemafulLogger(std::string category, TTableSchemaPtr schema)
 {
     TStructuredCategoryRegistry::Get()->RegisterStructuredCategory(category, schema);
 
@@ -52,7 +54,9 @@ TLogger CreateSchemafulLogger(TString category, TTableSchemaPtr schema)
         try {
             YsonToSchemafulRow(yson.ToString(), *schema, /*treatMissingAsNull*/ true, EYsonType::MapFragment, /*validateValues*/ true);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Structured log validation error (LogCategory: %v)", category);
+            YT_TLOG_ALERT("Structured log validation error")
+                .With("LogCategory", category)
+                .With(ex);
         }
     });
 }

@@ -10,8 +10,8 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChaosServerLogger, "ChaosServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ChaosServerProfiler, "/chaos_server");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChaosServerLogger, "ChaosServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ChaosServerProfiler, "/chaos_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

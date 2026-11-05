@@ -3,6 +3,7 @@
 #include "compartment.h"
 #include "pointer.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <util/system/align.h>
 
 namespace NYT::NWebAssembly {
@@ -65,16 +66,16 @@ char* TWebAssemblyMemoryPool::AllocateUnaligned(size_t size)
     auto offset = Compartment_->AllocateBytes(size);
     Allocations_.push_back(offset);
     Size_ += size;
-    return std::bit_cast<char*>(offset);
+    return BitCast<char*>(offset);
 }
 
 char* TWebAssemblyMemoryPool::AllocateAligned(size_t size, int align)
 {
     uintptr_t unaligned = Compartment_->AllocateBytes(size + align);
     Allocations_.push_back(unaligned);
-    auto aligned = AlignUp(std::bit_cast<char*>(unaligned), align);
+    auto aligned = AlignUp(BitCast<char*>(unaligned), align);
     Size_ += size + align;
-    return std::bit_cast<char*>(aligned);
+    return BitCast<char*>(aligned);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

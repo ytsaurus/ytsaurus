@@ -1,0 +1,405 @@
+[
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "empty";
+        "row" = {
+            "computation_id" = "counter";
+            "name" = "/counts";
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %true;
+            };
+            "payload" = "a\0\xFF";
+            "value" = 41;
+        };
+        "name" = "plain";
+        "row" = {
+            "compressed" = #;
+            "compressed_patch" = #;
+            "key" = "some_key";
+            "state" = {
+                "nested" = {
+                    "enabled" = %true;
+                };
+                "payload" = "a\0\xFF";
+                "value" = 41;
+            };
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %true;
+            };
+            "payload" = "a\0\xFF";
+            "value" = 41;
+        };
+        "name" = "default_zstd";
+        "row" = {
+            "compressed" = "7\0\0\0\0\0\0\0(\xB5/\xFD 7\xB9\1\0{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "";
+            "computation_id" = "counter";
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %true;
+            };
+            "payload" = "a\0\xFF";
+            "value" = 41;
+        };
+        "name" = "null_format_zstd";
+        "row" = {
+            "compressed" = "7\0\0\0\0\0\0\0(\xB5/\xFD 7\xB9\1\0{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "";
+            "computation_id" = "counter";
+            "format" = #;
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %false;
+            };
+            "payload" = "b\0\xFF";
+            "value" = 42;
+        };
+        "name" = "default_xdelta_patch";
+        "row" = {
+            "compressed" = "7\0\0\0\0\0\0\0(\xB5/\xFD 7\xB9\1\0{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "\0\0\08\xD6\xC3\xC4\0\0\1/\0\0328\0\x0B\7\0032bfalse;};}\x18\2\x1A\2\x13\x1B\n\0\t\x14";
+            "computation_id" = "counter";
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %false;
+            };
+            "payload" = "b\0\xFF";
+            "value" = 42;
+        };
+        "name" = "compressed_xdelta_patch";
+        "row" = {
+            "compressed" = "7\0\0\0\0\0\0\0(\xB5/\xFD 7\xB9\1\0{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "'\0\0\0\0\0\0\0(\xB5/\xFD '9\1\0\0\0\08\xD6\xC3\xC4\0\0\1/\0\0328\0\x0B\7\0032bfalse;};}\x18\2\x1A\2\x13\x1B\n\0\t\x14";
+            "computation_id" = "counter";
+            "format" = {
+                "compression" = "zstd_3";
+                "delta" = "x_delta";
+                "patch_compression" = "zstd_6";
+            };
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %false;
+            };
+            "payload" = "b\0\xFF";
+            "value" = 42;
+        };
+        "name" = "vcdiff_patch";
+        "row" = {
+            "compressed" = "\1\0\0@7\0\0\09\0\0\0007\0\0\0\xF0({value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "\1\0\0@H\0\0\0J\0\0\0H\0\0\0\3609\xD6\xC3\xC4S\0\0017\0?8\0\0:\0\18{value=42;payload=\"b\\x00\\xff\";nested={enabled=%false;};}";
+            "computation_id" = "counter";
+            "format" = {
+                "compression" = "lz4";
+                "delta" = "v_c_diff";
+                "patch_compression" = "lz4";
+            };
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = {
+            "nested" = {
+                "enabled" = %true;
+            };
+            "payload" = "a\0\xFF";
+            "value" = 41;
+        };
+        "name" = "none_codecs";
+        "row" = {
+            "compressed" = "{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "";
+            "computation_id" = "counter";
+            "format" = {
+                "compression" = "none";
+                "delta" = "none";
+                "patch_compression" = "none";
+            };
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "truncated_xdelta";
+        "row" = {
+            "compressed" = "7\0\0\0\0\0\0\0(\xB5/\xFD 7\xB9\1\0{value=41;payload=\"a\\x00\\xff\";nested={enabled=%true;};}";
+            "compressed_patch" = "bad";
+            "computation_id" = "counter";
+            "key" = "some_key";
+            "name" = "/counts";
+            "state" = #;
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "patch_without_base";
+        "row" = {
+            "compressed" = #;
+            "compressed_patch" = "bad";
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_zstd";
+        "row" = {
+            "compressed" = "bad";
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "unknown_codec";
+        "row" = {
+            "compressed" = "bad";
+            "format" = {
+                "compression" = "unknown";
+            };
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_type";
+        "row" = {
+            "compressed" = 123;
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_patch_type";
+        "row" = {
+            "compressed_patch" = 123;
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_sentinel";
+        "row" = {
+            "compressed" = <type=min>#;
+        };
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_patch_sentinel";
+        "row" = {
+            "compressed_patch" = <type=min>#;
+        };
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "all_null_columns";
+        "row" = {computation_id=#;key=#;name=#;state=#;compressed=#;compressed_patch=#;format=#;};
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "empty_packed_columns";
+        "row" = {state=#;compressed="";compressed_patch="";format=#;};
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "null_base_empty_patch";
+        "row" = {state=#;compressed=#;compressed_patch="";format=#;};
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "empty_base_null_patch";
+        "row" = {state=#;compressed="";compressed_patch=#;format=#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_unsigned";
+        "row" = {compressed=123u;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_double";
+        "row" = {compressed=0.25;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_boolean";
+        "row" = {compressed=%true;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_list";
+        "row" = {compressed=[1;];};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_map";
+        "row" = {compressed={value=1;};};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_max_entity";
+        "row" = {compressed=<type=max>#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_int64_entity";
+        "row" = {compressed=<type=int64>#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_unsigned";
+        "row" = {compressed_patch=123u;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_double";
+        "row" = {compressed_patch=0.25;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_boolean";
+        "row" = {compressed_patch=%true;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_list";
+        "row" = {compressed_patch=[1;];};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_map";
+        "row" = {compressed_patch={value=1;};};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_max_entity";
+        "row" = {compressed_patch=<type=max>#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_compressed_patch_int64_entity";
+        "row" = {compressed_patch=<type=int64>#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_signed";
+        "row" = {format=123;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_unsigned";
+        "row" = {format=123u;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_double";
+        "row" = {format=0.25;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_boolean";
+        "row" = {format=%true;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_list";
+        "row" = {format=[1;];};
+    };
+    {
+        "expect_error" = %false;
+        "expected_state" = #;
+        "name" = "default_format_map";
+        "row" = {format={value=1;};};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_compression_type";
+        "row" = {format={compression=[1;];};};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_string";
+        "row" = {format="wrong";};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_state_typed_entity";
+        "row" = {state=<type=int64>#;};
+    };
+    {
+        "expect_error" = %true;
+        "expected_state" = #;
+        "name" = "invalid_format_typed_entity";
+        "row" = {format=<type=int64>#;};
+    };
+]

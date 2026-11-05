@@ -1,6 +1,6 @@
 #include "raw_transform.h"
 
-#include "../type_tag.h"
+#include <yt/cpp/roren/interface/type_tag.h>
 
 namespace NRoren::NPrivate {
 

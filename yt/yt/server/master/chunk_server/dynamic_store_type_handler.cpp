@@ -1,7 +1,8 @@
 #include "dynamic_store_type_handler.h"
+
+#include "chunk_manager.h"
 #include "dynamic_store.h"
 #include "dynamic_store_proxy.h"
-#include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 

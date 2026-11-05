@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"
@@ -47,6 +46,8 @@ func doRun() error {
 	}
 	cfs["chyt"] = chytFactory
 
+	registerDQController(cfs, config)
+
 	// JUPYT controller is optional.
 
 	if jupytConfig, ok := config.Controllers["jupyt"]; ok {
@@ -62,9 +63,9 @@ func doRun() error {
 
 	if livyConfig, ok := config.Controllers["livy"]; ok {
 		livyFactory := strawberry.ControllerFactory{
-			Ctor:          livy.NewController,
-			Config:        livyConfig,
-			ExtraCommands: []api.CmdDescriptor{},
+			Ctor:       livy.NewController,
+			Config:     livyConfig,
+			Deprecated: true,
 		}
 		cfs["livy"] = livyFactory
 	}

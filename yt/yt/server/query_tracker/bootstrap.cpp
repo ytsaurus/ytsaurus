@@ -49,6 +49,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -74,6 +76,7 @@ namespace NYT::NQueryTracker {
 using namespace NAdmin;
 using namespace NAlertManager;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
@@ -156,6 +159,7 @@ private:
     NYT::NBus::IBusServerPtr BusServer_;
     IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
 
@@ -174,10 +178,9 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO(
-            "Starting persistent query agent process (NativeCluster: %v, User: %v)",
-            Config_->ClusterConnection->Static->ClusterName,
-            Config_->User);
+        YT_TLOG_INFO("Starting persistent query agent process")
+            .With("NativeCluster", Config_->ClusterConnection->Static->ClusterName)
+            .With("User", Config_->User);
 
         SelfAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -211,24 +214,26 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         AlertManager_ = CreateAlertManager(QueryTrackerLogger(), TProfiler{}, ControlInvoker_);
 
         DynamicConfigManager_->Start();
 
         {
-            YT_LOG_INFO("Loading dynamic config for the first time");
+            YT_TLOG_INFO("Loading dynamic config for the first time");
             auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config loaded");
-            YT_LOG_INFO("Dynamic config loaded");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+                .With(error);
+            YT_TLOG_INFO("Dynamic config loaded");
         }
 
         IMapNodePtr orchidRoot;
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &orchidRoot);
@@ -290,7 +295,7 @@ private:
         QueryTrackerProxy_ = CreateQueryTrackerProxy(
             NativeClient_,
             Config_->Root,
-            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
+            DynamicConfigManager_->GetConfig()->QueryTracker,
             QueryTracker_->GetEngineProviders(),
             Config_->MinRequiredStateVersion);
 
@@ -311,10 +316,17 @@ private:
 
         QueryTracker_->Start();
 
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_TLOG_INFO("Listening for HTTPS requests")
+                .With("Port", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -347,7 +359,8 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }
@@ -370,15 +383,12 @@ private:
         }
 
         if (QueryTrackerProxy_) {
-            QueryTrackerProxy_->Reconfigure(
-                newConfig->QueryTracker->ProxyConfig,
-                newConfig->QueryTracker->NotIndexedQueriesTTL);
+            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker);
         }
 
-        YT_LOG_DEBUG(
-            "Updated query tracker server dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated query tracker server dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
     void CreateStateTablesIfNeeded();

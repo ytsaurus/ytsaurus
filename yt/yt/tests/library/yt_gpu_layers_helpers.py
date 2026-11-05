@@ -1,4 +1,4 @@
-from yt_env_setup import Restarter, NODES_SERVICE
+from yt_env_setup import Restarter, NODES_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     create, write_file, wait, get, update_controller_agent_config,
@@ -8,8 +8,18 @@ from yt_commands import (
 import yt.environment.init_operations_archive as init_operations_archive
 
 
+def make_gpu_check_layer_cache_config():
+    return {
+        "volume_manager": {
+            "enable_layers_cache": True,
+            # Recipe nodes may share one tmpfs, so bound each node's cache.
+            "layer_locations": [{"quota": 512 * 1024 ** 2}],
+        },
+    }
+
+
 class GpuCheckBase(object):
-    def setup_gpu_layer_and_reset_nodes(self, prepare_gpu_base_layer=False):
+    def setup_gpu_layer_and_reset_nodes(self):
         create("map_node", "//tmp/gpu_check")
 
         create("file", "//tmp/gpu_check/0", attributes={"replication_factor": 1})
@@ -19,32 +29,6 @@ class GpuCheckBase(object):
             open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
-
-        create("file", "//tmp/base_layer", attributes={"replication_factor": 1})
-        file_name = "rootfs/rootfs.tar.gz"
-        write_file(
-            "//tmp/base_layer",
-            open(file_name, "rb").read(),
-            file_writer={"upload_replication_factor": 1},
-        )
-
-        if prepare_gpu_base_layer:
-            # Using same layer for root volume and GPU check volume could causes job aborts.
-            #
-            # Explanation: using same layer for these two volume could cause job abort with error
-            # 'Cannot find a suitable location for artifact chunk' while GPU check volume preparation.
-            # The root cause of this abort is following: exec node cannot download chunk in cache if the chunk is in removing state in cache.
-            # And we face this situation in case when the node tries to download chunk the second time for prepare the same layer second time.
-            #
-            # Note that layer cache can help to avoid this problem, but it is disabled because of another issue, see detailed in
-            # `yt/python/yt/environment/default_config.py`.
-            create("file", "//tmp/gpu_base_layer", attributes={"replication_factor": 1})
-            file_name = "rootfs/rootfs.tar.gz"
-            write_file(
-                "//tmp/gpu_base_layer",
-                open(file_name, "rb").read(),
-                file_writer={"upload_replication_factor": 1},
-            )
 
         # Reload node to reset alerts.
         with Restarter(self.Env, NODES_SERVICE):
@@ -69,7 +53,7 @@ class GpuCheckBase(object):
         update_controller_agent_config(
             "operation_options/gpu_check",
             {
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "layer_paths": ["//tmp/gpu_check/0", ROOTFS_LAYER_PATH],
                 "binary_path": binary_path,
                 "binary_args": binary_args if binary_args is not None else [],
             }

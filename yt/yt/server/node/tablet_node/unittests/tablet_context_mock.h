@@ -40,13 +40,14 @@ public:
     NRpc::IServerPtr GetLocalRpcServer() const override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
     INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override;
+    TRowCacheControllerPtr GetRowCacheController() const override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
     std::string GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;
     ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override;
     IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override;
     const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind /*kind*/) const override;
-    IInvokerPtr GetStorageHeavyInvoker() const override;
+    IPrioritizedInvokerPtr GetStorageHeavyInvoker() const override;
     TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const override;
     TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
@@ -55,7 +56,7 @@ private:
     const IStoreContextPtr StoreContext_ = New<TStoreContextMock>();
 
     const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ =
-        NQueryClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
+        NQueryClient::CreateRowComparerProvider(TSlruCacheConfig::CreateWithCapacity(/*capacity*/ 16));
 
     const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ =
         New<TMockBackendChunkReadersHolder>();

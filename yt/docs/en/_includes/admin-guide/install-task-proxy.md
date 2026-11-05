@@ -192,3 +192,5 @@ Below is an example of creating the `yt-domain-cert` secret using private key an
 ```sh
 kubectl create secret tls yt-domain-cert -n yt --cert=cert.pem --key=key.pem
 ```
+
+You can find detailed instructions for updating Task proxy in the [Update Task proxy](../../admin-guide/update/update-task-proxy.md) article.

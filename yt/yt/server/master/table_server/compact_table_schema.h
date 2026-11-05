@@ -34,6 +34,7 @@ public:
     bool IsSorted() const;
 
     bool HasHunkColumns() const;
+    bool HasAggregateStateColumns() const;
     bool HasNontrivialSchemaModification() const;
 
     int GetKeyColumnCount() const;
@@ -53,6 +54,7 @@ private:
     std::string TableSchema_;
 
     bool HasHunkColumns_ = false;
+    bool HasAggregateStateColumns_ = false;
     bool HasNontrivialSchemaModification_ = false;
     NTableClient::TKeyColumns KeyColumns_;
     std::vector<NTableClient::ESortOrder> SortOrders_;

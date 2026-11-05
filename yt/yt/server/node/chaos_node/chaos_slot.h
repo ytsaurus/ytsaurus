@@ -81,6 +81,7 @@ struct IChaosSlot
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;
     virtual const IChaosLeaseManagerPtr& GetChaosLeaseManager() const = 0;
     virtual const NChaosClient::IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const = 0;
+    virtual const NChaosClient::IChaosLeasesWatcherPtr& GetChaosLeasesWatcher() const = 0;
     virtual const ICoordinatorManagerPtr& GetCoordinatorManager() const = 0;
     virtual const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const = 0;
 
@@ -102,7 +103,8 @@ DEFINE_REFCOUNTED_TYPE(IChaosSlot)
 IChaosSlotPtr CreateChaosSlot(
     int slotIndex,
     TChaosNodeConfigPtr config,
-    IBootstrap* bootstrap);
+    IBootstrap* bootstrap,
+    const std::string& cellBundleName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

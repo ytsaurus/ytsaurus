@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(0.27.0)
+
+LICENSE(Apache-2.0)
+
+ORIGINAL_SOURCE(https://github.com/perfmark/perfmark)
+
+JAR_RESOURCE(7042552252)
+
+SRC_RESOURCE(7042553325)
+
+END()

@@ -30,6 +30,12 @@ public:
     virtual void OnNodeTouched(TCypressNode* trunkNode) = 0;
 
     virtual void OnNodeDestroyed(TCypressNode* trunkNode) = 0;
+
+    //! Returns failed-removal attempt counts for #trunkNode, keyed by user.
+    //! Currently inefficient (involves full scan of the in-memory structure);
+    //! must only be used for debugging and testing.
+    virtual THashMap<NObjectServer::TEphemeralObjectPtr<NSecurityServer::TUser>, int> GetFailedExpirationAttempts(
+        const TCypressNode* trunkNode) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExpirationTracker)

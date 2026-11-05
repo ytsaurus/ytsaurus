@@ -11,8 +11,6 @@
 #include <yql/essentials/utils/log/log.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor.h>
 
-#include <contrib/ydb/public/lib/yson_value/ydb_yson_value.h>
-
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/event_pb.h>
 #include <contrib/ydb/library/actors/core/executor_pool_basic.h>

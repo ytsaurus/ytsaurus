@@ -1,5 +1,6 @@
 #pragma once
 
+#include "allocator_adapter.h"
 #include "public.h"
 
 #include <yt/yt/client/bundle_controller_client/public.h>
@@ -7,6 +8,16 @@
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NCellBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Annotates online instances that have no bundle_controller_annotations yet.
+// Requires exactly 1 zone and 1 instance size; fires alerts otherwise.
+// Requires HasInstanceAllocatorService == false.
+void AnnotateNewInstances(
+    const TSchedulerInputState& input,
+    IAllocatorAdapter* adapter,
+    TSchedulerMutations* mutations);
 
 ////////////////////////////////////////////////////////////////////////////////
 

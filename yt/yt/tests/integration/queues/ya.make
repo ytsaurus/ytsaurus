@@ -7,7 +7,9 @@ PY_SRCS(
 
 TEST_SRCS(
     test_acl.py
+    test_api.py
     test_consumer_registrations.py
+    test_multi_consumer.py
     test_object_watchlist.py
     test_producer.py
     test_queue_agent.py

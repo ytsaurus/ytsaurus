@@ -9,7 +9,7 @@ from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
-from .parallel_reader import make_read_parallel_request, _prepare_ranges_for_parallel_read
+from .parallel_reader import make_read_parallel_request, _prepare_ranges_for_parallel_files_read
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
 from .transaction import Transaction
@@ -24,6 +24,7 @@ from yt.yson import to_yson_type
 import os
 import hashlib
 
+from typing import Dict, Any, Optional, Union, BinaryIO, Generator
 from io import BytesIO
 
 
@@ -117,7 +118,14 @@ class _ReadFileRetriableState(object):
             yield chunk
 
 
-def read_file(path, file_reader=None, offset=None, length=None, enable_read_parallel=None, client=None):
+def read_file(
+    path: Union[str, FilePath],
+    file_reader: Optional[Dict[str, Any]] = None,
+    offset: Optional[int] = None,
+    length: Optional[int] = None,
+    enable_read_parallel: Optional[bool] = None,
+    client=None,
+):
     """Downloads file from path in Cypress to local machine.
 
     :param path: path to file in Cypress.
@@ -136,12 +144,18 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
     enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
 
     if enable_read_parallel:
-        data_size = get(path + "/@uncompressed_data_size", client=client)
-        ranges = _prepare_ranges_for_parallel_read(
-            offset,
-            length,
-            data_size,
-            get_config(client)["read_parallel"]["data_size_per_thread"])
+        max_thread_count = get_config(client)["read_parallel"]["max_thread_count"]
+        data_size_per_therad = get_config(client)["read_parallel"]["data_size_per_thread"]
+        attributes = get(path, attributes=["uncompressed_data_size", "chunk_count"], client=client)
+
+        ranges = _prepare_ranges_for_parallel_files_read(
+            offset=offset,
+            length=length,
+            data_size=attributes.attributes["uncompressed_data_size"],
+            chunk_count=attributes.attributes["chunk_count"],
+            data_size_per_thread=data_size_per_therad,
+        )
+
         return make_read_parallel_request(
             "read_file",
             path,
@@ -149,10 +163,11 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
             params,
             _prepare_params_for_parallel_read,
             prepare_meta_func=None,
-            max_thread_count=get_config(client)["read_parallel"]["max_thread_count"],
+            max_thread_count=max_thread_count,
             unordered=False,
             response_parameters=None,
-            client=client)
+            client=client,
+        )
 
     return make_read_request(
         "read_file",
@@ -180,9 +195,18 @@ def _get_upload_replication_factor(desired_replication_factor: int, client):
     return replication_factor
 
 
-def write_file(destination, stream,
-               file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
-               size_hint=None, filename_hint=None, progress_monitor=None, client=None):
+def write_file(
+    destination: Union[str, FilePath],
+    stream: Union[bytes, BinaryIO, Generator[bytes, None, None]],
+    file_writer: Optional[Dict[str, Any]] = None,
+    is_stream_compressed: bool = False,
+    force_create: Optional[bool] = None,
+    compute_md5: bool = False,
+    size_hint: Optional[int] = None,
+    filename_hint: Optional[str] = None,
+    progress_monitor=None,
+    client=None,
+):
     """Uploads file to destination path from stream on local machine.
 
     :param destination: destination path in Cypress.

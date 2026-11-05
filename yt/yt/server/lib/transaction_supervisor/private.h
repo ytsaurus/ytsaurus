@@ -18,8 +18,8 @@ class TAbort;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TransactionSupervisorLogger, "TransactionSupervisor");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TransactionSupervisorProfiler, "/transaction_supervisor");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TransactionSupervisorLogger, "TransactionSupervisor");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TransactionSupervisorProfiler, "/transaction_supervisor");
 
 ////////////////////////////////////////////////////////////////////////////////
 

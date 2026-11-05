@@ -17,13 +17,13 @@ public:
         THashMap<NFormats::EFormatType, TFormatConfigPtr> formatConfigs,
         const std::string& authenticatedUser);
 
-    NFormats::TFormat ConvertToFormat(const NYTree::INodePtr& formatNode, TString origin) const;
+    NFormats::TFormat ConvertToFormat(const NYTree::INodePtr& formatNode, std::string origin) const;
 
     void ValidateAndPatchOperationSpec(
         const NYTree::INodePtr& specNode,
         NScheduler::EOperationType operationType) const;
 
-    void ValidateAndPatchFormatNode(const NYTree::INodePtr& formatNode, TString origin) const;
+    void ValidateAndPatchFormatNode(const NYTree::INodePtr& formatNode, std::string origin) const;
 
 private:
     const THashMap<NFormats::EFormatType, TFormatConfigPtr> FormatConfigs_;

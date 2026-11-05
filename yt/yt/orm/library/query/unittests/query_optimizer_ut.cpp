@@ -105,6 +105,52 @@ TEST(TQueryOptimizerTest, DoesNotOptimizeJoin)
     EXPECT_EQ(expectedSql, FormatQuery(query));
 }
 
+TEST(TQueryOptimizerTest, OptimizeJoinWithGroupByAlias)
+{
+    TObjectsHolder objectsHolder;
+    TQuery query;
+    auto& select = query.SelectExprs.emplace();
+    select.push_back(objectsHolder.New<TFunctionExpression>(
+        NQueryClient::TSourceLocation(),
+        "first",
+        TExpressionList{
+            objectsHolder.New<TReferenceExpression>(
+                NQueryClient::TSourceLocation(),
+                "group_by_expression"),
+        }));
+
+    query.FromClause = TTableDescriptor("//index", "i");
+    query.Joins.push_back(TJoin(
+        false,
+        TTableDescriptor("//books", "p"),
+        MakeExpression<TReferenceExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            "book_id",
+            "i"),
+        MakeExpression<TReferenceExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            "meta.id",
+            "p"),
+        std::nullopt));
+    query.GroupExprs = TExpressionList{
+        objectsHolder.New<TAliasExpression>(
+            NQueryClient::TSourceLocation(),
+            objectsHolder.New<TReferenceExpression>(
+                NQueryClient::TSourceLocation(),
+                "book_id",
+                "i"),
+            "group_by_expression"),
+    };
+
+    EXPECT_TRUE(TryOptimizeJoin(&query));
+
+    TStringBuf optimizedSql = "first(group_by_expression) FROM `//index` AS i"
+                              " GROUP BY (i.book_id as group_by_expression)";
+    EXPECT_EQ(optimizedSql, FormatQuery(query));
+}
+
 TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
 {
     TObjectsHolder objectsHolder;
@@ -193,6 +239,16 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
             "i.[permalink_ids] < 42",
             references,
             tableName));
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "(i.[permalink_ids], [some_other_ref]) and i.[permalink_ids] = 1",
+            references,
+            tableName));
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] = 1 or (i.[permalink_ids], [some_other_ref])",
+            references,
+            tableName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +276,6 @@ TEST(TQueryOptimizerTest, PushDownGroupBy)
         " group by t.x"
         " having first(t.v) > 0 and (min(t.p) + max(t.q)) < 0 and ((first(r.w) + sum(r.s) * min(r.q)) / max(r.q)) > 300"
         " order by first(t.o1), min(t.o2), max(t.o3), first(r.o1), sum(r.o2), min(r.o3), max(r.o4)"));
-
 
     // There is no join or group by to push down.
     EXPECT_FALSE(RunPushDownGroupByOptimization(

@@ -23,7 +23,7 @@ TSimulatorNodeWorker::TSimulatorNodeWorker(
     , Events_(events)
     , JobAndOperationCounter_(jobAndOperationCounter)
     , Invoker_(CreateSerializedInvoker(std::move(commonNodeWorkerInvoker)))
-    , Logger(SchedulerSimulatorLogger().WithTag("NodeWorkerId: %v", Id_))
+    , Logger(SchedulerSimulatorLogger().WithTag("NodeWorkerId", Id_))
     , NodeShards_(nodeShards)
 { }
 
@@ -71,10 +71,10 @@ void TSimulatorNodeWorker::RunOnce()
 
 void TSimulatorNodeWorker::OnHeartbeat(const TNodeEvent& event)
 {
-    YT_LOG_DEBUG("Processing heartbeat event (NodeId: %v, VirtualTimestamp: %v, ScheduledOutOfBand: %v)",
-        event.NodeId,
-        event.Time,
-        event.ScheduledOutOfBand);
+    YT_TLOG_DEBUG("Processing heartbeat event")
+        .With("NodeId", event.NodeId)
+        .With("VirtualTimestamp", event.Time)
+        .With("ScheduledOutOfBand", event.ScheduledOutOfBand);
 
     int shardId = TSimulatorNodeShard::GetNodeShardId(event.NodeId, std::ssize(NodeShards_));
     const auto& nodeShard = NodeShards_[shardId];
@@ -87,11 +87,10 @@ void TSimulatorNodeWorker::OnHeartbeat(const TNodeEvent& event)
 
 void TSimulatorNodeWorker::OnAllocationFinished(const TNodeEvent& event)
 {
-    YT_LOG_DEBUG(
-        "Processing allocation finished event (NodeId: %v, VirtualTimestamp: %v, AllocationId: %v)",
-        event.NodeId,
-        event.Time,
-        event.Allocation->GetId());
+    YT_TLOG_DEBUG("Processing allocation finished event")
+        .With("NodeId", event.NodeId)
+        .With("VirtualTimestamp", event.Time)
+        .With("AllocationId", event.Allocation->GetId());
 
     int shardId = TSimulatorNodeShard::GetNodeShardId(event.NodeId, std::ssize(NodeShards_));
     const auto& nodeShard = NodeShards_[shardId];

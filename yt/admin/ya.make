@@ -36,3 +36,7 @@ IF (NOT OPENSOURCE)
         experiments
     )
 ENDIF()
+
+IF (OS_LINUX AND NOT OPENSOURCE)
+    RECURSE(periscope)
+ENDIF()

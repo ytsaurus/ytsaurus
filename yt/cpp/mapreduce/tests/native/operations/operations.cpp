@@ -2666,6 +2666,75 @@ TEST(Operations, FileCacheModes)
                 .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
 }
 
+TEST(Operations, LockFileStorage)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    TConfig::Get()->LockFileStorage = true;
+
+    CreateTableWithFooColumn(client, workingDir + "/input");
+
+    TTempFile tempFile(MakeTempName());
+    {
+        TOFStream os(tempFile.Name());
+        // Create a file with unique contents to get cache miss
+        os << CreateGuidAsString();
+    }
+
+    // Operations keep their file transaction (and thus the lock) alive until they leave
+    // the initializing state; hold them there so the lock can be observed.
+    auto delayInitializeSpec = TNode()("testing", TNode()("delay_inside_initialize", 60'000));
+
+    auto customStorageOp = client->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output_1")
+            .MapperSpec(TUserJobSpec()
+                .AddLocalFile(tempFile.Name())),
+        new TIdMapper,
+        TOperationOptions()
+            .Wait(false)
+            .Spec(delayInitializeSpec)
+            .FileStorage(workingDir + "/file_storage"));
+
+    auto abortCustomStorageOpGuard = Finally([&] {
+        if (customStorageOp->GetBriefState() == EOperationBriefState::InProgress) {
+            customStorageOp->AbortOperation();
+        }
+    });
+
+    auto defaultStorageOp = client->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output_2")
+            .MapperSpec(TUserJobSpec()
+                .AddLocalFile(tempFile.Name())),
+        new TIdMapper,
+        TOperationOptions()
+            .Wait(false)
+            .Spec(delayInitializeSpec));
+
+    auto abortDefaultStorageOpGuard = Finally([&] {
+        if (defaultStorageOp->GetBriefState() == EOperationBriefState::InProgress) {
+            defaultStorageOp->AbortOperation();
+        }
+    });
+
+    auto hasSharedLock = [&] (const TYPath& path) {
+        auto locks = client->Get(path + "/@locks");
+        return AnyOf(locks.AsList(), [] (const TNode& lock) {
+            return lock["mode"].AsString() == "shared";
+        });
+    };
+
+    EXPECT_TRUE(hasSharedLock(workingDir + "/file_storage/new_cache"));
+
+    // The default file storage must not be locked even when the option is enabled.
+    EXPECT_FALSE(hasSharedLock(TConfig::Get()->RemoteTempFilesDirectory + "/new_cache"));
+}
+
 TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
 {
     TTestFixture fixture;
@@ -3304,12 +3373,19 @@ TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
                 ("blah2", 2)));
 
     TNode unrecognizedSpec;
-    TStringBuf prefix = "WARNING! Unrecognized spec for operation";
+    // The spec is the trailing tag of the log event, so it runs to the closing paren.
+    constexpr TStringBuf marker = "UnrecognizedSpec: ";
     for (TStringBuf line : StringSplitter(stream.Str()).Split('\n')) {
-        if (line.StartsWith(prefix)) {
-            unrecognizedSpec = NodeFromYsonString(line.After(':'));
-            break;
+        auto pos = line.find(marker);
+        if (pos == TStringBuf::npos) {
+            continue;
         }
+        auto spec = line.substr(pos + marker.size());
+        if (spec.EndsWith(')')) {
+            spec.Chop(1);
+        }
+        unrecognizedSpec = NodeFromYsonString(spec);
+        break;
     }
 
     EXPECT_EQ(unrecognizedSpec.GetType(), TNode::Map);

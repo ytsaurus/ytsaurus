@@ -2,7 +2,7 @@
 #
 # Author: Mike McKerns (mmckerns @caltech and @uqfoundation)
 # Copyright (c) 2008-2015 California Institute of Technology.
-# Copyright (c) 2016-2025 The Uncertainty Quantification Foundation.
+# Copyright (c) 2016-2026 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 """
@@ -54,6 +54,7 @@ OLD312a7 = (sys.hexversion < 0x30c00a7)
 import builtins as __builtin__
 from pickle import _Pickler as StockPickler, Unpickler as StockUnpickler
 from pickle import GLOBAL, POP
+from _contextvars import Context as ContextType
 from _thread import LockType
 from _thread import RLock as RLockType
 try:
@@ -1060,7 +1061,10 @@ def _getattr(objclass, name, repr_str):
         try:
             attr = objclass.__dict__
             if type(attr) is DictProxyType:
-                attr = attr[name]
+                if sys.hexversion > 0x30f00a0 and name in ('__weakref__','__dict__'):
+                    attr = _dictproxy_helper.__dict__[name]
+                else:
+                    attr = attr[name]
             else:
                 attr = getattr(objclass,name)
         except (AttributeError, KeyError):
@@ -2144,6 +2148,12 @@ if HAS_CTYPES and hasattr(ctypes, 'pythonapi'):
     _incedental_types.add(PyCapsuleType)
 else:
     _testcapsule = None
+
+@register(ContextType)
+def save_context(pickler, obj):
+    logger.trace(pickler, "Cx: %s", obj)
+    pickler.save_reduce(ContextType, tuple(obj.items()), obj=obj)
+    logger.trace(pickler, "# Cx")
 
 
 #############################

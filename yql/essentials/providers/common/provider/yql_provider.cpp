@@ -228,6 +228,7 @@ TWriteTableSettings ParseWriteTableSettings(TExprList node, TExprContext& ctx) {
     TMaybeNode<TCoLambda> update;
     TVector<TCoNameValueTuple> other;
     TVector<TCoIndex> indexes;
+    TVector<TCoStatistics> statistics;
     TVector<TCoChangefeed> changefeeds;
     TMaybeNode<TExprList> columnFamilies;
     TVector<TCoNameValueTuple> tableSettings;
@@ -300,6 +301,22 @@ TWriteTableSettings ParseWriteTableSettings(TExprList node, TExprContext& ctx) {
                     index.Name(InferIndexName(*columnList, ctx));
                 }
                 indexes.push_back(index.Done());
+            } else if (name == "statistics") {
+                YQL_ENSURE(tuple.Value().Maybe<TCoNameValueTupleList>());
+                auto stat = Build<TCoStatistics>(ctx, node.Pos());
+                for (const auto& item : tuple.Value().Cast<TCoNameValueTupleList>()) {
+                    const auto& statItemName = item.Name().Value();
+                    if (statItemName == "statisticsName") {
+                        stat.Name(item.Value().Cast<TCoAtom>());
+                    } else if (statItemName == "statisticsColumns") {
+                        stat.Columns(item.Value().Cast<TCoAtomList>());
+                    } else if (statItemName == "statisticsTypes") {
+                        stat.Types(item.Value().Cast<TCoAtomList>());
+                    } else {
+                        YQL_ENSURE(false, "unknown statistics item " << statItemName);
+                    }
+                }
+                statistics.push_back(stat.Done());
             } else if (name == "changefeed") {
                 YQL_ENSURE(tuple.Value().Maybe<TCoNameValueTupleList>());
                 auto cf = Build<TCoChangefeed>(ctx, node.Pos());
@@ -357,6 +374,10 @@ TWriteTableSettings ParseWriteTableSettings(TExprList node, TExprContext& ctx) {
                           .Add(indexes)
                           .Done();
 
+    const auto& stats = Build<TCoStatisticsList>(ctx, node.Pos())
+                            .Add(statistics)
+                            .Done();
+
     const auto& cfs = Build<TCoChangefeedList>(ctx, node.Pos())
                           .Add(changefeeds)
                           .Done();
@@ -385,6 +406,7 @@ TWriteTableSettings ParseWriteTableSettings(TExprList node, TExprContext& ctx) {
     ret.Filter = filter;
     ret.Update = update;
     ret.Indexes = idx;
+    ret.Statistics = stats;
     ret.Changefeeds = cfs;
     ret.ColumnFamilies = columnFamilies;
     ret.TableSettings = tableProfileSettings;
@@ -1125,10 +1147,10 @@ void GetToken(const TString& string, TString& out, const TTypeAnnotationContext&
 }
 
 void FillSecureParams(
-    const TExprNode::TPtr& root,
+    const TExprNode::TPtr& node,
     const TTypeAnnotationContext& types,
     THashMap<TString, TString>& secureParams) {
-    NYql::VisitExpr(root, [&secureParams](const TExprNode::TPtr& node) {
+    NYql::VisitExpr(node, [&secureParams](const TExprNode::TPtr& node) {
         if (auto maybeSecureParam = TMaybeNode<TCoSecureParam>(node)) {
             const auto& secureParamName = TString(maybeSecureParam.Cast().Name().Value());
             secureParams.insert({secureParamName, TString()});
@@ -1204,7 +1226,7 @@ bool FillUsedFiles(
         const auto& e = NPg::LookupExtension(extensionIndex);
         needFullPgCatalog = true;
         auto alias = TFsPath(e.LibraryPath).GetName();
-        if (!AddPgFile(true, e.LibraryPath, e.LibraryMD5, alias, files, types, node.Pos(), ctx)) {
+        if (!AddPgFile(/*isPath=*/true, e.LibraryPath, e.LibraryMD5, alias, files, types, node.Pos(), ctx)) {
             return false;
         }
     }
@@ -1215,11 +1237,7 @@ bool FillUsedFiles(
     }
 
     TString content = NPg::ExportExtensions(filter);
-    if (!AddPgFile(false, content, "", TString(PgCatalogFileName), files, types, node.Pos(), ctx)) {
-        return false;
-    }
-
-    return true;
+    return AddPgFile(/*isPath=*/false, content, "", TString(PgCatalogFileName), files, types, node.Pos(), ctx);
 }
 
 std::pair<IGraphTransformer::TStatus, TAsyncTransformCallbackFuture> FreezeUsedFiles(const TExprNode& node, TUserDataTable& files, const TTypeAnnotationContext& types, TExprContext& ctx, const std::function<bool(const TString&)>& urlDownloadFilter, const TUserDataTable& crutches) {
@@ -1305,7 +1323,7 @@ TString SerializeExpr(TExprContext& ctx, const TExprNode& expr, bool withTypes) 
         typeFlags |= TExprAnnotationFlags::Types;
     }
 
-    auto ast = ConvertToAst(expr, ctx, typeFlags, true);
+    auto ast = ConvertToAst(expr, ctx, typeFlags, /*refAtoms=*/true);
     YQL_ENSURE(ast.Root);
     return ast.Root->ToString();
 }
@@ -1612,7 +1630,7 @@ void WriteStatistics(NYson::TYsonWriter& writer, bool totalOnly, const THashMap<
         }
     }
 
-    if (totalOnly == false) {
+    if (!totalOnly) {
         for (const auto& [key, value] : statistics) {
             writer.OnKeyedItem(ToString(key));
             WriteStatistics(writer, value);
@@ -1639,7 +1657,7 @@ void WriteStatistics(NYson::TYsonWriter& writer, bool totalOnly, const THashMap<
         writer.OnInt64Scalar(std::get<1>(totalEntry));
 
         writer.OnKeyedItem("avg");
-        writer.OnInt64Scalar(std::get<1>(totalEntry) ? (std::get<0>(totalEntry) / std::get<1>(totalEntry)) : 0l);
+        writer.OnInt64Scalar(std::get<1>(totalEntry) ? (std::get<0>(totalEntry) / std::get<1>(totalEntry)) : 0L);
 
         writer.OnKeyedItem("max");
         writer.OnInt64Scalar(std::get<2>(totalEntry));
@@ -1801,13 +1819,33 @@ bool TransformPgSetItemOption(
     const TCoPgSelect& pgSelect,
     TStringBuf optionName,
     std::function<void(const TExprBase&)> lambda) {
+    return TransformSqlSetItemOption(pgSelect, optionName, std::move(lambda));
+}
+
+bool NeedToRenamePgSelectColumns(const TCoPgSelect& pgSelect) {
+    return NeedToRenameSqlSelectColumns(pgSelect);
+}
+
+bool RenamePgSelectColumns(
+    const TCoPgSelect& node,
+    TExprNode::TPtr& output,
+    const TMaybe<TColumnOrder>& tableColumnOrder,
+    TExprContext& ctx,
+    TTypeAnnotationContext& types) {
+    return RenameSqlSelectColumns(node, output, tableColumnOrder, ctx, types);
+}
+
+bool TransformSqlSetItemOption(
+    const TExprBase& sqlSelect,
+    TStringBuf optionName,
+    std::function<void(const TExprBase&)> lambda) {
     bool applied = false;
-    for (const auto& option : pgSelect.SelectOptions()) {
-        if (option.Name() == "set_items") {
-            auto pgSetItems = option.Value().Cast<TExprList>();
-            for (const auto& setItem : pgSetItems) {
-                auto setItemNode = setItem.Cast<TCoPgSetItem>();
-                for (const auto& setItemOption : setItemNode.SetItemOptions()) {
+    YQL_ENSURE(sqlSelect.Ref().IsCallable({"PgSelect", "YqlSelect"}));
+    for (const auto& option : sqlSelect.Ref().Head().Children()) {
+        if (option->Head().Content() == "set_items") {
+            for (const auto& setItem : option->Tail().Children()) {
+                for (const auto& child : setItem->Head().Children()) {
+                    const TExprBase setItemOption(child);
                     if (MatchesSetItemOption(setItemOption, optionName)) {
                         applied = true;
                         lambda(setItemOption);
@@ -1819,9 +1857,9 @@ bool TransformPgSetItemOption(
     return applied;
 }
 
-TExprNode::TPtr GetSetItemOption(const TCoPgSelect& pgSelect, TStringBuf optionName) {
+TExprNode::TPtr GetSetItemOption(const TExprBase& sqlSelect, TStringBuf optionName) {
     TExprNode::TPtr nodePtr = nullptr;
-    TransformPgSetItemOption(pgSelect, optionName, [&nodePtr](const TExprBase& option) {
+    TransformSqlSetItemOption(sqlSelect, optionName, [&nodePtr](const TExprBase& option) {
         nodePtr = option.Ptr();
     });
     return nodePtr;
@@ -1834,13 +1872,17 @@ TExprNode::TPtr GetSetItemOptionValue(const TExprBase& setItemOption) {
     return nullptr;
 }
 
-bool NeedToRenamePgSelectColumns(const TCoPgSelect& pgSelect) {
-    auto fill = NCommon::GetSetItemOption(pgSelect, "fill_target_columns");
-    return fill && !NCommon::GetSetItemOptionValue(TExprBase(fill));
+bool NeedToRenameSqlSelectColumns(const TExprBase& sqlSelect) {
+    auto fill = NCommon::GetSetItemOption(sqlSelect, "fill_target_columns");
+    if (!fill) {
+        return false;
+    }
+    auto value = NCommon::GetSetItemOptionValue(TExprBase(fill));
+    return !value || value->IsAtom("strict");
 }
 
-bool RenamePgSelectColumns(
-    const TCoPgSelect& node,
+bool RenameSqlSelectColumns(
+    const TExprBase& node,
     TExprNode::TPtr& output,
     const TMaybe<TColumnOrder>& tableColumnOrder,
     TExprContext& ctx,
@@ -1862,7 +1904,11 @@ bool RenamePgSelectColumns(
         insertColumnOrder = *tableColumnOrder;
     }
     YQL_ENSURE(selectorColumnOrder);
-    if (selectorColumnOrder->Size() > insertColumnOrder.Size()) {
+    auto fill = GetSetItemOption(node, "fill_target_columns");
+    auto fillMode = GetSetItemOptionValue(TExprBase(fill));
+    const bool strict = fillMode && fillMode->IsAtom("strict");
+    if ((strict && selectorColumnOrder->Size() != insertColumnOrder.Size()) ||
+        selectorColumnOrder->Size() > insertColumnOrder.Size()) {
         ctx.AddError(TIssue(ctx.GetPosition(node.Pos()), TStringBuilder() << Sprintf(
                                                              "%s have %zu columns, INSERT INTO expects: %zu",
                                                              optionName.data(),
@@ -1906,8 +1952,6 @@ bool RenamePgSelectColumns(
             .Build()
             .Build();
     }
-
-    auto fill = GetSetItemOption(node, "fill_target_columns");
 
     output = Build<TCoMap>(ctx, node.Pos())
                  .Input(node)

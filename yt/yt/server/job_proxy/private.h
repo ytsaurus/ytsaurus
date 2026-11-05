@@ -9,8 +9,8 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProxyLogger, "JobProxy");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, JobTraceLogger, "JobTrace");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, JobProxyLogger, "JobProxy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, JobTraceLogger, "JobTrace");
 
 ////////////////////////////////////////////////////////////////////////////////
 

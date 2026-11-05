@@ -172,10 +172,7 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, TableUploadOptions);
     PHOENIX_REGISTER_FIELD(2, TableWriterOptions);
     PHOENIX_REGISTER_FIELD(3, OutputType);
-    registrar.template VirtualField<4>("OriginalTableSchemaRevision_", [] (TThis* /*this_*/, auto& context) {
-        Load<NHydra::TRevision>(context);
-    })
-        .BeforeVersion(ESnapshotVersion::DropOriginalTableSchemaRevision)();
+    PHOENIX_REGISTER_DELETED_FIELD(4, NHydra::TRevision, OriginalTableSchemaRevision_, ESnapshotVersion::DropOriginalTableSchemaRevision);
     PHOENIX_REGISTER_FIELD(5, Type);
     PHOENIX_REGISTER_FIELD(6, DataStatistics);
     // NB: Scheduler snapshots need not be stable.

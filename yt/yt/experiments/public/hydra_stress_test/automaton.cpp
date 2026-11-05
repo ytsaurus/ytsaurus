@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
 namespace NYT::NHydraStressTest {
 
 using namespace NHydra;
@@ -109,19 +111,17 @@ void TAutomatonPart::HydraCas(
     if (CasValue_ == expected) {
         CasValue_ = desired;
         response->set_success(true);
-        YT_LOG_DEBUG(
-            "CAS succeeded (Expected: %v, Desired: %v)",
-            expected,
-            desired);
+        YT_TLOG_DEBUG("CAS succeeded")
+            .With("Expected", expected)
+            .With("Desired", desired);
         mutationContext->CombineStateHash(1, expected, desired);
     } else {
         response->set_success(false);
         response->set_current(CasValue_);
-        YT_LOG_DEBUG(
-            "CAS failed (Expected: %v, Desired: %v, Actual: %v)",
-            expected,
-            desired,
-            CasValue_);
+        YT_TLOG_DEBUG("CAS failed")
+            .With("Expected", expected)
+            .With("Desired", desired)
+            .With("Actual", CasValue_);
         mutationContext->CombineStateHash(2, expected, desired, CasValue_);
     }
 
@@ -129,9 +129,9 @@ void TAutomatonPart::HydraCas(
     ++MutationIndex_;
 
     if (context) {
-        context->SetResponseInfo("Success: %v, Current: %v",
-            response->success(),
-            response->current());
+        context->AnnotateResponse()
+            .With("Success", response->success())
+            .With("Current", response->current());
     }
 }
 
@@ -143,15 +143,14 @@ void TAutomatonPart::HydraSequencePart(
     auto value = request->value();
     auto id = request->id();
     if (context) {
-        context->SetRequestInfo("SequenceId: %v, Value: %v",
-            value,
-            id);
+        context->AnnotateRequest()
+            .With("SequenceId", value)
+            .With("Value", id);
     }
 
-    YT_LOG_DEBUG(
-        "Starting sequence iteration (SequenceId: %v, Value: %v)",
-        value,
-        id);
+    YT_TLOG_DEBUG("Starting sequence iteration")
+        .With("SequenceId", value)
+        .With("Value", id);
 
     if (value > 0) {
         YT_VERIFY(SequenceValue_ == value - 1);
@@ -160,7 +159,7 @@ void TAutomatonPart::HydraSequencePart(
     SequenceValue_ = value;
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 
@@ -173,15 +172,14 @@ void TAutomatonPart::HydraSequence(
     auto count = request->count();
 
     if (context) {
-        context->SetRequestInfo("SequenceId: %v, Count: %v",
-            count,
-            id);
+        context->AnnotateRequest()
+            .With("SequenceId", count)
+            .With("Count", id);
     }
 
-    YT_LOG_DEBUG(
-        "Started sequence (SequenceId: %v, Count: %v)",
-        id,
-        count);
+    YT_TLOG_DEBUG("Started sequence")
+        .With("SequenceId", id)
+        .With("Count", count);
 
     for (int i = 0; i < count; ++i) {
         TReqSequencePart req;
@@ -191,13 +189,12 @@ void TAutomatonPart::HydraSequence(
             ->CommitAndLog(Logger()));
     }
 
-    YT_LOG_DEBUG(
-        "Finished sequence (SequenceId: %v, Count: %v)",
-        id,
-        count);
+    YT_TLOG_DEBUG("Finished sequence")
+        .With("SequenceId", id)
+        .With("Count", count);
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 
@@ -209,22 +206,22 @@ void TAutomatonPart::HydraThrowException(
     auto expected = request->expected();
 
     if (context) {
-        context->SetRequestInfo("Expected: %v",
-            expected);
+        context->AnnotateRequest()
+            .With("Expected", expected);
     }
 
     if (expected) {
-        YT_LOG_DEBUG("Throwing expected exception");
+        YT_TLOG_DEBUG("Throwing expected exception");
         THROW_ERROR_EXCEPTION(NHydra::EErrorCode::ExpectedMutationHandlerException, "Expected mutation exception thrown")
-            << NYT::TError(std::length_error("Good exception"));
+            .With(NYT::TError(std::length_error("Good exception")));
 
     } else {
-        YT_LOG_DEBUG("Throwing unexpected exception");
+        YT_TLOG_DEBUG("Throwing unexpected exception");
         throw std::length_error("Bad exception");
     }
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 

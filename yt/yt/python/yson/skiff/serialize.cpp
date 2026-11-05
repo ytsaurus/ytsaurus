@@ -20,6 +20,7 @@
 namespace NYT::NPython {
 
 using namespace NSkiff;
+using namespace NSkiffExt;
 using namespace NYson;
 using namespace NYTree;
 
@@ -29,7 +30,7 @@ void SerializeField(
     NSkiff::EWireType wireType,
     const Py::Object& object,
     bool required,
-    const std::optional<TString>& encoding,
+    const std::optional<std::string>& encoding,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter)
 {
     if (!required) {
@@ -74,7 +75,7 @@ void SerializeField(
             break;
         }
         case NSkiff::EWireType::Yson32: {
-            auto value = ConvertToYsonString(object, EYsonFormat::Text);
+            auto value = ConvertToYsonString(object, EYsonFormat::Binary);
             skiffWriter->WriteYson32(value.AsStringBuf());
             break;
         }
@@ -89,13 +90,14 @@ void SerializeSkiff(
     const TIntrusivePtr<TSkiffRecord>& record,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter,
     const TIntrusivePtr<TSkiffSchema>& schema,
-    const std::optional<TString>& encoding)
+    const std::optional<std::string>& encoding)
 {
     for (ui16 idx = 0; idx < schema->GetDenseFieldsCount(); ++idx) {
         const auto& fieldInfo = schema->GetDenseField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, fieldInfo.IsRequired(), encoding, skiffWriter);
+        auto [strippedSchema, optionalKind] = StripOptional(fieldInfo.Schema());
+        SerializeField(GetSupportedWireTypeOrThrow(strippedSchema), object, optionalKind == EOptionalKind::None, encoding, skiffWriter);
     }
 
     if (schema->GetSparseFieldsCount() > 0) {
@@ -108,7 +110,7 @@ void SerializeSkiff(
             }
 
             skiffWriter->WriteVariant16Tag(idx);
-            SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, /*required*/ true, encoding, skiffWriter);
+            SerializeField(GetSupportedWireTypeOrThrow(fieldInfo.Schema()), object, /*required*/ true, encoding, skiffWriter);
         }
         skiffWriter->WriteVariant16Tag(NSkiff::EndOfSequenceTag<ui16>());
     }
@@ -124,7 +126,7 @@ void SerializeSkiff(
             /* enableRaw */ false);
 
         NYTree::BuildYsonFluently(writer.get())
-            .DoMapFor(*record->GetOtherFields(), [=] (NYTree::TFluentMap fluent, const std::pair<TString, Py::Object>& column) {
+            .DoMapFor(*record->GetOtherFields(), [=] (NYTree::TFluentMap fluent, const std::pair<std::string, Py::Object>& column) {
                 fluent
                     .Item(column.first)
                     .Value(column.second);
@@ -158,7 +160,7 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
     }
     auto schemas = Py::List(schemasArg);
 
-    std::optional<TString> encoding("utf-8");
+    std::optional<std::string> encoding("utf-8");
     if (HasArgument(args, kwargs, "encoding")) {
         auto arg = ExtractArgument(args, kwargs, "encoding");
         if (arg.isNone()) {
@@ -196,7 +198,7 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
             tableIndex = switcher.getCxxObject()->GetTableIndex();
             if (tableIndex >= schemaObjects.size()) {
                 THROW_ERROR_EXCEPTION("Invalid table index")
-                    << TErrorAttribute("table_index", tableIndex);
+                    .With("table_index", tableIndex);
             }
             continue;
         }

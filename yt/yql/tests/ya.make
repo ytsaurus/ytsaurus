@@ -8,3 +8,10 @@ RECURSE_FOR_TESTS(
     s-expressions
     sql
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE_FOR_TESTS(
+        clique
+        dq
+    )
+ENDIF()

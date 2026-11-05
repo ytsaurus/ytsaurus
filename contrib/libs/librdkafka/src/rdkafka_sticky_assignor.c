@@ -3027,6 +3027,10 @@ static int ut_testLargeAssignmentWithMultipleConsumersLeaving(
     rd_kafka_t *rk,
     const rd_kafka_assignor_t *rkas,
     rd_kafka_assignor_ut_rack_config_t parametrization) {
+        if (rd_unittest_with_valgrind)
+                RD_UT_SKIP(
+                    "Skipping large assignment test when using Valgrind");
+
         rd_kafka_resp_err_t err;
         char errstr[512];
         rd_kafka_metadata_t *metadata;

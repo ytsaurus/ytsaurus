@@ -7,12 +7,13 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import (
     MonitoringProjectDashboardParameter,
     MonitoringLabelDashboardParameter,
     MonitoringTextDashboardParameter,
 )
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, DownsamplingAggregation
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor, Text
@@ -39,10 +40,12 @@ def get_dashboards_meta():
         "controller",
         "worker",
         "computation",
+        "key-visitor",
         "one-worker",
         "message-transfering",
         "state-cache",
-        "companion-manager"
+        "companion-manager",
+        "distributed-throttler",
     ]:
         dashboards[short_name] = DashboardMeta(
             short_name=short_name,
@@ -59,6 +62,13 @@ def build_dashboard_links(dashboard_short_name: str):
     assert dashboard_short_name in DASHBOARDS_META, f"Unknown dashboard {dashboard_short_name}"
 
     return [
+        {
+            "link": {
+                "title": "UI YT",
+                "openInNewTab": True,
+                "url": "https://yt.yandex-team.ru/{{pipeline_cluster}}/flows/graph?path={{pipeline_path}}",
+            },
+        },
         {
             "group": {
                 "items": [
@@ -115,16 +125,28 @@ def build_dashboard_links(dashboard_short_name: str):
     ]
 
 
-def build_versions(worker_host_aggr: bool = True):
-    spec_version_change_query_transformation = "sign(derivative({query}))"
+def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
+    def spec_version_change(sensor, alias):
+        version = MonitoringExpr(FlowController(sensor))
+        if backend == "monitoring":
+            version = version.downsampling_aggregation(DownsamplingAggregation.Last)
+        return version.derivative().sign().alias(alias)
 
     def make_url(name):
         return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/{name}"
             "?p[project]={{project}}&p[cluster]={{cluster}}"
             "&p[pipeline_cluster]={{pipeline_cluster}}&p[pipeline_path]={{pipeline_path}}")
 
+    def make_grafana_url(name):
+        # A host-relative link by dashboard uid; grafana interpolates the
+        # ${...} template variables inside text panel content.
+        return (f"/d/{name}"
+            "?var-project=${project}&var-cluster=${cluster}"
+            "&var-pipeline_cluster=${pipeline_cluster}&var-pipeline_path=${pipeline_path}")
+
+    url = make_url if backend == "monitoring" else make_grafana_url
     description_rows = ["&#128196; [Diagnosis and problem solving documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"] + [
-        f"&#128200; [{dashboard_meta.title} dashboard]({make_url(dashboard_meta.name)})"
+        f"&#128200; [{dashboard_meta.title} dashboard]({url(dashboard_meta.name)})"
         for dashboard_meta in DASHBOARDS_META.values()
     ]
     description_text = "\n".join(description_rows)
@@ -151,18 +173,66 @@ def build_versions(worker_host_aggr: bool = True):
             .cell(
                 "Specs version change",
                 MultiSensor(
-                    MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
-                        .query_transformation(spec_version_change_query_transformation)
-                        .alias("Spec change"),
-                    MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
-                        .query_transformation(spec_version_change_query_transformation)
-                        .alias("Dynamic spec change")),
+                    spec_version_change("yt.flow.controller.spec_version", "Spec change"),
+                    spec_version_change("yt.flow.controller.dynamic_spec_version", "Dynamic spec change")),
                 description="Spikes mean that [dynamic] spec has been changed")
             .cell("", Text(description_text))
     ).owner
 
 
-def build_resource_usage(component: str, add_component_to_title: bool):
+def build_event_lag_percentile(metric: str, percentile: str, computation_id, group_labels: list, backend: str):
+    """Percentile of an event lag histogram sensor, one line per group_labels combination.
+
+    percentile is in Solomon percent form: "90" or a "{{percentile}}" parameter reference.
+    """
+    extra_labels = [label for label in group_labels if label not in ("computation_id", "stream_id")]
+
+    if backend == "monitoring":
+        sensor = (MonitoringExpr(FlowWorker(metric))
+            .aggr("host")
+            .value("computation_id", computation_id)
+            .all("stream_id")
+            .all("bin"))
+        for label in extra_labels:
+            sensor = sensor.all(label)
+        labels_vector = "as_vector(" + ", ".join(f'"{label}"' for label in group_labels) + ")"
+        return MonitoringExpr.func(
+            "group_by_labels", sensor, labels_vector,
+            f"v -> histogram_percentile({percentile}, v)")
+
+    # The exporter publishes these sensors as native Prometheus histograms;
+    # compute the percentile from the "le" buckets. Raw per-host series are
+    # summed here, so no aggregation layer is required ("all" excludes the
+    # aggregated host="Aggr" series).
+    grouping = ", ".join(["le"] + group_labels)
+    grafana_percentile = percentile.replace("{{percentile}}", "$percentile")
+    return (MonitoringExpr(FlowWorker(f"{metric}.bucket.rate"))
+        .all("host")
+        .value("computation_id", computation_id)
+        .all("stream_id")
+        .query_transformation(
+            f"histogram_quantile(({grafana_percentile}) / 100, sum by ({grouping}) ({{query}}))"))
+
+
+def build_median_over_hosts(metric: str, group_labels: list, backend: str):
+    """Median across hosts of a sensor, one line per group_labels combination."""
+    expr = MonitoringExpr(FlowWorker(metric)).all("host")
+    if backend == "monitoring":
+        labels = ", ".join(f'"{label}"' for label in group_labels)
+        return expr.query_transformation(f'group_lines("median", [{labels}], {{query}})')
+    return expr.query_transformation(f'quantile by ({", ".join(group_labels)}) (0.5, {{query}})')
+
+
+def build_series_sum(metric: str, group_labels: list, backend: str):
+    """Sum of a sensor's series, one line per group_labels combination."""
+    expr = MonitoringExpr(FlowWorker(metric))
+    if backend == "monitoring":
+        labels = ", ".join(f'"{label}"' for label in group_labels)
+        return expr.query_transformation(f'series_sum([{labels}], {{query}})')
+    return expr.series_sum(*group_labels)
+
+
+def build_resource_usage(component: str, add_component_to_title: bool, backend: str = "monitoring"):
     sensor = {
         "controller": FlowController,
         "worker": FlowWorker,
@@ -178,14 +248,53 @@ def build_resource_usage(component: str, add_component_to_title: bool):
         "If you see significant increase on this graph, check that network limits are not exceeded"
     )
 
+    bandwidth_description = (
+        "Bytes the node's pod received and transmitted per second, "
+        "including the traffic of its sidecars. "
+        "The guarantee is a floor rather than a cap: traffic above it is served, "
+        "but is the first to be dropped when the host is congested"
+    )
+
+    # Anon memory is what the pod is killed on, so take usage and limit from
+    # porto at pod scope; the limit is equal on all hosts, hence one line.
+    # The cgroup fallback reads PAGE_COUNTER_MAX (~9.2e18) when unset.
+    pod_memory = None
+    if backend == "monitoring":
+        memory_limit = (MonitoringExpr(sensor("yt.porto.memory.anon_limit"))
+            .value("container_category", "pod")
+            .series_min()
+            .alias("Anon Memory Limit"))
+        pod_memory = (MonitoringExpr(sensor("yt.porto.memory.anon_usage"))
+            .value("container_category", "pod")
+            .alias("Anon Memory Usage - {{host}}"))
+    else:
+        memory_limit = (MonitoringExpr(sensor("yt.memory.cgroup.memory_limit"))
+            .query_transformation("({query}) < 1e18")
+            .alias("Limit"))
+
+    # The vcpu limit is exported by the porto resource tracker, so it exists only
+    # in installations with porto, i.e. not on the grafana backend. All hosts
+    # report the same limit, so collapse them into one line; per-host limits are
+    # all equal and would bury the usage lines in the tooltip. Take the minimum
+    # to show the tightest one if the hosts ever disagree.
+    vcpu_limit = None
+    if backend == "monitoring":
+        vcpu_limit = ((MonitoringExpr(sensor("yt.porto.vcpu.limit")) / 100)
+            .value("container_category", "pod")
+            .series_min()
+            .alias("Limit"))
+
     return (Rowset()
         .stack(False)
         .all("host")
         .row()
             .cell(
                 "Total VCPU" + title_suffix,
-                (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
-                    .aggr("thread")
+                MultiSensor(
+                    (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
+                        .aggr("thread"),
+                    # Already vcpu-scaled, in percent, like total_vcpu.
+                    vcpu_limit)
                     .unit("UNIT_NONE"),
                 description=vcpu_description)
             .cell(
@@ -196,7 +305,32 @@ def build_resource_usage(component: str, add_component_to_title: bool):
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))")
                     .alias("{{thread}} - {{host}}")
                     .top(10))
-            .cell("Memory" + title_suffix, sensor("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
+            .cell(
+                "Memory" + title_suffix,
+                MultiSensor(
+                    MonitoringExpr(sensor("yt.resource_tracker.memory_usage.rss"))
+                        .alias("RSS - {{host}}"),
+                    pod_memory,
+                    memory_limit)
+                    .unit("UNIT_BYTES_SI"))
+            # Network usage is exported by the porto resource tracker, so it exists
+            # only in installations with porto, i.e. not on the grafana backend.
+            .cell(
+                "Network bandwidth" + title_suffix,
+                MultiSensor(
+                    MonitoringExpr(sensor("yt.porto.network.rx_bytes"))
+                        .value("container_category", "pod")
+                        .alias("Rx - {{host}}"),
+                    MonitoringExpr(sensor("yt.porto.network.tx_bytes"))
+                        .value("container_category", "pod")
+                        .alias("Tx - {{host}}"),
+                    # The guarantee is equal on all hosts, hence one line.
+                    MonitoringExpr(sensor("yt.flow.node.network_bandwidth_guarantee"))
+                        .series_min()
+                        .alias("Guarantee"))
+                    .unit("UNIT_BYTES_SI_PER_SECOND"),
+                description=bandwidth_description,
+                skip_cell=backend != "monitoring")
             .cell(
                 "Network retransmits" + title_suffix,
                 sensor("yt.bus.retransmits.rate")
@@ -260,7 +394,7 @@ def build_yt_rpc(component: str):
             .aggr("host")
             .all("method")
             .all("yt_service")
-            .query_transformation('series_sum(["method", "yt_service"], {query})')
+            .series_sum("method", "yt_service")
             .alias("{{yt_service}}.{{method}}")
             .stack(True)
             .unit("UNIT_BYTES_SI_PER_SECOND")
@@ -309,7 +443,12 @@ def build_text_row(text: str):
 
 
 def add_common_dashboard_parameters(dashboard):
-    dashboard.add_parameter("project", "Pipeline project", MonitoringProjectDashboardParameter())
+    dashboard.add_parameter(
+        "project",
+        "Pipeline project",
+        MonitoringProjectDashboardParameter(),
+        backends=["monitoring"],
+    )
     dashboard.add_parameter(
         "cluster",
         "Cluster",
@@ -319,6 +458,7 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
     dashboard.add_parameter(
@@ -330,6 +470,7 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
     dashboard.add_parameter(
@@ -341,16 +482,30 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
+    for name, title in (
+        ("project", "Pipeline project"),
+        ("cluster", "Cluster"),
+        ("pipeline_cluster", "Pipeline cluster"),
+        ("pipeline_path", "Pipeline path"),
+    ):
+        dashboard.add_parameter(
+            name,
+            title,
+            GrafanaTextboxDashboardParameter(".*"),
+            backends=["grafana"],
+        )
 
-def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True):
+
+def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True, backend: str = "monitoring"):
     d = Dashboard()
     d.set_title(f"[YT Flow] {DASHBOARDS_META[short_name].title}")
     d.set_monitoring_links(build_dashboard_links(short_name))
     add_common_dashboard_parameters(d)
 
-    d.add(build_versions(worker_host_aggr=worker_host_aggr))
+    d.add(build_versions(worker_host_aggr=worker_host_aggr, backend=backend))
 
     filler(d)
 

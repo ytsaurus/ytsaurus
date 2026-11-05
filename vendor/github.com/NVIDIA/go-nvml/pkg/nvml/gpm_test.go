@@ -23,7 +23,7 @@ import (
 )
 
 func TestGpmMetricsGet(t *testing.T) {
-	overrideMetrics := [210]GpmMetric{
+	overrideMetrics := [477]GpmMetric{
 		{
 			Value: 99,
 		},
@@ -46,7 +46,7 @@ func TestGpmMetricsGet(t *testing.T) {
 }
 
 func TestGpmMetricsGetV(t *testing.T) {
-	overrideMetrics := [210]GpmMetric{
+	overrideMetrics := [477]GpmMetric{
 		{
 			Value: 99,
 		},
@@ -69,11 +69,48 @@ func TestGpmMetricsGetV(t *testing.T) {
 	require.EqualValues(t, overrideMetrics, metrics.Metrics)
 }
 
+func TestGpmQueryDeviceSupportUsesStructVersionV1(t *testing.T) {
+	defer setNvmlGpmQueryDeviceSupportStubForTest(func(device nvmlDevice, gpmSupport *GpmSupport) Return {
+		require.EqualValues(t, GPM_SUPPORT_VERSION, gpmSupport.Version)
+		gpmSupport.IsSupportedDevice = 1
+		return SUCCESS
+	})()
+
+	gpmSupport, ret := nvmlDevice{}.GpmQueryDeviceSupport()
+
+	require.Equal(t, SUCCESS, ret)
+	require.EqualValues(t, GPM_SUPPORT_VERSION, gpmSupport.Version)
+	require.EqualValues(t, 1, gpmSupport.IsSupportedDevice)
+}
+
+func TestGpmQueryDeviceSupportV1UsesStructVersionV1(t *testing.T) {
+	defer setNvmlGpmQueryDeviceSupportStubForTest(func(device nvmlDevice, gpmSupport *GpmSupport) Return {
+		require.EqualValues(t, GPM_SUPPORT_VERSION, gpmSupport.Version)
+		gpmSupport.IsSupportedDevice = 1
+		return SUCCESS
+	})()
+
+	gpmSupport, ret := nvmlDevice{}.GpmQueryDeviceSupportV().V1()
+
+	require.Equal(t, SUCCESS, ret)
+	require.EqualValues(t, GPM_SUPPORT_VERSION, gpmSupport.Version)
+	require.EqualValues(t, 1, gpmSupport.IsSupportedDevice)
+}
+
 func setNvmlGpmMetricsGetStubForTest(mock func(metricsGet *nvmlGpmMetricsGetType) Return) func() {
 	original := nvmlGpmMetricsGetStub
 
 	nvmlGpmMetricsGetStub = mock
 	return func() {
 		nvmlGpmMetricsGetStub = original
+	}
+}
+
+func setNvmlGpmQueryDeviceSupportStubForTest(mock func(device nvmlDevice, gpmSupport *GpmSupport) Return) func() {
+	original := nvmlGpmQueryDeviceSupportStub
+
+	nvmlGpmQueryDeviceSupportStub = mock
+	return func() {
+		nvmlGpmQueryDeviceSupportStub = original
 	}
 }

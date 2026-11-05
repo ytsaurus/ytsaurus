@@ -1,0 +1,626 @@
+#include "shuffle_writer.h"
+
+#include "config.h"
+#include "record_format.h"
+#include "session_provider.h"
+
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_writer.h>
+
+#include <yt/yt/ytlib/table_client/partitioner.h>
+
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/core/concurrency/serialized_invoker.h>
+
+#include <yt/yt/core/misc/heap.h>
+
+#include <deque>
+#include <functional>
+
+namespace NYT::NPushBasedShuffleClient {
+
+using namespace NChunkClient;
+using namespace NCompression;
+using namespace NConcurrency;
+using namespace NDistributedChunkSessionClient;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NTableClient;
+
+using TCreateDistributedChunkWriterCallback = std::function<IDistributedChunkWriterPtr(TNodeDescriptor, TSessionId)>;
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TShuffleWireRecordTag { };
+
+struct TRecordEntry
+{
+    TSharedRef Record;
+    TDistributedChunkSessionWriteStatistics Statistics;
+    int SendAttempts = 0;
+};
+
+struct TInFlightEntry
+{
+    TRecordEntry Entry;
+    TSessionId SessionId;
+};
+
+struct TPartitionState
+{
+    std::optional<TShuffleRecordBuilder> Builder;
+    std::deque<TRecordEntry> Pending;
+    THashMap<i64, TInFlightEntry> InFlight;
+    // Per-send-attempt key for InFlight; a record re-sent after retry gets a
+    // new cookie, so a late-arriving ack for the old cookie no-ops in OnWriteResponse.
+    i64 NextSendCookie = 0;
+
+    std::optional<TSessionDescriptor> Session;
+    IDistributedChunkWriterPtr Writer;
+
+    TFuture<TSessionDescriptor> PendingSessionFuture;
+
+    i64 NextRowId = 0;
+
+    // Eviction-heap key; cached Builder->GetDataSize(), updated per AddRow.
+    i64 BufferedDataSize = 0;
+    // Logical data weight of the buffered rows; reported with the flushed record.
+    i64 BufferedDataWeight = 0;
+    // Slot in EvictionHeap_, or -1 when there is no builder.
+    int HeapIndex = -1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPushBasedShuffleWriter
+    : public IPushBasedShuffleWriter
+{
+public:
+    TPushBasedShuffleWriter(
+        TShuffleWriterConfigPtr config,
+        ECodec codec,
+        IPartitionWriteSessionProviderPtr sessionProvider,
+        IPartitionerPtr partitioner,
+        TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
+        i32 writerId,
+        IInvokerPtr invoker,
+        THashMap<int, TSessionDescriptor> seededSessions)
+        : Config_(std::move(config))
+        , Codec_(codec)
+        , SessionProvider_(std::move(sessionProvider))
+        , Partitioner_(std::move(partitioner))
+        , CreateDistributedChunkWriter_(std::move(createDistributedChunkWriter))
+        , WriterId_(writerId)
+        , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
+        , Logger(PushBasedShuffleLogger().WithTag("WriterId", WriterId_))
+        , Partitions_(Partitioner_->GetPartitionCount())
+        , SeededSessions_(std::move(seededSessions))
+        , BuildersBudget_(static_cast<i64>(Config_->MemoryBudget * Config_->BuildersBudgetFraction))
+        , InFlightBudget_(Config_->MemoryBudget - BuildersBudget_)
+    {
+        YT_VERIFY(BuildersBudget_ > 0);
+        YT_VERIFY(InFlightBudget_ > 0);
+        EvictionHeap_.reserve(Partitions_.size());
+        YT_TLOG_INFO("Push-based shuffle writer created")
+            .With("PartitionCount", Partitions_.size())
+            .With("MemoryBudget", Config_->MemoryBudget)
+            .With("BuildersBudget", BuildersBudget_)
+            .With("InFlightBudget", InFlightBudget_)
+            .With("MaxSendAttempts", Config_->MaxSendAttempts);
+    }
+
+    TFuture<void> Write(TRange<TUnversionedRow> rows) override
+    {
+        auto promise = NewPromise<void>();
+        auto future = promise.ToFuture();
+        SerializedInvoker_->Invoke(BIND(
+            [this, this_ = MakeStrong(this), rows, promise = std::move(promise)] () mutable {
+                try {
+                    DoWrite(rows, promise);
+                } catch (const std::exception& ex) {
+                    // DoWrite can throw on malformed input. Surface the error
+                    // on the returned future (unless DoWrite already moved
+                    // the promise into BackpressurePromise_) and fail the writer.
+                    auto error = TError(ex);
+                    if (promise) {
+                        promise.TrySet(error);
+                    }
+                    FailWriter(error);
+                }
+            }));
+        // Caller-cancel would auto-set the shared BackpressurePromise_ state
+        // and trip YT_VERIFY on the next backpressured Write.
+        return future.ToUncancelable();
+    }
+
+    TFuture<void> Close() override
+    {
+        // The close future owns the writer until its serialized kickoff runs.
+        return BIND(&TPushBasedShuffleWriter::DoClose, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run()
+            .ToUncancelable();
+    }
+
+private:
+    const TShuffleWriterConfigPtr Config_;
+    const ECodec Codec_;
+    const IPartitionWriteSessionProviderPtr SessionProvider_;
+    const IPartitionerPtr Partitioner_;
+    const TCreateDistributedChunkWriterCallback CreateDistributedChunkWriter_;
+    const i32 WriterId_;
+    const IInvokerPtr SerializedInvoker_;
+    const TLogger Logger;
+
+    std::vector<TPartitionState> Partitions_;
+    // Non-empty partitions as an addressable max-heap by BufferedDataSize; the
+    // front is the next eviction victim. HeapIndex mirrors each slot for
+    // O(log P) sift and removal. See yt/yt/core/misc/heap.h.
+    std::vector<int> EvictionHeap_;
+    // Sessions handed out during writer registration, consumed (erased) on a
+    // partition's first session request; failovers and unseeded partitions go
+    // through the provider.
+    THashMap<int, TSessionDescriptor> SeededSessions_;
+
+    const i64 BuildersBudget_;
+    const i64 InFlightBudget_;
+    i64 BuildersBytes_ = 0;
+    i64 InFlightBytes_ = 0;
+
+    // Aggregate count of "things the writer is still waiting on" — records
+    // (whether in Pending or InFlight) plus outstanding session requests.
+    // Maintained by FlushBuilder / RequestSession (increments) and the
+    // terminal OnWriteResponse branches plus OnSessionResolved (decrements). Avoids
+    // an O(partition_count) scan in MaybeFinishClose on every ack.
+    i64 OutstandingWork_ = 0;
+
+    TPromise<void> BackpressurePromise_;
+
+    bool Closing_ = false;
+    TPromise<void> ClosePromise_;
+
+    TError TerminalError_;
+
+    void DoWrite(TRange<TUnversionedRow> rows, TPromise<void>& writePromise)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_VERIFY(!Closing_);
+
+        if (!TerminalError_.IsOK()) {
+            writePromise.Set(TerminalError_);
+            return;
+        }
+
+        for (auto row : rows) {
+            int partitionIndex = Partitioner_->GetPartitionIndex(row);
+            YT_VERIFY(partitionIndex >= 0 && partitionIndex < std::ssize(Partitions_));
+            auto& partitionState = Partitions_[partitionIndex];
+            if (!partitionState.Builder) {
+                YT_ASSERT(partitionState.BufferedDataSize == 0);
+                YT_ASSERT(partitionState.BufferedDataWeight == 0);
+                partitionState.Builder.emplace(WriterId_, partitionState.NextRowId);
+                PushToEvictionHeap(partitionIndex);
+            }
+            i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
+            partitionState.Builder->AddRow(row);
+            partitionState.BufferedDataWeight += GetDataWeight(row);
+            i64 allocationDelta = partitionState.Builder->GetAllocatedDataSize() - prevAllocation;
+
+            // The builder grew; resift it toward the heap front.
+            partitionState.BufferedDataSize = partitionState.Builder->GetDataSize();
+            OnBuilderDataGrew(partitionIndex);
+
+            if (allocationDelta > 0) {
+                // Eviction runs per-row (only when allocation actually grew)
+                // rather than once at end-of-batch. Without this, a Write with
+                // many partitions can allocate `partition_count *
+                // initial_reserve` worth of fresh builders before eviction
+                // sees the overflow, exceeding MemoryBudget by orders of
+                // magnitude.
+                BuildersBytes_ += allocationDelta;
+                while (BuildersBytes_ > BuildersBudget_ && !EvictionHeap_.empty()) {
+                    EvictLargest();
+                }
+            }
+        }
+
+        // Proactively request sessions for non-empty partitions so the session
+        // is ready by the time Close flushes the builder.
+        for (int partitionIndex : EvictionHeap_) {
+            auto& partitionState = Partitions_[partitionIndex];
+            if (!partitionState.Session && !partitionState.PendingSessionFuture) {
+                RequestSession(partitionIndex, /*excluded*/ std::nullopt);
+            }
+        }
+
+        if (InFlightBytes_ > InFlightBudget_) {
+            YT_VERIFY(!BackpressurePromise_);
+            BackpressurePromise_ = std::move(writePromise);
+            YT_TLOG_DEBUG("Backpressure engaged")
+                .With("InFlightBytes", InFlightBytes_)
+                .With("InFlightBudget", InFlightBudget_);
+            return;
+        }
+        writePromise.Set();
+    }
+
+    TFuture<void> DoClose()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        if (!TerminalError_.IsOK()) {
+            return MakeFuture(TerminalError_);
+        }
+        if (Closing_) {
+            return ClosePromise_.ToFuture();
+        }
+        Closing_ = true;
+        ClosePromise_ = NewPromise<void>();
+
+        YT_TLOG_INFO("Closing shuffle writer")
+            .With("NonEmptyPartitions", EvictionHeap_.size());
+
+        std::vector<int> nonEmptySnapshot(EvictionHeap_.begin(), EvictionHeap_.end());
+        for (int partitionIndex : nonEmptySnapshot) {
+            FlushBuilder(partitionIndex);
+        }
+
+        MaybeFinishClose();
+        return ClosePromise_.ToFuture();
+    }
+
+    void EvictLargest()
+    {
+        YT_VERIFY(!EvictionHeap_.empty());
+        // The front holds the most buffered data.
+        FlushBuilder(EvictionHeap_.front());
+    }
+
+    // Min-heap order: more buffered data compares "smaller" so the victim is at
+    // the front.
+    bool ShouldEvictBefore(int lhsPartition, int rhsPartition) const
+    {
+        return Partitions_[lhsPartition].BufferedDataSize > Partitions_[rhsPartition].BufferedDataSize;
+    }
+
+    void PushToEvictionHeap(int partitionIndex)
+    {
+        // Seed HeapIndex: for one element AdjustHeapBack no-ops, so onAssign
+        // never runs.
+        Partitions_[partitionIndex].HeapIndex = static_cast<int>(EvictionHeap_.size());
+        EvictionHeap_.push_back(partitionIndex);
+        AdjustHeapBack(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+    }
+
+    void OnBuilderDataGrew(int partitionIndex)
+    {
+        YT_ASSERT(Partitions_[partitionIndex].HeapIndex >= 0);
+        // Data only grows between flushes, so the builder can only sift up.
+        SiftUp(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            EvictionHeap_.begin() + Partitions_[partitionIndex].HeapIndex,
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+    }
+
+    void RemoveFromEvictionHeap(int partitionIndex)
+    {
+        YT_ASSERT(Partitions_[partitionIndex].HeapIndex >= 0);
+        ExtractHeap(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            EvictionHeap_.begin() + Partitions_[partitionIndex].HeapIndex,
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+        EvictionHeap_.pop_back();
+        Partitions_[partitionIndex].HeapIndex = -1;
+    }
+
+    void FlushBuilder(int partitionIndex)
+    {
+        auto& partitionState = Partitions_[partitionIndex];
+        i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
+        auto record = partitionState.Builder->FlushRecord();
+        YT_VERIFY(record);
+        BuildersBytes_ -= prevAllocation;
+        partitionState.NextRowId += record->Header.RowCount;
+        TDistributedChunkSessionWriteStatistics statistics{
+            .DataWeight = partitionState.BufferedDataWeight,
+            .UncompressedDataSize = static_cast<i64>(
+                sizeof(TRecordHeader) + GetByteSize(record->UncompressedPayload)),
+            .RowCount = record->Header.RowCount,
+        };
+        partitionState.Builder.reset();
+        partitionState.BufferedDataSize = 0;
+        partitionState.BufferedDataWeight = 0;
+        RemoveFromEvictionHeap(partitionIndex);
+
+        // TODO(apollo1321): IDistributedChunkWriter::WriteRecord currently
+        // takes a single TSharedRef, forcing a payload-sized memcpy here.
+        // Switch WriteRecord to TRange<TSharedRef> and drop the merge.
+        auto compressed = MergeRefsToRef<TShuffleWireRecordTag>(
+            CompressShuffleRecord(*record, Codec_));
+        InFlightBytes_ += compressed.Size();
+        partitionState.Pending.push_back({
+            .Record = std::move(compressed),
+            .Statistics = statistics,
+            .SendAttempts = 0,
+        });
+        ++OutstandingWork_;
+
+        if (partitionState.Session) {
+            DrainPending(partitionIndex);
+        } else if (!partitionState.PendingSessionFuture) {
+            RequestSession(partitionIndex, /*excluded*/ std::nullopt);
+        }
+    }
+
+    void DrainPending(int partitionIndex)
+    {
+        auto& partitionState = Partitions_[partitionIndex];
+        YT_VERIFY(partitionState.Session && partitionState.Writer);
+        while (!partitionState.Pending.empty()) {
+            auto entry = std::move(partitionState.Pending.front());
+            partitionState.Pending.pop_front();
+            if (entry.SendAttempts >= Config_->MaxSendAttempts) {
+                --OutstandingWork_;
+                FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
+                    .With("writer_id", WriterId_)
+                    .With("partition_index", partitionIndex)
+                    .With("send_attempts", entry.SendAttempts));
+                return;
+            }
+            ++entry.SendAttempts;
+            i64 cookie = partitionState.NextSendCookie++;
+            auto sessionId = partitionState.Session->SessionId;
+            auto writeFuture = partitionState.Writer->WriteRecord(
+                entry.Record,
+                entry.Statistics);
+            partitionState.InFlight[cookie] = TInFlightEntry{
+                .Entry = std::move(entry),
+                .SessionId = sessionId,
+            };
+            writeFuture.Subscribe(BIND_NO_PROPAGATE(&TPushBasedShuffleWriter::OnWriteResponse, MakeStrong(this), partitionIndex, cookie)
+                .Via(SerializedInvoker_));
+        }
+    }
+
+    void RequestSession(int partitionIndex, std::optional<TSessionId> excluded)
+    {
+        auto& partitionState = Partitions_[partitionIndex];
+        YT_VERIFY(!partitionState.PendingSessionFuture);
+
+        // The initial (non-excluded) request for a partition uses its registration-seeded
+        // session if present; failovers and unseeded partitions go through the provider.
+        if (!excluded) {
+            auto seedIt = SeededSessions_.find(partitionIndex);
+            if (seedIt != SeededSessions_.end()) {
+                partitionState.PendingSessionFuture = MakeFuture(seedIt->second);
+                SeededSessions_.erase(seedIt);
+            }
+        }
+        if (!partitionState.PendingSessionFuture) {
+            YT_TLOG_DEBUG("Requesting session")
+                .With("PartitionIndex", partitionIndex)
+                .With("ExcludedSessionId", excluded);
+            partitionState.PendingSessionFuture = SessionProvider_->GetSession(partitionIndex, excluded);
+        }
+        ++OutstandingWork_;
+        partitionState.PendingSessionFuture.Subscribe(BIND_NO_PROPAGATE(
+            &TPushBasedShuffleWriter::OnSessionResolved,
+            MakeStrong(this),
+            partitionIndex,
+            excluded)
+            .Via(SerializedInvoker_));
+    }
+
+    void OnSessionResolved(
+        int partitionIndex,
+        std::optional<TSessionId> excluded,
+        const TErrorOr<TSessionDescriptor>& sessionOrError)
+    {
+        auto& partitionState = Partitions_[partitionIndex];
+        partitionState.PendingSessionFuture.Reset();
+        --OutstandingWork_;
+        // Reachable when an earlier callback on the serialized invoker
+        // called FailWriter before this OnSessionResolved ran.
+        if (!TerminalError_.IsOK()) {
+            return;
+        }
+        if (!sessionOrError.IsOK()) {
+            FailWriter(TError("Failed to acquire session for partition")
+                .With("writer_id", WriterId_)
+                .With("partition_index", partitionIndex)
+                .With(static_cast<const TError&>(sessionOrError)));
+            return;
+        }
+        partitionState.Session = sessionOrError.Value();
+        partitionState.Writer = CreateDistributedChunkWriter_(
+            partitionState.Session->SequencerNode,
+            partitionState.Session->SessionId);
+        YT_TLOG_DEBUG("Session resolved")
+            .With("PartitionIndex", partitionIndex)
+            .With("SessionId", partitionState.Session->SessionId);
+
+        // Sweep order is THashMap iteration order — non-deterministic. The
+        // writer makes no in-order delivery guarantee per partition (retries
+        // already break ordering), and the sequencer accepts arbitrary order
+        // from a single writer.
+        if (excluded) {
+            std::vector<i64> toErase;
+            for (auto& [cookie, inFlight] : partitionState.InFlight) {
+                if (inFlight.SessionId == *excluded) {
+                    toErase.push_back(cookie);
+                    partitionState.Pending.push_back(std::move(inFlight.Entry));
+                }
+            }
+            for (i64 cookie : toErase) {
+                partitionState.InFlight.erase(cookie);
+            }
+        }
+        DrainPending(partitionIndex);
+        MaybeFinishClose();
+    }
+
+    void OnWriteResponse(int partitionIndex, i64 cookie, const TError& error)
+    {
+        auto& partitionState = Partitions_[partitionIndex];
+        auto inFlightIt = partitionState.InFlight.find(cookie);
+        if (inFlightIt == partitionState.InFlight.end()) {
+            return;
+        }
+        auto inFlight = std::move(inFlightIt->second);
+        partitionState.InFlight.erase(inFlightIt);
+
+        if (!TerminalError_.IsOK()) {
+            // Reachable when an earlier callback on the serialized invoker
+            // called FailWriter before this OnWriteResponse ran. Drop the
+            // bytes accounting; nothing else is observable post-failure.
+            InFlightBytes_ -= inFlight.Entry.Record.Size();
+            --OutstandingWork_;
+            return;
+        }
+
+        if (error.IsOK()) {
+            InFlightBytes_ -= inFlight.Entry.Record.Size();
+            --OutstandingWork_;
+            MaybeReleaseBackpressure();
+            MaybeFinishClose();
+            return;
+        }
+
+        if (inFlight.Entry.SendAttempts >= Config_->MaxSendAttempts) {
+            --OutstandingWork_;
+            FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
+                .With("writer_id", WriterId_)
+                .With("partition_index", partitionIndex)
+                .With("send_attempts", inFlight.Entry.SendAttempts)
+                .With(error));
+            return;
+        }
+
+        if (partitionState.Session && partitionState.Session->SessionId == inFlight.SessionId) {
+            YT_TLOG_DEBUG("Retiring session after write failure")
+                .With("PartitionIndex", partitionIndex)
+                .With("SessionId", inFlight.SessionId)
+                .With(error);
+            auto excluded = partitionState.Session->SessionId;
+            partitionState.Session.reset();
+            partitionState.Writer.Reset();
+            RequestSession(partitionIndex, excluded);
+        }
+        partitionState.Pending.push_back(std::move(inFlight.Entry));
+        if (partitionState.Session) {
+            DrainPending(partitionIndex);
+        }
+    }
+
+    void MaybeReleaseBackpressure()
+    {
+        if (BackpressurePromise_ && InFlightBytes_ <= InFlightBudget_) {
+            YT_TLOG_DEBUG("Backpressure released")
+                .With("InFlightBytes", InFlightBytes_)
+                .With("InFlightBudget", InFlightBudget_);
+            auto promise = std::move(BackpressurePromise_);
+            BackpressurePromise_.Reset();
+            promise.Set();
+        }
+    }
+
+    void MaybeFinishClose()
+    {
+        if (!Closing_ || ClosePromise_.IsSet() || OutstandingWork_ > 0) {
+            return;
+        }
+        YT_TLOG_INFO("Shuffle writer closed");
+        ClosePromise_.Set();
+    }
+
+    void FailWriter(const TError& error)
+    {
+        if (!TerminalError_.IsOK()) {
+            return;
+        }
+        YT_TLOG_WARNING("Shuffle writer failed")
+            .With(error);
+        TerminalError_ = error;
+        if (BackpressurePromise_) {
+            auto promise = std::move(BackpressurePromise_);
+            BackpressurePromise_.Reset();
+            promise.Set(TerminalError_);
+        }
+        // ClosePromise_ is default-constructed (empty) until DoClose runs. If
+        // FailWriter fires before Close, ClosePromise_ stays empty here and a
+        // later Close picks up TerminalError_ via DoClose's early return.
+        if (ClosePromise_ && !ClosePromise_.IsSet()) {
+            ClosePromise_.Set(TerminalError_);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
+    TShuffleWriterConfigPtr config,
+    ECodec codec,
+    IPartitionWriteSessionProviderPtr sessionProvider,
+    IPartitionerPtr partitioner,
+    NApi::NNative::IConnectionPtr connection,
+    i32 writerId,
+    IInvokerPtr invoker,
+    THashMap<int, TSessionDescriptor> seededSessions)
+{
+    auto writerConfig = config->WriterConfig;
+    auto createWriter = [connection, writerConfig] (TNodeDescriptor sequencerNode, TSessionId sessionId) {
+        return CreateDistributedChunkWriter(
+            sequencerNode,
+            sessionId,
+            connection,
+            writerConfig);
+    };
+
+    return New<TPushBasedShuffleWriter>(
+        std::move(config),
+        codec,
+        std::move(sessionProvider),
+        std::move(partitioner),
+        std::move(createWriter),
+        writerId,
+        std::move(invoker),
+        std::move(seededSessions));
+}
+
+IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
+    TShuffleWriterConfigPtr config,
+    ECodec codec,
+    IPartitionWriteSessionProviderPtr sessionProvider,
+    IPartitionerPtr partitioner,
+    TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
+    i32 writerId,
+    IInvokerPtr invoker)
+{
+    return New<TPushBasedShuffleWriter>(
+        std::move(config),
+        codec,
+        std::move(sessionProvider),
+        std::move(partitioner),
+        std::move(createDistributedChunkWriter),
+        writerId,
+        std::move(invoker),
+        THashMap<int, TSessionDescriptor>{});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPushBasedShuffleClient

@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "dispatch_by_type.h"
 #endif
-#undef DISPATCH_BY_TYPE_INL_H_
 
 namespace NYT::NColumnarChunkFormat {
 

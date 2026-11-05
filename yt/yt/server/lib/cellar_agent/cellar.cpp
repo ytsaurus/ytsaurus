@@ -1,7 +1,6 @@
 #include "cellar.h"
 
 #include "bootstrap_proxy.h"
-#include "cellar_manager.h"
 #include "occupant.h"
 #include "occupier.h"
 #include "public.h"
@@ -56,9 +55,9 @@ public:
     {
         Occupants_.resize(Config_->Size);
 
-        YT_LOG_DEBUG("Cellar initialized (CellarType: %v, Size: %v)",
-            Type_,
-            Config_->Size);
+        YT_TLOG_DEBUG("Cellar initialized")
+            .With("CellarType", Type_)
+            .With("Size", Config_->Size);
     }
 
     void Reconfigure(const TCellarDynamicConfigPtr& config) override
@@ -119,7 +118,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         int index = GetFreeOccupantIndex();
-        auto occupier = CreateOccupier(index);
+        auto occupier = CreateOccupier(index, createInfo);
 
         auto occupant = CreateCellarOccupant(index, Config_->Occupant, Bootstrap_, createInfo, occupier);
         Occupants_[index] = occupant;
@@ -135,9 +134,9 @@ public:
 
         CreateOccupant_.Fire();
 
-        YT_LOG_DEBUG("Created cellar occupant (CellarType: %v, Index: %v)",
-            Type_,
-            index);
+        YT_TLOG_DEBUG("Created cellar occupant")
+            .With("CellarType", Type_)
+            .With("Index", index);
     }
 
     void ConfigureOccupant(
@@ -196,7 +195,8 @@ public:
             THROW_ERROR_EXCEPTION("Cellar %Qlv already has a provider", Type_);
         }
 
-        YT_LOG_DEBUG("Registered occupier provider (CellarType: %v)", Type_);
+        YT_TLOG_DEBUG("Registered occupier provider")
+            .With("CellarType", Type_);
 
         OccupierProvider_ = std::move(provider);
     }
@@ -281,7 +281,7 @@ private:
     int OccupantCount_ = 0;
     std::vector<ICellarOccupantPtr> Occupants_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellIdToOccupantLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CellIdToOccupantLock_);
     THashMap<TCellId, ICellarOccupantPtr> CellIdToOccupant_;
 
     ICellarOccupierProviderPtr OccupierProvider_;
@@ -305,18 +305,18 @@ private:
         THROW_ERROR_EXCEPTION("Cellar %Qlv is full", Type_);
     }
 
-    ICellarOccupierPtr CreateOccupier(int index)
+    ICellarOccupierPtr CreateOccupier(int index, const TCreateCellSlotInfo& createInfo)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Create occupier (CellarType: %v)",
-            Type_);
+        YT_TLOG_DEBUG("Create occupier")
+            .With("CellarType", Type_);
 
         if (!OccupierProvider_) {
             THROW_ERROR_EXCEPTION("No provider at cellar %Qlv", Type_);
         }
 
-        return OccupierProvider_->CreateCellarOccupier(index);
+        return OccupierProvider_->CreateCellarOccupier(index, createInfo);
     }
 
     void SetCellarSize(int cellarSize)
@@ -327,10 +327,10 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Updating cellar size (CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
-            Type_,
-            Occupants_.size(),
-            cellarSize);
+        YT_TLOG_INFO("Updating cellar size")
+            .With("CellarType", Type_)
+            .With("OldCellarSize", Occupants_.size())
+            .With("NewCellarSize", cellarSize);
 
         if (cellarSize < std::ssize(Occupants_)) {
             std::vector<TFuture<void>> futures;
@@ -341,7 +341,8 @@ private:
             }
 
             auto error = WaitFor(AllSet(std::move(futures)));
-            YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Failed to finalize occpant during cellar reconfiguration");
+            YT_TLOG_ALERT_UNLESS(error.IsOK(), "Failed to finalize occpant during cellar reconfiguration")
+                .With(error);
         }
 
         while (std::ssize(Occupants_) > cellarSize) {

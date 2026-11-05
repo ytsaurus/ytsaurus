@@ -105,8 +105,8 @@ public:
 
         if (LastCommitTimestamp_ > startTimestamp) {
             return TError("Lock conflict due to concurrent bulk insert")
-                << TErrorAttribute("transaction_start_timestamp", startTimestamp)
-                << TErrorAttribute("bulk_insert_commit_timestamp", LastCommitTimestamp_);
+                .With("transaction_start_timestamp", startTimestamp)
+                .With("bulk_insert_commit_timestamp", LastCommitTimestamp_);
         }
 
         return {};
@@ -158,7 +158,7 @@ private:
     std::vector<TTransactionId> UnconfirmedTransactionIds_;
     TTimestamp LastCommitTimestamp_ = MinTimestamp;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::map<TTimestamp, TPromise<void>> SharedQueue_;
 
 

@@ -51,7 +51,6 @@ std::string TSchedulerPool::GetLowercaseObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetLowercaseObjectName()
-        // TODO(babenko): switch to std::string
         : std::string(Format("scheduler pool %Qv", GetName()));
 }
 
@@ -59,7 +58,6 @@ std::string TSchedulerPool::GetCapitalizedObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetCapitalizedObjectName()
-        // TODO(babenko): switch to std::string
         : std::string(Format("Scheduler pool %Qv", GetName()));
 }
 
@@ -98,18 +96,18 @@ void TSchedulerPool::ValidateChildrenCompatibility()
                 childGuarantees->ResourceFlow->IsNonTrivial())
             {
                 THROW_ERROR_EXCEPTION("Integral pool %Qv cannot have children with integral resources", GetName())
-                    << TErrorAttribute("pool_name", GetName())
-                    << TErrorAttribute("pool_guarantee_type", FullConfig()->IntegralGuarantees->GuaranteeType)
-                    << TErrorAttribute("child_pool_name", child->GetName())
-                    << TErrorAttribute("child_burst_guarantee_resources", childGuarantees->BurstGuaranteeResources)
-                    << TErrorAttribute("child_resource_flow", childGuarantees->ResourceFlow);
+                    .With("pool_name", GetName())
+                    .With("pool_guarantee_type", FullConfig()->IntegralGuarantees->GuaranteeType)
+                    .With("child_pool_name", child->GetName())
+                    .With("child_burst_guarantee_resources", childGuarantees->BurstGuaranteeResources)
+                    .With("child_resource_flow", childGuarantees->ResourceFlow);
             }
         }
     }
 
     if (!KeyToChild().empty() && FullConfig_->Mode == ESchedulingMode::Fifo) {
         THROW_ERROR_EXCEPTION("Pool cannot have subpools since it is in FIFO mode")
-            << TErrorAttribute("pool_name", GetName());
+            .With("pool_name", GetName());
     }
 }
 
@@ -137,9 +135,9 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TStrategyTreeConfigPtr& po
 
     if (hasAnyResourceGuarantee && !hasMainResourceGuarantee) {
         THROW_ERROR_EXCEPTION("Main resource guarantee must be specified in order to set guarantees for any other resource")
-            << TErrorAttribute("pool_name", GetName())
-            << TErrorAttribute("main_resource", poolTreeConfig->MainResource)
-            << TErrorAttribute("guarantee_config", FullConfig()->StrongGuaranteeResources);
+            .With("pool_name", GetName())
+            .With("main_resource", poolTreeConfig->MainResource)
+            .With("guarantee_config", FullConfig()->StrongGuaranteeResources);
     }
 
     if (recursive) {
@@ -159,7 +157,7 @@ TStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
     if (!schedulerPool->IsRoot()) {
         // NB: Unlikely to happen.
         THROW_ERROR_EXCEPTION("Failed to get pool tree config because the pool is detached from the hierarchy")
-            << TErrorAttribute("pool_name", GetName());
+            .With("pool_name", GetName());
     }
 
     return schedulerPool->GetMaybePoolTree()->GetDeserializedConfigOrThrow();
@@ -196,11 +194,10 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                 EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
             } else {
                 GetMutableAttributes()->Set(uninternedKey, value);
-                YT_LOG_INFO("Moving pool attribute from specified attributes map to common attributes map "
-                    "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                    Id_,
-                    uninternedKey,
-                    ConvertToYsonString(value, EYsonFormat::Text));
+                YT_TLOG_INFO("Moving pool attribute from specified attributes map to common attributes map")
+                    .With("ObjectId", Id_)
+                    .With("AttributeName", uninternedKey)
+                    .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text));
             }
         }
     } else {
@@ -221,28 +218,26 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
             }
             if (knownPoolAttributes.contains(internedKey)) {
                 if (SpecifiedAttributes_.contains(internedKey)) {
-                    YT_LOG_ALERT("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map "
-                        "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
-                        Id_,
-                        key,
-                        ConvertToYsonString(value, EYsonFormat::Text),
-                        ConvertToYsonString(SpecifiedAttributes_[internedKey], EYsonFormat::Text));
+                    YT_TLOG_ALERT("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map")
+                        .With("ObjectId", Id_)
+                        .With("AttributeName", key)
+                        .With("CommonAttributeValue", ConvertToYsonString(value, EYsonFormat::Text))
+                        .With("SpecifiedAttributeValue", ConvertToYsonString(SpecifiedAttributes_[internedKey], EYsonFormat::Text));
                 } else {
                     try {
-                        YT_LOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map "
-                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                            Id_,
-                            key,
-                            ConvertToYsonString(value, EYsonFormat::Text));
+                        YT_TLOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map")
+                            .With("ObjectId", Id_)
+                            .With("AttributeName", key)
+                            .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text));
                         FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value));
                         EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
                     } catch (const std::exception& ex) {
-                        YT_LOG_ALERT(ex, "Cannot parse value of pool attribute; the value will be dropped "
-                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                            Id_,
-                            key,
-                            ConvertToYsonString(value, EYsonFormat::Text));
+                        YT_TLOG_ALERT("Cannot parse value of pool attribute; the value will be dropped")
+                            .With("ObjectId", Id_)
+                            .With("AttributeName", key)
+                            .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text))
+                            .With(ex);
                     }
                 }
             }
@@ -379,8 +374,8 @@ TStrategyTreeConfigPtr TSchedulerPoolTree::GetDeserializedConfigOrThrow() const
             MemoizedDeserializedPoolTreeConfig_ = ConvertTo<TStrategyTreeConfigPtr>(SpecifiedConfig_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid pool tree config")
-                    << TErrorAttribute("pool_tree", GetTreeName())
-                    << ex;
+                    .With("pool_tree", GetTreeName())
+                    .With(ex);
         }
     }
 

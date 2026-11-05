@@ -5,14 +5,14 @@
 # [E128] continuation line under-indented for visual indent
 # [E131] continuation line unaligned for hanging indent
 
-from ..common.sensors import FlowWorker
+from ..common.sensors import FlowController, FlowWorker
 
 from .common import create_dashboard
 from .computation import ComputationCellGenerator
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
 
 
 COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=False)
@@ -116,10 +116,93 @@ def build_buffers():
     )
 
 
-def build_flow_message_transfering():
+def build_buffer_demand():
+    def pressure(side):
+        demand = MonitoringExpr(FlowWorker(f"yt.flow.worker.buffer_state.computations.{side}.demand")).aggr(
+            "computation_id", "stream_id"
+        )
+        capacity = MonitoringExpr(FlowWorker(f"yt.flow.worker.buffer_state.pools.{side}.capacity"))
+        return MultiSensor(
+            (demand / capacity.drop_below(1)).alias("{{host}}"),
+            MonitoringExpr.constant_line(1).alias("Capacity threshold"),
+        )
+
+    description = (
+        "V2 pre-pool demand divided by effective capacity on the same worker. "
+        "Demand excludes explicit stream overrides and speculative output allowance. "
+        "Values above 1 mean local pool oversubscription; spare capacity elsewhere cannot cover it. "
+        "Workers with zero capacity are not plotted."
+    )
+    colors = {"Capacity threshold": "#e06666"}
+    return (
+        Rowset()
+        .all("host")
+        .stack(False)
+        .unit("UNIT_NONE")
+        .min(0)
+        .row()
+        .cell(
+            "Input pool pressure",
+            pressure("input"),
+            colors=colors,
+            description=description,
+            display_legend=True,
+        )
+        .cell(
+            "Output pool pressure",
+            pressure("output"),
+            colors=colors,
+            description=description,
+            display_legend=True,
+        )
+        .cell("", EmptyCell())
+        .cell("", EmptyCell())
+    )
+
+
+def build_ready_lags():
+    caveat = (
+        "For streams without timers it equals the regular lag. "
+        "Timers whose watermark does not advance never become due and are not counted here: "
+        "use the regular lags as a backstop."
+    )
+    return (Rowset()
+        .stack(False)
+        .all("stream_id")
+        .row()
+            .cell(
+                "Stream Ready Time Lag",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.ready_time_lag"))
+                    .alias("{{stream_id}}")
+                    .unit("UNIT_SECONDS")
+                    .precision(1),
+                description=(
+                    "Time since the earliest moment at which some unprocessed message became ready for processing; "
+                    "for timers, counted from the due moment rather than from creation. "
+                    "Absent while the due moment of an event-time or system-time timer precedes "
+                    "the controller's watermark history, so alert with a no-data = OK policy. " + caveat))
+            .cell(
+                "Stream ready count lags",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.ready_count_lag"))
+                    .alias("{{stream_id}}")
+                    .unit("UNIT_COUNT"),
+                description="Unprocessed messages excluding timers that have not triggered yet. " + caveat)
+            .cell(
+                "Stream ready size lags",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.ready_byte_size_lag"))
+                    .alias("{{stream_id}}")
+                    .unit("UNIT_BYTES_SI"),
+                description="Size of unprocessed messages excluding timers that have not triggered yet. " + caveat)
+            .cell("", EmptyCell())
+    )
+
+
+def build_flow_message_transfering(backend="monitoring"):
     def fill(d):
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
+        d.add(build_ready_lags())
         d.add(build_buffers())
+        d.add(build_buffer_demand())
         d.add(build_message_distributor())
 
-    return create_dashboard("message-transfering", fill)
+    return create_dashboard("message-transfering", fill, backend=backend)

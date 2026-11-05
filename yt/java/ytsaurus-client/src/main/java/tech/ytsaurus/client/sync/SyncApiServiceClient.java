@@ -53,6 +53,7 @@ import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
@@ -154,6 +155,8 @@ interface SyncApiServiceClient extends SyncTransactionalClient {
     QueueRowset pullQueue(PullQueue req);
 
     void registerQueueConsumer(RegisterQueueConsumer req);
+
+    void unregisterQueueConsumer(UnregisterQueueConsumer req);
 
     ListQueueConsumerRegistrationsResult listQueueConsumerRegistrations(ListQueueConsumerRegistrations req);
 

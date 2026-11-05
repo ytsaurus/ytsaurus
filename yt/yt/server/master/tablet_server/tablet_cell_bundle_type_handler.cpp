@@ -3,6 +3,8 @@
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_manager.h"
 
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
+
 #include <yt/yt/server/master/cell_server/cell_bundle_type_handler.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -41,7 +43,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
         auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
         auto holder = TPoolAllocator::New<TTabletCellBundle>(id);
-        holder->ResourceUsage().Initialize(Bootstrap_);
+        InitializeGossipValue(&holder->ResourceUsage(), Bootstrap_);
         holder->ResourceLimits().SetTabletCount(DefaultTabletCountLimit);
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }

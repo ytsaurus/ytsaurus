@@ -65,6 +65,9 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         self._buffer.extend(data)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         if self._closed:
             raise ClosedResourceError
 
@@ -175,6 +178,16 @@ class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
 
 
 class BufferedConnectable(ByteStreamConnectable):
+    """
+    Wraps a byte stream connectable to produce :class:`BufferedByteStream` connections.
+
+    Use this when you want the streams returned by :meth:`connect` to have the buffered
+    receive API (e.g. :meth:`~BufferedByteReceiveStream.receive_exactly` and
+    :meth:`~BufferedByteReceiveStream.receive_until`).
+
+    :param connectable: the byte stream connectable to wrap
+    """
+
     def __init__(self, connectable: AnyByteStreamConnectable):
         """
         :param connectable: the connectable to wrap

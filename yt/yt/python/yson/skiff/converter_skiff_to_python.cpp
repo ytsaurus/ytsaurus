@@ -24,7 +24,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime);
+TSkiffToPythonConverter CreateSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,7 @@ TSkiffToPythonConverter MaybeWrapSkiffToPythonConverter(
 class TOtherColumnsSkiffToPythonConverter
 {
 public:
-    TOtherColumnsSkiffToPythonConverter(TString description)
+    explicit TOtherColumnsSkiffToPythonConverter(std::string description)
         : OtherColumnsClass_(TSkiffOtherColumns::type())
         , OtherColumnsArgs_(1)
         , Description_(std::move(description))
@@ -82,19 +82,19 @@ public:
         if (!bytes) {
             THROW_ERROR_EXCEPTION("Failed to create bytes for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         if (PyTuple_SetItem(OtherColumnsArgs_.ptr(), 0, bytes.release()) == -1) {
             THROW_ERROR_EXCEPTION("Failed to set tuple element for constructor of field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
 
         auto obj = PyObjectPtr(PyObject_Call(OtherColumnsClass_.ptr(), OtherColumnsArgs_.ptr(), /* kwargs */ nullptr));
         if (!obj) {
             THROW_ERROR_EXCEPTION("Failed to create OtherColumns field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         return obj;
     }
@@ -102,14 +102,14 @@ public:
 private:
     Py::Callable OtherColumnsClass_;
     Py::Tuple OtherColumnsArgs_;
-    TString Description_;
+    std::string Description_;
 };
 
 template <EWireType WireType, EPythonType PythonType>
 class TPrimitiveSkiffToPythonConverter
 {
 public:
-    TPrimitiveSkiffToPythonConverter(TString description)
+    explicit TPrimitiveSkiffToPythonConverter(std::string description)
         : Description_(std::move(description))
     { }
 
@@ -123,20 +123,20 @@ public:
                 Description_,
                 PythonType,
                 WireType)
-                << TError(exception);
+                .With(exception);
         }
         if (!result) {
             THROW_ERROR_EXCEPTION("Failed to parse field %Qv of Python type %Qlv from wire type %Qlv",
                 Description_,
                 PythonType,
                 WireType)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         return result;
     }
 
 private:
-    TString Description_;
+    std::string Description_;
 
 private:
     PyObject* DoConvert(TCheckedInDebugSkiffParser* parser)
@@ -199,7 +199,7 @@ private:
 };
 
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     EPythonType pythonType,
     bool forceOptional,
@@ -271,7 +271,7 @@ TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter conv
 }
 
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     bool forceOptional = false,
     bool validateOptionalOnRuntime = false)
@@ -301,7 +301,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
 class TStructSkiffToPythonConverter
 {
 public:
-    explicit TStructSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TStructSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         static auto StructFieldClass = GetSchemaType("StructField");
@@ -319,7 +319,7 @@ public:
                         fieldDescription,
                         GetAttr(field, PySchemaFieldName),
                         validateOptionalOnRuntime));
-                FieldNames_.push_back(fieldName);
+                FieldNames_.emplace_back(fieldName);
             } else if (PyObject_IsInstance(field.ptr(), FieldMissingFromSchemaClass.get())) {
                 FieldsMissingFromSchema_.emplace_back(GetAttr(field, NameFieldName).as_string());
             }
@@ -336,7 +336,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to create field %Qv of class %Qv",
                 Description_,
                 PyTypeStr_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         for (int i = 0; i < std::ssize(FieldConverters_); ++i) {
             auto field = PyObjectPtr(FieldConverters_[i](parser));
@@ -344,7 +344,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to set field \"%v.%v\"",
                     Description_,
                     FieldNames_[i])
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         for (const auto& fieldName : FieldsMissingFromSchema_) {
@@ -352,7 +352,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to set missing field \"%v.%v\"",
                     Description_,
                     fieldName)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         if (WithPostInit_) {
@@ -361,25 +361,25 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to call __post_init__ for field %Qv of class %Qv",
                     Description_,
                     PyTypeStr_)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         return obj;
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     std::vector<TSkiffToPythonConverter> FieldConverters_;
-    std::vector<TString> FieldNames_;
+    std::vector<std::string> FieldNames_;
     Py::Object PyType_;
-    TString PyTypeStr_;
+    std::string PyTypeStr_;
     bool WithPostInit_;
     Py::Tuple EmptyTuple_;
-    std::vector<TString> FieldsMissingFromSchema_;
+    std::vector<std::string> FieldsMissingFromSchema_;
 };
 
 TSkiffToPythonConverter CreateStructSkiffToPythonConverter(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     bool forceOptional = false,
     bool validateOptionalOnRuntime = false)
@@ -391,7 +391,7 @@ TSkiffToPythonConverter CreateStructSkiffToPythonConverter(
 class TListSkiffToPythonConverter
 {
 public:
-    explicit TListSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TListSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
         , ItemConverter_(CreateSkiffToPythonConverter(
             description + ".<list-element>",
@@ -405,7 +405,7 @@ public:
         if (!list) {
             THROW_ERROR_EXCEPTION("Failed to create list for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         while (true) {
             auto tag = parser->ParseVariant8Tag();
@@ -424,11 +424,11 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     TSkiffToPythonConverter ItemConverter_;
 };
 
-TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateListSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TListSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -437,7 +437,7 @@ TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py
 class TTupleSkiffToPythonConverter
 {
 public:
-    explicit TTupleSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TTupleSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         int i = 0;
@@ -453,7 +453,7 @@ public:
         if (!tuple) {
             THROW_ERROR_EXCEPTION("Failed to create tuple for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
 
         for (int i = 0; i < std::ssize(ElementConverters_); i++) {
@@ -465,11 +465,11 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     std::vector<TSkiffToPythonConverter> ElementConverters_;
 };
 
-TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TTupleSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -478,7 +478,7 @@ TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(TString description, P
 class TDictSkiffToPythonConverter
 {
 public:
-    explicit TDictSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TDictSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
         , KeyConverter_(CreateSkiffToPythonConverter(
             description + ".<key>",
@@ -496,7 +496,7 @@ public:
         if (!dict) {
             THROW_ERROR_EXCEPTION("Failed to create dict for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         while (true) {
             auto tag = parser->ParseVariant8Tag();
@@ -516,12 +516,12 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     TSkiffToPythonConverter KeyConverter_;
     TSkiffToPythonConverter ValueConverter_;
 };
 
-TSkiffToPythonConverter CreateDictSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateDictSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TDictSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -573,20 +573,20 @@ public:
         } catch (const std::exception& exception) {
             THROW_ERROR_EXCEPTION("Failed to parse system columns for class %Qv from Skiff",
                 RowClassName_)
-                << TError(exception);
+                .With(exception);
         }
         return obj;
     }
 
 private:
-    TString RowClassName_;
+    std::string RowClassName_;
     bool ValidateOptionalOnRuntime_;
     TStructSkiffToPythonConverter StructConverter_;
 
     bool HasKeySwitch_ = false;
     bool HasRowIndex_ = false;
     bool HasRangeIndex_ = false;
-    TString OtherColumnsFieldName_;
+    std::string OtherColumnsFieldName_;
     std::optional<TOtherColumnsSkiffToPythonConverter> OtherColumnsConverter_;
 
 private:
@@ -652,7 +652,7 @@ TRowSkiffToPythonConverter CreateRowSkiffToPythonConverter(Py::Object pySchema)
     return TRowSkiffToPythonConverterImpl(std::move(pySchema));
 }
 
-TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+TSkiffToPythonConverter CreateSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
 {
     static auto StructSchemaClass = GetSchemaType("StructSchema");
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");

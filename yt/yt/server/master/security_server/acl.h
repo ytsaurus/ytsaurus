@@ -10,11 +10,11 @@
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/permission.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/yson/public.h>
 

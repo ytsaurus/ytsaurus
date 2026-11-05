@@ -14,11 +14,6 @@ from yt.common import YtError, require, is_process_alive, get_fqdn
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six.moves import map as imap, filter as ifilter
-except ImportError:
-    from six.moves import map as imap, filter as ifilter
-
 import yt.wrapper as yt
 
 import errno
@@ -78,7 +73,7 @@ def _get_bool_from_env(name, default=False):
 
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
-        return list(imap(int, f))
+        return list(map(int, f))
 
 
 def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only):
@@ -211,6 +206,7 @@ def start(master_count=1,
           store_location_count=1,
           wait_tablet_cell_initialization=False,
           init_operations_archive=False,
+          queue_agent_state_target_version=None,
           meta_files_suffix=None,
           set_pdeath_sig=False,
           watcher_config=None,
@@ -222,6 +218,7 @@ def start(master_count=1,
           clock_count=0,
           chaos_node_count=0,
           replicated_table_tracker_count=0,
+          offshore_data_gateway_count=0,
           job_proxy_logging_mode=None,
           native_client_supported=False,
           timestamp_provider_count=0,
@@ -229,7 +226,8 @@ def start(master_count=1,
           enable_auth=False,
           create_admin_user=False,
           enable_multidaemon=False,
-          address_resolver_config=None):
+          address_resolver_config=None,
+          tcmalloc_profile_sampling_rate=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -288,6 +286,7 @@ def start(master_count=1,
         tablet_balancer_count=tablet_balancer_count,
         cypress_proxy_count=cypress_proxy_count,
         replicated_table_tracker_count=replicated_table_tracker_count,
+        offshore_data_gateway_count=offshore_data_gateway_count,
         cell_balancer_count=cell_balancer_count,
         enable_bundle_controller=enable_bundle_controller,
         # TODO: Should we default to a fixed name, like "primary" in integration tests?
@@ -337,6 +336,7 @@ def start(master_count=1,
         meta_files_suffix=meta_files_suffix,
         wait_tablet_cell_initialization=wait_tablet_cell_initialization,
         init_operations_archive=init_operations_archive,
+        queue_agent_state_target_version=queue_agent_state_target_version,
         job_proxy_logging=job_proxy_logging,
         job_proxy_log_manager=job_proxy_log_manager,
         native_client_supported=native_client_supported,
@@ -345,6 +345,7 @@ def start(master_count=1,
         create_admin_user=create_admin_user,
         address_resolver_config=address_resolver_config,
         enable_multidaemon=enable_multidaemon,
+        tcmalloc_profile_sampling_rate=tcmalloc_profile_sampling_rate,
     )
 
     environment = YTInstance(
@@ -362,7 +363,7 @@ def start(master_count=1,
     pids_filename = os.path.join(environment.path, "pids.txt")
     if os.path.isfile(pids_filename):
         pids = _read_pids_file(pids_filename)
-        alive_pids = list(ifilter(is_process_alive, pids))
+        alive_pids = list(filter(is_process_alive, pids))
         for pid in alive_pids:
             logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
             _safe_kill(pid)

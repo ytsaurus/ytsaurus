@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -91,7 +93,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
                 return;
             }
             for (const auto& [name, taskSpec] : tasks->AsMap()->GetChildren()) {
-                processTask("/tasks/" + name);
+                processTask("/tasks/" + NYPath::ToYPathLiteral(name));
             }
             return;
         }
@@ -100,7 +102,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
     }
 }
 
-void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TString origin) const
+void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, std::string origin) const
 {
     EFormatType formatType;
     try {
@@ -123,14 +125,14 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     }
 
     if (AuthenticatedUser_ != NSecurityClient::RootUserName && !formatConfig->Enable) {
-        TString errorMessage;
+        std::string errorMessage;
         if (userOverride) {
             errorMessage = Format("Format %Qlv is disabled for user %Qv", formatType, AuthenticatedUser_);
         } else {
             errorMessage = Format("Format %Qlv is disabled", formatType);
         }
         THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, std::move(errorMessage), TError::DisableFormat)
-            << TErrorAttribute("origin", origin);
+            .With("origin", origin);
     }
 
     const auto& defaultAttributes = formatConfig->DefaultAttributes;
@@ -147,15 +149,15 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     }
 }
 
-TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString origin) const
+TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, std::string origin) const
 {
     ValidateAndPatchFormatNode(formatNode, origin);
     try {
         return ConvertTo<TFormat>(formatNode);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse format")
-            << ex
-            << TErrorAttribute("origin", origin);
+            .With(ex)
+            .With("origin", origin);
     }
 }
 

@@ -19,7 +19,7 @@ TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::TRowsIteratorBase(
     Py::PythonClassInstance* self,
     Py::Tuple& args,
     Py::Dict& kwargs,
-    const TString& formatName)
+    const std::string& formatName)
     : TBase::PythonClass(self, args, kwargs)
     , FormatName_(formatName)
     , Buffer_(GetRefCountedTypeCookie<TRowsIteratorBufferTag>(), BufferSize, /*initializeStorage*/ false)
@@ -68,10 +68,11 @@ template <class TIteratorClass, class TConsumer, class TParser>
 TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::~TRowsIteratorBase() = default;
 
 template <class TIteratorClass, class TConsumer, class TParser>
-void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const TString& formatName)
+void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const std::string& formatName)
 {
-    Name_ = formatName + "Iterator";
-    Doc_ = "Iterates over stream with " + formatName + " rows";
+    // TODO(babenko): migrate Name_/Doc_/TypeName_ to std::string (static definitions live in skiff/parser.cpp).
+    Name_ = Format("%vIterator", formatName);
+    Doc_ = Format("Iterates over stream with %v rows", formatName);
     TypeName_ = "yt_yson_bindings.yson_lib." + Name_;
     TBase::behaviors().name(TypeName_.c_str());
     TBase::behaviors().doc(Doc_.c_str());

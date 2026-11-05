@@ -88,7 +88,7 @@ Jobs use these variables to:
 
 To integrate job collectives, add the `collective_options` parameter to the job specification:
 
-```yaml
+```yson
 {
   collective_options = {
     size = 2;  # Number of jobs in the collective
@@ -108,7 +108,7 @@ To integrate job collectives, add the `collective_options` parameter to the job 
 
 In this example, a Vanilla operation runs with a collective of two jobs. The master job (rank 0) writes the result to the output table, while the slave job (rank 1) does nothing.
 
-```yaml
+```yson
 {
   tasks = {
     worker = {
@@ -127,7 +127,7 @@ In this example, a Vanilla operation runs with a collective of two jobs. The ma
 
 ### Map operation with job collectives
 
-```yaml
+```yson
 {
   mapper = {
     command = "if [ \"$YT_COLLECTIVE_MEMBER_RANK\" == 0 ]; then cat; fi";
@@ -143,7 +143,7 @@ In this example, a Vanilla operation runs with a collective of two jobs. The ma
 
 In this MapReduce operation, job collectives are used at all of its stages: mapper, reduce_combiner, and reducer.
 
-```yaml
+```yson
 {
   mapper = {
     command = "if [ \"$YT_COLLECTIVE_MEMBER_RANK\" == 0 ]; then cat; fi";

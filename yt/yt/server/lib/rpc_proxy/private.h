@@ -21,8 +21,8 @@ inline const std::string OrchidExecutionPoolName = "$orchid";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerMain, "RpcProxyStructuredMain");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerError, "RpcProxyStructuredError");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerMain, "RpcProxyStructuredMain");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerError, "RpcProxyStructuredError");
 
 ////////////////////////////////////////////////////////////////////////////////
 

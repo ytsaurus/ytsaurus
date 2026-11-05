@@ -18,6 +18,22 @@ func TestInvalidSyntax(t *testing.T) {
 	require.Error(t, Unmarshal([]byte("0>0"), &v))
 }
 
+func TestUnmarshalScalarIntoMapReturnsError(t *testing.T) {
+	for _, input := range []string{"0", "%false", "abc", "[]", "3.14"} {
+		var v map[string]any
+		err := Unmarshal([]byte(input), &v)
+		assert.IsType(t, &TypeError{}, err, "input %q", input)
+	}
+}
+
+func TestUnmarshalAttributesWithoutValueReturnsError(t *testing.T) {
+	var v any
+	require.Error(t, Unmarshal([]byte("<a=1>"), &v))
+
+	var m map[string]any
+	require.Error(t, Unmarshal([]byte("{k=<a=1>}"), &m))
+}
+
 type structWithRawFields struct {
 	A RawValue
 	B RawValue

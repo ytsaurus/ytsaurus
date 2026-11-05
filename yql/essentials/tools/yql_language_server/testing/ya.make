@@ -1,0 +1,5 @@
+RECURSE(
+    functional
+    smoke
+    stress
+)

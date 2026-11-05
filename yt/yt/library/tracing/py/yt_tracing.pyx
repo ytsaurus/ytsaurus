@@ -1,4 +1,4 @@
-from util.generic.string cimport TString
+from libcpp.string cimport string
 
 import yt.yson
 
@@ -7,7 +7,7 @@ import yt_driver_rpc_bindings
 
 
 cdef extern from "yt/yt/library/tracing/py/init.h" namespace "NYT::NTracing":
-    cdef void InitializeGlobalTracer(const TString& )
+    cdef void InitializeGlobalTracer(const string& )
 
 
 def initialize_tracer(config):

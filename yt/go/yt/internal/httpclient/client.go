@@ -323,10 +323,41 @@ func unexpectedStatusCode(rsp *http.Response) error {
 	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
 }
 
+func retryableHTTPStatusError(rsp *http.Response) error {
+	var code yterrors.ErrorCode
+	switch rsp.StatusCode {
+	case http.StatusTooManyRequests:
+		code = yterrors.CodeRequestQueueSizeLimitExceeded
+	case http.StatusInternalServerError:
+		code = yterrors.CodeUnavailable
+	case http.StatusServiceUnavailable:
+		code = yterrors.CodeTransportError
+	default:
+		return nil
+	}
+
+	httpErr := &yterrors.HTTPError{
+		StatusCode: rsp.StatusCode,
+		L7Hostname: rsp.Header.Get("X-L7-Hostname"),
+		Err:        yterrors.Err(code, http.StatusText(rsp.StatusCode)),
+	}
+	headerErr, err := decodeYTErrorFromHeaders(rsp.Header)
+	if err != nil {
+		return httpErr
+	}
+	if headerErr != nil {
+		httpErr.Err = yterrors.Err(code, http.StatusText(rsp.StatusCode), headerErr)
+	}
+	return httpErr
+}
+
 func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, err error) {
 	defer func() { _ = rsp.Body.Close() }()
 
 	res = &internal.CallResult{}
+	if err = retryableHTTPStatusError(rsp); err != nil {
+		return nil, err
+	}
 
 	var ytErr *yterrors.Error
 	ytErr, err = decodeYTErrorFromHeaders(rsp.Header)
@@ -474,6 +505,17 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		req.Header.Add("Content-Encoding", encoding)
 	}
 
+	// The retrier reuses the same *Call across retries, so give every write
+	// attempt its own response channel: otherwise a previous attempt's goroutine
+	// could close (or send on) the channel a later attempt is using. The caller
+	// reads call.WriteRspChan after the write succeeds, so it observes the last
+	// attempt's channel.
+	rspChan := call.WriteRspChan
+	if rspChan != nil {
+		rspChan = make(chan *internal.CallResult, 1)
+		call.WriteRspChan = rspChan
+	}
+
 	go func() {
 		defer close(errChan)
 		closeErr := func(err error) {
@@ -483,8 +525,8 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			}
 		}
 
-		if call.WriteRspChan != nil {
-			defer close(call.WriteRspChan)
+		if rspChan != nil {
+			defer close(rspChan)
 		}
 
 		rsp, err := c.roundTrip(req.WithContext(ctx))
@@ -499,8 +541,8 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			closeErr(err)
 			return
 		}
-		if call.WriteRspChan != nil {
-			call.WriteRspChan <- res
+		if rspChan != nil {
+			rspChan <- res
 		}
 	}()
 
@@ -647,15 +689,18 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 
 	c.logResponse(ctx, rsp)
 	if rsp.StatusCode != 200 {
-		_ = rsp.Body.Close()
-
-		var callErr *yterrors.Error
-		callErr, err = decodeYTErrorFromHeaders(rsp.Header)
-		if err == nil && callErr != nil {
-			err = callErr
+		if statusErr := retryableHTTPStatusError(rsp); statusErr != nil {
+			err = statusErr
 		} else {
-			err = unexpectedStatusCode(rsp)
+			var callErr *yterrors.Error
+			callErr, err = decodeYTErrorFromHeaders(rsp.Header)
+			if err == nil && callErr != nil {
+				err = callErr
+			} else {
+				err = unexpectedStatusCode(rsp)
+			}
 		}
+		_ = rsp.Body.Close()
 	}
 
 	if err == nil && call.OnRspParams != nil {
@@ -751,9 +796,11 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 		KeepAlive: 30 * time.Second,
 	}
 
+	network := c.GetIPVersion().Network()
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
 				return dialContext(ctx, netDialer, network, addr)
 			},
 

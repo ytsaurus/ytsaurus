@@ -33,7 +33,6 @@ private:
 
 struct TStartedTasksSummary
 {
-public:
     TBackgroundTaskHistory CompactionHistory;
     TBackgroundTaskHistory PartitioningHistory;
 };

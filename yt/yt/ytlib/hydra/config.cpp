@@ -16,6 +16,8 @@ void TPeerConnectionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("ignore_peer_state", &TThis::IgnorePeerState)
         .Default(false);
+    registrar.Parameter("always_read_from_leader", &TThis::AlwaysReadFromLeader)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         // Query all peers in parallel.

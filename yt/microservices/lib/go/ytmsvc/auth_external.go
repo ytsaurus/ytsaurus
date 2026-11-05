@@ -36,6 +36,7 @@ func GetUserByAuthCookie(r *http.Request, l *zap.Logger, authCookieName string, 
 	if err != nil {
 		return nil, nil, err
 	}
+	defer yc.Stop()
 
 	ctx := r.Context()
 	user, err := yc.WhoAmI(ctx, nil)

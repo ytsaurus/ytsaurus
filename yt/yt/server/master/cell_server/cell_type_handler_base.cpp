@@ -80,7 +80,7 @@ TObject* TCellTypeHandlerBase<TImpl>::FindObject(TObjectId id)
 }
 
 template <class TImpl>
-TCellTagList TCellTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cell*/)
+NObjectClient::TCellTagSet TCellTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cell*/)
 {
     return TBase::AllSecondaryCellTags();
 }

@@ -1,0 +1,61 @@
+name: Strip artifacts
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        required: true
+        type: string
+      source:
+        description: 'Source directory path; relative paths use github.workspace'
+        required: true
+        type: string
+      destination:
+        description: 'Destination directory path, which must not exist; relative paths use github.workspace'
+        required: true
+        type: string
+
+jobs:
+  strip-artifacts:
+    runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 120
+    steps:
+      - name: Move directory and strip artifacts
+        env:
+          ARTIFACT_SOURCE: ${{ inputs.source }}
+          ARTIFACT_DESTINATION: ${{ inputs.destination }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          strip_tool=$(command -v strip)
+          test -d "$ARTIFACT_SOURCE"
+          test ! -e "$ARTIFACT_DESTINATION"
+          mv -- "$ARTIFACT_SOURCE" "$ARTIFACT_DESTINATION"
+
+          find "$ARTIFACT_DESTINATION" -type f -print0 | {
+            stripped_count=0
+            while IFS= read -r -d '' artifact; do
+              artifact_type=$(LC_ALL=C file --brief -- "$artifact")
+              if [[ "$artifact_type" != ELF* ||
+                    ( "$artifact_type" != *executable* && "$artifact_type" != *"shared object"* ) ]]; then
+                continue
+              fi
+
+              "$strip_tool" --strip-unneeded "$artifact"
+              artifact_type=$(LC_ALL=C file --brief -- "$artifact")
+              echo "$artifact: $artifact_type"
+              if [[ "$artifact_type" != *stripped* || "$artifact_type" == *"not stripped"* ]]; then
+                echo "Artifact was not stripped: $artifact" >&2
+                exit 1
+              fi
+              stripped_count=$((stripped_count + 1))
+            done
+
+            if [ "$stripped_count" -eq 0 ]; then
+              echo "No ELF binaries found in $ARTIFACT_DESTINATION" >&2
+              exit 1
+            fi
+            echo "Stripped $stripped_count ELF binaries in $ARTIFACT_DESTINATION"
+          }
+
+          df -h

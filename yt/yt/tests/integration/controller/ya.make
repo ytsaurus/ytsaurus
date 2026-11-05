@@ -19,6 +19,7 @@ TEST_SRCS(
     test_map_reduce_operation.py
     test_merge_operation.py
     test_partition_tables.py
+    test_push_based_shuffle_operations.py
     test_reduce_operation.py
     test_remote_copy_operation.py
     test_remote_operation.py

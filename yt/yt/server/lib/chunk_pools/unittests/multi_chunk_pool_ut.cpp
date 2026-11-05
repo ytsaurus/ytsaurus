@@ -17,7 +17,6 @@ namespace NYT::NChunkPools {
 namespace {
 
 using ::testing::InSequence;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 using ::testing::Test;
 using ::testing::_;
@@ -243,7 +242,7 @@ protected:
             if (stripeCounts[index]) {
                 EXPECT_CALL(*Mocks_[index], Extract(TNodeId(0)))
                     .Times(stripeCounts[index])
-                    .WillRepeatedly(InvokeWithoutArgs([this, index] {
+                    .WillRepeatedly([this, index] {
                         auto& mock = Mocks_[index];
                         auto& jobCounter = mock->JobCounter;
                         auto cookie = StripeCounts_[index] - jobCounter->GetPending();
@@ -252,19 +251,19 @@ protected:
                             Mocks_[index]->Complete();
                         }
                         return cookie;
-                    }));
+                    });
             }
         }
 
         for (int index = 0; index < std::ssize(Mocks_); ++index) {
             EXPECT_CALL(*Mocks_[index], IsCompleted())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
+                .WillRepeatedly([this, index] {
                     return Mocks_[index]->JobCounter->GetPending() == 0;
-                }));
+                });
             EXPECT_CALL(*Mocks_[index], GetStripeList(_))
-                .WillRepeatedly(InvokeWithoutArgs([] {
+                .WillRepeatedly([] {
                     return New<TChunkStripeList>();
-                }));
+                });
         }
 
         CreatePool(poolsToAdd.value_or(Mocks_.size()));

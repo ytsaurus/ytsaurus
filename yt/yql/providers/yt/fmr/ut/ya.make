@@ -32,8 +32,10 @@ PEERDIR(
     yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/file
     yt/yql/providers/yt/fmr/fmr_tool_lib
     yt/yql/providers/yt/fmr/job_factory/impl
+    yt/yql/providers/yt/fmr/job_preparer/impl
     yt/yql/providers/yt/fmr/request_options/proto_helpers
     yt/yql/providers/yt/fmr/test_tools/table_data_service
+    yt/yql/providers/yt/fmr/test_utils
     yt/yql/providers/yt/fmr/worker/impl
     yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/minikql/invoke_builtins/llvm16

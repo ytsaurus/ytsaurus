@@ -68,6 +68,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const IInvokerPtr& GetPushBasedShuffleInvoker();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetExecNodesUpdateInvoker();
 
     /*!
@@ -114,6 +119,16 @@ public:
      *  \note Thread affinity: any
      */
     TJobTracker* GetJobTracker() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const;
 
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;

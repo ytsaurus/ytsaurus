@@ -59,6 +59,21 @@ TEST(TMisraGriesHeavyHittersTest, Basic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TMisraGriesHeavyHittersTest, ZeroLimit)
+{
+    auto now = TInstant::Now() - TDuration::Days(100);
+    auto window = TDuration::Minutes(1);
+    auto counter = New<TMisraGriesHeavyHitters<int>>(1.0 / 3, window, 0);
+    counter->Register(std::vector<int>{1, 2, 3, 1, 4, 5, 2, 2, 3, 2, 2, 6}, now);
+    auto statistics = counter->GetStatistics(now);
+    EXPECT_NEAR(statistics.Total, 12.0 / window.Seconds(), 0.1);
+    EXPECT_TRUE(statistics.Fractions.empty());
+    statistics = counter->GetStatistics(now, std::optional<i64>{5});
+    EXPECT_TRUE(statistics.Fractions.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TMisraGriesHeavyHittersTest, Random)
 {
     const int keyCount = 1e5;

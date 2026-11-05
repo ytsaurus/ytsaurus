@@ -103,11 +103,6 @@ StoragePtr TableFunctionURL::getStorage(
         && !is_secondary_query
         && !is_insert_query;
 
-    const auto & client_info = context->getClientInfo();
-    bool can_use_distributed_iterator =
-        client_info.collaborate_with_initiator &&
-        context->hasReadTaskCallback();
-
     if (can_use_parallel_replicas)
     {
         return std::make_shared<StorageURLCluster>(
@@ -135,7 +130,7 @@ StoragePtr TableFunctionURL::getStorage(
         configuration.headers,
         configuration.http_method,
         nullptr,
-        /*distributed_processing=*/ can_use_distributed_iterator);
+        /*distributed_processing=*/false);
 }
 
 ColumnsDescription TableFunctionURL::getActualTableStructure(ContextPtr context, bool /*is_insert_query*/) const

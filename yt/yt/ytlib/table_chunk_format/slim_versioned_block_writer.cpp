@@ -583,7 +583,7 @@ int TSlimVersionedBlockWriter::GetTimestampIndex(TTimestamp timestamp)
         return it->second;
     }
     int index = std::ssize(TimestampToIndex_);
-    WritePod(TimestampDataStream_, timestamp);
+    WritePod(TimestampDataStream_, timestamp.Underlying());
     EmplaceOrCrash(TimestampToIndex_, timestamp, index);
     return index;
 }

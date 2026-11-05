@@ -21,9 +21,7 @@ std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pytho
 
 std::unique_ptr<IZeroCopyOutput> CreateZeroCopyOutputStreamWrapper(const Py::Object& pythonOutputStream);
 
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(TString string);
+std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(std::string string);
 
 ////////////////////////////////////////////////////////////////////////////////
 

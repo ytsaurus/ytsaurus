@@ -58,7 +58,6 @@ target_link_libraries(unittester-core-ytree PUBLIC
   tools-enum_parser-enum_serialization_runtime
   yt-yt-core
   yt-core-test_framework
-  yt-yt-client
   contrib-libs-protobuf
 )
 
@@ -81,6 +80,8 @@ target_sources(unittester-core-ytree PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/complex_key_map.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/composite_map_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/customized_config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/options_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/precise_time_ut.cpp

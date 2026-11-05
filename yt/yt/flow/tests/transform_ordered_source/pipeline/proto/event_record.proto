@@ -1,0 +1,6 @@
+package NTest;
+
+message TEventRecordProto {
+    optional uint64 reduce_id = 1;
+    optional int64 event_id = 2;
+};

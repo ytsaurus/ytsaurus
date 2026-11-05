@@ -8,13 +8,9 @@ from yt_commands import (
     insert_rows, select_rows, alter_table,
     read_table, write_table, generate_timestamp, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table,
-    sync_compact_table, get_driver, make_externalized_tx_id, print_debug)
-
-from yt_sequoia_helpers import not_implemented_in_sequoia
+    sync_compact_table, get_driver, make_externalized_tx_id, print_debug, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 
 import time
@@ -22,7 +18,6 @@ import time
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -37,9 +32,9 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row index selectors are not supported for sorted dynamic"):
             read_table("//tmp/t[#5:]")
-        with pytest.raises(YtError):
+        with raises_yt_error("Offset selectors are not supported for tables"):
             read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
     @authors("savrus")
@@ -70,7 +65,6 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@chunk_count") == 2
 
     @authors("savrus")
-    @not_implemented_in_sequoia
     def test_read_snapshot_lock(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", enable_dynamic_store_read=False)
@@ -140,7 +134,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t") == rows1
         assert read_table("//tmp/t", tx=tx) == []
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested timestamp is out of range for table"):
             read_table("<timestamp={0}>//tmp/t".format(generate_timestamp()), tx=tx)
 
         abort_transaction(tx)
@@ -270,11 +264,10 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("API is not supported for dynamic tables"):
             write_table("//tmp/t", [{"key": 1, "value": 2}])
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -285,14 +278,12 @@ class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTableRpcProxy(TestSortedDynamicTablesReadTable):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -303,7 +294,6 @@ class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMul
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTableSequoia(TestSortedDynamicTablesReadTableMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -317,7 +307,6 @@ class TestSortedDynamicTablesReadTableSequoia(TestSortedDynamicTablesReadTableMu
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestReadDynamicTableFormats(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 

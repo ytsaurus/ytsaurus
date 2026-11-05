@@ -1,7 +1,7 @@
 #include "config.h"
 #include "plugin_service.h"
 
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -11,6 +11,9 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/library/profiling/perf/event_counter_profiler.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/library/program/helpers.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
@@ -45,6 +48,9 @@ protected:
     {
         TThread::SetCurrentThreadName("YqlPluginMain");
 
+        // This subprocess has no YT metrics collector; pending registrations would retain sensors.
+        NProfiling::TSolomonRegistry::Get()->Disable();
+
         ConfigureUids();
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
@@ -66,25 +72,21 @@ protected:
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
-        auto options = ConvertToOptions(
+        auto options = ConvertToNativePluginOptions(
             config->PluginConfig,
+            config->PluginDynamicConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            config->MaxSupportedYqlVersion,
-            false);
+            /*startDqManager*/ false,
+            /*enableClique*/ false,
+            config->UseTokenResolver,
+            config->TokenServiceSocketPath);
 
-        auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
+        auto yqlPlugin = CreateYqlPlugin(std::move(options));
         yqlPlugin->Start();
 
-        if (config->DynamicGatewaysConfig) {
-            yqlPlugin->OnDynamicConfigChanged(TYqlPluginDynamicConfig{
-                .GatewaysConfig = *config->DynamicGatewaysConfig,
-                .MaxSupportedYqlVersion = NYson::TYsonString(config->MaxSupportedYqlVersion),
-            });
-        }
-
         auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
-        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
+        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::NTcp::CreateBusServer(config->BusServer));
 
         rpcServer->RegisterService(yqlPluginService);
 

@@ -7,15 +7,13 @@ from yt.environment.helpers import assert_items_equal
 
 import yt_error_codes
 
-import pytest
-
 import requests
 import hashlib
+import json
 
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthBase(YTEnvSetup):
     NUM_MASTERS = 1
 
@@ -51,7 +49,6 @@ class TestCypressTokenAuthBase(YTEnvSetup):
         remove("//sys/cypress_tokens/*")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -142,8 +139,32 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
 
     @authors("ermolovd")
     def test_issue_token_to_missing_user(self):
-        with raises_yt_error(yt_error_codes.NoSuchUser):
+        with raises_yt_error(code=yt_error_codes.NoSuchUser):
             issue_token("missing_user")
+
+    @authors("nadya73")
+    def test_whoami_invalid_token_yt_error_header(self):
+        # Whoami with an invalid token must reply with the X-YT-Error header
+        # so that SDKs can parse the failure, not just rely on the status code.
+        rsp = requests.post(
+            self._get_proxy_address() + "/auth/whoami",
+            headers={"Authorization": "OAuth invalid-token"})
+        assert rsp.status_code == 401
+        assert "X-YT-Error" in rsp.headers
+        error = json.loads(rsp.headers["X-YT-Error"])
+        assert error["code"] == yt_error_codes.AuthenticationError
+        assert error["message"] == "Authentication failed"
+
+    @authors("nadya73")
+    def test_whoami_valid_token_no_yt_error_header(self):
+        create_user("u_whoami")
+        t, _ = issue_token("u_whoami")
+        rsp = requests.post(
+            self._get_proxy_address() + "/auth/whoami",
+            headers={"Authorization": "OAuth " + t})
+        rsp.raise_for_status()
+        assert "X-YT-Error" not in rsp.headers
+        assert rsp.json()["login"] == "u_whoami"
 
     @authors("nadya73")
     def test_document_cypress_token(self):
@@ -157,7 +178,6 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         wait(lambda: self._check_deny(token=token))
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -185,7 +205,6 @@ class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
         self._check_allow(token=t)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommands(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -220,7 +239,6 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
         self._make_request(f"/api/v4/list_user_tokens?user=u3&password_sha256={p2_sha256}", t).raise_for_status()
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "driver": {

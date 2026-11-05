@@ -28,6 +28,7 @@ queue_agent_count=1
 with_auth=false
 enable_debug_logging=false
 extra_yt_docker_opts=''
+extra_ui_docker_opts=''
 yt_fqdn=''
 init_operations_archive=false
 disable_query_tracker=false
@@ -74,6 +75,7 @@ Usage: $script_name [-h|--help]
                     [--with-auth]
                     [--enable-debug-logging]
                     [--extra-yt-docker-opts opts]
+                    [--extra-ui-docker-opts opts]
                     [--init-operations-archive]
                     [--run-prometheus]
                     [--prometheus-port port]
@@ -103,6 +105,7 @@ Usage: $script_name [-h|--help]
   --with-auth: Enables authentication and creates admin user
   --enable-debug-logging: Enable debug logging in backend container
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
+  --extra-ui-docker-opts: Any extra configuration for UI docker container (default: $extra_ui_docker_opts)
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
   --run-prometheus: Run prometheus and collect metrics
   --prometheus-port: Sets the prometheus port on docker host (default: $prometheus_port)
@@ -213,6 +216,10 @@ while [[ $# -gt 0 ]]; do
         ;;
     --extra-yt-docker-opts)
         extra_yt_docker_opts="$2"
+        shift 2
+        ;;
+    --extra-ui-docker-opts)
+        extra_ui_docker_opts="$2"
         shift 2
         ;;
     --init-operations-archive)
@@ -474,6 +481,7 @@ interface_container=$(
         -e LOCALMODE_EXTERNAL_PROXY=${ui_external_proxy} \
         -e AUTH_COOKIE_DOMAIN=${ui_auth_cookie_domain} \
         ${ui_run_params} \
+        $extra_ui_docker_opts \
         --rm \
         $ui_image
 )

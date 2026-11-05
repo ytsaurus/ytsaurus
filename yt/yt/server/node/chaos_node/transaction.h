@@ -13,10 +13,12 @@
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/persistent_queue.h>
-#include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChaosNode {
 

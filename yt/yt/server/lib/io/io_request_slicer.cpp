@@ -85,6 +85,8 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         slice.Request.Offset = offset;
         slice.Request.Handle = request.Handle;
         slice.Request.Size = sliceSize;
+        slice.Request.FairShareSlotId = request.FairShareSlotId;
+        slice.Request.FairShareState = request.FairShareState;
         slice.OutputBuffer = buffer.Slice(bufferOffset, bufferOffset + sliceSize);
     });
 }
@@ -101,7 +103,9 @@ std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request, int di
         slice.Handle = request.Handle;
         slice.Flush = request.Flush;
         slice.Buffers = iterator.Take(sliceSize);
-    });
+        slice.FairShareSlotId = request.FairShareSlotId;
+        slice.FairShareState = request.FairShareState;
+    }, /*alignOffset*/ false);
 }
 
 std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request, int directIoBlockSize) const
@@ -114,17 +118,19 @@ std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeReque
         slice.Handle = request.Handle;
         slice.Offset = offset;
         slice.Size = sliceSize;
+        slice.FairShareSlotId = request.FairShareSlotId;
+        slice.FairShareState = request.FairShareState;
     });
 }
 
 template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandler>
-std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handleSlice) const
+std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handleSlice, bool alignOffset) const
 {
     i64 blockSize = request.Handle->IsOpenForDirectIO() ? directIoBlockSize : 1;
     i64 desiredSize = AlignUp(DesiredRequestSize_, blockSize);
     i64 minSize = AlignUp(MinRequestSize_, blockSize);
 
-    i64 offset = AlignDown(request.Offset, blockSize);
+    i64 offset = alignOffset ? AlignDown(request.Offset, blockSize) : request.Offset;
     i64 remainingSize = AlignUp<i64>(request.Offset + NDetail::GetByteCount(request), blockSize) - offset;
     i64 indivisibleBlockSize = desiredSize + minSize;
 

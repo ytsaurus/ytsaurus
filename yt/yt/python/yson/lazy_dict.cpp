@@ -20,7 +20,7 @@ size_t TPyObjectHasher::operator()(const Py::Object& object) const
 
 using NPython::GetYsonTypeClass;
 
-TLazyDict::TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding)
+TLazyDict::TLazyDict(bool alwaysCreateAttributes, const std::optional<std::string>& encoding)
     : YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
     , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
     , YsonDouble(GetYsonTypeClass("YsonDouble"), /* owned */ true)

@@ -49,7 +49,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     struct TCounters
     {
@@ -193,12 +193,11 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Backing memory limit exceeded "
-                "(TabletCellBundle: %v, MemoryLimit: %v, MemoryUsage: %v, Overcommit: %v)",
-                bundleName,
-                bundleData.MemoryLimit,
-                bundleData.MemoryUsage,
-                memoryOvercommit);
+            YT_TLOG_DEBUG("Backing memory limit exceeded")
+                .With("TabletCellBundle", bundleName)
+                .With("MemoryLimit", bundleData.MemoryLimit)
+                .With("MemoryUsage", bundleData.MemoryUsage)
+                .With("Overcommit", memoryOvercommit);
 
             int storeIndex = 0;
             for (; storeIndex < std::ssize(stores); ++storeIndex) {
@@ -222,7 +221,12 @@ private:
             auto invoker = slot->GetAutomatonInvoker();
             // NB: Cannot capture structured binding element in lambda.
             invoker->Invoke(BIND([slot = slot, stores = stores] {
+                // The slot may have been finalized between scheduling and running this callback
+                // (the automaton invoker is not epoch-guarded), leaving the tablet manager reset.
                 const auto& tabletManager = slot->GetTabletManager();
+                if (!tabletManager) {
+                    return;
+                }
                 for (const auto& store : stores) {
                     tabletManager->ReleaseBackingStore(store);
                 }

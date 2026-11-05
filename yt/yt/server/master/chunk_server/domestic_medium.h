@@ -5,7 +5,7 @@
 #include "config.h"
 #include "medium_base.h"
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 
@@ -22,8 +22,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TDomesticMediumConfigPtr, Config, New<TDomesticMediumConfig>());
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<std::string>>, DiskFamilyWhitelist);
-
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableSequoiaReplicas, true);
 
 public:
     using TMedium::TMedium;

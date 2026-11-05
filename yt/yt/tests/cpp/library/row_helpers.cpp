@@ -42,7 +42,7 @@ bool GetBoolean(const TUnversionedValue& value)
     return value.Data.Boolean;
 }
 
-TString GetString(const TUnversionedValue& value)
+std::string GetString(const TUnversionedValue& value)
 {
     EnsureTypesMatch(EValueType::String, value.Type);
     return value.AsString();

@@ -24,7 +24,7 @@ using namespace NYT::NLsm::NTesting;
 using namespace NYT;
 using namespace NYT::NTabletNode;
 
-TString FormatDataSize(i64 value) {
+std::string FormatDataSize(i64 value) {
     for (auto suffix : {"B", "KB", "MB", "GB", "TB"}) {
         if (value < 1000) {
             return ToString(value) + " " + suffix;
@@ -36,9 +36,10 @@ TString FormatDataSize(i64 value) {
     return "inf";
 }
 
-TTabletPtr LoadTablet(TString filename, TTableMountConfigPtr mountConfig)
+TTabletPtr LoadTablet(std::string filename, TTableMountConfigPtr mountConfig)
 {
-    TFile file(filename, EOpenModeFlag::RdOnly);
+    // TODO(babenko): drop TString cast once TFile accepts std::string.
+    TFile file(TString(filename), EOpenModeFlag::RdOnly);
     TUnbufferedFileInput stream(file);
     TStreamLoadContext context(&stream);
     auto tablet = New<TTablet>();
@@ -54,7 +55,7 @@ TTabletPtr LoadTablet(TString filename, TTableMountConfigPtr mountConfig)
 }
 
 void OptimizeWithMountConfigOptimizer(
-    std::optional<TString> loadFromFile,
+    std::optional<std::string> loadFromFile,
     const TTableMountConfigPtr& mountConfig,
     const TLsmSimulatorConfigPtr& simulatorConfig)
 {
@@ -94,8 +95,8 @@ void OptimizeWithMountConfigOptimizer(
 int main(int argc, char* argv[])
 {
     NLastGetopt::TOpts opts;
-    TString saveToFile;
-    TString loadFromFile;
+    std::string saveToFile;
+    std::string loadFromFile;
     opts.AddLongOption("save")
         .RequiredArgument("filename")
         .StoreResult(&saveToFile);
@@ -188,9 +189,9 @@ int main(int argc, char* argv[])
         auto timePassed = actionQueue->GetNow() - now;
         i64 secondsPassed = timePassed.Seconds();
 
-        std::vector<TString> logLine;
+        std::vector<std::string> logLine;
         for (const auto& field : simulatorConfig->LoggingFields) {
-            TString str;
+            std::string str;
             auto on = [&] (TStringBuf title, i64 value, bool rate = false) {
                 str += title;
                 str += " " + FormatDataSize(value) + (rate ? "/s" : "");
@@ -289,9 +290,9 @@ int main(int argc, char* argv[])
     }
 
     TTabularFormatter formatterFinal(ssize(simulatorConfig->LoggingFieldsFinal));
-    std::vector<TString> logLine;
+    std::vector<std::string> logLine;
     for (const auto& field : simulatorConfig->LoggingFieldsFinal) {
-        TString str;
+        std::string str;
         auto statistics = simulator->GetStoreManager()->GetStatistics();
 
         if (field == "write_amplification_compaction_avg") {
@@ -330,7 +331,8 @@ int main(int argc, char* argv[])
     Cerr << formatterFinal.Format(logLine) << "\n";
 
     if (parsed.Has("save")) {
-        TOFStream stream(saveToFile);
+        // TODO(babenko): drop TString cast once TOFStream accepts std::string.
+        TOFStream stream{TString(saveToFile)};
         TStreamSaveContext context(&stream);
 
         NYT::Save(context, *simulator->GetStoreManager()->GetTablet());

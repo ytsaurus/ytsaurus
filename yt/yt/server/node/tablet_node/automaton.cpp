@@ -37,6 +37,7 @@ std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
         THROW_ERROR_EXCEPTION("Automaton host is destroyed");
     }
     auto context = std::make_unique<TLoadContext>(input);
+    context->NodeMemoryUsageTracker = host->GetNodeMemoryUsageTracker();
     TCompositeAutomaton::SetupLoadContext(context.get());
     return context;
 }
@@ -65,7 +66,7 @@ TTabletAutomatonPart::TTabletAutomatonPart(
         std::move(automatonInvoker))
     , MutationForwarder_(std::move(mutationForwarder))
 {
-    Logger = TabletNodeLogger().WithTag("CellId: %v", cellId);
+    Logger = TabletNodeLogger().WithTag("CellId", cellId);
 }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)

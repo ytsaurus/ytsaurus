@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -54,7 +56,9 @@ struct IStrategyHost
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
+    virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
+
+    virtual std::string FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
@@ -72,7 +76,7 @@ struct IStrategyHost
     virtual void ValidatePoolPermission(
         const std::string& treeId,
         TGuid poolObjectId,
-        const TString& poolName,
+        const std::string& poolName,
         const std::string& user,
         NYTree::EPermission permission) const = 0;
 
@@ -89,7 +93,7 @@ struct IStrategyHost
     virtual void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) = 0;
@@ -99,7 +103,7 @@ struct IStrategyHost
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
-    virtual const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const = 0;
+    virtual const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,17 +114,24 @@ struct TAllocationUpdate
     TOperationId OperationId;
     TAllocationId AllocationId;
     std::string TreeId;
-    // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
-    TJobResources AllocationResources;
+    // Engaged when the allocation's resource usage changed (EAllocationUpdateStatus::Running);
+    // nullopt for preemptible-progress-reset-only or finish updates.
+    std::optional<TJobResources> AllocationResources;
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
     std::optional<std::string> AllocationDataCenter;
     std::optional<std::string> AllocationInfinibandCluster;
 
-    bool ResourceUsageUpdated = false;
     bool Finished = false;
 
     // Is non-empty if preemptible progress has been reset.
     std::optional<TInstant> PreemptibleProgressStartTime;
+
+    // Controller epoch of the operation at the moment the update was produced. An update produced
+    // before a revival must never be replayed after it.
+    TControllerEpoch ControllerEpoch = InvalidControllerEpoch;
+
+    // Time |AllocationResources| was written.
+    TCpuInstant ResourcesUpdateTime = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,13 +161,12 @@ struct INodeHeartbeatStrategyProxy
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
-    virtual void BuildSchedulingAttributesString(
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTags(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const = 0;
 
-    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        TInstant now) const = 0;
 
     virtual TMatchingTreeCookie GetMatchingTreeCookie() const = 0;
 
@@ -181,7 +191,8 @@ struct IStrategy
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const = 0;
 
-    //! Notify strategy about allocation updates.
+    //! Notify strategy about allocation updates. Synchronous: returns after all updates have been applied
+    //! (or postponed/sentenced to abort).
     virtual void ProcessAllocationUpdates(
         const std::vector<TAllocationUpdate>& allocationUpdates,
         THashSet<TAllocationId>* allocationsToPostpone,
@@ -222,7 +233,7 @@ struct IStrategy
      *
      *  The implementation must be synchronous.
      */
-    virtual THashMap<TString, TError> GetPoolLimitViolations(
+    virtual THashMap<std::string, TError> GetPoolLimitViolations(
         const IOperation* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 
@@ -267,7 +278,7 @@ struct IStrategy
 
     virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
     virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;

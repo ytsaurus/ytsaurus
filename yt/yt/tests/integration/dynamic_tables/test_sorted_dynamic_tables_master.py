@@ -10,12 +10,11 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_first_chunk_id, create_dynamic_table, get_tablet_leader_address,
-    raises_yt_error)
+    raises_yt_error, update_nodes_dynamic_config)
 
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -26,7 +25,6 @@ import builtins
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -73,7 +71,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert_items_equal(actual, rows)
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             lookup_rows("//tmp/t", keys)
 
         sync_mount_table("//tmp/t")
@@ -99,7 +97,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_freeze_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", [{"key": 0}])
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -150,7 +148,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         sync_freeze_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
         assert select_rows("* from [//tmp/t]") == rows
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", rows)
 
     @authors("savrus")
@@ -166,7 +164,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
             ],
         )
         assert not get("//tmp/t/@schema/@unique_keys")
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t", dynamic=True)
 
     @parametrize_external
@@ -272,11 +270,11 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     def test_set_pivot_keys_upon_construction_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", pivot_keys=[])
-        with pytest.raises(YtError):
+        with raises_yt_error("First pivot key must be empty"):
             self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             self._create_simple_table("//tmp/t", pivot_keys=[[], [1], [1]])
 
     @authors("babenko")
@@ -286,7 +284,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     def test_create_table_with_invalid_schema(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             create(
                 "table",
                 "//tmp/t",
@@ -429,7 +427,6 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert actual_cell_ids == cell_ids
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -440,14 +437,12 @@ class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTables
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -458,7 +453,6 @@ class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMou
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeSequoia(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -475,7 +469,6 @@ class TestSortedDynamicTablesMountUnmountFreezeSequoia(TestSortedDynamicTablesMo
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -488,7 +481,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_failure(self):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy dynamic table"):
             copy("//tmp/t1", "//tmp/t2")
 
     @authors("babenko")
@@ -611,33 +604,33 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [100]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             reshard_table("//tmp/t", [[], []])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
         sync_reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("First pivot key must match that of the first tablet"):
             reshard_table("//tmp/t", [[101]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("First tablet index .* is out of range"):
             reshard_table("//tmp/t", [[300]], first_tablet_index=3, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Last pivot key must be strictly less than that of the tablet which follows the resharded range"):
             reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
         sync_reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Mismatched type of column"):
             reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
@@ -647,7 +640,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [100], [200], [300]])
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot reshard table since tablet .* is not unmounted"):
             reshard_table(
                 "//tmp/t",
                 [[100], [250], [300]],
@@ -799,6 +792,75 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         reshard_table("//tmp/t4", 5, uniform=True)
         assert get("//tmp/t4/@pivot_keys") == [[], [-19661], [-6554], [6553], [19660]]
 
+    @authors("dgolear")
+    @pytest.mark.parametrize(
+        "expression, key_type, hash_type, tablet_count, pivots",
+        [
+            (
+                "farm_hash(key) % 100",
+                "string",
+                "uint64",
+                10,
+                [[], [10], [20], [30], [40], [50], [60], [70], [80], [90]],
+            ),
+            ("farm_hash(key) % (100u)", "string", "uint64", 3, [[], [33], [66]]),
+            ("farm_hash(key) % +100u", "string", "uint64", 2, [[], [2**63]]),
+            ("farm_hash(key) % -10u", "string", "uint64", 2, [[], [2**63]]),
+            ("farm_hash(key) % -10", "string", "uint64", 2, [[], [2**63]]),
+            (
+                "farm_hash(key) % (50u + 50u)",
+                "string",
+                "uint64",
+                3,
+                [[]] + [[2**64 * i // 3] for i in range(1, 3)],
+            ),
+            ("farm_hash(key) % 1u", "string", "uint64", 10, [[]]),
+            ("farm_hash(key) % 4u", "string", "uint64", 10, [[], [1], [2], [3]]),
+            ("farm_hash(key) % 18446744073709551615u", "string", "uint64", 2, [[], [9223372036854775807]]),
+            ("farm_hash(key) % 18446744073709551615", "string", "uint64", 2, [[], [2**63]]),
+            ("key % 10", "int64", "int64", 3, [[], [-3], [3]]),
+            ("key % -10", "int64", "int64", 3, [[]] + [[-(2**63) + 2**64 * i // 3] for i in range(1, 3)]),
+            ("key % -9223372036854775808", "int64", "int64", 2, [[], [0]]),
+        ],
+    )
+    def test_reshard_uniform_modulo(self, expression, key_type, hash_type, tablet_count, pivots):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "hash", "type": hash_type, "sort_order": "ascending", "expression": expression},
+                {"name": "key", "type": key_type, "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", tablet_count, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == pivots
+
+    @authors("dgolear")
+    @pytest.mark.parametrize("key_type", ["int8", "uint64"])
+    def test_reshard_uniform_uses_first_column_only(self, key_type):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key) % 4u"},
+                {"name": "key", "type": key_type, "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", 8, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == [[], [1], [2], [3]]
+
+    @authors("dgolear")
+    def test_reshard_uniform_small_integer_domain(self):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "uint8", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", 300, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == [[]] + [[key] for key in range(1, 256)]
+
     @authors("ifsmirnov")
     def test_reshard_YT_20800(self):
         def _get_schema(key_column_count):
@@ -876,7 +938,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         # valid schema can be set for an empty table without any checks.
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -884,7 +946,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -892,7 +954,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -905,7 +967,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", [{"key1": 1, "value": "test"}])
         sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -914,7 +976,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -928,7 +990,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -942,7 +1004,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -968,9 +1030,9 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             "//tmp/t2",
             attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t2", dynamic=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t2",
                 schema=[
@@ -978,7 +1040,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t2", dynamic=True)
 
     @authors("gritukan")
@@ -1053,10 +1115,10 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t", schema=bad_schema_2)
 
         alter_table("//tmp/t", schema=new_schema)
@@ -1068,11 +1130,10 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         ]
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=old_schema)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1083,14 +1144,12 @@ class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyRes
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyReshard):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1101,7 +1160,6 @@ class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshar
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1112,4 +1170,136 @@ class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyResha
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
+class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "slot_scan_period": 1000,
+            "resource_limits": {
+                "slots": 2,
+            },
+        },
+    }
+
+    def _get_external_cell_tags(self):
+        if self.NUM_SECONDARY_MASTER_CELLS > 0:
+            return [11 + i for i in range(self.NUM_SECONDARY_MASTER_CELLS)]
+        return [None]
+
+    def _get_throttler_config(self, bottleneck, rate=1):
+        match bottleneck:
+            case "total":
+                return {"throttler": {"limit": rate}}
+            case "bundle":
+                return {"bundle_limit": rate, "regular_relative_limit": 1., "flush_relative_limit": 1.}
+            case "regular":
+                return {"bundle_limit": 1000, "regular_relative_limit": rate / 1000}
+            case "flush":
+                return {"bundle_limit": 1000, "flush_relative_limit": rate / 1000}
+            case _:
+                assert False
+
+    def _create_table(self, path, with_hunks, external_cell_tag):
+        attributes = {}
+
+        if with_hunks:
+            attributes["schema"] = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+            ]
+
+        if external_cell_tag is not None:
+            attributes["external_cell_tag"] = external_cell_tag
+
+        self._create_simple_table(path, **attributes)
+        set(f"{path}/@replication_factor", 1)
+
+    def _make_rows(self, keys, with_hunks):
+        suffix = "x" * 20 if with_hunks else ""
+        return [{"key": key, "value": f"value{key}{suffix}"} for key in keys]
+
+    def _check_throttling(self, tables, get_new_count, total_count, duration, store_cost):
+        expected_new_count = duration // store_cost
+
+        time.sleep(duration)
+
+        for path in tables:
+            new_count = get_new_count(path)
+            assert new_count > expected_new_count * 0.5
+            assert new_count < expected_new_count * 1.5
+
+        for path in tables:
+            wait(lambda: get_new_count(path) == total_count)
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("cell_count", [1, 4])
+    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular"])
+    @pytest.mark.parametrize("with_hunks", [False, True])
+    def test_compaction_throttling(self, bottleneck, cell_count, with_hunks):
+        sync_create_cells(cell_count)
+
+        # A store costs one unit at the node (the input store) and one at the master (the
+        # output store); with hunks the master charges one more for the output hunk chunk.
+        store_cost = 3 if with_hunks else 2
+
+        duration = 12
+
+        # Twice the work that fits the measured window, so that it never runs out of stores.
+        chunk_count = max(cell_count, 2 * duration // store_cost)
+
+        external_cell_tags = self._get_external_cell_tags()
+        tables = [f"//tmp/t{i}" for i in range(len(external_cell_tags))]
+        for path, external_cell_tag in zip(tables, external_cell_tags):
+            self._create_table(path, with_hunks, external_cell_tag)
+
+            sync_reshard_table(path, [[]] + [[i * 1000] for i in range(1, chunk_count)])
+            sync_mount_table(path)
+            insert_rows(path, self._make_rows([i * 1000 for i in range(chunk_count)], with_hunks))
+            sync_unmount_table(path)
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "global_stores_update_throttler": {
+                    "enable": True,
+                },
+                # Sweeps of the compacted hunk chunks are throttled separately.
+                "hunk_chunk_sweeper": {
+                    "enable": False,
+                },
+            },
+        })
+
+        set("//sys/@config/tablet_manager/stores_update_throttler", self._get_throttler_config(bottleneck))
+
+        old_chunk_ids = {}
+        for path in tables:
+            chunk_ids = builtins.set(self._get_store_chunk_ids(path))
+            assert chunk_count == len(chunk_ids)
+            old_chunk_ids[path] = chunk_ids
+
+        for path in tables:
+            set(f"{path}/@forced_compaction_revision", 1)
+            if with_hunks:
+                set(f"{path}/@forced_hunk_compaction_revision", 1)
+            sync_mount_table(path)
+
+        self._check_throttling(
+            tables,
+            lambda path: chunk_count - len(old_chunk_ids[path].intersection(get(f"{path}/@chunk_ids"))),
+            chunk_count,
+            duration,
+            store_cost)
+
+
+class TestUpdateTabletStoresThrottlingMulticell(TestUpdateTabletStoresThrottling):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }

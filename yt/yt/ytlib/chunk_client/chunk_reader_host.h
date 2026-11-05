@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/misc/intern_registry.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,12 @@ TPerCategoryThrottlerProvider MakeUniformPerCategoryThrottlerProvider(NConcurren
 using TPerClusterAndCategoryBandwidthThrottlerProvider = TCallback<
     TPerCategoryThrottlerProvider(const NScheduler::TClusterName& clusterName)
 >;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TInternedNodeDescriptor = TInternedObject<NNodeTrackerClient::TNodeDescriptor>;
+
+TInternedNodeDescriptor InternNodeDescriptor(NNodeTrackerClient::TNodeDescriptor descriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,13 +49,23 @@ struct TChunkReaderHost
 
     TChunkReaderHost(
         NApi::NNative::IClientPtr client,
+        TInternedNodeDescriptor localDescriptor,
+        IBlockCachePtr blockCache,
+        IClientChunkMetaCachePtr chunkMetaCache,
+        TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
+        NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+        NConcurrency::IThroughputThrottlerPtr mediumThrottler,
+        TTrafficMeterPtr trafficMeter);
+
+    TChunkReaderHost(
+        NApi::NNative::IClientPtr client,
         TPerCategoryThrottlerProvider bandwidthThrottlerProvider = {},
         NConcurrency::IThroughputThrottlerPtr rpsThrottler = nullptr,
         NConcurrency::IThroughputThrottlerPtr mediumThrottler = nullptr);
 
     const NApi::NNative::IClientPtr Client;
 
-    const NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
+    const TInternedNodeDescriptor LocalDescriptor;
 
     const IBlockCachePtr BlockCache;
     const IClientChunkMetaCachePtr ChunkMetaCache;

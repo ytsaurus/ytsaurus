@@ -39,6 +39,7 @@ PY_SRCS(
     test_compare_replicas.py
     test_ordered.py
     test_queue_and_hunk_storage.py
+    test_queue_static_export.py
     test_queues.py
     test_sorted.py
     verify.py
@@ -54,3 +55,5 @@ PY_SRCS(
 )
 
 END()
+
+RECURSE_FOR_TESTS(tests)

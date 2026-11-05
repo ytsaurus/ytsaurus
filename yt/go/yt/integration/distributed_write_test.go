@@ -1,0 +1,204 @@
+package integration
+
+import (
+	"io"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yttest"
+)
+
+type distributedWriteRow struct {
+	V int `yson:"v"`
+}
+
+// waitSignatureKeyPublished waits for all HTTP proxies to publish signature keys (done
+// asynchronously after startup), without which distributed write sessions can't be signed.
+func waitSignatureKeyPublished(t *testing.T, env *yttest.Env) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var proxies []string
+		if err := env.YT.ListNode(env.Ctx, ypath.Path("//sys/http_proxies"), &proxies, nil); err != nil || len(proxies) == 0 {
+			return false
+		}
+
+		for _, proxy := range proxies {
+			exists, err := env.YT.NodeExists(
+				env.Ctx,
+				ypath.Path("//sys/public_keys/by_owner").Child(proxy),
+				nil)
+			if err != nil || !exists {
+				return false
+			}
+		}
+		return true
+	}, time.Minute, time.Second)
+}
+
+func TestDistributedWrite(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+	ctx := env.Ctx
+
+	waitSignatureKeyPublished(t, env)
+
+	path := env.TmpPath()
+	_, err := env.YT.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+		Attributes: map[string]any{"schema": schema.MustInfer(&distributedWriteRow{})},
+	})
+	require.NoError(t, err)
+
+	const cookieCount = 3
+	const rowsPerCookie = 4
+
+	cookieCountOpt := cookieCount
+	session, err := env.YT.StartDistributedWriteSession(ctx, path, &yt.StartDistributedWriteSessionOptions{
+		CookieCount: &cookieCountOpt,
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Cookies, cookieCount)
+
+	results := make([]yt.WriteFragmentResult, 0, len(session.Cookies))
+	for i, cookie := range session.Cookies {
+		w, err := env.YT.WriteTableFragment(ctx, cookie, nil)
+		require.NoError(t, err)
+		for j := 0; j < rowsPerCookie; j++ {
+			require.NoError(t, w.Write(distributedWriteRow{V: i*rowsPerCookie + j}))
+		}
+		require.NoError(t, w.Commit())
+		results = append(results, w.Result())
+	}
+
+	require.NoError(t, env.YT.FinishDistributedWriteSession(ctx, session.Session, results, nil))
+
+	var rowCount int
+	require.NoError(t, env.YT.GetNode(ctx, path.Attr("row_count"), &rowCount, nil))
+	require.Equal(t, cookieCount*rowsPerCookie, rowCount)
+}
+
+func TestDistributedWriteUnderTransaction(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+	ctx := env.Ctx
+
+	waitSignatureKeyPublished(t, env)
+
+	path := env.TmpPath()
+	_, err := env.YT.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+		Attributes: map[string]any{"schema": schema.MustInfer(&distributedWriteRow{})},
+	})
+	require.NoError(t, err)
+
+	tx, err := env.YT.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Abort() }()
+
+	const cookieCount = 3
+	const rowsPerCookie = 4
+	const totalRows = cookieCount * rowsPerCookie
+
+	cookieCountOpt := cookieCount
+	session, err := env.YT.StartDistributedWriteSession(ctx, path, &yt.StartDistributedWriteSessionOptions{
+		CookieCount:        &cookieCountOpt,
+		TransactionOptions: &yt.TransactionOptions{TransactionID: tx.ID()},
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Cookies, cookieCount)
+
+	results := make([]yt.WriteFragmentResult, 0, len(session.Cookies))
+	for i, cookie := range session.Cookies {
+		w, err := env.YT.WriteTableFragment(ctx, cookie, nil)
+		require.NoError(t, err)
+		for j := 0; j < rowsPerCookie; j++ {
+			require.NoError(t, w.Write(distributedWriteRow{V: i*rowsPerCookie + j}))
+		}
+		require.NoError(t, w.Commit())
+		results = append(results, w.Result())
+	}
+
+	require.NoError(t, env.YT.FinishDistributedWriteSession(ctx, session.Session, results, nil))
+
+	readValues := func(c yt.TableClient) []int {
+		r, err := c.ReadTable(ctx, path, nil)
+		require.NoError(t, err)
+		defer func() { _ = r.Close() }()
+
+		var values []int
+		for r.Next() {
+			var row distributedWriteRow
+			require.NoError(t, r.Scan(&row))
+			values = append(values, row.V)
+		}
+		require.NoError(t, r.Err())
+		return values
+	}
+
+	expected := make([]int, totalRows)
+	for i := range expected {
+		expected[i] = i
+	}
+
+	require.ElementsMatch(t, expected, readValues(tx))
+	// Not yet visible outside the transaction.
+	require.Empty(t, readValues(env.YT))
+
+	require.NoError(t, tx.Commit())
+
+	require.ElementsMatch(t, expected, readValues(env.YT))
+}
+
+func TestDistributedWriteFile(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+	ctx := env.Ctx
+
+	waitSignatureKeyPublished(t, env)
+
+	path := env.TmpPath()
+	_, err := env.YT.CreateNode(ctx, path, yt.NodeFile, nil)
+	require.NoError(t, err)
+
+	tx, err := env.YT.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Abort() }()
+
+	cookieCount := 2
+	session, err := env.YT.StartDistributedWriteFileSession(ctx, path, &yt.StartDistributedWriteFileSessionOptions{
+		CookieCount:        &cookieCount,
+		TransactionOptions: &yt.TransactionOptions{TransactionID: tx.ID()},
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Cookies, cookieCount)
+	require.NoError(t, env.YT.PingDistributedWriteFileSession(ctx, session.Session, nil))
+
+	fragments := []string{"first;", "second;", "third;"}
+	results := make([]yt.WriteFileFragmentResult, 0, len(fragments))
+	for i, fragment := range fragments {
+		w, err := env.YT.WriteFileFragment(ctx, session.Cookies[i%cookieCount], nil)
+		require.NoError(t, err)
+		_, err = w.Write([]byte(fragment))
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+		results = append(results, w.Result())
+	}
+
+	slices.Reverse(results)
+	require.NoError(t, env.YT.FinishDistributedWriteFileSession(ctx, session.Session, results, nil))
+	require.NoError(t, tx.Commit())
+
+	r, err := env.YT.ReadFile(ctx, path, nil)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+	content, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, "third;second;first;", string(content))
+}

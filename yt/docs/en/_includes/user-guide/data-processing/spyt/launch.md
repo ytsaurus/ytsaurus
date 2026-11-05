@@ -41,7 +41,7 @@ This method is applicable for intensive cluster usage. In this mode {{product-na
 
 - Launching high-frequent tasks (more than once per hour). The efficiency is achieved because the task startup time in standalone cluster is significantly less than {{product-name}} operation startup time.
 - Ad-hoc analytics in Jupyter notebooks.
-- Ad-hoc analytics using Query tracker and livy.
+- Ad-hoc analytics using Query Tracker and [Livy](../../../../user-guide/data-processing/spyt/cluster/livy.md) in SPYT versions below 2.10.0. Starting with SPYT 2.10.0 and Query Tracker 0.4, use [SPYT Connect](../../../../user-guide/data-processing/spyt/connect.md).
 
 For launching an inner standalone Spark cluster follow these steps:
 
@@ -63,7 +63,7 @@ For launching an inner standalone Spark cluster follow these steps:
    - `--proxy` — Cluster name.
    - `--pool` — {{product-name}} computational pool.
    - `--spyt-version` — Spark housekeeping data directory.
-   - `--worker-cores` — Number of [worker](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone) cores.
+   - `--worker-cores` — Number of [worker](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone) cores.
    - `--worker-num` — Number of workers.
    - `--worker-memory` — Amount of each worker's memory.
    - `--spark-cluster-version` — Cluster [version](../../../../user-guide/data-processing/spyt/version.md) (optional).
@@ -82,7 +82,7 @@ For launching an inner standalone Spark cluster follow these steps:
    - `spark-submit-yt` — [spark-submit](https://spark.apache.org/docs/latest/submitting-applications.html) wrapper that enables you to find out the Spark master address from the Vanilla transaction. The search uses `proxy`, `id`, and `discovery-path` as arguments.
    - `--proxy` — Cluster name.
    - `--discovery-path` — Spark housekeeping data directory.
-   - `--deploy-mode` (`cluster` or `client`) — Cluster startup [mode](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode--cluster-mode).
+   - `--deploy-mode` (`cluster` or `client`) — Cluster startup [mode](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#cluster-mode).
    - `--spyt-version` — SPYT version (optional).
    - Address of the file with the code in {{product-name}}.
 

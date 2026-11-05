@@ -4,6 +4,10 @@
 
 #include <library/cpp/xdelta3/proto/state_header.pb.h>
 
+#include <util/generic/buffer.h>
+#include <util/generic/string.h>
+#include <util/system/types.h>
+
 #include <functional>
 
 namespace NXdeltaAggregateColumn {

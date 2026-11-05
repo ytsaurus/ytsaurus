@@ -4,7 +4,11 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 namespace NYT::NLsm::NTesting {
+
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +49,7 @@ inline TRow Row(i64 key, i64 dataSize = 1)
 {
     return TRow{
         .Key = key,
-        .Values = {{1, 1, dataSize}},
+        .Values = {{1, 1_ts, dataSize}},
         .DataSize = dataSize,
     };
 }

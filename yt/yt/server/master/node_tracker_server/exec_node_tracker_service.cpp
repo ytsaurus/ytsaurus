@@ -31,7 +31,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TExecNodeTrackerServiceProxy::GetDescriptor(),
-            TMasterHydraServiceBase::TRpcHeavyDefaultInvoker{},
+            TDispatcher::Get()->GetHeavyInvoker(),
             NodeTrackerServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
@@ -51,9 +51,9 @@ private:
         const auto& nodeTrackerCache = Bootstrap_->GetNodeTrackerCache();
         auto nodeAddress = nodeTrackerCache->GetNodeDefaultAddressOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            nodeAddress);
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", nodeAddress);
 
         const auto& execNodeTracker = Bootstrap_->GetExecNodeTracker();
         execNodeTracker->ProcessHeartbeat(context);

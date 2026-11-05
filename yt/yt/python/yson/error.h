@@ -10,8 +10,8 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const TString& message, const TError& error);
-Py::Exception CreateYsonError(const TString& message, TContext* context);
+Py::Exception CreateYsonError(const std::string& message, const TError& error);
+Py::Exception CreateYsonError(const std::string& message, TContext* context);
 
 #define CATCH_AND_CREATE_YSON_ERROR(message) \
     catch (const NYT::TErrorException& error) { \

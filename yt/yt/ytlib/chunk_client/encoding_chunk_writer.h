@@ -10,7 +10,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkClient {
 
@@ -30,7 +31,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        NLogging::TLogger logger);
+        NLogging::TLogger logger,
+        IInvokerPtr compressionInvokerOverride = {});
 
     void WriteBlock(
         std::vector<TSharedRef> vectorizedBlock,

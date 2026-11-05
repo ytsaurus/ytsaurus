@@ -93,7 +93,7 @@ TEST(TMinHashAccumulator, DeleteKeepsMaximumTimestampOnDuplicate)
     acc.Add(/*hash*/ 1, /*timestamp*/ 10);
     acc.Add(/*hash*/ 3, /*timestamp*/ 5);
     acc.Add(/*hash*/ 1, /*timestamp*/ 3);  // Lower should be discarded.
-    acc.Add(/*hash*/ 3, /*timestamp*/ 8);  // Higher should replace 5
+    acc.Add(/*hash*/ 3, /*timestamp*/ 8);  // Higher should replace 5.
 
     auto result = acc.Finish();
 

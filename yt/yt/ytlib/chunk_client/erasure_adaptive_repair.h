@@ -38,7 +38,7 @@ private:
     const TErasureReaderConfigPtr Config_;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, IndicesLock_);
     NErasure::TPartIndexSet BannedPartIndices_;
     std::vector<TInstant> SlowReaderBanTimes_;
 

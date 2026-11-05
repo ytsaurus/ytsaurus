@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NYTree;
@@ -190,4 +192,3 @@ IObjectProxyPtr CreateTabletActionProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

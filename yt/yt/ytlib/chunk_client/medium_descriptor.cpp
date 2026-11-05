@@ -59,6 +59,16 @@ TS3MediumDescriptor::TS3MediumDescriptor(std::string name, int index, int priori
 
 TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetS3ObjectPlacementForChunk(TChunkId chunkId) const
 {
+    if (Config_->Bucket.empty()) {
+        THROW_ERROR_EXCEPTION("Cannot place chunks into S3 medium %Qv without a configured bucket", Name_);
+    }
+
+    TString key = Config_->Prefix;
+    if (!key.empty() && !key.EndsWith("/")) {
+        key.push_back('/');
+    }
+    key += Format("chunk-data/%02x/%02x/%v", chunkId.ReversedParts8[1], chunkId.ReversedParts8[0], chunkId);
+
     return {
         .Bucket = Config_->Bucket,
         .Key = Format("chunk-data/%02x/%02x/%v", chunkId.ReversedParts8[1], chunkId.ReversedParts8[0], chunkId),

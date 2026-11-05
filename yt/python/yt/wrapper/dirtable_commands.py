@@ -344,6 +344,7 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                 logger.debug(f"Total tables: {len(tables)} - split by filtered table")
 
             worker = functools.partial(download_table, directory=directory, client_config=get_config(client), transaction_id=tx.transaction_id)
+            process_count = max(1, min(process_count, len(tables)))
             pool = process_pool_class(process_count)
             try:
                 pool.map(worker, tables)

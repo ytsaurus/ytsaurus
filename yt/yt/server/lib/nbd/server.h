@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <library/cpp/yt/logging/logger.h>
+#include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/logging/public.h>
 
 namespace NYT::NNbd {
 
@@ -23,22 +23,21 @@ struct INbdServer
     //! Registers a new #device with a given #name.
     //! Throws if #name is already in use.
     virtual void RegisterDevice(
-        const TString& name,
+        const std::string& name,
         IBlockDevicePtr device) = 0;
 
     //! Tries to unregister the device with a given #name.
     //! Returns |device pointer| upon success and |nullptr| if no such device is registered.
-    virtual IBlockDevicePtr TryUnregisterDevice(const TString& name) = 0;
+    virtual IBlockDevicePtr TryUnregisterDevice(const std::string& name) = 0;
 
-    virtual bool IsDeviceRegistered(const TString& name) const = 0;
-
-    virtual IBlockDevicePtr GetDeviceOrThrow(const TString& name) const = 0;
-
-    virtual IBlockDevicePtr FindDevice(const TString& name) const = 0;
+    virtual bool IsDeviceRegistered(const std::string& name) const = 0;
+    virtual IBlockDevicePtr GetDeviceOrThrow(const std::string& name) const = 0;
+    virtual IBlockDevicePtr FindDevice(const std::string& name) const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
-
     virtual IInvokerPtr GetInvoker() const = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdServer)

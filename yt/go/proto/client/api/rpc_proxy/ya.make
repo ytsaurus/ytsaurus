@@ -5,6 +5,7 @@ ONLY_TAGS(GO_PROTO)
 PEERDIR(
     yt/go/proto/core/misc
     yt/go/proto/core/rpc
+    yt/go/proto/core/yson
     yt/go/proto/core/ytree
     yt/go/proto/client/chaos_client
     yt/go/proto/client/chunk_client
@@ -14,6 +15,7 @@ PEERDIR(
     yt/go/proto/client/table_chunk_format
     yt/go/proto/client/table_client
     yt/go/proto/client/tablet_client
+    yt/go/proto/client/api/common
 )
 
 SRCS(

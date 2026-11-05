@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    chaos_lease_watcher_service_callbacks.cpp
     config.cpp
     replication_card_watcher_service_callbacks.cpp
 )

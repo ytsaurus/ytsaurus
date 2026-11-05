@@ -1,9 +1,10 @@
 #pragma once
 
-#include "chunk_pool.h"
 #include "job_size_tracker.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 #include "private.h"
+
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 
@@ -11,14 +12,21 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSortedChunkPoolStatistics final
+{
+    i64 ForeignSlicesCheckCountInDecideRowSliceability = 0;
+
+    PHOENIX_DECLARE_TYPE(TSortedChunkPoolStatistics, 0x71181524);
+};
+
+using TSortedChunkPoolStatisticsPtr = TIntrusivePtr<TSortedChunkPoolStatistics>;
+
+void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf spec);
+
 struct TSortedJobOptions
 {
     //! Guarantee that each key goes to the single job.
     bool EnableKeyGuarantee = false;
-
-    // COMPAT(max42): we are keeping both comparator and prefix length in order
-    // to maintain single TSortedJobOptions instead of two almost duplicating classes
-    // with almost duplicating filling code in sorted task.
 
     //! Comparator corresponding to the primary merge or reduce key.
     NTableClient::TComparator PrimaryComparator;
@@ -29,16 +37,13 @@ struct TSortedJobOptions
     int PrimaryPrefixLength = 0;
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
-    // Used only in legacy pool.
-    bool ShouldSlicePrimaryTableByKeys = false;
     bool ValidateOrder = true;
 
     bool ConsiderOnlyPrimarySize = false;
 
     std::vector<NTableClient::TLegacyKey> PivotKeys;
 
-    //! An upper bound for a total number of slices that is allowed. If this value
-    //! is exceeded, an exception is thrown.
+    //! An upper bound for a total number of slices that is allowed.
     i64 MaxTotalSliceCount;
 
     // Not persisted.
@@ -46,6 +51,33 @@ struct TSortedJobOptions
 
     PHOENIX_DECLARE_TYPE(TSortedJobOptions, 0x54c67649);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
+//! This class defines a transient object (it is never persisted).
+struct ISortedJobBuilder
+    : public TRefCounted
+{
+    virtual void AddDataSlice(const NChunkClient::TDataSlicePtr& originalDataSlice) = 0;
+    virtual std::vector<TJobStub> Build() = 0;
+    virtual i64 GetTotalDataSliceCount() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ISortedJobBuilder)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISortedJobBuilderPtr CreateSortedJobBuilder(
+    const TSortedJobOptions& options,
+    NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
+    NTableClient::TRowBufferPtr rowBuffer,
+    const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
+    int retryIndex,
+    const TInputStreamDirectory& inputStreamDirectory,
+    TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
+    NLogging::TLogger logger,
+    NLogging::TLogger structuredLogger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

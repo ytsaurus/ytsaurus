@@ -7,6 +7,7 @@ IF (PYTHON2)
 ELSE()
     PEERDIR(
         yt/python/yt/wrapper
+        yt/python/yt/admin
         yt/python/yt/clickhouse
         yt/yt/python/yson/arrow
         yt/yt/python/yt_yson_bindings

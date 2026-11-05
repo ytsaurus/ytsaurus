@@ -9,6 +9,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1259867197)
+
 SRC_RESOURCE(1259867242)
+
+ORIGINAL_SOURCE(https://github.com/hamcrest/JavaHamcrest)
 
 END()

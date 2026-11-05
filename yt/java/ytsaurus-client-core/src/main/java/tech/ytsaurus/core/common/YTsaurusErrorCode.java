@@ -47,6 +47,8 @@ public enum YTsaurusErrorCode {
 
     RequestQueueSizeLimitExceeded(904),
 
+    PrerequisiteCheckFailed(1000),
+
     CrossCellAdditionalPath(1002),
 
     TransactionLockConflict(1700),

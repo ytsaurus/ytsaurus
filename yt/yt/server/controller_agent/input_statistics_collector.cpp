@@ -1,7 +1,7 @@
 #include "input_statistics_collector.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 namespace NYT::NControllerAgent {
 
@@ -59,7 +59,7 @@ void TInputStatisticsCollector::AddChunk(const TInputChunkPtr& inputChunk, bool 
     TotalInputDataWeight_ += inputChunk->GetTotalDataWeight();
 }
 
-void TInputStatisticsCollector::AddChunk(const TLegacyDataSlicePtr& dataSlice, bool isPrimary) noexcept
+void TInputStatisticsCollector::AddChunk(const TDataSlicePtr& dataSlice, bool isPrimary) noexcept
 {
     AddChunkImpl(Statistics_, dataSlice, isPrimary);
     Statistics_.ValueCount += dataSlice->GetValueCount();
@@ -68,7 +68,7 @@ void TInputStatisticsCollector::AddChunk(const TLegacyDataSlicePtr& dataSlice, b
     }
 }
 
-TInputStatistics TInputStatisticsCollector::FromChunks(const std::vector<TLegacyDataSlicePtr>& dataSlices, bool isPrimary) noexcept
+TInputStatistics TInputStatisticsCollector::FromChunks(const std::vector<TDataSlicePtr>& dataSlices, bool isPrimary) noexcept
 {
     TInputStatisticsCollector collector;
 
@@ -81,8 +81,12 @@ TInputStatistics TInputStatisticsCollector::FromChunks(const std::vector<TLegacy
 
 TInputStatistics TInputStatisticsCollector::Finish() && noexcept
 {
-    Statistics_.CompressionRatio = static_cast<double>(Statistics_.CompressedDataSize) / Statistics_.DataWeight;
-    Statistics_.DataWeightRatio = static_cast<double>(TotalInputDataWeight_) / Statistics_.UncompressedDataSize;
+    if (Statistics_.DataWeight > 0) {
+        Statistics_.CompressionRatio = static_cast<double>(Statistics_.CompressedDataSize) / Statistics_.DataWeight;
+    }
+    if (Statistics_.UncompressedDataSize > 0) {
+        Statistics_.DataWeightRatio = static_cast<double>(TotalInputDataWeight_) / Statistics_.UncompressedDataSize;
+    }
 
     TotalInputDataWeight_ = 0;
     return std::exchange(Statistics_, TInputStatistics());

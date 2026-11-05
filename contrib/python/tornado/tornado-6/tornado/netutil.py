@@ -126,14 +126,14 @@ def bind_sockets(
             continue
         try:
             sock = socket.socket(af, socktype, proto)
-        except socket.error as e:
+        except OSError as e:
             if errno_from_exception(e) == errno.EAFNOSUPPORT:
                 continue
             raise
         if os.name != "nt":
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            except socket.error as e:
+            except OSError as e:
                 if errno_from_exception(e) != errno.ENOPROTOOPT:
                     # Hurd doesn't support SO_REUSEADDR.
                     raise
@@ -204,22 +204,28 @@ if hasattr(socket, "AF_UNIX"):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        except socket.error as e:
+        except OSError as e:
             if errno_from_exception(e) != errno.ENOPROTOOPT:
                 # Hurd doesn't support SO_REUSEADDR
                 raise
         sock.setblocking(False)
-        try:
-            st = os.stat(file)
-        except FileNotFoundError:
-            pass
-        else:
-            if stat.S_ISSOCK(st.st_mode):
-                os.remove(file)
+        # File names comprising of an initial null-byte denote an abstract
+        # namespace, on Linux, and therefore are not subject to file system
+        # orientated processing.
+        if not file.startswith("\0"):
+            try:
+                st = os.stat(file)
+            except FileNotFoundError:
+                pass
             else:
-                raise ValueError("File %s exists and is not a socket", file)
-        sock.bind(file)
-        os.chmod(file, mode)
+                if stat.S_ISSOCK(st.st_mode):
+                    os.remove(file)
+                else:
+                    raise ValueError("File %s exists and is not a socket", file)
+            sock.bind(file)
+            os.chmod(file, mode)
+        else:
+            sock.bind(file)
         sock.listen(backlog)
         return sock
 
@@ -328,7 +334,6 @@ class Resolver(Configurable):
     * `tornado.netutil.BlockingResolver` (deprecated)
     * `tornado.netutil.ThreadedResolver` (deprecated)
     * `tornado.netutil.OverrideResolver`
-    * `tornado.platform.twisted.TwistedResolver` (deprecated)
     * `tornado.platform.caresresolver.CaresResolver` (deprecated)
 
     .. versionchanged:: 5.0
@@ -496,10 +501,6 @@ class BlockingResolver(ExecutorResolver):
 class ThreadedResolver(ExecutorResolver):
     """Multithreaded non-blocking `Resolver` implementation.
 
-    Requires the `concurrent.futures` package to be installed
-    (available in the standard library since Python 3.2,
-    installable with ``pip install futures`` in older versions).
-
     The thread pool size can be configured with::
 
         Resolver.configure('tornado.netutil.ThreadedResolver',
@@ -593,17 +594,15 @@ def ssl_options_to_context(
     """Try to convert an ``ssl_options`` dictionary to an
     `~ssl.SSLContext` object.
 
-    The ``ssl_options`` dictionary contains keywords to be passed to
-    ``ssl.SSLContext.wrap_socket``.  In Python 2.7.9+, `ssl.SSLContext` objects can
-    be used instead.  This function converts the dict form to its
-    `~ssl.SSLContext` equivalent, and may be used when a component which
-    accepts both forms needs to upgrade to the `~ssl.SSLContext` version
-    to use features like SNI or NPN.
+    The ``ssl_options`` argument may be either an `ssl.SSLContext` object or a dictionary containing
+    keywords to be passed to ``ssl.SSLContext.wrap_socket``.  This function converts the dict form
+    to its `~ssl.SSLContext` equivalent, and may be used when a component which accepts both forms
+    needs to upgrade to the `~ssl.SSLContext` version to use features like SNI or ALPN.
 
     .. versionchanged:: 6.2
 
-       Added server_side argument. Omitting this argument will
-       result in a DeprecationWarning on Python 3.10.
+       Added server_side argument. Omitting this argument will result in a DeprecationWarning on
+       Python 3.10.
 
     """
     if isinstance(ssl_options, ssl.SSLContext):
@@ -646,7 +645,7 @@ def ssl_wrap_socket(
     ssl_options: Union[Dict[str, Any], ssl.SSLContext],
     server_hostname: Optional[str] = None,
     server_side: Optional[bool] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> ssl.SSLSocket:
     """Returns an ``ssl.SSLSocket`` wrapping the given socket.
 

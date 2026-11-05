@@ -69,7 +69,7 @@ The RPC layer operates above the `bus` layer, assembling Protobuf messages from 
 The diagram below shows how {{product-name}} cluster components interact with one another and with external clients. Traffic encryption is configured and applied only within the cluster — between its components such as HTTP proxies, master servers, and data nodes. The type of external client doesn't affect encryption: it can be a regular HTTP client, CHYT, SPYT, or any other service. For the full list of components that support encryption, see [Components for configuration](#components-list).
 
 
-![](../../../images/encryption-diagram-en.svg)
+![](../../../_images/encryption-diagram-en.svg)
 
 Each component (master server, scheduler, data node, and others) performs two roles at once:
 
@@ -171,7 +171,7 @@ To enable encryption, configure the appropriate parameters in the cluster compon
 Encryption is enabled via the `bus_client` and `bus_server` parameters in each component's configuration:
 
 #|
-|| **Parameter** {.cell-align-center}| **Description** {.cell-align-center}||
+||::{align="center"} **Parameter**|::{align="center"} **Description**||
 || `encryption_mode` {#encryption_mod}| Encryption mode:
 - `disabled` — encryption is turned off. If the other side requires encryption (`required`), the connection won't be established.
 - `optional` — encryption is used only if requested. The connection will be encrypted if the peer's mode is `required`.
@@ -192,7 +192,7 @@ Encryption is enabled via the `bus_client` and `bus_server` parameters in each c
 When a connection is established, the result depends on the combination of [encryption_mode](#configuration-parameters) settings configured for `bus_client` and `bus_server`:
 
 #|
-|| **Client** {.cell-align-center}| **Server** {.cell-align-center}| **Result** {.cell-align-center}||
+||::{align="center"} **Client**|::{align="center"} **Server**|::{align="center"} **Result**||
 || `disabled` | `disabled` | Unencrypted connection ||
 || `disabled` | `optional` | Unencrypted connection ||
 || `disabled` | `required` | Connection error ||
@@ -243,7 +243,7 @@ Unlike other components, CHYT runs inside a {{product-name}} [vanilla operation]
 - Strawberry reads certificates from the files specified in its configuration.
 - The `cluster-connection` configuration with `bus_client`/`bus_server` parameters is taken from Cypress to determine the encryption mode and connection settings for cluster components.
 - The operation receives all security settings, including certificates and encryption parameters, via a [secure_vault](*secure_vault).
-- When the certificates change, Strawberry computes a hash of the updated data and, if the hash differs, automatically restarts the operation to apply the new settings.
+- When certificates change, Strawberry recalculates the hash of the updated configuration data. If either side detects that the hash has changed, Strawberry automatically restarts the operation to apply the new settings.
 
 The `secure_vault` allows you to pass certificates and keys to operations securely, without exposing them in plaintext. The `cluster-connection` configuration includes all the necessary settings for establishing secure connections between CHYT and other cluster components, including encryption modes (`encryption_mode`) and certificate verification modes (`verification_mode`).
 
@@ -523,7 +523,7 @@ The way you configure encryption depends on how your {{product-name}} cluster is
   #### TLS parameters in the operator specification {#k8s-tls-parameters}
 
   #|
-  || **Parameter** {.cell-align-center}| **Description** {.cell-align-center}||
+  ||::{align="center"} **Parameter**|::{align="center"} **Description**||
   || `caBundle` | Reference to the secret containing the CA certificate for verification. ||
   || `tlsSecret` | Secret with the server certificate (type kubernetes.io/tls). ||
   || `tlsClientSecret` | Secret with the client certificate for mTLS. ||

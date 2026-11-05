@@ -47,9 +47,9 @@ public:
         auto tokenHash = credentials.Token
             ? GetSha256HexDigestLowerCase(*credentials.Token)
             : std::move(*credentials.TokenSha256);
-        YT_LOG_DEBUG("Authenticating user with Cypress token (TokenHash: %v, UserIP: %v)",
-            tokenHash,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user with Cypress token")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP);
 
         // Try to retrieve both old (@user) and new (@user_id) token attributes
         // at the same time to speed up the process.
@@ -87,16 +87,18 @@ private:
     {
         try {
             auto& result = rspOrError.ValueOrThrow();
-            YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
-                tokenHash,
-                result.Login);
+            YT_TLOG_DEBUG("Cypress authentication succeeded")
+                .With("TokenHash", tokenHash)
+                .With("Login", result.Login);
             return std::move(result);
         } catch (const std::exception& ex) {
-            auto error = TError("Cypress authentication failed")
-                << TErrorAttribute("token_hash", tokenHash)
-                << ex;
-            YT_LOG_DEBUG(error, "Cypress authentication failed");
-            THROW_ERROR(error);
+            static constexpr auto Message = "Cypress authentication failed"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("TokenHash", tokenHash)
+                .With(ex);
+            THROW_ERROR_EXCEPTION(Message)
+                .With("token_hash", tokenHash)
+                .With(ex);
         }
     }
 
@@ -116,8 +118,8 @@ private:
         if (isMissingUserAttribute && isMissingUserIdAttribute) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Token is missing in Cypress or missing attributes \"user_id\" and \"user\" on token Cypress node")
-                << userAttributeRspOrError
-                << userIdAttributeRspOrError;
+                .With(userAttributeRspOrError)
+                .With(userIdAttributeRspOrError);
         }
 
         if (!userAttributeRspOrError.IsOK() && !isMissingUserAttribute) {
@@ -160,8 +162,8 @@ private:
             };
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error resolving user_id")
-                << TErrorAttribute("user_id", userId)
-                << ex;
+                .With("user_id", userId)
+                .With(ex);
         }
     }
 };

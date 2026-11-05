@@ -3,6 +3,7 @@
 #include "artifact.h"
 #include "artifact_cache.h"
 #include "job_workspace_builder.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
@@ -17,6 +18,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/fs.h>
+
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <util/stream/file.h>
 
@@ -38,11 +41,19 @@ struct IUserSlot
     //! Kill all possibly running processes and clean sandboxes.
     virtual TFuture<void> CleanProcesses() = 0;
 
+    //! Clean workspace resources while preserving volumes recorded by the secretary.
+    //! Must run after process cleanup and before volumes are released.
+    virtual void CleanJobWorkspaceResources(const TJobFSSecretary& fsSecretary) = 0;
+
+    virtual void CleanAllocationWorkspace() = 0;
+
     virtual void CleanSandbox() = 0;
 
     virtual void CancelPreparation() = 0;
 
     virtual void Prepare() = 0;
+
+    virtual TFuture<void> BuildSlotRootDirectory() = 0;
 
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
@@ -51,69 +62,43 @@ struct IUserSlot
 
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options,
-        bool ignoreQuota = false) = 0;
+        const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& linkPath,
+        const std::string& targetPath,
+        const std::string& linkPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& bindPath,
+        const std::string& targetPath,
+        const std::string& bindPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeCopy(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& sourcePath,
+        const std::string& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation) = 0;
 
     virtual TFuture<void> MakeFile(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
-
-    virtual TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<TArtifactKey>& layers,
-        const TVolumePreparationOptions& options) = 0;
-
-    virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<TArtifactKey>& layers,
-        const TVolumePreparationOptions& options) = 0;
-
-    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        TJobId jobId,
-        const IVolumePtr& rootVolume,
-        const std::vector<TBaseVolumeParamsPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
-        bool testRootFs) = 0;
-
-    virtual TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume) = 0;
-
-    virtual TFuture<void> LinkVolumes(
-        const IVolumePtr& rootVolume,
-        const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        bool testRootFs) = 0;
-
-    virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
-    virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
+    virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::NTcp::TBusServerConfigPtr GetPrivateBusServerConfig() const = 0;
+    virtual NBus::NTcp::TBusClientConfigPtr GetPrivateBusClientConfig() const = 0;
 
     virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
 
@@ -123,13 +108,13 @@ struct IUserSlot
 
     virtual TDiskStatistics GetDiskStatistics() const = 0;
 
-    virtual TString GetSlotPath() const = 0;
+    virtual std::string GetSlotPath() const = 0;
 
-    virtual TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
+    virtual std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume) const = 0;
 
     virtual std::string GetMediumName() const = 0;
 
-    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
@@ -138,16 +123,16 @@ struct IUserSlot
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) = 0;
 
     virtual void OnArtifactPreparationFailed(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& artifactPath,
+        const std::string& artifactPath,
         const TError& error) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
@@ -156,8 +141,6 @@ struct IUserSlot
 
     //! Must be called before any action with slot.
     virtual void SetAllocationId(TAllocationId allocationId) = 0;
-
-    virtual TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
 
     virtual TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const = 0;
 
@@ -169,12 +152,12 @@ DEFINE_REFCOUNTED_TYPE(IUserSlot)
 ////////////////////////////////////////////////////////////////////////////////
 
 IUserSlotPtr CreateSlot(
-    TSlotManager* slotManager,
+    TNonNullPtr<TSlotManager> slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    NExecNode::IBootstrap* bootstrap,
-    const TString& nodeTag,
+    TNonNullPtr<NExecNode::IBootstrap> bootstrap,
+    const std::string& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TDeprecatedDiskRequest diskRequest,

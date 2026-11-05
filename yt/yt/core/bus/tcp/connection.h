@@ -17,7 +17,6 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/mpsc_stack.h>
-#include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/net/public.h>
@@ -26,9 +25,11 @@
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
+#include <library/cpp/yt/containers/ring_queue.h>
+
 #include <library/cpp/yt/memory/blob.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/network/init.h>
 
@@ -42,11 +43,11 @@
 
 #include <atomic>
 
-namespace NYT::NBus {
+namespace NYT::NBus::NTcp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ETcpConnectionState,
+DEFINE_ENUM(EConnectionState,
     (None)
     (Resolving)
     (Opening)
@@ -69,12 +70,12 @@ DEFINE_ENUM(ESslSessionState,
     (Aborted)
 );
 
-class TTcpConnection
+class TConnection
     : public IBus
     , public NConcurrency::TPollableBase
 {
 public:
-    TTcpConnection(
+    TConnection(
         TBusConfigPtr config,
         EConnectionType connectionType,
         TConnectionId id,
@@ -91,7 +92,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         bool rejectConnectionOnMemoryOvercommit);
 
-    ~TTcpConnection();
+    ~TConnection();
 
     void Start();
     void RunPeriodicCheck();
@@ -100,9 +101,10 @@ public:
     TBusNetworkStatistics GetBusStatistics() const;
 
     // IPollable implementation.
-    const std::string& GetLoggingTag() const override;
+    const NLogging::TLoggingTagList& GetLoggingTags() const override;
     void OnEvent(NConcurrency::EPollControl control) override;
     void OnShutdown() override;
+    void ResetInvoker() override;
 
     // IBus implementation.
     const std::string& GetEndpointDescription() const override;
@@ -120,7 +122,7 @@ public:
     DECLARE_SIGNAL_OVERRIDE(void(const TError&), Terminated);
 
 private:
-    using EState = ETcpConnectionState;
+    using EState = EConnectionState;
 
     using ESslState = ESslSessionState;
 
@@ -136,6 +138,7 @@ private:
             , PayloadSize(GetByteSize(Message))
             , Options(options)
             , PacketId(TPacketId::Create())
+            , RequestId(options.RequestId)
         { }
 
         TPromise<void> Promise;
@@ -143,6 +146,7 @@ private:
         size_t PayloadSize;
         TSendOptions Options;
         TPacketId PacketId;
+        TRequestId RequestId;
     };
 
     struct TPacket final
@@ -176,11 +180,11 @@ private:
 
         std::atomic<EPacketState> State = EPacketState::Queued;
         TPromise<void> Promise;
-        TTcpConnectionPtr Connection;
+        TConnectionPtr Connection;
 
         bool MarkEncoded();
         void OnCancel(const TError& error);
-        void EnableCancel(TTcpConnectionPtr connection);
+        void EnableCancel(TConnectionPtr connection);
     };
 
     using TPacketPtr = TIntrusivePtr<TPacket>;
@@ -192,19 +196,18 @@ private:
     const NYTree::IAttributeDictionaryPtr EndpointAttributes_;
     const NNet::TNetworkAddress EndpointNetworkAddress_;
     const std::optional<std::string> EndpointAddress_;
-    const std::optional<TString> UnixDomainSocketPath_;
-    const std::optional<TString> AbstractUnixDomainSocketName_;
+    const std::optional<std::string> UnixDomainSocketPath_;
+    const std::optional<std::string> AbstractUnixDomainSocketName_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 
-    const std::string LoggingTag_;
     const NLogging::TLogger Logger;
 
     const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
-    TString NetworkName_;
+    std::string NetworkName_;
     // Endpoint host name is used for peer's certificate verification.
-    TString EndpointHostName_;
+    std::string EndpointHostName_;
 
     TBusNetworkCounters BusCounters_;
     TBusNetworkCounters BusCountersDelta_;
@@ -220,13 +223,14 @@ private:
     // Actually stores NConcurrency::EPollControl.
     std::atomic<ui64> PendingControl_ = static_cast<ui64>(NConcurrency::EPollControl::Offline);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     SOCKET Socket_ = INVALID_SOCKET;
 
     std::atomic<EMultiplexingBand> MultiplexingBand_ = EMultiplexingBand::Default;
 
     EMultiplexingBand ActualMultiplexingBand_ = EMultiplexingBand::Default;
+    std::atomic<bool> NeedResetInvoker_ = false;
 
     TError Error_;
 
@@ -234,7 +238,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueuedMessagesDiscardLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueuedMessagesDiscardLock_);
     TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 
@@ -291,7 +295,7 @@ private:
     TCallback<void(const TError&)> LocalBypassTerminatedCallback_;
     std::atomic<bool> LocalBypassActive_ = false;
 
-    void Open(TGuard<NThreading::TSpinLock>& guard);
+    void Open(TGuard<TSpinLock>& guard);
     void Close();
     void CloseSslSession(ESslState newSslState);
 
@@ -395,8 +399,8 @@ private:
     ssize_t DoWriteFragments(const std::vector<struct iovec>& vec);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpConnection)
+DEFINE_REFCOUNTED_TYPE(TConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NBus
+} // namespace NYT::NBus::NTcp

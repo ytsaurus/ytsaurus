@@ -1,13 +1,16 @@
 #pragma once
 
 #include "public.h"
+
 #include "chunk_owner_base.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 namespace NYT::NChunkServer {

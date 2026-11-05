@@ -24,6 +24,8 @@ SRCS(
     actorid.h
     actorsystem.cpp
     actorsystem.h
+    allocation_cache_families.h
+    allocation_cache.h
     ask.cpp
     ask.h
     buffer.cpp
@@ -31,11 +33,13 @@ SRCS(
     callstack.cpp
     callstack.h
     config.h
+    coro_stack_pool.cpp
     cpu_manager.cpp
     cpu_manager.h
     defs.h
     event.cpp
     event.h
+    event_flat.h
     event_load.cpp
     event_local.h
     event_pb.cpp
@@ -62,7 +66,6 @@ SRCS(
     invoke.h
     io_dispatcher.cpp
     io_dispatcher.h
-    lease.h
     log.cpp
     log.h
     log_settings.cpp
@@ -111,16 +114,18 @@ PEERDIR(
     contrib/ydb/library/actors/memory_log
     contrib/ydb/library/actors/prof
     contrib/ydb/library/actors/protos
+    contrib/ydb/library/actors/struct_log
     contrib/ydb/library/actors/util
     contrib/ydb/library/services
-    library/cpp/execprofile
     library/cpp/json/writer
     library/cpp/logger
     library/cpp/lwtrace
     library/cpp/monlib/dynamic_counters
+    library/cpp/string_utils/base64
     library/cpp/svnversion
     library/cpp/time_provider
     library/cpp/threading/future
+    library/cpp/threading/queue
 )
 
 IF (SANITIZER_TYPE == "thread")
@@ -139,4 +144,5 @@ RECURSE(
 RECURSE_FOR_TESTS(
     ut
     ut_fat
+    ut_mprotect
 )

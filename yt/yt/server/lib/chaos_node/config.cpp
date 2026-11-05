@@ -104,6 +104,8 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("replication_cards_watcher", &TThis::ReplicationCardsWatcher)
         .DefaultNew();
+    registrar.Parameter("chaos_leases_watcher", &TThis::ChaosLeasesWatcher)
+        .DefaultNew();
     registrar.Parameter("replication_card_automaton_cache_expiration_time", &TThis::ReplicationCardAutomatonCacheExpirationTime)
         .Default(TDuration::Seconds(10));
 }

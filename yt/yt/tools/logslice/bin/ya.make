@@ -1,0 +1,18 @@
+PROGRAM(logslice)
+
+INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+
+STRIP()
+
+NO_EXPORT_DYNAMIC_SYMBOLS()
+
+SRCS(
+    main.cpp
+)
+
+PEERDIR(
+    yt/yt/tools/logslice/lib
+    library/cpp/getopt/small
+)
+
+END()

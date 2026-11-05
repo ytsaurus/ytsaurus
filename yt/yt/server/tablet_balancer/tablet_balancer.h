@@ -20,6 +20,8 @@ struct ITabletBalancer
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
+    virtual void ExecuteBalancerIteration(TDryRunConfigPtr dryRunConfig, TTabletBalancerDynamicConfigPtr dynamicConfig) = 0;
+
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void OnDynamicConfigChanged(

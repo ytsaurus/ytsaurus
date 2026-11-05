@@ -7,8 +7,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -40,6 +38,8 @@
 #include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
 
@@ -161,11 +161,39 @@ public:
         return Connection_->GetClusterDirectory();
     }
 
-    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
+    NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}};
+    }
+
+    void ExecuteBalancerIteration(TDryRunConfigPtr config) override
+    {
+        DoInitialize();
+
+        YT_TLOG_INFO("Dry run iteration started")
+            .With("DryRun", config->IsDryRun)
+            .With("CreateTabletActions", config->CreateTabletActions)
+            .With("Bundle", config->Bundle)
+            .With("Groups", config->Groups)
+            .With("Mode", config->Mode);
+
+        {
+            YT_TLOG_INFO("Loading dynamic config for the first time");
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+                .With(error);
+            YT_TLOG_INFO("Dynamic config loaded");
+        }
+
+        WaitFor(
+            BIND(&ITabletBalancer::ExecuteBalancerIteration, TabletBalancer_, config, GetDynamicConfigForDryRun(config))
+                .AsyncVia(GetControlInvoker())
+                .Run())
+            .ThrowOnError();
+
+        YT_TLOG_INFO("Dry run iteration finished");
     }
 
 private:
@@ -203,8 +231,8 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
-            Config_->ClusterConnection->Static->ClusterName);
+        YT_TLOG_INFO("Starting tablet balancer process")
+            .With("ClusterName", Config_->ClusterConnection->Static->ClusterName);
 
         LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -293,10 +321,12 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -319,7 +349,7 @@ private:
 
         ElectionManager_->Start();
 
-        YT_LOG_INFO("Finished initializing bootstrap");
+        YT_TLOG_INFO("Finished initializing bootstrap");
     }
 
     void RegisterInstance()
@@ -341,9 +371,41 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
+    }
+
+    TTabletBalancerDynamicConfigPtr GetDynamicConfigForDryRun(const TDryRunConfigPtr& dryRunConfig) const
+    {
+        auto dynamicConfig = DynamicConfigManager_->GetConfig();
+
+        dynamicConfig->Enable = true;
+
+        dynamicConfig->BundleStateProvider = New<TBundleStateProviderConfig>();
+        dynamicConfig->ClusterStateProvider = New<TClusterStateProviderConfig>();
+
+        dynamicConfig->ActionManager->CreateActionBatchSizeLimit = 50;
+        dynamicConfig->ActionManager->TabletActionPollingPeriod = TDuration::Seconds(3);
+
+        dynamicConfig->ParameterizedTimeoutOnStart = TDuration{};
+        dynamicConfig->ParameterizedTimeout = TDuration{};
+
+        if (dryRunConfig->MaxActionCount) {
+            dynamicConfig->MaxActionsPerGroup = *dryRunConfig->MaxActionCount;
+            dynamicConfig->MaxActionsPerReshardType = dynamicConfig->MaxActionsPerGroup / 2;
+        }
+
+        // Effectively infinite.
+        dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster = 1000;
+
+        // Reduce impact on the actual instance running in the cluster.
+        dynamicConfig->MasterRequestThrottler->Limit.value() /= 2;
+
+        dynamicConfig->PickReshardPivotKeys &= dryRunConfig->CreateTabletActions;
+
+        return dynamicConfig;
     }
 };
 

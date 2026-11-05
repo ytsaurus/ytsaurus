@@ -57,10 +57,6 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TAllocationDescription
 {
     bool Running = false;
@@ -78,6 +74,7 @@ struct TAllocationDescription
         std::string PreemptionReason;
         TDuration PreemptionTimeout;
         std::optional<TInstant> PreemptibleProgressStartTime;
+        std::string AllocationGroupName;
     };
 
     std::optional<TAllocationProperties> Properties;

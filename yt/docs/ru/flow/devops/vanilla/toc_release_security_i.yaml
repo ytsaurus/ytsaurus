@@ -1,0 +1,5 @@
+items:
+  - name: Обновления и релизы
+    href: releases.md
+  - name: Безопасность и доступы
+    href: security.md

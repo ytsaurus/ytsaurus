@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-library-min-hash-digest)
 
 SRCS(
     min_hash_digest_ut.cpp

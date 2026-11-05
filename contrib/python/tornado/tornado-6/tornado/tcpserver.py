@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
     from typing import Callable, List  # noqa: F401
 
 
-class TCPServer(object):
+class TCPServer:
     r"""A non-blocking, single-threaded TCP server.
 
     To use `TCPServer`, define a subclass which overrides the `handle_stream`
@@ -75,7 +75,7 @@ class TCPServer(object):
             async def main():
                 server = TCPServer()
                 server.listen(8888)
-                await asyncio.Event.wait()
+                await asyncio.Event().wait()
 
             asyncio.run(main())
 
@@ -339,7 +339,7 @@ class TCPServer(object):
 
     def _handle_connection(self, connection: socket.socket, address: Any) -> None:
         if self.ssl_options is not None:
-            assert ssl, "Python 2.6+ and OpenSSL required for SSL"
+            assert ssl, "OpenSSL required for SSL"
             try:
                 connection = ssl_wrap_socket(
                     connection,
@@ -352,7 +352,7 @@ class TCPServer(object):
                     return connection.close()
                 else:
                     raise
-            except socket.error as err:
+            except OSError as err:
                 # If the connection is closed immediately after it is created
                 # (as in a port scan), we can get one of several errors.
                 # wrap_socket makes an internal call to getpeername,

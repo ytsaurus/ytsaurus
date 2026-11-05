@@ -24,35 +24,35 @@ class TPoolsConfigParser
 public:
     struct TUpdatePoolAction
     {
-        TString Name;
-        TString ParentName;
+        std::string Name;
+        std::string ParentName;
         TPoolConfigPtr PoolConfig;
         NObjectClient::TObjectId ObjectId;
         EUpdatePoolActionType Type = EUpdatePoolActionType::Keep;
     };
 
     TPoolsConfigParser(
-        THashMap<TString, TString> poolToParentMap,
-        THashSet<TString> ephemeralPools,
-        THashMap<TString, NYTree::INodePtr> poolConfigPresets);
+        THashMap<std::string, std::string> poolToParentMap,
+        THashSet<std::string> ephemeralPools,
+        THashMap<std::string, NYTree::INodePtr> poolConfigPresets);
 
     TError TryParse(const NYTree::INodePtr& rootNode);
 
     const std::vector<TUpdatePoolAction>& GetOrderedUpdatePoolActions();
 
 private:
-    const THashMap<TString, TString> OldPoolToParentMap_;
-    const THashSet<TString> EphemeralPools_;
-    const THashMap<TString, NYTree::INodePtr> PoolConfigPresets_;
+    const THashMap<std::string, std::string> OldPoolToParentMap_;
+    const THashSet<std::string> EphemeralPools_;
+    const THashMap<std::string, NYTree::INodePtr> PoolConfigPresets_;
 
-    THashSet<TString> EphemeralPoolParents_;
-    THashSet<TString> ParsedPoolNames_;
+    THashSet<std::string> EphemeralPoolParents_;
+    THashSet<std::string> ParsedPoolNames_;
     std::vector<TUpdatePoolAction> UpdatePoolActions_;
     TError Error_;
 
-    bool TryParse(const NYTree::INodePtr& configNode, const TString& parentName, bool isFifo);
+    bool TryParse(const NYTree::INodePtr& configNode, const std::string& parentName, bool isFifo);
     void ProcessErasedPools();
-    void ValidatePoolPresetConfig(const TString& presetName, const NYTree::INodePtr& presetNode);
+    void ValidatePoolPresetConfig(const std::string& presetName, const NYTree::INodePtr& presetNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,1 @@
+{% include [Companion in {{product-name}} Flow](../../_includes/flow/concepts/companion.md) %}

@@ -79,30 +79,32 @@ TRef TImmutableChunkMeta::GetExtensionData(const TExtensionDescriptor& descripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
+TError CheckFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
 {
     // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
     auto chunkType = FromProto<EChunkType>(protoMeta.type());
     if (chunkType == EChunkType::Unknown) {
-        THROW_ERROR TError("Unknown chunk type encountered while deserializing chunk meta")
-            << TErrorAttribute("chunk_type", protoMeta.type());
+        return TError("Unknown chunk type encountered while deserializing chunk meta")
+            .With("proto_chunk_type", protoMeta.type());
     }
 
     // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
     auto chunkFormat = FromProto<EChunkFormat>(protoMeta.format());
     if (chunkFormat == EChunkFormat::Unknown) {
-        THROW_ERROR TError("Unknown chunk format encountered while deserializing chunk meta")
-            << TErrorAttribute("chunk_format", protoMeta.format());
+        return TError("Unknown chunk format encountered while deserializing chunk meta")
+            .With("proto_chunk_format", protoMeta.format());
     }
 
     if (chunkType == EChunkType::Journal && !IsJournalFormat(chunkFormat)) {
-        THROW_ERROR TError("Invalid journal chunk format")
-            << TErrorAttribute("chunk_format", protoMeta.format());
+        return TError("Invalid journal chunk format")
+            .With("chunk_format", chunkFormat);
     }
 
     // TODO(babenko): right now this doesn't throw (which is good) but doesn't do
     // what it should either. See below.
     Y_UNUSED(FromProto<EChunkFeatures>(protoMeta.features()));
+
+    return {};
 }
 
 void FromProto(

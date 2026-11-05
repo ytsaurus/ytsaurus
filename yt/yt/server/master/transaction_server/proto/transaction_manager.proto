@@ -33,6 +33,7 @@ message TReqPrepareTransactionCommit
     required uint64 prepare_timestamp = 2;
     required string user = 3;
     optional string user_tag = 4;
+    optional uint32 expected_prepare_signature = 5;
 }
 
 // Used as a signal when replication of a missing transaction was requested.

@@ -18,6 +18,8 @@ namespace NYql::NDqs {
         TVector<NDqProto::TDqTask> Tasks;
         NActors::TActorId SourceID;
         TString ResultType;
+        TString UploadPrefix;
+        TString UploadClusterAddress;
     };
 
     class IDqsExecutionPlanner {
@@ -29,10 +31,10 @@ namespace NYql::NDqs {
         virtual TString GetResultType() const = 0;
 
         TPlan GetPlan() {
-            return TPlan {
-                GetTasks(),
-                GetSourceID(),
-                GetResultType()
+            return TPlan{
+                .Tasks = GetTasks(),
+                .SourceID = GetSourceID(),
+                .ResultType = GetResultType(),
             };
         }
     };
@@ -103,7 +105,8 @@ namespace NYql::NDqs {
             NActors::TActorId executerID,
             NActors::TActorId resultID,
             const TTypeAnnotationNode* typeAnn,
-            TLangVersion langver);
+            TLangVersion langver,
+            TRuntimeSettings::TConstPtr runtimeSettings);
 
         TVector<NDqProto::TDqTask>& GetTasks() override;
         TVector<NDqProto::TDqTask> GetTasks(const TVector<NActors::TActorId>& workers) override;
@@ -119,6 +122,7 @@ namespace NYql::NDqs {
         TVector<NDqProto::TDqTask> Tasks;
         const TTypeAnnotationNode* TypeAnn;
         const TLangVersion LangVer;
+        const TRuntimeSettings::TConstPtr RuntimeSettings;
     };
 
     // Execution planner for Graph

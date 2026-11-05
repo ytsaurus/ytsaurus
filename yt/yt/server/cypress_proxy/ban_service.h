@@ -24,4 +24,4 @@ IBanServicePtr CreateBanService(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NCypressProxy
+} // namespace NYT::NCypressProxy

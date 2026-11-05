@@ -162,7 +162,7 @@ public:
     int GetOperationsArchiveVersion() const;
 
     // TODO(eshcherbin): Do we need these methods in the header?
-    TString FormatResources(const TJobResourcesWithQuota& resources) const;
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const;
 
     void SetMediumDirectory(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
@@ -172,9 +172,14 @@ public:
         const TError& alert,
         std::optional<TDuration> timeout = {});
 
+    void SetOperationAlertSync(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert);
+
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners);
 
     TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId) const;

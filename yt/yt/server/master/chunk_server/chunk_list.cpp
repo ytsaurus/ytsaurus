@@ -1,4 +1,5 @@
 #include "chunk_list.h"
+
 #include "chunk_owner_base.h"
 #include "helpers.h"
 
@@ -11,6 +12,38 @@ using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkList::TMainTreeChunkListTraits::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    YT_VERIFY(context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul);
+
+    using NYT::Persist;
+    Persist(context, Statistics);
+    Persist(context, PivotKey);
+}
+
+void TChunkList::THunkTreeChunkListTraits::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    YT_VERIFY(context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul);
+
+    using NYT::Persist;
+    Persist(context, Statistics);
+
+    // COMPAT(akozhikhov).
+    if (context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics_26_1 ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 &&
+         context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics))
+    {
+        THashMap<TChunkId, int> hunkChunkIdToRefCount;
+        Persist(context, hunkChunkIdToRefCount);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,17 +84,24 @@ void TChunkList::ValidateLastChunkSealed()
 
 void TChunkList::ValidateUniqueAncestors()
 {
-    const auto* current = this;
+    const TChunkTree* current = this;
     while (true) {
-        const auto& parents = current->Parents();
-        if (parents.Size() > 1) {
-            THROW_ERROR_EXCEPTION("Chunk list %v has more than one parent",
-                current->GetId());
+        if (current->IsChunkList()) {
+            auto parents = current->AsChunkList()->Parents();
+            if (parents.Size() > 1) {
+                THROW_ERROR_EXCEPTION("Chunk list %v has more than one parent",
+                    current->GetId());
+            }
+            if (parents.Empty()) {
+                break;
+            }
+            current = parents[0];
+        } else {
+            YT_TLOG_ALERT_AND_THROW("Chunk list has ancestor of invalid type")
+                .With("ChunkListId", GetId())
+                .With("AncestorId", current->GetId())
+                .With("AncestorType", current->GetType());
         }
-        if (parents.Empty()) {
-            break;
-        }
-        current = parents[0];
     }
 }
 
@@ -87,23 +127,39 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
     auto kind = GetKind();
     if (kind == EChunkListKind::SortedDynamicRoot ||
         kind == EChunkListKind::OrderedDynamicRoot ||
-        kind == EChunkListKind::JournalRoot)
+        kind == EChunkListKind::JournalRoot ||
+        kind == EChunkListKind::HunkRoot ||
+        kind == EChunkListKind::HunkStorageRoot)
     {
         YT_VERIFY(Parents_.IsEmpty());
     }
     if (kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::OrderedDynamicTablet) {
         for (auto parent : Parents_) {
+            YT_VERIFY(parent->IsChunkList());
+            auto parentKind = parent->AsChunkList()->GetKind();
             if (kind == EChunkListKind::SortedDynamicTablet) {
-                auto parentKind = parent->GetKind();
                 YT_VERIFY(parentKind == EChunkListKind::SortedDynamicRoot || parentKind == EChunkListKind::SortedDynamicTablet);
             } else {
-                YT_VERIFY(parent->GetKind() == EChunkListKind::OrderedDynamicRoot);
+                YT_VERIFY(parentKind == EChunkListKind::OrderedDynamicRoot);
             }
         }
     }
     if (kind == EChunkListKind::Static) {
         for (auto parent : Parents_) {
-            YT_VERIFY(parent->GetKind() == EChunkListKind::Static);
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::Static);
+        }
+    }
+    if (kind == EChunkListKind::Hunk) {
+        for (auto parent : Parents_) {
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::HunkRoot);
+        }
+    }
+    if (kind == EChunkListKind::HunkTablet) {
+        for (auto parent : Parents_) {
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::HunkStorageRoot);
         }
     }
 }
@@ -117,11 +173,10 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, Parents_);
     Save(context, TrunkOwningNodes_);
     Save(context, BranchedOwningNodes_);
-    Save(context, Statistics_);
     Save(context, CumulativeStatistics_);
     Save(context, Kind_);
     Save(context, TrimmedChildCount_);
-    Save(context, PivotKey_);
+    Save(context, ChunkListTraits_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
@@ -130,34 +185,89 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Children_);
-    Load(context, Parents_);
+    // COMPAT(grphil)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ChunkListRefactoring) {
+        std::vector<TChunkListRawPtr> parentChunkLists;
+        Load(context, parentChunkLists);
+        Parents_.Reserve(parentChunkLists.size());
+        for (auto chunkList : parentChunkLists) {
+            Parents_.PushBack(chunkList);
+        }
+    } else {
+        Load(context, Parents_);
+    }
     Load(context, TrunkOwningNodes_);
     Load(context, BranchedOwningNodes_);
-    Load(context, Statistics_);
+
+    // COMPAT(akozhikhov)
+    bool applyHunkTreeStatisticsOverhaulCompat = context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+         context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
+    // COMPAT(akozhikhov)
+    bool applyHunkTreeStatisticsOverhaulCompatAgain = context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain ||
+        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+         context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain_26_2);
+
+    // COMPAT(akozhikhov)
+    TChunkTreeStatistics statistics;
+    if (applyHunkTreeStatisticsOverhaulCompat) {
+        Load(context, statistics);
+    }
+
     Load(context, CumulativeStatistics_);
     Load(context, Kind_);
     Load(context, TrimmedChildCount_);
-    Load(context, PivotKey_);
 
-    for (int index = 0; index < std::ssize(Children_); ++index) {
-        auto child = Children_[index];
-        if (HasChildToIndexMapping()) {
+    // COMPAT(akozhikhov)
+    TLegacyOwningKey pivotKey;
+    if (applyHunkTreeStatisticsOverhaulCompat) {
+        Load(context, pivotKey);
+    }
+
+    if (!applyHunkTreeStatisticsOverhaulCompat) {
+        Load(context, ChunkListTraits_);
+    }
+
+    // COMPAT(akozhikhov)
+    if (applyHunkTreeStatisticsOverhaulCompat) {
+        if (IsHunkRelated()) {
+            // NB: We will recalculate it from scratch.
+            ChunkListTraits_ = THunkTreeChunkListTraits{};
+        } else {
+            TMainTreeChunkListTraits chunkListTraits;
+            chunkListTraits.Statistics = std::move(statistics);
+            chunkListTraits.PivotKey = pivotKey;
+            ChunkListTraits_ = std::move(chunkListTraits);
+        }
+    }
+
+    // COMPAT(akozhikhov)
+    if (applyHunkTreeStatisticsOverhaulCompatAgain) {
+        if (!IsHunkRelated()) {
+            std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics.HunkErasureDiskSpace = 0;
+        }
+    }
+
+    if (HasChildToIndexMapping()) {
+        for (int index = 0; index < std::ssize(Children_); ++index) {
+            auto child = Children_[index];
             YT_VERIFY(ChildToIndex_.emplace(child, index).second);
         }
     }
 }
 
-TRange<TChunkListRawPtr> TChunkList::Parents() const
+TRange<TChunkTreeRawPtr> TChunkList::Parents() const
 {
     return TRange(Parents_.begin(), Parents_.end());
 }
 
-void TChunkList::AddParent(TChunkList* parent)
+void TChunkList::AddParent(TChunkTree* parent)
 {
+    YT_VERIFY(parent->IsChunkList());
     Parents_.PushBack(parent);
 }
 
-void TChunkList::RemoveParent(TChunkList* parent)
+void TChunkList::RemoveParent(TChunkTree* parent)
 {
     Parents_.Remove(parent);
 }
@@ -209,13 +319,27 @@ void TChunkList::SetKind(EChunkListKind kind)
 
     Kind_ = kind;
 
+    if (IsHunkRelated()) {
+        ChunkListTraits_ = THunkTreeChunkListTraits{};
+    } else {
+        ChunkListTraits_ = TMainTreeChunkListTraits{};
+    }
+
     RecomputeChunkListStatistics(this);
 }
 
 TKeyBound TChunkList::GetPivotKeyBound() const
 {
-    return PivotKey_
-        ? TKeyBound::FromRow() >= PivotKey_
+    if (IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method GetPivotKeyBound that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return TKeyBound::MakeUniversal(/*isUpper*/ false);
+    }
+
+    const auto& pivotKey = std::get<TMainTreeChunkListTraits>(ChunkListTraits_).PivotKey;
+    return pivotKey
+        ? TKeyBound::FromRow() >= pivotKey
         : TKeyBound::MakeUniversal(/*isUpper*/ false);
 }
 
@@ -226,7 +350,8 @@ bool TChunkList::IsNewAppendTabletChunkList() const
     }
 
     const auto& child = Children_.front();
-    return child->GetType() == EObjectType::ChunkList && child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet;
+    return child->GetType() == EObjectType::ChunkList &&
+        child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet;
 }
 
 TChunkList::TAppendTabletChunkLists TChunkList::GetAppendTabletChunkLists() const
@@ -236,13 +361,63 @@ TChunkList::TAppendTabletChunkLists TChunkList::GetAppendTabletChunkLists() cons
 
     TAppendTabletChunkLists appendTabletChunkLists{
         .OriginatingChunkList = Children_[0]->AsChunkList(),
-        .DeltaChunkList = Children_[1]->AsChunkList(),
+        .AppendDeltaChunkList = Children_[1]->AsChunkList(),
     };
 
     YT_VERIFY(appendTabletChunkLists.OriginatingChunkList->Kind_ == EChunkListKind::SortedDynamicTablet);
-    YT_VERIFY(appendTabletChunkLists.DeltaChunkList->Kind_ == EChunkListKind::SortedDynamicSubtablet);
+    YT_VERIFY(appendTabletChunkLists.AppendDeltaChunkList->Kind_ == EChunkListKind::SortedDynamicSubtablet);
 
     return appendTabletChunkLists;
+}
+
+TChunkTreeStatistics& TChunkList::Statistics()
+{
+    if (IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        static TChunkTreeStatistics nullStatistics;
+        return nullStatistics;
+    }
+
+    return std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics;
+}
+
+const TChunkTreeStatistics& TChunkList::Statistics() const
+{
+    if (IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        static TChunkTreeStatistics nullStatistics;
+        return nullStatistics;
+    }
+
+    return std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics;
+}
+
+TLegacyOwningKey TChunkList::GetPivotKey() const
+{
+    if (IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method GetPivotKey that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return {};
+    }
+
+    return std::get<TMainTreeChunkListTraits>(ChunkListTraits_).PivotKey;
+}
+
+void TChunkList::SetPivotKey(TLegacyOwningKey pivotKey)
+{
+    if (IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method SetPivotKey that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return;
+    }
+
+    std::get<TMainTreeChunkListTraits>(ChunkListTraits_).PivotKey = pivotKey;
 }
 
 bool TChunkList::IsSealed() const
@@ -253,6 +428,26 @@ bool TChunkList::IsSealed() const
     auto lastChild = Children_.back();
     // NB: Nulls are possible in ordered tablets.
     return !lastChild || lastChild->IsSealed();
+}
+
+bool TChunkList::HasStatistics() const
+{
+    return Kind_ != EChunkListKind::Scratch;
+}
+
+bool TChunkList::IsHunkRoot() const
+{
+    return
+        Kind_ == EChunkListKind::HunkRoot ||
+        Kind_ == EChunkListKind::HunkStorageRoot;
+}
+
+bool TChunkList::IsHunkRelated() const
+{
+    return
+        IsHunkRoot() ||
+        Kind_ == EChunkListKind::Hunk ||
+        Kind_ == EChunkListKind::HunkTablet;
 }
 
 bool TChunkList::HasCumulativeStatistics() const
@@ -300,14 +495,170 @@ bool TChunkList::HasChildToIndexMapping() const
         Kind_ == EChunkListKind::Hunk ||
         Kind_ == EChunkListKind::JournalRoot ||
         Kind_ == EChunkListKind::HunkStorageRoot ||
-        Kind_ == EChunkListKind::HunkTablet;
+        Kind_ == EChunkListKind::HunkTablet ||
+        Kind_ == EChunkListKind::Scratch;
 }
 
 bool TChunkList::HasChild(TChunkTree* child) const
 {
-    YT_ASSERT(HasChildToIndexMapping());
+    if (!HasChildToIndexMapping()) {
+        YT_TLOG_ALERT("Accessed chunk list method HasChild that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return false;
+    }
 
     return ChildToIndex_.contains(child);
+}
+
+const THunkChunkTreeStatistics& TChunkList::HunkStatistics() const
+{
+    if (!IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method HunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        static THunkChunkTreeStatistics nullStatistics;
+        return nullStatistics;
+    }
+
+    return std::get<THunkTreeChunkListTraits>(ChunkListTraits_).Statistics;
+}
+
+void TChunkList::AccumulateHunkStatistics(TChunk* chunk, bool force)
+{
+    if (!IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method AccumulateHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return;
+    }
+
+    // NB: Hunk statistics of an unsealed chunk are incomplete.
+    // Hence they will be propagated to all the parents later upon seal.
+    if (!chunk->IsSealed()) {
+        return;
+    }
+
+    if (!force && !IsHunkChunkUniquelyPresentInChunkList(this, chunk)) {
+        return;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    hunkTraits.Statistics.Accumulate(chunk->GetHunkStatistics());
+}
+
+void TChunkList::DeaccumulateHunkStatistics(TChunk* chunk)
+{
+    if (!IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method DeaccumulateHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return;
+    }
+
+    if (!chunk->IsSealed()) {
+        return;
+    }
+
+    if (!IsHunkChunkUniquelyPresentInChunkList(this, chunk)) {
+        return;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    hunkTraits.Statistics.Deaccumulate(chunk->GetHunkStatistics());
+}
+
+void TChunkList::ResetHunkStatistics()
+{
+    if (!IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method ResetHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    hunkTraits.Statistics = THunkChunkTreeStatistics();
+}
+
+void TChunkList::CopyHunkStatistics(TChunkList* other)
+{
+    if (!IsHunkRelated() ||
+        other->GetKind() != GetKind()) [[unlikely]]
+    {
+        YT_TLOG_ALERT("Accessed chunk list method CopyHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind())
+            .With("OtherChunkListId", other->GetId())
+            .With("OtherChunkListKind", other->GetKind());
+        return;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    const auto& otherHunkTraits = std::get<THunkTreeChunkListTraits>(other->ChunkListTraits_);
+
+    hunkTraits.Statistics = otherHunkTraits.Statistics;
+}
+
+void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSizeDelta)
+{
+    if (!IsHunkRelated()) [[unlikely]] {
+        YT_TLOG_ALERT("Accessed chunk list method AccumulateNewlyReferencedHunkDataSize that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
+        return;
+    }
+
+    if (!chunk->IsSealed()) {
+        // NB: Statistics will be accumulated upon seal.
+        return;
+    }
+
+    // NB: Just check chunk tree invariants and chunk presence.
+    Y_UNUSED(IsHunkChunkUniquelyPresentInChunkList(this, chunk));
+
+    THunkChunkTreeStatistics deltaStatistics;
+    // NB: Include size of parity parts to disk space statistics.
+    auto diskSpaceDelta = ComputeDiskSpaceFromDataSize(dataSizeDelta, chunk->GetErasureCodec());
+    if (chunk->GetErasureCodec() == NErasure::ECodec::None) {
+        deltaStatistics.ReferencedRegularDiskSpace += diskSpaceDelta;
+    } else {
+        deltaStatistics.ReferencedErasureDiskSpace += diskSpaceDelta;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    hunkTraits.Statistics.Accumulate(deltaStatistics);
+
+    // NB: We do not check ReferencedErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
+    if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0) {
+        YT_TLOG_ALERT("Encountered inconsistent referenced disk space upon referencing hunk data in a chunk list")
+            .With("ChunkListId", GetId())
+            .With("ChunkId", chunk->GetId())
+            .With("DataSizeDelta", dataSizeDelta)
+            .With("Statistics", hunkTraits.Statistics);
+    }
+}
+
+int TChunkList::GetRank() const
+{
+    static constexpr int HunkRootChunkListRank = 2;
+    static constexpr int HunkIntermediateChunkListRank = 1;
+
+    if (!IsHunkRelated()) {
+        return Statistics().Rank;
+    }
+
+    switch (Kind_) {
+        case EChunkListKind::HunkRoot:
+        case EChunkListKind::HunkStorageRoot:
+            return HunkRootChunkListRank;
+        case EChunkListKind::Hunk:
+        case EChunkListKind::HunkTablet:
+            return HunkIntermediateChunkListRank;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

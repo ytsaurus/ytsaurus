@@ -6,10 +6,11 @@
 #include "output.h"
 #include "row.h"
 #include "timers.h"
-#include "private/fwd.h"
-#include "private/concepts.h" // IWYU pragma: keep  (clangd bug, required for concepts)
-#include "private/raw_state_store.h"
 #include "timers.h"
+
+#include <yt/cpp/roren/interface/private/fwd.h>
+#include <yt/cpp/roren/interface/private/concepts.h> // IWYU pragma: keep  (clangd bug, required for concepts)
+#include <yt/cpp/roren/interface/private/raw_state_store.h>
 
 #include <yt/cpp/roren/library/unordered_invoker/unordered_invoker.h>
 

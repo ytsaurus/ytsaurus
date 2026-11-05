@@ -14,7 +14,8 @@ namespace NPyBind {
         {
         }
         bool SetAttr(const char* name, PyObject* value) {
-            return PyDict_SetItemString(Dict.Get(), name, value) == 0;
+            TPyObjectPtr valueHolder(value, true);
+            return PyDict_SetItemString(Dict.Get(), name, valueHolder.Get()) == 0;
         }
         PyObject* GetAttr(const char* name) const {
             PyObject* res = PyDict_GetItemString(Dict.Get(), name);

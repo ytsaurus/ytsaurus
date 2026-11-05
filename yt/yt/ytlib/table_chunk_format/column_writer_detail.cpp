@@ -85,7 +85,10 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo, TSharedRef inBloc
     // We don't want to pay for the ByteSize call.
     MetaSize_ += sizeof(NProto::TSegmentMeta);
 
-    CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
+    if (BlockWriter_->GetEnableColumnMetaInChunkMeta()) {
+        CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
+    }
+
     BlockWriter_->WriteSegment(TRange(segmentInfo->Data));
 
     CurrentBlockSegmentMetas_.push_back(std::move(inBlockMeta));

@@ -4,6 +4,7 @@ ONLY_TAGS(GO_PROTO)
 
 PEERDIR(
     yt/go/proto/core/misc
+    yt/go/proto/client/tablet_client
 )
 
 PROTO_NAMESPACE(yt)

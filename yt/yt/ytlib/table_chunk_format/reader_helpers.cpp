@@ -1,5 +1,7 @@
 #include "reader_helpers.h"
 
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;

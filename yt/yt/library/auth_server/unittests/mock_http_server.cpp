@@ -8,9 +8,9 @@ namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HttpResponse(int code, TStringBuf body)
+std::string HttpResponse(int code, TStringBuf body)
 {
-    TString result;
+    std::string result;
     result += "HTTP/1.1 " + ToString(code) + " ";
     switch (code) {
         case 200: result += "Found"; break;
@@ -26,9 +26,9 @@ TString HttpResponse(int code, TStringBuf body)
     return result;
 }
 
-TString CollectMessages(const TError& error)
+std::string CollectMessages(const TError& error)
 {
-    TString result;
+    std::string result;
     std::function<void(const TError&)> impl = [&] (const TError& e) {
         result += e.GetMessage();
         for (const auto& ie : e.InnerErrors()) {
@@ -82,7 +82,7 @@ bool TMockHttpServer::IsStarted() const
     return Server_.operator bool();
 }
 
-TString TMockHttpServer::GetHost() const
+std::string TMockHttpServer::GetHost() const
 {
     return Server_->Options().Host;
 }

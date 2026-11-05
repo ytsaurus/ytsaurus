@@ -12,7 +12,7 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TCypressCookie::ToHeader(const TCypressCookieGeneratorConfigPtr& config) const
+std::string TCypressCookie::ToHeader(const TCypressCookieGeneratorConfigPtr& config) const
 {
     auto header = Format("%v=%v; Expires=%v",
         CypressCookieName,
@@ -37,12 +37,14 @@ void TCypressCookie::Register(TRegistrar registrar)
     registrar.Parameter("value", &TThis::Value);
     registrar.Parameter("user", &TThis::User);
     registrar.Parameter("password_revision", &TThis::PasswordRevision);
+    registrar.Parameter("auth_source", &TThis::AuthSource)
+        .Default(EAuthSource::Cypress);
     registrar.Parameter("expires_at", &TThis::ExpiresAt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateCookieValue()
+std::string GenerateCookieValue()
 {
     constexpr int ValueSize = 32;
 

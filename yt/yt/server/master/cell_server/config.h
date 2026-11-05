@@ -41,6 +41,9 @@ struct TDynamicCellManagerConfig
 {
     TDynamicCellarNodeTrackerConfigPtr CellarNodeTracker;
 
+    int CellHealthHistoryMaxSize;
+    TDuration CellHealthHistoryExpirationTime;
+
     REGISTER_YSON_STRUCT(TDynamicCellManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -20,14 +20,14 @@ type ChunkIntegrity struct {
 }
 
 func (i *ChunkIntegrity) String() string {
-	return fmt.Sprintf(`chunks: %d, lvc %d, dmc: %d, pmc: %d, urc: %d, qmc: %d, requisition_update_enabled: %t, refresh_enabled: %t, replicator_enabled: %t`,
+	return fmt.Sprintf(`chunks: %d, lvc: %d, dmc: %d, pmc: %d, urc: %d, qmc: %d, requisition_update_enabled: %t, refresh_enabled: %t, replicator_enabled: %t`,
 		i.C, i.LVC, i.DMC, i.PMC, i.URC, i.QMC,
 		i.RequisitionUpdateEnabled, i.RefreshEnabled, i.ReplicatorEnabled)
 }
 
 func (i *ChunkIntegrity) Check(maxURC float64) bool {
 	return i.LVC == 0 && i.DMC == 0 && i.PMC == 0 && i.QMC == 0 &&
-		(i.C == 0 || i.C > 0 && float64(i.URC)/float64(i.C) <= maxURC) &&
+		(i.C == 0 || float64(i.URC)/float64(i.C) <= maxURC) &&
 		i.RequisitionUpdateEnabled && i.RefreshEnabled && i.ReplicatorEnabled
 }
 

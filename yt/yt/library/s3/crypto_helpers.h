@@ -13,26 +13,26 @@ namespace NYT::NS3::NCrypto {
 // They are located in separated namespace to avoid collisions due to popular names.
 
 //! Convert the string to lowercase.
-TString Lowercase(const TString& string);
+std::string Lowercase(const std::string& string);
 
 //! Lowercase base 16 encoding.
-TString Hex(const TString& string);
+std::string Hex(const std::string& string);
 
 //! SHA256Hash is secure Hash Algorithm (SHA) cryptographic hash function.
 //! Sha256HashHex(s) is Hex(SHA256Hash(s)).
-TString Sha256HashHex(TSharedRef data);
-TString Sha256HashHex(const TString& string);
+std::string Sha256HashHex(TSharedRef data);
+std::string Sha256HashHex(const std::string& string);
 
 //! Computes HMAC by using the SHA256 algorithm with the signing key provided.
-TString HmacSha256(TStringBuf key, TStringBuf message);
+std::string HmacSha256(TStringBuf key, TStringBuf message);
 
 //! Remove any leading or trailing whitespace.
-TString Trim(const TString& string);
+std::string Trim(const std::string& string);
 
 //! URI encode every byte.
-TString UriEncode(const TString& string, bool isObjectPath);
+std::string UriEncode(const std::string& string, bool isObjectPath);
 
-TString FormatTimeIso8601(TInstant time);
+std::string FormatTimeIso8601(TInstant time);
 
 ////////////////////////////////////////////////////////////////////////////////
 

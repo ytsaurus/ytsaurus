@@ -108,11 +108,13 @@ In the pool structure shown in the table, all guaranteed computing resources go 
 The scheduling algorithm allocates cluster resources across compute pools and operations.
 
 <!--- TODO: add link to orchid after publishing it in OpenSource [орхидею](../../../../user-guide/storage/orchid.md) --->
+<!--- NB(eshcherbin): This paragraph is temporarily deleted, because direct access to Orchid can cause scheduler degradation.
 You can obtain current values of various characteristics for a specific pool tree via the scheduler Orchid:
 * For a pool, this information is available at `//sys/scheduler/orchid/scheduler/pool_trees/<pool-tree>/pools/<pool>`.
 * For operations, at `//sys/scheduler/orchid/scheduler/pool_trees/<pool-tree>/operations/<operation-id>`.
+--->
 
-This information is also available on the Scheduling page and on the operation page in the UI. For example, you'll find the following characteristics there:
+This information is available on the Scheduling page and on the operation page in the UI. For example, you'll find the following characteristics there:
 * `Fair share` is the share of cluster resources that is guaranteed for the operation (or pool) at this moment.
 * `Usage share` is the share of cluster resources that is currently consumed by the operation or pool: all allocations of the operation or all operations in the pool subtree.
 * `Demand share` is the share of cluster resources that the operation or pool needs to run all allocations.

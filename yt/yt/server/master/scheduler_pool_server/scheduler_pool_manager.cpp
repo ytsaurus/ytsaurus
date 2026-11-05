@@ -279,22 +279,21 @@ public:
         YT_VERIFY(srcPool);
         YT_VERIFY(dstPool);
 
-        YT_LOG_DEBUG(
-            "Transferring pool resources (SrcPool: %v, DstPool: %v, ResourceDelta: %v)",
-            srcPool->GetName(),
-            dstPool->GetName(),
-            ConvertToYsonString(resourceDelta, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Transferring pool resources")
+            .With("SrcPool", srcPool->GetName())
+            .With("DstPool", dstPool->GetName())
+            .With("ResourceDelta", ConvertToYsonString(resourceDelta, EYsonFormat::Text));
 
         TCommandTransaction transaction;
         try {
             auto* lcaPool = FindMapObjectLCA(srcPool, dstPool);
             if (!lcaPool) {
-                YT_LOG_ALERT("Pools do not have common ancestor (SrcPool: %v, DstPool: %v)",
-                    srcPool->GetName(),
-                    dstPool->GetName());
+                YT_TLOG_ALERT("Pools do not have common ancestor")
+                    .With("SrcPool", srcPool->GetName())
+                    .With("DstPool", dstPool->GetName());
                 THROW_ERROR_EXCEPTION("Pools do not have common ancestor")
-                    << TErrorAttribute("src_pool", srcPool->GetName())
-                    << TErrorAttribute("dst_pool", dstPool->GetName());
+                    .With("src_pool", srcPool->GetName())
+                    .With("dst_pool", dstPool->GetName());
             }
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -328,7 +327,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to transfer resources from pool %Qv to pool %Qv",
                 srcPool->GetName(),
                 dstPool->GetName())
-                << ex;
+                .With(ex);
         }
         transaction.Commit();
     }
@@ -367,8 +366,8 @@ public:
 
         if (!validationRegex.ok()) {
             THROW_ERROR_EXCEPTION("Pool name validation regular expression is malformed")
-                << TErrorAttribute("regular_expression", validationRegex.pattern())
-                << TErrorAttribute("inner_error", validationRegex.error());
+                .With("regular_expression", validationRegex.pattern())
+                .With("inner_error", validationRegex.error());
         }
 
         ValidatePoolName(name, validationRegex);
@@ -404,15 +403,15 @@ private:
 
         void ApplyConfigChanges(TSchedulerPool* pool, const TPoolResourcesPtr& oldResources)
         {
-            TCompactVector<std::string, 3> logMessages;
+            NLogging::TLoggingTagList updatedResourceTags;
             auto& attributes = pool->SpecifiedAttributes();
             const auto& poolConfig = pool->FullConfig();
             const auto& actualStrongGuaranteeResources = poolConfig->StrongGuaranteeResources;
             if (!oldResources->StrongGuaranteeResources->IsEqualTo(*actualStrongGuaranteeResources)) {
                 attributes[EInternedAttributeKey::StrongGuaranteeResources] = ConvertToYsonString(actualStrongGuaranteeResources);
-                logMessages.push_back(Format(
-                    "StrongGuaranteeResources: %v",
-                    ConvertToYsonString(actualStrongGuaranteeResources, EYsonFormat::Text)));
+                updatedResourceTags.Add(
+                    "StrongGuaranteeResources",
+                    ConvertToYsonString(actualStrongGuaranteeResources, EYsonFormat::Text));
             }
             const auto& actualIntegralGuarantees = poolConfig->IntegralGuarantees;
             const auto& oldBurstGuaranteeResources = oldResources->BurstGuaranteeResources;
@@ -437,20 +436,22 @@ private:
                     updatedIntegralGuarantees->AddChild("resource_flow", ConvertToNode(actualResourceFlow));
                 }
                 attributes[EInternedAttributeKey::IntegralGuarantees] = ConvertToYsonString(updatedIntegralGuarantees);
-                logMessages.push_back(Format(
-                    "IntegralGuarantees: %v",
-                    ConvertToYsonString(actualIntegralGuarantees, EYsonFormat::Text)));
+                updatedResourceTags.Add(
+                    "IntegralGuarantees",
+                    ConvertToYsonString(actualIntegralGuarantees, EYsonFormat::Text));
             }
 
             if (oldResources->MaxOperationCount != poolConfig->MaxOperationCount) {
                 attributes[EInternedAttributeKey::MaxOperationCount] = ConvertToYsonString(poolConfig->MaxOperationCount);
-                logMessages.push_back(Format("MaxOperationCount: %v", poolConfig->MaxOperationCount));
+                updatedResourceTags.Add("MaxOperationCount", poolConfig->MaxOperationCount);
             }
             if (oldResources->MaxRunningOperationCount != poolConfig->MaxRunningOperationCount) {
                 attributes[EInternedAttributeKey::MaxRunningOperationCount] = ConvertToYsonString(poolConfig->MaxRunningOperationCount);
-                logMessages.push_back(Format("MaxRunningOperationCount: %v", poolConfig->MaxRunningOperationCount));
+                updatedResourceTags.Add("MaxRunningOperationCount", poolConfig->MaxRunningOperationCount);
             }
-            YT_LOG_DEBUG("Updated pool resources (PoolName: %v, %v)", pool->GetName(), JoinToString(logMessages));
+            YT_TLOG_DEBUG("Updated pool resources")
+                .With("PoolName", pool->GetName())
+                .With(updatedResourceTags);
         }
     };
 

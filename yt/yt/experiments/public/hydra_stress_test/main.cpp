@@ -40,17 +40,18 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunHydraTest(const TString& configFile)
+void RunHydraTest(const std::string& configFile)
 {
     const auto& Logger = HydraStressTestLogger;
     TConfigPtr config;
     try {
-        TIFStream configStream(configFile);
+        // TODO(babenko): drop TString cast once TIFStream accepts std::string.
+        TIFStream configStream{TString(configFile)};
         auto configNode = ConvertToNode(&configStream);
         config = New<TConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading configuration") << ex;
+        THROW_ERROR_EXCEPTION("Error reading configuration").With(ex);
     }
 
     if (config->Logging) {
@@ -64,7 +65,9 @@ void RunHydraTest(const TString& configFile)
     auto cellConfig = New<TCellConfig>();
     for (int i = 0; i < config->PeerCount; ++i) {
         bool voting = peerIndices[i] < config->VotingPeerCount;
-        YT_LOG_INFO("Peer created (PeerId: %v, Voting: %v)", i, voting);
+        YT_TLOG_INFO("Peer created")
+            .With("PeerId", i)
+            .With("Voting", voting);
         auto peerConfig = New<TCellPeerConfig>();
         peerConfig->Address = GetPeerAddress(i);
         peerConfig->Voting = voting;
@@ -163,7 +166,7 @@ int main(int argc, const char** argv)
     try {
         NLastGetopt::TOpts opts;
 
-        TString Config;
+        std::string Config;
         opts.AddLongOption("config", "Config").StoreResult(&Config);
         NLastGetopt::TOptsParseResult results(&opts, argc, argv);
 

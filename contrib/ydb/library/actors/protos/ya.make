@@ -8,6 +8,10 @@ SRCS(
     unittests.proto
 )
 
+PEERDIR(
+    contrib/ydb/public/api/protos/annotations
+)
+
 EXCLUDE_TAGS(GO_PROTO)
 
 END()

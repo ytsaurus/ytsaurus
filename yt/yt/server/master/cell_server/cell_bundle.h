@@ -33,6 +33,7 @@ struct TCellBundleProfilingCounters
     NProfiling::TCounter TabletMerges;
     NProfiling::TCounter TabletCellMoves;
     NProfiling::TCounter PeerAssignment;
+    NProfiling::TCounter LeaderSmoothings;
 
     TEnumIndexedArray<ECellHealth, NProfiling::TGauge> TabletCellCount;
 

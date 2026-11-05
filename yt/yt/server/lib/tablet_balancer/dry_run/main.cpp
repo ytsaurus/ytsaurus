@@ -1,6 +1,10 @@
 #include <yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.h>
 #include <yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/table.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/getopt/last_getopt.h>
@@ -15,7 +19,7 @@ int main(int argc, const char** argv)
         auto opts = NLastGetopt::TOpts::Default();
         opts.AddHelpOption();
 
-        TString modeName;
+        std::string modeName;
         opts.AddLongOption(
             "mode",
             "Choose balancing type from [parameterized | reshard | in_memory_move | ordinary_move]")
@@ -29,7 +33,7 @@ int main(int argc, const char** argv)
             .RequiredArgument("filename")
             .StoreResult(&loadFromFile);
 
-        TString groupName;
+        std::string groupName;
         opts.AddLongOption(
             "group-name",
             "Used only for parameterized balancing")
@@ -37,13 +41,20 @@ int main(int argc, const char** argv)
             .RequiredArgument("group-name")
             .StoreResult(&groupName);
 
-        TString parameterizedConfig;
+        std::string parameterizedConfig;
         opts.AddLongOption(
             "parameterized-config",
             "Used only for parameterized balancing")
             .Optional()
             .RequiredArgument("parameterized-config")
             .StoreResult(&parameterizedConfig);
+
+        bool disableVerboseLogging = false;
+        opts.AddLongOption(
+            "disable-verbose-logging",
+            "Disable bundle and table verbose logging for benchmarks")
+            .NoArgument()
+            .SetFlag(&disableVerboseLogging);
 
         NLastGetopt::TOptsParseResult results(&opts, argc, argv);
 
@@ -53,6 +64,12 @@ int main(int argc, const char** argv)
         auto bundleHolder = NYT::NYTree::ConvertTo<NYT::NTabletBalancer::NDryRun::TBundleHolderPtr>(
             NYT::NYson::TYsonString(dataStream.ReadAll()));
         auto bundle = bundleHolder->CreateBundle();
+        if (disableVerboseLogging) {
+            bundle->Config->EnableVerboseLogging = false;
+            for (const auto& [tableId, table] : bundle->Tables) {
+                table->TableConfig->EnableVerboseLogging = false;
+            }
+        }
 
         NYT::NTabletBalancer::NDryRun::BalanceAndPrintDescriptors(
             mode,
@@ -60,6 +77,7 @@ int main(int argc, const char** argv)
             groupName,
             parameterizedConfig);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Dry run failed");
+        YT_TLOG_ERROR("Dry run failed")
+            .With(ex);
     }
 }

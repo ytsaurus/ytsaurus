@@ -527,7 +527,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             remove_pool_tree("other", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation .* aborted"):
             op.track()
 
     @authors("renadeen")
@@ -730,14 +730,14 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             task_patch={"file_paths": ["//tmp/job_file"]},
             track=True)
 
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["custom"]},
                 task_patch={"file_paths": ["//tmp/job_file"]},
                 track=True)
 
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["default", "custom"]},
@@ -745,7 +745,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 track=True)
 
         update_controller_agent_config("user_file_limits_per_tree/default", {"max_size": 600000})
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["custom"]},
@@ -754,7 +754,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -781,7 +780,6 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestPoolTreesUpdateUnderLock(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -820,7 +818,6 @@ class TestPoolTreesUpdateUnderLock(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTentativePoolTrees(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1073,7 +1070,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         spec["tentative_pool_trees"] = ["missing"]
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree \"missing\" not found"):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
 
         spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
@@ -1156,7 +1153,6 @@ class TestTentativePoolTrees(YTEnvSetup):
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/other/tentative"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1200,7 +1196,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
@@ -1358,7 +1354,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "schedule_in_single_tree": True,
             "consider_guarantees_for_single_tree": True,
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no best single non-empty tree for operation"):
             run_test_vanilla("sleep 0.6", spec=spec, track=True)
 
     @authors("omgronny")
@@ -1369,7 +1365,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "schedule_in_single_tree": True,
             "consider_guarantees_for_single_tree": True,
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no best single non-empty tree for operation"):
             run_test_vanilla("sleep 0.6", spec=spec, track=True)
 
     @authors("eshcherbin")
@@ -1482,7 +1478,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -1516,7 +1512,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1718,7 +1714,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestPoolTreeOperationLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1743,7 +1738,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         )
 
         blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
-        wait_breakpoint()
+        wait_breakpoint(blocking_op)
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -1809,7 +1804,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
                 )
 
             if should_raise:
-                with pytest.raises(YtError):
+                with raises_yt_error("Limit for the number of concurrent operations .* for pool"):
                     execute(track=True)
             else:
                 op = execute(track=False)
@@ -1843,7 +1838,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         create_pool_tree("other", config={"node_tag_filter": "other"})
         create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
 
-        with raises_yt_error(yt_error_codes.TooManyOperations):
+        with raises_yt_error(code=yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["default", "other"]})
 
         op = run_sleeping_vanilla(spec={
@@ -1854,7 +1849,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees", default=None) == ["other"])
         wait(lambda: ls(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree") == ["default"])
 
-        with raises_yt_error(yt_error_codes.TooManyOperations) as errors:
+        with raises_yt_error(code=yt_error_codes.TooManyOperations) as errors:
             run_sleeping_vanilla(spec={
                 "pool": "pool",
                 "pool_trees": ["other"],
@@ -1914,7 +1909,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         run_test_vanilla("echo OK >&2", track=True)
 
         def check_op(task_patch):
-            with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
                 run_test_vanilla("echo FAIL >&2", task_patch=task_patch, track=True)
 
             op = run_sleeping_vanilla(spec={"pool_trees": ["default", "other"]}, task_patch=task_patch)
@@ -1935,7 +1930,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         op2 = run_test_vanilla(with_breakpoint("BREAKPOINT") + "; sleep 1000", spec={"pool_trees": ["default", "other"]})
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint([op1, op2], job_count=2)
         op1.wait_for_fresh_snapshot()
         op2.wait_for_fresh_snapshot()
 
@@ -1956,14 +1951,13 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
         wait(lambda: not get(op2.get_path() + "/@runtime_parameters/erased_trees", []))
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+        with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
             run_test_vanilla("echo FAIL >&2", track=True)
 
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1994,7 +1988,6 @@ class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # Scenario:
@@ -2041,7 +2034,6 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestMultiTreeOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2082,7 +2074,6 @@ class TestMultiTreeOperations(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOffloadingPools(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2156,7 +2147,7 @@ class TestOffloadingPools(YTEnvSetup):
             task_patch={"network_project": "n"},
             job_count=2)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
@@ -2186,7 +2177,7 @@ class TestOffloadingPools(YTEnvSetup):
             task_patch={"network_project": "n"},
             job_count=1)
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
@@ -2268,7 +2259,7 @@ class TestOffloadingPools(YTEnvSetup):
             spec={"pool": "primary_pool", "scheduling_tag_filter": "!x"},
             job_count=2)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
@@ -2399,7 +2390,6 @@ class TestOffloadingPools(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNodeCountProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

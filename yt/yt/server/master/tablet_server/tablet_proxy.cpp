@@ -77,7 +77,7 @@ private:
             .SetOpaque(!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->AddPerfCountersToTabletsAttribute)
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
-            .SetPresent(table->IsPhysicallySorted()));
+            .SetPresent(table->IsSorted()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConflictHorizonTimestamp)
             .SetPresent(table->IsPhysicallySorted()));
@@ -90,6 +90,7 @@ private:
             .SetPresent(!tablet->ReplicationProgress().Segments.empty()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountHint)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProlongedChunkCount));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -133,7 +134,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::PivotKey:
-                if (!table->IsPhysicallySorted()) {
+                if (!table->IsSorted()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
@@ -186,6 +187,11 @@ private:
                     .EndMap();
                 return true;
 
+            case EInternedAttributeKey::ProlongedChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->ProlongedChunks().size());
+                return true;
+
             default:
                 break;
         }
@@ -204,7 +210,7 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->CancelTabletTransition(GetThisImpl<TTablet>());

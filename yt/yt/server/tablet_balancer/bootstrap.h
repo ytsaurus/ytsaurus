@@ -2,13 +2,15 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -29,6 +31,7 @@ struct IBootstrap
     virtual std::string GetClusterName() const = 0;
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
     virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const = 0;
+    virtual void ExecuteBalancerIteration(TDryRunConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

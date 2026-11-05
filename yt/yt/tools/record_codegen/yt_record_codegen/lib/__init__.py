@@ -17,6 +17,7 @@ class Field:
     lock: Optional[str]
     aggregate: Optional[str]
     expression: Optional[str]
+    max_inline_hunk_size: Optional[int] = None
 
     def get_type_v3_string(self):
         if self.column_type_v3 is None:

@@ -17,6 +17,7 @@ struct TVersionedRowDigest
     void MergeWith(const TVersionedRowDigestPtr& other);
 
     std::vector<i64> EarliestNthTimestamp;
+    std::vector<i64> EarliestAggregateOrDeleteNthTimestamp;
     IQuantileDigestPtr LastTimestampDigest;
     IQuantileDigestPtr AllButLastTimestampDigest;
     IQuantileDigestPtr FirstTimestampDigest;
@@ -39,7 +40,8 @@ DEFINE_REFCOUNTED_TYPE(IVersionedRowDigestBuilder)
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedRowDigestBuilderPtr CreateVersionedRowDigestBuilder(
-    const TTDigestConfigPtr& config);
+    const TTDigestConfigPtr& config,
+    const TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -61,8 +61,22 @@ public:
         auto chunkSpec = CreateChunkSpec(lowerLimit, upperLimit, dataWeight);
         auto inputChunk = New<TInputChunk>(chunkSpec);
 
-        auto slice = CreateInputChunkSlice(inputChunk, lowerLimit, upperLimit);
-        slice->TransformToNew(RowBuffer_, {});
+        TInputSliceLimit lowerSliceLimit;
+        lowerSliceLimit.KeyBound = KeyBoundFromLegacyRow(
+            lowerLimit,
+            /*isUpper*/ false,
+            lowerLimit.GetCount(),
+            RowBuffer_);
+        TInputSliceLimit upperSliceLimit(/*isUpper*/ true);
+        upperSliceLimit.KeyBound = KeyBoundFromLegacyRow(
+            upperLimit,
+            /*isUpper*/ true,
+            upperLimit.GetCount(),
+            RowBuffer_);
+        auto slice = CreateInputChunkSlice(
+            inputChunk,
+            std::move(lowerSliceLimit),
+            std::move(upperSliceLimit));
         Builder_->AddSlice(slice);
     }
 

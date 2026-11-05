@@ -1,7 +1,8 @@
 #include <yt/yt/server/lib/io/io_workload_model.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/tscp.h>
+
+#include <library/cpp/yt/system/access_spreader.h>
 
 #include <vector>
 #include <thread>
@@ -23,25 +24,26 @@ struct TStatsHolder
         RequestLatencies_.Reads[category].RecordValue(requestTime.MilliSeconds());
     }
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
+    YT_DECLARE_SPIN_LOCK(NYT::TSpinLock, StatsLock_);
 };
 
 struct TPerCpuStatsHolder
 {
     void Register(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
     {
-        auto tscp = TTscp::Get();
-        auto& holder = Shards_[tscp.ProcessorId].Holder;
+        auto& holder = Shards_[GetCurrentAccessStripe(ShardCount)].Holder;
         holder.Register(requestSize, category, requestTime);
     }
 
 private:
+    static constexpr int ShardCount = 64;
+
     struct alignas(2 * CacheLineSize) TShard
     {
         TStatsHolder Holder;
     };
 
-    std::array<TShard, TTscp::MaxProcessorId> Shards_;
+    std::array<TShard, ShardCount> Shards_;
 };
 
 void ExecTimes(i64 count, auto& holder)

@@ -12,60 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(base-poco-Crypto)
-
-
-target_compile_options(base-poco-Crypto PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(base-poco-Crypto PRIVATE
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_OS_FAMILY_UNIX
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(base-poco-Crypto PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
-)
-
-target_include_directories(base-poco-Crypto PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
-)
-
-target_link_libraries(base-poco-Crypto PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-openssl
-  base-poco-Foundation
-)
-
-target_sources(base-poco-Crypto PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/Cipher.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CipherFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CipherImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CipherKey.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CipherKeyImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CryptoException.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CryptoStream.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/CryptoTransform.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/DigestEngine.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/ECDSADigestEngine.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/ECKey.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/ECKeyImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/EVPPKey.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/KeyPair.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/KeyPairImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/OpenSSLInitializer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/PKCS12Container.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/RSACipherImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/RSADigestEngine.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/RSAKey.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/RSAKeyImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/src/X509Certificate.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

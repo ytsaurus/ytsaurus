@@ -2,7 +2,7 @@ from . import http_driver
 
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import YtError, update, simplify_structure, set_param
+from .common import YtError, update, simplify_structure, set_param, hide_secure_vault, get_version
 from .config import get_option, set_option, get_config, get_backend_type
 from .format import create_format, JsonFormat, YsonFormat, YtFormatError
 from .http_helpers import get_http_api_version, get_http_api_commands
@@ -14,7 +14,10 @@ import yt.yson as yson
 
 from copy import deepcopy
 
+import importlib.util
+import logging
 import os
+import sys
 import threading
 
 
@@ -22,6 +25,43 @@ _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
     "ping_ancestor_transactions": False
 }
+
+_welcome_debug_info_logged = False
+_welcome_debug_info_lock = threading.Lock()
+
+
+def _log_welcome_debug_info():
+    global _welcome_debug_info_logged
+
+    with _welcome_debug_info_lock:
+        if _welcome_debug_info_logged:
+            return
+        _welcome_debug_info_logged = True
+
+    try:
+        if yson.TYPE == "BINARY":
+            import yt_yson_bindings
+            yson_bindings_info = getattr(yt_yson_bindings, "VERSION", "unknown")
+        else:
+            yson_bindings_info = "not found"
+
+        if importlib.util.find_spec("yt_driver_rpc_bindings") is not None:
+            rpc_bindings_info = "found"
+        else:
+            rpc_bindings_info = "not found"
+
+        logger.log_once(
+            logging.DEBUG,
+            "YT wrapper version: %s; python: %s.%s.%s (%s); yson bindings: %s; rpc bindings: %s",
+            get_version(),
+            sys.version_info.major,
+            sys.version_info.minor,
+            sys.version_info.micro,
+            sys.executable,
+            yson_bindings_info,
+            rpc_bindings_info)
+    except Exception:
+        pass
 
 
 def get_commands_description(client=None):
@@ -78,6 +118,9 @@ def make_request(command_name,
                  mutation_id=None,
                  client=None):
 
+    if not _welcome_debug_info_logged:
+        _log_welcome_debug_info()
+
     if client:
         client_created_with_pids = get_option("_created_with_pids", client)
         if not client_created_with_pids:
@@ -101,7 +144,7 @@ def make_request(command_name,
     enable_request_logging = get_config(client)["enable_request_logging"]
 
     if enable_request_logging:
-        logger.info("Executing %s (params: %r)", command_name, params)
+        logger.info("Executing %s (params: %r)", command_name, hide_secure_vault(params))
 
     if get_option("_client_type", client) == "batch":
         result = client._batch_executor.add_task(command_name, params, data)

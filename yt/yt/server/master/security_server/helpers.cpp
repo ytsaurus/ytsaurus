@@ -1,5 +1,6 @@
 #include "helpers.h"
 #include "private.h"
+#include "security_manager.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium_base.h>
@@ -132,6 +133,19 @@ void ValidateSuperuserOnAttributeModification(
         THROW_ERROR_EXCEPTION(
             NSecurityClient::EErrorCode::AuthorizationError,
             "Access denied: only superusers can change %Qv",
+            attribute);
+    }
+}
+
+void ValidateSuperuserOnAttributeAccess(
+    const ISecurityManagerPtr& securityManager,
+    TStringBuf attribute)
+{
+    auto* user = securityManager->GetAuthenticatedUser();
+    if (!securityManager->IsSuperuser(user)) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "Access denied: only superusers can access %Qv",
             attribute);
     }
 }

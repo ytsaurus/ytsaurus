@@ -12,7 +12,7 @@
 namespace NXdeltaAggregateColumn {
     size_t SizeOfHeaderSize(size_t headerSize)
     {
-        using namespace NProtoBuf::io;
+        using namespace google::protobuf::io;
 
         ui32 dummy = 0;
         auto data = reinterpret_cast<ui8*>(&dummy);
@@ -26,11 +26,11 @@ namespace NXdeltaAggregateColumn {
         return SizeOfHeaderSize(headerSize) + headerSize;
     }
 
-    TStateHeader* ParseHeader(NProtoBuf::Arena& arena, const ui8* data, size_t size)
+    TStateHeader* ParseHeader(google::protobuf::Arena& arena, const ui8* data, size_t size)
     {
-        using namespace NProtoBuf::io;
+        using namespace google::protobuf::io;
 
-        auto header = NProtoBuf::Arena::CreateMessage<TStateHeader>(&arena);
+        auto header = google::protobuf::Arena::CreateMessage<TStateHeader>(&arena);
         if (nullptr == data || 0 == size) {
             header->set_error_code(TStateHeader::HEADER_PARSE_ERROR);
             return header;
@@ -58,7 +58,7 @@ namespace NXdeltaAggregateColumn {
 
     bool EncodeHeaderTo(const TStateHeader& header, ui8* data, size_t size, size_t& resultSize)
     {
-        using namespace NProtoBuf::io;
+        using namespace google::protobuf::io;
 
         resultSize = 0;
         auto headerSize = header.ByteSize();
@@ -95,7 +95,7 @@ namespace NXdeltaAggregateColumn {
         return TStateHeader::NO_ERROR;
     }
 
-    TState::TState(NProtoBuf::Arena& arena, const ui8* data, size_t size)
+    TState::TState(google::protobuf::Arena& arena, const ui8* data, size_t size)
     {
         if (nullptr == data || 0 == size) {
             return;

@@ -49,8 +49,8 @@ using TNonOwningOperationElementMap = THashMap<TOperationId, TPoolTreeOperationE
 using TOperationElementMap = THashMap<TOperationId, TPoolTreeOperationElementPtr>;
 using TOperationIdToJobResources = THashMap<TOperationId, TJobResources>;
 
-using TNonOwningPoolElementMap = THashMap<TString, TPoolTreePoolElement*>;
-using TPoolElementMap = THashMap<TString, TPoolTreePoolElementPtr>;
+using TNonOwningPoolElementMap = THashMap<std::string, TPoolTreePoolElement*>;
+using TPoolElementMap = THashMap<std::string, TPoolTreePoolElementPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

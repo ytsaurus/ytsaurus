@@ -24,6 +24,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/core
+    yt/yt/core/https
     yt/yt/ytlib
     yt/yt/ytlib/distributed_throttler
     yt/yt/library/coredumper
@@ -31,6 +32,7 @@ PEERDIR(
     yt/yt/library/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/ytprof/allocation_tag_profiler
+    yt/yt/server/lib/job_agent
 )
 
 IF(OS_LINUX)

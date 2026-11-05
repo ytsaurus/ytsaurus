@@ -87,7 +87,6 @@ def make_skiff_format(*table_skiff_schemas):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSkiffFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -675,10 +674,10 @@ while True:
         format = make_skiff_format(
             skiff_tuple(skiff_simple("int64", name="column"))
         )
-        with raises_yt_error("Skiff type int64 cannot represent"):
+        with raises_yt_error("Wire type \"int64\" cannot represent"):
             read_table("//tmp/table", is_raw=True, output_format=format)
 
-        with raises_yt_error("Skiff type int64 cannot represent"):
+        with raises_yt_error("Wire type \"int64\" cannot represent"):
             write_table("//tmp/table", b"", is_raw=True, input_format=format)
 
     @authors("ermolovd")
@@ -706,7 +705,6 @@ while True:
     (76, 32, "yson32"),
 ])
 @authors("ermolovd")
-@pytest.mark.enabled_multidaemon
 class TestGoodSkiffDecimal(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -835,7 +833,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             Decimal("3.14"),
             Decimal("-2.71"),
         ]
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
                 self._encode_row(self._encode_optional(None)),

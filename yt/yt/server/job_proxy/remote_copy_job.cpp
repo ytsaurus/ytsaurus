@@ -101,6 +101,8 @@ public:
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
 
+        WriteBlocksOptions_.ClientOptions.JobIoMeter = Host_->GetJobIoMeter();
+
         DataSliceDescriptors_ = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
@@ -113,6 +115,7 @@ public:
         ReadBlocksOptions_.ClientOptions.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
         ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         ReadBlocksOptions_.ClientOptions.ReadSessionId = TReadSessionId::Create();
+        ReadBlocksOptions_.ClientOptions.JobIoMeter = Host_->GetJobIoMeter();
 
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
@@ -194,19 +197,16 @@ public:
     {
         TChunkServiceProxy proxy(MasterChannel_);
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
+        auto req = proxy.AttachChunkTrees();
+        GenerateMutationId(req);
+        SetSuppressUpstreamSync(&req->Header(), true);
 
-        auto* req = batchReq->add_attach_chunk_trees_subrequests();
         ToProto(req->mutable_parent_id(), OutputChunkListId_);
         ToProto(req->mutable_child_ids(), chunksIds);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Failed to attach chunks to chunk list");
     }
@@ -237,8 +237,8 @@ public:
             THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
         }
 
-        YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)",
-            OutputChunkListId_);
+        YT_TLOG_INFO("Attaching chunks to output chunk list")
+            .With("ChunkListId", OutputChunkListId_);
         AttachChunksToChunkList(outputChunkIds);
     }
 
@@ -296,7 +296,7 @@ public:
     void Interrupt() override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
-            << TErrorAttribute("job_type", EJobType::RemoteCopy);
+            .With("job_type", EJobType::RemoteCopy);
     }
 
     TStatistics GetStatistics() const override
@@ -382,17 +382,17 @@ private:
         if (RemoteCopyJobSpecExt_.has_delay_in_copy_chunk()) {
             auto delayInCopyChunk = FromProto<TDuration>(RemoteCopyJobSpecExt_.delay_in_copy_chunk());
             if (delayInCopyChunk > TDuration::Zero()) {
-                YT_LOG_INFO("Sleeping in CopyChunk (DelayInCopyChunk: %v)",
-                    delayInCopyChunk);
+                YT_TLOG_INFO("Sleeping in CopyChunk")
+                    .With("DelayInCopyChunk", delayInCopyChunk);
                 Sleep(delayInCopyChunk);
             }
         }
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        YT_LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
-            inputChunkId,
-            outputSessionId);
+        YT_TLOG_INFO("Copying chunk")
+            .With("InputChunkId", inputChunkId)
+            .With("OutputChunkId", outputSessionId);
 
         auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
         if (erasureCodecId != NErasure::ECodec::None) {
@@ -420,12 +420,11 @@ private:
     void CopyErasureChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
         auto cancelableContext = New<TCancelableContext>();
-        auto suspendableInvoker = CreateSuspendableInvoker(GetRemoteCopyInvoker());
-        auto cancelableInvoker = cancelableContext->CreateInvoker(suspendableInvoker);
+        auto cancelableInvoker = cancelableContext->CreateInvoker(GetRemoteCopyInvoker());
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
-        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
+        auto erasureCodec = NErasure::GetCodecOrThrow(erasureCodecId);
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
         auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
@@ -455,11 +454,12 @@ private:
         auto remoteWriterOptions = New<TRemoteWriterOptions>();
         remoteWriterOptions->AllowAllocatingNewTargetNodes = false;
 
+        const auto& codecParams = erasureCodec->GetParams();
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
             outputSessionId,
-            erasureCodec->GetTotalPartCount(),
-            erasureCodec->GetTotalPartCount(),
+            codecParams.TotalPartCount,
+            codecParams.TotalPartCount,
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ {},
@@ -506,8 +506,8 @@ private:
             auto attachDebugAttributes = [inputChunkId, index] (const TError& error) {
                 if (!error.IsOK()) {
                     return error
-                        << TErrorAttribute("chunk_id", inputChunkId)
-                        << TErrorAttribute("part_index", index);
+                        .With("chunk_id", inputChunkId)
+                        .With("part_index", index);
                 }
                 return error;
             };
@@ -523,9 +523,9 @@ private:
             }
         }
 
-        YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v, ChunkId: %v)",
-            repairChunk,
-            inputChunkId);
+        YT_TLOG_INFO("Waiting for erasure parts data to be copied")
+            .With("RepairChunk", repairChunk)
+            .With("ChunkId", inputChunkId);
 
         TPartIndexList erasedPartIndices;
 
@@ -568,7 +568,7 @@ private:
             cancelableContext->Cancel(TError("Erasure part repair started"));
 
             // Wait until all part copyings terminated.
-            WaitFor(suspendableInvoker->Suspend())
+            WaitFor(AllSet(copyFutures))
                 .ThrowOnError();
 
             TCurrentTraceContextGuard guard(OutputTraceContext_);
@@ -586,12 +586,10 @@ private:
                                 BIND([inputChunkId, partIndex] (const TError& error) {
                                     // NB(coteeq): Do not treat error as a failure. Cancellation is
                                     // a hint here, so error is not fatal. We just forget and move on.
-                                    YT_LOG_INFO_UNLESS(
-                                        error.IsOK(),
-                                        error,
-                                        "Failed to cancel writer (ChunkId: %v, PartIndex: %v)",
-                                        inputChunkId,
-                                        partIndex);
+                                    YT_TLOG_INFO_UNLESS(error.IsOK(), "Failed to cancel writer")
+                                        .With("ChunkId", inputChunkId)
+                                        .With("PartIndex", partIndex)
+                                        .With(error);
                                 })));
                 } else {
                     closeReplicaWriterResults.push_back(writer->Close(
@@ -632,15 +630,14 @@ private:
                     &writers,
                     targetReplicas);
             } else {
-                YT_LOG_INFO("Not all parts were copied successfully, "
-                    "chunk should be repaired on the destination cluster "
-                    "(ErasedPartCount: %v, InputChunkId: %v, OutputChunkId: %v)",
-                    std::ssize(erasedPartIndices),
-                    inputChunkId,
-                    outputSessionId.ChunkId);
+                YT_TLOG_INFO("Not all parts were copied successfully, chunk should be repaired on the destination cluster")
+                    .With("ErasedPartCount", std::ssize(erasedPartIndices))
+                    .With("InputChunkId", inputChunkId)
+                    .With("OutputChunkId", outputSessionId.ChunkId);
             }
         } else {
-            YT_LOG_INFO("All parts were copied successfully (ChunkId: %v)", inputChunkId);
+            YT_TLOG_INFO("All parts were copied successfully")
+                .With("ChunkId", inputChunkId);
         }
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
@@ -656,7 +653,7 @@ private:
         ICodec* erasureCodec)
     {
         i64 parityPartsSize = 0;
-        auto firstParityBlockIndex = erasureCodec->GetDataPartCount();
+        auto firstParityBlockIndex = erasureCodec->GetParams().DataPartCount;
         for (auto index = firstParityBlockIndex; index < placementExt.part_infos_size(); ++index) {
             for (auto size : placementExt.get_idx_part_infos(index).segment_sizes()) {
                 parityPartsSize += size;
@@ -697,7 +694,7 @@ private:
         i64 partIndex)
     {
         std::vector<i64> blockSizes;
-        if (partIndex < erasureCodec->GetDataPartCount()) {
+        if (partIndex < erasureCodec->GetParams().DataPartCount) {
             int blockCount = placementExt.part_infos(partIndex).block_sizes_size();
             for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
                 blockSizes.push_back(
@@ -753,8 +750,8 @@ private:
                         // Chunk cannot be repaired, this situation is unrecoverable.
                         if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
                             callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
-                                << callbackContext->CopyErrors
-                                << TErrorAttribute("chunk_id", inputChunkId));
+                                .With(callbackContext->CopyErrors)
+                                .With("chunk_id", inputChunkId));
                         }
                     }
                 })
@@ -775,11 +772,10 @@ private:
 
         auto repairPartIndices = *erasureCodec->GetRepairIndices(erasedPartIndices);
 
-        YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair "
-            "(OutputChunkId: %v, ErasedPartIndices: %v, RepairPartIndices: %v)",
-            outputSessionId.ChunkId,
-            erasedPartIndices,
-            repairPartIndices);
+        YT_TLOG_INFO("Failed to copy some of the chunk parts, starting repair")
+            .With("OutputChunkId", outputSessionId.ChunkId)
+            .With("ErasedPartIndices", erasedPartIndices)
+            .With("RepairPartIndices", repairPartIndices);
 
         TChunkReplicaList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
@@ -910,7 +906,8 @@ private:
             .AsyncVia(GetRemoteCopyInvoker())
             .Run(reader, writer, blockSizes);
 
-        YT_LOG_INFO("Waiting for chunk data to be copied (ChunkId: %v)", inputChunkId);
+        YT_TLOG_INFO("Waiting for chunk data to be copied")
+            .With("ChunkId", inputChunkId);
 
         WaitFor(result)
             .ThrowOnError();
@@ -944,9 +941,9 @@ private:
         const TRefCountedChunkMetaPtr& inputChunkMeta,
         TChunkId inputChunkId)
     {
-        YT_LOG_INFO("Confirming output chunk (InputChunkId: %v, OutputChunkId: %v)",
-            inputChunkId,
-            outputSessionId.ChunkId);
+        YT_TLOG_INFO("Confirming output chunk")
+            .With("InputChunkId", inputChunkId)
+            .With("OutputChunkId", outputSessionId.ChunkId);
 
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
@@ -1000,9 +997,11 @@ private:
             *chunkSpec.mutable_chunk_meta() = masterChunkMeta;
             ToProto(chunkSpec.mutable_chunk_id(), outputSessionId.ChunkId);
             WrittenChunks_.push_back(chunkSpec);
-            if (FromProto<EChunkFormat>(masterChunkMeta.format()) == EChunkFormat::HunkDefault) {
+            auto chunkFormat = FromProto<EChunkFormat>(masterChunkMeta.format());
+            if (chunkFormat == EChunkFormat::HunkDefault) {
                 EmplaceOrCrash(ResultHunkChunkIdMapping_, inputChunkId, outputSessionId.ChunkId);
             }
+            YT_VERIFY(chunkFormat != EChunkFormat::HunkJournal);
         }
     }
 
@@ -1128,9 +1127,9 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseClusterThrottlers: %v)",
-            RemoteCopyJobSpecExt_.remote_cluster_name(),
-            JobSpecExt_.use_cluster_throttlers());
+        YT_TLOG_DEBUG("Creating chunk reader host")
+            .With("RemoteClusterName", RemoteCopyJobSpecExt_.remote_cluster_name())
+            .With("UseClusterThrottlers", JobSpecExt_.use_cluster_throttlers());
 
         auto clusterName = LocalClusterName;
         if (JobSpecExt_.use_cluster_throttlers()) {
@@ -1191,8 +1190,8 @@ private:
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (miscExt.has_compression_dictionary_id()) {
             THROW_ERROR_EXCEPTION("Compression dictionaries are not supported for this type of jobs")
-                << TErrorAttribute("chunk_id", chunkId)
-                << TErrorAttribute("job_type", EJobType::RemoteCopy);
+                .With("chunk_id", chunkId)
+                .With("job_type", EJobType::RemoteCopy);
         }
     }
 

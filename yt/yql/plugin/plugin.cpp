@@ -1,6 +1,8 @@
 #include "plugin.h"
 #include "config.h"
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <iostream>
 
 namespace NYT::NYqlPlugin {
@@ -15,16 +17,24 @@ IMapNodePtr IYqlPlugin::GetOrchidNode() const
     return GetEphemeralNodeFactory()->CreateMap();
 }
 
+bool IYqlPlugin::IsReady() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TYqlPluginOptions ConvertToOptions(
+TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
+    TYqlPluginDynamicConfigPtr initialDynamicConfig,
     TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion,
-    bool startDqManager)
+    bool startDqManager,
+    bool enableClique,
+    bool useTokenResolver,
+    const std::string& tokenServiceSocketPath)
 {
-    return TYqlPluginOptions {
+    auto options = TYqlNativePluginOptions {
         .SingletonsConfig = singletonsConfigString,
         .GatewayConfig = ConvertToYsonString(config->GatewayConfig),
         .DqGatewayConfig = config->EnableDQ ? ConvertToYsonString(config->DQGatewayConfig) : TYsonString(),
@@ -33,23 +43,51 @@ TYqlPluginOptions ConvertToOptions(
         .SolomonGatewayConfig = ConvertToYsonString(config->SolomonGatewayConfig),
         .DqManagerConfig = config->EnableDQ ? ConvertToYsonString(config->DQManagerConfig) : TYsonString(),
         .FileStorageConfig = ConvertToYsonString(config->FileStorageConfig),
+        .TvmConfig = ConvertToYsonString(config->TvmConfig),
+        .YtAccessProviderConfig = ConvertToYsonString(config->YtAccessProviderConfig),
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
+        .InitialDynamicConfig = ConvertToYsonString(initialDynamicConfig),
         .YTTokenPath = config->YTTokenPath,
-        .LogBackend = std::move(logBackend),
-        .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
-        .MaxYqlLangVersion = maxSupportedYqlVersion,
         .StartDqManager = startDqManager,
+        .EnableClique = enableClique,
     };
+
+    if (useTokenResolver) {
+        options.YtTokenResolverConfig = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("yql_agent").BeginMap()
+                    .Item("unix_socket_path").Value(tokenServiceSocketPath)
+                .EndMap()
+            .EndMap();
+    }
+
+    options.LogBackend = std::move(logBackend);
+    return options;
+}
+
+TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
+    TYqlNativePluginOptions nativeOptions,
+    THolder<TLogBackend> qtWorkerLogBackend,
+    int qtWorkerInspectorPort,
+    TString gatewaysConfigPath,
+    bool enableGetUsedClusters)
+{
+    TYqlQTWorkerPluginOptions options;
+    static_cast<TYqlNativePluginOptions&>(options) = std::move(nativeOptions);
+    options.QtWorkerInspectorPort = qtWorkerInspectorPort;
+    options.QtWorkerLogBackend = std::move(qtWorkerLogBackend);
+    options.GatewaysConfigPath = std::move(gatewaysConfigPath);
+    options.EnableGetUsedClusters = enableGetUsedClusters;
+    return options;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions /*options*/) noexcept
+TString DetectFlavorFromSettings(const NYson::TYsonString& settings)
 {
-    std::cerr << "No YQL plugin implementation is available; link against either "
-              << "yt/yql/plugin/native or yt/yql/plugin/dynamic" << std::endl;
-    exit(1);
+    auto settingsMap = NYTree::ConvertTo<NYTree::IMapNodePtr>(settings);
+    return settingsMap->GetChildValueOrDefault<TString>("yql_flavor", TString{DefaultFlavor});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

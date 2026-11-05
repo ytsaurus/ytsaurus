@@ -11,6 +11,7 @@
 | `spark.yt.write.batchSize` | `500000` | Размер данных, отправляемых через одну операцию `WriteTable` | - |
 | `spark.yt.write.miniBatchSize` | `1000` | Размер блока данных, отправляемого в `WriteTable` | - |
 | `spark.yt.write.timeout` | `120 seconds` | Ограничение на ожидание записи одного блока данных | - |
+| `spark.yt.write.dynBatchSize` | `50000` | Максимальное количество строк в одной операции записи в динамическую таблицу. Используется в [Structured Streaming](../../../../../user-guide/data-processing/spyt/structured-streaming/index.md) | 2.6.5 |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол | - |
 | `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) | - |
@@ -18,23 +19,35 @@
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` до 1.75.2) | `true` | Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Использовать фильтры Spark-запроса для выборочного чтения из {{product-name}} | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Объединять все фильтры в непрерывный диапазон при выборочном чтении | - |
+| `spark.yt.read.keyColumnsFilterPushdown.mergeAdjacent.enabled` | `false` | Объединять диапазоны по соседним целочисленным значениям ключа в один диапазон | 2.12.0 |
 | `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Максимальное количество диапазонов таблицы при выборочном чтении | - |
 | `spark.yt.transaction.timeout` | `5 minutes` | Таймаут на транзакцию записывающей операции | - |
 | `spark.yt.transaction.pingInterval` | `30 seconds` | Периодичность пингования транзакции записывающей операции | - |
 | `spark.yt.globalTransaction.enabled` | `false` | Использовать [глобальную транзакцию](../../../../../user-guide/data-processing/spyt/read-transaction.md) | - |
 | `spark.yt.globalTransaction.id` | `None` | Идентификатор глобальной транзакции | - |
 | `spark.yt.globalTransaction.timeout` | `5 minutes` | Таймаут глобальной транзакции | - |
+| `spark.yt.streaming.transactional` | `false` | Включить [транзакционный режим стриминга](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) для гарантии `exactly-once`. Требует также `spark.ytsaurus.rpc.job.proxy.enabled = false` | 2.10 |
 | `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} | - |
 | `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} | - |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} | 1.72.0 |
+| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Включить партицирование данных при чтении по значению compressed size таблицы | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных | - |
+| `spark.yt.read.countOptimization.enabled ` | `true` | Использовать метаданные для count() операций | - |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Использовать партиционирование по ключам для сортированных таблиц, необходимо для оптимизации планов | - |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Максимальное количество объединений партиций при переходе от чтения по индексам к чтению по ключам | - |
-| `spark.yt.read.transactional` | `true` | Использовать snapshot lock для чтения в случае отсутствия транзакции. Рекомендуется отключать эту опцию в случае чтения неизменяемых данных для повышения производительности чтения. | 2.6.0 |
-| `spark.yt.read.ytDistributedReading.enabled` | `false` | Использовать распределенное API для чтения данных из {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при чтении, но пока не совместим с опцией `spark.yt.read.planOptimization.enabled` | 2.8.0 |
+| `spark.yt.read.transactional` | `true` | Использовать snapshot lock для чтения в случае отсутствия транзакции. Рекомендуется отключать эту опцию в случае чтения неизменяемых данных для повышения производительности чтения | 2.6.0 |
+| `spark.yt.read.listParentDirectories` | `true` | Пакетное чтение атрибутов по родительским директориям при чтении по списку таблиц. Помогает, если читается большое количество таблиц из одной родительской директории | 2.7.5 |
+| `spark.yt.read.ytDistributedReading.enabled` | `false` | Использовать распределённое API для чтения данных из {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при чтении, но пока не совместим с опцией `spark.yt.read.planOptimization.enabled`. Не применяется к упорядоченным динамическим таблицам: они читаются обычным способом | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Использовать распределенное API для записи данных в {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при записи, но применим только к работе со статическими таблицами | 2.8.0 |
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Пропускать строки, к которым нет доступа, вместо ошибки | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Пропускать колонки, к которым нет доступа, вместо ошибки | 2.9.0 |
+| `spark.ytsaurus.throttling.maxConcurrency` | `100` | Максимальное количество одновременно выполняемых операций в {{product-name}}. Значение `0` снимает ограничение | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.requests.enabled` | `true` | Повторять запросы, отклонённые перегруженной прокси. Применяется к клиентам с фиксированным адресом прокси, в том числе к job proxy: клиенты с обнаружением прокси повторяют запросы и без этой опции. Повторяются ответы с кодами `RequestQueueSizeLimitExceeded`, `RpcRequestQueueSizeLimitExceeded` и `TooManyRequests`, а также сетевые таймауты и обрывы соединения, причём последние — без паузы. Повторяются только унарные запросы: чтение и запись данных идут потоком и не повторяются | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxRetries` | `3` | Сколько раз запрос повторяется после первой неудачной попытки | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.initialBackoff` | `3 seconds` | Пауза перед первым повтором | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxBackoff` | `30 seconds` | Верхняя граница паузы, которая удваивается после каждого повтора. Применяется только к коду `RequestQueueSizeLimitExceeded`, остальные повторяются через `initialBackoff` | 2.11.0 |
+
+{wide-content title="Основные опции"}
 
 ## Опции для запуска задач напрямую { #direct-submit }
 
@@ -61,6 +74,7 @@
 | `spark.ytsaurus.driver.annotations` | - | Аннотации для операции с драйвером | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.operation.parameters` | - | Дополнительные параметры операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.driver.operation.alias` | - | Алиас для операции с драйвером. Алиас должен начинаться с символа `*` | 2.9.0 |
 | `spark.ytsaurus.driver.task.parameters` | - | Дополнительные параметры таски в операции драйвера в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.operation.parameters` | - | Дополнительные параметры операции экзекьюторов в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.task.parameters` | - | Дополнительные параметры YTsaurus-таска экзекьюторов в формате YSON | 2.6.0 |
@@ -74,6 +88,7 @@
 | `spark.ytsaurus.shuffle.enabled` | false | Использовать [{{product-name}} Shuffle сервис](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | Период проверки состояния операции с экзекьюторами. Если эта операция находится в финальном статусе то драйвер будет остановлен | 2.8.0 |
 
+{wide-content title="Опции для запуска задач напрямую"}
 
 ## Опции для конфигурации {{product-name}} Shuffle сервиса { #shuffle }
 
@@ -86,9 +101,11 @@
 | `spark.ytsaurus.shuffle.partition.column` | partition | Название колонки в чанке, используемой для хранения номера целевой партиции | 2.7.0 |
 | `spark.ytsaurus.shuffle.write.row.size` | 8m | Максимальный размер одной строки в чанке c shuffle данными. Данное значение не связано с размером непосредственно строк shuffle данных, это значение служит для разделения сериализованных shuffle данных по строкам чанка. Уменьшение этого значения приводит к большему количеству строк в чанке, при увеличении можно превысить максимально допустимый размер строки чанка | 2.7.0 |
 | `spark.ytsaurus.shuffle.write.buffer.size` | 10 | Размер буфера записи (в количестве строк) shuffle данных в  {{product-name}}. Этот параметр необходимо выставлять вместе с `spark.ytsaurus.shuffle.write.row.size` для избежания переполнения оперативной памяти | 2.7.0 |
-| `spark.ytsaurus.shuffle.write.config` | - | Дополнительные параметры записи shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer) | 2.7.0 |
-| `spark.ytsaurus.shuffle.read.config` | - | Дополнительные параметры чтения shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) | 2.7.0 |
+| `spark.ytsaurus.shuffle.config` | - | Конфигурация shuffle в [YSON](../../../../../user-guide/storage/yson.md) формате. Передаётся один раз при старте shuffle и используется всеми писателями и читателями этого shuffle. Может содержать только секцию используемого режима (другие ключи верхнего уровня — ошибка при регистрации shuffle): `{pull={reader=...;writer=...}}` при выключенном push-based shuffle (соответствует конфигурациям [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) и [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer)) либо `{push={writer=...;reader=...;journal_writer=...;session_pool=...}}` при включённом push-based shuffle | 2.12.0 |
+| `spark.ytsaurus.shuffle.write.config` | - | Устарел с версии 2.12.0 и не учитывается. Используйте `spark.ytsaurus.shuffle.config` с `{pull={writer=...}}` | 2.7.0 |
+| `spark.ytsaurus.shuffle.read.config` | - | Устарел с версии 2.12.0 и не учитывается. Используйте `spark.ytsaurus.shuffle.config` с `{pull={reader=...}}` | 2.7.0 |
 
+{wide-content title="Опции для конфигурации {{product-name}} Shuffle сервиса"}
 
 ## Опции для конфигурации Spark Connect сервера { #spyt-connect }
 
@@ -96,6 +113,8 @@
 | ------------ | ------------------------- | ------------ | ------------------ |
 | `spark.ytsaurus.connect.idle.timeout` | 10m | Время ожидания после завершения выполнения последнего запроса до остановки сервера Spark Connect | 2.8.0 |
 | `spark.ytsaurus.connect.token.refresh.period` | - | Периодичность пингования временного токена, используемого для выполнения запросов через Spark Connect. Используется только в связке с Query Tracker | 2.8.0 |
+
+{wide-content title="Опции для конфигурации Spark Connect сервера"}
 
 ## Опции для запуска задач во внутреннем кластере { #spark-submit-yt-conf }
 

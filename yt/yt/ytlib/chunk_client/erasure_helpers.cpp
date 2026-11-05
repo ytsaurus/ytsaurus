@@ -33,8 +33,9 @@ using NYT::FromProto;
 
 TPartIndexList GetParityPartIndices(const ICodec* codec)
 {
+    const auto& codecParams = codec->GetParams();
     TPartIndexList result;
-    for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+    for (int index = codecParams.DataPartCount; index < codecParams.TotalPartCount; ++index) {
         result.push_back(index);
     }
     return result;
@@ -114,6 +115,7 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
             }
         } else {
             opened = true;
+            start = range.Begin;
             end = range.End;
         }
     }
@@ -312,7 +314,7 @@ public:
             int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
-            CurrentBlock_ = TSharedMutableRef::Allocate<TPartWriterTag>(BlockRanges_[CurrentBlockIndex_].Size());
+            CurrentBlock_ = TSharedMutableRef::Allocate<TPartWriterTag>(BlockRanges_[CurrentBlockIndex_].Size(), {.InitializeStorage = false});
             i64 copySize = Min<i64>(block.Size(), range.Size() - blockPosition);
             memcpy(CurrentBlock_.Begin(), block.Begin() + blockPosition, copySize);
             PositionInCurrentBlock_ += copySize;
@@ -433,7 +435,7 @@ public:
             return blocksFuture.Apply(BIND(
                 [=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
-                        THROW_ERROR TError(errorOrBlocks);
+                        THROW_ERROR_EXCEPTION(errorOrBlocks);
                     }
                     OnBlocksRead(indicesToRequest, TBlock::Unwrap(errorOrBlocks.Value()));
                     return BuildBlock(range);
@@ -574,7 +576,7 @@ public:
 
             std::vector<TSharedRef> decodedBlocks;
             if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
-                YT_VERIFY(std::ssize(blocks) == Codec_->GetDataPartCount());
+                YT_VERIFY(std::ssize(blocks) == Codec_->GetParams().DataPartCount);
                 decodedBlocks = Codec_->Encode(blocks);
             } else {
                 decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);

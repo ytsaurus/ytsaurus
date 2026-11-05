@@ -16,7 +16,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/core
-    yt/yt/ytlib/discovery_client
+    yt/yt/library/discovery_client
 )
 
 END()

@@ -21,7 +21,7 @@ void FormatValue(TStringBuilderBase* builder, const TSelectRowsQuery& query, TSt
 
 TMangledSequoiaPath MangleSequoiaPath(const TRealPath& path)
 {
-    TString mangledPath;
+    std::string mangledPath;
     mangledPath.reserve(path.Underlying().size());
 
     TTokenizer tokenizer(path.Underlying());
@@ -47,8 +47,8 @@ TMangledSequoiaPath MangleSequoiaPath(const TRealPath& path)
 TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
     const auto& rawMangledPath = mangledPath.Underlying();
-    YT_VERIFY(rawMangledPath.StartsWith("/"));
-    YT_VERIFY(rawMangledPath.EndsWith(MangledPathSeparator));
+    YT_VERIFY(rawMangledPath.starts_with("/"));
+    YT_VERIFY(rawMangledPath.ends_with(MangledPathSeparator));
 
     constexpr int ExpectedSystemCharacterMaxCount = 5;
 
@@ -73,7 +73,7 @@ TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
     return TRealPath(std::move(path));
 }
 
-TString ToStringLiteral(TYPathBuf key)
+std::string ToStringLiteral(TYPathBuf key)
 {
     if (key.empty()) {
         return {};
@@ -168,7 +168,7 @@ void ThrowOnSequoiaReplicasError(
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::TransientFailure,
             "Sequoia retriable error")
-            << std::move(error);
+            .With(std::move(error));
     }
     error.ThrowOnError();
 }

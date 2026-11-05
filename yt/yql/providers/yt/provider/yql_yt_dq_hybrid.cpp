@@ -64,6 +64,10 @@ private:
     }
 
     bool CanReplaceOnHybrid(const TYtOutputOpBase& operation) const {
+        if (operation.DataSink().Cluster().Value() == YtUnspecifiedCluster) {
+            // wait until runtime cluster is assigned
+            return false;
+        }
         const TStringBuf nodeName = operation.Raw()->Content();
         if (!State_->IsHybridEnabledForCluster(operation.DataSink().Cluster().Value())) {
             PushSkipStat("DisabledCluster", nodeName);
@@ -72,6 +76,9 @@ private:
 
         if (State_->HybridTakesTooLong()) {
             PushSkipStat("TakesTooLong", nodeName);
+            YQL_CLOG(DEBUG, ProviderYt) << "CanReplaceOnHybrid: skip " << nodeName
+                << " by TakesTooLong: timeSpentInHybrid=" << State_->TimeSpentInHybrid
+                << ", limit=" << State_->GetHybridDqTimeSpentLimit();
             return false;
         }
 
@@ -95,6 +102,8 @@ private:
 
         if (operation.Output().Size() != 1U) {
             PushSkipStat("MultipleOutputs", nodeName);
+            YQL_CLOG(DEBUG, ProviderYt) << "CanReplaceOnHybrid: skip " << nodeName
+                << " by MultipleOutputs: outputCount=" << operation.Output().Size();
             return false;
         }
 
@@ -109,6 +118,10 @@ private:
                 PushSkipStat("UnsupportedDqOpSettings", nodeName);
                 PushSettingsToStat(settings, nodeName, "SkipDqOpSettings", DqOpSupportedSettings);
             }
+            return false;
+        }
+
+        if (HasNodesToCalculate(operation.Ptr())) {
             return false;
         }
 
@@ -135,6 +148,12 @@ private:
             PushSkipStat("NonEmptyKeyFilter", nodeName);
             return false;
         }
+        // A YtReadTable has a single data source cluster. Cross-cluster writes
+        // are supported, but inputs from several clusters need separate reads.
+        if (GetClusterFromSection(section) == YtUnspecifiedCluster) {
+            PushSkipStat("MultipleClusters", nodeName);
+            return false;
+        }
         ui64 dataSize = 0ULL, dataChunks = 0ULL;
         for (const auto& path : section.Paths()) {
             const TYtPathInfo info(path);
@@ -142,9 +161,13 @@ private:
             if (!tableInfo || !tableInfo->Stat || !tableInfo->Meta || !tableInfo->RowSpec) {
                 return false;
             }
+            if (!State_->IsHybridEnabledForCluster(tableInfo->Cluster)) {
+                PushSkipStat("DisabledCluster", nodeName);
+                return false;
+            }
             const auto canUseYtPartitioningApi = State_->Configuration->_EnableYtPartitioning.Get(tableInfo->Cluster).GetOrElse(false);
             const auto enableDynamicStoreRead = State_->Configuration->EnableDynamicStoreReadInDQ.Get().GetOrElse(false);
-            if ((info.Ranges || info.QLFilter || tableInfo->Meta->IsDynamic) && !canUseYtPartitioningApi) {
+            if ((info.Ranges || tableInfo->Meta->IsDynamic) && !canUseYtPartitioningApi) {
                 return false;
             }
             if (tableInfo->Meta->IsDynamic && tableInfo->Meta->Attrs.contains("enable_dynamic_store_read") && !enableDynamicStoreRead) {
@@ -177,6 +200,10 @@ private:
 
         if (dataSize > sizeLimit || dataChunks > chunksLimit) {
             PushSkipStat("OverLimits", nodeName);
+            YQL_CLOG(DEBUG, ProviderYt) << "CanReadHybrid: skip " << nodeName
+                << " by OverLimits: dataSize=" << dataSize << " (limit=" << sizeLimit << ")"
+                << ", dataChunks=" << dataChunks << " (limit=" << chunksLimit << ")"
+                << ", orderedInput=" << orderedInput;
             return false;
         }
 
@@ -290,7 +317,7 @@ private:
                     .World<TCoWorld>().Build()
                     .DataSource<TYtDSource>()
                         .Category(sort.DataSink().Category())
-                        .Cluster(sort.DataSink().Cluster())
+                        .Cluster().Value(GetClusterFromSection(sort.Input().Item(0))).Build()
                         .Build()
                     .Input(sort.Input())
                     .Build()
@@ -428,7 +455,7 @@ private:
                                         .World<TCoWorld>().Build()
                                         .DataSource<TYtDSource>()
                                             .Category(map.DataSink().Category())
-                                            .Cluster(map.DataSink().Cluster())
+                                            .Cluster().Value(GetClusterFromSection(map.Input().Item(0))).Build()
                                         .Build()
                                         .Input(map.Input())
                                     .Build()
@@ -537,7 +564,7 @@ private:
                 sortKeys = ctx.Builder(reduce.Pos())
                     .Lambda()
                         .Param("row")
-                        .Do(std::bind(keysBuilder, std::ref(sort), std::placeholders::_1))
+                        .Do(std::bind_front(keysBuilder, std::ref(sort)))
                     .Seal().Build();
             }
         }
@@ -545,7 +572,7 @@ private:
         const auto extract = TCoLambda(ctx.Builder(reduce.Pos())
             .Lambda()
                 .Param("row")
-                .Do(std::bind(keysBuilder, std::ref(keys), std::placeholders::_1))
+                .Do(std::bind_front(keysBuilder, std::ref(keys)))
             .Seal().Build());
 
         const bool hasGetSysKeySwitch = bool(FindNode(reduce.Reducer().Body().Ptr(),
@@ -563,7 +590,7 @@ private:
                     .template World<TCoWorld>().Build()
                     .template DataSource<TYtDSource>()
                         .Category(reduce.DataSink().Category())
-                        .Cluster(reduce.DataSink().Cluster())
+                        .Cluster().Value(GetClusterFromSection(reduce.Input().Item(0))).Build()
                         .Build()
                     .Input(reduce.Input())
                     .Build()

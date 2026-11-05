@@ -5,9 +5,13 @@ from yt_dashboard_generator.cli import Cli
 from .postprocessors import YtTagPostprocessor
 
 try:
-    from .settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS  # noqa
+    from .settings import (
+        GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS, ADDITIONAL_DASHBOARDS,
+    )
 except ImportError:
-    from .opensource_settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS  # noqa
+    from .opensource_settings import (
+        GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS, ADDITIONAL_DASHBOARDS,
+    )
 
 import argparse
 from functools import partial
@@ -56,7 +60,7 @@ def run(dashboards):
     parser = argparse.ArgumentParser(conflict_handler="resolve")
     cli = Cli(parser)
 
-    for k, v in expand_dashboards(dashboards):
+    for k, v in expand_dashboards({**dashboards, **ADDITIONAL_DASHBOARDS}):
         cli.add_dashboard(k, v)
 
     args = parser.parse_args()

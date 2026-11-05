@@ -4,6 +4,7 @@
 #include "object.h"
 #include "object_manager.h"
 #include "object_proxy.h"
+#include "permission_validator.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -13,17 +14,15 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/lib/object_server/permission_validator.h>
-
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/ytlib/security_client/acl.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NObjectServer {
 
@@ -67,7 +66,7 @@ protected:
     // NB: the only cases of using the same object proxy from different threads
     // is master object proxy. This flag is meaningless for it but we have to
     // use atomic here to make TSAN happy.
-    std::atomic_flag ModificationTrackingSuppressed_ = {};
+    std::atomic_flag ModificationTrackingSuppressed_;
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext
@@ -171,7 +170,6 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
-    using IPermissionValidator = NObjectServer::IPermissionValidator<TObject*>;
     class TPermissionValidator
         : public IPermissionValidator
     {
@@ -201,6 +199,7 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
     void RequireLeader() const;
+    TError RequireLeaderAsync() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
@@ -209,7 +208,7 @@ protected:
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
     //! Posts the request to given masters externalizing the transaction if needed.
-    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const NObjectClient::TCellTagSet& cellTags);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
@@ -258,6 +257,11 @@ protected:
 
     TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
+    TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);
+
+    std::vector<TFuture<NYson::TYsonString>> FetchYsonFromSwarm(
+        NYTree::TInternedAttributeKey key);
+
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
@@ -290,8 +294,6 @@ protected:
     {
         return Object_->As<TActualImpl>();
     }
-
-    TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);
 
     template <class T>
     TFuture<std::vector<T>> FetchFromSwarm(NYTree::TInternedAttributeKey key);

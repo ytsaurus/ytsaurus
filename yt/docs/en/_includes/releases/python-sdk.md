@@ -1,16 +1,206 @@
 ## Python SDK
 
 
-Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
+Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 
 
 
 **Releases:**
 
+{% cut "**0.13.55**" %}
+
+**Release date:** 2026-10-02
+
+
+**Release page:** [0.13.55](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.55)
+
+
+**PyPI package:** [0.13.55](https://pypi.org/project/ytsaurus-client/0.13.55/)
+
+
+#### Features
+- Add the `job_binary_local_path` and `job_binary_cypress_path` methods to `UserJobSpecBuilder` to run Python function and C++ jobs with the specified executable instead of the current one [7e2aa2780fffded19b274df1db787b5576c75fd3]
+
+#### Fixes
+- Retry `yt flow` commands when the flow controller has not built its flow view yet (error code `3302`) [c235cd45b50a94ef04adff99e0a4e3dd44ccc0a1]
+
+{% endcut %}
+
+
+{% cut "**0.13.54**" %}
+
+**Release date:** 2026-08-30
+
+
+**Release page:** [0.13.54](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.54)
+
+
+**PyPI package:** [0.13.54](https://pypi.org/project/ytsaurus-client/0.13.54/)
+
+
+#### Features
+- Add the `pickling/encryption_engine` config option and `YT_ENCRYPTION_ENGINE` environment variable to select the pickle file encryption engine: `cryptography_fernet` (default) or `native_chacha`, a ChaCha20 implementation that uses OpenSSL through `ctypes` with a pure Python fallback and does not require the `cryptography` package
+[4089571ffc63e4d51efd4d3d307ca4e6ca1ab697, 900a7412007038c7f8f8218241044b73d7252d7e]
+- Add experimental `yt admin bundle-controller` commands (`init`, `create-bundle`, `drop-allocations`, `set-bundle-resource-limits`) for initializing the Bundle controller configuration and managing bundles [0978827940a977bb6fa4ac0367cfe8e1894e7900]
+- Add `--max-points-per-series` to `yt admin metrics dump`; by default, a time range and `--step` combination that needs more than 11000 points per series is now rejected before any query is sent [1ff11ecf162b7c571eb92dd72995a7b138b7a01c]
+- Add `-q`/`--quiet` to `yt check-permission` to suppress output and report the result through the exit code: `0` if the permission is granted, `1` otherwise [f3b2a1cdbd46c8326c1b4e45893ab9be7e5611c4]
+- Add the `cumulative_data_weights` parameter to `reshard_table` and `--cumulative-data-weights` to `yt reshard-table` to set initial cumulative data weights for the new tablets of an ordered dynamic table [13d9311430e32d5a9fe93ab5212454dc6e29a8f9]
+- Add the `YT_PREFER_HTTPS` environment variable for the `proxy/prefer_https` config option [cd416bd9ba31dbbda519ece6760b252213892de1]
+- Add the `driver_enable_fork_detection` config option and `YT_DRIVER_ENABLE_FORK_DETECTION` environment variable to make the driver raise an error when it is used in a forked process [6ccfe4cff5fed6ddbdc8d8619da6042711400fb7]
+
+#### Fixes
+- Add `tornado` to the `recommended` extra: `yt run-job-shell` requires it, and the PyPI package does not bundle it [bf184950e2548cb940518f4830bdb449c8bfcb0c]
+- Improve the error message for an authentication token with leading or trailing whitespace [6eb002957aeeca372c94a3d67380d6c946705498]
+- Fix `yt flow` commands to retry transient errors using the standard client retry policy [2ef4e45a92a078f3f07691db0a7544bb30d8b6e5]
+- Update vendored `urllib3` to 1.26.16 to eliminate `ResourceWarning: unclosed socket` warnings [d0d51f13800cfcc6e806d8d27504d1a6176bfdf2]
+- Fix `TypeError` in `YtError.find_matching_error` when an inner error is not in the YTsaurus error format, for example in a `502` response from an intermediate gateway [83fb173150aea2e3e9ed253f417d0bb2a29cd63b]
+- Constrain `argcomplete` to versions below 3.7.1 for Python older than 3.10 [806a90e36e448eb42a6ec99592eb9bb962840e88]
+- Fix `yt admin metrics replay` for archives without dashboards, and fix `yt admin metrics dump` handling of escape sequences in label values, selectors with duplicate label matchers or empty-matching regular expressions, and an empty `defaults` section in the spec
+[15c6b5d4357a09422710b4db5ebf3957b71b65e1, e8a422599344201cc86617edbb1fb2c3a34e3b8f, 7e8307d8849770a5ad323d9ba40b2ece59c38921, c659950d81fe219c09352c090fa91aff5f153476]
+
+
+{% endcut %}
+
+
+{% cut "**0.13.53**" %}
+
+**Release date:** 2026-07-24
+
+
+**Release page:** [0.13.53](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.53)
+
+
+**PyPI package:** [0.13.53](https://pypi.org/project/ytsaurus-client/0.13.53/)
+
+
+#### Features
+- Make `yt admin logs k8s` use the active kubeconfig or in-cluster namespace by default, falling back to `default` [77e6e2c7f83aa240c9bddf2500577c6c3087776b]
+- Add `yt dq` CLI commands for managing DQ cliques through Strawberry [c1c4106e9dfa2c32f7565506d17bb8167b245454]
+- Add the `annotate_objects` config option and `YT_ANNOTATE_OBJECTS` environment variable to automatically attach underscore-prefixed attributes to newly created tables, files, and map nodes
+[6c162f1874bf54cd5ce5eaea94eb845dda3bba8a, 734943a5e2e14b3590013e924a61e90c18db4481]
+- Add `--status-only` to `yt flow describe-pipeline` to request only the pipeline status and related messages instead of its full description [bc0f6eb4c49e71cc7fed6e345153a59620894232]
+
+#### Fixes
+- Fix batch request retries to recognize retriable errors nested in individual batch responses [4d0033adc1f595d57a8e203f22ee08568209d791]
+- Fix wrapper retries after failed master transaction commits when using the native driver through an RPC proxy [ec101cfdbd3089d85d576367d7719150f5db633a]
+- Improve diagnostics when heavy-proxy discovery finds no proxy matching `http_proxy_role`, including explicit errors when light-proxy fallback is disabled [44df8fae938e8de235accde85690d155106f9845]
+- Fix crashes when reading zero-row results in Arrow format [a7e02e14416e58384ba71c862013012ef1acc351]
+- Fix `yt whoami` with invalid credentials to report the underlying authentication error instead of raising `AttributeError` [17b88749ad8696aabca8586237f32bf54c9602ff]
+
+{% endcut %}
+
+
+{% cut "**0.13.52**" %}
+
+**Release date:** 2026-07-08
+
+
+**Release page:** [0.13.52](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.52)
+
+
+**PyPI package:** [0.13.52](https://pypi.org/project/ytsaurus-client/0.13.52/)
+
+
+#### Features
+- Warn when a short cluster alias is used without `proxy/default_suffix` configured, and raise an informative `YtError` on DNS resolution failure instead of an opaque connection error [5677a1bceebbf064b5e0dc234d411ac8f0a0c82e]
+- Add experimental (interface may change) `yt devtools image` CLI commands (`get-cluster-env`, `prepare`, `run`, `list`, `install`) to build and run Docker images matching the target cluster's OS/Python environment [7320a23fe95a982ac0bbb6442cca957a968066bc]
+
+#### Fixes
+- Redact auth headers (including `request_headers`) in HTTP error responses and logs [98fdfad3f8561fc4cb9a932cc0e645189895891f, 6f9fde83692386df25e285223ff0d625c1a0e040]
+- Fix `yt` CLI path autocompletion when a Cypress path `prefix` is configured [1ca058a74d91dc21991d6d125f629f6c5609f60f]
+- Fix `YPath.join()`/`ypath_join()` silently dropping attributes when joining paths; add a `with_attributes` parameter to control merging [82b104d3f3e4e70aba4c995e221f56d31411af40]
+
+
+{% endcut %}
+
+
+{% cut "**0.13.51**" %}
+
+**Release date:** 2026-06-26
+
+
+**Release page:** [0.13.51](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.51)
+
+
+**PyPI package:** [0.13.51](https://pypi.org/project/ytsaurus-client/0.13.51/)
+
+
+#### Features
+- Add `yt-admin` CLI commands `get-user-banned`, `set-user-banned`, and `list-banned-users` for managing user bans [4a19859b389eb1668fb4f14396aab7d96801cfb6]
+- Add `yt admin remove-master-unrecognized-options` command to remove unrecognized options from the master dynamic config after update [7beacb9aed028a9cf961a9e18cf43f28d95c453a]
+- Add `check_cluster_liveness` method to `YtClient` (and module-level `yt.check_cluster_liveness`) with `check_cypress_root`, `check_secondary_master_cells`, and `check_tablet_cell_bundle` options [9286c63af6bee36ccd40d17f3d856da4cd0cfa11]
+
+#### Fixes
+- Add `--timestamp` flag to the `lookup-rows` CLI command [973bea764d9c8038dc8727ea75c94f0bb43ea3da]
+- Fix `YT_DRIVER_CONFIG` environment variable crashing with `TypeError` on Python 3 [9118cf7dc5a0f66cd042cc07f60ffd5e0108dad3]
+
+#### Breaking changes
+- Removed the `TzDate`, `TzDatetime`, `TzTimestamp`, `TzDate32`, `TzDatetime64`, `TzTimestamp64` typed-API classes from `yt.wrapper.schema` [e12b3891d56424113226d891995706fb09da93f7]
+
+
+{% endcut %}
+
+
+{% cut "**0.13.50**" %}
+
+**Release date:** 2026-05-29
+
+
+**Release page:** [0.13.50](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.50)
+
+
+**PyPI package:** [0.13.50](https://pypi.org/project/ytsaurus-client/0.13.50/)
+
+
+##### Features
+- Increase default `data_size_per_thread` for parallel file reading [99a0a95dee050b88a3415233d29214b0902ce3a9]
+- Support operation alias in YT CLI and Python API [12fc8945f15a20c645c87667fad287c606ea47ec]
+- Add `freeze-hydra-peer`, `truncate-changelog`, and `schedule-restart` commands to `yt-admin` [ae0cb902cca1e0caef31e7ed96983c0e05fd3126]
+- Add experimental `yt admin metrics` commands for Prometheus metrics dump and local replay via Docker [d6d286ce7d084eab62be0c545fc967aa2e190a64]
+- Support `omit_inaccessible_columns` and `omit_inaccessible_rows` in `read-table` [20d3bead559f0df0fa05d86a64b700e26c25fc14]
+
+##### Fixes
+- Use heavy proxy for `get_table_columnar_statistics` method [d8890491c7a333b0902f41e964fedcbe677a0781]
+
+
+{% endcut %}
+
+
+{% cut "**0.13.49**" %}
+
+**Release date:** 2026-04-30
+
+
+**Release page:** [0.13.49](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.49)
+
+
+**PyPI package:** [0.13.49](https://pypi.org/project/ytsaurus-client/0.13.49/)
+
+
+##### Features
+- Experimental! Add `yt admin describe` and `yt admin logs k8s` commands for cluster inspection and log fetching via Kubernetes API [ff53dc4ccd39e574364e1b7846fa3f47b7badab3, d2d8f8bf40eba0e96ffb6a615b642931ffad92d5]
+- Add `build_master_snapshots` and `master_exit_read_only` commands [fc953aa8229231760b219500d122ac87a9d16175, 986be02ca04da7b0b9c13827cbc94fd55cf4f3e0]
+- Add `backoff_config` parameter to `run_with_retries` to allow customizing the retry backoff policy [56ed6b2223cc14f1fefb547d1ffd1ce68e494283]
+
+##### Fixes
+- Fix logger compatibility with Python 3.14 [93d89672ca44353644e68bed805cc9c9613d3eae]
+- Hide `secure_vault` contents from request logs in RPC drivers [983f55e3f1d86a59f2be5f058c8e3ebacd48fa8c]
+- CLI `yt execute` now raises a clear `YtError` when invoked with a command not supported by the cluster, instead of crashing with `KeyError` [d768e16d3069d0faf569eabe05aad042c9328b1f]
+
+
+{% endcut %}
+
+
 {% cut "**0.13.48**" %}
 
 **Release date:** 2026-03-27
+
+
+**Release page:** [0.13.48](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.48)
+
+
+**PyPI package:** [0.13.48](https://pypi.org/project/ytsaurus-client/0.13.48/)
 
 
 ##### Features
@@ -31,6 +221,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2026-02-16
 
 
+**Release page:** [0.13.47](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.47)
+
+
+**PyPI package:** [0.13.47](https://pypi.org/project/ytsaurus-client/0.13.47/)
+
+
 #### Features
 - Add `run-job-shell-command` to CLI [394c049deb1460f767be591036f5d55b7d5d58db]
 - Add `lock` attribute support for `ColumnSchema` [87a9d8809a144c64d72fc767999c8c9d25616911]
@@ -47,6 +243,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2026-01-18
 
 
+**Release page:** [0.13.46](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.46)
+
+
+**PyPI package:** [0.13.46](https://pypi.org/project/ytsaurus-client/0.13.46/)
+
+
 #### Fixes
 - Fixed `yt execute` for commands without input data
 - Removed display of authorization headers in logs
@@ -57,6 +259,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.45**" %}
 
 **Release date:** 2025-12-29
+
+
+**Release page:** [0.13.45](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.45)
+
+
+**PyPI package:** [0.13.45](https://pypi.org/project/ytsaurus-client/0.13.45/)
 
 
 #### Features
@@ -70,6 +278,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.44**" %}
 
 **Release date:** 2025-12-12
+
+
+**Release page:** [0.13.44](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.44)
+
+
+**PyPI package:** [0.13.44](https://pypi.org/project/ytsaurus-client/0.13.44/)
 
 
 #### Features
@@ -89,6 +303,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-11-22
 
 
+**Release page:** [0.13.43](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.43)
+
+
+**PyPI package:** [0.13.43](https://pypi.org/project/ytsaurus-client/0.13.43/)
+
+
 #### Features
   * Add annotations option in `start_query` command in CLI.
 
@@ -102,6 +322,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.42**" %}
 
 **Release date:** 2025-11-14
+
+
+**Release page:** [0.13.42](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.42)
+
+
+**PyPI package:** [0.13.42](https://pypi.org/project/ytsaurus-client/0.13.42/)
 
 
 #### Features
@@ -123,6 +349,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-10-24
 
 
+**Release page:** [0.13.41](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.41)
+
+
+**PyPI package:** [0.13.41](https://pypi.org/project/ytsaurus-client/0.13.41/)
+
+
 #### Features
   * Added `--with-env-patch` option to `show-default-config` CLI command to dump default config with environment variables applied
 
@@ -138,6 +370,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-10-13
 
 
+**Release page:** [0.13.40](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.40)
+
+
+**PyPI package:** [0.13.40](https://pypi.org/project/ytsaurus-client/0.13.40/)
+
+
 #### Features
   * YT-26355: Infer Null type from Arrow schema
   * YT-26389: Support omit_inaccessible_rows
@@ -149,6 +387,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.39**" %}
 
 **Release date:** 2025-10-10
+
+
+**Release page:** [0.13.39](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.39)
+
+
+**PyPI package:** [0.13.39](https://pypi.org/project/ytsaurus-client/0.13.39/)
 
 
 #### Features
@@ -172,6 +416,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-08-29
 
 
+**Release page:** [0.13.36](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.36)
+
+
+**PyPI package:** [0.13.36](https://pypi.org/project/ytsaurus-client/0.13.36/)
+
+
 #### Features
 
   * Supported [blob](https://ytsaurus.tech/docs/en/user-guide/storage/formats#BLOB) table format
@@ -188,6 +438,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.35**" %}
 
 **Release date:** 2025-08-12
+
+
+**Release page:** [0.13.35](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.35)
+
+
+**PyPI package:** [0.13.35](https://pypi.org/project/ytsaurus-client/0.13.35/)
 
 
 #### Features
@@ -209,6 +465,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-07-27
 
 
+**Release page:** [0.13.34](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.34)
+
+
+**PyPI package:** [0.13.34](https://pypi.org/project/ytsaurus-client/0.13.34/)
+
+
 #### Features
   * Added support for `YT_LOG_PATH` for RPC requests
   * Added `--attribute` argument for `list_operations` CLI command
@@ -220,6 +482,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.33**" %}
 
 **Release date:** 2025-07-14
+
+
+**Release page:** [0.13.33](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.33)
+
+
+**PyPI package:** [0.13.33](https://pypi.org/project/ytsaurus-client/0.13.33/)
 
 
 #### Features
@@ -238,6 +506,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-20
 
 
+**Release page:** [0.13.31](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.31)
+
+
+**PyPI package:** [0.13.31](https://pypi.org/project/ytsaurus-client/0.13.31/)
+
+
 #### Features
  * Minor improvements
  * Bump py-dependencies 2f5dc26abd27401d7c775b4e7406b4c85c1c4105
@@ -250,6 +524,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-16
 
 
+**Release page:** [0.13.30](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.30)
+
+
+**PyPI package:** [0.13.30](https://pypi.org/project/ytsaurus-client/0.13.30/)
+
+
 #### Features
   * Introduce `list_operation_events` command
 
@@ -260,6 +540,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.29**" %}
 
 **Release date:** 2025-06-02
+
+
+**Release page:** [0.13.29](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.29)
+
+
+**PyPI package:** [0.13.29](https://pypi.org/project/ytsaurus-client/0.13.29/)
 
 
 #### Features
@@ -279,6 +565,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-04-30
 
 
+**Release page:** [0.13.28](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.28)
+
+
+**PyPI package:** [0.13.28](https://pypi.org/project/ytsaurus-client/0.13.28/)
+
+
 #### Features
 
 - Turn on `redirect_stdout_to_stderr` by default
@@ -290,6 +582,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.27**" %}
 
 **Release date:** 2025-04-18
+
+
+**Release page:** [0.13.27](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.27)
+
+
+**PyPI package:** [0.13.27](https://pypi.org/project/ytsaurus-client/0.13.27/)
 
 
 #### Features
@@ -307,6 +605,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-03-25
 
 
+**Release page:** [0.13.26](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.26)
+
+
+**PyPI package:** [0.13.26](https://pypi.org/project/ytsaurus-client/0.13.26/)
+
+
 #### Features
 * Add support of `expression` and `aggregate` properties in TableSchema.
 * Add impersonation support.
@@ -322,6 +626,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-03-12
 
 
+**Release page:** [0.13.25](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.25)
+
+
+**PyPI package:** [0.13.25](https://pypi.org/project/ytsaurus-client/0.13.25/)
+
+
 #### Features
 * Introduce `yt whoami` command
 
@@ -335,6 +645,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.24**" %}
 
 **Release date:** 2025-03-02
+
+
+**Release page:** [0.13.24](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.24)
+
+
+**PyPI package:** [0.13.24](https://pypi.org/project/ytsaurus-client/0.13.24/)
 
 
 #### Features
@@ -359,6 +675,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-02-04
 
 
+**Release page:** [0.13.23](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.23)
+
+
+**PyPI package:** [0.13.23](https://pypi.org/project/ytsaurus-client/0.13.23/)
+
+
 #### Features
   * Add `min_batch_row_count` option to dump parquet
   * Add `patch_operation_spec` method
@@ -372,7 +694,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
   * Apply destination path attributes to temporary objects within parallel upload
 
 #### Fixes
-  * YSON: unescape invalid seqs as in bingings implementation.
+  * YSON: unescape invalid seqs as in bindings implementation.
   * Fix `generate_traceparent`
   * Remove `typing_extensions` module imports for newer python versions
   * Fix native driver configuration
@@ -385,6 +707,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-01-10
 
 
+**Release page:** [0.13.22](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.22)
+
+
+**PyPI package:** [0.13.22](https://pypi.org/project/ytsaurus-client/0.13.22/)
+
+
 #### Fixes:
 * Fix import checks for `orc` related functions
 
@@ -394,6 +722,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 {% cut "**0.13.21**" %}
 
 **Release date:** 2024-12-26
+
+
+**Release page:** [0.13.21](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.21)
+
+
+**PyPI package:** [0.13.21](https://pypi.org/project/ytsaurus-client/0.13.21/)
 
 
 Features:
@@ -426,6 +760,12 @@ Many thanks to @zlobober for significant contribution!
 **Release date:** 2024-10-15
 
 
+**Release page:** [0.13.19](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.19)
+
+
+**PyPI package:** [0.13.19](https://pypi.org/project/ytsaurus-client/0.13.19/)
+
+
 Features:
 * Add possibility to upload and dump tables in ORC format using CLI commands: `upload-orc` and `dump-orc`
 * Support parallel mode for `dump-parquet` command
@@ -446,6 +786,12 @@ Fixes:
 {% cut "**0.13.18**" %}
 
 **Release date:** 2024-07-26
+
+
+**Release page:** [0.13.18](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.18)
+
+
+**PyPI package:** [0.13.18](https://pypi.org/project/ytsaurus-client/0.13.18/)
 
 
 Features:
@@ -469,6 +815,12 @@ Thanks to multiple outside contributors for the active participation in Python S
 **Release date:** 2024-06-26
 
 
+**Release page:** [0.13.17](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.17)
+
+
+**PyPI package:** [0.13.17](https://pypi.org/project/ytsaurus-client/0.13.17/)
+
+
 Features: 
   - Support profiles in configuration file
   - Add versioned select
@@ -489,6 +841,12 @@ Thanks to @thenno for considerable contribution!
 **Release date:** 2024-06-19
 
 
+**Release page:** [0.13.16](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.16)
+
+
+**PyPI package:** [0.13.16](https://pypi.org/project/ytsaurus-client/0.13.16/)
+
+
 Features:
 - Allow to specify prerequisite transaction ids in client.Transaction context manager (PR: #638). Thanks @chegoryu for the PR!
 - Add client and chunk_count parameters to dirtable_commands
@@ -505,6 +863,12 @@ Fixes:
 {% cut "**0.13.14**" %}
 
 **Release date:** 2024-03-09
+
+
+**Release page:** [0.13.14](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.14)
+
+
+**PyPI package:** [0.13.14](https://pypi.org/project/ytsaurus-client/0.13.14/)
 
 
 Features:
@@ -528,6 +892,12 @@ Fixes:
 {% cut "**0.13.12**" %}
 
 **Release date:** 2023-12-14
+
+
+**Release page:** [0.13.12](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.12)
+
+
+**PyPI package:** [0.13.12](https://pypi.org/project/ytsaurus-client/0.13.12/)
 
 
 Features:

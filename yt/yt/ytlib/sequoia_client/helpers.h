@@ -14,8 +14,8 @@ namespace NYT::NSequoiaClient {
 
 struct TSelectRowsQuery
 {
-    std::vector<TString> WhereConjuncts;
-    std::vector<TString> OrderBy;
+    std::vector<std::string> WhereConjuncts;
+    std::vector<std::string> OrderBy;
     std::optional<int> Limit;
 };
 
@@ -32,7 +32,7 @@ TMangledSequoiaPath MangleSequoiaPath(const TRealPath& realPath);
 TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 //! Unescapes special characters.
-TString ToStringLiteral(NYPath::TYPathBuf key);
+std::string ToStringLiteral(NYPath::TYPathBuf key);
 
 // TODO(danilalexeev): YT-20675. This method is for the time being until the validation
 // is global across all components.
@@ -72,6 +72,7 @@ struct TParsedChunkReplica
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+    NChunkClient::EChunkReplicaState ReplicaState = NChunkClient::EChunkReplicaState::Generic;
 };
 
 template <class TOnReplica>

@@ -2,6 +2,8 @@
 
 #include <library/cpp/xdelta3/xdelta_codec/codec.h>
 
+#include <util/system/types.h>
+
 #include <memory>
 
 namespace NXdeltaAggregateColumn {

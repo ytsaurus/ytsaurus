@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
@@ -58,7 +60,7 @@ private:
 
         void Invoke(const IYPathServiceContextPtr& context) override
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto requestMessage = context->GetRequestMessage();
             auto requestHeader = context->RequestHeader();

@@ -88,7 +88,6 @@ TError TryGetNumericValueFromYsonElement(NumberType& value, const TYsonParserAda
     return {};
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

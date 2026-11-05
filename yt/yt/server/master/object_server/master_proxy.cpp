@@ -42,9 +42,13 @@
 
 #include <yt/yt/ytlib/election/config.h>
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/core/rpc/message.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -107,9 +111,9 @@ private:
         auto type = FromProto<EObjectType>(request->type());
         auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
-            type,
-            ignoreExisting);
+        context->AnnotateRequest()
+            .With("Type", type)
+            .With("IgnoreExisting", ignoreExisting);
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
@@ -127,8 +131,8 @@ private:
 
             if (*optionalExistingObject) {
                 object = *optionalExistingObject;
-                YT_LOG_DEBUG("Existing object returned (Id: %v)",
-                    object->GetId());
+                YT_TLOG_DEBUG("Existing object returned")
+                    .With("Id", object->GetId());
             }
         }
 
@@ -138,9 +142,9 @@ private:
                 type,
                 attributes.Get());
 
-            YT_LOG_DEBUG("Object created (Id: %v, Type: %v)",
-                object->GetId(),
-                type);
+            YT_TLOG_DEBUG("Object created")
+                .With("Id", object->GetId())
+                .With("Type", type);
         }
 
         ToProto(response->mutable_object_id(), object->GetId());
@@ -150,7 +154,8 @@ private:
             response->set_two_phase_creation(true);
         }
 
-        context->SetResponseInfo("ObjectId: %v", object->GetId());
+        context->AnnotateResponse()
+            .With("ObjectId", object->GetId());
         context->Reply();
     }
 
@@ -168,9 +173,9 @@ private:
         auto ignoreMissingSubjects = request->ignore_missing_subjects();
         auto ignorePendingRemovalSubjects = request->ignore_pending_removal_subjects();
 
-        context->SetRequestInfo("User: %v, Permission: %v",
-            user->GetName(),
-            permission);
+        context->AnnotateRequest()
+            .With("User", user->GetName())
+            .With("Permission", permission);
 
         auto aclNode = ConvertToNode(TYsonString(request->acl()));
         auto validatedAcl = DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
@@ -196,7 +201,8 @@ private:
             response->set_subject_name(ToProto(subject->GetName()));
         }
 
-        context->SetResponseInfo("Action: %v", result.Action);
+        context->AnnotateResponse()
+            .With("Action", result.Action);
         context->Reply();
     }
 
@@ -211,23 +217,15 @@ private:
         auto populateFeatures = request->populate_features();
         auto populateUserDirectory = request->populate_user_directory();
 
-        context->SetRequestInfo(
-            "PopulateNodeDirectory: %v, "
-            "PopulateClusterDirectory: %v, "
-            "PopulateMediumDirectory: %v, "
-            "PopulateCellDirectory: %v, "
-            "PopulateMasterCacheNodeAddresses: %v, "
-            "PopulateTimestampProviderNodeAddresses: %v, "
-            "PopulateFeatures: %v, "
-            "PopulateUserDirectory: %v",
-            populateNodeDirectory,
-            populateClusterDirectory,
-            populateMediumDirectory,
-            populateCellDirectory,
-            populateMasterCacheNodeAddresses,
-            populateTimestampProviderNodeAddresses,
-            populateFeatures,
-            populateUserDirectory);
+        context->AnnotateRequest()
+            .With("PopulateNodeDirectory", populateNodeDirectory)
+            .With("PopulateClusterDirectory", populateClusterDirectory)
+            .With("PopulateMediumDirectory", populateMediumDirectory)
+            .With("PopulateCellDirectory", populateCellDirectory)
+            .With("PopulateMasterCacheNodeAddresses", populateMasterCacheNodeAddresses)
+            .With("PopulateTimestampProviderNodeAddresses", populateTimestampProviderNodeAddresses)
+            .With("PopulateFeatures", populateFeatures)
+            .With("PopulateUserDirectory", populateUserDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -314,7 +312,7 @@ private:
                 protoSubject->set_name(ToProto(subject->GetName()));
                 ToProto(protoSubject->mutable_aliases(), subject->Aliases());
                 for (auto group : subject->RecursiveMemberOf()) {
-                    ToProto(protoSubject->add_recursve_memeber_of(), group->GetName());
+                    ToProto(protoSubject->add_recursive_member_of(), group->GetName());
                 }
             };
 
@@ -362,17 +360,12 @@ private:
         auto component = FromProto<EMaintenanceComponent>(request->component());
         auto type = FromProto<EMaintenanceType>(request->type());
 
-        context->SetRequestInfo(
-            "Component: %v, "
-            "Address: %v, "
-            "Type: %v, "
-            "Comment: %v, "
-            "SupportsPerTargetResponse: %v",
-            component,
-            request->address(),
-            type,
-            request->comment(),
-            request->supports_per_target_response());
+        context->AnnotateRequest()
+            .With("Component", component)
+            .With("Address", request->address())
+            .With("Type", type)
+            .With("Comment", request->comment())
+            .With("SupportsPerTargetResponse", request->supports_per_target_response());
 
         if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -442,14 +435,13 @@ private:
             type = FromProto<EMaintenanceType>(request->type());
         }
 
-        context->SetRequestInfo(
-            "Component: %v, Address: %v, Ids: %v, User: %v, Type: %v, SupportsPerTargetResponse: %v",
-            component,
-            request->address(),
-            ids ? std::optional(TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>(ids->begin(), ids->end())) : std::nullopt,
-            user,
-            type,
-            request->supports_per_target_response());
+        context->AnnotateRequest()
+            .With("Component", component)
+            .With("Address", request->address())
+            .With("Ids", ids ? std::optional(TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>(ids->begin(), ids->end())) : std::nullopt)
+            .With("User", user)
+            .With("Type", type)
+            .With("SupportsPerTargetResponse", request->supports_per_target_response());
 
         if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -516,14 +508,10 @@ private:
 
         // Using (essentially) two for loops here because schema can be quite heavy,
         // and storing them in a vector is costly.
-        context->SetRequestInfo("TransactionId: %v, SchemaCount: %v, OldSchemaIds: %v",
-            transactionId,
-            request->schema_descriptors_size(),
-            std::views::transform(
-                request->schema_descriptors(),
-                [] (const auto& entry) {
-                    return FromProto<TMasterTableSchemaId>(entry.schema_id());
-                }));
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("SchemaCount", request->schema_descriptors_size())
+            .With("OldSchemaIds", std::views::transform( request->schema_descriptors(), [] (const auto& entry) { return FromProto<TMasterTableSchemaId>(entry.schema_id()); }));
 
         if (request->sequoia_destination()) {
             THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
@@ -551,18 +539,8 @@ private:
             ToProto(rspEntry->mutable_new_schema_id(), masterTableSchema->GetId());
         }
 
-        context->SetResponseInfo("SchemaIdMapping: %v",
-            MakeShrunkFormattableView(
-                response->old_to_new_schema_id(),
-                [] (
-                    TStringBuilderBase* builder,
-                    const auto& entry
-                ) {
-                    auto oldId = FromProto<TMasterTableSchemaId>(entry.old_schema_id());
-                    auto newId = FromProto<TMasterTableSchemaId>(entry.new_schema_id());
-                    builder->AppendFormat("%v -> %v", oldId, newId);
-                },
-                /*limit*/ 100));
+        context->AnnotateResponse()
+            .With("SchemaIdMapping", MakeShrunkFormattableView( response->old_to_new_schema_id(), [] ( TStringBuilderBase* builder, const auto& entry ) { auto oldId = FromProto<TMasterTableSchemaId>(entry.old_schema_id()); auto newId = FromProto<TMasterTableSchemaId>(entry.new_schema_id()); builder->AppendFormat("%v -> %v", oldId, newId); }, /*limit*/ 100));
 
         context->Reply();
     }
@@ -593,19 +571,17 @@ private:
         auto pessimisticQuotaCheck = request->pessimistic_quota_check();
         auto existingNodeId = FromProto<NCypressServer::TNodeId>(request->existing_node_id());
 
-        context->SetRequestInfo(
-            "DataSize: %v, Mode: %v, TransactionId: %v, PreserveAccount: %v, PreserveCreationTime: %v, PreserveExpirationTime: %v, "
-            "PreserveExpirationTimeout: %v, PreserveOwner: %v, PessimisticQuotaCheck: %v, ExistingNodeId: %v",
-            serializedNode.data().size(),
-            mode,
-            transactionId,
-            preserveAccount,
-            preserveCreationTime,
-            preserveExpirationTime,
-            preserveExpirationTimeout,
-            preserveOwner,
-            pessimisticQuotaCheck,
-            existingNodeId);
+        context->AnnotateRequest()
+            .With("DataSize", serializedNode.data().size())
+            .With("Mode", mode)
+            .With("TransactionId", transactionId)
+            .With("PreserveAccount", preserveAccount)
+            .With("PreserveCreationTime", preserveCreationTime)
+            .With("PreserveExpirationTime", preserveExpirationTime)
+            .With("PreserveExpirationTimeout", preserveExpirationTimeout)
+            .With("PreserveOwner", preserveOwner)
+            .With("PessimisticQuotaCheck", pessimisticQuotaCheck)
+            .With("ExistingNodeId", existingNodeId);
 
         auto version = request->version();
         if (version != NCellMaster::GetCurrentReign()) {
@@ -664,11 +640,10 @@ private:
         ToProto(response->mutable_new_node_id(), node->GetId());
 
         auto oldId = FromProto<NCypressServer::TNodeId>(serializedNode.node_id());
-        context->SetResponseInfo("OldId: %v, NewId: %v, TransactionId: %v, Account: %v",
-            oldId,
-            node->GetId(),
-            transactionId,
-            node->Account()->GetName());
+        context->AnnotateResponse()
+            .With("OldId", oldId)
+            .With("NewId", node->GetId())
+            .With("Account", node->Account()->GetName());
 
         context->Reply();
     }
@@ -695,10 +670,10 @@ private:
         auto templateMethod = templateRequestHeader.method();
         auto transactionId = NCypressClient::GetTransactionId(context->RequestHeader());
 
-        context->SetRequestInfo("TemplateMethod: %v, TransactionId: %v, ObjectIds: %v",
-            templateMethod,
-            transactionId,
-            objectIds);
+        context->AnnotateRequest()
+            .With("TemplateMethod", templateMethod)
+            .With("TransactionId", transactionId)
+            .With("ObjectIds", objectIds);
 
         ValidateVectorizedRead(templateMethod, objectIds);
         // NB: No need to sync with TX coordinator here, since this request is designed to be used in conjunction with batch request
@@ -721,6 +696,8 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
+            // Child trace context prevents tag collision on #NTracing::AnnotateTraceContext.
+            NTracing::TChildTraceContextGuard traceGuard("VectorizedRead:Subrequest");
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
             if (auto* object = objectManager->FindObject(objectId); IsObjectAlive(object)) {
@@ -775,7 +752,8 @@ private:
 
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
     {
-        static const int MaxVectorizedReadRequestSize = 100;
+        const auto& config = Bootstrap_->GetDynamicConfig()->ObjectService;
+
         static const THashSet<std::string> VectorizedReadMethodWhitelist = {
             "Get",
             "SerializeNode",
@@ -786,20 +764,19 @@ private:
             "Method %Qv is not supported as a template for \"VectorizedRead\"",
             templateMethod);
 
-        if (objectIds.size() > MaxVectorizedReadRequestSize) {
+        if (std::ssize(objectIds) > config->MaxVectorizedReadRequestSize) {
             THROW_ERROR_EXCEPTION("Too many objects in vectorized request: %v > %v",
                 objectIds.size(),
-                MaxVectorizedReadRequestSize);
+                config->MaxVectorizedReadRequestSize);
         }
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterTableSchema)
     {
         DeclareMutating();
-        context->SetRequestInfo(
-            "Schema: %v, TransactionId: %v",
-            request->schema(),
-            request->transaction_id());
+        context->AnnotateRequest()
+            .With("Schema", request->schema())
+            .With("TransactionId", request->transaction_id());
 
         auto schema = New<TCompactTableSchema>(request->schema());
 
@@ -811,9 +788,8 @@ private:
         auto result = tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), transaction);
         ToProto(response->mutable_schema_id(), result->GetId());
 
-        context->SetResponseInfo(
-            "SchemaId: %v",
-            result->GetId());
+        context->AnnotateResponse()
+            .With("SchemaId", result->GetId());
 
         context->Reply();
     }

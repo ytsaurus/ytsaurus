@@ -39,7 +39,7 @@ void InitSimpleFields(NProto::TMessage& message)
 
 void InitRepeatedSimpleFields(NProto::TMessage& message)
 {
-    TString s{"abc_"};
+    std::string s{"abc_"};
 
     for (int i = 0; i < 10; ++i) {
         message.add_repeated_string_field(s + ToString(i));
@@ -90,7 +90,7 @@ void Compare(
     benchmark::State& state,
     const NProto::TMessage& m1,
     const NProto::TMessage& m2,
-    const TString& path)
+    TStringBuf path)
 {
     for (auto _ : state) {
         AreScalarAttributesEqualByPath(m1, m2, path);
@@ -104,7 +104,7 @@ void Compare(
 #define BM_COMPARE_FIELD(test_name)               \
 void BM_Compare ## test_name(              \
     benchmark::State& state,                      \
-    const TString& fieldName)                     \
+    TStringBuf fieldName)                     \
 {                                                 \
     NProto::TMessage message;                     \
     Init ## test_name(message);                   \
@@ -126,7 +126,7 @@ BM_COMPARE_FIELD(MessageFields);
 BENCHMARK_CAPTURE(                                   \
     BM_Compare ## test_name,                         \
     field_name,                                      \
-    "/" + TString(#field_name))                      \
+    "/" + std::string(#field_name))                      \
 
 BENCHMARK_ATTRIBUTE(SimpleFields, int32_field);
 BENCHMARK_ATTRIBUTE(SimpleFields, string_field);
