@@ -43,3 +43,9 @@ Examples:
 ya make -A --test-param ERROR_BACKTRACE_ENRICHER_LEVEL=enabled_for_all
 ya make -A --test-param DUMP_BACKTRACES_IF_HANGS=1
 ```
+
+## Local cluster settings
+
+`FlowTestBase` reads clusters from `yt_cluster_info.json` in the test output directory, preserving their order: the first cluster is primary, and the rest are replicas. A recipe without this file can provide one primary cluster through `YT_PROXY` and `YT_PROXY_URL_ALIASING_CONFIG`. `YT_PROXY` may name an alias in this dictionary or contain an address matching exactly one alias. An unknown or ambiguous address requires an unambiguous alias or the standard metadata file. Alias entries do not add test replicas.
+
+When the file is present, `YT_PROXY`, if supplied, must resolve to its primary cluster address. Addresses for names present in both the file and the alias dictionary must agree; extra aliases are allowed. For local tests, the framework sets `YT_USER=root` and a test `YT_TOKEN` before creating clients and passes the test token explicitly. `EXTERNAL_YT_CONFIG` keeps its existing cluster and path semantics.
