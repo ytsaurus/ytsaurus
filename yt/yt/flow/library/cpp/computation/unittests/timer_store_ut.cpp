@@ -288,6 +288,43 @@ TEST_F(TTimerStoreTest, InitialCountIsZero)
     EXPECT_TRUE(store->IsEmpty());
 }
 
+TEST_F(TTimerStoreTest, EmptyBatchDoesNotReserveRowLimit)
+{
+    auto store = CreateTimerStore(MakeContext(), MakeDynamicContext());
+    WaitFor(store->Init())
+        .ThrowOnError();
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 80'000'000, /*maxByteSize*/ 1_MB);
+    EXPECT_TRUE(batch.empty());
+    EXPECT_EQ(batch.capacity(), 0u);
+}
+
+TEST_F(TTimerStoreTest, BatchReservesOnlyAllowedTriggeredTimersWithinRowLimit)
+{
+    for (i64 maxRows : {2, 80'000'000}) {
+        auto context = MakeContext();
+        const TStreamId otherStreamId("other-timer");
+        context->TimerSpecs[otherStreamId] = context->TimerSpecs[TimerStreamId];
+        context->StreamsDependency[otherStreamId].insert(InputStreamId);
+        auto store = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(store->Init())
+            .ThrowOnError();
+        auto otherTimer = MakeTimer("third");
+        otherTimer.StreamId = otherStreamId;
+        store->Register({MakeTimer("first"), MakeTimer("second"), otherTimer, MakeTimer("future", /*triggerTimestamp*/ 2000)});
+        SetWatermark(store, /*timestamp*/ 1000);
+
+        auto blockedBatch = store->GetNextBatch(/*allowedStreams*/ {}, maxRows, /*maxByteSize*/ 1_MB);
+        EXPECT_TRUE(blockedBatch.empty());
+        EXPECT_EQ(blockedBatch.capacity(), 0u);
+
+        auto batch = store->GetNextBatch({TimerStreamId, otherStreamId}, maxRows, /*maxByteSize*/ 1_MB);
+        auto expectedCount = std::min<i64>(maxRows, 3);
+        EXPECT_EQ(std::ssize(batch), expectedCount);
+        EXPECT_EQ(batch.capacity(), expectedCount);
+    }
+}
+
 TEST_F(TTimerStoreTest, RegisterIncreasesCount)
 {
     auto context = MakeContext();
