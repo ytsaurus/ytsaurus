@@ -6,19 +6,22 @@ Internal State — механизм работы с внутренним [сос
 
 Общие сведения о stateful-обработке описаны в разделе [Stateful processing](../../../flow/concepts/stateful.md).
 
-## Обзор
+## Обзор {#overview}
 
-Python SDK предоставляет три вида аксессоров для работы с Internal State, различающихся форматом сериализации. Для работы с внешним стейтом используется отдельный аксессор — [ExternalStateAccessor](../../../flow/python/external-state.md).
+Python SDK предоставляет три вида аксессоров для работы с Internal State, различающихся форматом сериализации. У внешнего стейта отдельные [строковые](../../../flow/python/external-state.md#getting-accessor) и [protobuf-аксессоры](../../../flow/python/external-state.md#proto-external-state), включая варианты для чтения присоединённого стейта.
 
-| Аксессор | Формат | Описание |
-|----------|--------|----------|
-| [YsonStateAccessor](#yson-state-accessor) | YSON (dict) | Сериализация Python dict через YSON |
-| [RawStateAccessor](#raw-state-accessor) | `bytes` | Без сериализации (сырые байты) |
-| [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Сериализация через Protobuf |
+#|
+|| **Аксессор** | **Формат** | **Описание** ||
+|| [YsonStateAccessor](#yson-state-accessor) | YSON (dict) | Сериализация Python dict через YSON ||
+|| [RawStateAccessor](#raw-state-accessor) | `bytes` | Без сериализации (сырые байты) ||
+|| [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Сериализация через Protobuf ||
+|#
 
 Все аксессоры предоставляют единый набор методов: `get()`, `set(value)`, `clear()`, `get_or_default(default)`, `read_only()`.
 
 ## Изменение значения на месте {#in-place}
+
+Описанное в этом разделе поведение живых значений относится к внутренним аксессорам. Аксессоры внешнего protobuf-стейта возвращают независимые снапшоты; для сохранения изменений нужен явный вызов `set()`.
 
 Значение, которое возвращают `get()` и `get_or_default()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `get_or_default()` привязывается к ключу, но не записывается: его можно сразу изменять, а значением стейта он становится только после изменения, поэтому нетронутый дефолт не создаёт строку в таблице стейтов:
 
@@ -42,7 +45,7 @@ count = ctx.state("word-state", message).read_only().get_or_default({"count": 0}
 
 `YsonStateAccessor` использует YSON-сериализацию. Стейт хранится как Python dict, автоматически сериализуемый в YSON и обратно.
 
-### Получение аксессора
+### Получение аксессора {#yson-state-accessor-getting-accessor}
 
 ```python
 # Для сообщения
@@ -52,16 +55,17 @@ state = ctx.state("state-name", message)
 state = ctx.state("state-name", timer)
 ```
 
-### Методы
+### Методы {#yson-state-accessor-methods}
 
-| Метод | Возвращаемый тип | Описание |
-|-------|-----------------|----------|
-| `get()` | `dict` или `None` | Десериализовать и вернуть текущее значение |
-| `set(value)` | — | Сериализовать и сохранить значение (dict или bytes) |
-| `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default)` | `dict` | Вернуть текущее значение или `default` (записывается только после изменения) |
+#|
+|| **Метод** | **Возвращаемый тип** | **Описание** ||
+|| `get()` | `dict` или `None` | Десериализовать и вернуть текущее значение ||
+|| `set(value)` | — | Сериализовать и сохранить значение (dict или bytes) ||
+|| `clear()` | — | Удалить стейт для текущего ключа ||
+|| `get_or_default(default)` | `dict` | Вернуть текущее значение или `default` (записывается только после изменения) ||
+|#
 
-### Пример из WordCount
+### Пример из WordCount {#wordcount-example}
 
 {% code '/yt/yt/flow/examples/python/word_count/word_count_mapper.py' lang='python' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
 
@@ -75,7 +79,7 @@ state = ctx.state("state-name", timer)
 
 `RawStateAccessor` работает с сырыми байтами без сериализации/десериализации.
 
-### Получение аксессора
+### Получение аксессора {#raw-state-accessor-getting-accessor}
 
 ```python
 # Для сообщения
@@ -85,16 +89,17 @@ state = ctx.raw_state("state-name", message)
 state = ctx.raw_state("state-name", timer)
 ```
 
-### Методы
+### Методы {#raw-state-accessor-methods}
 
-| Метод | Возвращаемый тип | Описание |
-|-------|-----------------|----------|
-| `get()` | `bytes` или `None` | Получить сырые байты |
-| `set(value: bytes)` | — | Сохранить сырые байты |
-| `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default: bytes)` | `bytes` | Вернуть текущее значение или привязать и вернуть `default` (в {{product-name}} попадает только через `set()`) |
+#|
+|| **Метод** | **Возвращаемый тип** | **Описание** ||
+|| `get()` | `bytes` или `None` | Получить сырые байты ||
+|| `set(value: bytes)` | — | Сохранить сырые байты ||
+|| `clear()` | — | Удалить стейт для текущего ключа ||
+|| `get_or_default(default: bytes)` | `bytes` | Вернуть текущее значение или привязать и вернуть `default` (в {{product-name}} попадает только через `set()`) ||
+|#
 
-### Пример использования
+### Пример использования {#usage-example}
 
 ```python
 state = ctx.raw_state("raw-state", message)
@@ -117,7 +122,7 @@ state.clear()
 
 `ProtoStateAccessor` использует Protobuf-сериализацию. Стейт десериализуется в экземпляр указанного Protobuf-класса.
 
-### Получение аксессора
+### Получение аксессора {#proto-state-accessor-getting-accessor}
 
 ```python
 # Для сообщения
@@ -129,14 +134,15 @@ state = ctx.proto_state("state-name", timer, TJoinState)
 
 Третий аргумент — класс Protobuf-сообщения, используемый для десериализации.
 
-### Методы
+### Методы {#proto-state-accessor-methods}
 
-| Метод | Возвращаемый тип | Описание |
-|-------|-----------------|----------|
-| `get()` | Proto-объект или `None` | Десериализовать и вернуть значение |
-| `set(value)` | — | Сериализовать и сохранить Proto-объект |
-| `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default=None)` | Proto-объект | Вернуть значение, `default` либо пустой экземпляр Proto-класса (записывается только после изменения) |
+#|
+|| **Метод** | **Возвращаемый тип** | **Описание** ||
+|| `get()` | Proto-объект или `None` | Десериализовать и вернуть значение ||
+|| `set(value)` | — | Сериализовать и сохранить Proto-объект ||
+|| `clear()` | — | Удалить стейт для текущего ключа ||
+|| `get_or_default(default=None)` | Proto-объект | Вернуть значение, `default` либо пустой экземпляр Proto-класса (записывается только после изменения) ||
+|#
 
 {% note info %}
 
@@ -146,7 +152,7 @@ state = ctx.proto_state("state-name", timer, TJoinState)
 
 {% if audience == "internal" %}
 
-### Пример из lb_wait_click_join
+### Пример из lb_wait_click_join {#lb-wait-click-join-example}
 
 {% note info %}
 
@@ -180,7 +186,7 @@ Internal State не требует создания внешних таблиц.
 
 {% endnote %}
 
-## См. также
+## См. также {#see-also}
 
 - [StateAccessor (Python)](../../../flow/python/state-accessor.md)
 - [External State (Python)](../../../flow/python/external-state.md)

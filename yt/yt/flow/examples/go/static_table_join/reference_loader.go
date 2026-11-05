@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN reference_loader]
-
 type referenceState struct {
 	NormalizedName *string `yson:"normalized_name"`
 }

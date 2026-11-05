@@ -18,7 +18,6 @@ The manager and the joiner refer to the same state table: the first one fills it
 The entry point registers three typed streams and both Go computations.
 
 [Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/main.go)
-
 {% code '/yt/yt/flow/examples/go/static_table_join/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `reference_loader.go` {#reference-loader-go}
@@ -26,7 +25,6 @@ The entry point registers three typed streams and both Go computations.
 The loader decodes a reference row, opens the external state for its key, and saves the normalized value.
 
 [Source code: `reference_loader.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/reference_loader.go)
-
 {% code '/yt/yt/flow/examples/go/static_table_join/reference_loader.go' lang='go' lines='[BEGIN reference_loader]-[END reference_loader]' %}
 
 ## `enricher.go` {#enricher-go}
@@ -34,7 +32,6 @@ The loader decodes a reference row, opens the external state for its key, and sa
 The enricher reads the joined state row and creates an output message only for a key that was found.
 
 [Source code: `enricher.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/enricher.go)
-
 {% code '/yt/yt/flow/examples/go/static_table_join/enricher.go' lang='go' lines='[BEGIN enricher]-[END enricher]' %}
 
 ## Key patterns {#key-patterns}

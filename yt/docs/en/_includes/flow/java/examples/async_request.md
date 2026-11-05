@@ -82,4 +82,3 @@ This single entry point starts the pipeline or serves as its companion, dependin
 - **Routing by `streamId`**: one function handles multiple input streams. You determine the message type using `message.getStreamId()`.
 - **ExternalStateAccessor with PayloadBuilder**: you update the `total_length` field selectively: `current.toBuilder()` → make changes → `stateAccessor.set(updated.finish())`.
 - **Configuration via Spring Boot**: you register computations with the `@FlowComputation` annotation; `flow-spring-boot-starter` manages the gRPC server lifecycle.
-

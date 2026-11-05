@@ -9,7 +9,7 @@ The [pipeline](../../../../flow/concepts/glossary.md#pipeline) reads a [stream](
 
 ### WordCountApplication
 
-This single entry point starts the pipeline when `YT_FLOW_MODE` is unset and serves as its companion when the worker sets `YT_FLOW_MODE=Worker`:
+This is the Spring Boot application entry point:
 
 {% list tabs group=lang %}
 
@@ -23,11 +23,9 @@ This single entry point starts the pipeline when `YT_FLOW_MODE` is unset and ser
 
 {% endlist %}
 
-The gRPC server starts automatically through Spring Boot auto-config.
-
 ### Stream registration
 
-Typed streams are registered declaratively. The message POJO uses `@FlowMessage` to list its stream IDs and `@Entity` to define the schema. Spring Boot scans and registers these classes. The `mapper` computation is registered with `@FlowComputation` on `WordCountMapper`:
+Typed streams are registered declaratively. `Word` is the message model for the `words` stream: `@FlowMessage` associates it with that stream, and `@Entity` marks it as a JPA entity. Spring Boot scans and registers these classes. The `mapper` computation is registered with `@FlowComputation` on `WordCountMapper`:
 
 {% list tabs group=lang %}
 
@@ -43,7 +41,7 @@ Typed streams are registered declaratively. The message POJO uses `@FlowMessage`
 
 - `reader` is a source computation without a process function; the C++ worker reads and parses its input.
 - `mapper` is implemented by `WordCountMapper` with `@FlowComputation(id = "mapper")`.
-- `@FlowMessage(streamIds = {"words"})` on `Word` registers the typed `words` stream.
+- `@FlowMessage(streamIds = {"words"})` associates the Java class with the stream; the Kotlin form uses `streamIds = ["words"]`.
 
 ### WordCountMapper
 
@@ -67,15 +65,14 @@ The `@FlowComputation(id = "mapper")` annotation registers the class as a comput
 
 - **Spring Boot auto-config**: you don’t need to manually create `PipelineContext` and `GrpcServerExecution`.
 - **@FlowComputation**: the processing function becomes both a Spring bean and a computation; you can use dependency injection.
-- **@FlowMessage**: register typed streams from annotated message classes.
-- **FlowStreams.typed**: get typed access to messages via Java objects.
+- **@FlowMessage**: associates a message model with a named stream.
 
 ## Running
 
-Run the pipeline with the `WordCountApplication` class:
+The `WordCountApplication` class runs in two modes. With `YT_FLOW_MODE` unset, it starts the pipeline through the runner:
 
 ```bash
 ./run.sh tech.ytsaurus.flow.examples.wordcount.WordCountApplication --config pipeline.yson --flow-bin flow_server
 ```
 
-The worker starts the same class with `YT_FLOW_MODE=Worker`; Spring Boot then runs the companion gRPC server.
+When a worker starts the class configured as `main_class` with `YT_FLOW_MODE=Worker`, it runs as the companion process and starts the gRPC server.

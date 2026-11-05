@@ -64,7 +64,7 @@ Example from [Logbroker WaitClickJoin](../../../yandex-specific/flow/python/exam
 
 ## External State {#external-state}
 
-An external state works like a Payload — it gives you dict-like access to fields:
+Row-format external state works like a Payload and gives you dict-like access to fields:
 
 ```python
 state = ctx.external_state("/state-name", message)
@@ -88,6 +88,10 @@ The pattern for working with an external state is:
 2. Create a builder with `state.to_builder()`.
 3. Update the required fields with `builder.set(...)`.
 4. Save the changes with `state.set(builder.finish())`.
+
+For protobuf external state, use `ctx.proto_external_state(name, message_or_timer, proto_class)`. Its `get()` returns an independent message snapshot or `None`; `get_or_default()` returns a snapshot or a fresh empty message without creating state. Save edits explicitly with `set(value)`; `clear()` resets the state. This requires a protobuf-capable manager and a matching message class. Choosing this accessor does not change a row-format manager. See [protobuf external state](../../../flow/python/external-state.md#proto-external-state) for prerequisites, availability, and errors.
+
+For read-only joins, use `ctx.joined_external_state(...)` for rows or `ctx.joined_proto_external_state(...)` for protobuf. Both reject `set()` and `clear()` with `ReadOnlyExternalStateError`; declare the joiner in `external_state_joiners`.
 
 ## State in timers {#state-in-timers}
 
@@ -117,9 +121,9 @@ In `TTransformCompanionComputation`, state binds to the [message key](../../../f
 
 Internal states (YSON, Raw, Proto) must be declared in the [computation](../../../flow/concepts/glossary.md#stream-and-computation) parameters in the `internal_states` section. The state name in your code (the first argument of `ctx.state(...)`) must match the name declared in the spec.
 
-External states (External) are configured via the `external_state_managers` section in the computation spec and have their own schema that describes the available fields. The key inside `external_state_managers` (for example, `"/shuffle-state"`) sets the state name, which must start with `/`. In the `external_state_manager_class_name` field, specify the registered manager class (for a typical scenario, use `"NYT::NFlow::TSimpleExternalStateManager"`). For more details on the spec and available managers, see [External State](../../../flow/python/external-state.md#static-spec) and the [C++ documentation](../../../flow/cpp/state.md#external-state).
+External states are configured via `external_state_managers` in the computation spec, or `external_state_joiners` for read-only joins. The key (for example, `"/shuffle-state"`) sets the state name and must start with `/`. For row-format state, use `"NYT::NFlow::TSimpleExternalStateManager"` as `external_state_manager_class_name`; its schema describes the available columns. Protobuf external state requires a compatible implementation and protobuf descriptor. See [row-format configuration](../../../flow/python/external-state.md#static-spec), [protobuf prerequisites](../../../flow/python/external-state.md#proto-external-state), and the [C++ documentation](../../../flow/cpp/state.md#external-state).
 
-## See also
+## See also {#see-also}
 
 - [Stateful processing (concept)](../../../flow/concepts/stateful.md)
 - [Computation (Python)](../../../flow/python/computation.md)

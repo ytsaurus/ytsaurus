@@ -147,6 +147,23 @@ FROM {{flow-data-cluster}}.`//home/my-project/source_queue`
 GROUP BY key, HOP(ts, "PT15S", "PT30S", "PT1M");
 ```
 
+### Поддерживаемые варианты hopping-окон {#hopping-windows}
+
+Агрегация по hopping-окнам в legacy-формате поддерживается. Границы окна доступны через `HOP_START()` и `HOP_END()`. Среди агрегаций с ключом группировки тестами покрыты, например, `SUM`, `SUM_IF`, `COUNT` и `COUNT_IF` с ненулевой задержкой.
+
+Если шаг меньше размера, окна перекрываются и одно событие может попасть в несколько окон.
+
+[Проверяемый тестами legacy-запрос]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate.yql)
+
+[Проверяемый тестами запрос с перекрывающимися окнами: шаг `PT5S`, размер `PT10S`]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate_nontrivial_interval.yql)
+
+Не поддерживаются:
+
+- new-style hopping, включаемый через `PRAGMA dq.AnalyticsHopping = "true"`;
+- агрегация всего стрима без ключа группировки;
+- `DISTINCT`-агрегаты;
+- составные типы ключей, для которых YQL требует pickle-сериализацию.
+
 ## Запись в сортированную динамическую таблицу {#replace-into}
 
 Запись в сортированную динамическую таблицу поддерживается при помощи `REPLACE INTO ... WITH PRIMARY_KEY = ...`.

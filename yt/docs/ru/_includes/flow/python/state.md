@@ -64,7 +64,7 @@ state_accessor = ctx.proto_state("state-name", message, TJoinState)
 
 ## External State {#external-state}
 
-Внешний стейт работает как Payload -- предоставляет dict-like доступ к полям:
+Внешний стейт в формате строк таблицы работает как Payload и предоставляет dict-like доступ к полям:
 
 ```python
 state = ctx.external_state("/state-name", message)
@@ -88,6 +88,10 @@ state = ctx.external_state("/state-name", message)
 2. Создать билдер через `state.to_builder()`.
 3. Обновить нужные поля через `builder.set(...)`.
 4. Сохранить через `state.set(builder.finish())`.
+
+Для внешнего protobuf-стейта используйте `ctx.proto_external_state(name, message_or_timer, proto_class)`. Метод `get()` возвращает независимый снапшот сообщения или `None`, а `get_or_default()` — снапшот или новое пустое сообщение без создания стейта. Сохраняйте изменения явно через `set(value)`; `clear()` сбрасывает стейт. Нужны менеджер с поддержкой protobuf и соответствующий класс сообщения. Выбор аксессора не меняет формат строкового менеджера. Условия использования, доступность и ошибки описаны в разделе [Внешний стейт в формате protobuf](../../../flow/python/external-state.md#proto-external-state).
+
+Для присоединения данных только на чтение используйте `ctx.joined_external_state(...)` для строк таблицы или `ctx.joined_proto_external_state(...)` для protobuf. Оба аксессора запрещают `set()` и `clear()` с ошибкой `ReadOnlyExternalStateError`; объявите joiner в `external_state_joiners`.
 
 ## Стейт в таймерах {#state-in-timers}
 
@@ -119,9 +123,9 @@ def on_timer(self, timer, output, ctx):
 
 Внутренние стейты (YSON, Raw, Proto) должны быть объявлены в параметрах [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation) в секции `internal_states`. Имя стейта в коде (первый аргумент `ctx.state(...)`) должно совпадать с именем, объявленным в спеке.
 
-Внешние стейты (External) конфигурируются через секцию `external_state_managers` в спеке компьютейшена и имеют собственную схему, описывающую доступные поля. Ключ внутри `external_state_managers` (например, `"/shuffle-state"`) задаёт имя стейта, начинающееся с `/`; в поле `external_state_manager_class_name` указывается зарегистрированный класс менеджера (для типового сценария — `"NYT::NFlow::TSimpleExternalStateManager"`). Подробнее про спеку и доступные менеджеры см. в [External State](../../../flow/python/external-state.md#static-spec) и в [C++ документации](../../../flow/cpp/state.md#external-state).
+Внешние стейты настраиваются через `external_state_managers` в спеке компьютейшена или через `external_state_joiners` для присоединения только на чтение. Ключ (например, `"/shuffle-state"`) задаёт имя стейта и должен начинаться с `/`. Для строкового стейта укажите `"NYT::NFlow::TSimpleExternalStateManager"` в `external_state_manager_class_name`; схема этого стейта описывает доступные колонки. Внешнему protobuf-стейту нужны совместимая реализация и protobuf-дескриптор. См. [конфигурацию строкового стейта](../../../flow/python/external-state.md#static-spec), [условия использования protobuf-стейта](../../../flow/python/external-state.md#proto-external-state) и [C++ документацию](../../../flow/cpp/state.md#external-state).
 
-## См. также
+## См. также {#see-also}
 
 - [Stateful processing (концепция)](../../../flow/concepts/stateful.md)
 - [Computation (Python)](../../../flow/python/computation.md)

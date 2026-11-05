@@ -51,4 +51,3 @@ Source: [yt/yt/library/tracing/jaeger/config.h]({{source-root}}/yt/yt/library/tr
 **Default value**: `false`
  ||
 |#
-

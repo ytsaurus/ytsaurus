@@ -18,7 +18,6 @@ The messages are grouped by word (`group_by_schema` with `farm_hash(word)` and `
 The entry point: creating the pipeline, registering the only computation, and starting it.
 
 [Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/word_count/main.go)
-
 {% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `word_count_mapper.go` {#word-count-mapper-go}

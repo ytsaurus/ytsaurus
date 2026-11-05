@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 const referenceStateName = "/reference_state"
 
 type referenceMessage struct {

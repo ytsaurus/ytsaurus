@@ -126,7 +126,7 @@ Use `GROUP BY ... HOP` to calculate aggregates over fixed-length time intervals 
 `HOP` arguments specify event time, grid of window start times, window duration, and window-closing delay for late events.
 Besides `HOP`, you must specify at least one additional grouping key.
 
-For general syntax, see [YQL reference](../../../yql/syntax/group_by.md#group-by-hop).
+For general syntax, see [YQL reference](../../../yql/syntax/group_by.md).
 
 A window closes when event-time [watermark](../../../flow/concepts/watermarks.md#event-watermark) passes window end plus window-closing delay.<br>
 Events whose timestamps fall within a window but arrive after it has closed (late events) are discarded for that window.
@@ -146,6 +146,23 @@ SELECT
 FROM {{flow-data-cluster}}.`//home/my-project/source_queue`
 GROUP BY key, HOP(ts, "PT15S", "PT30S", "PT1M");
 ```
+
+### Supported hopping variants {#hopping-windows}
+
+Legacy hopping-window aggregation is supported. `HOP_START()` and `HOP_END()` expose the window boundaries. The implementation is covered for keyed aggregates such as `SUM`, `SUM_IF`, `COUNT`, and `COUNT_IF` with non-zero delay.
+
+When the hop interval is shorter than the window size, windows overlap and one event can belong to several windows.
+
+[Tested legacy hopping query]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate.yql)
+
+[Tested query with overlapping windows (`PT5S` hop and `PT10S` window)]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate_nontrivial_interval.yql)
+
+The following hopping variants are not supported:
+
+- new-style hopping enabled by `PRAGMA dq.AnalyticsHopping = "true"`;
+- aggregation over the whole stream without a grouping key;
+- `DISTINCT` aggregates;
+- composite key types that require YQL pickle serialization.
 
 ## Writing to a sorted dynamic table {#replace-into}
 
@@ -186,3 +203,8 @@ SELECT
     value
 FROM source_cluster.`//home/my-project/source_queue`;
 ```
+
+## See also
+
+- [Computation (concept)](../../../flow/concepts/computation.md)
+- [Quick start (YQL)](../../../flow/yql/getting-started.md)

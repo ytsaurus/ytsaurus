@@ -14,29 +14,36 @@ The [worker](../../../flow/concepts/glossary.md#worker) directly handles table o
 
 You write new values to the state table transactionally within an [epoch](../../../flow/concepts/glossary.md#epoch).
 
-## Four accessor types {#accessor-types}
+## Accessor types {#accessor-types}
 
-The Python SDK provides four accessor types for working with state:
+Choose an accessor for the state location and format:
 
-| Accessor | Format | Retrieval | Description |
-|----------|--------|-----------|-------------|
-| [YsonStateAccessor](../../../flow/python/internal-state.md#yson-state-accessor) | YSON (dict) | `ctx.state(name, msg)` | Serializes a Python dict to YSON |
-| [RawStateAccessor](../../../flow/python/internal-state.md#raw-state-accessor) | `bytes` | `ctx.raw_state(name, msg)` | Raw bytes without serialization |
-| [ProtoStateAccessor](../../../flow/python/internal-state.md#proto-state-accessor) | Protobuf | `ctx.proto_state(name, msg, ProtoClass)` | Serializes using Protobuf |
-| [ExternalStateAccessor](../../../flow/python/external-state.md) | Payload (table row) | `ctx.external_state("/name", msg)` | Typed access to an external table |
+#|
+|| **Accessor** | **Format** | **Retrieval** | **Description** ||
+|| [YsonStateAccessor](../../../flow/python/internal-state.md#yson-state-accessor) | YSON (dict) | `ctx.state(name, msg)` | Serializes a Python dict to YSON ||
+|| [RawStateAccessor](../../../flow/python/internal-state.md#raw-state-accessor) | `bytes` | `ctx.raw_state(name, msg)` | Raw bytes without serialization ||
+|| [ProtoStateAccessor](../../../flow/python/internal-state.md#proto-state-accessor) | Protobuf | `ctx.proto_state(name, msg, ProtoClass)` | Serializes using Protobuf ||
+|| [ExternalStateAccessor](../../../flow/python/external-state.md) | Payload (table row) | `ctx.external_state("/name", msg)` | Typed access to an external table ||
+|| [ReadOnlyExternalStateAccessor](../../../flow/python/external-state.md#external-state-joiner) | Payload (table row) | `ctx.joined_external_state("/name", msg)` | Read-only access through a row-format joiner ||
+|| [ProtoExternalStateAccessor](../../../flow/python/external-state.md#proto-external-state) | Protobuf | `ctx.proto_external_state("/name", msg, ProtoClass)` | Explicit snapshot writes through a protobuf-capable manager ||
+|| [ProtoExternalStateAccessor (read-only)](../../../flow/python/external-state.md#proto-external-state) | Protobuf | `ctx.joined_proto_external_state("/name", msg, ProtoClass)` | Read-only snapshots through a protobuf-capable joiner ||
+|#
 
-The first three accessors work with [internal state](../../../flow/python/internal-state.md) (tables are automatically managed by Flow). `ExternalStateAccessor` works with [external state](../../../flow/python/external-state.md) (you create the table yourself).
+The first three accessors work with [internal state](../../../flow/python/internal-state.md) (tables are automatically managed by Flow). External accessors use a configured manager or joiner and a table you create yourself. Their format is determined by that implementation; choosing a Python accessor does not change it. See the [protobuf prerequisites and availability](../../../flow/python/external-state.md#proto-external-state).
 
-## Common API {#common-api}
+## Common internal-state API {#common-api}
 
 All internal accessors (`YsonStateAccessor`, `RawStateAccessor`, `ProtoStateAccessor`) provide the same set of methods:
 
-| Method | Description |
-|--------|-------------|
-| `get()` | Get the state value (or `None` if the state doesn’t exist) |
-| `set(value)` | Set the state value |
-| `clear()` | Delete the state for the current key |
-| `get_or_default(default)` | Get the value or return `default` |
+#|
+|| **Method** | **Description** ||
+|| `get()` | Get the state value (or `None` if the state doesn’t exist) ||
+|| `set(value)` | Set the state value ||
+|| `clear()` | Delete the state for the current key ||
+|| `get_or_default(default)` | Get the value or return `default` ||
+|#
+
+Internal accessors also provide `read_only()`. Their values are [live and shared within a batch](../../../flow/python/internal-state.md#in-place). External accessors have a separate contract: row access reads fields through `Payload`, and protobuf access returns independent message snapshots that require explicit `set()` calls. Joined external accessors reject writes.
 
 ## Getting an accessor {#getting-accessor}
 
@@ -63,21 +70,25 @@ class MyFunction(RowFunction):
 ```
 
 Parameters:
-- `name` — a string with the state name declared in the [static spec](../../../flow/concepts/glossary.md#spec-and-dynamic-spec). For internal states, this is an arbitrary string from `internal_states`; for external states, it’s a key from `external_state_managers` that must start with `/`.
+- `name` — a string with the state name declared in the [static spec](../../../flow/concepts/glossary.md#spec-and-dynamic-spec). For internal states, this is a string from `internal_states`; for external states, it is a key from `external_state_managers`, or `external_state_joiners` for joined access, and must start with `/`.
 - `message` / `timer` — the message or timer for which you need to get the state for the [key](../../../flow/concepts/glossary.md#key).
-- `ProtoClass` (only for `proto_state`) — the Protobuf message class for deserialization.
+- `ProtoClass` (for `proto_state`, `proto_external_state`, and `joined_proto_external_state`) — the Protobuf message class for deserialization. For external state, its descriptor name must match the manager or joiner's `proto_type`.
 
 ## When to use which type {#choosing-type}
 
-| Situation | Recommended accessor |
-|-----------|----------------------|
-| A simple dictionary with several fields | `ctx.state()` (YSON) |
-| Arbitrary binary data | `ctx.raw_state()` (Raw) |
-| Structured data with a fixed schema | `ctx.proto_state()` (Protobuf) |
-| Data that needs to be accessed from other systems | `ctx.external_state("/name", msg)` (External) |
-| Data that requires a custom table | `ctx.external_state("/name", msg)` (External) |
+#|
+|| **Situation** | **Recommended accessor** ||
+|| A simple dictionary with several fields | `ctx.state()` (YSON) ||
+|| Arbitrary binary data | `ctx.raw_state()` (Raw) ||
+|| Structured data with a fixed schema | `ctx.proto_state()` (Protobuf) ||
+|| Data that needs to be accessed from other systems | `ctx.external_state("/name", msg)` (External) ||
+|| Data that requires a custom table | `ctx.external_state("/name", msg)` (External) ||
+|| A row-format lookup without writes | `ctx.joined_external_state("/name", msg)` ||
+|| An external manager that exposes protobuf state | `ctx.proto_external_state("/name", msg, ProtoClass)` ||
+|| A protobuf lookup through a compatible joiner | `ctx.joined_proto_external_state("/name", msg, ProtoClass)` ||
+|#
 
-## See also
+## See also {#see-also}
 
 - [Internal State (Python)](../../../flow/python/internal-state.md)
 - [External State (Python)](../../../flow/python/external-state.md)

@@ -105,4 +105,3 @@ This single entry point starts the pipeline or serves as its companion, dependin
 - **Batch processing in `onTimer`**: all accumulated URLs are processed at once when the timer triggers. This reduces the number of calls to downstream services.
 - **State cleanup**: after processing, you delete the state via `accessor.clear()` to prevent memory leaks.
 - **YsonStateAccessor**: the internal state is serialized to YSON and stored on the C++ worker side. You get the Java object via `getOrDefault`.
-

@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 func main() {
 	pipeline := flow.NewPipeline()
 	pipeline.AddStreams(

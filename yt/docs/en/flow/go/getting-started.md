@@ -101,7 +101,7 @@ For details, see [The distribute flag (Go)](distribute.md).
 
 The entry point of a Go companion is the `main` function. In it, configure the computations through `flow.Pipeline` and call `pipeline.Run()`. The `main` function from [WordCount](examples/wordcount.md):
 
-[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/word_count/main.go)
+{% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 If your functions need additional resources (a dictionary, a cache, an HTTP client, and so on), `main` is the place to create them: put them into the fields of the value that is bound to the computation.
 
