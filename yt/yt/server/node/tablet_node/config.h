@@ -310,6 +310,24 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGlobalStoresUpdateThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    TDuration RpcTimeout;
+
+    // COMPAT(alexelexa)
+    TDuration NoSuchMethodBackoffTime;
+
+    REGISTER_YSON_STRUCT(TGlobalStoresUpdateThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGlobalStoresUpdateThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStoreTrimmerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -728,6 +746,7 @@ struct TTabletNodeDynamicConfig
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
     TInMemoryManagerDynamicConfigPtr InMemoryManager;
     TCompressionDictionaryBuilderDynamicConfigPtr CompressionDictionaryBuilder;
+    TGlobalStoresUpdateThrottlerConfigPtr GlobalStoresUpdateThrottler;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 

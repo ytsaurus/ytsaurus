@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "hunk_storage_node.h"
 #include "hunk_tablet.h"
+#include "stores_update_throttler.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -34,11 +35,14 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -87,9 +91,20 @@ class TTabletChunkManager
     , public TMasterAutomatonPart
 {
 public:
-    explicit TTabletChunkManager(TBootstrap* bootstrap)
+    TTabletChunkManager(
+        TBootstrap* bootstrap,
+        IInvokerPtr storesUpdateThrottlerInvoker)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TabletManager)
+        , StoresUpdateThrottler_(CreateStoresUpdateThrottler(New<TStoresUpdateThrottlerConfig>()))
+        , StoresUpdateThrottlerInvoker_(std::move(storesUpdateThrottlerInvoker))
     { }
+
+    void Initialize() override
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(
+            BIND_NO_PROPAGATE(&TTabletChunkManager::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     void CopyChunkListsIfShared(
         TTableNode* table,
@@ -724,6 +739,22 @@ public:
         newRootChunkList->AddOwningNode(hunkStorage);
     }
 
+    int ThrottleTabletStoresUpdate(
+        const std::string& bundleName,
+        ETabletStoresUpdateReason updateReason,
+        const std::vector<int>& storeCounts) override
+    {
+        YT_ASSERT_INVOKER_AFFINITY(StoresUpdateThrottlerInvoker_);
+
+        for (auto [index, storeCount] : Enumerate(storeCounts)) {
+            if (!StoresUpdateThrottler_->TryAcquire(bundleName, updateReason, storeCount)) {
+                return index;
+            }
+        }
+
+        return ssize(storeCounts);
+    }
+
     void PrepareUpdateTabletStores(
         TTablet* tablet,
         NProto::TReqUpdateTabletStores* request) override
@@ -1024,6 +1055,16 @@ public:
 
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksOrViewsToDetach.size());
         counters->UpdateTabletStoresHunkChunkCount.Increment(hunkChunksToAttach.size() + hunkChunksToDetach.size());
+
+        if (request->throttle_at_master() && IsLeader()) {
+            const auto& bundle = table->TabletCellBundle();
+            BIND(&IStoresUpdateThrottler::Acquire, StoresUpdateThrottler_)
+                .Via(StoresUpdateThrottlerInvoker_)
+                .Run(
+                    bundle ? bundle->GetName() : "",
+                    updateReason,
+                    ssize(chunksToAttach));
+        }
 
         return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
             "AttachedHunkChunkIds: %v, DetachedHunkChunkIds: %v, "
@@ -1503,6 +1544,9 @@ public:
     }
 
 private:
+    const IStoresUpdateThrottlerPtr StoresUpdateThrottler_;
+    const IInvokerPtr StoresUpdateThrottlerInvoker_;
+
     using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, std::string, bool>;
     THashMap<TProfilerKey, TProfilingCounters> Counters_;
 
@@ -1552,6 +1596,14 @@ private:
     const TDynamicTabletManagerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+    }
+
+    void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
+    {
+        auto config = GetDynamicConfig()->StoresUpdateThrottler;
+        BIND(&IStoresUpdateThrottler::Reconfigure, StoresUpdateThrottler_)
+            .Via(StoresUpdateThrottlerInvoker_)
+            .Run(config ? std::move(config) : New<TStoresUpdateThrottlerConfig>());
     }
 
     TError CheckAllDynamicStoresFlushed(TTablet* tablet)
@@ -2161,9 +2213,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletChunkManagerPtr CreateTabletChunkManager(TBootstrap* bootstrap)
+ITabletChunkManagerPtr CreateTabletChunkManager(
+    TBootstrap* bootstrap,
+    IInvokerPtr storesUpdateThrottlerInvoker)
 {
-    return New<TTabletChunkManager>(bootstrap);
+    return New<TTabletChunkManager>(bootstrap, std::move(storesUpdateThrottlerInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

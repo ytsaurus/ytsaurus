@@ -84,6 +84,7 @@ DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletChunkManager)
+DECLARE_REFCOUNTED_STRUCT(IStoresUpdateThrottler)
 
 DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
 
@@ -99,6 +100,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicTabletManagerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTablesMulticellGossipConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTabletNodeTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellHydraPersistenceSynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoresUpdateThrottlerConfig)
 
 class TTableReplica;
 

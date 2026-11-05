@@ -118,6 +118,7 @@ message TReqUpdateTabletStores
     // COMPAT(aleksandra-zh)
     optional bool create_hunk_chunks_during_prepare = 10 [default = false];
     optional NYT.NProto.TGuid unleashed_backing_store_id = 11;
+    optional bool throttle_at_master = 13 [default = false];
 }
 
 message TReqUpdateTabletTrimmedRowCount

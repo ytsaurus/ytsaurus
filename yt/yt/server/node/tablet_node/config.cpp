@@ -308,6 +308,18 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGlobalStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("no_such_method_backoff_time", &TThis::NoSuchMethodBackoffTime)
+        .Default(TDuration::Hours(6));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreTrimmerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -706,6 +718,8 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("in_memory_manager", &TThis::InMemoryManager)
         .DefaultNew();
     registrar.Parameter("compression_dictionary_builder", &TThis::CompressionDictionaryBuilder)
+        .DefaultNew();
+    registrar.Parameter("global_stores_update_throttler", &TThis::GlobalStoresUpdateThrottler)
         .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
