@@ -164,6 +164,7 @@ public:
         using TPriority = std::pair<TSystemTimestamp, const TMessageId&>;
         std::vector<std::pair<TSortedByTriggerTimestampTimerSet*, std::function<TPriority()>>> triggeredTimers;
         triggeredTimers.reserve(TriggeredTimers_.size());
+        i64 reserveSize = 0;
         for (const auto& group : TimerStreamGroups_) {
             bool groupAllowed = std::all_of(group.begin(), group.end(), [&] (const TStreamId& streamId) {
                 return allowedStreams.contains(streamId);
@@ -177,6 +178,7 @@ public:
                     continue;
                 }
                 auto* timers = &it->second;
+                reserveSize += std::min<i64>(std::ssize(*timers), maxRows - reserveSize);
                 triggeredTimers.emplace_back(timers, [timers] () -> TPriority {
                     YT_ASSERT(!timers->empty());
                     const auto& t = *timers->begin();
@@ -186,7 +188,7 @@ public:
         }
 
         std::vector<TInputTimerConstPtr> timers;
-        timers.reserve(maxRows);
+        timers.reserve(reserveSize);
         TMessageBatchLimiter limiter(maxRows, maxByteSize);
         MergingExtractBatch(
             std::move(triggeredTimers),
