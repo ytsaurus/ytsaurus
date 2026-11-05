@@ -36,13 +36,14 @@ pytest_plugins = [
 
 
 class QueryTracker:
-    def __init__(self, env, count, dedicated_tablet_cell_bundle=None):
+    def __init__(self, env, count, dedicated_tablet_cell_bundle=None, *, config=None):
         self.query_tracker = QueryTrackerComponent()
+
         self.query_tracker.prepare(env, config={
             "count": count,
             "native_client_supported": True,
             "dedicated_tablet_cell_bundle": dedicated_tablet_cell_bundle,
-        })
+        } | (config or {}))
 
     def __enter__(self):
         self.query_tracker.run()
@@ -70,11 +71,18 @@ def update_query_tracker_environment(cls, query_tracker):
         wait_for_dynamic_config_update(query_tracker.query_tracker.client, config, "//sys/query_tracker/instances")
 
 
+def build_query_tracker_config(cls):
+    return {
+        "modify_query_tracker_config": getattr(cls, "modify_query_tracker_config", None),
+    }
+
+
 @pytest.fixture
 def query_tracker(request):
     cls = request.cls
     count = getattr(cls, "NUM_QUERY_TRACKERS", 1)
-    with QueryTracker(cls.Env, count) as query_tracker:
+    config = build_query_tracker_config(cls)
+    with QueryTracker(cls.Env, count, config=config) as query_tracker:
         update_query_tracker_environment(cls, query_tracker)
         yield query_tracker
 

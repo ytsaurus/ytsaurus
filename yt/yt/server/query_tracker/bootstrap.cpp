@@ -290,14 +290,16 @@ private:
             NativeClient_,
             ComponentStateChecker_,
             Config_->Root,
-            Config_->MinRequiredStateVersion);
+            Config_->MinRequiredStateVersion,
+            Config_->AdminsGroup);
 
         QueryTrackerProxy_ = CreateQueryTrackerProxy(
             NativeClient_,
             Config_->Root,
             DynamicConfigManager_->GetConfig()->QueryTracker,
             QueryTracker_->GetEngineProviders(),
-            Config_->MinRequiredStateVersion);
+            Config_->MinRequiredStateVersion,
+            Config_->AdminsGroup);
 
         RpcServer_->RegisterService(CreateProxyService(
             ProxyInvoker_,

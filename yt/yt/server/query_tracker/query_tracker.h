@@ -42,7 +42,8 @@ IQueryTrackerPtr CreateQueryTracker(
     NApi::NNative::IClientPtr stateClient,
     NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker,
     NYPath::TYPath stateRoot,
-    int minRequiredStateVersion);
+    int minRequiredStateVersion,
+    std::optional<std::string> adminsGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -189,6 +189,9 @@ struct TQueryTrackerBootstrapConfig
 
     std::string User;
 
+    // Members have superuser capabilities within Query Tracker only.
+    std::optional<std::string> AdminsGroup;
+
     NYTree::IMapNodePtr CypressAnnotations;
 
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
