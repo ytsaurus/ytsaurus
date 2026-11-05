@@ -22,16 +22,23 @@ class Snowflake(Dialect):
     TIME_FORMAT = "'YYYY-MM-DD HH24:MI:SS'"
     SUPPORTS_USER_DEFINED_TYPES = False
     PREFER_CTE_ALIAS_COLUMN = True
+    SUPPORTS_POSITIONAL_COLUMN_REFS = True
     TABLESAMPLE_SIZE_IS_PERCENT = True
     COPY_PARAMS_ARE_CSV = False
     ARRAY_AGG_INCLUDES_NULLS = None
     ARRAY_FUNCS_PROPAGATES_NULLS = True
     ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = False
+    ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN = False
     TRY_CAST_REQUIRES_STRING = True
     SUPPORTS_ALIAS_REFS_IN_JOIN_CONDITIONS = True
     LEAST_GREATEST_IGNORES_NULLS = False
     UUID_IS_STRING_TYPE = True
     STAR_ILIKE_BACKSLASH_ESCAPE = True
+
+    # https://docs.snowflake.com/en/sql-reference/functions/split_to_table
+    DEFAULT_FUNCTIONS_COLUMN_NAMES = {
+        exp.SplitToTable: ("seq", "index", "value"),
+    }
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
@@ -135,6 +142,8 @@ class Snowflake(Dialect):
 
     class Tokenizer(tokens.Tokenizer):
         STRING_ESCAPES = ["\\", "'"]
+        NUMERIC_ESCAPES = {"x": (16, 2, 2, 0xFF), "u": (16, 4, 4, 0xFFFF), "0": (8, 1, 3, 0xFF)}
+        DROP_UNKNOWN_ESCAPES = True
         HEX_STRINGS = [("x'", "'"), ("X'", "'")]
         RAW_STRINGS = ["$$"]
         COMMENTS = ["--", "//", ("/*", "*/")]
@@ -142,11 +151,13 @@ class Snowflake(Dialect):
 
         KEYWORDS = {
             **tokens.Tokenizer.KEYWORDS,
+            "(+)": TokenType.JOIN_MARKER,
             "BYTEINT": TokenType.INT,
             "FILE://": TokenType.URI_START,
             "FILE FORMAT": TokenType.FILE_FORMAT,
             "GET": TokenType.GET,
             "INTEGRATION": TokenType.INTEGRATION,
+            "LS": TokenType.LIST,
             "MATCH_CONDITION": TokenType.MATCH_CONDITION,
             "MATCH_RECOGNIZE": TokenType.MATCH_RECOGNIZE,
             "MINUS": TokenType.EXCEPT,

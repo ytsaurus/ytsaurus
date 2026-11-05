@@ -25,6 +25,10 @@ class AllowedValuesProperty(Expression):
     arg_types = {"expressions": True}
 
 
+class AggregateKeyProperty(Property):
+    arg_types = {"expressions": True}
+
+
 class AlgorithmProperty(Property):
     arg_types = {"this": True}
 
@@ -123,6 +127,7 @@ class DatabaseProperty(Property):
 
 class DefinerProperty(Property):
     arg_types = {"this": True}
+    _hash_raw_args = True
 
 
 class DistKeyProperty(Property):
@@ -390,6 +395,10 @@ class PartitionedOfProperty(Property):
     arg_types = {"this": True, "expression": True}
 
 
+class PhysicalProperty(Property):
+    arg_types = {"this": True, "value": False}
+
+
 class StreamingTableProperty(Property):
     arg_types = {}
 
@@ -497,6 +506,10 @@ class StorageHandlerProperty(Property):
     arg_types = {"this": True}
 
 
+class StorageProperty(Property):
+    arg_types = {"expressions": True}
+
+
 class UsingProperty(Property):
     # kind: JAR, FILE, or ARCHIVE; this: the resource path (string literal)
     arg_types = {"this": True, "kind": True}
@@ -520,6 +533,10 @@ class SecurityIntegrationProperty(Property):
 
 class Tags(Property, ColumnConstraintKind):
     arg_types = {"expressions": True}
+
+
+class TableSpaceProperty(Property):
+    arg_types = {"this": True}
 
 
 class PropertiesLocation(AutoName):
@@ -624,7 +641,9 @@ class Properties(Expression):
         "INCLUDE": IncludeProperty,
     }
 
-    PROPERTY_TO_NAME: t.ClassVar[dict[type[Property], str]] = {}
+    PROPERTY_TO_NAME: t.ClassVar[dict[type[Property], str]] = {
+        v: k for k, v in NAME_TO_PROPERTY.items()
+    }
 
     # CREATE property locations
     # Form: schema specified
@@ -652,7 +671,3 @@ class Properties(Expression):
                 expressions.append(Property(this=Literal.string(key), value=convert(value)))
 
         return cls(expressions=expressions)
-
-
-# TODO (mypyc)
-Properties.PROPERTY_TO_NAME = {v: k for k, v in Properties.NAME_TO_PROPERTY.items()}

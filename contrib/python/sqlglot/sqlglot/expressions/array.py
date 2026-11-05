@@ -8,6 +8,7 @@ from sqlglot.expressions.core import (
     Expr,
     Func,
     Binary,
+    Predicate,
     to_identifier,
 )
 from sqlglot.helper import trait
@@ -22,6 +23,7 @@ class Array(Expression, Func):
         "expressions": False,
         "bracket_notation": False,
         "struct_name_inheritance": False,
+        "value_constructor": False,
     }
     is_var_len_args = True
 
@@ -83,7 +85,16 @@ class ArrayReverse(Expression, Func):
 
 
 class ArraySlice(Expression, Func):
-    arg_types = {"this": True, "start": True, "end": False, "step": False, "zero_based": False}
+    """Slice by end index, or by length when is_length is set."""
+
+    arg_types = {
+        "this": True,
+        "start": True,
+        "end": False,
+        "step": False,
+        "zero_based": False,
+        "is_length": False,
+    }
 
 
 class ArraySort(Expression, Func):
@@ -109,16 +120,16 @@ class ArrayAny(Expression, Func):
     arg_types = {"this": True, "expression": True}
 
 
-class ArrayContains(Expression, Binary, Func):
+class ArrayContains(Expression, Binary, Predicate, Func):
     arg_types = {"this": True, "expression": True, "ensure_variant": False, "check_null": False}
     _sql_names = ["ARRAY_CONTAINS", "ARRAY_HAS"]
 
 
-class ArrayContainsAll(Expression, Binary, Func):
+class ArrayContainsAll(Expression, Binary, Predicate, Func):
     _sql_names = ["ARRAY_CONTAINS_ALL", "ARRAY_HAS_ALL"]
 
 
-class ArrayContainedBy(Expression, Binary, Func):
+class ArrayContainedBy(Expression, Binary, Predicate, Func):
     pass
 
 
@@ -132,7 +143,7 @@ class ArrayIntersect(Expression, Func):
     _sql_names = ["ARRAY_INTERSECT", "ARRAY_INTERSECTION"]
 
 
-class ArrayOverlaps(Expression, Binary, Func):
+class ArrayOverlaps(Expression, Binary, Predicate, Func):
     arg_types = {"this": True, "expression": True, "null_safe": False}
 
 
@@ -239,8 +250,17 @@ class Explode(Expression, Func, UDTF):
     is_var_len_args = True
 
 
-class Inline(Expression, Func):
+class Inline(Expression, Func, UDTF):
     pass
+
+
+class SplitToTable(Expression, Func, UDTF):
+    arg_types = {"this": True, "expression": True}
+
+
+class Stack(Expression, Func, UDTF):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
 
 
 @trait
@@ -343,6 +363,7 @@ class ToMap(Expression, Func):
 class VarMap(Expression, Func):
     arg_types = {"keys": True, "values": True}
     is_var_len_args = True
+    var_len_arg_key = "values"
 
     @property
     def keys(self) -> list[Expr]:

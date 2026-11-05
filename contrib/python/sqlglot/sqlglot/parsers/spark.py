@@ -53,6 +53,8 @@ def _build_dateadd(args: list) -> exp.Expr:
 
 
 class SparkParser(Spark2Parser):
+    DECIMAL_LITERALS_ALLOW_NEGATIVE_SCALE = False
+
     NO_PAREN_FUNCTIONS = {
         **Spark2Parser.NO_PAREN_FUNCTIONS,
         TokenType.SESSION_USER: exp.SessionUser,
@@ -124,6 +126,10 @@ class SparkParser(Spark2Parser):
     STATEMENT_PARSERS = {
         **Spark2Parser.STATEMENT_PARSERS,
     }
+
+    def _parse_field_def(self) -> exp.Expr | None:
+        # ALTER TABLE ... ADD COLUMNS (a.b INT) adds field b to the struct column a
+        return self._parse_column_def(self._parse_column_ops(self._parse_field(any_token=True)))
 
     def _parse_generated_as_identity(
         self,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import typing as t
 
 from sqlglot import exp, transforms
 from sqlglot.dialects.dialect import (
+    array_slice_to_slice_sql,
     bracket_to_element_at_sql,
     is_parse_json,
     rename_func,
@@ -121,7 +123,7 @@ class Spark2Generator(HiveGenerator):
         exp.CollateProperty: exp.Properties.Location.UNSUPPORTED,
     }
 
-    TS_OR_DS_EXPRESSIONS = (
+    TS_OR_DS_EXPRESSIONS: t.ClassVar = (
         *HIVE_TS_OR_DS_EXPRESSIONS,
         exp.DayOfMonth,
         exp.DayOfWeek,
@@ -138,7 +140,7 @@ class Spark2Generator(HiveGenerator):
                 f"AGGREGATE({self.sql(e, 'this')}, 0, (acc, x) -> acc + x, acc -> acc)"
             ),
             exp.ArrayToString: rename_func("ARRAY_JOIN"),
-            exp.ArraySlice: rename_func("SLICE"),
+            exp.ArraySlice: array_slice_to_slice_sql,
             exp.AtTimeZone: lambda self, e: self.func(
                 "FROM_UTC_TIMESTAMP", e.this, e.args.get("zone")
             ),
@@ -219,6 +221,16 @@ class Spark2Generator(HiveGenerator):
 
     def cast_sql(self, expression: exp.Cast, safe_prefix: str | None = None) -> str:
         arg = expression.this
+        if (
+            isinstance(arg, exp.Literal)
+            and arg.is_number
+            and expression.to.is_type(exp.DType.DECIMAL)
+            and len(expression.to.expressions) == 2
+            and isinstance(expression.to.expressions[1].this, exp.Neg)
+        ):
+            # Spark 2 supports negative scales in literals, but not in DECIMAL type syntax.
+            return f"{self.sql(arg)}BD"
+
         is_json_extract = isinstance(
             arg, (exp.JSONExtract, exp.JSONExtractScalar)
         ) and not arg.args.get("variant_extract")
@@ -240,6 +252,9 @@ class Spark2Generator(HiveGenerator):
         return f"USING {expression.name.upper()}"
 
     def altercolumn_sql(self, expression: exp.AlterColumn) -> str:
+        if expression.args.get("exists"):
+            self.unsupported("ALTER COLUMN IF EXISTS is not supported by this dialect")
+
         this = self.sql(expression, "this")
         new_name = self.sql(expression, "rename_to") or this
         comment = self.sql(expression, "comment")

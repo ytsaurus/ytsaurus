@@ -95,9 +95,6 @@ class SparkGenerator(Spark2Generator):
             exp.ArrayConstructCompact: lambda self, e: self.func(
                 "ARRAY_COMPACT", self.func("ARRAY", *e.expressions)
             ),
-            exp.ArrayInsert: lambda self, e: self.func(
-                "ARRAY_INSERT", e.this, e.args.get("position"), e.expression
-            ),
             exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
             exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND"),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
@@ -128,6 +125,9 @@ class SparkGenerator(Spark2Generator):
             exp.SafeMultiply: rename_func("TRY_MULTIPLY"),
             exp.SafeSubtract: rename_func("TRY_SUBTRACT"),
             exp.StartsWith: rename_func("STARTSWITH"),
+            exp.StabilityProperty: lambda self, e: (
+                "DETERMINISTIC" if e.name == "IMMUTABLE" else "NOT DETERMINISTIC"
+            ),
             exp.TimeAdd: date_delta_to_binary_interval_op(cast=False),
             exp.TimeSub: date_delta_to_binary_interval_op(cast=False),
             exp.TsOrDsAdd: _dateadd_sql,
@@ -148,6 +148,9 @@ class SparkGenerator(Spark2Generator):
 
     def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
         return generator.Generator.ignorenulls_sql(self, expression)
+
+    def arrayinsert_sql(self, expression: exp.ArrayInsert, index_offset: int = 0) -> str:
+        return super().arrayinsert_sql(expression, index_offset=1)
 
     def bracket_sql(self, expression: exp.Bracket) -> str:
         if expression.args.get("safe"):

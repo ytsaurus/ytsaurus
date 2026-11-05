@@ -21,16 +21,16 @@ class Resolver:
     This is a class so we can lazily load some things and easily share them across functions.
     """
 
-    def __init__(self, scope: Scope, schema: Schema, infer_schema: bool = True) -> None:
+    def __init__(self, scope: Scope, schema: Schema) -> None:
         self.scope: Scope = scope
         self.schema: Schema = schema
         self.dialect: Dialect = schema.dialect or Dialect()
         self._source_columns: dict[str, Sequence[str]] | None = None
         self._unambiguous_columns: Mapping[str, str] | None = None
         self._all_columns: set[str] | None = None
-        self._infer_schema: bool = infer_schema
         self._get_source_columns_cache: dict[tuple[str, bool], Sequence[str]] = {}
         self._column_type_from_scope_cache: dict[tuple[int, str], exp.DataType | None] = {}
+        self._outer_resolvers: list[Resolver] | None = None
 
     def get_table(self, column: str | exp.Column) -> exp.Identifier | None:
         """
@@ -43,31 +43,29 @@ class Resolver:
         """
         column_name = column if isinstance(column, str) else column.name
 
-        table_name = self._get_table_name_from_sources(column_name)
+        join_context = (
+            self._get_column_join_context(column) if isinstance(column, exp.Column) else None
+        )
+        is_semi_or_anti_join = join_context is not None and join_context.is_semi_or_anti_join
 
-        if not table_name and isinstance(column, exp.Column):
+        # A SEMI/ANTI join's own table is excluded from the global lookup below, so skip it here
+        table_name = (
+            None if is_semi_or_anti_join else self._get_table_name_from_sources(column_name)
+        )
+
+        if not table_name and join_context is not None:
             # Fall-back case: If we couldn't find the `table_name` from ALL of the sources,
             # attempt to disambiguate the column based on other characteristics e.g if this column is in a join condition,
             # we may be able to disambiguate based on the source order.
-            if join_context := self._get_column_join_context(column):
-                # In this case, the return value will be the join that _may_ be able to disambiguate the column
-                # and we can use the source columns available at that join to get the table name
-                # catch OptimizeError if column is still ambiguous and try to resolve with schema inference below
-                try:
-                    table_name = self._get_table_name_from_sources(
-                        column_name, self._get_available_source_columns(join_context)
-                    )
-                except OptimizeError:
-                    pass
+            try:
+                table_name = self._get_table_name_from_sources(
+                    column_name, self._get_available_source_columns(join_context)
+                )
+            except OptimizeError:
+                pass
 
-        if not table_name and self._infer_schema:
-            sources_without_schema = tuple(
-                source
-                for source, columns in self._get_all_source_columns().items()
-                if not columns or "*" in columns
-            )
-            if len(sources_without_schema) == 1:
-                table_name = sources_without_schema[0]
+        if not table_name:
+            return None
 
         if table_name not in self.scope.selected_sources:
             return exp.to_identifier(table_name)
@@ -84,6 +82,23 @@ class Resolver:
 
         return exp.to_identifier(table_name)
 
+    def outer_resolvers(self) -> list[Resolver]:
+        """Resolvers for the outer scopes a correlated subquery can reference, innermost first."""
+        if self._outer_resolvers is None:
+            self._outer_resolvers = []
+            scope = self.scope
+            while scope.can_be_correlated and scope.parent:
+                scope = scope.parent
+                self._outer_resolvers.append(Resolver(scope, self.schema))
+        return self._outer_resolvers
+
+    @property
+    def has_unknown_sources(self) -> bool:
+        """Whether some source's columns can't be determined, e.g. a table missing from the schema."""
+        return any(
+            not columns or "*" in columns for columns in self._get_all_source_columns().values()
+        )
+
     @property
     def all_columns(self) -> set[str]:
         """All available columns of all sources in this scope"""
@@ -96,9 +111,8 @@ class Resolver:
     def get_source_columns_from_set_op(self, expression: exp.Expr) -> list[str]:
         if isinstance(expression, exp.Select):
             return expression.named_selects
-        if isinstance(expression, exp.Subquery) and isinstance(expression.this, exp.SetOperation):
-            # Different types of SET modifiers can be chained together if they're explicitly grouped by nesting
-            return self.get_source_columns_from_set_op(expression.this)
+        if isinstance(expression, exp.Subquery):
+            return self.get_source_columns_from_set_op(expression.unnest())
         if not isinstance(expression, exp.SetOperation):
             raise OptimizeError(f"Unknown set operation: {expression}")
 
@@ -261,13 +275,15 @@ class Resolver:
 
         join_ancestor = column.find_ancestor(exp.Join, exp.Select)
 
-        if (
-            isinstance(join_ancestor, exp.Join)
-            and join_ancestor.alias_or_name in self.scope.selected_sources
-        ):
-            # Ensure that the found ancestor is a join that contains an actual source,
-            # e.g in Clickhouse `b` is an array expression in `a ARRAY JOIN b`
-            return join_ancestor
+        if isinstance(join_ancestor, exp.Join):
+            join_name = join_ancestor.alias_or_name
+            if (
+                join_name in self.scope.selected_sources
+                or join_name in self.scope.semi_or_anti_join_tables
+            ):
+                # Ensure that the found ancestor is a join that contains an actual source,
+                # e.g in Clickhouse `b` is an array expression in `a ARRAY JOIN b`
+                return join_ancestor
 
         return None
 
@@ -369,7 +385,7 @@ class Resolver:
 
     def _get_unnest_column_type(self, column: exp.Column, scope: Scope) -> exp.DataType | None:
         """
-        Get the type of a column being unnested/exploded, tracing through CTEs/subqueries to find the base table.
+        Get the type of a column being unnested/exploded from its source scope or table.
 
         Args:
             column: The column expression being unnested/exploded.
@@ -383,7 +399,7 @@ class Resolver:
             table_name = column.table
         else:
             # use the parent scope's resolver to disambiguate the column
-            parent_resolver = Resolver(scope, self.schema, self._infer_schema)
+            parent_resolver = Resolver(scope, self.schema)
             table_identifier = parent_resolver.get_table(column)
             if not table_identifier:
                 return None
@@ -396,10 +412,10 @@ class Resolver:
         self, source: Scope | exp.Table, column: exp.Column
     ) -> exp.DataType | None:
         """
-        Get a column's type by tracing through scopes/tables to find the base table.
+        Get a column's type from annotated projections or underlying table schemas.
 
         Args:
-            source: The source to search - can be a Scope (to iterate its sources) or a Table.
+            source: The scope or table to search.
             column: The column to find the type for.
 
         Returns:
@@ -421,12 +437,19 @@ class Resolver:
             if col_type and not col_type.is_type(exp.DType.UNKNOWN):
                 result = col_type
         elif isinstance(source, Scope):
-            # iterate over all sources in the scope
-            for nested_source in source.sources.values():
-                nested_type = self._get_column_type_from_scope(nested_source, column)
-                if nested_type and not nested_type.is_type(exp.DType.UNKNOWN):
-                    result = nested_type
-                    break
+            if isinstance(source.expression, exp.Select):
+                for projection in source.expression.selects:
+                    if projection.alias_or_name == column.name:
+                        if projection.type and not projection.type.is_type(exp.DType.UNKNOWN):
+                            result = projection.type
+                        break
+
+            if result is None:
+                for nested_source in source.sources.values():
+                    nested_type = self._get_column_type_from_scope(nested_source, column)
+                    if nested_type and not nested_type.is_type(exp.DType.UNKNOWN):
+                        result = nested_type
+                        break
 
         self._column_type_from_scope_cache[cache_key] = result
         return result

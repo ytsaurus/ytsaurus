@@ -10,10 +10,10 @@ from sqlglot.dialects.dialect import (
     DATETIME_DELTA,
     JSON_EXTRACT_TYPE,
     approx_count_distinct_sql,
+    arrow_json_extract_sql,
     array_append_sql,
     array_compact_sql,
     array_concat_sql,
-    arrow_json_extract_sql,
     count_if_to_sum,
     date_delta_to_binary_interval_op,
     datestrtodate_sql,
@@ -388,6 +388,10 @@ def _array_insert_sql(self: DuckDBGenerator, expression: exp.ArrayInsert) -> str
 
     pos_value = position.to_py()
 
+    # 1-based -1 appends (Spark/Databricks); the 0-based normalization below
+    # would otherwise map it onto the prepend branch.
+    append = index_offset == 1 and pos_value == -1
+
     # Normalize one-based indexing to zero-based for slice calculations
     # Spark (1-based) -> Snowflake (0-based):
     #   Positive: pos=1 -> pos=0 (subtract 1)
@@ -399,7 +403,10 @@ def _array_insert_sql(self: DuckDBGenerator, expression: exp.ArrayInsert) -> str
         pos_value = pos_value + index_offset
 
     # Build the appropriate list_concat expression based on position
-    if pos_value == 0:
+    if append:
+        # append at end
+        concat_exprs = [this, element_array]
+    elif pos_value == 0:
         # insert at beginning
         concat_exprs = [element_array, this]
     elif pos_value > 0:
@@ -649,17 +656,6 @@ def _struct_sql(self: DuckDBGenerator, expression: exp.Struct) -> str:
     csv_args = ", ".join(args)
 
     return f"ROW({csv_args})" if is_bq_inline_struct else f"{{{csv_args}}}"
-
-
-def _datatype_sql(self: DuckDBGenerator, expression: exp.DataType) -> str:
-    if expression.is_type("array"):
-        return f"{self.expressions(expression, flat=True)}[{self.expressions(expression, key='values', flat=True)}]"
-
-    # Modifiers are not supported for TIME, [TIME | TIMESTAMP] WITH TIME ZONE
-    if expression.is_type(exp.DType.TIME, exp.DType.TIMETZ, exp.DType.TIMESTAMPTZ):
-        return expression.this.value
-
-    return self.datatype_sql(expression)
 
 
 def _json_format_sql(self: DuckDBGenerator, expression: exp.JSONFormat) -> str:
@@ -1561,6 +1557,8 @@ class DuckDBGenerator(generator.Generator):
     RENAME_TABLE_WITH_DB = False
     NVL2_SUPPORTED = False
     SEMI_ANTI_JOIN_WITH_SIDE = False
+    CAST_TO_INT_ROUNDS = True
+    SAFE_INT_DIVISION = True
     TABLESAMPLE_KEYWORDS = "USING SAMPLE"
     TABLESAMPLE_SEED_KEYWORD = "REPEATABLE"
     LAST_DAY_SUPPORTS_DATE_PART = False
@@ -1576,7 +1574,12 @@ class DuckDBGenerator(generator.Generator):
     SUPPORTS_DECODE_CASE = False
     SUPPORTS_DROP_ALTER_ICEBERG_PROPERTY = False
 
-    AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
+    # USING SAMPLE goes after QUALIFY and before ORDER BY / LIMIT
+    # https://duckdb.org/docs/preview/sql/query_syntax/sample
+    AFTER_HAVING_MODIFIER_TRANSFORMS = {
+        **generator.AFTER_HAVING_MODIFIER_TRANSFORMS,
+        "sample": lambda self, e: self.sql(e, "sample"),
+    }
     SUPPORTS_WINDOW_EXCLUDE = True
     COPY_HAS_INTO_KEYWORD = False
     STAR_EXCEPT = "EXCLUDE"
@@ -1665,7 +1668,6 @@ class DuckDBGenerator(generator.Generator):
             if e.args.get("abbreviated")
             else self.func("MONTHNAME", e.this)
         ),
-        exp.DataType: _datatype_sql,
         exp.Date: _date_sql,
         exp.DateAdd: _date_delta_to_binary_interval_op(),
         exp.DateFromParts: _date_from_parts_sql,
@@ -1951,7 +1953,7 @@ class DuckDBGenerator(generator.Generator):
     IGNORE_RESPECT_NULLS_WINDOW_FUNCTIONS: t.ClassVar = _IGNORE_RESPECT_NULLS_WINDOW_FUNCTIONS
 
     # Template for ZIPF transpilation - placeholders get replaced with actual parameters
-    ZIPF_TEMPLATE: exp.Expr = exp.maybe_parse(
+    ZIPF_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         WITH rand AS (SELECT :random_expr AS r),
         weights AS (
@@ -1970,22 +1972,24 @@ class DuckDBGenerator(generator.Generator):
 
     # Template for NORMAL transpilation using Box-Muller transform
     # mean + (stddev * sqrt(-2 * ln(u1)) * cos(2 * pi * u2))
-    NORMAL_TEMPLATE: exp.Expr = exp.maybe_parse(
+    NORMAL_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         ":mean + (:stddev * SQRT(-2 * LN(GREATEST(:u1, 1e-10))) * COS(2 * PI() * :u2))"
     )
 
     # Template for generating a seeded pseudo-random value in [0, 1) from a hash
-    SEEDED_RANDOM_TEMPLATE: exp.Expr = exp.maybe_parse("(ABS(HASH(:seed)) % 1000000) / 1000000.0")
+    SEEDED_RANDOM_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
+        "(ABS(HASH(:seed)) % 1000000) / 1000000.0"
+    )
 
     # Template for generating signed and unsigned SEQ values within a specified range
-    SEQ_UNSIGNED: exp.Expr = _SEQ_UNSIGNED
-    SEQ_SIGNED: exp.Expr = _SEQ_SIGNED
+    SEQ_UNSIGNED: t.ClassVar[exp.Expr] = _SEQ_UNSIGNED
+    SEQ_SIGNED: t.ClassVar[exp.Expr] = _SEQ_SIGNED
 
     # Template for MAP_CAT transpilation - Snowflake semantics:
     # 1. Returns NULL if either input is NULL
     # 2. For duplicate keys, prefers non-NULL value (COALESCE(m2[k], m1[k]))
     # 3. Filters out entries with NULL values from the result
-    MAPCAT_TEMPLATE: exp.Expr = exp.maybe_parse(
+    MAPCAT_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE
             WHEN :map1 IS NULL OR :map2 IS NULL THEN NULL
@@ -1999,7 +2003,7 @@ class DuckDBGenerator(generator.Generator):
 
     # Mappings for EXTRACT/DATE_PART transpilation
     # Maps Snowflake specifiers unsupported in DuckDB to strftime format codes
-    EXTRACT_STRFTIME_MAPPINGS: dict[str, tuple[str, str]] = {
+    EXTRACT_STRFTIME_MAPPINGS: t.ClassVar[dict[str, tuple[str, str]]] = {
         "WEEKISO": ("%V", "INTEGER"),
         "YEAROFWEEK": ("%G", "INTEGER"),
         "YEAROFWEEKISO": ("%G", "INTEGER"),
@@ -2007,7 +2011,7 @@ class DuckDBGenerator(generator.Generator):
     }
 
     # Maps epoch-based specifiers to DuckDB epoch functions
-    EXTRACT_EPOCH_MAPPINGS: dict[str, str] = {
+    EXTRACT_EPOCH_MAPPINGS: t.ClassVar[dict[str, str]] = {
         "EPOCH_SECOND": "EPOCH",
         "EPOCH_MILLISECOND": "EPOCH_MS",
         "EPOCH_MICROSECOND": "EPOCH_US",
@@ -2057,7 +2061,7 @@ class DuckDBGenerator(generator.Generator):
     #   - Large format: Fixed 10-byte header + values (no padding needed)
     #   Result: Complete binary bitmap as BLOB
     #
-    BITMAP_CONSTRUCT_AGG_TEMPLATE: exp.Expr = exp.maybe_parse(
+    BITMAP_CONSTRUCT_AGG_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         SELECT CASE
             WHEN l IS NULL OR LENGTH(l) = 0 THEN NULL
@@ -2076,7 +2080,7 @@ class DuckDBGenerator(generator.Generator):
     )
 
     # Template for RANDSTR transpilation - placeholders get replaced with actual parameters
-    RANDSTR_TEMPLATE: exp.Expr = exp.maybe_parse(
+    RANDSTR_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         f"""
         SELECT LISTAGG(
             SUBSTRING(
@@ -2096,7 +2100,7 @@ class DuckDBGenerator(generator.Generator):
     # Template for MINHASH transpilation
     # Computes k minimum hash values across aggregated data using DuckDB list functions
     # Returns JSON matching Snowflake format: {"state": [...], "type": "minhash", "version": 1}
-    MINHASH_TEMPLATE: exp.Expr = exp.maybe_parse(
+    MINHASH_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         SELECT JSON_OBJECT('state', LIST(min_h ORDER BY seed), 'type', 'minhash', 'version', 1)
         FROM (
@@ -2108,7 +2112,7 @@ class DuckDBGenerator(generator.Generator):
 
     # Template for MINHASH_COMBINE transpilation
     # Combines multiple minhash signatures by taking element-wise minimum
-    MINHASH_COMBINE_TEMPLATE: exp.Expr = exp.maybe_parse(
+    MINHASH_COMBINE_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         SELECT JSON_OBJECT('state', LIST(min_h ORDER BY idx), 'type', 'minhash', 'version', 1)
         FROM (
@@ -2125,7 +2129,7 @@ class DuckDBGenerator(generator.Generator):
 
     # Template for APPROXIMATE_SIMILARITY transpilation
     # Computes multi-way Jaccard similarity: fraction of positions where ALL signatures agree
-    APPROXIMATE_SIMILARITY_TEMPLATE: exp.Expr = exp.maybe_parse(
+    APPROXIMATE_SIMILARITY_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         SELECT CAST(SUM(CASE WHEN num_distinct = 1 THEN 1 ELSE 0 END) AS DOUBLE) / COUNT(*)
         FROM (
@@ -2143,7 +2147,7 @@ class DuckDBGenerator(generator.Generator):
     # Template for ARRAYS_ZIP transpilation
     # Snowflake pads to longest array; DuckDB LIST_ZIP truncates to shortest
     # Uses RANGE + indexing to match Snowflake behavior
-    ARRAYS_ZIP_TEMPLATE: exp.Expr = exp.maybe_parse(
+    ARRAYS_ZIP_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE WHEN :null_check THEN NULL
         WHEN :all_empty_check THEN [:empty_struct]
@@ -2152,7 +2156,7 @@ class DuckDBGenerator(generator.Generator):
         """,
     )
 
-    UUID_V5_TEMPLATE: exp.Expr = exp.maybe_parse(
+    UUID_V5_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         (SELECT
             LOWER(
@@ -2176,7 +2180,7 @@ class DuckDBGenerator(generator.Generator):
     #   INTERSECTION (<=): keep the N-th occurrence only if N <= count in arr2
     #                      e.g. [2,2,2] INTERSECT [2,2] -> [2,2]
     # IS NOT DISTINCT FROM is used for NULL-safe element comparison.
-    ARRAY_BAG_TEMPLATE: exp.Expr = exp.maybe_parse(
+    ARRAY_BAG_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE
             WHEN :arr1 IS NULL OR :arr2 IS NULL THEN NULL
@@ -2191,12 +2195,12 @@ class DuckDBGenerator(generator.Generator):
         """
     )
 
-    ARRAY_EXCEPT_CONDITION: exp.Expr = exp.maybe_parse(
+    ARRAY_EXCEPT_CONDITION: t.ClassVar[exp.Expr] = exp.maybe_parse(
         "LEN(LIST_FILTER(:arr1[1:pair[1]], e -> e IS NOT DISTINCT FROM pair[0]))"
         " > LEN(LIST_FILTER(:arr2, e -> e IS NOT DISTINCT FROM pair[0]))"
     )
 
-    ARRAY_INTERSECTION_CONDITION: exp.Expr = exp.maybe_parse(
+    ARRAY_INTERSECTION_CONDITION: t.ClassVar[exp.Expr] = exp.maybe_parse(
         "LEN(LIST_FILTER(:arr1[1:pair[1]], e -> e IS NOT DISTINCT FROM pair[0]))"
         " <= LEN(LIST_FILTER(:arr2, e -> e IS NOT DISTINCT FROM pair[0]))"
     )
@@ -2205,7 +2209,7 @@ class DuckDBGenerator(generator.Generator):
     # filters out any element that appears at least once in arr2.
     #   e.g. [1,1,2,3] EXCEPT [1] -> [2,3]
     # IS NOT DISTINCT FROM is used for NULL-safe element comparison.
-    ARRAY_EXCEPT_SET_TEMPLATE: exp.Expr = exp.maybe_parse(
+    ARRAY_EXCEPT_SET_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE
             WHEN :arr1 IS NULL OR :arr2 IS NULL THEN NULL
@@ -2225,7 +2229,7 @@ class DuckDBGenerator(generator.Generator):
     #   1 IN UNNEST([])         -> FALSE
     # The default `IN (SELECT UNNEST(...))` rewrite creates a correlated subquery
     # that DuckDB rejects inside non-inner joins, so a CASE expression is used instead.
-    IN_UNNEST_TEMPLATE: exp.Expr = exp.maybe_parse(
+    IN_UNNEST_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE
             WHEN :arr IS NULL OR ARRAY_LENGTH(:arr) = 0 THEN FALSE
@@ -2236,7 +2240,7 @@ class DuckDBGenerator(generator.Generator):
         """
     )
 
-    STRTOK_TO_ARRAY_TEMPLATE: exp.Expr = exp.maybe_parse(
+    STRTOK_TO_ARRAY_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE WHEN :delimiter IS NULL THEN NULL
         ELSE LIST_FILTER(
@@ -2285,7 +2289,7 @@ class DuckDBGenerator(generator.Generator):
     #         x -> NOT x = ''
     #     )[index]
     # END
-    STRTOK_TEMPLATE: exp.Expr = exp.maybe_parse(
+    STRTOK_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
         """
         CASE
             WHEN :delimiter = '' AND :string = '' THEN NULL
@@ -2305,6 +2309,18 @@ class DuckDBGenerator(generator.Generator):
     # Ref: https://docs.snowflake.com/en/sql-reference/date-time-input-output#date-formats
     _TRYCAST_DATE_SLASH_FMT = "%m/%d/%Y"
     _TRYCAST_DATE_MON_FMT = "%d-%b-%Y"
+
+    def datatype_sql(self, expression: exp.DataType) -> str:
+        if expression.is_type(exp.DType.ARRAY):
+            return f"{self.expressions(expression, flat=True)}[{self.expressions(expression, key='values', flat=True)}]"
+
+        # Modifiers are not supported for TIME, [TIME | TIMESTAMP] WITH TIME ZONE
+        if expression.is_type(
+            exp.DType.TIME, exp.DType.TIMETZ, exp.DType.TIMESTAMPTZ, exp.DType.TIMESTAMPLTZ
+        ):
+            expression.set("expressions", None)
+
+        return super().datatype_sql(expression)
 
     def _array_bag_sql(self, condition: exp.Expr, arr1: exp.Expr, arr2: exp.Expr) -> str:
         cond = exp.Paren(this=exp.replace_placeholders(condition, arr1=arr1, arr2=arr2))
@@ -2347,6 +2363,18 @@ class DuckDBGenerator(generator.Generator):
             return self.sql(exp.cast(add_expr, exp.DType.DATE))
 
         return self.sql(add_expr)
+
+    def bytestring_sql(self, expression: exp.ByteString) -> str:
+        if not expression.args.get("is_bytes"):
+            return super().bytestring_sql(expression)
+
+        # Each char is a byte. Casting to BLOB decodes \xHH, so everything but printable ASCII
+        # (including the backslash itself) is written as such
+        text = "".join(
+            ch if ch.isascii() and ch.isprintable() and ch != "\\" else f"\\x{ord(ch):02x}"
+            for ch in expression.this
+        )
+        return self.sql(exp.cast(exp.Literal.string(text), exp.DType.BINARY))
 
     def bitmapbucketnumber_sql(self, expression: exp.BitmapBucketNumber) -> str:
         """
@@ -2467,13 +2495,6 @@ class DuckDBGenerator(generator.Generator):
 
         return self.sql(result)
 
-    def nthvalue_sql(self, expression: exp.NthValue) -> str:
-        from_first = expression.args.get("from_first", True)
-        if not from_first:
-            self.unsupported("DuckDB's NTH_VALUE doesn't support starting from the end ")
-
-        return self.function_fallback_sql(expression)
-
     def randstr_sql(self, expression: exp.Randstr) -> str:
         """
         Transpile Snowflake's RANDSTR to DuckDB equivalent using deterministic hash-based random.
@@ -2582,11 +2603,10 @@ class DuckDBGenerator(generator.Generator):
         scale = expression.args.get("scale")
 
         if not fmt and precision and scale:
-            return self.sql(
-                exp.cast(
-                    expression.this, f"DECIMAL({precision.name}, {scale.name})", dialect="duckdb"
-                )
-            )
+            to = exp.DataType.build(f"DECIMAL({precision.name}, {scale.name})", dialect="duckdb")
+            if expression.args.get("safe"):
+                return self.sql(exp.TryCast(this=expression.this, to=to))
+            return self.sql(exp.cast(expression.this, to, dialect="duckdb"))
 
         return super().tonumber_sql(expression)
 
@@ -2909,7 +2929,7 @@ class DuckDBGenerator(generator.Generator):
         """
         min_val = expression.this
         max_val = expression.expression
-        gen = expression.args.get("gen")
+        gen = expression.args.get("gen") or expression.args.get("seed") or exp.Rand()
 
         # Determine if result should be integer (both bounds are integers).
         # We do this to emulate Snowflake's behavior, INT -> INT, FLOAT -> FLOAT
@@ -3080,6 +3100,9 @@ class DuckDBGenerator(generator.Generator):
         if milli or nano:
             expression.set("sec", sec)
 
+        if zone := expression.args.get("zone"):
+            return self.sql(exp.AtTimeZone(this=expression, zone=zone.pop()))
+
         return rename_func("MAKE_TIMESTAMP")(self, expression)
 
     @unsupported_args("nano")
@@ -3109,6 +3132,10 @@ class DuckDBGenerator(generator.Generator):
             return f"{timestamp} AT TIME ZONE {self.sql(zone)}"
 
         return timestamp
+
+    def after_limit_modifiers(self, expression: exp.Expr) -> list[str]:
+        locks = self.expressions(expression, key="locks", sep=" ")
+        return [f" {locks}" if locks else ""]
 
     def tablesample_sql(
         self,
@@ -3343,17 +3370,17 @@ class DuckDBGenerator(generator.Generator):
         if position:
             this = exp.Substring(this=this, start=position)
 
+        # Handle empty pattern: Snowflake returns 0, DuckDB would match between every character.
+        # Checked before the flags are embedded, which would make the pattern non-empty
+        is_empty = exp.EQ(this=pattern.copy(), expression=exp.Literal.string(""))
+
         # Embed flags in pattern (REGEXP_EXTRACT_ALL doesn't support flags argument)
         if validated_flags:
             pattern = exp.Concat(expressions=[exp.Literal.string(f"(?{validated_flags})"), pattern])
 
-        # Handle empty pattern: Snowflake returns 0, DuckDB would match between every character
         result = (
             exp.case()
-            .when(
-                exp.EQ(this=pattern, expression=exp.Literal.string("")),
-                exp.Literal.number(0),
-            )
+            .when(is_empty, exp.Literal.number(0))
             .else_(
                 exp.Length(
                     this=exp.Anonymous(this="REGEXP_EXTRACT_ALL", expressions=[this, pattern])
@@ -3562,6 +3589,9 @@ class DuckDBGenerator(generator.Generator):
 
     def arrayslice_sql(self, expression: exp.ArraySlice) -> str:
         """
+        Spark's SLICE uses a length, so normalize negative starts before computing
+        the inclusive end index. Starts before the array produce an empty slice.
+
         Transpiles Snowflake's ARRAY_SLICE (0-indexed, exclusive end) to DuckDB's
         ARRAY_SLICE (1-indexed, inclusive end) by wrapping start and end in CASE
         expressions that adjust the index at query time:
@@ -3580,7 +3610,7 @@ class DuckDBGenerator(generator.Generator):
                     )
                     .else_(start)
                 )
-            if end is not None:
+            if end is not None and not expression.args.get("is_length"):
                 end = (
                     exp.case()
                     .when(
@@ -3590,6 +3620,20 @@ class DuckDBGenerator(generator.Generator):
                     .else_(end)
                 )
 
+        if expression.args.get("is_length") and start is not None and end is not None:
+            if not start.is_int or start.to_py() < 0:
+                size = exp.ArraySize(this=expression.this.copy())
+                start = (
+                    exp.case()
+                    .when(start < -size, size + 1)
+                    .when(start < 0, size + start + 1)
+                    .else_(start)
+                )
+
+            if start.is_int and end.is_int:
+                end = exp.Literal.number(start.to_py() + end.to_py() - 1)
+            else:
+                end = start + exp.cast(end, "BIGINT") - 1
         return self.func("ARRAY_SLICE", expression.this, start, end, expression.args.get("step"))
 
     def arrayszip_sql(self, expression: exp.ArraysZip) -> str:
@@ -4127,7 +4171,7 @@ class DuckDBGenerator(generator.Generator):
                     this=exp.Transform(
                         this=expression.this,
                         expression=exp.Lambda(
-                            this=exp.Coalesce(this=x, expressions=[null]),
+                            this=exp.Coalesce(this=exp.cast(x, "TEXT"), expressions=[null]),
                             expressions=[x],
                         ),
                     ),
@@ -4149,6 +4193,31 @@ class DuckDBGenerator(generator.Generator):
                     this=exp.DPipe(this=result, expression=separator), expression=arg
                 )
             return self.sql(result)
+
+        if expression.args.get("flatten") and any(
+            isinstance(arg, exp.Array) or arg.is_type(exp.DType.ARRAY) for arg in args
+        ):
+            arrays = []
+            for arg in args:
+                if isinstance(arg, exp.Array) or arg.is_type(exp.DType.ARRAY):
+                    arg = exp.cast(arg, "TEXT[]")
+                else:
+                    if (not arg.type or arg.is_type(exp.DType.UNKNOWN)) and not isinstance(
+                        arg, exp.CONSTANTS
+                    ):
+                        self.unsupported(
+                            "Cannot transpile CONCAT_WS with unknown argument types to DuckDB."
+                        )
+                    arg = exp.array(exp.cast(arg, exp.DType.TEXT))
+
+                arrays.append(arg)
+
+            array = (
+                exp.ArrayConcat(this=arrays[0], expressions=arrays[1:])
+                if len(arrays) > 1
+                else arrays[0]
+            )
+            return self.func("CONCAT_WS", separator, self.func("ARRAY_TO_STRING", array, separator))
 
         return super().concatws_sql(expression)
 
@@ -4221,6 +4290,8 @@ class DuckDBGenerator(generator.Generator):
         parameters = expression.args.get("parameters")
 
         validated_flags = self._validate_regexp_flags(parameters, supported_flags="ims")
+        # Checked before the flags are embedded, which would make the pattern non-empty
+        is_empty = pattern.copy().eq(exp.Literal.string(""))
         if validated_flags:
             pattern = exp.Concat(expressions=[exp.Literal.string(f"(?{validated_flags})"), pattern])
 
@@ -4288,7 +4359,7 @@ class DuckDBGenerator(generator.Generator):
         return self.sql(
             exp.case()
             .when(exp.or_(*null_checks), exp.Null())
-            .when(pattern.copy().eq(exp.Literal.string("")), exp.Literal.number(0))
+            .when(is_empty, exp.Literal.number(0))
             .when(exp.Length(this=matches) < occurrence, exp.Literal.number(0))
             .else_(base_pos)
         )
@@ -4718,9 +4789,14 @@ class DuckDBGenerator(generator.Generator):
 
     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:
         if expression.args.get("scalar_only"):
-            expression = exp.JSONExtractScalar(
+            json_value = exp.JSONExtractScalar(
                 this=rename_func("JSON_VALUE")(self, expression), expression="'$'"
             )
+
+            # `->>` binds looser than most operators, so the wrap logic needs the parent
+            json_value.parent = expression.parent
+            expression = json_value
+
         return _arrow_json_extract_sql(self, expression)
 
     def bitwisenot_sql(self, expression: exp.BitwiseNot) -> str:

@@ -333,6 +333,7 @@ class SnowflakeParser(parser.Parser):
     DEFAULT_SAMPLING_METHOD = "BERNOULLI"
     COLON_IS_VARIANT_EXTRACT = True
     JSON_EXTRACT_REQUIRES_JSON_EXPRESSION = True
+    SUPPORTS_NTH_VALUE_FROM_MODIFIER = True
 
     TYPE_TOKENS = {*parser.Parser.TYPE_TOKENS, TokenType.FILE}
     STRUCT_TYPE_TOKENS = {*parser.Parser.STRUCT_TYPE_TOKENS, TokenType.FILE}
@@ -347,9 +348,12 @@ class SnowflakeParser(parser.Parser):
         TokenType.POLICY,
         TokenType.POOL,
         TokenType.ROLE,
+        TokenType.ROLLBACK,
         TokenType.RULE,
         TokenType.VOLUME,
     }
+
+    FUNC_TOKENS = parser.Parser.FUNC_TOKENS | {TokenType.ROLLBACK}
 
     ALIAS_TOKENS = parser.Parser.ALIAS_TOKENS | {
         TokenType.INTEGRATION,
@@ -357,6 +361,7 @@ class SnowflakeParser(parser.Parser):
         TokenType.POLICY,
         TokenType.POOL,
         TokenType.ROLE,
+        TokenType.ROLLBACK,
         TokenType.RULE,
         TokenType.VOLUME,
     }
@@ -370,6 +375,7 @@ class SnowflakeParser(parser.Parser):
             TokenType.POLICY,
             TokenType.POOL,
             TokenType.ROLE,
+            TokenType.ROLLBACK,
             TokenType.RULE,
             TokenType.SEMI,
             TokenType.VOLUME,
@@ -736,7 +742,7 @@ class SnowflakeParser(parser.Parser):
         **parser.Parser.FUNCTION_PARSERS,
         "DATE_PART": lambda self: self._parse_date_part(),
         "DIRECTORY": lambda self: self._parse_directory(),
-        "OBJECT_CONSTRUCT_KEEP_NULL": lambda self: self._parse_json_object(),
+        "OBJECT_CONSTRUCT_KEEP_NULL": lambda self: self._parse_object_construct_keep_null(),
         "LISTAGG": lambda self: self._parse_string_agg(),
         "SEMANTIC_VIEW": lambda self: self._parse_semantic_view(),
         "SUBSTR": lambda self: self._parse_substring(),
@@ -761,6 +767,7 @@ class SnowflakeParser(parser.Parser):
     STATEMENT_PARSERS = {
         **parser.Parser.STATEMENT_PARSERS,
         TokenType.GET: lambda self: self._parse_get(),
+        TokenType.LIST: lambda self: self._parse_list_stage(),
         TokenType.PUT: lambda self: self._parse_put(),
         TokenType.SHOW: lambda self: self._parse_show(),
         TokenType.UNDROP: lambda self: self._parse_undrop(),
@@ -857,17 +864,24 @@ class SnowflakeParser(parser.Parser):
         "TAG": lambda self: self._parse_with_constraint(),
     }
 
-    STAGED_FILE_SINGLE_TOKENS = {
+    STAGED_FILE_SINGLE_TOKENS: t.ClassVar = {
         TokenType.DOT,
         TokenType.MOD,
         TokenType.SLASH,
     }
 
-    FLATTEN_COLUMNS = ["SEQ", "KEY", "PATH", "INDEX", "VALUE", "THIS"]
+    FLATTEN_COLUMNS: t.ClassVar = ["SEQ", "KEY", "PATH", "INDEX", "VALUE", "THIS"]
 
-    SCHEMA_KINDS = {"OBJECTS", "TABLES", "VIEWS", "SEQUENCES", "UNIQUE KEYS", "IMPORTED KEYS"}
+    SCHEMA_KINDS: t.ClassVar = {
+        "OBJECTS",
+        "TABLES",
+        "VIEWS",
+        "SEQUENCES",
+        "UNIQUE KEYS",
+        "IMPORTED KEYS",
+    }
 
-    NON_TABLE_CREATABLES = {"STORAGE INTEGRATION", "TAG", "WAREHOUSE", "STREAMLIT"}
+    NON_TABLE_CREATABLES: t.ClassVar = {"STORAGE INTEGRATION", "TAG", "WAREHOUSE", "STREAMLIT"}
 
     UNDROP_OBJECTS: t.ClassVar[parser.OPTIONS_TYPE] = {
         **dict.fromkeys(
@@ -1049,6 +1063,15 @@ class SnowflakeParser(parser.Parser):
 
         return expression
 
+    def _parse_object_construct_keep_null(self) -> exp.JSONObject:
+        index = self._index
+        column = self._parse_column()
+        if column and column.is_star:
+            return self.expression(exp.JSONObject(expressions=[column]))
+
+        self._retreat(index)
+        return self._parse_json_object(agg=False)
+
     # https://docs.snowflake.com/en/sql-reference/functions/date_part.html
     # https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts
     def _parse_date_part(self) -> exp.Expr | None:
@@ -1126,34 +1149,6 @@ class SnowflakeParser(parser.Parser):
                 is_db_reference=is_db_reference,
                 fast=fast,
             )
-
-        return table
-
-    def _parse_table(
-        self,
-        schema: bool = False,
-        joins: bool = False,
-        alias_tokens: Collection[TokenType] | None = None,
-        parse_bracket: bool = False,
-        is_db_reference: bool = False,
-        parse_partition: bool = False,
-        consume_pipe: bool = False,
-    ) -> exp.Expr | None:
-        table = super()._parse_table(
-            schema=schema,
-            joins=joins,
-            alias_tokens=alias_tokens,
-            parse_bracket=parse_bracket,
-            is_db_reference=is_db_reference,
-            parse_partition=parse_partition,
-        )
-        if isinstance(table, exp.Table) and isinstance(table.this, exp.TableFromRows):
-            table_from_rows = table.this
-            for arg in exp.TableFromRows.arg_types:
-                if arg != "this":
-                    table_from_rows.set(arg, table.args.get(arg))
-
-            table = table_from_rows
 
         return table
 
@@ -1255,12 +1250,12 @@ class SnowflakeParser(parser.Parser):
         return self.expression(exp.Undrop(this=this, kind=kind.name, rename=rename))
 
     def _parse_put(self) -> exp.Put | exp.Command:
-        if self._curr.token_type != TokenType.STRING:
+        if self._curr.token_type not in (TokenType.STRING, TokenType.URI_START):
             return self._parse_as_command(self._prev)
 
         return self.expression(
             exp.Put(
-                this=self._parse_string(),
+                this=self._parse_string() or exp.Literal.string(self._parse_location_path().name),
                 target=self._parse_location_path(),
                 properties=self._parse_properties(),
             )
@@ -1283,6 +1278,16 @@ class SnowflakeParser(parser.Parser):
         return self.expression(
             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())
         )
+
+    def _parse_list_stage(self) -> exp.ListStage:
+        this = self._parse_location_path() if self._curr else None
+        pattern = None
+        if self._match_text_seq("PATTERN", "="):
+            pattern = self._parse_string()
+            if pattern is None:
+                self.raise_error("Expected string after PATTERN =")
+
+        return self.expression(exp.ListStage(this=this, pattern=pattern))
 
     def _parse_location_property(self) -> exp.LocationProperty:
         self._match(TokenType.EQ)
@@ -1392,12 +1397,6 @@ class SnowflakeParser(parser.Parser):
         return cast
 
     def _parse_window(self, this: exp.Expr | None, alias: bool = False) -> exp.Expr | None:
-        if isinstance(this, exp.NthValue):
-            if self._match_text_seq("FROM", "FIRST"):
-                this.set("from_first", True)
-            elif self._match_text_seq("FROM", "LAST"):
-                this.set("from_first", False)
-
         result = super()._parse_window(this, alias)
 
         # Set default window frame for ranking functions if not present

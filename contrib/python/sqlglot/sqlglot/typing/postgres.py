@@ -1,11 +1,80 @@
 from __future__ import annotations
 
+import typing as t
+
 from sqlglot import exp
-from sqlglot.typing import EXPRESSION_METADATA
+from sqlglot.typing import EXPRESSION_METADATA, annotate_int_as_double
+
+if t.TYPE_CHECKING:
+    from sqlglot.optimizer.annotate_types import TypeAnnotator
+
+
+def _annotate_math_function(self: TypeAnnotator, expression: exp.Expr) -> exp.Expr:
+    if expression.this.is_type(exp.DType.FLOAT):
+        return self._set_type(expression, exp.DType.DOUBLE)
+    return annotate_int_as_double(self, expression)
+
 
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
-    # https://www.postgresql.org/docs/current/functions-window.html
-    # NTILE returns integer; other ranking functions return bigint (base default).
-    exp.Ntile: {"returns": exp.DType.INT},
+    **{
+        expr_type: {"returns": exp.DType.INT}
+        for expr_type in {
+            exp.Ntile,
+            exp.WidthBucket,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.TEXT}
+        for expr_type in {
+            exp.Encode,
+            exp.Left,
+            exp.Right,
+            exp.Overlay,
+            exp.Reverse,
+            exp.Pad,
+            exp.Format,
+            exp.Hex,
+            exp.SplitPart,
+            exp.Normalize,
+            exp.RegexpReplace,
+            exp.Replace,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.VARBINARY}
+        for expr_type in {
+            exp.Decode,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.TIME}
+        for expr_type in {
+            exp.TimeFromParts,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.TIMESTAMP}
+        for expr_type in {
+            exp.TimestampFromParts,
+            exp.Localtimestamp,
+        }
+    },
+    **{
+        expr_type: {"annotator": _annotate_math_function}
+        for expr_type in {
+            exp.Ceil,
+            exp.Floor,
+            exp.Sign,
+        }
+    },
+    **{
+        expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
+        for expr_type in {
+            exp.BitwiseAndAgg,
+            exp.BitwiseOrAgg,
+            exp.BitwiseXorAgg,
+        }
+    },
+    exp.ToNumber: {"returns": exp.DType.DECIMAL},
 }

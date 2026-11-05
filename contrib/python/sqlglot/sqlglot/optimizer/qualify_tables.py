@@ -107,14 +107,35 @@ def qualify_tables(
         if scope:
             scope.rename_source(None, new_alias_name)
 
-    for scope in traverse_scope(expression):
+    # Expanding join constructs exposes new sources, including nested join constructs that only
+    # become derived tables afterwards, so the scopes are rebuilt until nothing else is expanded
+    # (a list is used so that every construct in a pass expands before the rebuild)
+    scopes = traverse_scope(expression)
+    while any([_expand_join_construct(d) for scope in scopes for d in scope.derived_tables]):
+        scopes = traverse_scope(expression)
+
+    for scope in scopes:
+        parent = scope.parent
         local_columns = scope.local_columns
         canonical_aliases: dict[str, str] = {}
 
-        for query in scope.subqueries:
+        queries: list[exp.Expr] = list(scope.subqueries)
+
+        # Subquery wrappers around a DML / DDL query fragment, e.g., a CREATE FUNCTION body or
+        # an UPDATE's SET subquery, don't belong to any scope, so they aren't collected above
+        if scope.is_root and isinstance(scope.expression, exp.Subquery):
+            queries.append(scope.expression.unnest())
+        elif scope.is_subquery:
+            queries.append(scope.expression)
+
+        for query in queries:
             subquery = query.parent
             if isinstance(subquery, exp.Subquery):
                 unwrapped = subquery.unwrap()
+                if isinstance(unwrapped.parent, (exp.From, exp.Join)):
+                    # We can reach this from a wrapped derived table, which must keep its alias
+                    continue
+
                 if isinstance(unwrapped.parent, exp.Create) and unwrapped is not subquery:
                     # Function bodies may require wrapping parentheses, e.g. in BigQuery
                     # `... AS ((SELECT 1))` the outer parens delimit the body itself
@@ -123,13 +144,6 @@ def qualify_tables(
                     unwrapped.replace(subquery)
 
         for derived_table in scope.derived_tables:
-            unnested = derived_table.unnest()
-            if isinstance(unnested, exp.Table):
-                joins = unnested.args.get("joins")
-                unnested.set("joins", None)
-                derived_table.this.replace(exp.select("*").from_(unnested.copy(), copy=False))
-                derived_table.this.set("joins", joins)
-
             _set_alias(derived_table, canonical_aliases, scope=scope)
             if pivot := seq_get(derived_table.args.get("pivots") or [], -1):
                 _set_alias(pivot, canonical_aliases)
@@ -137,6 +151,12 @@ def qualify_tables(
         table_aliases = {}
 
         for name, source in scope.sources.items():
+            # A source can appear in many scopes, e.g. as a lateral source of a UDTF scope or as a CTE
+            # propagated to inner scopes. Deferring to the parent scope when it contains the same source
+            # ensures each source is processed once, in the outermost scope that contains it
+            if parent and parent.sources.get(name) is source:
+                continue
+
             if isinstance(source, exp.Table):
                 # When the name is empty, it means that we have a non-table source, e.g. a pivoted cte
                 is_real_table_source = bool(name)
@@ -196,6 +216,19 @@ def qualify_tables(
                         for i in dialect.generate_values_aliases(udtf)
                     ]
                     table_alias.set("columns", column_aliases)
+                elif (
+                    isinstance(udtf, exp.TableFromRows)
+                    or (isinstance(udtf, exp.Lateral) and isinstance(udtf.this, exp.UDTF))
+                ) and not table_alias.columns:
+                    default_columns = dialect.DEFAULT_FUNCTIONS_COLUMN_NAMES.get(type(udtf.this))
+                    if default_columns:
+                        table_alias.set(
+                            "columns",
+                            [
+                                normalize_identifiers(exp.to_identifier(c), dialect=dialect)
+                                for c in ensure_list(default_columns)
+                            ],
+                        )
 
         for table in scope.tables:
             if not table.alias and isinstance(table.parent, (exp.From, exp.Join)):
@@ -215,9 +248,34 @@ def qualify_tables(
             elif (
                 canonical_aliases
                 and column_table
-                and (canonical_table := canonical_aliases.get(column_table, "")) != column_table
+                and (canonical_table := canonical_aliases.get(column_table))
+                and canonical_table != column_table
             ):
                 # Amend existing aliases, e.g. t.c -> _0.c if t is aliased to _0
                 column.set("table", exp.to_identifier(canonical_table))
 
     return expression
+
+
+def _expand_join_construct(derived_table: exp.Subquery) -> bool:
+    # Expands e.g. ((a JOIN b) JOIN c) AS j into a SELECT *, collecting the joins of every
+    # unaliased wrapper
+    source = derived_table.this
+    joins: list[exp.Expr] = []
+    while isinstance(source, (exp.Subquery, exp.Table)):
+        joins[:0] = source.args.get("joins") or []
+        if (
+            isinstance(source, exp.Table)
+            or source.alias
+            or not isinstance(source.this, (exp.Subquery, exp.Table))
+        ):
+            break
+        source = source.this
+
+    if isinstance(source, exp.Table) or joins:
+        source.set("joins", None)
+        derived_table.this.replace(exp.select("*").from_(source.copy(), copy=False))
+        derived_table.this.set("joins", joins or None)
+        return True
+
+    return False

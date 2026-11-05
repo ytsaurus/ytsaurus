@@ -80,6 +80,18 @@ def _annotate_compress(self: TypeAnnotator, expression: exp.Compress) -> exp.Exp
     return self._set_type(expression, exp.DType.UNKNOWN)
 
 
+def _annotate_bit_func(self: TypeAnnotator, expression: exp.Expression) -> exp.Expr:
+    this = expression.this
+
+    if this.is_type(exp.DType.UNKNOWN):
+        return self._set_type(expression, exp.DType.UNKNOWN)
+
+    if this.is_type(*exp.DataType.BINARY_TYPES):
+        return self._set_type(expression, exp.DType.VARBINARY)
+
+    return self._set_type(expression, exp.DType.UBIGINT)
+
+
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
     **{
@@ -117,6 +129,8 @@ EXPRESSION_METADATA = {
             exp.SubstringIndex,
             exp.RegexpSubstr,
             exp.Collation,
+            exp.JSONType,
+            exp.Uuid,
         }
     },
     **{
@@ -132,6 +146,7 @@ EXPRESSION_METADATA = {
         expr_type: {"returns": exp.DType.BIGINT}
         for expr_type in {
             exp.RegexpInstr,
+            exp.Grouping,
         }
     },
     **{
@@ -148,11 +163,40 @@ EXPRESSION_METADATA = {
         }
     },
     **{
+        expr_type: {"returns": exp.DType.JSON}
+        for expr_type in {
+            exp.JSONObjectAgg,
+            exp.JSONObject,
+            exp.JSONExtract,
+            exp.JSONKeys,
+            exp.JSONArrayAppend,
+            exp.JSONArrayInsert,
+            exp.JSONRemove,
+            exp.JSONSet,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.LONGTEXT}
+        for expr_type in {
+            exp.CurrentRole,
+        }
+    },
+    **{
         expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
         for expr_type in {
             exp.Pad,
             exp.Left,
             exp.Right,
+            exp.Lead,
+            exp.Lag,
+        }
+    },
+    **{
+        expr_type: {"annotator": _annotate_bit_func}
+        for expr_type in {
+            exp.BitwiseAndAgg,
+            exp.BitwiseXorAgg,
+            exp.BitwiseOrAgg,
         }
     },
     exp.Reverse: {"annotator": _annotate_reverse},

@@ -4,6 +4,7 @@ from sqlglot import tokens
 from sqlglot.dialects.dialect import (
     Dialect,
     NormalizationStrategy,
+    UsingColumnOrder,
 )
 from sqlglot.generators.mysql import MySQLGenerator
 from sqlglot.parsers.mysql import MySQLParser
@@ -13,6 +14,7 @@ from sqlglot.typing.mysql import EXPRESSION_METADATA
 
 class MySQL(Dialect):
     PROMOTE_TO_INFERRED_DATETIME_TYPE = True
+    USING_COLUMN_ORDER = UsingColumnOrder.LEFT_TABLE
 
     # https://dev.mysql.com/doc/refman/8.0/en/identifiers.html
     IDENTIFIERS_CAN_START_WITH_DIGIT = True
@@ -26,6 +28,7 @@ class MySQL(Dialect):
 
     TIME_FORMAT = "'%Y-%m-%d %T'"
     DPIPE_IS_STRING_CONCAT = False
+    CONCAT_WS_COALESCE = True
     SUPPORTS_USER_DEFINED_TYPES = False
     SAFE_DIVISION = True
     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = False
@@ -44,8 +47,11 @@ class MySQL(Dialect):
         "%u": "%W",
         "%k": "%-H",
         "%l": "%-I",
+        "%r": "%I:%M:%S %p",
         "%T": "%H:%M:%S",
         "%W": "%A",
+        "%x": "%G",
+        # %v (ISO week) is unmapped due to collision with %V (roundtrip issue)
     }
 
     VALID_INTERVAL_UNITS = {
@@ -63,6 +69,16 @@ class MySQL(Dialect):
         "YEAR_MONTH",
     }
 
+    UNESCAPED_SEQUENCES = {
+        "\\0": "\0",
+        "\\Z": "\x1a",
+        "\\%": "\\%",
+        "\\_": "\\_",
+        "\\a": "a",
+        "\\f": "f",
+        "\\v": "v",
+    }
+
     class Tokenizer(tokens.Tokenizer):
         QUOTES = ["'", '"']
         COMMENTS = ["--", "#", ("/*", "*/")]
@@ -71,9 +87,11 @@ class MySQL(Dialect):
         BIT_STRINGS = [("b'", "'"), ("B'", "'"), ("0b", "")]
         HEX_STRINGS = [("x'", "'"), ("X'", "'"), ("0x", "")]
         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html
-        ESCAPE_FOLLOW_CHARS = ["0", "b", "n", "r", "t", "Z", "%", "_"]
+        DROP_UNKNOWN_ESCAPES = True
 
         NESTED_COMMENTS = False
+        DASH_COMMENT_REQUIRES_BOUNDARY = True
+        COMMENTS_TERMINATE_AT_NEWLINE_ONLY = True
 
         KEYWORDS = {
             **tokens.Tokenizer.KEYWORDS,
