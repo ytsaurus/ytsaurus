@@ -114,6 +114,11 @@
         "min_langver":"2026.01",
         "is_backport_allowed": true
     },
+    "YtAlterTable": {
+        "description": "ALTER TABLE for yt",
+        "min_langver": "2026.03",
+        "is_backport_allowed": true
+    },
     "YtCreateView": {
         "description": "CREATE VIEW",
         "min_langver": "2025.05",
