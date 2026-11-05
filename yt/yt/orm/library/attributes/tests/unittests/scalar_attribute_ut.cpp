@@ -1253,12 +1253,15 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST(TScalarAttributeEqualityTest, RepeatedYsonString)
 {
-    const std::vector<NYson::TYsonString> lhs{
-        NYson::TYsonString(TStringBuf("{value=1;}")),
-        NYson::TYsonString(TStringBuf("[2;3;]")),
+    auto makeValues = [] {
+        return std::vector<NYson::TYsonString>{
+            NYson::TYsonString(TStringBuf("{value=1;}")),
+            NYson::TYsonString(TStringBuf("[2;3;]")),
+        };
     };
-    const auto equal = lhs;
-    auto different = lhs;
+    const auto lhs = makeValues();
+    const auto equal = makeValues();
+    auto different = makeValues();
     different[1] = NYson::TYsonString(TStringBuf("[2;4;]"));
 
     EXPECT_TRUE(AreScalarAttributesEqual(lhs, equal));
