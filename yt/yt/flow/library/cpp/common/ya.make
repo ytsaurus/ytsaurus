@@ -43,6 +43,7 @@ SRCS(
     resource_controller.cpp
     resource_manager.cpp
     resource_status.cpp
+    runtime_init_context.cpp
     schema.cpp
     select_literals.cpp
     time_provider.cpp

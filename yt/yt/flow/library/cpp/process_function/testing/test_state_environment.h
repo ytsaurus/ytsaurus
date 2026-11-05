@@ -96,7 +96,8 @@ public:
     void PreloadEpoch(const IInputContextPtr& input);
 
     //! Commits internal state and every registered external store, ending an epoch. |enrollSync|,
-    //! if given, is offered each store's transaction to enroll end-of-epoch writes.
+    //! if given, runs once before state is synchronized and joiners are reset, using the first
+    //! store's transaction or a test transaction when there are no stores.
     void CommitEpoch(const std::function<void(const IRetryableTransactionPtr&)>& enrollSync = {});
 
     //! Registers a commit run by CommitEpoch. The callback receives the epoch's transaction and
@@ -123,7 +124,8 @@ public:
         NTableClient::TTableSchemaPtr keySchema = nullptr);
 
     //! Registers an arbitrary external state joiner under |name| (the name the function passes
-    //! to InitExternalStateClient for a read-only TJoinedStateKeyClient).
+    //! to InitExternalStateClient for a read-only TJoinedStateKeyClient). Preload is manual;
+    //! Sync and CommitEpoch reset the joiner.
     void RegisterExternalStateJoiner(TStringBuf name, IExternalStateJoinerPtr joiner);
 
     //! Convenience over RegisterExternalStateJoiner: builds an in-memory simple joiner and

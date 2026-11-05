@@ -6,6 +6,7 @@
 #include <yt/yt/flow/library/cpp/computation/stores/timer_store.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
+#include <yt/yt/flow/library/cpp/process_function/testing/in_memory_external_state_manager.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/process_function_graph_test_harness.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/recording_output_collector.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/test_runtime_context.h>
@@ -619,6 +620,106 @@ public:
     }
 };
 
+class TGraphManualJoinFunction
+    : public IBatchProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        StateName_ = context->WithPrefix("/status")->GetPrefix();
+        context->InitExternalStateClient(Status_, "/status");
+    }
+
+    void Process(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        EXPECT_TRUE(context->GetSpec()->ExternalStateJoiners.contains(StateName_));
+        THashSet<TKey> keys;
+        for (const auto& message : input->GetMessages()) {
+            keys.insert(GetOfferKey(message));
+        }
+
+        NConcurrency::WaitFor(Status_.PreloadKeyStates(keys))
+            .ThrowOnError();
+
+        for (const auto& message : input->GetMessages()) {
+            auto state = Status_.GetState(GetOfferKey(message));
+            GetObserved().push_back(state->IsEmpty() ? -1 : state->GetColumnValue<i64>("status"));
+            auto builder = context->MakeOutputMessageBuilder();
+            builder.Payload().Set(GetColumnValue<ui64>(message, "key"), "key");
+            output->SetParents({message}, {}, {})->AddMessage(builder.Finish());
+        }
+    }
+
+    static std::vector<i64>& GetObserved()
+    {
+        static std::vector<i64> Values;
+        return Values;
+    }
+
+private:
+    TJoinedStateKeyClient<TSimpleExternalState> Status_;
+    std::string StateName_;
+
+    static TKey GetOfferKey(const TInputMessageConstPtr& message)
+    {
+        return MakeKey(Format("offer_%v", GetColumnValue<ui64>(message, "key")));
+    }
+};
+
+class TStrictGraphJoiner
+    : public TInMemorySimpleExternalStateJoiner
+{
+public:
+    std::vector<THashSet<TKey>> Preloads;
+    int ResetCount = 0;
+    bool FailPreload = false;
+
+    explicit TStrictGraphJoiner(TTableSchemaPtr keySchema)
+        : TInMemorySimpleExternalStateJoiner(
+            ConvertTo<TTableSchemaPtr>(NYson::TYsonStringBuf("[{name=status;type=int64;}]")),
+            std::move(keySchema))
+    { }
+
+    TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override
+    {
+        Preloads.push_back(keys);
+
+        if (FailPreload) {
+            return MakeFuture<void>(TError("Lookup failed"));
+        }
+
+        Loaded_.insert(keys.begin(), keys.end());
+        return OKFuture;
+    }
+
+    IStateHolderPtr GetState(const TKey& key) override
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(Loaded_.contains(key), "Key was not preloaded");
+
+        return TInMemorySimpleExternalStateJoiner::GetState(key);
+    }
+
+    void Reset() override
+    {
+        ++ResetCount;
+        Loaded_.clear();
+    }
+
+    void SetStatus(ui64 offerId, i64 status)
+    {
+        auto holder = GetMutableState(MakeKey(Format("offer_%v", offerId)));
+        TPayloadBuilder builder(holder->Get().Schema);
+        builder.Set(status, "status");
+        holder->Get().Payload = builder.Finish();
+    }
+
+private:
+    THashSet<TKey> Loaded_;
+};
+
 YT_FLOW_DEFINE_PROCESS_FUNCTION(
     TGraphCounterFunction,
     TGraphCounterParameters,
@@ -646,6 +747,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFailingInitFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphKeyProbeFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSpecProbeFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFilterFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphManualJoinFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,6 +792,7 @@ std::string SubstituteFunctions(TStringBuf yson)
     SubstGlobal(result, "$key_probe", TypeName<TGraphKeyProbeFunction>());
     SubstGlobal(result, "$spec_probe", TypeName<TGraphSpecProbeFunction>());
     SubstGlobal(result, "$filter", TypeName<TGraphFilterFunction>());
+    SubstGlobal(result, "$manual_join", TypeName<TGraphManualJoinFunction>());
     return result;
 }
 
@@ -2642,6 +2745,148 @@ TEST(TProcessFunctionGraphTestHarnessTest, SourceGraphExportsMessagesItDoesNotDi
             {TStreamId("result"), 8, true},
             {TStreamId("relayed"), 8, true},
                        }));
+}
+
+TTableSchemaPtr MakeOfferKeySchema()
+{
+    return ConvertTo<TTableSchemaPtr>(NYson::TYsonStringBuf(
+        "[{name=offer_id;type=string;sort_order=ascending;required=%true;}]"));
+}
+
+TComputationSpecPtr MakeManualJoinComputation(TStringBuf host)
+{
+    auto computation = ConvertTo<TComputationSpecPtr>(ParseYson(SourceGraphComputation));
+    computation->ComputationClassName = Format("NYT::NFlow::%v", host);
+    if (host != "TProcessFunctionSourceComputation") {
+        computation->SourceStreams.clear();
+        computation->InputStreamIds = {"queue"};
+        computation->GroupBySchema = DefaultTestKeySchema();
+    }
+
+    for (const auto* nodeId : {"split", "probe"}) {
+        GetOrCrash(computation->ProcessFunctionGraph->Nodes, nodeId)->ProcessingFunction = TypeName<TGraphManualJoinFunction>();
+        auto joiner = New<TExternalStateJoinerSpec>();
+        joiner->AutoPreload = false;
+        joiner->JoinOn->KeySchemaOverride = MakeOfferKeySchema();
+        joiner->Parameters = ConvertTo<IMapNodePtr>(NYson::TYsonStringBuf("{path=\"//statuses\";}"));
+        computation->ExternalStateJoiners[Format("/functions/%v/status", nodeId)] = joiner;
+    }
+
+    return computation;
+}
+
+TEST(TProcessFunctionGraphSpecTest, RequiresManualExternalJoinerPreload)
+{
+    for (TStringBuf host : {"TProcessFunctionComputation", "TProcessFunctionSwiftMapComputation", "TProcessFunctionSourceComputation"}) {
+        SCOPED_TRACE(host);
+        auto pipeline = MakeSourceGraphPipeline();
+        pipeline->Streams["queue"] = MakeStreamSpec();
+        pipeline->Computations["source"] = MakeManualJoinComputation(host);
+        auto& computation = GetOrCrash(pipeline->Computations, TComputationId("source"));
+        GetOrCrash(computation->ExternalStateJoiners, "/functions/split/status")->AutoPreload = true;
+        EXPECT_THROW_WITH_SUBSTRING(ResolveProcessFunctionGraphs(pipeline), "requires \"auto_preload\" = false");
+        EXPECT_TRUE(computation->ProcessFunctionGraph);
+        GetOrCrash(computation->ExternalStateJoiners, "/functions/split/status")->AutoPreload = false;
+        EXPECT_NO_THROW(ResolveProcessFunctionGraphs(pipeline));
+        EXPECT_NO_THROW(ValidateProcessFunctionGraphComputation(pipeline, TComputationId("source"), computation));
+        GetOrCrash(computation->ExternalStateJoiners, "/functions/split/status")->AutoPreload = true;
+        EXPECT_THROW_WITH_SUBSTRING(
+            ValidateProcessFunctionGraphComputation(pipeline, TComputationId("source"), computation),
+            "requires \"auto_preload\" = false");
+    }
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, ManualJoinersLoadAdHocKeysOncePerNodeAndEpoch)
+{
+    for (TStringBuf host : {"TProcessFunctionComputation", "TProcessFunctionSwiftMapComputation", "TProcessFunctionSourceComputation"}) {
+        SCOPED_TRACE(host);
+        TTestStateEnvironment environment;
+        auto first = New<TStrictGraphJoiner>(MakeOfferKeySchema());
+        auto second = New<TStrictGraphJoiner>(MakeOfferKeySchema());
+        environment.RegisterExternalStateJoiner("/functions/split/status", first);
+        environment.RegisterExternalStateJoiner("/functions/probe/status", second);
+        first->SetStatus(7, 10);
+        second->SetStatus(7, 20);
+
+        TProcessFunctionGraphTestHarness harness(environment, MakeManualJoinComputation(host));
+        harness.RegisterStream("queue", MakeTestPayloadSchema());
+        for (const auto& streamId : SourceGraphStreams) {
+            harness.RegisterStream(TStreamId(streamId), MakeTestPayloadSchema());
+        }
+
+        std::vector<TInputMessageConstPtr> messages;
+        for (ui64 value : {7, 7, 8}) {
+            auto key = MakeKey<ui64>(host == "TProcessFunctionSourceComputation" ? ui64{100} : ui64{value});
+            messages.push_back(harness.MakeMessage("queue", key, [=] (TMessageBuilder& builder) {
+                builder.Payload().Set(value, "key");
+            }));
+        }
+
+        std::vector<TMessageId> previousIds;
+        for (int epoch = 0; epoch < 2; ++epoch) {
+            SCOPED_TRACE(epoch);
+            TGraphManualJoinFunction::GetObserved().clear();
+            harness.RunEpoch(messages);
+            EXPECT_EQ(TGraphManualJoinFunction::GetObserved(), (std::vector<i64>{10 + epoch, 10 + epoch, -1, 20, 20, -1}));
+
+            for (const auto& joiner : {first, second}) {
+                ASSERT_EQ(joiner->Preloads.size(), epoch + 1u);
+                EXPECT_EQ(joiner->Preloads.back(), (THashSet<TKey>{MakeKey<std::string>("offer_7"), MakeKey<std::string>("offer_8")}));
+                EXPECT_EQ(joiner->ResetCount, epoch + 1);
+                EXPECT_THROW_WITH_SUBSTRING(joiner->GetState(MakeKey<std::string>("offer_7")), "not preloaded");
+            }
+
+            ASSERT_EQ(harness.GetMessages().size(), messages.size());
+            std::vector<TMessageId> ids;
+            for (int index = 0; index < std::ssize(messages); ++index) {
+                const auto& result = harness.GetMessages()[index];
+                EXPECT_EQ(result.ParentIds, std::vector<TMessageId>{messages[index]->MessageId});
+                ids.push_back(result.Message.MessageId);
+            }
+
+            if (host != "TProcessFunctionComputation" && !previousIds.empty()) {
+                EXPECT_EQ(ids, previousIds);
+            }
+
+            previousIds = std::move(ids);
+            first->SetStatus(7, 11);
+        }
+
+        TGraphManualJoinFunction::GetObserved().clear();
+        harness.RunEpoch({});
+        EXPECT_TRUE(harness.GetMessages().empty());
+        EXPECT_TRUE(TGraphManualJoinFunction::GetObserved().empty());
+        EXPECT_TRUE(first->Preloads.back().empty());
+        EXPECT_TRUE(second->Preloads.back().empty());
+    }
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, ManualJoinerErrorsStopTheNode)
+{
+    for (TStringBuf error : {"lookup", "schema", "missing"}) {
+        SCOPED_TRACE(error);
+        TTestStateEnvironment environment;
+        auto first = New<TStrictGraphJoiner>(error == "schema" ? DefaultTestKeySchema() : MakeOfferKeySchema());
+        auto second = New<TStrictGraphJoiner>(MakeOfferKeySchema());
+        first->FailPreload = error == "lookup";
+        if (error != "missing") {
+            environment.RegisterExternalStateJoiner("/functions/split/status", first);
+        }
+
+        environment.RegisterExternalStateJoiner("/functions/probe/status", second);
+        TProcessFunctionGraphTestHarness harness(environment, MakeManualJoinComputation("TProcessFunctionSourceComputation"));
+        harness.RegisterStream("queue", MakeTestPayloadSchema());
+        for (const auto& streamId : SourceGraphStreams) {
+            harness.RegisterStream(TStreamId(streamId), MakeTestPayloadSchema());
+        }
+
+        TGraphManualJoinFunction::GetObserved().clear();
+        EXPECT_THROW_WITH_SUBSTRING(harness.RunEpoch({MakeSourceMessage(harness, 7)}), "split");
+        EXPECT_TRUE(TGraphManualJoinFunction::GetObserved().empty());
+        EXPECT_TRUE(second->Preloads.empty());
+        EXPECT_TRUE(harness.GetMessages().empty());
+        EXPECT_EQ(first->ResetCount, 0);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

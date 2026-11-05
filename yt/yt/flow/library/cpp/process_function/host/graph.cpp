@@ -165,9 +165,9 @@ protected:
         THROW_ERROR_EXCEPTION("External state managers are not supported inside a process function graph");
     }
 
-    IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& /*name*/) const override
+    IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override
     {
-        THROW_ERROR_EXCEPTION("External state joiners are not supported inside a process function graph");
+        return ForwardExternalStateJoiner(Underlying_, name);
     }
 
 private:
@@ -219,6 +219,7 @@ TComputationSpecPtr BuildNodeView(
     view->ProcessingFunction = node->ProcessingFunction;
     view->ProcessingFunctionParameters = node->ProcessingFunctionParameters;
     view->GroupBySchema = computation->GroupBySchema;
+    view->ExternalStateJoiners = computation->ExternalStateJoiners;
     view->InputStreamIds = node->InputStreamIds;
     view->OutputStreamIds = node->OutputStreamIds;
     // A node sees the sources it reads and the sinks of the streams it writes, as a function hosted alone would.
