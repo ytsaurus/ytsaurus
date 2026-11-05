@@ -85,19 +85,26 @@ private:
         return result;
     }
 
-    TVersionedPipelineSpecPtr GetPipelineSpec() override
+    NYTree::INodePtr GetPipelineSpecNode() override
     {
-        return FlowView_->CurrentSpec;
+        return NYTree::ConvertToNode(FlowView_->CurrentSpec);
     }
 
-    TVersionedDynamicPipelineSpecPtr GetPipelineDynamicSpec() override
+    NYTree::INodePtr GetPipelineDynamicSpecNode() override
     {
-        return FlowView_->CurrentDynamicSpec;
+        return NYTree::ConvertToNode(FlowView_->CurrentDynamicSpec);
     }
 
     TVersionedFlowCoreTargetPtr GetFlowCoreTarget() override
     {
         return FlowView_->State->ExecutionSpec->FlowCoreTarget;
+    }
+
+    EPipelineState GetPipelineState() override
+    {
+        return FlowView_->IsSynced()
+            ? FlowView_->State->ExecutionSpec->PipelineState->GetValue()
+            : EPipelineState::Unknown;
     }
 
     TFlowViewPtr GetDescribeFlowView() override

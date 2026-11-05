@@ -26,6 +26,7 @@
 #include <yt/yt/flow/library/cpp/misc/deploy_url_provider.h>
 
 #include <util/random/random.h>
+#include <util/system/type_name.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -70,6 +71,64 @@ using namespace NYson;
 
 DEFINE_REFCOUNTED_TYPE(IFlowExecutor);
 DEFINE_REFCOUNTED_TYPE(IFlowExecutorRuntime);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The state rule allows Stopped, Paused with force=true, and Unknown (controller has not yet
+// observed the pipeline, e.g. first-time spec set). A dynamic-only change is allowed in any state.
+// TODO(pechatnov): Tighten Unknown handling once the pipeline-creation flow is clarified.
+void ValidatePipelineSafeForSpecUpdate(const TObservedPipelineState& observed, bool staticSpecChanged, bool force)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(observed.Synced, "FlowView is not synced");
+
+    if (!staticSpecChanged) {
+        return;
+    }
+
+    const auto state = observed.State;
+    if (state == EPipelineState::Stopped || state == EPipelineState::Unknown) {
+        return;
+    }
+
+    if (state == EPipelineState::Paused && force) {
+        return;
+    }
+
+    if (state == EPipelineState::Completed) {
+        THROW_ERROR_EXCEPTION("Cannot modify pipeline spec in %Qlv state; recreate the pipeline to recover",
+            state);
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot modify pipeline spec while pipeline is %Qlv; stop the pipeline first%v",
+        state,
+        state == EPipelineState::Paused
+            ? " (or pass force=true to apply on a paused pipeline)"
+            : "");
+}
+
+void ValidatePipelineSafeForFlowCoreTargetUpdate(const TObservedPipelineState& observed, bool allowOnPause)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(observed.Synced, "FlowView is not synced");
+
+    const auto state = observed.State;
+    switch (state) {
+        case EPipelineState::Stopped:
+        case EPipelineState::Unknown:
+            break;
+
+        case EPipelineState::Paused:
+            if (!allowOnPause) {
+                THROW_ERROR_EXCEPTION("Cannot update FlowCoreTarget in state %Qlv: stop the pipeline first, or pass 'allow_update_on_pause=true' if you intend to update the pipeline in Paused state (allowed states: Stopped, Paused with 'allow_update_on_pause=true')",
+                    state);
+            }
+
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Cannot update FlowCoreTarget in state %Qlv: stop the pipeline first (allowed states: Stopped, Paused with 'allow_update_on_pause=true')",
+                state);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +406,30 @@ void TFlowExecutor::AuthorizeCommand(
     Runtime_->AuthorizeCommand(descriptor.RequiredPermission, user);
 }
 
+//! Returns the value and the version of the persisted versioned spec |versionedSpecNode|; for a spec
+//! that cannot be parsed, returns the raw stored value, so that it can still be viewed.
+template <class TVersionedSpec>
+std::pair<INodePtr, TVersion> ReadVersionedSpec(const INodePtr& versionedSpecNode)
+{
+    const auto& Logger = ControllerLogger();
+
+    if (!versionedSpecNode) {
+        auto spec = New<TVersionedSpec>();
+        return {ConvertToNode(spec->GetValue()), spec->GetVersion()};
+    }
+
+    try {
+        auto spec = ConvertTo<TIntrusivePtr<TVersionedSpec>>(versionedSpecNode);
+        return {ConvertToNode(spec->GetValue()), spec->GetVersion()};
+    } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Persisted spec cannot be parsed, returning its raw value")
+            .With("Type", TypeName<TVersionedSpec>())
+            .With(ex);
+
+        return {versionedSpecNode->AsMap()->GetChildOrThrow("value"), ReadRawVersion(versionedSpecNode)};
+    }
+}
+
 TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
 {
     return Runtime_->GetFlowView(argument);
@@ -355,11 +438,10 @@ TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
 TGetPipelineDynamicSpecResult TFlowExecutor::GetPipelineDynamicSpec(
     const TGetPipelineDynamicSpecArg& argument)
 {
-    auto versionedSpec = Runtime_->GetPipelineDynamicSpec();
-    auto specNode = ConvertToNode(versionedSpec->GetValue());
+    auto [specNode, version] = ReadVersionedSpec<TVersionedDynamicPipelineSpec>(Runtime_->GetPipelineDynamicSpecNode());
     TGetPipelineDynamicSpecResult result;
     result.Spec = GetNodeByYPath(specNode, TYPath(argument.Path));
-    result.Version = versionedSpec->GetVersion();
+    result.Version = version;
     return result;
 }
 
@@ -370,11 +452,10 @@ TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPi
 
 TGetPipelineSpecResult TFlowExecutor::GetPipelineSpec(const TGetPipelineSpecArg& argument)
 {
-    auto versionedSpec = Runtime_->GetPipelineSpec();
-    auto specNode = ConvertToNode(versionedSpec->GetValue());
+    auto [specNode, version] = ReadVersionedSpec<TVersionedPipelineSpec>(Runtime_->GetPipelineSpecNode());
     TGetPipelineSpecResult result;
     result.Spec = GetNodeByYPath(specNode, TYPath(argument.Path));
-    result.Version = versionedSpec->GetVersion();
+    result.Version = version;
     return result;
 }
 
@@ -390,11 +471,8 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
 
 TGetPipelineStateResult TFlowExecutor::GetPipelineState(const TGetPipelineStateArg& /*argument*/)
 {
-    auto flowView = Runtime_->GetDescribeFlowView();
     TGetPipelineStateResult result;
-    result.PipelineState = flowView->IsSynced()
-        ? flowView->State->ExecutionSpec->PipelineState->GetValue()
-        : EPipelineState::Unknown;
+    result.PipelineState = Runtime_->GetPipelineState();
     return result;
 }
 
@@ -506,9 +584,13 @@ private:
     //! from the dynamic spec. The full cached view is served from the keeper's pre-compressed blob.
     TGetFlowViewV2Result GetFlowViewV2(const TGetFlowViewV2Arg& argument) override;
 
-    TVersionedPipelineSpecPtr GetPipelineSpec() override;
-    TVersionedDynamicPipelineSpecPtr GetPipelineDynamicSpec() override;
+    INodePtr GetPipelineSpecNode() override;
+    INodePtr GetPipelineDynamicSpecNode() override;
     TVersionedFlowCoreTargetPtr GetFlowCoreTarget() override;
+    EPipelineState GetPipelineState() override;
+
+    //! Reads the in-memory FlowView when the keeper is initialized, the persisted state otherwise.
+    TObservedPipelineState ObservePipelineState();
 
     TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) override;
     //! One attempt of #SetPipelineDynamicSpec, without the conflict retries.
@@ -586,9 +668,9 @@ TDuration GetSpecUpdateRetryDelay(TDuration period, int attempt)
     return backoff / 2 + TDuration::MicroSeconds(RandomNumber<ui64>(backoff.MicroSeconds() + 1));
 }
 
-TVersionedDynamicPipelineSpecPtr TLiveFlowExecutorRuntime::GetPipelineDynamicSpec()
+INodePtr TLiveFlowExecutorRuntime::GetPipelineDynamicSpecNode()
 {
-    return PersistedStateManager_->RecoverDynamicSpec();
+    return PersistedStateManager_->RecoverDynamicSpecNode();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -646,42 +728,12 @@ TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec
     return result;
 }
 
-TVersionedPipelineSpecPtr TLiveFlowExecutorRuntime::GetPipelineSpec()
+INodePtr TLiveFlowExecutorRuntime::GetPipelineSpecNode()
 {
-    return PersistedStateManager_->RecoverSpec();
+    return PersistedStateManager_->RecoverSpecNode();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Gate for spec updates: allows Stopped/Completed, Paused with force=true,
-// and Unknown (controller has not yet observed the pipeline, e.g. first-time spec set).
-// TODO: tighten Unknown handling once the pipeline-creation flow is clarified.
-void CheckPipelineSafeForSpecUpdate(
-    const TFlowViewKeeperPtr& keeper,
-    bool force)
-{
-    auto flowView = keeper->GetFlowView();
-    flowView->EnsureIsSynced();
-
-    const auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
-    if (state == EPipelineState::Stopped || state == EPipelineState::Unknown) {
-        return;
-    }
-    if (state == EPipelineState::Paused && force) {
-        return;
-    }
-    if (state == EPipelineState::Completed) {
-        THROW_ERROR_EXCEPTION(
-            "Cannot modify pipeline spec; pipeline is in Completed state. "
-            "Recreate the pipeline to recover");
-    }
-    THROW_ERROR_EXCEPTION(
-        "Cannot modify pipeline spec while pipeline is %Qlv; stop the pipeline first%v",
-        state,
-        state == EPipelineState::Paused
-            ? " (or pass force=true to apply on a paused pipeline)"
-            : "");
-}
 
 // Gate for state-accessor mutations: allows Stopped/Completed, or Paused with force=true.
 // Unknown is rejected: we must observe the pipeline before touching its state.
@@ -729,6 +781,56 @@ TSetPipelineSpecResult TLiveFlowExecutorRuntime::SetPipelineSpec(const TSetPipel
     return result;
 }
 
+namespace {
+
+//! Returns the spec from |persistedVersionedSpecNode| updated with |newSpecValueNode|. An unparsable
+//! |persistedVersionedSpecNode| is accepted only when |newSpecValueNode| replaces it.
+template <class TSpecValue>
+TIntrusivePtr<TVersionedValue<TSpecValue>> PrepareSpecUpdate(
+    const INodePtr& persistedVersionedSpecNode,
+    const std::optional<INodePtr>& newSpecValueNode,
+    const IVersionProviderPtr& versionProvider,
+    const NLogging::TLogger& logger)
+{
+    using TVersionedSpec = TVersionedValue<TSpecValue>;
+    const auto& Logger = logger;
+
+    TIntrusivePtr<TVersionedSpec> spec;
+    bool replacesUnparsable = false;
+    if (!persistedVersionedSpecNode) {
+        spec = New<TVersionedSpec>();
+    } else {
+        try {
+            spec = ConvertTo<TIntrusivePtr<TVersionedSpec>>(persistedVersionedSpecNode);
+        } catch (const std::exception& ex) {
+            if (!newSpecValueNode) {
+                throw;
+            }
+
+            YT_TLOG_WARNING("Persisted spec cannot be parsed, replacing it with the requested one")
+                .With("Type", TypeName<TVersionedSpec>())
+                .With(ex);
+
+            spec = New<TVersionedSpec>();
+            replacesUnparsable = true;
+        }
+    }
+
+    if (newSpecValueNode) {
+        auto changed = spec->TrySetValue(ConvertTo<TSpecValue>(*newSpecValueNode), versionProvider);
+        // The unparsable persisted row must be replaced even by a default value.
+        if (!changed && replacesUnparsable) {
+            spec->Bump(versionProvider);
+        }
+    }
+
+    return spec;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPipelineSpecsArg& argument)
 {
     // At least one spec must be specified.
@@ -742,14 +844,22 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
         try {
             auto specUpdateGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&SpecUpdateLock_))
                 .ValueOrThrow();
-            auto spec = PersistedStateManager_->RecoverSpec();
-            auto dynamicSpec = PersistedStateManager_->RecoverDynamicSpec();
+            auto observed = ObservePipelineState();
+            auto persistedSpecNode = PersistedStateManager_->RecoverSpecNode();
+            auto spec = PrepareSpecUpdate<TPipelineSpecPtr>(
+                persistedSpecNode,
+                argument.Spec,
+                Controller_->GetVersionProvider(),
+                Logger);
+            const auto originalSpecVersion = persistedSpecNode ? ReadRawVersion(persistedSpecNode) : TVersion(0);
+            auto persistedDynamicSpecNode = PersistedStateManager_->RecoverDynamicSpecNode();
+            auto dynamicSpec = PrepareSpecUpdate<TDynamicPipelineSpecPtr>(
+                persistedDynamicSpecNode,
+                argument.DynamicSpec,
+                Controller_->GetVersionProvider(),
+                Logger);
+            const auto originalDynamicSpecVersion = persistedDynamicSpecNode ? ReadRawVersion(persistedDynamicSpecNode) : TVersion(0);
             auto flowCoreTarget = PersistedStateManager_->RecoverFlowCoreTarget();
-
-            const auto originalSpecVersion = spec->GetVersion();
-            const auto originalDynamicSpecVersion = dynamicSpec->GetVersion();
-
-            auto flowView = keeper->GetFlowView();
 
             const auto& targetValue = flowCoreTarget->GetValue();
             const auto& actualFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion;
@@ -760,20 +870,18 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                     .With("actual_flow_core_version", actualFlowCoreVersion);
             }
 
-            auto expectedVersions = MakePipelineImportantVersions(flowView->State, spec);
+            auto expectedVersions = CloneYsonStruct(observed.ExpectedVersions);
+            expectedVersions->PipelineSpecVersion = originalSpecVersion;
             if (argument.ExpectedSpecVersion) {
                 expectedVersions->PipelineSpecVersion = *argument.ExpectedSpecVersion;
             }
             const auto expectedDynamicSpecVersion = argument.ExpectedDynamicSpecVersion.value_or(originalDynamicSpecVersion);
 
-            // Update specs if provided.
             if (argument.Spec) {
-                spec->TrySetValue(NYTree::ConvertTo<TPipelineSpecPtr>(*argument.Spec), Controller_->GetVersionProvider());
                 ValidatePipelineSpec(spec->GetValue());
                 ValidateTimerStoreBackends(spec->GetValue(), Config_->EnablePagedTimerStore);
             }
             if (argument.DynamicSpec) {
-                dynamicSpec->TrySetValue(NYTree::ConvertTo<TDynamicPipelineSpecPtr>(*argument.DynamicSpec), Controller_->GetVersionProvider());
                 ValidateDynamicPipelineSpec(dynamicSpec->GetValue());
             }
 
@@ -791,9 +899,7 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
             // Node parameters of graphs are validated for the resulting pair of specs, regardless of strict validation.
             ValidateProcessFunctionGraphDynamicSpec(spec->GetValue(), dynamicSpec->GetValue());
 
-            CheckPipelineSafeForSpecUpdate(
-                keeper,
-                argument.AllowSpecUpdateOnPause);
+            ValidatePipelineSafeForSpecUpdate(observed, specChanged, argument.AllowSpecUpdateOnPause);
 
             if (argument.ValidateStrict) {
                 std::vector<TError> errors;
@@ -824,10 +930,13 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                 dynamicSpecChanged ? std::make_optional(dynamicSpec) : std::nullopt,
                 dynamicSpecChanged ? std::make_optional(expectedDynamicSpecVersion) : std::nullopt);
 
-            // Update keeper atomically after successful persist.
-            keeper->SetSpecs(
-                specChanged ? std::make_optional(spec) : std::nullopt,
-                dynamicSpecChanged ? std::make_optional(dynamicSpec) : std::nullopt);
+            // Update keeper atomically after successful persist; without a FlowView the scheduler loop
+            // reloads the specs.
+            if (keeper->TryGetFlowView()) {
+                keeper->SetSpecs(
+                    specChanged ? std::make_optional(spec) : std::nullopt,
+                    dynamicSpecChanged ? std::make_optional(dynamicSpec) : std::nullopt);
+            }
 
             break;
         } catch (const TErrorException& exception) {
@@ -867,9 +976,9 @@ TSetTargetPipelineStateResult TLiveFlowExecutorRuntime::SetTargetPipelineState(c
 
     auto keeper = Controller_->GetFlowViewKeeper();
 
-    auto flowView = keeper->GetFlowView();
-    if (flowView->IsSynced()) {
-        const auto currentPipelineState = flowView->State->ExecutionSpec->PipelineState->GetValue();
+    auto observed = ObservePipelineState();
+    if (observed.Synced) {
+        const auto currentPipelineState = observed.State;
         if (currentPipelineState == EPipelineState::Completed) {
             THROW_ERROR_EXCEPTION(
                 "Pipeline is in %Qlv state, cannot change target state to %Qlv: "
@@ -907,9 +1016,31 @@ TSetTargetPipelineStateResult TLiveFlowExecutorRuntime::SetTargetPipelineState(c
     dynamicSpec->Bump(Controller_->GetVersionProvider());
 
     PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, dynamicSpec, expectedVersion);
-    keeper->SetSpecs(std::nullopt, dynamicSpec);
+    if (keeper->TryGetFlowView()) {
+        keeper->SetSpecs(std::nullopt, dynamicSpec);
+    }
 
     return {};
+}
+
+EPipelineState TLiveFlowExecutorRuntime::GetPipelineState()
+{
+    auto observed = ObservePipelineState();
+    return observed.Synced ? observed.State : EPipelineState::Unknown;
+}
+
+TObservedPipelineState TLiveFlowExecutorRuntime::ObservePipelineState()
+{
+    Controller_->EnsureIsLeader();
+    if (auto flowView = Controller_->GetFlowViewKeeper()->TryGetFlowView()) {
+        return {
+            .ExpectedVersions = MakePipelineImportantVersions(flowView->State, flowView->CurrentSpec),
+            .State = flowView->State->ExecutionSpec->PipelineState->GetValue(),
+            .Synced = flowView->IsSynced(),
+        };
+    }
+
+    return PersistedStateManager_->RecoverPersistedPipelineState();
 }
 
 TVersionedFlowCoreTargetPtr TLiveFlowExecutorRuntime::GetFlowCoreTarget()
@@ -921,32 +1052,8 @@ TVersionedFlowCoreTargetPtr TLiveFlowExecutorRuntime::GetFlowCoreTarget()
 
 TSetFlowCoreTargetResult TLiveFlowExecutorRuntime::SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument)
 {
-    auto flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
-    flowView->EnsureIsSynced();
-
-    auto pipelineState = flowView->State->ExecutionSpec->PipelineState->GetValue();
-
-    switch (pipelineState) {
-        case EPipelineState::Stopped:
-        case EPipelineState::Unknown:
-            break;
-
-        case EPipelineState::Paused:
-            if (!argument.AllowUpdateOnPause) {
-                THROW_ERROR_EXCEPTION(
-                    "Cannot update FlowCoreTarget in state %Qv: stop the pipeline first, "
-                    "or pass 'allow_update_on_pause=true' if you intend to update the pipeline in Paused state "
-                    "(allowed states: Stopped, Paused with 'allow_update_on_pause=true')",
-                    pipelineState);
-            }
-            break;
-
-        default:
-            THROW_ERROR_EXCEPTION(
-                "Cannot update FlowCoreTarget in state %Qv: stop the pipeline first "
-                "(allowed states: Stopped, Paused with 'allow_update_on_pause=true')",
-                pipelineState);
-    }
+    auto observed = ObservePipelineState();
+    ValidatePipelineSafeForFlowCoreTargetUpdate(observed, argument.AllowUpdateOnPause);
 
     // Read the current persisted target to get the up-to-date version.
     // The keeper's FlowView may be stale (e.g. when the pipeline is stopped and not reloading target).
@@ -964,7 +1071,7 @@ TSetFlowCoreTargetResult TLiveFlowExecutorRuntime::SetFlowCoreTarget(const TSetF
         return result;
     }
 
-    auto expectedVersions = MakePipelineImportantVersions(flowView->State, flowView->CurrentSpec);
+    auto expectedVersions = CloneYsonStruct(observed.ExpectedVersions);
     expectedVersions->FlowCoreTargetVersion = argument.ExpectedVersion.value_or(currentTarget->GetVersion());
 
     auto newTarget = CloneYsonStruct(currentTarget);
@@ -1678,8 +1785,30 @@ TYsonString TLiveFlowExecutorRuntime::RunCommand(
 
     Controller_->EnsureIsLeader();
 
+    // These commands let an operator view and repair the pipeline specs while the FlowView cannot be
+    // recovered; get-command-required-permission precedes every flow-execute request of the native client.
+    static const THashSet<std::string> CommandsAllowedWithoutFlowView = {
+        "get-command-required-permission",
+        "get-pipeline-spec",
+        "get-pipeline-dynamic-spec",
+        "get-pipeline-state",
+        "set-pipeline-specs",
+        "set-flow-core-target",
+        "set-target-pipeline-state",
+    };
+
     // Hold an extra ref so ~TFlowView never runs on the RPC reply fiber.
-    auto flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
+    auto keeper = Controller_->GetFlowViewKeeper();
+    auto isAllowedWithoutFlowView = [&] {
+        // A status-only description reports the controller errors, including why the FlowView is missing.
+        return CommandsAllowedWithoutFlowView.contains(command) ||
+            (command == "describe-pipeline" && ConvertTo<TDescribePipelineArg>(argument).StatusOnly);
+    };
+    auto flowView = keeper->TryGetFlowView();
+    if (!flowView && !isAllowedWithoutFlowView()) {
+        flowView = keeper->GetFlowView();
+    }
+
     auto destroyGuard = Finally([this, &flowView] {
         if (flowView) {
             PoolInvoker_->Invoke(BIND([fv = std::move(flowView)] () mutable {

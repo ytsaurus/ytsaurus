@@ -1751,6 +1751,16 @@ void TFlowViewKeeper::SetSpecs(
     std::swap(copy, FlowView_);
 }
 
+TFlowViewPtr TFlowViewKeeper::TryGetFlowView() const
+{
+    auto guard = Guard(Lock_);
+    if (!FlowView_ || !CachedYsonString_ || !CachedYsonIndex_ || !CachedCompressedFlowView_) {
+        return nullptr;
+    }
+
+    return FlowView_;
+}
+
 TFlowViewPtr TFlowViewKeeper::GetFlowView() const
 {
     auto guard = Guard(Lock_);

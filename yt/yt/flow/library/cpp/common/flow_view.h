@@ -1078,6 +1078,7 @@ public:
         std::optional<TVersionedDynamicPipelineSpecPtr> dynamicSpec);
     void SetFlowCoreTarget(TVersionedFlowCoreTargetPtr flowCoreTarget);
 
+    TFlowViewPtr TryGetFlowView() const;
     TFlowViewPtr GetFlowView() const;
     NYson::TYsonString GetYsonString(bool cache) const;
     //! Returns the subtree of the flow view at |path| (served from the by-path index for the cached view).

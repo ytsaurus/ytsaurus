@@ -8,6 +8,7 @@ IF (NOT SANITIZER_TYPE)
     # not a specific one (testing against trunk is how regressions are found fast).
     # This suite also exercises various pipeline interaction paths (HTTP proxy and CLI, besides the regular one).
     SET(YT_RECIPE_BUILD_FROM_SOURCE 1)
+    SET(FLOW_EXECUTE_TEST_LEGACY_SPEC_RECOVERY 1)
 
     INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/tests/flow_execute/ya.make.inc)
 ENDIF()

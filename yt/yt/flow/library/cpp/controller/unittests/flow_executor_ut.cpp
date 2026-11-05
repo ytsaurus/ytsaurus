@@ -139,6 +139,7 @@ protected:
         SyncFlowView();
 
         auto controller = New<StrictMock<TSpecUpdateControllerMock>>();
+        EXPECT_CALL(*controller, EnsureIsLeader()).WillRepeatedly(Return());
         EXPECT_CALL(*controller, GetFlowViewKeeper()).WillRepeatedly(Return(Keeper_));
         EXPECT_CALL(*controller, GetNodeInfo()).WillRepeatedly(Return(New<TNodeInfo>()));
         EXPECT_CALL(*controller, GetVersionProvider()).WillRepeatedly(Return(VersionProvider_));
@@ -153,6 +154,12 @@ protected:
         });
         EXPECT_CALL(*stateManager, RecoverDynamicSpec()).WillRepeatedly([this] {
             return CloneYsonStruct(DynamicSpec_);
+        });
+        EXPECT_CALL(*stateManager, RecoverSpecNode()).WillRepeatedly([this] {
+            return ConvertToNode(Spec_);
+        });
+        EXPECT_CALL(*stateManager, RecoverDynamicSpecNode()).WillRepeatedly([this] {
+            return ConvertToNode(DynamicSpec_);
         });
         EXPECT_CALL(*stateManager, RecoverFlowCoreTarget())
             .WillRepeatedly(Return(New<TVersionedFlowCoreTarget>()));

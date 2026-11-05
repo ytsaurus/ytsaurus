@@ -83,6 +83,7 @@ class FlowExecuteTestBase(FlowTestBase):
     CHECK_KNOWN_COMMANDS = _env_flag("FLOW_EXECUTE_CHECK_KNOWN_COMMANDS")
     CHECK_SPEC_VERSIONS = _env_flag("FLOW_EXECUTE_CHECK_SPEC_VERSIONS")
     TEST_FLOW_CORE_TARGET = _env_flag("FLOW_EXECUTE_TEST_FLOW_CORE_TARGET")
+    TEST_LEGACY_SPEC_RECOVERY = _env_flag("FLOW_EXECUTE_TEST_LEGACY_SPEC_RECOVERY")
 
     def setup_method(self, method):
         super(FlowExecuteTestBase, self).setup_method(method)
@@ -1295,6 +1296,160 @@ class FlowExecuteTestBase(FlowTestBase):
                 == hashlib.sha256(ssl.PEM_cert_to_DER_cert(new_leader["certificate_pem"])).hexdigest().upper()
             )
 
+    @pytest.mark.authors(["pechatnov"])
+    def test_legacy_spec_recovery_without_flow_view(self):
+        if not self.TEST_LEGACY_SPEC_RECOVERY:
+            pytest.skip("legacy spec recovery requires the trunk controller")
+
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config(finite=False)
+        pipeline_config = get_yson_config(pipeline_config_path)
+        obsolete_state_table = f"{self.pipeline_path}/flow_state_obsolete"
+
+        def read_obsolete_state_rows():
+            rows = {}
+            for row in self.client.select_rows(f"key, value FROM [{obsolete_state_table}]"):
+                key = row["key"].decode("utf-8") if isinstance(row["key"], bytes) else row["key"]
+                value = row["value"]
+                if isinstance(value, (bytes, bytearray)):
+                    value = yson.loads(bytes(value))
+                rows[key] = value
+            return rows
+
+        def check_pipeline_state_rows(expected_state):
+            # One transaction writes the state into FlowState, important versions and the replica.
+            rows = read_obsolete_state_rows()
+            state = rows["flow_view"]["execution_spec"]["pipeline_state"]
+            replica_state = rows["pipeline_state_replica"]
+            assert state["value"] == expected_state
+            assert rows["important_versions"]["pipeline_state_versions"] == state["version"]
+            assert replica_state["version"] == state["version"]
+            assert replica_state["value"] == state["value"]
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            run_pipeline=False,
+            workers_count=1,
+            controllers_count=1,
+        ):
+            actual_flow_core_target = self.client.flow_execute(
+                self.pipeline_path,
+                "get-controller-orchid",
+                {"path": "/node_info/flow_core_version"},
+            )["value"]
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-flow-core-target",
+                {"flow_core_target": actual_flow_core_target},
+            )
+            wait(
+                lambda: self.client.get_flow_view(
+                    self.pipeline_path,
+                    "/state/execution_spec/flow_core_target/value",
+                    cache=False,
+                )
+                == actual_flow_core_target
+            )
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-pipeline-specs",
+                {
+                    "spec": pipeline_config["spec"],
+                    "dynamic_spec": pipeline_config["dynamic_spec"],
+                    "validate_strict": True,
+                },
+            )
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("working")
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+
+        check_pipeline_state_rows("stopped")
+
+        # Emulate a spec format that this controller cannot parse, written by a controller without the
+        # replica; the replacement spec drops a computation that the persisted traverse data still has.
+        persisted_rows = read_obsolete_state_rows()
+        legacy_spec = deepcopy(persisted_rows["spec"])
+        legacy_spec["value"]["computations"] = "legacy_invalid"
+        corrupted_flow_state = deepcopy(persisted_rows["flow_view"])
+        corrupted_flow_state["execution_spec"]["pipeline_spec"]["value"]["computations"] = "legacy_invalid"
+        replacement_spec = deepcopy(persisted_rows["spec"]["value"])
+        del replacement_spec["computations"]["state_writer"]
+        replacement_dynamic_spec = deepcopy(persisted_rows["dynamic_spec"]["value"])
+        del replacement_dynamic_spec["computations"]["state_writer"]
+        assert "state_writer" in corrupted_flow_state["traverse_data"]["computations"]
+
+        self.client.delete_rows(obsolete_state_table, [{"key": "pipeline_state_replica"}])
+        self.client.insert_rows(
+            obsolete_state_table,
+            [
+                {"key": "flow_view", "value": corrupted_flow_state},
+                {"key": "spec", "value": legacy_spec},
+            ],
+        )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            run_pipeline=False,
+            workers_count=1,
+            controllers_count=1,
+        ):
+            assert self.client.get_pipeline_state(self.pipeline_path) == "stopped"
+            assert self.client.flow_execute(self.pipeline_path, "get-pipeline-state", {})["pipeline_state"] == "stopped"
+            # The spec that the controller cannot parse is still viewable as stored.
+            stored_spec = self.client.get_pipeline_spec(self.pipeline_path, spec_path="/computations")
+            assert stored_spec["spec"] == "legacy_invalid"
+            assert stored_spec["version"] == legacy_spec["version"]
+            permission = self.client.flow_execute(
+                self.pipeline_path,
+                "get-command-required-permission",
+                {"command": "get-pipeline-state"},
+            )
+            assert permission["permission"] == ["read"]
+
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-flow-core-target",
+                {"flow_core_target": actual_flow_core_target},
+            )
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-pipeline-specs",
+                {
+                    "spec": replacement_spec,
+                    "dynamic_spec": replacement_dynamic_spec,
+                    "validate_strict": True,
+                },
+            )
+
+            # Describe the recovered pipeline before the controller applies the replacement spec.
+            def describe_pipeline():
+                try:
+                    self.client.flow_execute(self.pipeline_path, "describe-pipeline", {})
+                    return True
+                except YtResponseError:
+                    return False
+
+            wait(describe_pipeline, timeout=60)
+
+            def get_synced_flow_view():
+                try:
+                    flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                except YtResponseError:
+                    return None
+                if flow_view["state"]["execution_spec"]["pipeline_spec"] != flow_view["current_spec"]:
+                    return None
+                return flow_view
+
+            wait(lambda: get_synced_flow_view() is not None, timeout=60)
+            recovered_flow_view = get_synced_flow_view()
+            assert recovered_flow_view["current_spec"]["value"] == replacement_spec
+            assert recovered_flow_view["current_spec"]["version"] > legacy_spec["version"]
+
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("working")
+            check_pipeline_state_rows("working")
+
     @pytest.mark.authors(["timoninmaxim"])
     def test_mutating_commands_rejected_when_completed(self):
         self.prepare_environment()
@@ -1321,7 +1476,8 @@ class FlowExecuteTestBase(FlowTestBase):
             if self.TEST_FLOW_CORE_TARGET:
                 self.client.flow_execute(self.pipeline_path, flow_command="get-flow-core-target", flow_argument={})
 
-            completed_final_msg = "Recreate the pipeline to recover"
+            # Case-insensitive: older controllers capitalize the phrase.
+            completed_final_msg = "(?i)recreate the pipeline to recover"
 
             for target in ("stopped", "paused", "completed"):
                 with pytest.raises(YtResponseError, match=completed_final_msg):
@@ -1331,7 +1487,7 @@ class FlowExecuteTestBase(FlowTestBase):
                         flow_argument={"target_pipeline_state": target},
                     )
 
-            # Spec updates that go through CheckPipelineSafeForSpecUpdate are rejected on Completed.
+            # Spec updates that go through ValidatePipelineSafeForSpecUpdate are rejected on Completed.
             # set-pipeline-spec delegates to set-pipeline-specs and so inherits the gate.
             current_spec = self.client.flow_execute(
                 self.pipeline_path, flow_command="get-pipeline-spec", flow_argument={}
@@ -1365,7 +1521,8 @@ class FlowExecuteTestBase(FlowTestBase):
             if self.TEST_FLOW_CORE_TARGET:
                 with pytest.raises(
                     YtResponseError,
-                    match=r'Cannot update FlowCoreTarget in state "Completed"',
+                    # Case-insensitive: older controllers print the state capitalized.
+                    match=r'(?i)Cannot update FlowCoreTarget in state "completed"',
                 ):
                     self.client.flow_execute(
                         self.pipeline_path,

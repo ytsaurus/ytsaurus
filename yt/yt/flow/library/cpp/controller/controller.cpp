@@ -378,6 +378,7 @@ public:
         , SpecVersion_(Profiler_.Gauge("/spec_version"))
         , DynamicSpecVersion_(Profiler_.Gauge("/dynamic_spec_version"))
         , StatusProfiler_(std::move(statusProfiler))
+        , SpecValidationErrorState_(StatusProfiler_->ErrorState("/spec_validation"))
     { }
 
     const IVersionProviderPtr& GetVersionProvider() const
@@ -451,6 +452,8 @@ public:
         SpecVersion_.Update(spec->GetVersion().Underlying());
         DynamicSpecVersion_.Update(dynamicSpec->GetVersion().Underlying());
 
+        ValidateSpecsOnChange(flowView);
+
         // TODO(mikari): revise order
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
@@ -506,14 +509,20 @@ public:
                 FlowCoreTargetMatched_ = flowCoreTargetMatched;
             }
 
-            if (flowCoreTargetMatched) {
+            if (flowCoreTargetMatched && SpecValidationError_.IsOK()) {
                 CheckTargetState(flowView);
             } else {
                 auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
                 if (state == EPipelineState::Working || state == EPipelineState::Draining) {
-                    YT_TLOG_WARNING("FlowCoreTarget mismatch, pausing pipeline")
-                        .With("Target", flowView->State->ExecutionSpec->FlowCoreTarget->GetValue())
-                        .With("Actual", NodeInfo_->FlowCoreVersion);
+                    if (!flowCoreTargetMatched) {
+                        YT_TLOG_WARNING("FlowCoreTarget mismatch, pausing pipeline")
+                            .With("Target", flowView->State->ExecutionSpec->FlowCoreTarget->GetValue())
+                            .With("Actual", NodeInfo_->FlowCoreVersion);
+                    } else {
+                        YT_TLOG_WARNING("Pipeline spec is invalid, pausing pipeline")
+                            .With(SpecValidationError_);
+                    }
+
                     flowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                 }
             }
@@ -677,8 +686,59 @@ private:
     TPipelineStateMetrics PipelineStateMetrics_;
 
     const IStatusProfilerPtr StatusProfiler_;
+    const IStatusErrorStatePtr SpecValidationErrorState_;
 
     bool FlowCoreTargetMatched_ = true;
+
+    //! Versions of the canonical specs that #SpecValidationError_ belongs to.
+    std::optional<std::pair<TVersion, TVersion>> ValidatedSpecVersions_;
+    TError SpecValidationError_;
+
+    //! Validates the canonical specs when their versions change; scheduling stays paused while they are invalid.
+    void ValidateSpecsOnChange(const TFlowViewPtr& flowView)
+    {
+        const auto& spec = flowView->CurrentSpec;
+        const auto& dynamicSpec = flowView->CurrentDynamicSpec;
+        auto versions = std::pair(spec->GetVersion(), dynamicSpec->GetVersion());
+        if (ValidatedSpecVersions_ == versions) {
+            return;
+        }
+
+        ValidatedSpecVersions_ = versions;
+
+        TError error;
+        try {
+            if (spec->GetVersion() != TVersion(0)) {
+                ValidatePipelineSpec(spec->GetValue());
+            }
+
+            if (dynamicSpec->GetVersion() != TVersion(0)) {
+                ValidateDynamicPipelineSpec(dynamicSpec->GetValue());
+            }
+        } catch (const std::exception& ex) {
+            error = TError("Pipeline spec is invalid; the pipeline cannot run until the spec is fixed")
+                .With("spec_version", spec->GetVersion())
+                .With("dynamic_spec_version", dynamicSpec->GetVersion())
+                .With(TError(ex));
+        }
+
+        if (!error.IsOK()) {
+            if (SpecValidationError_.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Pipeline spec validation failed, pausing pipeline")
+                    .With(error);
+            }
+
+            SpecValidationErrorState_->SetError(error);
+        } else {
+            if (!SpecValidationError_.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Pipeline spec validation passed");
+            }
+
+            SpecValidationErrorState_->ClearError();
+        }
+
+        SpecValidationError_ = std::move(error);
+    }
 
     bool UpdateSpecs(const TFlowViewPtr& flowView, const TVersionedPipelineSpecPtr& spec, const TVersionedDynamicPipelineSpecPtr& dynamicSpec)
     {

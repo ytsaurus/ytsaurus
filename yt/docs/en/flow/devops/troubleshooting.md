@@ -30,6 +30,10 @@ If user `Process` time dominates, collect a [CPU profile](profiling.md#cpu) and 
 
 **Symptom:** a job reports `Throttle()` exceptions or spends time in `Input.Throttle`. Compare demand with the [Distributed Throttler](../concepts/distributed_throttler.md) quota and check controller reachability. If demand greatly exceeds quota, reduce load or request an appropriate limit; if the controller is unavailable, restore connectivity first. Do not disable throttling to hide the error.
 
+## Invalid pipeline spec {#invalid-spec}
+
+**Symptom:** after a controller update, the pipeline enters `paused` and `start-pipeline` does not resume it, while controller errors (`describe-pipeline`) contain `spec_validation`: the current controller rejects the spec. Alternatively, the controller keeps restarting its loop with the error `Cannot recover the pipeline specs embedded in FlowState` because it cannot parse the stored spec. In both cases, upload a fixed spec with `set-pipeline-specs`: a static spec change is accepted in `stopped`, or in `paused` with `allow_spec_update_on_pause=true`; a change of the dynamic spec alone is accepted in any state. Until the controller loads the pipeline state, `get-pipeline-state`, `set-pipeline-specs`, `set-flow-core-target`, and the start and stop commands still work; the stored spec can be viewed as is with `get-pipeline-spec` and `get-pipeline-dynamic-spec`, and the error is shown in the pipeline messages (`describe-pipeline` with `status_only=true`).
+
 ## Zombie processes and version mismatch {#zombie-processes}
 
 **Symptom:** new jobs stop being assigned after a release or the pipeline enters `paused` and shows `binary mismatch` in **Messages**. A spec update may fail with `FlowCoreTargetMismatch`. Compare runner, controller, and worker revisions and look for processes from the previous operation. Wait for the switchover or redeploy a matching set of binaries. [Resetting version checks](vanilla/releases.md#flow-core-target-workarounds) is only a controlled recovery step after verifying all processes: it removes protection against zombie processes.
