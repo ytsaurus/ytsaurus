@@ -153,38 +153,25 @@ std::vector<int> GroupKafkaRecordRows(const std::vector<i64>& frameSizes, i64 ma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TKafkaWriteQueue::Enqueue(TKafkaMessageToWrite&& message)
-{
-    auto seqNo = message.SeqNo;
-    std::vector<TKafkaMessageToWrite> records;
-    records.push_back(std::move(message));
-    return Enqueue(seqNo, std::move(records));
-}
-
-TFuture<void> TKafkaWriteQueue::Enqueue(i64 seqNo, std::vector<TKafkaMessageToWrite> records)
+void TKafkaWriteQueue::Enqueue(std::vector<TKafkaMessageToWrite> records, TOnWritten onWritten)
 {
     YT_VERIFY(!records.empty());
 
-    auto promise = NewPromise<void>();
+    TError error;
     {
         auto guard = Guard(Lock_);
-        if (!FatalError_.IsOK()) {
-            // The writer can no longer make progress; fail fast instead of queueing a promise nothing
-            // will ever resolve.
-            return MakeFuture<void>(FatalError_);
-        }
-        if (NextSeqNoToResolve_ < 0) {
-            NextSeqNoToResolve_ = seqNo;
-        }
-        EmplaceOrCrash(Promises_, seqNo, promise);
-        if (std::ssize(records) > 1) {
-            EmplaceOrCrash(RemainingRecords_, seqNo, std::ssize(records));
-        }
-        for (auto& record : records) {
-            Pending_.push_back(std::move(record));
+        error = FatalError_;
+        if (error.IsOK()) {
+            i64 seqNo = FirstSeqNo_ + std::ssize(Completions_);
+            Completions_.push_back({std::ssize(records), std::move(onWritten)});
+            for (auto& record : records) {
+                record.SeqNo = seqNo;
+                Pending_.push_back(std::move(record));
+            }
+            return;
         }
     }
-    return promise.ToFuture();
+    onWritten(error);
 }
 
 std::deque<TKafkaMessageToWrite> TKafkaWriteQueue::TakePending()
@@ -213,91 +200,35 @@ std::deque<TKafkaMessageToWrite> TKafkaWriteQueue::TakePending(i64 maxCount, i64
 
 void TKafkaWriteQueue::Complete(i64 seqNo, TError error)
 {
-    std::vector<std::pair<TPromise<void>, TError>> toResolve;
-    std::vector<TPromise<void>> poisoned;
-    TError poison;
+    std::vector<TOnWritten> completed;
     {
         auto guard = Guard(Lock_);
-        if (!FatalError_.IsOK()) {
-            // Every promise has already been failed; ignore late delivery reports instead of
-            // accumulating their results forever.
+        i64 index = seqNo - FirstSeqNo_;
+        if (!FatalError_.IsOK() || index < 0 || index >= std::ssize(Completions_)) {
             return;
         }
         if (error.IsOK()) {
-            // A multi-record seqNo completes only when its last record is acknowledged.
-            if (auto it = RemainingRecords_.find(seqNo); it != RemainingRecords_.end()) {
-                if (--it->second > 0) {
-                    return;
-                }
-                RemainingRecords_.erase(it);
-            }
-            // The first failure is sticky: a later OK report (another record of the split batch)
-            // must not overwrite it, or the base would persist past a record that never reached Kafka.
-            if (!CompletedResults_.emplace(seqNo, TError()).second) {
+            auto& remaining = Completions_[index].RemainingRecords;
+            if (remaining == 0) {
                 return;
             }
-        } else {
-            // The first failed record fails the whole seqNo. An error may overwrite a stored OK
-            // (the replay re-sends), never the other way around.
-            RemainingRecords_.erase(seqNo);
-            CompletedResults_[seqNo] = std::move(error);
-        }
-        if (NextSeqNoToResolve_ < 0) {
-            NextSeqNoToResolve_ = seqNo;
-        }
-        // Resolve the contiguous run of completed seqNos in order; a gap means an earlier write is still
-        // in flight, and later completions must wait for it.
-        while (true) {
-            auto it = CompletedResults_.find(NextSeqNoToResolve_);
-            if (it == CompletedResults_.end()) {
-                break;
-            }
-            auto resolvedSeqNo = it->first;
-            auto result = std::move(it->second);
-            CompletedResults_.erase(it);
-            ++NextSeqNoToResolve_;
 
-            bool failed = !result.IsOK();
-            if (failed) {
-                // Everything after a failed seqNo must fail too, or the sink base would persist a
-                // message id past the failure and deduplicate its replay away (see the class comment).
-                poison = TError("Kafka write failed; failing subsequent writes so the job replay re-sends them")
-                    .With(result);
-            }
-            if (auto promiseIt = Promises_.find(resolvedSeqNo); promiseIt != Promises_.end()) {
-                toResolve.emplace_back(promiseIt->second, std::move(result));
-                Promises_.erase(promiseIt);
-            }
-            if (failed) {
-                break;
+            --remaining;
+            while (!Completions_.empty() && Completions_.front().RemainingRecords == 0) {
+                completed.push_back(std::move(Completions_.front().OnWritten));
+                Completions_.pop_front();
+                ++FirstSeqNo_;
             }
         }
-        if (!poison.IsOK()) {
-            FatalError_ = poison;
-            poisoned.reserve(Promises_.size());
-            for (auto& [pendingSeqNo, promise] : Promises_) {
-                poisoned.push_back(std::move(promise));
-            }
-            Promises_.clear();
-            Pending_.clear();
-            CompletedResults_.clear();
-            RemainingRecords_.clear();
-        }
     }
-    for (auto& [promise, resolvedError] : toResolve) {
-        promise.TrySet(std::move(resolvedError));
-    }
-    for (auto& promise : poisoned) {
-        promise.TrySet(poison);
-    }
-}
 
-void TKafkaWriteQueue::Reject(i64 seqNo, TError error)
-{
-    YT_VERIFY(!error.IsOK());
-    // Complete already has rejection semantics: it anchors an unseen seqNo, stores the error, and
-    // poisons at resolution.
-    Complete(seqNo, std::move(error));
+    if (!error.IsOK()) {
+        Fail(error);
+    }
+
+    for (auto& onWritten : completed) {
+        onWritten(TError());
+    }
 }
 
 TError TKafkaWriteQueue::GetFatalError() const
@@ -308,39 +239,29 @@ TError TKafkaWriteQueue::GetFatalError() const
 
 void TKafkaWriteQueue::Fail(const TError& error)
 {
-    std::vector<TPromise<void>> orphaned;
+    std::deque<TCompletion> failed;
+    std::deque<TKafkaMessageToWrite> pending;
     {
         auto guard = Guard(Lock_);
-        FatalError_ = error;
-        orphaned.reserve(Promises_.size());
-        for (auto& [seqNo, promise] : Promises_) {
-            orphaned.push_back(std::move(promise));
+        if (!FatalError_.IsOK()) {
+            return;
         }
-        Promises_.clear();
-        Pending_.clear();
-        CompletedResults_.clear();
-        RemainingRecords_.clear();
+
+        FatalError_ = error;
+        failed = std::exchange(Completions_, {});
+        pending = std::exchange(Pending_, {});
     }
-    for (auto& promise : orphaned) {
-        promise.TrySet(error);
+
+    for (auto& completion : failed) {
+        completion.OnWritten(error);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TRetryableKafkaWriter::Write(TMessageToWrite&& message)
+void TRetryableKafkaWriter::WriteMany(std::vector<TMessageToWrite> records, TKafkaWriteQueue::TOnWritten onWritten)
 {
-    return Queue_.Enqueue(std::move(message));
-}
-
-TFuture<void> TRetryableKafkaWriter::WriteMany(i64 seqNo, std::vector<TMessageToWrite> records)
-{
-    return Queue_.Enqueue(seqNo, std::move(records));
-}
-
-void TRetryableKafkaWriter::Reject(i64 seqNo, TError error)
-{
-    Queue_.Reject(seqNo, std::move(error));
+    Queue_.Enqueue(std::move(records), std::move(onWritten));
 }
 
 TError TRetryableKafkaWriter::GetFatalError() const
@@ -376,7 +297,7 @@ void TRetryableKafkaWriter::Run()
         Terminated_,
         KafkaHandleCreateBackoff);
     if (!producer) {
-        // Fail every queued and future write so no promise is orphaned when Run() exits early.
+        // Fail queued and future writes when Run() exits early.
         Queue_.Fail(TError("Kafka writer terminated before a producer could be created"));
         return;
     }
@@ -393,7 +314,7 @@ void TRetryableKafkaWriter::Run()
                 ProduceKafkaMessage(*producer, builder);
             } catch (const std::exception& ex) {
                 // produce() failed for this record; the delivery-report path will never fire for it,
-                // so resolve its promise here instead of dropping the rest of the batch.
+                // so report the failure here.
                 auto error = TError("Failed to produce Kafka message").With(ex);
                 YT_TLOG_ERROR("Offset dropped")
                     .With("SeqNo", message.SeqNo)
@@ -447,6 +368,11 @@ TCommonKafkaSink::TCommonKafkaSink(
 
 TCommonKafkaSink::~TCommonKafkaSink()
 {
+    TerminateWriter();
+}
+
+void TCommonKafkaSink::TerminateWriter()
+{
     if (Writer_) {
         // Terminate joins the writer thread (up to the final flush timeout); never block here — the
         // destructor runs on a fiber scheduler thread. The ref keeps the writer alive.
@@ -484,7 +410,7 @@ std::optional<std::string> GetOptionalColumnValue(const TOutputMessage& message,
 
 } // namespace
 
-TKafkaMessageToWrite TCommonKafkaSink::MakeRecord(const TOutputMessageConstPtr& message, i64 seqNo) const
+TKafkaMessageToWrite TCommonKafkaSink::MakeRecord(const TOutputMessageConstPtr& message, bool includeMessageId) const
 {
     auto value = GetOptionalColumnValue(*message, Parameters_->PayloadColumn);
     std::optional<std::string> key;
@@ -494,30 +420,14 @@ TKafkaMessageToWrite TCommonKafkaSink::MakeRecord(const TOutputMessageConstPtr& 
     // The message id is deterministic across replays, so a consumer can use the header to drop the
     // duplicates the at-least-once sink may produce after a restart.
     std::optional<std::string> messageId;
-    if (!Parameters_->MessageIdHeader.empty()) {
+    if (includeMessageId || !Parameters_->MessageIdHeader.empty()) {
         messageId = std::string(message->GetMeta().MessageId.Underlying());
     }
     return {
-        .SeqNo = seqNo,
         .Key = std::move(key),
         .Value = std::move(value),
         .MessageId = std::move(messageId),
     };
-}
-
-TFuture<void> TCommonKafkaSink::Write(const TOutputMessageConstPtr& message, i64 seqNo)
-{
-    return Writer_->Write(MakeRecord(message, seqNo));
-}
-
-TFuture<void> TCommonKafkaSink::WriteRecords(i64 seqNo, std::vector<TKafkaMessageToWrite> records)
-{
-    return Writer_->WriteMany(seqNo, std::move(records));
-}
-
-void TCommonKafkaSink::Reject(i64 seqNo, TError error)
-{
-    Writer_->Reject(seqNo, std::move(error));
 }
 
 const std::string& TCommonKafkaSink::PayloadColumn() const
@@ -530,17 +440,14 @@ const TKafkaClientPtr& TCommonKafkaSink::GetClient() const
     return Client_;
 }
 
-TError TCommonKafkaSink::GetWriterError() const
-{
-    return Writer_ ? Writer_->GetFatalError() : TError();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TKafkaSinkState::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_distributed_seq_no", &TThis::MaxDistributedSeqNo)
         .Default(0);
+    registrar.Parameter("max_distributed_message_id", &TThis::MaxDistributedMessageId)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,15 +455,22 @@ void TKafkaSinkState::Register(TRegistrar registrar)
 TKafkaSink::TKafkaSink(
     TSinkContextPtr context,
     TDynamicSinkContextPtr dynamicContext)
-    : TOrderedAsyncSinkBase(std::move(context), std::move(dynamicContext))
-    , TCommonKafkaSink(GetContext(), GetParameters(), GetContext()->StatusProfiler, TOrderedAsyncSinkBase::Logger)
+    : TSinkBase(std::move(context), std::move(dynamicContext))
+    , TCommonKafkaSink(GetContext(), DynamicPointerCast<TCommonKafkaSinkParameters>(GetParametersBase()), GetContext()->StatusProfiler, TSinkBase::Logger)
 { }
 
 TKafkaSink::~TKafkaSink()
 {
-    if (TransactionalWriter_) {
-        // See ~TCommonKafkaSink.
-        GetFinalizerInvoker()->Invoke(BIND([writer = std::move(TransactionalWriter_)] {
+    DoTerminate();
+}
+
+void TKafkaSink::DoTerminate()
+{
+    Terminated_ = true;
+    Pending_.clear();
+    TerminateWriter();
+    if (auto writer = std::exchange(TransactionalWriter_, {})) {
+        GetFinalizerInvoker()->Invoke(BIND([writer = std::move(writer)] {
             writer->Terminate();
         }));
     }
@@ -564,32 +478,31 @@ TKafkaSink::~TKafkaSink()
 
 void TKafkaSink::Init(IInitContextPtr initContext)
 {
-    initContext->InitClient<TKafkaSinkState>(TransactionalState_, "kafka_v0");
-    if (GetParameters()->DeliveryGuarantee == EKafkaDeliveryGuarantee::AtLeastOnce) {
-        // A bound left from an exactly-once run would describe a writer that no longer exists.
-        TransactionalState_.Clear();
+    THROW_ERROR_EXCEPTION_UNLESS(GetSpec()->InputStreamIds.size() == 1, "Kafka sink input stream count is invalid: expected 1, actual %v", std::ssize(GetSpec()->InputStreamIds));
+
+    initContext->InitClient(State_, "v0");
+    if (State_->ProducerId.empty()) {
+        State_->ProducerId = ToString(TGuid::Create());
     }
-    TOrderedAsyncSinkBase::Init(std::move(initContext));
+    LastMessageId_ = AcknowledgedMessageId_ = ReleaseMessageId_ = State_->MaxPersistedMessageId;
+    InitWriter(std::move(initContext));
 }
 
-void TKafkaSink::DoInit(const std::string& producerId)
+void TKafkaSink::InitWriter(IInitContextPtr initContext)
 {
+    initContext->InitClient(TransactionalState_, "kafka_v0");
     const auto& parameters = GetParameters();
     if (parameters->DeliveryGuarantee == EKafkaDeliveryGuarantee::AtLeastOnce) {
-        InitSession(producerId);
+        TransactionalState_.Clear();
+        InitSession(State_->ProducerId);
         return;
     }
-
-    // Kept until the replay passes it: the restored bound still covers what earlier sessions may have
-    // committed, however little of it this session has registered.
-    MaxDistributedSeqNo_ = std::max(TransactionalState_->MaxDistributedSeqNo, GetMaxPersistedSeqNo());
 
     TransactionalWriter_ = New<TTransactionalKafkaWriter>(
         GetClient(),
         TTransactionalKafkaWriterOptions{
             .Topic = parameters->Topic,
-            // The producer id is persisted with the sink state, so the transactional id outlives the job.
-            .TransactionalId = parameters->TransactionalIdPrefix + producerId,
+            .TransactionalId = parameters->TransactionalIdPrefix + State_->ProducerId,
             .MessageIdHeader = parameters->MessageIdHeader,
             .TransactionTimeout = parameters->TransactionTimeout,
             .MaxTransactionRecordCount = parameters->MaxTransactionRecordCount,
@@ -597,58 +510,100 @@ void TKafkaSink::DoInit(const std::string& producerId)
             .AllowMissingProgressMarker = GetDynamicParameters()->AllowMissingProgressMarker,
         },
         TKafkaTransactionalRecovery{
-            .MaxPersistedSeqNo = GetMaxPersistedSeqNo(),
-            .MaxDistributedSeqNo = MaxDistributedSeqNo_,
+            .MaxPersistedMessageId = AcknowledgedMessageId_,
+            .MaxDistributedMessageId = TransactionalState_->MaxDistributedMessageId,
+            .MaxPersistedSeqNo = State_->MaxPersistedSeqNo,
+            .MaxDistributedSeqNo = TransactionalState_->MaxDistributedSeqNo,
         },
         Logger,
         GetContext()->StatusProfiler->WithPrefix("/session"));
     TransactionalWriter_->Start();
 }
 
-TFuture<void> TKafkaSink::DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo)
+void TKafkaSink::ThrowIfFailed() const
 {
-    if (TransactionalWriter_) {
-        // The recovery check relies on it: a message reaches the writer only after an epoch persisting a
-        // bound that covers it commits.
-        if (seqNo <= MaxDistributedSeqNo_) {
-            return TransactionalWriter_->Write(MakeRecord(message, seqNo));
-        }
-        // Released by #Commit().
-        auto& withheld = WithheldWrites_.emplace_back(MakeRecord(message, seqNo), NewPromise<void>());
-        return withheld.Promise.ToFuture();
-    }
-    return Write(message, seqNo);
+    THROW_ERROR_EXCEPTION_IF(Terminated_, "Kafka sink terminated");
+
+    Error_.ThrowOnError();
+    (TransactionalWriter_ ? TransactionalWriter_->GetFatalError() : Writer_->GetFatalError())
+        .ThrowOnError();
 }
 
-void TKafkaSink::Sync(NApi::IDynamicTableTransactionPtr transaction)
+void TKafkaSink::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
-    // A failed writer never acknowledges again; restarting the job replays what it did not write.
-    auto writerError = TransactionalWriter_ ? TransactionalWriter_->GetFatalError() : GetWriterError();
-    if (!writerError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Kafka writer failed")
-            .With(writerError);
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    ThrowIfFailed();
+
+    YT_TLOG_DEBUG("MessageLifeCycle.Sink: message was registered")
+        .With("MessageId", message->MessageId)
+        .With("StreamId", message->StreamId)
+        .With("SystemTimestamp", message->SystemTimestamp)
+        .With("EventTimestamp", message->EventTimestamp)
+        .With("ByteSize", message->ByteSize);
+
+    if (message->MessageId <= State_->MaxPersistedMessageId) {
+        onDistributed();
+        return;
     }
-    TOrderedAsyncSinkBase::Sync(std::move(transaction));
-    if (TransactionalWriter_) {
-        // Once the writer has its marker, everything registered so far is distributed when this epoch
-        // commits; a bound raised earlier would look like one whose marker is lost. The bound never
-        // shrinks: after a restart, an epoch may commit before the replay registers what it covers.
-        if (auto started = TransactionalWriter_->GetStarted().TryGet(); started && started->IsOK()) {
-            MaxDistributedSeqNo_ = std::max(MaxDistributedSeqNo_, GetLastDistributedSeqNo());
-        }
-        TransactionalState_->MaxDistributedSeqNo = MaxDistributedSeqNo_;
+
+    THROW_ERROR_EXCEPTION_UNLESS(message->MessageId > LastMessageId_, "Kafka sink message IDs must strictly increase: expected greater than %v, actual %v", LastMessageId_, message->MessageId);
+
+    LastMessageId_ = message->MessageId;
+    Pending_.push_back({message, std::move(onDistributed)});
+}
+
+void TKafkaSink::Sync(NApi::IDynamicTableTransactionPtr /*transaction*/)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    ThrowIfFailed();
+    State_->MaxPersistedMessageId = AcknowledgedMessageId_;
+    if (!TransactionalWriter_) {
+        ReleaseMessageId_ = LastMessageId_;
+    } else if (auto started = TransactionalWriter_->GetStarted().TryGet(); started && started->IsOK()) {
+        // Startup establishes the marker; only a successful checkpoint may then release this bound.
+        ReleaseMessageId_ = std::max(TransactionalState_->MaxDistributedMessageId.value_or(TMessageId()), LastMessageId_);
+        TransactionalState_->MaxDistributedMessageId = ReleaseMessageId_;
+        TransactionalState_->MaxDistributedSeqNo = 0;
     }
 }
 
 void TKafkaSink::Commit()
 {
-    // The bound is persisted now; the writes it covers go ahead of the newly registered ones.
-    while (!WithheldWrites_.empty() && WithheldWrites_.front().Record.SeqNo <= MaxDistributedSeqNo_) {
-        auto& withheld = WithheldWrites_.front();
-        withheld.Promise.SetFrom(TransactionalWriter_->Write(std::move(withheld.Record)));
-        WithheldWrites_.pop_front();
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    ThrowIfFailed();
+    try {
+        std::deque<TPendingMessage> pending;
+        std::vector<TKafkaMessageToWrite> records;
+        while (!Pending_.empty() && Pending_.front().Message->MessageId <= ReleaseMessageId_) {
+            auto& item = Pending_.front();
+            records.push_back(MakeRecord(item.Message, /*includeMessageId*/ TransactionalWriter_ != nullptr));
+            pending.push_back(std::move(item));
+            Pending_.pop_front();
+        }
+
+        if (pending.empty()) {
+            return;
+        }
+
+        auto onWritten = BIND([weakThis = MakeWeak(this), pending = std::move(pending)] (const TError& error) mutable {
+            if (auto sink = weakThis.Lock(); sink && !sink->Terminated_ && error.IsOK()) {
+                sink->AcknowledgedMessageId_ = pending.back().Message->MessageId;
+                for (auto& item : pending) {
+                    sink->ObserveEventLag(item.Message->StreamId, item.Message->EventTimestamp);
+                    item.OnDistributed();
+                }
+            }
+        }).Via(GetContext()->SerializedInvoker);
+
+        if (TransactionalWriter_) {
+            TransactionalWriter_->WriteMany(std::move(records), std::move(onWritten));
+        } else {
+            Writer_->WriteMany(std::move(records), std::move(onWritten));
+        }
+    } catch (const std::exception& ex) {
+        Error_ = TError("Failed to dispatch Kafka message").With(ex);
+        Error_.ThrowOnError();
     }
-    TOrderedAsyncSinkBase::Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -669,14 +624,22 @@ void TAtLeastOnceKafkaSink::DoDistribute(
     NApi::IDynamicTableTransactionPtr /*transaction*/,
     const std::deque<TOutputMessageConstPtr>& messages)
 {
-    std::vector<TFuture<void>> futures;
-    futures.reserve(messages.size());
+    if (messages.empty()) {
+        return;
+    }
+
+    std::vector<TKafkaMessageToWrite> records;
+    records.reserve(messages.size());
     for (const auto& message : messages) {
-        futures.push_back(Write(message, ++SeqNo_));
+        records.push_back(MakeRecord(message));
     }
-    for (auto& future : futures) {
-        WaitFor(future).ThrowOnError();
-    }
+
+    auto promise = NewPromise<void>();
+    Writer_->WriteMany(std::move(records), BIND([promise] (const TError& error) {
+        promise.Set(error);
+    }));
+    WaitFor(promise.ToFuture())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
