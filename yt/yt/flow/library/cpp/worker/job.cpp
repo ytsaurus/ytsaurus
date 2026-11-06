@@ -836,28 +836,25 @@ private:
         dynamicComputationContext->DynamicPartitionSpec = dynamicJobSpec->DynamicComputationPartitionSpec;
         dynamicComputationContext->Throttlers = dynamicJobSpec->Throttlers;
 
-        THashSet<TResourceId> requiredResourceIds;
-        for (const auto& [resourceId, resourceDescription] : jobSpec->ComputationSpec->RequiredResourceIds) {
-            if (resourceDescription->Worker) {
-                requiredResourceIds.insert(resourceId);
-            }
-        }
-
-        // LoadRequiredResources also awaits the always-on resources (loaded eagerly, outside
-        // RequiredResourceIds), so it is called even when requiredResourceIds is empty. This is a
-        // context-switch-allowed point, unlike the resource-manager construction in the heartbeat path.
-        WaitFor(jobContext->ResourceManager->LoadRequiredResources(requiredResourceIds))
-            .ThrowOnError();
-
-        // Resources are taken only once loaded: a failed load recreates the resource object.
+        THashSet<TResourceInstanceId> requiredResourceIds;
         for (const auto& [resourceId, resourceDescription] : jobSpec->ComputationSpec->RequiredResourceIds) {
             if (!resourceDescription->Worker) {
                 continue;
             }
 
+            const auto binding = jobContext->ResourceInstanceIds.find(resourceId);
+            THROW_ERROR_EXCEPTION_UNLESS(binding != jobContext->ResourceInstanceIds.end(),
+                "Job %v has no instance binding for resource %v",
+                jobSpec->Job->JobId,
+                resourceId);
+            const auto instanceId = binding->second;
+            requiredResourceIds.insert(instanceId);
             auto aliasResourceId = resourceDescription->Alias ? *resourceDescription->Alias : resourceId;
-            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, jobContext->ResourceManager->Get(resourceId));
+            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, jobContext->ResourceManager->Get(instanceId));
         }
+
+        WaitFor(jobContext->ResourceManager->Load(requiredResourceIds))
+            .ThrowOnError();
 
         computationContext->DistributedThrottlerControllerChannelProvider =
             jobContext->DistributedThrottlerControllerChannelProvider;

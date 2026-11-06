@@ -142,6 +142,39 @@ DEFINE_REFCOUNTED_TYPE(TJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TResourceInstance
+    : public NYTree::TYsonStruct
+{
+    TResourceInstanceId ResourceInstanceId;
+    TResourceId ResourceId;
+    std::string WorkerAddress;
+    TIncarnationId WorkerIncarnationId;
+
+    REGISTER_YSON_STRUCT(TResourceInstance);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceInstance);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceInstanceDynamicSpec
+    : public NYTree::TYsonStruct
+{
+    TDynamicResourceSpecPtr DynamicResourceSpec;
+    TResourceRevisionPtr TargetRevision;
+    bool Preload = false;
+
+    REGISTER_YSON_STRUCT(TResourceInstanceDynamicSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceInstanceDynamicSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNodePerformanceMetrics
     : public NYTree::TYsonStruct
 {
@@ -374,6 +407,10 @@ DEFINE_REFCOUNTED_TYPE(TFileSnapshotStatus);
 struct TWorkerResourceStatus
     : public NYTree::TYsonStruct
 {
+    TResourceId ResourceId;
+    EResourceLoadState LoadState = EResourceLoadState::NotLoaded;
+    TError LoadError;
+
     std::optional<double> QueueSize30s;
     std::optional<double> QueueSize10m;
     std::optional<double> QueueGrowthRate30s;
@@ -431,6 +468,7 @@ struct TWorkerStatus
     THashMap<TResourceId, TWorkerResourceStatusPtr> ResourceStatuses;
     THashMap<TResourceId, EPreloadedResourceState> PreloadedResourceStates;
     TWorkerStatisticsPtr Statistics;
+    THashMap<TResourceInstanceId, TWorkerResourceStatusPtr> ResourceInstanceStatuses;
 
     REGISTER_YSON_STRUCT(TWorkerStatus);
 
@@ -482,6 +520,7 @@ struct TFlowLayout
 public:
     //! General content access.
     TTransactionalPersistedState<TJobId, TJobPtr> Jobs;
+    TTransactionalPersistedState<TResourceInstanceId, TResourceInstancePtr> ResourceInstances;
     TTransactionalPersistedState<TPartitionId, TPartitionPtr> Partitions;
 
     //! Per-worker specs (keyed by worker RPC address). Filled by the controller.
@@ -493,12 +532,14 @@ private:
     TPersistedStateControlPtr<std::string> PersistedStateControl_;
     TPersistedStatePtr<TPartitionId, TPartitionPtr> CommittedPartitions_;
     TPersistedStatePtr<TJobId, TJobPtr> CommittedJobs_;
+    TPersistedStatePtr<TResourceInstanceId, TResourceInstancePtr> CommittedResourceInstances_;
     TPersistedStatePtr<std::string, TWorkerSpecPtr> CommittedWorkerSpecs_;
     TPersistedStateTransactionPtr Txn_;
     //! Transient: a clone captures the source layout's live write transaction here so that
     //! CreateSnapshot(/*committed*/ false) can seed the snapshot with its uncommitted writes.
     TPersistedStateTransactionPtr SourceWriteTransaction_;
     TFlowStateMutationNotifierPtr MutationNotifier_ = nullptr;
+    std::optional<TSequenceId> SnapshotSequenceId_;
 
 public:
     TVersion GetVersion() const;

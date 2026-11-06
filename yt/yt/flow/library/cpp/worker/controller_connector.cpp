@@ -185,7 +185,8 @@ public:
 
     void Reconfigure(
         const TExecutionSpecPtr& newExecutionSpec,
-        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs)
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs,
+        const THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr>& resourceDynamicSpecs)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -227,7 +228,7 @@ public:
             JobDirectory_->Reconfigure(ExecutionSpec_->Layout, ExecutionSpec_->PipelineSpec->GetValue());
             MessageDistributor_->Reconfigure(ExecutionSpec_->PipelineSpec->GetValue(), dynamicSpec->MessageDistributor);
         }
-        JobTracker_->Reconfigure(ExecutionSpec_, dynamicComputationPartitionSpecs);
+        JobTracker_->Reconfigure(ExecutionSpec_, dynamicComputationPartitionSpecs, resourceDynamicSpecs);
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), ControllerConnecting);
@@ -525,8 +526,7 @@ private:
         }
         workerStatus->MessageDistributorStatus = MessageDistributor_->GetStatus();
         workerStatus->Errors = std::move(RootStatusProfiler_->GetStatus().Errors);
-        workerStatus->ResourceStatuses = JobTracker_->GetResourceStatuses();
-        workerStatus->PreloadedResourceStates = JobTracker_->GetPreloadedStates();
+        JobTracker_->FillRuntimeStatus(workerStatus);
         auto now = TInstant::Now();
         if (NextWorkerStatisticsReportAt_ <= now) {
             auto statistics = New<TWorkerStatistics>();
@@ -581,7 +581,13 @@ private:
             }
 
             auto newExecutionSpec = ApplyExecutionSpecUpdate(ExecutionSpec_, executionSpecUpdate, stateUpdate);
-            Reconfigure(newExecutionSpec, dynamicComputationPartitionSpecs);
+            THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr> resourceDynamicSpecs;
+            for (const auto& item : response->resources_dynamic_specs()) {
+                resourceDynamicSpecs.emplace(
+                    FromProto<TResourceInstanceId>(item.resource_instance_id()),
+                    ConvertTo<TResourceInstanceDynamicSpecPtr>(TYsonStringBuf(item.spec())));
+            }
+            Reconfigure(newExecutionSpec, dynamicComputationPartitionSpecs, resourceDynamicSpecs);
         }
 
         if (!response->message_transfering_info().empty()) {

@@ -1675,7 +1675,7 @@ TEST(TProcessFunctionSpecValidationTest, RejectsUnknownDynamicField)
 
 //! Minimal resource for testing the init-context accessor.
 class TTaggedTestResource
-    : public IResource
+    : public TResourceLifecycleBase
 {
 public:
     explicit TTaggedTestResource(int tag)

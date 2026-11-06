@@ -179,6 +179,18 @@ public:
         return PendingPreparations_.size();
     }
 
+    void SetUncancelablePreparation(bool value)
+    {
+        auto guard = Guard(Lock_);
+        UncancelablePreparation_ = value;
+    }
+
+    TPromise<TResourceRevisionPtr> GetPreparationPromise(int index) const
+    {
+        auto guard = Guard(Lock_);
+        return PendingPreparations_.at(index);
+    }
+
     void CompletePreparation(int index, const TResourceRevisionPtr& revision)
     {
         TPromise<TResourceRevisionPtr> promise;
@@ -209,12 +221,13 @@ protected:
         }
         auto promise = NewPromise<TResourceRevisionPtr>();
         PendingPreparations_.push_back(promise);
-        return promise.ToFuture();
+        return UncancelablePreparation_ ? promise.ToFuture().ToUncancelable() : promise.ToFuture();
     }
 
 private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool DelayPreparation_ = false;
+    bool UncancelablePreparation_ = false;
     std::vector<TPromise<TResourceRevisionPtr>> PendingPreparations_;
 };
 
@@ -229,6 +242,37 @@ public:
     void Set(const TResourceId& resourceId, IResourcePtr resource)
     {
         Resources_[resourceId] = std::move(resource);
+    }
+
+    IResourcePtr Get(TResourceInstanceId /*instanceId*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<void> Load(const THashSet<TResourceInstanceId>& /*instanceIds*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void FeedStatus(
+        TResourceInstanceId /*instanceId*/,
+        i64 /*morePushedToQueue*/,
+        i64 /*moreFetchedFromQueue*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    THashMap<TResourceInstanceId, TWorkerResourceStatusPtr> CollectResourceInstanceStatuses() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void ReconfigureInstances(
+        const THashMap<TResourceId, TResourceSpecPtr>& /*resourceSpecs*/,
+        const THashMap<TResourceInstanceId, TResourceInstancePtr>& /*instances*/,
+        const THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr>& /*dynamicSpecs*/) override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     IResourcePtr Get(TResourceId resourceId) override
@@ -565,6 +609,72 @@ TEST_F(TCompanionResourceTest, DelayedPreparationPublishesAndAdvancesAppliedRevi
     EXPECT_EQ(1, stateChangeCount.load());
 }
 
+class TCompanionResourceStopTest
+    : public TCompanionResourceTest
+    , public ::testing::WithParamInterface<std::tuple<bool, bool>>
+{ };
+
+TEST_P(TCompanionResourceStopTest, StopDetachesRevisionPreparation)
+{
+    auto [backgroundPreparation, uncancelablePreparation] = GetParam();
+    auto client = New<TFakeCompanionClient>();
+    auto resource = New<TDelayedCompanionResource>(
+        CreateResourceContext(),
+        CreateDynamicResourceContext(42),
+        client);
+    if (backgroundPreparation) {
+        NConcurrency::WaitFor(resource->Load({})).ThrowOnError();
+    }
+    resource->SetDelayPreparation(true);
+    resource->SetUncancelablePreparation(uncancelablePreparation);
+    auto load = OKFuture;
+    if (backgroundPreparation) {
+        resource->Reconfigure(CreateDynamicResourceContext(43, CreateResourceRevision(7)));
+    } else {
+        load = resource->Load({});
+    }
+    WaitForPredicate([&] {
+        return resource->GetPendingPreparationCount() == 1;
+    });
+    auto preparation = resource->GetPreparationPromise(0);
+    auto destroyed = resource->GetDestroyedFuture();
+    resource->Stop();
+    resource->Stop();
+    resource->Reconfigure(CreateDynamicResourceContext(44, CreateResourceRevision(8)));
+    auto weakResource = MakeWeak(resource);
+    resource.Reset();
+    EXPECT_TRUE(NConcurrency::WaitFor(destroyed.WithTimeout(TDuration::Seconds(1))).IsOK());
+    EXPECT_FALSE(preparation.IsCanceled());
+    if (!backgroundPreparation) {
+        EXPECT_FALSE(NConcurrency::WaitFor(load.WithTimeout(TDuration::Seconds(1))).IsOK());
+    }
+    // Keep failure cleanup finite even if cancellation did not release the waiter.
+    if (auto retained = weakResource.Lock()) {
+        retained->FailPreparation(0, TError("Test cleanup"));
+    }
+    WaitForPredicate([&] {
+        return client->GetCommandCount(ECompanionResourceCommand::Unload) == 1;
+    });
+    EXPECT_EQ(client->GetCommandCount(ECompanionResourceCommand::Init), backgroundPreparation ? 1 : 0);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Preparation,
+    TCompanionResourceStopTest,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool()));
+
+TEST_F(TCompanionResourceTest, StopBeforeLoadDoesNotInitializeCompanion)
+{
+    auto client = New<TFakeCompanionClient>();
+    auto resource = New<TTestCompanionResource>(
+        CreateResourceContext(),
+        CreateDynamicResourceContext(42),
+        client);
+    resource->Stop();
+    EXPECT_FALSE(NConcurrency::WaitFor(resource->Load({}).WithTimeout(TDuration::Seconds(1))).IsOK());
+    EXPECT_EQ(client->GetCommandCount(ECompanionResourceCommand::Init), 0);
+}
+
 TEST_F(TCompanionResourceTest, ObsoletePreparationDoesNotPublish)
 {
     auto client = New<TFakeCompanionClient>();
@@ -883,7 +993,7 @@ TEST_F(TCompanionResourceTest, InitInCompanionUsesProvidedClient)
     EXPECT_EQ(1, loadClient->GetCommandCount(ECompanionResourceCommand::Init));
 }
 
-TEST_F(TCompanionResourceTest, ResolvesCurrentObjectAfterResourceManagerRecreation)
+TEST_F(TCompanionResourceTest, KeepsExactInstanceAfterResourceManagerReplacement)
 {
     auto manager = New<TSwitchingResourceManager>();
     auto client = New<TFakeCompanionClient>();
@@ -903,7 +1013,35 @@ TEST_F(TCompanionResourceTest, ResolvesCurrentObjectAfterResourceManagerRecreati
         client);
     manager->Set(currentContext->ResourceId, current);
 
-    EXPECT_EQ(current, stale->GetCurrentResource());
+    auto graph = stale->GetCompanionResourceGraph();
+    ASSERT_EQ(1u, graph.size());
+    EXPECT_EQ(stale, graph.front());
+}
+
+TEST_F(TCompanionResourceTest, KeepsDependencyAliveAfterAssignmentRemoval)
+{
+    auto client = New<TFakeCompanionClient>();
+    auto dependency = New<TTestCompanionResource>(
+        CreateResourceContext("60s", "1ms", TResourceId("dependency")),
+        CreateDynamicResourceContext(1),
+        client);
+    NConcurrency::WaitFor(dependency->Load({})).ThrowOnError();
+    auto weakDependency = MakeWeak(dependency);
+    auto dependencyReference = dependency->GetReference();
+    auto parent = New<TTestCompanionResource>(
+        CreateResourceContext(
+            "60s",
+            "1ms",
+            TResourceId("parent"),
+            std::pair(TResourceId("dependency"), TResourceId("Dictionary"))),
+        CreateDynamicResourceContext(2),
+        client);
+    NConcurrency::WaitFor(parent->Load({{TResourceId("Dictionary"), dependency}})).ThrowOnError();
+    dependency.Reset();
+    EXPECT_FALSE(weakDependency.IsExpired());
+    auto graph = parent->GetCompanionResourceGraph();
+    ASSERT_EQ(2u, graph.size());
+    EXPECT_EQ(dependencyReference.IncarnationId, graph.front()->GetReference().IncarnationId);
 }
 
 TEST_F(TCompanionResourceTest, InitializesDependencyGraphInTopologicalOrder)

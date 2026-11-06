@@ -74,7 +74,7 @@ TDuration GetLeadershipWarmupTimeout(const TDynamicPipelineSpecPtr& dynamicSpec)
 
 //! Time left before a leader that published its address at |publishTime| may manage jobs, given
 //! that it is |now|. Zero once the warm-up has elapsed, when it is disabled, or when the layout
-//! holds no jobs at all.
+//! holds no jobs.
 //!
 //! Leadership is won and published independently: the connector retries writing the leader address
 //! in the background (for up to publish_timeout) while scheduling starts right away. Until that

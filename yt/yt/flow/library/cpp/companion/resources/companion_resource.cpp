@@ -3,7 +3,6 @@
 #include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/manager/companion_manager.h>
 
-#include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -125,7 +124,7 @@ TCompanionResource::~TCompanionResource()
 TFuture<void> TCompanionResource::Load(const THashMap<TResourceId, IResourcePtr>& dependencies)
 {
     return BIND(&TCompanionResource::DoLoad, MakeStrong(this), dependencies)
-        .AsyncVia(GetContext()->Invoker)
+        .AsyncVia(GetBackgroundInvoker())
         .Run();
 }
 
@@ -171,7 +170,7 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
             CompanionDependencies_.push_back({
                 .ResourceId = resourceId,
                 .Alias = alias,
-                .InitialResource = MakeWeak(companionResource.Get()),
+                .Resource = std::move(companionResource),
             });
         }
     }
@@ -184,7 +183,7 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
 
     auto dynamicContext = GetDynamicContext();
     auto resourceRevision = NConcurrency::WaitFor(
-        PrepareResourceRevision(dynamicContext->TargetRevision))
+        PrepareResourceRevision(dynamicContext->TargetRevision).ToImmediatelyCancelable(false))
         .ValueOrThrow();
     auto publicationState = TrySetPreparedPublicationState(
         dynamicContext,
@@ -237,7 +236,7 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
     ScheduleReconfiguration(GetDynamicContext());
 
     KeepAliveExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-        GetContext()->Invoker,
+        GetBackgroundInvoker(),
         BIND(&TCompanionResource::KeepAlive, MakeWeak(this)),
         GetParameters()->KeepAliveInterval);
     KeepAliveExecutor_->Start();
@@ -247,35 +246,7 @@ void TCompanionResource::InitInCompanion(
     const ICompanionClientPtr& client,
     std::optional<i64> companionProcessId) const
 {
-    GetCurrentResource()->InitGraphInCompanion(client, companionProcessId);
-}
-
-TCompanionResourcePtr TCompanionResource::GetCurrentResource() const
-{
-    auto resourceManager = GetContext()->ResourceManager.Lock();
-    if (!resourceManager) {
-        return MakeStrong(const_cast<TCompanionResource*>(this));
-    }
-    NConcurrency::WaitFor(resourceManager->Load(GetContext()->ResourceId))
-        .ThrowOnError();
-    return resourceManager->Get(GetContext()->ResourceId)->As<TCompanionResource>();
-}
-
-TCompanionResourcePtr TCompanionResource::GetCurrentDependencyResource(
-    const TCompanionDependency& dependency) const
-{
-    if (auto resourceManager = GetContext()->ResourceManager.Lock()) {
-        NConcurrency::WaitFor(resourceManager->Load(dependency.ResourceId))
-            .ThrowOnError();
-        return resourceManager->Get(dependency.ResourceId)->As<TCompanionResource>();
-    }
-
-    auto initialResource = dependency.InitialResource.Lock();
-    THROW_ERROR_EXCEPTION_UNLESS(initialResource,
-        "Companion resource dependency object is no longer available")
-        .With("resource_id", GetContext()->ResourceId)
-        .With("dependency_id", dependency.ResourceId);
-    return initialResource;
+    InitGraphInCompanion(client, companionProcessId);
 }
 
 void TCompanionResource::InitGraphInCompanion(
@@ -329,10 +300,6 @@ TCompanionResourceInstanceReference TCompanionResource::GetReference(std::option
 
 std::vector<TCompanionResourcePtr> TCompanionResource::GetCompanionResourceGraph() const
 {
-    auto current = GetCurrentResource();
-    if (current.Get() != this) {
-        return current->GetCompanionResourceGraph();
-    }
     THashSet<TResourceInstanceId> visiting;
     THashSet<TResourceInstanceId> collected;
     std::vector<TCompanionResourcePtr> result;
@@ -355,8 +322,7 @@ void TCompanionResource::BuildCompanionResourceGraph(
             .With("resource_instance_id", instanceId);
     }
     for (const auto& dependency : CompanionDependencies_) {
-        auto resource = GetCurrentDependencyResource(dependency);
-        resource->BuildCompanionResourceGraph(visiting, collected, result);
+        dependency.Resource->BuildCompanionResourceGraph(visiting, collected, result);
     }
     visiting->erase(instanceId);
     collected->insert(instanceId);
@@ -366,13 +332,12 @@ void TCompanionResource::BuildCompanionResourceGraph(
 std::vector<TCompanionResourceInstanceReference> TCompanionResource::GetCompanionResourceReferences(
     std::optional<TResourceId> alias) const
 {
-    auto current = GetCurrentResource();
-    auto resources = current->GetCompanionResourceGraph();
+    auto resources = GetCompanionResourceGraph();
     std::vector<TCompanionResourceInstanceReference> references;
     references.reserve(resources.size());
     for (const auto& resource : resources) {
         references.push_back(resource->GetReference(
-            resource == current ? alias : std::nullopt));
+            resource.Get() == this ? alias : std::nullopt));
     }
     return references;
 }
@@ -405,8 +370,7 @@ NYson::TYsonString TCompanionResource::BuildInitArgument(
     arg.ResourceRevision = state.ResourceRevision;
     arg.Dependencies.reserve(CompanionDependencies_.size());
     for (const auto& dependency : CompanionDependencies_) {
-        auto resource = GetCurrentDependencyResource(dependency);
-        arg.Dependencies.push_back(resource->GetReference(dependency.Alias));
+        arg.Dependencies.push_back(dependency.Resource->GetReference(dependency.Alias));
     }
     return NYson::ConvertToYsonString(arg);
 }
@@ -491,7 +455,7 @@ void TCompanionResource::PrepareAndPublish(
     const TDynamicResourceContextPtr& dynamicContext)
 {
     auto resourceRevision = NConcurrency::WaitFor(
-        PrepareResourceRevision(dynamicContext->TargetRevision))
+        PrepareResourceRevision(dynamicContext->TargetRevision).ToImmediatelyCancelable(false))
         .ValueOrThrow();
     auto publicationState = TrySetPreparedPublicationState(
         dynamicContext,
@@ -554,7 +518,7 @@ void TCompanionResource::ScheduleReconfiguration(
         PreparingDynamicContext_ = dynamicContext;
         preparationEpoch = ++PreparationEpoch_;
     }
-    GetContext()->Invoker->Invoke(BIND(
+    GetBackgroundInvoker()->Invoke(BIND(
         &TCompanionResource::OnReconfigured,
         MakeWeak(this),
         preparationEpoch,

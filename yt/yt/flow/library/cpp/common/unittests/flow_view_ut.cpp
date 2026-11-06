@@ -66,6 +66,83 @@ TEST(TFlowLayoutMutationTest, CreatePartition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TFlowLayoutMutationTest, ResourceInstanceSnapshotsAndDeltas)
+{
+    auto state = New<TFlowState>();
+    auto control = New<TPersistedStateControl<std::string>>(New<TStorageHandler>());
+    state->AttachToControl(control);
+    control->Recover();
+    auto layout = state->ExecutionSpec->Layout;
+    auto follower = New<TFlowLayout>();
+    state->StartMutation();
+    auto instance = New<TResourceInstance>();
+    instance->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    instance->ResourceId = TResourceId("resource");
+    instance->WorkerAddress = "worker";
+    instance->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    layout->ResourceInstances.emplace(instance->ResourceInstanceId, instance);
+    auto snapshot = layout->Clone();
+    snapshot->CreateSnapshot(false);
+    EXPECT_EQ(snapshot->ResourceInstances.size(), 1u);
+    state->CommitMutation();
+    follower->Apply(layout->Follow(TSequenceId(0)));
+    ASSERT_EQ(follower->ResourceInstances.size(), 1u);
+    EXPECT_EQ(follower->ResourceInstances.at(instance->ResourceInstanceId)->ResourceId, instance->ResourceId);
+    const auto additionVersion = layout->GetVersion();
+    state->StartMutation();
+    layout->ResourceInstances.erase(instance->ResourceInstanceId);
+    state->CommitMutation();
+    EXPECT_GT(layout->GetVersion(), additionVersion);
+    follower->Apply(layout->Follow(TSequenceId(additionVersion.Underlying())));
+    EXPECT_EQ(follower->ResourceInstances.size(), 0u);
+    EXPECT_EQ(snapshot->ResourceInstances.size(), 1u);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFlowLayoutMutationTest, ExecutionSpecUpdateRejectsSupersededSnapshot)
+{
+    auto state = New<TFlowState>();
+    auto control = New<TPersistedStateControl<std::string>>(New<TStorageHandler>());
+    state->AttachToControl(control);
+    control->Recover();
+    auto layout = state->ExecutionSpec->Layout;
+    auto workerSpec = New<TExecutionSpec>();
+    auto instance = New<TResourceInstance>();
+    instance->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    instance->ResourceId = TResourceId("resource");
+    instance->WorkerAddress = "worker";
+    instance->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->StartMutation();
+    layout->ResourceInstances.emplace(instance->ResourceInstanceId, instance);
+    state->CommitMutation();
+    auto snapshot = state->ExecutionSpec->Clone();
+    snapshot->CreateSnapshot();
+    const auto snapshotVersion = snapshot->Layout->GetVersion();
+
+    state->StartMutation();
+    layout->ResourceInstances.erase(instance->ResourceInstanceId);
+    auto replacement = CloneYsonStruct(instance);
+    replacement->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    layout->ResourceInstances.emplace(replacement->ResourceInstanceId, replacement);
+    state->CommitMutation();
+
+    EXPECT_EQ(snapshot->Layout->GetVersion(), snapshotVersion);
+    EXPECT_TRUE(snapshot->Layout->ResourceInstances.contains(instance->ResourceInstanceId));
+    auto workerVersions = BuildExecutionSpecVersions(workerSpec);
+    EXPECT_THROW(PrepareExecutionSpecUpdate(snapshot, workerVersions), std::exception);
+
+    auto freshSnapshot = state->ExecutionSpec->Clone();
+    freshSnapshot->CreateSnapshot();
+    auto [update, rows] = PrepareExecutionSpecUpdate(freshSnapshot, workerVersions);
+    workerSpec = ApplyExecutionSpecUpdate(workerSpec, update, rows);
+    EXPECT_EQ(workerSpec->Layout->GetVersion(), freshSnapshot->Layout->GetVersion());
+    EXPECT_FALSE(workerSpec->Layout->ResourceInstances.contains(instance->ResourceInstanceId));
+    EXPECT_TRUE(workerSpec->Layout->ResourceInstances.contains(replacement->ResourceInstanceId));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TFlowViewSerializeTest, RendersLayoutButKeepsDefaultEmpty)
 {
     auto flowState = New<TFlowState>();

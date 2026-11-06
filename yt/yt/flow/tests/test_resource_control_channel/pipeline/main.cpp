@@ -41,11 +41,14 @@ struct TCounterParameters
     : public virtual TYsonStruct
 {
     TDuration GenerationPeriod;
+    bool FailFirstLoad = false;
 
     REGISTER_YSON_STRUCT(TCounterParameters);
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("fail_first_load", &TThis::FailFirstLoad)
+            .Default(false);
         registrar.Parameter("generation_period", &TThis::GenerationPeriod)
             .Default(TDuration::Seconds(1));
     }
@@ -132,6 +135,15 @@ public:
     using TController = TCounterResourceController;
 
     using TResourceBase::TResourceBase;
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override
+    {
+        static std::atomic<bool> failed = false;
+        if (GetParameters()->FailFirstLoad && !failed.exchange(true)) {
+            return MakeFuture<void>(TError("Injected first preload failure"));
+        }
+        return TResourceBase::Load(dependencies);
+    }
 
     TResourceRevisionState GetRevisionState() const override
     {

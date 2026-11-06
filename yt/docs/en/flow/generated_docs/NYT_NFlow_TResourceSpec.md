@@ -27,6 +27,6 @@ Resources that this resource depends on. Mirrors the structure of `required_reso
  ||
 || `always_on` | **Type**: `bool`
 **Default value**: `false`
-If `true`, the resource is loaded in advance when the unit starts and stays in memory for its entire lifetime (never unloaded) instead of being loaded lazily on first access. It is loaded only on units where at least one computation requires it (see `worker` / `controller` in `required_resource_ids`): a resource needed only on a worker is not loaded on a controller, and a resource not required by any computation is not loaded at all. Mutually exclusive with `preload_required`. ||
+If `true`, the resource loads eagerly when assigned to a unit where a computation requires it (see `worker` / `controller` in `required_resource_ids`). Worker instances remain in memory while assigned, including between jobs. Pausing or stopping the pipeline releases them after all jobs finish. Resources that no computation requires on the unit are not loaded. Mutually exclusive with `preload_required`. ||
 |#
 

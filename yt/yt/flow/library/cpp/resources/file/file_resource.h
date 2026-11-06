@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/resources/resource_base.h>
 
 #include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -190,6 +191,7 @@ private:
         bool RetiredSnapshotReleased = false;
     };
 
+    void OnLoadCanceled(const TError& error);
     void OnReconfigured(const TDynamicResourceContextPtr& dynamicContext);
     void SchedulePreparation(const TGuard<TSpinLock>& guard);
     void StartPreparation(

@@ -89,8 +89,11 @@ TEST_W(TWorkerInitializationTest, CreatesRpcClientAndIdleJobTrackerWithoutCluste
         .ValueOrThrow();
 
     EXPECT_TRUE(statuses.empty());
-    EXPECT_TRUE(tracker->GetResourceStatuses().empty());
-    EXPECT_TRUE(tracker->GetPreloadedStates().empty());
+
+    auto workerStatus = New<TWorkerStatus>();
+    tracker->FillRuntimeStatus(workerStatus);
+
+    EXPECT_TRUE(workerStatus->ResourceInstanceStatuses.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

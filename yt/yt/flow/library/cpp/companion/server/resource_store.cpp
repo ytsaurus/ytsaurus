@@ -84,6 +84,15 @@ TResourceStore::TResourceStore(
     , Invoker_(std::move(invoker))
 { }
 
+TResourceStore::~TResourceStore()
+{
+    for (const auto& [resourceId, entry] : Entries_) {
+        if (entry->Resource) {
+            entry->Resource->Stop();
+        }
+    }
+}
+
 TFuture<TResourceCommandOutcome> TResourceStore::Execute(
     const TResourceId& resourceId,
     ECompanionResourceCommand command,
@@ -202,6 +211,9 @@ TResourceCommandOutcome TResourceStore::DoInit(
                 entry->ConfigurationGeneration = 0;
                 entry->HasIncarnation = true;
                 entry->Retired = false;
+            }
+            if (detached) {
+                detached->Stop();
             }
             entry->ResetApplied();
             entry->ResetPending();
@@ -330,6 +342,7 @@ TResourceCommandOutcome TResourceStore::DoUnload(
         entry->Retired = true;
     }
     if (detached) {
+        detached->Stop();
         YT_TLOG_INFO("Companion resource unloaded")
             .With("ResourceId", resourceId)
             .With("IncarnationId", arg.IncarnationId);
@@ -393,6 +406,9 @@ TResourceCommandOutcome TResourceStore::InitializeCleanInstance(
         entry->State = EState::Registered;
         detached = std::move(entry->Resource);
     }
+    if (detached) {
+        detached->Stop();
+    }
     entry->ResetPending();
 
     THashMap<TResourceId, IResourcePtr> dependencies;
@@ -423,8 +439,13 @@ TResourceCommandOutcome TResourceStore::InitializeCleanInstance(
         .With("ResourceClass", className)
         .With("IncarnationId", arg.IncarnationId)
         .With("ConfigurationGeneration", arg.ConfigurationGeneration);
-    NConcurrency::WaitFor(resource->Load(dependencies))
-        .ThrowOnError();
+    try {
+        NConcurrency::WaitFor(resource->Load(dependencies))
+            .ThrowOnError();
+    } catch (...) {
+        resource->Stop();
+        throw;
+    }
 
     entry->AppliedSpecs = incomingSpecs;
     entry->DependencyReferences = arg.Dependencies;
@@ -466,6 +487,7 @@ TResourceCommandOutcome TResourceStore::ApplyReconfigure(
             detached = std::move(entry->Resource);
             entry->State = EState::ReconfigureFailed;
         }
+        detached->Stop();
         entry->ResetPending();
         return ErrorOutcome(TError(ex));
     }

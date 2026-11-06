@@ -2779,6 +2779,66 @@ TEST(TControllerHelpersTest, LeadershipWarmupLeft)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TControllerTest, PausePublishesEmptyResourceLayoutWithoutWorkerAcknowledgement)
+{
+    ControllerConfig->WarmUpTime = TDuration::MilliSeconds(10);
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+    ControllerConfig->FeedbackPeriod = TDuration::MilliSeconds(10);
+    Prepare();
+    TWorkerInfo worker;
+    worker.RpcAddress = "worker";
+    worker.IncarnationId = TIncarnationId(TGuid::Create());
+    worker.State = EWorkerState::Registered;
+    EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+        .WillRepeatedly(Return(TInstant::Now() - TDuration::Hours(1)));
+    EXPECT_CALL(*WorkerTracker, GetWorkers())
+        .WillRepeatedly(Return(std::vector<TWorkerInfo>{worker}));
+    const auto& state = PersistedStateManagerLocalState;
+    state->FlowView->State->AttachToControl(state->PersistedMasterControl);
+    state->PersistedMasterControl->Recover();
+    auto flowState = state->FlowView->State;
+    auto versionProvider = New<TFakeVersionProvider>(InitialClockUnixTime - 1);
+    flowState->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, versionProvider);
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->TargetState = EPipelineState::Paused;
+    state->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
+    auto instance = New<TResourceInstance>();
+    instance->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    instance->ResourceId = TResourceId("resource");
+    instance->WorkerAddress = worker.RpcAddress;
+    instance->WorkerIncarnationId = worker.IncarnationId;
+    flowState->StartMutation();
+    flowState->ExecutionSpec->Layout->ResourceInstances.emplace(instance->ResourceInstanceId, instance);
+    flowState->CommitMutation();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        auto stop = Finally([&] {
+            StopLeading();
+        });
+        auto status = New<TWorkerStatus>();
+        status->WorkerIncarnationId = worker.IncarnationId;
+        auto resourceStatus = New<TWorkerResourceStatus>();
+        resourceStatus->ResourceId = instance->ResourceId;
+        resourceStatus->LoadState = EResourceLoadState::Loaded;
+        status->ResourceInstanceStatuses.emplace(instance->ResourceInstanceId, resourceStatus);
+        Controller->RegisterWorkerStatus(worker.RpcAddress, status);
+        const auto deadline = TInstant::Now() + TDuration::Seconds(3);
+        auto current = [&] {
+            return Controller->GetFlowViewKeeper()->GetFlowView()->State;
+        };
+        while (current()->ExecutionSpec->PipelineState->GetValue() != EPipelineState::Paused && TInstant::Now() < deadline) {
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+        }
+        EXPECT_EQ(current()->ExecutionSpec->PipelineState->GetValue(), EPipelineState::Paused);
+        EXPECT_EQ(current()->ExecutionSpec->Layout->ResourceInstances.size(), 0u);
+        EXPECT_EQ(current()->ExecutionSpec->Layout->Jobs.size(), 0u);
+        EXPECT_EQ(current()->ExecutionSpec->Layout->WorkerSpecs.size(), 0u);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TControllerHelpersTest, SyncTraverseDataWithSpec)
 {
     auto schema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{

@@ -134,12 +134,14 @@ TFileResourceBase<TData>::TFileResourceBase(
             ? GetContext()->StatusProfiler->ErrorState("/file_snapshot_activation")
             : nullptr)
     , InitializationInvoker_(NConcurrency::CreateSerializedInvoker(
-        GetContext()->Invoker,
+        GetBackgroundInvoker(),
         "FileResourceInitialization"))
     , WeakThis_(MakeWeak(this))
     , UpdateRetryPeriod_(dynamicContext->DynamicResourceSpec->FileProviderUpdateRetryPeriod)
     , ActivationStallWarningPeriod_(dynamicContext->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod)
 {
+    InitialLoadPromise_.OnCanceled(BIND(&TFileResourceBase::OnLoadCanceled, WeakThis_));
+    GetCancelableContext()->PropagateTo(InitialLoadPromise_.ToFuture());
     SubscribeReconfigured(BIND(&TFileResourceBase::OnReconfigured, Unretained(this)));
     OnReconfigured(dynamicContext);
 }
@@ -150,7 +152,15 @@ TFuture<void> TFileResourceBase<TData>::Load(const THashMap<TResourceId, IResour
     auto guard = Guard(Lock_);
     LoadStarted_ = true;
     SchedulePreparation(guard);
-    return InitialLoadPromise_.ToFuture().ToUncancelable();
+    return InitialLoadPromise_.ToFuture();
+}
+
+template <class TData>
+void TFileResourceBase<TData>::OnLoadCanceled(const TError& error)
+{
+    Stop();
+    InitialLoadPromise_.TrySet(TError(NYT::EErrorCode::Canceled, "File resource load canceled")
+            .With(error));
 }
 
 template <class TData>
@@ -337,7 +347,7 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
 template <class TData>
 void TFileResourceBase<TData>::SchedulePreparation(const TGuard<TSpinLock>& guard)
 {
-    if (!LoadStarted_ || !Target_) {
+    if (!LoadStarted_ || !Target_ || GetCancelableContext()->IsCanceled()) {
         return;
     }
 
@@ -386,7 +396,7 @@ void TFileResourceBase<TData>::StartPreparation(
 
     if (activateValidatedCandidate) {
         slot.PreparationStage.reset();
-        GetContext()->Invoker->Invoke(BIND([
+        GetBackgroundInvoker()->Invoke(BIND([
             weakThis = MakeWeak(this),
             target = std::move(target),
             fileSnapshot = std::move(fileSnapshot),
@@ -401,7 +411,7 @@ void TFileResourceBase<TData>::StartPreparation(
 
     slot.State = EFileSnapshotState::Preparing;
     slot.PreparationStage = EFileSnapshotPreparationStage::Materializing;
-    GetContext()->Invoker->Invoke(BIND([
+    GetBackgroundInvoker()->Invoke(BIND([
         weakThis = MakeWeak(this),
         role,
         target = std::move(target),
@@ -443,16 +453,19 @@ void TFileResourceBase<TData>::BeginPreparation(
     try {
         ValidateSnapshot(fileSnapshot);
 
-        MaterializeFileProviders(fileSnapshot).Subscribe(BIND([weakThis = MakeWeak(this), role, target = std::move(target), fileSnapshot = std::move(fileSnapshot), attemptGeneration] (const TErrorOr<TMaterializedFileProviderSnapshotPtr>& result) {
-            if (auto strongThis = weakThis.Lock()) {
-                strongThis->OnMaterialized(
-                    role,
-                    target,
-                    fileSnapshot,
-                    attemptGeneration,
-                    result);
-            }
-        }).Via(InitializationInvoker_));
+        auto preparationFuture = MaterializeFileProviders(fileSnapshot)
+            .ToImmediatelyCancelable(false)
+            .Apply(BIND([weakThis = MakeWeak(this), role, target = std::move(target), fileSnapshot = std::move(fileSnapshot), attemptGeneration] (const TErrorOr<TMaterializedFileProviderSnapshotPtr>& result) {
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->OnMaterialized(
+                        role,
+                        target,
+                        fileSnapshot,
+                        attemptGeneration,
+                        result);
+                }
+            }).AsyncVia(InitializationInvoker_));
+        GetCancelableContext()->PropagateTo(preparationFuture);
     } catch (const std::exception& ex) {
         HandlePreparationError(
             role,
@@ -636,7 +649,7 @@ void TFileResourceBase<TData>::ActivateCandidate(
         if (previousSnapshot) {
             auto retirementCallback = New<NDetail::TFileResourceLifetimeCallback>(BIND([
                 weakThis = WeakThis_,
-                invoker = GetContext()->Invoker,
+                invoker = GetBackgroundInvoker(),
                 previousSnapshotId = *previousSnapshotId,
                 attemptGeneration
             ] {
@@ -668,7 +681,7 @@ void TFileResourceBase<TData>::ActivateCandidate(
                     }
                 }),
                 warningPeriod,
-                GetContext()->Invoker);
+                GetBackgroundInvoker());
         }
 
         completeInitialLoad = TryCompleteActivation(guard);
@@ -685,7 +698,7 @@ void TFileResourceBase<TData>::ActivateCandidate(
         UpdateError_->ClearError();
     }
     if (completeInitialLoad) {
-        InitialLoadPromise_.Set();
+        InitialLoadPromise_.TrySet();
     }
 }
 
@@ -707,7 +720,7 @@ void TFileResourceBase<TData>::OnRetiredSnapshotReleased(
         completeInitialLoad = TryCompleteActivation(guard);
     }
     if (completeInitialLoad) {
-        InitialLoadPromise_.Set();
+        InitialLoadPromise_.TrySet();
     }
 }
 
@@ -900,7 +913,7 @@ void TFileResourceBase<TData>::HandlePreparationError(
             }
         }),
         retryPeriod,
-        GetContext()->Invoker);
+        GetBackgroundInvoker());
 }
 
 template <class TData>
@@ -931,7 +944,8 @@ bool TFileResourceBase<TData>::IsCurrentAttempt(
     ui64 attemptGeneration) const
 {
     const auto& slot = GetSlot(role);
-    return slot.Desired &&
+    return !GetCancelableContext()->IsCanceled() &&
+        slot.Desired &&
         fileSnapshot &&
         slot.Desired->Id == fileSnapshot->Id &&
         slot.AttemptGeneration == attemptGeneration;

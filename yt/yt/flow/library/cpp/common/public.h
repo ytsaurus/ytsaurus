@@ -389,6 +389,15 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
 DECLARE_REFCOUNTED_STRUCT(IResource);
 DECLARE_REFCOUNTED_STRUCT(TResourceManagerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceManager);
+DECLARE_REFCOUNTED_STRUCT(TResourceInstance);
+DECLARE_REFCOUNTED_STRUCT(TResourceInstanceDynamicSpec);
+
+DEFINE_ENUM(EResourceLoadState,
+    ((NotLoaded) (0))
+    ((Loading)   (1))
+    ((Loaded)    (2))
+    ((Failed)    (3))
+);
 DECLARE_REFCOUNTED_STRUCT(TFileSnapshot);
 DECLARE_REFCOUNTED_STRUCT(TFileSnapshotStatus);
 DECLARE_REFCOUNTED_STRUCT(TResourceRevision);
