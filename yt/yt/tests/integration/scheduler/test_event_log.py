@@ -402,7 +402,8 @@ class TestEventLog(YTEnvSetup):
         @wait_no_assert
         def check_nodes_info():
             nodes_info = read_latest_nodes_info_events()
-            assert len(nodes_info) >= 2
+            assert "treeA" in nodes_info
+            assert "treeB" in nodes_info
 
             for node_info in nodes_info["treeA"]["nodes"].values():
                 assert "tagA" in node_info["tags"]
