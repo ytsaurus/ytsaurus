@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"reflect"
 	"strings"
 
-	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -386,20 +384,160 @@ func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error
 	if err != nil {
 		return nil, err
 	}
-	config, ok := configNode.(map[string]any)
-	if !ok && configNode != nil {
-		return nil, yterrors.Err("builtin_log_rotation_policy config has unexpected type",
-			log.String("type", reflect.TypeOf(configNode).String()))
+	config, err := asMapNode(configNode)
+	if err != nil {
+		return nil, err
 	}
+
 	if config == nil {
 		config = map[string]any{}
 	}
-	if _, ok := config["max_segment_count_to_keep"]; !ok {
-		config["max_segment_count_to_keep"] = 10
+
+	defaultConfig := map[string]any{
+		"max_segment_count_to_keep": 10,
+		"rotation_period":           900000,
 	}
-	if _, ok := config["rotation_period"]; !ok {
-		config["rotation_period"] = 900000
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
 	}
+
+	return config, nil
+}
+
+func (c *Controller) getLoggingConfig(configNode any, speclet *Speclet) (map[string]any, error) {
+	if configNode == nil {
+		configNode = map[string]any{}
+	}
+	configNodeClone, err := cloneNode(configNode)
+	if err != nil {
+		return nil, err
+	}
+	config, err := asMapNode(configNodeClone)
+	if err != nil {
+		return nil, err
+	}
+
+	var logRotationPolicy map[string]any
+	if c.config.LogRotationModeOrDefault() == LogRotationModeBuiltin {
+		var err error
+		logRotationPolicy, err = getPatchedBuiltinLogRotationPolicy(speclet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	errorLogFile := defaultErrorLogFile
+	debugLogFile := defaultDebugLogFile
+	infoLogFile := defaultInfoLogFile
+	if speclet.logsDir != nil {
+		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
+		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
+		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
+	}
+
+	defaultConfig := map[string]any{
+		"rotation_check_period": 60000,
+		"writers": map[string]any{
+			"error": map[string]any{
+				"file_name":       errorLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+			"stderr": map[string]any{
+				"type": "stderr",
+			},
+			"debug": map[string]any{
+				"file_name":       debugLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+			"info": map[string]any{
+				"file_name":       infoLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+		},
+		"suppressed_messages": []string{
+			"Reinstall peer",
+			"Pass started",
+		},
+		"rules": [](map[string]any){
+			{
+				"min_level": "trace",
+				"writers": []string{
+					"debug",
+				},
+				"exclude_categories": []string{
+					"Concurrency",
+					"Bus",
+					"ReaderMemoryManager",
+					"RpcClient",
+					"ChunkClient",
+				},
+			},
+			{
+				"min_level": "info",
+				"writers": []string{
+					"info",
+				},
+				"exclude_categories": []string{
+					"ChunkClient",
+				},
+			},
+			{
+				"min_level": "error",
+				"writers": []string{
+					"stderr",
+					"error",
+				},
+				"exclude_categories": []string{
+					"ChunkClient",
+				},
+			},
+		},
+	}
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
+	}
+
+	return config, nil
+}
+
+func (c *Controller) getSolomonExporterConfig(configNode any, opletAlias string) (map[string]any, error) {
+	if configNode == nil {
+		configNode = map[string]any{}
+	}
+	configNodeCopy, err := cloneNode(configNode)
+	if err != nil {
+		return nil, err
+	}
+	config, err := asMapNode(configNodeCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultConfig := map[string]any{
+		// NOTE(dakovalkov): override host, otherwise metric count will bloat.
+		"host": "",
+		"instance_tags": map[string]any{
+			"operation_alias": opletAlias,
+			"cookie":          "$YT_JOB_COOKIE",
+		},
+		"window_size": 72,
+	}
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
+	}
+
 	return config, nil
 }
 
@@ -459,144 +597,82 @@ const (
 	defaultInfoLogFile  = "./clickhouse.log"
 )
 
-func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
-	r := speclet.Resources
-
+func (c *Controller) getServerConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (map[string]any, error) {
 	clickhouseConfig, err := c.getPatchedClickHouseConfig(oplet, speclet)
 	if err != nil {
-		return fmt.Errorf("invalid clickhouse config: %v", err)
+		return nil, fmt.Errorf("invalid clickhouse config: %v", err)
 	}
 	ytConfig, err := c.getPatchedYtConfig(ctx, oplet, speclet)
 	if err != nil {
-		return fmt.Errorf("invalid yt config: %v", err)
+		return nil, fmt.Errorf("invalid yt config: %v", err)
 	}
 
-	var nativeAuthenticatorConfig map[string]any
-	if tvmID, ok := c.getTvmID(); ok {
-		if c.tvmSecret != "" {
-			nativeAuthenticatorConfig = map[string]any{
-				"tvm_service": map[string]any{
-					"enable_mock":                           false,
-					"enable_ticket_parse_cache":             true,
-					"client_self_id":                        tvmID,
-					"client_enable_service_ticket_fetching": true,
-					"client_enable_service_ticket_checking": true,
-				},
-				"enable_validation": true,
+	serverConfig := c.config.ServerConfig
+	if serverConfig == nil {
+		serverConfig = make(map[string]any)
+	}
+
+	serverConfig["clickhouse"] = clickhouseConfig
+	serverConfig["yt"] = ytConfig
+	serverConfig["cpu_limit"] = speclet.Resources.InstanceCPU
+	serverConfig["memory"] = speclet.Resources.InstanceMemory.memoryConfig()
+	serverConfig["cluster_connection"] = c.cachedClusterConnection
+
+	serverConfig["logging"], err = c.getLoggingConfig(serverConfig["logging"], speclet)
+	if err != nil {
+		return nil, err
+	}
+
+	serverConfig["solomon_exporter"], err = c.getSolomonExporterConfig(serverConfig["solomon_exporter"], oplet.Alias())
+	if err != nil {
+		return nil, err
+	}
+
+	{
+		var nativeAuthenticatorConfig map[string]any
+		if tvmID, ok := c.getTvmID(); ok {
+			if c.tvmSecret != "" {
+				nativeAuthenticatorConfig = map[string]any{
+					"tvm_service": map[string]any{
+						"enable_mock":                           false,
+						"enable_ticket_parse_cache":             true,
+						"client_self_id":                        tvmID,
+						"client_enable_service_ticket_fetching": true,
+						"client_enable_service_ticket_checking": true,
+					},
+					"enable_validation": true,
+				}
+			} else {
+				c.l.Warn("tvm id specified, but no tvm secret provided in env")
 			}
-		} else {
-			c.l.Warn("tvm id specified, but no tvm secret provided in env")
 		}
-	}
 
-	var logRotationPolicy map[string]any
-	if c.config.LogRotationModeOrDefault() == LogRotationModeBuiltin {
-		logRotationPolicy, err = getPatchedBuiltinLogRotationPolicy(speclet)
-		if err != nil {
-			return err
+		if nativeAuthenticatorConfig != nil {
+			serverConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 		}
-	}
-
-	errorLogFile := defaultErrorLogFile
-	debugLogFile := defaultDebugLogFile
-	infoLogFile := defaultInfoLogFile
-	if speclet.logsDir != nil {
-		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
-		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
-		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
-	}
-
-	ytServerClickHouseConfig := map[string]any{
-		"clickhouse":         clickhouseConfig,
-		"yt":                 ytConfig,
-		"cpu_limit":          r.InstanceCPU,
-		"memory":             r.InstanceMemory.memoryConfig(),
-		"cluster_connection": c.cachedClusterConnection,
-		"solomon_exporter": map[string]any{
-			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
-			"host": "",
-			"instance_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-			"window_size": 72,
-		},
-		"logging": map[string]any{
-			"rotation_check_period": 60000,
-			"writers": map[string]any{
-				"error": map[string]any{
-					"file_name":       errorLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-				"stderr": map[string]any{
-					"type": "stderr",
-				},
-				"debug": map[string]any{
-					"file_name":       debugLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-				"info": map[string]any{
-					"file_name":       infoLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-			},
-			"suppressed_messages": []string{
-				"Reinstall peer",
-				"Pass started",
-			},
-			"rules": [](map[string]any){
-				{
-					"min_level": "trace",
-					"writers": []string{
-						"debug",
-					},
-					"exclude_categories": []string{
-						"Concurrency",
-						"Bus",
-						"ReaderMemoryManager",
-						"RpcClient",
-						"ChunkClient",
-					},
-				},
-				{
-					"min_level": "info",
-					"writers": []string{
-						"info",
-					},
-					"exclude_categories": []string{
-						"ChunkClient",
-					},
-				},
-				{
-					"min_level": "error",
-					"writers": []string{
-						"stderr",
-						"error",
-					},
-					"exclude_categories": []string{
-						"ChunkClient",
-					},
-				},
-			},
-		},
-	}
-	if nativeAuthenticatorConfig != nil {
-		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
 	// Do not override the default value.
 	if mode := speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault()); mode != ClusterConnectionFromStaticConfig {
-		ytServerClickHouseConfig["cluster_connection_dynamic_config_mode"] = mode
+		serverConfig["cluster_connection_dynamic_config_mode"] = mode
+	} else {
+		delete(serverConfig, "cluster_connection_dynamic_config_mode")
 	}
 	if c.config.AddressResolver != nil {
-		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
+		serverConfig["address_resolver"] = c.config.AddressResolver
 	}
 	if c.config.BusServer != nil {
-		ytServerClickHouseConfig["bus_server"] = c.config.BusServer
+		serverConfig["bus_server"] = c.config.BusServer
 	}
-	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
+
+	return serverConfig, nil
+}
+
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
+	serverConfig, err := c.getServerConfig(ctx, oplet, speclet)
+	if err != nil {
+		return err
+	}
+	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", serverConfig)
 	if err != nil {
 		return err
 	}

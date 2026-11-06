@@ -48,6 +48,7 @@ type Config struct {
 	LogRotationMode                           *LogRotationModeType                `yson:"log_rotation_mode"`
 	AddressResolver                           map[string]any                      `yson:"address_resolver"`
 	BusServer                                 map[string]any                      `yson:"bus_server"`
+	ServerConfig                              map[string]any                      `yson:"server_config"`
 	EnableYandexSpecificLinks                 *bool                               `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables                     *bool                               `yson:"export_system_log_tables"`
 	EnableGeodata                             *bool                               `yson:"enable_geodata"`
