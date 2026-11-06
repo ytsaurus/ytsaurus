@@ -48,10 +48,11 @@ ENDIF()
 
 END()
 
+RECURSE_FOR_TESTS(
+    ut
+)
+
 IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "ydb")
-    RECURSE_FOR_TESTS(
-        ut
-    )
     RECURSE(
         benchmark
     )
