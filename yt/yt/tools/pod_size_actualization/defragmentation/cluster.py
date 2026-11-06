@@ -560,7 +560,7 @@ def remove_tabnodes_and_rpcproxy(
         to_remove = []
         for pod in host.pods:
             if pod.yt_role in ('yttabnode', 'ytrpcproxy'):
-                if not pod_ids_to_remove or pod.pod_id in pod_ids_set:
+                if pod.pod_id in pod_ids_set:
                     config_name = classify_pod(pod, cluster.config.pod_configurations)
                     if config_name:
                         removed_counts[config_name] += 1

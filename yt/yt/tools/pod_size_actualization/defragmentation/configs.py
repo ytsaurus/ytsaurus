@@ -350,6 +350,81 @@ _ZENO_POD_CONFIGURATIONS = {
     },
 }
 
+_VANGA_POD_CONFIGURATIONS = {
+    "memory_250": {
+        **MEMORY_250,
+        "network": 671088640,
+        "disk_capacity": 80530636800,
+        "priority": 1,
+    },
+    "memory_200": {
+        **MEMORY_200,
+        "network": 671088640,
+        "disk_capacity": 80530636800,
+        "priority": 2,
+    },
+    "cpu_intensive": {
+        **CPU_INTENSIVE,
+        "network": 671088640,
+        "disk_capacity": 80530636800,
+        "priority": 3,
+    },
+    "rpc_proxy_medium": {
+        **RPC_PROXY,
+        "network": 335544320,
+        "disk_capacity": 80530636800,
+        "priority": 4,
+    },
+    "tiny": {
+        **TINY,
+        "disk_capacity": 80530636800,
+        "priority": 5,
+    },
+}
+
+_PYTHIA_POD_CONFIGURATIONS = {
+    "medium": {
+        "vcpu": 14000,
+        "memory": 107374182400,
+        "network": 335544320,
+        "disk_capacity": 80530636800,
+        "yt_role": "yttabnode",
+        "priority": 1,
+    },
+    "small": {
+        "vcpu": 7000,
+        "memory": 53687091200,
+        "network": 167772160,
+        "disk_capacity": 80530636800,
+        "yt_role": "yttabnode",
+        "priority": 2,
+    },
+    "rpc_proxy_medium": {
+        "vcpu": 8000,
+        "memory": 21474836480,
+        "network": 136314880,
+        "disk_capacity": 80530636800,
+        "yt_role": "ytrpcproxy",
+        "priority": 3,
+    },
+    "tiny": {
+        "vcpu": 4000,
+        "memory": 21474836480,
+        "network": 13107200,
+        "disk_capacity": 80530636800,
+        "yt_role": "yttabnode",
+        "priority": 4,
+    },
+    "rpc_proxy_tiny": {
+        "vcpu": 4000,
+        "memory": 10737418240,
+        "network": 52428800,
+        "disk_capacity": 80530636800,
+        "yt_role": "ytrpcproxy",
+        "priority": 5,
+    },
+}
+
 _BASE_ROLE_SPECIFIC_HOST_FILTER = {
     'yttabnode': {
         'min_network_bandwidth': 1250000000,
@@ -377,8 +452,8 @@ _CLUSTER_CONFIGS = {
         data_node_network_guarantee=600,
         min_sink_vcpu=4000,
         min_sink_memory=8192,
-        memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        memory_reserve_mib=2048,
+        use_new_infra_tax=False,
         raise_network_limits=False,
         update_custom_pods=False,
         dc='klg',
@@ -392,7 +467,7 @@ _CLUSTER_CONFIGS = {
         min_sink_vcpu=1700,
         min_sink_memory=21200,
         memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        use_new_infra_tax=False,
         raise_network_limits=False,
         update_custom_pods=False,
         dc='sas',
@@ -406,7 +481,7 @@ _CLUSTER_CONFIGS = {
         min_sink_vcpu=4000,
         min_sink_memory=21200,
         memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        use_new_infra_tax=False,
         raise_network_limits=False,
         update_custom_pods=False,
         dc='vla',
@@ -419,8 +494,8 @@ _CLUSTER_CONFIGS = {
         data_node_network_guarantee=600,
         min_sink_vcpu=3096,
         min_sink_memory=4096,
-        memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        memory_reserve_mib=10240,
+        use_new_infra_tax=False,
         raise_network_limits=True,
         update_custom_pods=False,
         dc='klg',
@@ -434,7 +509,7 @@ _CLUSTER_CONFIGS = {
         min_sink_vcpu=3096,
         min_sink_memory=4096,
         memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        use_new_infra_tax=False,
         raise_network_limits=True,
         update_custom_pods=False,
         dc='sas',
@@ -448,10 +523,24 @@ _CLUSTER_CONFIGS = {
         min_sink_vcpu=3096,
         min_sink_memory=4096,
         memory_reserve_mib=0,
-        use_new_infra_tax=True,
+        use_new_infra_tax=False,
         raise_network_limits=True,
         update_custom_pods=False,
         dc='vla',
+    ),
+    'markov-ext': dict(
+        yt_proxy='markov',
+        validate_bundles=False,
+        pod_configurations=_MARKOV_POD_CONFIGURATIONS,
+        antiaffinity={'yttabnode': 8, 'ytrpcproxy': 12},
+        data_node_network_guarantee=600,
+        min_sink_vcpu=3096,
+        min_sink_memory=4096,
+        memory_reserve_mib=0,
+        use_new_infra_tax=False,
+        raise_network_limits=True,
+        update_custom_pods=False,
+        dc='ext',
     ),
     'zeno': dict(
         yt_proxy='zeno',
@@ -467,6 +556,48 @@ _CLUSTER_CONFIGS = {
         update_custom_pods=False,
         dc='vla',
     ),
+    "vanga-klg": dict(
+        yt_proxy="vanga",
+        validate_bundles=False,
+        pod_configurations=_VANGA_POD_CONFIGURATIONS,
+        antiaffinity={"yttabnode": 4, "ytrpcproxy": 1},
+        data_node_network_guarantee=600,
+        min_sink_vcpu=2000,
+        min_sink_memory=10240,
+        memory_reserve_mib=2048,
+        use_new_infra_tax=False,
+        raise_network_limits=False,
+        update_custom_pods=False,
+        dc="klg",
+    ),
+    "vanga-ext": dict(
+        yt_proxy="vanga",
+        validate_bundles=False,
+        pod_configurations=_VANGA_POD_CONFIGURATIONS,
+        antiaffinity={"yttabnode": 1, "ytrpcproxy": 1},
+        data_node_network_guarantee=600,
+        min_sink_vcpu=2000,
+        min_sink_memory=10240,
+        memory_reserve_mib=2048,
+        use_new_infra_tax=False,
+        raise_network_limits=False,
+        update_custom_pods=False,
+        dc="ext",
+    ),
+    "pythia": dict(
+        yt_proxy="pythia",
+        validate_bundles=True,
+        pod_configurations=_PYTHIA_POD_CONFIGURATIONS,
+        antiaffinity={"yttabnode": 12, "ytrpcproxy": 40},
+        data_node_network_guarantee=600,
+        min_sink_vcpu=4000,
+        min_sink_memory=5120,
+        memory_reserve_mib=2048,
+        use_new_infra_tax=False,
+        raise_network_limits=False,
+        update_custom_pods=False,
+        dc="klg",
+    ),
 }
 
 
@@ -479,7 +610,7 @@ def get_config(cluster_name: str) -> ClusterConfig:
     """Return a ClusterConfig populated with per-cluster constants.
 
     Args:
-        cluster_name: one of 'seneca-klg', 'seneca-sas', 'seneca-vla'.
+        cluster_name: a key in _CLUSTER_CONFIGS.
 
     Raises:
         ValueError: if the cluster is not known.
@@ -496,6 +627,7 @@ def get_config(cluster_name: str) -> ClusterConfig:
         role_specific_host_filter=_BASE_ROLE_SPECIFIC_HOST_FILTER,
         yt_proxy=overrides['yt_proxy'],
         validate_bundles=overrides['validate_bundles'],
+        remove_spare=True,
         data_node_network_guarantee=overrides['data_node_network_guarantee'],
         min_sink_vcpu=overrides['min_sink_vcpu'],
         min_sink_memory_mib=overrides['min_sink_memory'],

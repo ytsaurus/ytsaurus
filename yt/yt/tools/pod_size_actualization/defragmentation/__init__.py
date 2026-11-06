@@ -10,6 +10,7 @@ from io import StringIO
 from copy import deepcopy
 from typing import Optional
 
+from ..lib.spare import remove_spare_pods
 from .scripts.shared import ClusterConfig, Cluster
 from .cluster import (
     collect_pods_to_remove,
@@ -31,6 +32,14 @@ from .validation import validate_bundles_with_yt  # , get_bundle_hotfix_bundles
 from .placement import collect_synthetic_pods_placement, map_pods_with_rack_awareness
 
 from yt.wrapper import YtClient
+
+
+def read_cluster_data(hosts_csv: str, pods_csv: str) -> tuple:
+    """Read host and pod DataFrames from a CSV snapshot."""
+    import pandas as pd
+
+    print(f"Loading cluster data from {hosts_csv} and {pods_csv}...")
+    return pd.read_csv(hosts_csv), pd.read_csv(pods_csv)
 
 
 def _pods_to_remove_to_dict(structure) -> dict:
@@ -140,9 +149,10 @@ def run_defragmentation(
     # Extra bundles excluded from defragmentation (bundle_hotfix mode).
     # Combined with bundles returned by get_bundle_hotfix_bundles (currently disabled).
     additional_bundle_hotfix_bundles: list = None,
-    # If non-empty, only these bundles are reallocated; pods from other bundles are dropped
+    # None selects all bundles; an empty list selects none. Other bundles are dropped
     # from pods_to_remove_structure before placement.
     bundles_to_reallocate: list = None,
+    yt_token: Optional[str] = None,
 ) -> tuple:
     """Run the defragmentation pipeline.
 
@@ -172,7 +182,7 @@ def run_defragmentation(
 
             print(*args, **{**kwargs, 'file': sys.stdout})
 
-    yt_client = YtClient(proxy=config.yt_proxy)
+    yt_client = YtClient(proxy=config.yt_proxy, token=yt_token)
 
     # Collect bundles to exclude from defragmentation.
     # get_bundle_hotfix_bundles requires bundle_hotfix binary — disabled for now.
@@ -200,8 +210,11 @@ def run_defragmentation(
             _print(f"  {f.name}: {value}")
     _print()
 
+    hosts_df, pods_df = read_cluster_data(hosts_csv, pods_csv)
+    if config.remove_spare:
+        hosts_df, pods_df = remove_spare_pods(hosts_df, pods_df)
     cluster = Cluster(config)
-    cluster.load_from_csv(hosts_csv, pods_csv)
+    cluster.load_from_dataframes(hosts_df, pods_df)
 
     # -----------------------------------------------------------------------
     # Update bigb to memory_150
@@ -254,7 +267,7 @@ def run_defragmentation(
     _print("\n2. Collecting pods to remove...")
     pods_to_remove_structure = collect_pods_to_remove(cluster, bundle_hotfix_bundles)
 
-    if bundles_to_reallocate:
+    if bundles_to_reallocate is not None:
         _bundles_set = set(bundles_to_reallocate)
         _dropped_tab = {
             b: pods for b, pods in pods_to_remove_structure.tabnodes_by_bundle.items() if b not in _bundles_set
@@ -411,20 +424,28 @@ def run_defragmentation(
         and host.has_complete_resources()
     ]
 
-    # In NO_DEFRAGMENTATION mode, still remove pods from reserved racks
+    # Reserved-rack evacuation is required even when no bundles are selected.
     pod_ids_to_remove_from_reserved_racks = []
-    if no_defragmentation:
+    if no_defragmentation or bundles_to_reallocate == []:
         for hostname in reserved_hostnames:
             host = test_cluster.hosts[hostname]
             for pod in host.pods:
-                if pod.pod_id in pod_ids_set:
+                if pod.pod_id in pod_ids_set or (
+                    bundles_to_reallocate == [] and pod.yt_role in ('yttabnode', 'ytrpcproxy')
+                ):
                     pod_ids_to_remove_from_reserved_racks.append(pod.pod_id)
 
     if pod_ids_to_remove_from_reserved_racks:
-        assert removed_counts is None
-        removed_counts = remove_tabnodes_and_rpcproxy(test_cluster, pod_ids_to_remove_from_reserved_racks)
+        reserved_removed = remove_tabnodes_and_rpcproxy(
+            test_cluster, pod_ids_to_remove_from_reserved_racks
+        )
+        if removed_counts is None:
+            removed_counts = reserved_removed
+        else:
+            for config_name, count in reserved_removed.items():
+                removed_counts[config_name] += count
         _print("  Removed from reserved racks:")
-        for config_name, count in removed_counts.items():
+        for config_name, count in reserved_removed.items():
             if count > 0:
                 _print(f"    {config_name}: {count}")
 
@@ -764,7 +785,6 @@ def run_defragmentation(
             'extra_network_pct': used_net_pct_r - req_net_pct_r,
             'ilp_gap': None,
         }
-        return out.getvalue(), metrics, pods_to_remove_dict, None
 
     # -----------------------------------------------------------------------
     # 4a/4b. Greedy baseline + ILP

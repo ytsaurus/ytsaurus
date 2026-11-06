@@ -103,12 +103,30 @@ def solve_placement_ilp(
     greedy_placement: dict = None,
 ):
     """
-    Solve the placement ILP.
+    Place the required pod_counts and maximize weighted extra capacity on eligible hosts.
+
+    Respect available host CPU, memory, network, disk capacity and bandwidth,
+    per-role antiaffinity limits, and available NUMA CPU and memory.
+    Existing pods remain in place and consume resources and antiaffinity slots.
+
+    ILP variables (c = pod configuration, h = host, n = NUMA node):
+        x[c][h]: number of pods to place on host h.
+        y[c][h][n]: number assigned to NUMA node n;
+            sum_n y[c][h][n] = x[c][h] links NUMA and host placement.
+            Only created for hosts with NUMA topology.
+        k[c]: nonnegative integer extra pods above pod_counts[c], so
+            sum_h x[c][h] = pod_counts[c] + k[c].
+            k[c] is fixed to zero for nonpositive weights.
+        t: nonnegative continuous proportional capacity scale, maximized subject to
+            k[c] >= t * weights[c] / sum_w for positive weights, where sum_w is
+            the sum of positive weights. This maximizes the minimum normalized
+            extra capacity across configurations, not the total number of extra pods.
 
     Returns:
-        (success, k_values, placement)
+        (success, k_values, placement, ilp_gap_pct)
         k_values:  {config_name: extra pods above pod_counts}
         placement: {hostname: {config_name: [numa_node_id_or_None, ...]}}
+        ilp_gap_pct: solver optimality gap in percent, or None if unavailable.
     """
     from io import StringIO
 
@@ -396,6 +414,7 @@ def solve_placement_ilp(
             else:
                 placement[hn][config_name].extend([None] * val)
 
+    shared.trim_proportional_placement(pod_counts, weights, k_values, placement)
     ilp_gap_pct = getattr(_last_solver, 'ilp_gap_pct', None)
 
     return True, k_values, placement, ilp_gap_pct
