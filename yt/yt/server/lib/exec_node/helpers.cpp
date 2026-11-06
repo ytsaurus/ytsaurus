@@ -1,5 +1,9 @@
 #include "helpers.h"
 
+#include <yt/yt/library/containers/public.h>
+
+#include <yt/yt/core/misc/fs.h>
+
 namespace NYT::NExecNode {
 
 using namespace NScheduler;
@@ -11,6 +15,21 @@ const std::string& GetSandboxRelPath(ESandboxKind sandboxKind)
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
     YT_VERIFY(!sandboxName.empty());
     return sandboxName;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorCode GetDisableErrorCode(
+    const TError& error,
+    TErrorCode fallbackErrorCode)
+{
+    if (NFS::IsOutOfDiskSpaceError(error) ||
+        error.FindMatching(NContainers::EPortoErrorCode::NoSpace).has_value())
+    {
+        return EErrorCode::NotEnoughDiskSpace;
+    }
+
+    return fallbackErrorCode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
