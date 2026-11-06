@@ -10,6 +10,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 
 #include <algorithm>
+#include <tuple>
+#include <utility>
 
 namespace NYT::NQueryClient {
 namespace {
@@ -25,16 +27,17 @@ struct TQueryTestCase
     TSource ExpectedRows;
 };
 
-class TCodegenCacheTest
+class TCodegenCacheBaseTest
     : public TQueryEvaluateTest
-    , public ::testing::WithParamInterface<EExecutionBackend>
 {
 protected:
+    virtual EExecutionBackend GetExecutionBackend() const = 0;
+
     void SetUp() override
     {
         TQueryEvaluateTest::SetUp();
         TCodegenCacheSingleton::TearDownForTests();
-        if (GetParam() == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
+        if (GetExecutionBackend() == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
             GTEST_SKIP();
         }
     }
@@ -66,7 +69,7 @@ protected:
         }
         llvm::FoldingSetNodeID id;
         TCGVariables variables;
-        Profile(query, &id, &variables, registry, {.ExecutionBackend = GetParam()});
+        Profile(query, &id, &variables, registry, {.ExecutionBackend = GetExecutionBackend()});
         return id;
     }
 
@@ -97,7 +100,7 @@ protected:
             splits,
             sources,
             ResultMatcher(expected),
-            {.SyntaxVersion = 2, .ExecutionBackend = GetParam()});
+            {.SyntaxVersion = 2, .ExecutionBackend = GetExecutionBackend()});
     }
 
     void CheckCacheReuse(
@@ -129,6 +132,17 @@ protected:
         bool sameKey = false)
     {
         CheckCacheReuse(first, second, {{"//t", split}}, {source}, sameKey);
+    }
+};
+
+class TCodegenCacheTest
+    : public TCodegenCacheBaseTest
+    , public ::testing::WithParamInterface<EExecutionBackend>
+{
+protected:
+    EExecutionBackend GetExecutionBackend() const override
+    {
+        return GetParam();
     }
 };
 
@@ -1253,6 +1267,243 @@ TEST_P(TArrayJoinCacheTest, DifferentPredicates)
 INSTANTIATE_TEST_SUITE_P(
     Backends,
     TArrayJoinCacheTest,
+    ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLongStringCacheBaseTest
+    : public TCodegenCacheBaseTest
+{
+protected:
+    std::string MakeString(const std::string& middle)
+    {
+        return std::string(128, 'a') + middle + std::string(128, 'b');
+    }
+
+    TDataSplit MakeInputSplit()
+    {
+        return MakeSplit({{"a", EValueType::Int64}, {"s", EValueType::String}});
+    }
+};
+
+class TLongStringCacheTest
+    : public TLongStringCacheBaseTest
+    , public ::testing::WithParamInterface<EExecutionBackend>
+{
+protected:
+    EExecutionBackend GetExecutionBackend() const override
+    {
+        return GetParam();
+    }
+};
+
+TEST_P(TLongStringCacheTest, StandaloneLiteralComparison)
+{
+    auto first = MakeString("left");
+    auto second = MakeString("right");
+    auto expression = New<TBinaryOpExpression>(
+        EValueType::Boolean,
+        EBinaryOp::Equal,
+        New<TLiteralExpression>(EValueType::String, MakeUnversionedStringValue(first)),
+        New<TLiteralExpression>(EValueType::String, MakeUnversionedStringValue(second)));
+    auto schema = New<TTableSchema>();
+    TCGVariables variables;
+    auto image = Profile(
+        expression,
+        schema,
+        /*id*/ nullptr,
+        &variables,
+        /*useCanonicalNullRelations*/ false,
+        GetParam())();
+    auto instance = image.Instantiate();
+    auto buffer = New<TRowBuffer>();
+    auto result = MakeUnversionedNullValue();
+    instance.Run(
+        variables.GetLiteralValues(),
+        variables.GetOpaqueData(),
+        variables.GetOpaqueDataSizes(),
+        &result,
+        /*inputRow*/ {},
+        buffer);
+    EXPECT_EQ(result, MakeUnversionedBooleanValue(false));
+}
+
+class TLongStringLiteralCacheTest
+    : public TLongStringCacheBaseTest
+    , public ::testing::WithParamInterface<
+        std::tuple<EExecutionBackend, std::pair<std::string, std::string>>
+    >
+{
+protected:
+    EExecutionBackend GetExecutionBackend() const override
+    {
+        return std::get<0>(GetParam());
+    }
+};
+
+TEST_P(TLongStringLiteralCacheTest, Literals)
+{
+    const auto& [firstMiddle, secondMiddle] = std::get<1>(GetParam());
+    auto first = MakeString(firstMiddle);
+    auto second = MakeString(secondMiddle);
+    CheckCacheReuse(
+        {
+            .Query = Format("'%v' as x, '%v' as y from `//t`", first, second),
+            .ExpectedRows = {Format("x=\"%v\";y=\"%v\"", first, second)},
+        },
+        {
+            .Query = Format("'%v' as x, '%v' as y from `//t`", second, first),
+            .ExpectedRows = {Format("x=\"%v\";y=\"%v\"", second, first)},
+        },
+        MakeInputSplit(),
+        {"a=1"},
+        /*sameKey*/ true);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    BackendsAndStrings,
+    TLongStringLiteralCacheTest,
+    ::testing::Combine(
+        ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly),
+        ::testing::Values(
+            std::pair("left", "rght"),
+            std::pair("...", "left"))));
+
+TEST_P(TLongStringCacheTest, TupleIn)
+{
+    auto first = MakeString("left");
+    auto second = MakeString("right");
+    CheckCacheReuse(
+        {
+            .Query = Format("(a,s) in ((1,'%v')) as x, (a,s) in ((1,'%v')) as y from `//t`", first, second),
+            .ExpectedRows = {"x=%true;y=%false", "x=%false;y=%true", "x=%false;y=%false"},
+        },
+        {
+            .Query = Format("(a,s) in ((1,'%v')) as x, (a,s) in ((1,'%v')) as y from `//t`", second, first),
+            .ExpectedRows = {"x=%false;y=%true", "x=%true;y=%false", "x=%false;y=%false"},
+        },
+        MakeInputSplit(),
+        {Format("a=1;s=\"%v\"", first), Format("a=1;s=\"%v\"", second), Format("a=2;s=\"%v\"", first)},
+        /*sameKey*/ true);
+}
+
+struct TLongStringBetweenTestCase
+{
+    std::string FirstLowerBound;
+    std::string FirstUpperBound;
+    std::string SecondLowerBound;
+    std::string SecondUpperBound;
+    std::string Input;
+    bool ExpectedX = false;
+    bool ExpectedY = false;
+};
+
+class TLongStringBetweenCacheTest
+    : public TLongStringCacheBaseTest
+    , public ::testing::WithParamInterface<std::tuple<EExecutionBackend, TLongStringBetweenTestCase>>
+{
+protected:
+    EExecutionBackend GetExecutionBackend() const override
+    {
+        return std::get<0>(GetParam());
+    }
+};
+
+TEST_P(TLongStringBetweenCacheTest, Bounds)
+{
+    const auto& testCase = std::get<1>(GetParam());
+    auto firstLower = MakeString(testCase.FirstLowerBound);
+    auto firstUpper = MakeString(testCase.FirstUpperBound);
+    auto secondLower = MakeString(testCase.SecondLowerBound);
+    auto secondUpper = MakeString(testCase.SecondUpperBound);
+    CheckCacheReuse(
+        {
+            .Query = Format(
+                "s between '%v' and '%v' as x, s between '%v' and '%v' as y from `//t`",
+                firstLower,
+                firstUpper,
+                secondLower,
+                secondUpper),
+            .ExpectedRows = {Format("x=%%%lv;y=%%%lv", testCase.ExpectedX, testCase.ExpectedY)},
+        },
+        {
+            .Query = Format(
+                "s between '%v' and '%v' as x, s between '%v' and '%v' as y from `//t`",
+                secondLower,
+                secondUpper,
+                firstLower,
+                firstUpper),
+            .ExpectedRows = {Format("x=%%%lv;y=%%%lv", testCase.ExpectedY, testCase.ExpectedX)},
+        },
+        MakeInputSplit(),
+        {Format("s=\"%v\"", MakeString(testCase.Input))},
+        /*sameKey*/ true);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    BackendsAndBounds,
+    TLongStringBetweenCacheTest,
+    ::testing::Combine(
+        ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly),
+        ::testing::Values(
+            TLongStringBetweenTestCase{
+                .FirstLowerBound = "left",
+                .FirstUpperBound = "upper",
+                .SecondLowerBound = "right",
+                .SecondUpperBound = "upper",
+                .Input = "left",
+                .ExpectedX = true,
+                .ExpectedY = false,
+            },
+            TLongStringBetweenTestCase{
+                .FirstLowerBound = "aaaa",
+                .FirstUpperBound = "left",
+                .SecondLowerBound = "aaaa",
+                .SecondUpperBound = "right",
+                .Input = "right",
+                .ExpectedX = false,
+                .ExpectedY = true,
+            })));
+
+TEST_P(TLongStringCacheTest, TransformKeys)
+{
+    auto first = MakeString("left");
+    auto second = MakeString("right");
+    CheckCacheReuse(
+        {
+            .Query = Format("transform(s,('%v'),(10),0) as x, transform(s,('%v'),(10),0) as y from `//t`", first, second),
+            .ExpectedRows = {"x=10;y=0", "x=0;y=10"},
+        },
+        {
+            .Query = Format("transform(s,('%v'),(10),0) as x, transform(s,('%v'),(10),0) as y from `//t`", second, first),
+            .ExpectedRows = {"x=0;y=10", "x=10;y=0"},
+        },
+        MakeInputSplit(),
+        {Format("s=\"%v\"", first), Format("s=\"%v\"", second)},
+        /*sameKey*/ true);
+}
+
+TEST_P(TLongStringCacheTest, TransformResults)
+{
+    auto first = MakeString("left");
+    auto second = MakeString("right");
+    CheckCacheReuse(
+        {
+            .Query = Format("transform(a,(1),('%v')) as x, transform(a,(1),('%v')) as y from `//t`", first, second),
+            .ExpectedRows = {Format("x=\"%v\";y=\"%v\"", first, second), "x=#;y=#"},
+        },
+        {
+            .Query = Format("transform(a,(1),('%v')) as x, transform(a,(1),('%v')) as y from `//t`", second, first),
+            .ExpectedRows = {Format("x=\"%v\";y=\"%v\"", second, first), "x=#;y=#"},
+        },
+        MakeInputSplit(),
+        {"a=1", "a=2"},
+        /*sameKey*/ true);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Backends,
+    TLongStringCacheTest,
     ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly));
 
 ////////////////////////////////////////////////////////////////////////////////
