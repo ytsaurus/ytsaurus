@@ -2283,6 +2283,32 @@
             "uri": "https://{canondata_backend}/1781765/3c463e6e68e723be4e5eb4b6e340bc60a38f34b8/resource.tar.gz#test.test_udf-udf--Results_/results.txt"
         }
     ],
+    "test.TestYtFile_udf-udf_plan_python_reduce-.test[Debug]": [
+        {
+            "checksum": "6849fc499735bcbe100b145279c9c857",
+            "size": 2213,
+            "uri": "https://{canondata_backend}/1031349/3b7c62faaf5f41bf3a84e3f514a22a78c07c8e2c/resource.tar.gz#test.TestYtFile_udf-udf_plan_python_reduce-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_udf-udf_plan_python_reduce-.test[Plan]": [
+        {
+            "checksum": "564156ffa1f4504f837e0cd057355b60",
+            "size": 5495,
+            "uri": "https://{canondata_backend}/1031349/3b7c62faaf5f41bf3a84e3f514a22a78c07c8e2c/resource.tar.gz#test.TestYtFile_udf-udf_plan_python_reduce-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_udf-udf_plan_python_reduce-.test[Results]": [
+        {
+            "checksum": "a641d23d0f291a221382d2e8f26abe78",
+            "size": 99,
+            "uri": "https://{canondata_backend}/1031349/3b7c62faaf5f41bf3a84e3f514a22a78c07c8e2c/resource.tar.gz#test.TestYtFile_udf-udf_plan_python_reduce-.test_Results_/Output.txt"
+        },
+        {
+            "checksum": "ecf1ff9b9497a58ff3c71ec6e25977b6",
+            "size": 583,
+            "uri": "https://{canondata_backend}/1031349/3b7c62faaf5f41bf3a84e3f514a22a78c07c8e2c/resource.tar.gz#test.TestYtFile_udf-udf_plan_python_reduce-.test_Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.TestYtFile_window-current/aggregations_leadlag-.test[Debug]": [
         {
             "checksum": "0290dc3107756e8c6523d7aa3ffefcac",
