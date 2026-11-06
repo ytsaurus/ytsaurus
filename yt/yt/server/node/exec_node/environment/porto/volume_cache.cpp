@@ -441,7 +441,7 @@ static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
 {
     return BIND(
         [] (
-            NProfiling::TTagSet tagSet,
+            TTagSet tagSet,
             TVolumeMeta volumeMeta,
             TLayerLocationPtr layerLocation,
             std::string nbdDeviceId,
