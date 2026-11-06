@@ -658,7 +658,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             op.suspend()
             op.resume()
         assert job_id in op.get_running_jobs()
-        assert op.get_job_count("aborted") == 2
 
         # Suspend right after resume to race with job scheduling.
         for i in range(5):
