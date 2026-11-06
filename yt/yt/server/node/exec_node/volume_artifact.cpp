@@ -41,9 +41,9 @@ public:
     TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadContext& artifactDownloadContext,
-        TNonNullPtr<ECacheEventType> cacheEventType) override
+        TNonNullPtr<TCacheEventState> cacheEventState) override
     {
-        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadContext, cacheEventType);
+        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadContext, cacheEventState);
         return artifact.Apply(BIND([] (TArtifactPtr artifact) {
             return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
         }));

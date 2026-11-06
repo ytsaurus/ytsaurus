@@ -227,12 +227,12 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
         .With("CypressPath", artifactKey.data_source().path());
 
     auto downloadCpuStart = GetCpuInstant();
-    auto cacheEventType = ECacheEventType::Miss;
-    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, &cacheEventType)
+    auto cacheEventState = New<TCacheEventState>();
+    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, cacheEventState)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
             auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
 
-            ReportLayerFetch(downloadContext, cacheEventType, downloadCpuDuration, artifactKey);
+            ReportLayerFetch(downloadContext, cacheEventState->CacheEventType, downloadCpuDuration, artifactKey);
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
                 /*volume type*/ "squashfs",
@@ -1445,13 +1445,13 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
         .With("HasTargetLocation", static_cast<bool>(location));
 
     auto downloadCpuStart = GetCpuInstant();
-    auto cacheEventType = ECacheEventType::Miss;
-    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, &cacheEventType)
+    auto cacheEventState = New<TCacheEventState>();
+    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, cacheEventState)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
             auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
             YT_TLOG_DEBUG("Layer artifact loaded, starting import");
 
-            ReportLayerFetch(downloadContext, cacheEventType, downloadCpuDuration, artifactKey);
+            ReportLayerFetch(downloadContext, cacheEventState->CacheEventType, downloadCpuDuration, artifactKey);
 
             // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
             // which may delay light operations performed in the same IO thread pool inside Porto daemon.
