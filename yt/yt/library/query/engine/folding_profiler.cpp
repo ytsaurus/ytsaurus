@@ -15,6 +15,8 @@
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <library/cpp/yt/memory/shared_range.h>
@@ -765,7 +767,8 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui8>(literalExpr->GetWireType()));
 
     auto savedId = id;
-    id.AddString(ToString(TValue(literalExpr->Value)).c_str());
+    auto value = TValue(literalExpr->Value);
+    id.AddString(ToStringRef(SerializeToString(TUnversionedValueRange(&value, /*length*/ 1))));
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
         return *ref;
@@ -776,7 +779,7 @@ size_t TExpressionProfiler::Profile(
     int index = Variables_->AddLiteralValue(literalExpr->Value);
     Fold(index);
 
-    bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;
+    bool nullable = value.Type == EValueType::Null;
     Fold(nullable);
 
     fragments->DebugInfos.emplace_back(literalExpr, std::vector<size_t>());
@@ -1011,7 +1014,7 @@ size_t TExpressionProfiler::Profile(
 
     auto savedId = id;
     for (const auto& value : inExpr->Values) {
-        id.AddString(ToString(value).c_str());
+        id.AddString(ToStringRef(SerializeToString(value)));
     }
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -1055,8 +1058,8 @@ size_t TExpressionProfiler::Profile(
 
     auto savedId = id;
     for (const auto& range : betweenExpr->Ranges) {
-        id.AddString(ToString(range.first).c_str());
-        id.AddString(ToString(range.second).c_str());
+        id.AddString(ToStringRef(SerializeToString(range.first)));
+        id.AddString(ToStringRef(SerializeToString(range.second)));
     }
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -1108,7 +1111,7 @@ size_t TExpressionProfiler::Profile(
 
     auto savedId = id;
     for (const auto& value : transformExpr->Values) {
-        id.AddString(ToString(value).c_str());
+        id.AddString(ToStringRef(SerializeToString(value)));
     }
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
