@@ -11,9 +11,33 @@ Subprocess (solver.py) imports:
 
 import dataclasses
 import json
+import math
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
+
+
+def trim_proportional_placement(pod_counts, weights, k_values, placement):
+    """Remove surplus extras in place, preserving the achieved proportional scale."""
+    scale = min((k / weights[c] for c, k in k_values.items() if weights.get(c, 0) > 0), default=0)
+    for c, k in k_values.items():
+        target = scale * max(0, weights.get(c, 0))
+        # Avoid retaining an extra pod solely due to floating-point roundoff.
+        if math.isclose(target, round(target), rel_tol=0, abs_tol=1e-9):
+            target = round(target)
+        k_values[c] = min(k, math.ceil(target))
+
+    remaining = {c: pod_counts.get(c, 0) + k for c, k in k_values.items()}
+    for hostname, configs in list(placement.items()):
+        for c, numa_ids in list(configs.items()):
+            kept = numa_ids[:remaining[c]]
+            remaining[c] -= len(kept)
+            if kept:
+                configs[c] = kept
+            else:
+                del configs[c]
+        if not configs:
+            del placement[hostname]
 
 # ---------------------------------------------------------------------------
 # ClusterConfig — all cluster-specific constants in one place
@@ -30,6 +54,8 @@ class ClusterConfig:
     role_specific_host_filter: Dict[str, dict]
     yt_proxy: str  # YT cluster to query
     validate_bundles: bool  # compare pods with bundle controller config in Cypress
+
+    remove_spare: bool = False
 
     # Sink pod constraints
     min_sink_vcpu: int = 4000  # millicores
@@ -480,7 +506,7 @@ class Host:
     def evict_overcommitted_pods(self, seed: int = 42) -> Dict[str, int]:
         removed_counts = {name: 0 for name in self.config.pod_configurations}
 
-        if not self.get_overcommit():
+        if not self.has_complete_resources() or not self.get_overcommit():
             return removed_counts
 
         rng = random.Random(seed)
@@ -592,20 +618,13 @@ class Cluster:
             if host.is_alive() and not host.is_master_host() and host.has_complete_resources()
         ]
 
-    def load_from_csv(self, hosts_csv: str, pods_csv: str):
-        """Load cluster data from CSV files. Requires pandas."""
-        import pandas as pd
-
-        print(f"Loading cluster data from {hosts_csv} and {pods_csv}...")
-
-        hosts_df = pd.read_csv(hosts_csv)
+    def load_from_dataframes(self, hosts_df, pods_df) -> None:
+        """Load cluster data from host and pod DataFrames."""
         print(f"Loaded {len(hosts_df)} hosts")
+        print(f"Loaded {len(pods_df)} pods")
 
         for _, row in hosts_df.iterrows():
             self.add_host(row['hostname'], row.to_dict())
-
-        pods_df = pd.read_csv(pods_csv)
-        print(f"Loaded {len(pods_df)} pods")
 
         for _, row in pods_df.iterrows():
             bca = {}

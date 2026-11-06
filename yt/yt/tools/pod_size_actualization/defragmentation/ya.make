@@ -28,3 +28,7 @@ RESOURCE_FILES(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    scripts
+)
