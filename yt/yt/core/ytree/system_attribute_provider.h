@@ -65,6 +65,7 @@ struct ISystemAttributeProvider
             return *this;
         }
 
+        //! Non-mandatory attributes are replicated after CreateObject.
         TAttributeDescriptor& SetReplicated(bool value)
         {
             Replicated = value;
