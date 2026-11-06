@@ -8,6 +8,11 @@ namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStringColumnWriterBufferTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
