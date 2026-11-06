@@ -1092,7 +1092,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
         .Default(true);
