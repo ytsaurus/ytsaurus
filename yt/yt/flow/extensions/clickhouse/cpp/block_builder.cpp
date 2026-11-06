@@ -6,6 +6,7 @@
 
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/bool.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/date.h>
+#include <contrib/libs/clickhouse-cpp/clickhouse/columns/factory.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/lowcardinality.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/nullable.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/numeric.h>
@@ -250,6 +251,14 @@ void AppendValue(
 
 TClickHouseColumnType ParseClickHouseType(std::string_view type)
 {
+    if (type.starts_with("SimpleAggregateFunction(")) {
+        const auto column = clickhouse::CreateColumnByType(std::string(type));
+        if (!column) {
+            THROW_ERROR_EXCEPTION("Unsupported ClickHouse column type %Qv", type);
+        }
+        return ParseClickHouseType(column->Type()->GetName());
+    }
+
     TClickHouseColumnType result;
     for (bool changed = true; changed;) {
         changed = false;
