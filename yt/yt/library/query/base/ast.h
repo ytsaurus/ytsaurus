@@ -588,6 +588,7 @@ std::string FormatId(TStringBuf id);
 std::string FormatLiteralValue(const TLiteralValue& value);
 std::string FormatReference(const TReference& ref);
 std::string FormatExpression(const TExpression& expr);
+std::string FormatExpressionConcise(const TExpression& expr);
 std::string FormatExpression(const TExpressionList& exprs);
 std::string FormatJoin(const TJoin& join);
 std::string FormatArrayJoin(const TArrayJoin& join);
