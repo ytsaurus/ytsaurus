@@ -465,7 +465,6 @@ class Clique(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         print_debug("Exiting clique", self.op.id)
-        time.sleep(2)
         try:
             self.op.complete()
 
@@ -874,6 +873,11 @@ class Clique(object):
                 attach_gdb(inst.attributes['pid'], ex, autoresume=autoresume)
 
 
+def with_tablet_cell(test):
+    test.requires_tablet_cell = True
+    return test
+
+
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -1031,7 +1035,8 @@ class ClickHouseTestBase(YTEnvSetup):
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
 
-        sync_create_cells(1)
+        if getattr(method, "requires_tablet_cell", False) or getattr(type(self), "requires_tablet_cell", False):
+            sync_create_cells(1)
         create_access_control_object_namespace(name="chyt")
 
 

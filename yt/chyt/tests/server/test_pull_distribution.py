@@ -1,12 +1,13 @@
 from yt_commands import (authors, create, write_table)
 
-from base import ClickHouseTestBase, Clique, enable_sequoia
+from base import ClickHouseTestBase, Clique, enable_sequoia, with_tablet_cell
 
 from yt.test_helpers import assert_items_equal
 
 import pytest
 
 
+@with_tablet_cell
 class TestPullDistributionMode(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 4
 

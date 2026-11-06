@@ -8,7 +8,7 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia,
-                  grant_system_permissions_to_clickhouse_user, DEFAULT_ORCHID_ROOT)
+                  grant_system_permissions_to_clickhouse_user, DEFAULT_ORCHID_ROOT, with_tablet_cell)
 
 from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
 
@@ -189,6 +189,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert get("//tmp/test_table/@chunk_count") == 2
             assert clique.make_query('select distinct value from "//tmp/test_table" where value = 1') == [{"value": 1}]
 
+    @with_tablet_cell
     @authors("a-dyu")
     @pytest.mark.timeout(150)
     def test_simple_distinct_optimization(self):
@@ -458,6 +459,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with Clique(1, config_patch={"yt": {"user": "test_user"}}):
                 pass
 
+    @with_tablet_cell
     @authors("a-dyu")
     def test_min_max_optimization(self):
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
