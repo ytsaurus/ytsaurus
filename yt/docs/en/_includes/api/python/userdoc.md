@@ -1339,14 +1339,14 @@ print(op.get_job_statistics()["custom"])
 
 ### Porto layers { #porto_layers }
 
-When you start an operation, you can specify which [filesystem image](../../../user-guide/data-processing/layers/layer-paths.md) to prepare before running the jobs. There’s a set of [prebuilt layers](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers) located at `//porto_layers`.
+When you start an operation, you can specify which [filesystem image](../../../user-guide/data-processing/layers/layer-paths.md) to prepare before running the jobs. You can use a [prebuilt layer](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers) compatible with your job’s environment.
 
 You can specify the path to the required layer via the `layer_paths` parameter in the job spec, for example:
 ```python
 spec_builder = ReduceSpecBuilder() \
     .begin_reducer() \
         .command(reducer) \
-        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
+        .layer_paths(["//path/to/base_layer"]) \
     .end_reducer() \
     ...
 yt.run_operation(spec_builder)

@@ -47,7 +47,7 @@ Additional options are passed in via `--params`:
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}'
+  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_latest";...;];"operation_spec"={"max_failed_job_count"=100;};}'
 ```
 
 ### Spark configuration
