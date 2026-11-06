@@ -137,6 +137,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistSkippedInputChunks)             (302406))
     ((RemoteCopyRangeSeparation)             (302407))
     ((JournalNbd)                            (302408))
+    // 27.1 starts here
+    ((BumpTo_27_1)                           (302500))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
