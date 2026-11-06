@@ -20,14 +20,15 @@ func (r *httpReader) Read(data []byte) (n int, err error) {
 	}
 
 	n, err = r.body.Read(data)
-	if err == io.EOF {
+	if err != nil {
 		ytErr, decodeErr := decodeYTErrorFromHeaders(r.rsp.Trailer)
-		if ytErr != nil || err != nil {
-			if decodeErr != nil {
-				r.readErr = decodeErr
-			} else if ytErr != nil {
-				r.readErr = ytErr
-			}
+		if decodeErr != nil {
+			r.readErr = decodeErr
+		} else if ytErr != nil {
+			r.readErr = ytErr
+		}
+		if r.readErr != nil {
+			err = r.readErr
 		}
 
 		return
