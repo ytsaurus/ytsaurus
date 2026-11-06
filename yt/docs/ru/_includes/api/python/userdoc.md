@@ -1344,14 +1344,14 @@ print(op.get_job_statistics()["custom"])
 ### Porto-слои { #porto_layers }
 
 При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
-Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers), которые находятся по пути `//porto_layers`.
+Можно использовать [готовый слой](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers), совместимый с окружением вашего джоба.
 
 Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
 ```python
 spec_builder = ReduceSpecBuilder() \
     .begin_reducer() \
         .command(reducer) \
-        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
+        .layer_paths(["//path/to/base_layer"]) \
     .end_reducer() \
     ...
 yt.run_operation(spec_builder)
