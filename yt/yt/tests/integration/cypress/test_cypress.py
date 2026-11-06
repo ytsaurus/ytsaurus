@@ -4927,6 +4927,15 @@ class TestCypress(YTEnvSetup):
         remove("//sys/accounts/a1/@backup_config")
         assert not get("//tmp/dir/t/@table_backup_enabled")
 
+    @authors("kvk1920")
+    def test_lock_with_prerequisite_revision(self):
+        create("map_node", "//tmp/m")
+        tx = start_transaction()
+        lock("//tmp/m", mode="exclusive", tx=tx, prerequisite_revisions=[{
+            "path": "//tmp/m",
+            "revision": get("//tmp/m/@revision"),
+        }])
+
 
 ##################################################################
 
