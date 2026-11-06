@@ -3863,9 +3863,9 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
             .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
 
         auto downloadContext = MakeArtifactDownloadContext();
-        auto cacheEventType = ECacheEventType::Miss;
+        auto cacheEventState = New<TCacheEventState>();
         auto downloadCpuStart = GetCpuInstant();
-        auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadContext, &cacheEventType)
+        auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadContext, cacheEventState)
             .Apply(BIND(
                 [
                     fileName = artifact.Name,
@@ -3873,7 +3873,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                     this_ = MakeStrong(this),
                     downloadCpuStart,
                     compressedDataSize = artifact.Key.GetCompressedDataSize(),
-                    cacheEventType
+                    cacheEventState
                 ] (const TErrorOr<TArtifactPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(
                         chunkOrError,
@@ -3886,14 +3886,18 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                         .With("FileName", fileName)
                         .With("LocationId", chunk->GetLocation()->GetId())
                         .With("ChunkId", chunk->GetId());
-                    if (cacheEventType == ECacheEventType::Miss) {
+                    Invoker_->Invoke(BIND_NO_PROPAGATE(
+                        [this, this_ = MakeStrong(this), compressedDataSize, cacheEventState] {
+                            UpdateFileArtifactStatistics(compressedDataSize, cacheEventState->CacheEventType);
+                        }));
+                    if (cacheEventState->CacheEventType == ECacheEventType::Miss) {
                         auto downloadCpuFinish = GetCpuInstant();
                         Invoker_->Invoke(BIND_NO_PROPAGATE(
                             [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish] {
                                 ArtifactStatistics_.FilesDownloadCpuDuration +=
                                     downloadCpuFinish - downloadCpuStart;
                             }));
-                    } else if (cacheEventType == ECacheEventType::AsyncHit) {
+                    } else if (cacheEventState->CacheEventType == ECacheEventType::AsyncHit) {
                         auto downloadCpuFinish = GetCpuInstant();
                         Invoker_->Invoke(BIND_NO_PROPAGATE(
                             [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish, compressedDataSize] {
@@ -3907,10 +3911,6 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
             }));
 
         asyncArtifacts.push_back(std::move(asyncArtifact));
-
-        UpdateFileArtifactStatistics(
-            artifact.Key.GetCompressedDataSize(),
-            cacheEventType);
     }
 
     return AllSucceeded(std::move(asyncArtifacts))
