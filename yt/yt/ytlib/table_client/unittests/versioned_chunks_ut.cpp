@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
+#include <yt/yt/ytlib/table_chunk_format/string_column_writer.h>
+
 #include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
@@ -42,6 +44,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/random.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
@@ -2637,6 +2640,91 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 // TODO(akozhikhov): More thorough test for aggregate columns.
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TScanFormatWriterTest, MemoryUtilizationSmallBlocks)
+{
+    constexpr int RowCount = 400'000;
+    constexpr int PayloadSize = 7;
+
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("k", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("h1", EValueType::String),
+        TColumnSchema("h2", EValueType::String),
+        TColumnSchema("h3", EValueType::String),
+        TColumnSchema("h4", EValueType::String),
+        TColumnSchema("h5", EValueType::String),
+        TColumnSchema("h6", EValueType::String),
+    });
+
+    auto config = New<TChunkWriterConfig>();
+    config->BlockSize = 32768;
+    config->Postprocess();
+
+    auto options = New<TChunkWriterOptions>();
+    options->OptimizeFor = EOptimizeFor::Scan;
+    options->SingleColumnGroupByDefault = true;
+    options->Postprocess();
+
+    auto memoryWriter = New<TMemoryWriter>();
+
+    auto chunkWriter = CreateVersionedChunkWriter(
+        config,
+        options,
+        schema,
+        memoryWriter,
+        /*writeBlocksOptions*/ {});
+
+    // Resist dictionary compression.
+    constexpr TStringBuf Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    TFastRng64 rng{42};
+
+    TChunkedMemoryPool pool;
+    auto generatePayload = [&] {
+        auto* buffer = pool.AllocateUnaligned(PayloadSize);
+        for (int index = 0; index < PayloadSize; ++index) {
+            buffer[index] = Letters[rng.Uniform(Letters.size())];
+        }
+        return TStringBuf(buffer, PayloadSize);
+    };
+
+    auto* tracker = TRefCountedTracker::Get();
+    size_t peakStringBufferUsage = 0;
+
+    for (int batchIndex = 0; batchIndex < RowCount / 1000; ++batchIndex) {
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1000);
+        for (int i = 0; i < 1000; ++i) {
+            auto row = TMutableVersionedRow::Allocate(&pool, 1, 6, 1, 0);
+            row.Keys()[0] = MakeUnversionedUint64Value((batchIndex * 1000 + i) * 13, 0);
+            row.Values()[0] = MakeVersionedStringValue(generatePayload(), 1_ts, 1);
+            row.Values()[1] = MakeVersionedStringValue(generatePayload(), 1_ts, 2);
+            row.Values()[2] = MakeVersionedStringValue(generatePayload(), 1_ts, 3);
+            row.Values()[3] = MakeVersionedStringValue(generatePayload(), 1_ts, 4);
+            row.Values()[4] = MakeVersionedStringValue(generatePayload(), 1_ts, 5);
+            row.Values()[5] = MakeVersionedStringValue(generatePayload(), 1_ts, 6);
+            row.WriteTimestamps()[0] = 1_ts;
+            rows.push_back(row);
+        }
+
+        peakStringBufferUsage = std::max(
+            peakStringBufferUsage,
+            tracker->GetBytesAlive(GetRefCountedTypeKey<NTableChunkFormat::TStringColumnWriterBufferTag>()));
+
+        if (!chunkWriter->Write(rows)) {
+            WaitFor(chunkWriter->GetReadyEvent())
+                .ThrowOnError();
+        }
+
+        pool.Clear();
+    }
+
+    EXPECT_TRUE(WaitFor(chunkWriter->Close()).IsOK());
+
+    EXPECT_LT(peakStringBufferUsage, 512_KB);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

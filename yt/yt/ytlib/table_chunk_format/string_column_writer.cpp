@@ -22,8 +22,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStringColumnWriterBufferTag { };
-
 static const int MaxBufferSize = 32_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,8 +51,8 @@ protected:
         DirectBuffer_ = std::make_unique<TChunkedOutputStream>(
             GetRefCountedTypeCookie<TStringColumnWriterBufferTag>(),
             MemoryUsageTracker_,
-            256_KB,
-            1_MB);
+            /*initialReserveSize*/ 4_KB,
+            /*maxReserveSize*/ 1_MB);
 
         MaxValueLength_ = 0;
         Values_.clear();
