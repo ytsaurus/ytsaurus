@@ -2,6 +2,7 @@
 
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
 #include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
+#include <yt/yql/providers/dq/metrics/dynamic_counters.h>
 #include <yt/yql/providers/dq/metrics/metrics_printer.h>
 #include <yt/yql/providers/dq/common/yql_dq_clique.h>
 #include <yt/yql/providers/dq/common/yql_dq_warmup.h>
@@ -232,6 +233,11 @@ void TDqManager::Start()
                   << ", grpc=" << serviceNodeConfig.GrpcHostname << ":" << serviceNodeConfig.GrpcPort;
 
     MetricsRegistry_ = CreateMetricsRegistry(GetSensorsGroupFor(NSensorComponent::kDq));
+    MetricsProducer_ = CreateDynamicCountersProducer(MetricsRegistry_->GetSensors());
+    NProfiling::TProfiler("/yql_agent/dq")
+        .WithProjectionsDisabled()
+        .WithProducerRemoveSupport()
+        .AddProducer("", MetricsProducer_);
     ServiceNode_ = MakeHolder<TServiceNode>(serviceNodeConfig, threads, MetricsRegistry_);
 
     StatsCollector_ = CreateStatsCollector(5, *ServiceNode_->GetSetup(), MetricsRegistry_->GetSensors());
