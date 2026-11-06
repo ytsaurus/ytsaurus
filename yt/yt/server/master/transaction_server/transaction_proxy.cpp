@@ -252,7 +252,9 @@ private:
                     ->GetSecurityManager()
                     ->GetSubjectByNameOrAliasOrThrow(ConvertTo<std::string>(value), /*activeLifeStageOnly*/ true);
                 // There are Owner->AsUser() casts in CommitTransaction() and AbortTransaction(), see YT-29619.
-                THROW_ERROR_EXCEPTION_UNLESS(subject->IsUser(), "Transaction owner must be a user");
+                THROW_ERROR_EXCEPTION_UNLESS(subject->IsUser(),
+                    "Subject %Qv cannot own a transaction since it is not a user",
+                    subject->GetName());
                 break;
             }
 
