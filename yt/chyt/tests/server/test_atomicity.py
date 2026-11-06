@@ -9,7 +9,7 @@ from yt.common import wait, update as config_update
 
 from yt.test_helpers import assert_items_equal
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
 
 import yt.yson as yson
 
@@ -247,6 +247,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
+    @with_tablet_cell
     @authors("gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_dynamic_table(self, table_read_lock_mode):
@@ -298,6 +299,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
+    @with_tablet_cell
     @authors("gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["best_effort", "sync"])
     def test_locks_and_chunk_removing(self, table_read_lock_mode):

@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
 
 from helpers import get_async_expiring_cache_config, get_disabled_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
 
@@ -565,6 +565,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP DICTIONARY this_dict_does_not_exist")
 
+    @with_tablet_cell
     @authors("denmogilevec")
     def test_direct_dictionary(self):
         create(
@@ -629,6 +630,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 {"number": 4, "str": "n/a", "i64": 42},
             ]
 
+    @with_tablet_cell
     @authors("denmogilevec")
     def test_composite_key_direct_dictionary(self):
         create(

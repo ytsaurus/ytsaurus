@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, enable_sequoia
+from base import ClickHouseTestBase, Clique, enable_sequoia, with_tablet_cell
 
 from yt_commands import (authors, abort_transaction, create, exists, lock, read_table, start_transaction,
                          sync_unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
@@ -47,6 +47,7 @@ class TestQueryLog(ClickHouseTestBase):
                 log_size = len(clique.make_query("select query_id from system.query_log"))
                 assert 0 < log_size and log_size <= 10
 
+    @with_tablet_cell
     @authors("dakovalkov")
     def test_query_log_exporter_simple(self):
         root_dir = "//tmp/exporter"
@@ -67,6 +68,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: get(table_path + "/@tablet_state") == "mounted")
             wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
 
+    @with_tablet_cell
     @authors("dakovalkov")
     @pytest.mark.timeout(60)
     def test_change_log_version(self):
@@ -119,6 +121,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: exists(table_path_2))
             assert get(table_path_2 + "/@tablet_count") == 2
 
+    @with_tablet_cell
     @authors("dakovalkov")
     def test_log_table_extender(self):
         root_dir = "//tmp/exporter"
@@ -167,6 +170,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert 'storage_subquery' in secondary_query_entry["chyt_query_statistics"]
             assert 'secondary_query_source' in secondary_query_entry["chyt_query_statistics"]
 
+    @with_tablet_cell
     @authors("a-dyu")
     def test_http_header_logs(self):
         root_dir = "//tmp/exporter"
@@ -212,6 +216,7 @@ class TestQueryLog(ClickHouseTestBase):
         assert get_headers(query_headers, "X-Clickhouse-User") is None
         assert get_headers(query_headers, "Allowed-Header") == "some value"
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_multiple_instances(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -252,6 +257,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert len([r for r in query_log_rows if match(r, filter, 1)]) == 1
             assert len([r for r in query_log_rows if match(r, filter, 0)]) == 2
 
+    @with_tablet_cell
     @authors("denmogielevec")
     def test_failed_statistics(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -273,6 +279,7 @@ class TestQueryLog(ClickHouseTestBase):
             for row in rows:
                 assert yson.dumps(row["chyt_query_statistics"]) != b'#'
 
+    @with_tablet_cell
     @authors("denmogielevec")
     def test_output_tables(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -284,6 +291,7 @@ class TestQueryLog(ClickHouseTestBase):
             for row in rows:
                 assert row["chyt_query_runtime_variables"]["output_table"] == 'YT.`//tmp/t`'
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_secondary_query_runtime_variables(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -306,6 +314,7 @@ class TestQueryLog(ClickHouseTestBase):
                 assert key in secondary_rows[0]['chyt_query_runtime_variables']
                 assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_log_table_is_created_by_leader(self):
         clique = Clique(
@@ -336,6 +345,7 @@ class TestQueryLog(ClickHouseTestBase):
             )[0]["query_id"]
             wait(lambda: {"query_id": query_id} in read_table(clique.query_log_table_path + "{query_id}"))
 
+    @with_tablet_cell
     @authors("denmogilevec")
     def test_insert_statistics(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
