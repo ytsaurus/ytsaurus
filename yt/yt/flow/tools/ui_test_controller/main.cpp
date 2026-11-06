@@ -145,6 +145,11 @@ private:
         return {};
     }
 
+    TSetPipelineDynamicSpecResult PatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& /*argument*/) override
+    {
+        ThrowCommandNotSupported("patch-pipeline-dynamic-spec");
+    }
+
     TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& /*argument*/) override
     {
         ThrowCommandNotSupported("set-pipeline-dynamic-spec");

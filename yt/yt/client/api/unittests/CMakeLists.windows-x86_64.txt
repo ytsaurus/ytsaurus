@@ -32,6 +32,7 @@ target_allocator(unittester-client-api
 
 target_sources(unittester-client-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/unittests/client_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/unittests/flow_client_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/unittests/options_ut.cpp
 )
 

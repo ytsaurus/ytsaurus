@@ -279,12 +279,17 @@ TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
 {
     auto executeArgument = BuildYsonStringFluently()
         .BeginMap()
+            .Item("view").Value(options.View)
+            .Item("blame").Value(options.Blame)
         .EndMap();
     auto executeResult = DoFlowExecute(pipelinePath, "get-pipeline-dynamic-spec", executeArgument, MakeFlowExecuteOptions(options));
     auto executeResultNode = ConvertTo<IMapNodePtr>(executeResult.Result);
     return {
         .Version = executeResultNode->GetChildValueOrThrow<TVersion>("version"),
         .Spec = ConvertToYsonString(executeResultNode->GetChildOrThrow("spec")),
+        .Blame = executeResultNode->FindChild("blame")
+            ? ConvertToYsonString(executeResultNode->GetChildOrThrow("blame"))
+            : TYsonString{},
     };
 }
 

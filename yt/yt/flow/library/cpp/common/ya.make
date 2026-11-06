@@ -15,6 +15,7 @@ SRCS(
     stream_statistics.cpp
     describe_traits.cpp
     distributing_tracker.cpp
+    dynamic_spec.cpp
     dyntable_lease.cpp
     external_state_manager.cpp
     file_provider.cpp

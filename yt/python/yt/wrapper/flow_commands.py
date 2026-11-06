@@ -117,15 +117,21 @@ def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, f
         client=client)
 
 
-def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, format=None, client=None):
+def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, format=None, view="effective", blame=False, client=None):
     """Get YT Flow pipeline dynamic spec.
 
     :param pipeline_path: path to pipeline.
     :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
+    :param view: effective or base.
+    :param blame: include patch provenance for changed fields.
     """
 
     params = {}
     set_param(params, "path", spec_path)
+    if view != "effective":
+        params["view"] = view
+    if blame:
+        params["blame"] = True
 
     return flow_execute(
         pipeline_path,
@@ -167,14 +173,105 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
     :param expected_version: current dynamic spec expected version.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-    set_param(params, "spec_path", spec_path)
+    params = {}
+    set_param(params, "path", spec_path)
     set_param(params, "expected_version", expected_version)
 
-    return make_request(
-        "remove_pipeline_dynamic_spec",
-        params,
+    return flow_execute(
+        pipeline_path,
+        flow_command="remove-pipeline-dynamic-spec",
+        flow_argument=params,
         client=client)
+
+
+def get_pipeline_dynamic_spec_patches(pipeline_path, patch=None, format=None, client=None):
+    """Get active DynamicSpec patches and the current state version.
+
+    :param pipeline_path: path to pipeline.
+    :param patch: optional ID of a single active patch.
+    :param format: optional serialized output format.
+    """
+    argument = {}
+    set_param(argument, "patch", patch)
+    return flow_execute(
+        pipeline_path,
+        flow_command="get-pipeline-dynamic-spec-patches",
+        flow_argument=argument,
+        output_format=format,
+        client=client,
+    )
+
+
+def patch_pipeline_dynamic_spec(
+    pipeline_path, set=None, patch=None, comment=None, expected_version=None, format=None, set_changes=None, client=None
+):
+    """Create or update a durable DynamicSpec patch.
+
+    :param pipeline_path: path to pipeline.
+    :param set: pair of a DynamicSpec path and its new value.
+    :param set_changes: sequence of path/value pairs to set in one patch.
+    :param patch: optional ID of an existing patch to update.
+    :param comment: reason for the change.
+    :param expected_version: required current state version.
+    :param format: input format for a serialized set value.
+    """
+    if expected_version is None:
+        raise YtError("expected_version is required for a DynamicSpec patch")
+    if set is not None and set_changes is not None:
+        raise YtError("Specify either set or set_changes")
+    if set_changes is not None and not set_changes:
+        raise YtError("set_changes must not be empty")
+    if patch is None and set is None and set_changes is None:
+        raise YtError("A new patch requires set or set_changes")
+    if (patch is None or set is not None or set_changes is not None or comment is not None) and not comment:
+        raise YtError("A nonempty comment must be specified for a DynamicSpec patch")
+
+    argument = {"expected_version": expected_version}
+    set_param(argument, "patch", patch)
+    set_param(argument, "comment", comment)
+    if set is not None:
+        path, value = set
+        if format is not None:
+            value = get_structured_format(format, client=client).loads_node(value)
+        argument["set_path"] = path
+        argument["set_value"] = value
+    if set_changes is not None:
+        structured_format = get_structured_format(format, client=client) if format is not None else None
+        argument["set_changes"] = [
+            {"path": path, "value": structured_format.loads_node(value) if structured_format is not None else value}
+            for path, value in set_changes
+        ]
+    return flow_execute(
+        pipeline_path,
+        flow_command="patch-pipeline-dynamic-spec",
+        flow_argument=argument,
+        client=client,
+    )
+
+
+def cancel_pipeline_dynamic_spec_patch(pipeline_path, patch, expected_version, client=None):
+    """Cancel a DynamicSpec patch.
+
+    :param pipeline_path: path to pipeline.
+    :param patch: ID of the patch to cancel.
+    :param expected_version: required current dynamic spec state version.
+    """
+    argument = {"patch": patch, "expected_version": expected_version}
+    return flow_execute(
+        pipeline_path, flow_command="cancel-pipeline-dynamic-spec-patch", flow_argument=argument, client=client
+    )
+
+
+def reset_pipeline_dynamic_spec(pipeline_path, expected_version, client=None):
+    """Cancel all DynamicSpec patches and inherit the release base.
+
+    :param pipeline_path: path to pipeline.
+    :param expected_version: current dynamic spec expected version.
+    """
+    argument = {"expected_version": expected_version}
+    return flow_execute(
+        pipeline_path, flow_command="reset-pipeline-dynamic-spec", flow_argument=argument, client=client
+    )
 
 
 def get_pipeline_state(pipeline_path, timeout=None, client=None):

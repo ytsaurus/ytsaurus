@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/dynamic_spec.h>
 #include <yt/yt/flow/library/cpp/common/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -72,6 +73,8 @@ struct TGetPipelineDynamicSpecArg
     : public NYTree::TYsonStructLite
 {
     std::string Path;
+    std::string View = "effective";
+    bool Blame = false;
 
     REGISTER_YSON_STRUCT_LITE(TGetPipelineDynamicSpecArg);
 
@@ -83,6 +86,7 @@ struct TGetPipelineDynamicSpecResult
 {
     NYTree::INodePtr Spec;
     TVersion Version;
+    NYTree::INodePtr Blame;
 
     REGISTER_YSON_STRUCT_LITE(TGetPipelineDynamicSpecResult);
 
@@ -97,6 +101,7 @@ struct TSetPipelineDynamicSpecArg
     NYTree::INodePtr Spec;
     std::string Path;
     std::optional<TVersion> ExpectedVersion;
+    bool Remove = false;
 
     REGISTER_YSON_STRUCT_LITE(TSetPipelineDynamicSpecArg);
 
@@ -109,6 +114,65 @@ struct TSetPipelineDynamicSpecResult
     TVersion Version;
 
     REGISTER_YSON_STRUCT_LITE(TSetPipelineDynamicSpecResult);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemovePipelineDynamicSpecArg
+    : public NYTree::TYsonStructLite
+{
+    std::string Path;
+    std::optional<TVersion> ExpectedVersion;
+
+    REGISTER_YSON_STRUCT_LITE(TRemovePipelineDynamicSpecArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TGetPipelineDynamicSpecPatchesArg
+    : public NYTree::TYsonStructLite
+{
+    std::optional<TVersion> Patch;
+
+    REGISTER_YSON_STRUCT_LITE(TGetPipelineDynamicSpecPatchesArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TPatchPipelineDynamicSpecArg
+    : public NYTree::TYsonStructLite
+{
+    std::optional<std::string> SetPath;
+    NYTree::INodePtr SetValue;
+    std::optional<std::vector<TDynamicSpecPatchChange>> SetChanges;
+    std::optional<TVersion> Patch;
+    std::optional<std::string> Comment;
+    TVersion ExpectedVersion = TVersion(0);
+
+    REGISTER_YSON_STRUCT_LITE(TPatchPipelineDynamicSpecArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TCancelPipelineDynamicSpecPatchArg
+    : public NYTree::TYsonStructLite
+{
+    TVersion Patch = TVersion(0);
+    TVersion ExpectedVersion = TVersion(0);
+
+    REGISTER_YSON_STRUCT_LITE(TCancelPipelineDynamicSpecPatchArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TResetPipelineDynamicSpecArg
+    : public NYTree::TYsonStructLite
+{
+    TVersion ExpectedVersion = TVersion(0);
+
+    REGISTER_YSON_STRUCT_LITE(TResetPipelineDynamicSpecArg);
 
     static void Register(TRegistrar registrar);
 };

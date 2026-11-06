@@ -30,6 +30,37 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TVersionedDynamicPipelineSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("patches", &TThis::Patches)
+        .Default();
+}
+
+const TDynamicPipelineSpecPtr& TVersionedDynamicPipelineSpec::GetBaseSpec() const
+{
+    return Value_;
+}
+
+bool TVersionedDynamicPipelineSpec::TrySetValue(TDynamicPipelineSpecPtr spec, const IVersionProviderPtr& versionProvider)
+{
+    std::lock_guard guard(EffectiveSpecMutex_);
+    if (AreNodesEqual(ConvertToNode(Value_), ConvertToNode(spec))) {
+        return false;
+    }
+    Bump(versionProvider);
+    Value_ = std::move(spec);
+    EffectiveSpec_ = nullptr;
+    return true;
+}
+
+void TVersionedDynamicPipelineSpec::SetEffectiveSpec(TDynamicPipelineSpecPtr spec)
+{
+    std::lock_guard guard(EffectiveSpecMutex_);
+    EffectiveSpec_ = std::move(spec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateUserDefinedEntityId(TStringBuf entityKind, TStringBuf id)
 {
     static constexpr TStringBuf AllowedCharacters =

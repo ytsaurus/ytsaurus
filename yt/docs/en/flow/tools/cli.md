@@ -10,10 +10,63 @@ Use the standard `yt` CLI tool with the `flow` mode to work with Flow [Pipeline]
 || `get-pipeline-state` | Get the current state of the Pipeline ||
 || `get-flow-view` | View the Flow View — a description of the entire pipeline from the controller's perspective ||
 || `get-pipeline-spec`, `set-pipeline-spec` | View or modify the current [Spec](../concepts/glossary.md#spec-and-dynamic-spec). Requires the Pipeline to be stopped ||
-|| `get-pipeline-dynamic-spec`, `set-pipeline-dynamic-spec` | View or modify the current [DynamicSpec](../concepts/glossary.md#spec-and-dynamic-spec) ||
+|| `get-pipeline-dynamic-spec` | View the effective or base DynamicSpec ||
+|| `set-pipeline-dynamic-spec`, `remove-pipeline-dynamic-spec` | Modify the base DynamicSpec until the next release ||
+|| `get-pipeline-dynamic-spec-patches` | List or inspect active patches and the current state version ||
+|| `patch-pipeline-dynamic-spec` | Create or update a durable DynamicSpec patch ||
+|| `cancel-pipeline-dynamic-spec-patch` | Cancel one patch ||
+|| `reset-pipeline-dynamic-spec` | Remove all patches and return to the release base ||
 || `read-states` | Read the pipeline states. Returns the `key_states`, `partition_states`, `external_key_states`, and `joined_external_key_states` sections. You can filter by `computation_id`, `partition_id`, `key`, `name`, or `target`; the `limit` applies to each section independently. See `TReadStatesArg` and `TReadStatesResponse` in the [reference](../generated_docs/all_yson_structs.md) ||
 || `delete-states` | Delete the pipeline states. By default, it runs in dry-run mode: it returns the counts of matching rows without deleting them. Requires the Pipeline to be in the Stopped or Completed state, or `force=true` when Paused. Only key, partition, and manager states are deleted; joiner states are not affected. See `TDeleteStatesArg` and `TDeleteStatesResponse` in the [reference](../generated_docs/all_yson_structs.md) ||
 |#
+
+## Durable DynamicSpec changes {#dynamic-spec-overrides}
+
+The controller stores the DynamicSpec from each release as the base and keeps user patches separately. The effective DynamicSpec applies patches to the current base in order and accounts for the runtime target state. A release updates the base without dropping patches. The old `set-pipeline-dynamic-spec` and `remove-pipeline-dynamic-spec` commands modify only the base, so those changes can be replaced by the next release.
+
+Read any layer and its shared version with `get-pipeline-dynamic-spec`. The default view is `effective`. Use `--view base` to read the base and `get-pipeline-dynamic-spec-patches` to list patches. `--blame` includes a map from paths to patch IDs, comments, and timestamps. A field uses its nearest ancestor entry; a later parent patch hides attribution from earlier child patches. Reading patches requires pipeline `read` permission; changing them requires `write`.
+
+```bash
+yt flow get-pipeline-dynamic-spec //home/project/pipeline --view base
+yt flow get-pipeline-dynamic-spec //home/project/pipeline --view effective --blame
+yt flow get-pipeline-dynamic-spec-patches //home/project/pipeline
+yt flow get-pipeline-dynamic-spec-patches //home/project/pipeline --patch PATCH_ID
+```
+
+The patch listing returns `version` and active `patches` in application order. A patch has a generated `patch_id`, a comment, a timestamp, and one or more path/value changes. Changes are always listed in `changes=[{path,value},...]`, including patches with a single path. Each change replaces the value at its path. Patches at overlapping paths remain independent, including patches hidden by later ones. A new request creates a new patch even when it changes a path used by an earlier patch. Pass its `patch_id` to replace the complete set of changes in an existing patch. Updating values moves the patch to the end of the application order and updates its timestamp; updating only a comment preserves both timestamp and order. Equal values are still pinned: a later release may change the base.
+
+Use the version you just read as `CURRENT_VERSION`. A nonempty comment is required when creating a patch. Every patch mutation checks `--expected-version` and fails atomically if the state has changed.
+
+```bash
+yt flow patch-pipeline-dynamic-spec //home/project/pipeline \
+  --set /computations/reader/parameters/desired_partition_count 8 \
+  --comment 'Increase reader parallelism' --expected-version CURRENT_VERSION
+```
+
+The UI's full-spec editor computes the changed paths and sends them together as one atomic `patch-pipeline-dynamic-spec` request. Management clients can send `set_changes` with a list of `{path, value}` entries, plus `comment` and `expected_version`. Unchanged fields of an edited map are not included and receive no patch blame. Removing fields is not supported.
+The CLI accepts repeated `--set PATH VALUE` arguments to create one patch with several changes.
+
+The response contains a new state `version` and the `patch_id`. Cancellation removes only the selected patch, then recalculates the effective spec from the base and all remaining patches. A previously hidden patch takes effect again unless another patch still masks it. Reset removes every patch but preserves the base and runtime target state.
+
+```bash
+yt flow cancel-pipeline-dynamic-spec-patch //home/project/pipeline \
+  --patch PATCH_ID --expected-version CURRENT_VERSION
+yt flow reset-pipeline-dynamic-spec //home/project/pipeline \
+  --expected-version CURRENT_VERSION
+```
+
+Patches cannot change `target_state`. `start-pipeline`, `stop-pipeline`, and `pause-pipeline` manage that state independently. The complete stored snapshot must fit the YSON nesting and configured size limits; a rejected request leaves the previous state intact.
+
+### Recovering from an incompatible release {#dynamic-spec-recovery}
+
+If the saved DynamicSpec with patches fails validation in a new release and prevents the controller from starting, you cannot repair it through that controller's API. To recover:
+
+1. Run the pipeline on a compatible release that supports patches and can read the saved DynamicSpec. This is usually the previous working release.
+2. Read the base and the patch list. Fix incompatible values in the base or in the patches themselves, preparing a configuration accepted by both the current and the new release. Changing only the base does not fix a value overridden by a patch. Cancel a patch only if the pipeline can operate without it.
+3. Deploy the new release again. It updates the base and applies the saved patches; verify that the resulting DynamicSpec passes validation and the pipeline starts.
+4. On the new release, update DynamicSpec to the required configuration, including parameters that the compatible release did not support. Before changing patches, read `version` again and pass it as `--expected-version`.
+
+A rollback alone does not remove patches. Fix the incompatibility before deploying again, then check the effective DynamicSpec after deployment.
 
 ## Direct runner commands {#direct-controller-commands}
 

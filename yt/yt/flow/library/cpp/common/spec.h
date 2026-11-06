@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dynamic_spec.h"
 #include "file_provider.h"
 #include "public.h"
 #include "yt_path_option.h"
@@ -18,6 +19,8 @@
 
 #include <yt/yt/core/ytree/size.h>
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <mutex>
 
 namespace NYT::NFlow {
 
@@ -1545,6 +1548,27 @@ struct TDynamicPipelineSpec
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicPipelineSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVersionedDynamicPipelineSpec
+    : public TVersionedValue<TDynamicPipelineSpecPtr>
+{
+    std::vector<TDynamicSpecPatchPtr> Patches;
+
+    const TDynamicPipelineSpecPtr& GetBaseSpec() const;
+    const TDynamicPipelineSpecPtr& GetValue() const;
+    bool TrySetValue(TDynamicPipelineSpecPtr spec, const IVersionProviderPtr& versionProvider);
+    void SetEffectiveSpec(TDynamicPipelineSpecPtr spec);
+
+    REGISTER_YSON_STRUCT(TVersionedDynamicPipelineSpec);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    mutable std::mutex EffectiveSpecMutex_;
+    mutable TDynamicPipelineSpecPtr EffectiveSpec_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

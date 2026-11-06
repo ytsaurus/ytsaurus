@@ -41,6 +41,7 @@ ELSE()
 ENDIF()
 
 PEERDIR(
+    yt/python/yt/cli
     yt/python/yt/wrapper
     yt/python/yt/wrapper/testlib
     yt/python/yt/testlib
@@ -176,6 +177,7 @@ TEST_SRCS(
     test_dynamic_table_commands.py
     test_errors.py
     test_file_commands.py
+    test_flow_commands.py
     test_fuse.py
     test_ipython.py
     test_job_commands.py

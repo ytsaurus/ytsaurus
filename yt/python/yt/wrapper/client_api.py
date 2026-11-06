@@ -14,6 +14,7 @@ from .distributed_commands import (  # noqa
 from .flow_commands import (  # noqa
     start_pipeline, stop_pipeline, pause_pipeline, get_pipeline_spec, set_pipeline_spec, remove_pipeline_spec,
     get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec, get_pipeline_state, get_flow_view, flow_execute,
+    get_pipeline_dynamic_spec_patches, patch_pipeline_dynamic_spec, cancel_pipeline_dynamic_spec_patch, reset_pipeline_dynamic_spec,
     read_states, delete_states)
 from .queue_commands import (  # noqa
     register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer, pull_queue_consumer,

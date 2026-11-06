@@ -438,6 +438,22 @@ class YtClient(ClientState):
             client=self
         )
 
+    def cancel_pipeline_dynamic_spec_patch(
+        self,
+        pipeline_path, patch, expected_version
+    ):
+        """
+        Cancel a DynamicSpec patch.
+
+        :param pipeline_path: path to pipeline.
+        :param patch: ID of the patch to cancel.
+        :param expected_version: required current dynamic spec state version.
+        """
+        return client_api.cancel_pipeline_dynamic_spec_patch(
+            pipeline_path, patch, expected_version,
+            client=self
+        )
+
     def check_cluster_liveness(
         self,
         check_cypress_root: bool = True, check_secondary_master_cells: bool = True, check_tablet_cell_bundle: Optional[str] = None
@@ -1385,18 +1401,38 @@ class YtClient(ClientState):
     def get_pipeline_dynamic_spec(
         self,
         pipeline_path,
-        spec_path=None, format=None
+        spec_path=None, format=None, view="effective", blame=False
     ):
         """
         Get YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
+        :param view: effective or base.
+        :param blame: include patch provenance for changed fields.
         """
         return client_api.get_pipeline_dynamic_spec(
             pipeline_path,
             client=self,
-            spec_path=spec_path, format=format
+            spec_path=spec_path, format=format, view=view, blame=blame
+        )
+
+    def get_pipeline_dynamic_spec_patches(
+        self,
+        pipeline_path,
+        patch=None, format=None
+    ):
+        """
+        Get active DynamicSpec patches and the current state version.
+
+        :param pipeline_path: path to pipeline.
+        :param patch: optional ID of a single active patch.
+        :param format: optional serialized output format.
+        """
+        return client_api.get_pipeline_dynamic_spec_patches(
+            pipeline_path,
+            client=self,
+            patch=patch, format=format
         )
 
     def get_pipeline_spec(
@@ -2164,6 +2200,29 @@ class YtClient(ClientState):
             operation_id=operation_id, patches=patches, operation_alias=operation_alias
         )
 
+    def patch_pipeline_dynamic_spec(
+        self,
+        pipeline_path,
+        set=None, patch=None, comment=None, expected_version=None, format=None, set_changes=None
+    ):
+        """
+        Create or update a durable DynamicSpec patch.
+
+        :param pipeline_path: path to pipeline.
+        :param set: pair of a DynamicSpec path and its new value.
+        :param set_changes: sequence of path/value pairs to set in one patch.
+        :param patch: optional ID of an existing patch to update.
+        :param comment: reason for the change.
+        :param expected_version: required current state version.
+        :param format: input format for a serialized set value.
+        """
+        return client_api.patch_pipeline_dynamic_spec(
+            pipeline_path,
+            client=self,
+            set=set, patch=patch, comment=comment, expected_version=expected_version,
+            format=format, set_changes=set_changes
+        )
+
     def pause_pipeline(
         self,
         pipeline_path
@@ -2733,6 +2792,21 @@ class YtClient(ClientState):
             producer_path, queue_path, session_id,
             client=self,
             format=format
+        )
+
+    def reset_pipeline_dynamic_spec(
+        self,
+        pipeline_path, expected_version
+    ):
+        """
+        Cancel all DynamicSpec patches and inherit the release base.
+
+        :param pipeline_path: path to pipeline.
+        :param expected_version: current dynamic spec expected version.
+        """
+        return client_api.reset_pipeline_dynamic_spec(
+            pipeline_path, expected_version,
+            client=self
         )
 
     def reshard_table(
