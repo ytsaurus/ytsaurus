@@ -19,7 +19,7 @@ from yt_commands import (
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
     create_test_tables, PrepareTables, raises_yt_error,
-    update_pool_tree_config_option, update_scheduler_config)
+    update_pool_tree_config_option, update_scheduler_config, update_controller_agent_config)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -2213,6 +2213,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
     @authors("eshcherbin")
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
         update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
+        update_controller_agent_config("fail_operations_in_empty_trees", False)
 
         set("//sys/pool_trees/default/@config/node_tag_filter", "!custom")
         create_pool_tree("custom_tree", config={"node_tag_filter": "custom"})
