@@ -59,7 +59,7 @@ public:
     TFuture<TArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadContext& artifactDownloadContext,
-        TNonNullPtr<ECacheEventType> cacheEventType);
+        TNonNullPtr<TCacheEventState> cacheEventState);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(

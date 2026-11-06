@@ -29,7 +29,7 @@ struct IVolumeArtifactCache
     virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadContext& artifactDownloadContext,
-        TNonNullPtr<ECacheEventType> cacheEventType) = 0;
+        TNonNullPtr<TCacheEventState> cacheEventState) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

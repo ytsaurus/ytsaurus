@@ -566,7 +566,7 @@ public:
     TFuture<TArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadContext& artifactDownloadContext,
-        TNonNullPtr<ECacheEventType> cacheEventType)
+        TNonNullPtr<TCacheEventState> cacheEventState)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -595,28 +595,28 @@ public:
 
         if (cookie.IsActive()) {
             auto future = ExtractRegisteredChunk(key);
-            // NB: cacheEventType is set optimistically before validation completes.
-            // If DoValidateChunk finds corruption or a pending registration yields no chunk, we fall back
-            // to DoDownloadArtifact and the artifact is fetched over the network despite the Hit event type.
-            *cacheEventType = future.IsSet() && !future.GetOrCrash().ValueOrDefault(std::nullopt).has_value()
+            // This is a preliminary value: it is downgraded to Miss in DoValidateChunk
+            // and below if validation falls back to a network download.
+            cacheEventState->CacheEventType = future.IsSet() && !future.GetOrCrash().ValueOrDefault(std::nullopt).has_value()
                 ? ECacheEventType::Miss
                 : ECacheEventType::Hit;
-            return future.Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<std::optional<TRegisteredChunkDescriptor>>& optionalDescriptor) mutable {
+            return future.Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie), cacheEventState = std::move(cacheEventState)] (const TErrorOr<std::optional<TRegisteredChunkDescriptor>>& optionalDescriptor) mutable {
                 if (optionalDescriptor.IsOK() && optionalDescriptor.ValueOrCrash().has_value()) {
                     // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
-                    DoValidateArtifact(std::move(cookie), key, artifactDownloadContext, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger);
+                    DoValidateArtifact(std::move(cookie), key, artifactDownloadContext, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger, cacheEventState);
                 } else {
                     if (!optionalDescriptor.IsOK()) {
                         YT_TLOG_WARNING("Error extracting registered chunk")
                             .With(optionalDescriptor);
                     }
+                    cacheEventState->CacheEventType = ECacheEventType::Miss;
                     DoDownloadArtifact(std::move(cookie), key, artifactDownloadContext, chunkReadOptions, Logger);
                 }
                 return cookieValue.As<TArtifactPtr>();
             }));
         } else {
             YT_TLOG_INFO("Artifact is either found in cache or is being downloaded");
-            *cacheEventType = cookieValue.IsSet() && cookieValue.GetOrCrash().IsOK()
+            cacheEventState->CacheEventType = cookieValue.IsSet() && cookieValue.GetOrCrash().IsOK()
                 ? ECacheEventType::Hit
                 : ECacheEventType::AsyncHit;
         }
@@ -847,8 +847,8 @@ private:
 
                     guard.Release();
 
-                    auto cacheEventType = ECacheEventType::Miss;
-                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadContext*/ {}, &cacheEventType));
+                    auto cacheEventState = New<TCacheEventState>();
+                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadContext*/ {}, cacheEventState));
                     if (!errorOrChunk.IsOK()) {
                         YT_TLOG_WARNING("Background artifact validation failed")
                             .With("ArtifactKey", artifactKey)
@@ -989,7 +989,8 @@ private:
         const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
-        NLogging::TLogger Logger)
+        NLogging::TLogger Logger,
+        TNonNullPtr<TCacheEventState> cacheEventState)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1016,7 +1017,8 @@ private:
             artifactDownloadContext,
             chunkReadOptions,
             descriptor,
-            Logger));
+            Logger,
+            cacheEventState));
     }
 
     void DoValidateChunk(
@@ -1025,7 +1027,8 @@ private:
         const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
-        const NLogging::TLogger& Logger)
+        const NLogging::TLogger& Logger,
+        TNonNullPtr<TCacheEventState> cacheEventState)
     {
         // NB(psushin): cached chunks (non-artifacts) are not fsynced when written. This may result in truncated or even empty
         // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
@@ -1064,6 +1067,8 @@ private:
                 .With(ex);
 
             location->RemoveChunkFiles(chunkId, true);
+
+            cacheEventState->CacheEventType = ECacheEventType::Miss;
 
             DoDownloadArtifact(
                 std::move(cookie),
@@ -2468,11 +2473,11 @@ TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr&
 TFuture<TArtifactPtr> TArtifactCache::DownloadArtifact(
     const TArtifactKey& key,
     const TArtifactDownloadContext& artifactDownloadContext,
-    TNonNullPtr<ECacheEventType> cacheEventType)
+    TNonNullPtr<TCacheEventState> cacheEventState)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Impl_->DownloadArtifact(key, artifactDownloadContext, cacheEventType);
+    return Impl_->DownloadArtifact(key, artifactDownloadContext, cacheEventState);
 }
 
 std::function<void(IOutputStream*)> TArtifactCache::MakeArtifactDownloadProducer(
