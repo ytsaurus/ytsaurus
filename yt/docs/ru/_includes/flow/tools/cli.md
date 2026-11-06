@@ -10,10 +10,63 @@
 || `get-pipeline-state` | Получить текущее состояние Pipeline ||
 || `get-flow-view` | Посмотреть Flow View &mdash; описание всего пайплайна с точки зрения контроллера ||
 || `get-pipeline-spec`, `set-pipeline-spec` | Посмотреть/изменить текущую [Spec](../../../flow/concepts/glossary.md#spec-and-dynamic-spec). Требует остановки Pipeline ||
-|| `get-pipeline-dynamic-spec`, `set-pipeline-dynamic-spec` | Посмотреть/изменить текущую [DynamicSpec](../../../flow/concepts/glossary.md#spec-and-dynamic-spec) ||
+|| `get-pipeline-dynamic-spec` | Посмотреть effective или base DynamicSpec ||
+|| `set-pipeline-dynamic-spec`, `remove-pipeline-dynamic-spec` | Изменить базовую DynamicSpec до следующего релиза ||
+|| `get-pipeline-dynamic-spec-patches` | Получить действующие патчи и текущую версию состояния ||
+|| `patch-pipeline-dynamic-spec` | Создать или обновить сохраняемый патч DynamicSpec ||
+|| `cancel-pipeline-dynamic-spec-patch` | Отменить один патч ||
+|| `reset-pipeline-dynamic-spec` | Удалить все патчи и вернуться к релизной базе ||
 || `read-states` | Прочитать стейты пайплайна. Возвращает секции `key_states`, `partition_states`, `external_key_states`, `joined_external_key_states`. Фильтрация по `computation_id` / `partition_id` / `key` / `name` / `target`; `limit` применяется к каждой секции независимо. См. `TReadStatesArg` и `TReadStatesResponse` в [справочнике](../../../flow/generated_docs/all_yson_structs.md) ||
 || `delete-states` | Удалить стейты пайплайна. По умолчанию dry-run: возвращает счётчики совпавших строк, не удаляя их. Требует Stopped/Completed либо `force=true` на Paused. Удаляются только key/partition/manager-стейты; joiner-стейты не трогаются. См. `TDeleteStatesArg` и `TDeleteStatesResponse` в [справочнике](../../../flow/generated_docs/all_yson_structs.md) ||
 |#
+
+## Сохраняемые изменения DynamicSpec {#dynamic-spec-overrides}
+
+Контроллер хранит DynamicSpec из каждого релиза как базу, а пользовательские патчи — отдельно. Effective DynamicSpec получается последовательным наложением патчей на текущую базу с учётом состояния запуска. Релиз обновляет базу, не удаляя патчи. Старые команды `set-pipeline-dynamic-spec` и `remove-pipeline-dynamic-spec` меняют только базу; следующий релиз может заменить эти изменения.
+
+Команда `get-pipeline-dynamic-spec` возвращает выбранный слой и общую версию состояния. По умолчанию показывается `effective`. Для чтения базы используйте `--view base`, для списка патчей — `get-pipeline-dynamic-spec-patches`. Опция `--blame` добавляет словарь: ключ — путь, значение — ID патча, комментарий и время. Для поля применяется запись ближайшего предка; более поздний родительский патч скрывает атрибуцию предыдущих дочерних патчей. Для чтения нужны права `read` на пайплайн, для изменений — `write`.
+
+```bash
+yt flow get-pipeline-dynamic-spec //home/project/pipeline --view base
+yt flow get-pipeline-dynamic-spec //home/project/pipeline --view effective --blame
+yt flow get-pipeline-dynamic-spec-patches //home/project/pipeline
+yt flow get-pipeline-dynamic-spec-patches //home/project/pipeline --patch PATCH_ID
+```
+
+Список возвращает `version` и действующие `patches` в порядке наложения. Патч содержит сгенерированный `patch_id`, комментарий, время и одно или несколько изменений по путям. Изменения всегда перечислены в `changes=[{path,value},...]`, в том числе для патча с одним путём. Каждое изменение заменяет значение по своему пути. Патчи по пересекающимся путям сохраняются независимо, включая временно скрытые более поздним патчем. Новый запрос создаёт новый патч даже по уже изменённому пути. Чтобы заменить весь набор изменений существующего патча, передайте его `patch_id`. Изменение значений перемещает патч в конец порядка наложения и обновляет время; изменение только комментария сохраняет время и порядок. Значение, равное базе, всё равно закрепляется: следующий релиз может изменить базу.
+
+Используйте прочитанную версию вместо `CURRENT_VERSION`. Для создания патча обязателен непустой комментарий. Каждая изменяющая патчи команда сверяет `--expected-version` и при конфликте не меняет состояние.
+
+```bash
+yt flow patch-pipeline-dynamic-spec //home/project/pipeline \
+  --set /computations/reader/parameters/desired_partition_count 8 \
+  --comment 'Увеличить число партиций' --expected-version CURRENT_VERSION
+```
+
+Редактор полной спеки в UI вычисляет изменённые пути и отправляет их в одном атомарном запросе `patch-pipeline-dynamic-spec`. Клиенты API могут передать `set_changes` со списком `{path, value}` вместе с `comment` и `expected_version`. Неизменённые поля отредактированного словаря не попадают в патч и не получают blame. Удаление полей не поддерживается.
+CLI принимает несколько аргументов `--set PATH VALUE`, создавая один патч с несколькими изменениями.
+
+Ответ содержит новую `version` состояния и `patch_id`. При отмене удаляется только выбранный патч, после чего effective spec пересчитывается из базы и остальных патчей. Ранее скрытый патч снова действует, если его больше не перекрывает другой патч. Полный сброс удаляет все патчи, сохраняя базу и состояние запуска.
+
+```bash
+yt flow cancel-pipeline-dynamic-spec-patch //home/project/pipeline \
+  --patch PATCH_ID --expected-version CURRENT_VERSION
+yt flow reset-pipeline-dynamic-spec //home/project/pipeline \
+  --expected-version CURRENT_VERSION
+```
+
+Патчи не меняют `target_state`. Этим состоянием независимо управляют `start-pipeline`, `stop-pipeline` и `pause-pipeline`. Весь сохранённый снимок должен укладываться в лимиты вложенности YSON и настроенного размера; отклонённый запрос не меняет предыдущее состояние.
+
+### Восстановление после несовместимого релиза {#dynamic-spec-recovery}
+
+Если сохранённая DynamicSpec с учётом патчей не проходит валидацию в новом релизе и не даёт запустить контроллер, исправить её через API этого контроллера не получится. Для восстановления:
+
+1. Поднимите пайплайн на совместимом релизе, который поддерживает патчи и позволяет прочитать сохранённую DynamicSpec. Обычно это предыдущий рабочий релиз.
+2. Прочитайте базу и список патчей. Исправьте несовместимые значения в базе или в самих патчах, подготовив конфигурацию, допустимую и для текущего, и для нового релиза. Изменения только в базе не исправляют значение, перекрытое патчем. Отменяйте патч только если пайплайн может работать без него.
+3. Повторно выкатите новый релиз. Он обновит базу и наложит на неё сохранённые патчи; проверьте, что итоговая DynamicSpec проходит валидацию и пайплайн запускается.
+4. На новом релизе обновите DynamicSpec до требуемой конфигурации, включая параметры, которые не поддерживал совместимый релиз. Для изменения патчей заново прочитайте `version` и передайте её в `--expected-version`.
+
+Откат сам по себе не удаляет патчи. Поэтому перед повторной выкаткой нужно исправить причину несовместимости, а после неё проверить effective DynamicSpec.
 
 ## Команды раннера напрямую в контроллер {#direct-controller-commands}
 

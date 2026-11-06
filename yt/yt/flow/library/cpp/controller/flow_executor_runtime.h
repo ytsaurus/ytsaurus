@@ -3,6 +3,8 @@
 #include "flow_executor.h"
 #include "persisted_state_manager.h"
 
+#include <yt/yt/flow/library/cpp/common/dynamic_spec.h>
+
 #include "describe/describe_pipeline.h"
 
 #include <functional>
@@ -53,6 +55,7 @@ struct IFlowExecutorRuntime
         TDuration timeout) = 0;
     virtual std::string GetDescribeDeployStageUrl() = 0;
 
+    virtual TSetPipelineDynamicSpecResult PatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& argument) = 0;
     virtual TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) = 0;
     virtual TSetPipelineSpecResult SetPipelineSpec(const TSetPipelineSpecArg& argument) = 0;
     virtual TSetPipelineSpecsResult SetPipelineSpecs(const TSetPipelineSpecsArg& argument) = 0;

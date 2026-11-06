@@ -307,6 +307,10 @@ void TGetPipelineDynamicSpecArg::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path)
         .Default("");
+    registrar.Parameter("view", &TThis::View)
+        .Default("effective");
+    registrar.Parameter("blame", &TThis::Blame)
+        .Default(false);
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
 }
 
@@ -314,6 +318,8 @@ void TGetPipelineDynamicSpecResult::Register(TRegistrar registrar)
 {
     registrar.Parameter("spec", &TThis::Spec);
     registrar.Parameter("version", &TThis::Version);
+    registrar.Parameter("blame", &TThis::Blame)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,6 +337,68 @@ void TSetPipelineDynamicSpecArg::Register(TRegistrar registrar)
 void TSetPipelineDynamicSpecResult::Register(TRegistrar registrar)
 {
     registrar.Parameter("version", &TThis::Version);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemovePipelineDynamicSpecArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default("");
+    registrar.Parameter("expected_version", &TThis::ExpectedVersion)
+        .Default();
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+}
+
+void TGetPipelineDynamicSpecPatchesArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("patch", &TThis::Patch)
+        .Default();
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+}
+
+void TPatchPipelineDynamicSpecArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("set_path", &TThis::SetPath)
+        .Default();
+    registrar.Parameter("set_value", &TThis::SetValue)
+        .Default();
+    registrar.Parameter("set_changes", &TThis::SetChanges)
+        .Default();
+    registrar.Parameter("patch", &TThis::Patch)
+        .Default();
+    registrar.Parameter("comment", &TThis::Comment)
+        .Default();
+    registrar.Parameter("expected_version", &TThis::ExpectedVersion);
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+    registrar.Postprocessor([] (TThis* arg) {
+        THROW_ERROR_EXCEPTION_IF(arg->SetPath && !arg->SetValue,
+            "set_value must be specified with set_path");
+        THROW_ERROR_EXCEPTION_IF(!arg->SetPath && arg->SetValue,
+            "set_path must be specified with set_value");
+        THROW_ERROR_EXCEPTION_IF(arg->SetChanges && (arg->SetPath || arg->SetValue),
+            "set_changes cannot be combined with set_path or set_value");
+        THROW_ERROR_EXCEPTION_IF(arg->SetChanges && arg->SetChanges->empty(),
+            "set_changes must not be empty");
+        THROW_ERROR_EXCEPTION_IF(!arg->Patch && !arg->SetPath && !arg->SetChanges,
+            "A new patch requires set_path or set_changes");
+        if (!arg->Patch || arg->SetPath || arg->SetChanges || arg->Comment) {
+            NApi::ValidatePipelineDynamicSpecPatchComment(arg->Comment);
+        }
+    });
+}
+
+void TCancelPipelineDynamicSpecPatchArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("patch", &TThis::Patch);
+    registrar.Parameter("expected_version", &TThis::ExpectedVersion);
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+}
+
+void TResetPipelineDynamicSpecArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("expected_version", &TThis::ExpectedVersion);
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

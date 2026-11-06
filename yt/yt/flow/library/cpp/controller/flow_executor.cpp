@@ -135,6 +135,16 @@ void ValidatePipelineSafeForFlowCoreTargetUpdate(const TObservedPipelineState& o
 
 namespace {
 
+TVersionedDynamicPipelineSpecPtr ReadDynamicSpecMetadata(const INodePtr& versionedSpecNode)
+{
+    if (!versionedSpecNode) {
+        return New<TVersionedDynamicPipelineSpec>();
+    }
+    auto row = NYTree::CloneNode(versionedSpecNode)->AsMap();
+    row->RemoveChild("value");
+    return ConvertTo<TVersionedDynamicPipelineSpecPtr>(row);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetCommandRequiredPermissionArg
@@ -305,6 +315,54 @@ TFlowExecutor::TFlowExecutor(IFlowExecutorRuntimePtr runtime)
     RegisterCommand("set-pipeline-dynamic-spec", EPermission::Write, [this] (const auto& argument) {
         return ConvertToYsonString(SetPipelineDynamicSpec(ConvertTo<TSetPipelineDynamicSpecArg>(argument)));
     });
+    RegisterCommand("get-pipeline-dynamic-spec-patches", EPermission::Read, [this] (const auto& argument) {
+        auto arg = ConvertTo<TGetPipelineDynamicSpecPatchesArg>(argument);
+        return ConvertToYsonString(BuildDynamicSpecPatchesSnapshot(
+            ReadDynamicSpecMetadata(Runtime_->GetPipelineDynamicSpecNode()),
+            arg.Patch));
+    });
+    RegisterCommand("patch-pipeline-dynamic-spec", EPermission::Write, [this] (const auto& argument) {
+        auto arg = ConvertTo<TPatchPipelineDynamicSpecArg>(argument);
+        auto result = Runtime_->PatchPipelineDynamicSpec({
+            .Operation = arg.SetPath || arg.SetChanges ? EDynamicSpecPatchAction::Set : EDynamicSpecPatchAction::UpdateComment,
+            .Path = arg.SetPath.value_or(""),
+            .Value = arg.SetValue,
+            .Changes = arg.SetChanges.value_or(std::vector<TDynamicSpecPatchChange>{}),
+            .PatchVersion = arg.Patch,
+            .Comment = arg.Comment,
+            .ExpectedVersion = arg.ExpectedVersion,
+        });
+        // clang-format off
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item("version").Value(result.Version)
+                .Item("patch_id").Value(arg.Patch.value_or(result.Version))
+            .EndMap();
+        // clang-format on
+    });
+    RegisterCommand("remove-pipeline-dynamic-spec", EPermission::Write, [this] (const auto& argument) {
+        auto arg = ConvertTo<TRemovePipelineDynamicSpecArg>(argument);
+        TSetPipelineDynamicSpecArg setArg;
+        setArg.Path = arg.Path;
+        setArg.ExpectedVersion = arg.ExpectedVersion;
+        setArg.Remove = true;
+        return ConvertToYsonString(Runtime_->SetPipelineDynamicSpec(setArg));
+    });
+    RegisterCommand("cancel-pipeline-dynamic-spec-patch", EPermission::Write, [this] (const auto& argument) {
+        auto arg = ConvertTo<TCancelPipelineDynamicSpecPatchArg>(argument);
+        return ConvertToYsonString(Runtime_->PatchPipelineDynamicSpec({
+            .Operation = EDynamicSpecPatchAction::CancelPatch,
+            .PatchVersion = arg.Patch,
+            .ExpectedVersion = arg.ExpectedVersion,
+        }));
+    });
+    RegisterCommand("reset-pipeline-dynamic-spec", EPermission::Write, [this] (const auto& argument) {
+        auto arg = ConvertTo<TResetPipelineDynamicSpecArg>(argument);
+        return ConvertToYsonString(Runtime_->PatchPipelineDynamicSpec({
+            .Operation = EDynamicSpecPatchAction::Reset,
+            .ExpectedVersion = arg.ExpectedVersion,
+        }));
+    });
     RegisterCommand("set-pipeline-specs", EPermission::Write, [this] (const auto& argument) {
         return ConvertToYsonString(SetPipelineSpecs(ConvertTo<TSetPipelineSpecsArg>(argument)));
     });
@@ -438,10 +496,35 @@ TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
 TGetPipelineDynamicSpecResult TFlowExecutor::GetPipelineDynamicSpec(
     const TGetPipelineDynamicSpecArg& argument)
 {
-    auto [specNode, version] = ReadVersionedSpec<TVersionedDynamicPipelineSpec>(Runtime_->GetPipelineDynamicSpecNode());
+    THROW_ERROR_EXCEPTION_UNLESS(argument.View == "effective" || argument.View == "base",
+        "Unknown DynamicSpec view %Qv",
+        argument.View);
+    TVersionedDynamicPipelineSpecPtr versionedSpec;
+    INodePtr specNode;
+    auto versionedSpecNode = Runtime_->GetPipelineDynamicSpecNode();
+    try {
+        versionedSpec = versionedSpecNode
+            ? ConvertTo<TVersionedDynamicPipelineSpecPtr>(versionedSpecNode)
+            : New<TVersionedDynamicPipelineSpec>();
+        specNode = ConvertToNode(argument.View == "effective"
+                ? versionedSpec->GetValue()
+                : versionedSpec->GetBaseSpec());
+    } catch (const std::exception& ex) {
+        const auto& Logger = ControllerLogger();
+        YT_TLOG_WARNING("Persisted DynamicSpec cannot be parsed, returning its raw view")
+            .With(ex);
+        auto base = versionedSpecNode->AsMap()->GetChildOrThrow("value");
+        versionedSpec = ReadDynamicSpecMetadata(versionedSpecNode);
+        specNode = argument.View == "effective"
+            ? ApplyDynamicSpecPatches(base, versionedSpec->Patches)
+            : base;
+    }
     TGetPipelineDynamicSpecResult result;
     result.Spec = GetNodeByYPath(specNode, TYPath(argument.Path));
-    result.Version = version;
+    result.Version = versionedSpec->GetVersion();
+    if (argument.Blame) {
+        result.Blame = BuildDynamicSpecBlameSnapshot(versionedSpec);
+    }
     return result;
 }
 
@@ -593,8 +676,9 @@ private:
     TObservedPipelineState ObservePipelineState();
 
     TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) override;
-    //! One attempt of #SetPipelineDynamicSpec, without the conflict retries.
     TSetPipelineDynamicSpecResult DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument);
+    TSetPipelineDynamicSpecResult PatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& argument) override;
+    TSetPipelineDynamicSpecResult DoPatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& argument);
 
     TSetPipelineSpecResult SetPipelineSpec(const TSetPipelineSpecArg& argument) override;
 
@@ -677,16 +761,65 @@ INodePtr TLiveFlowExecutorRuntime::GetPipelineDynamicSpecNode()
 
 TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
 {
-    THROW_ERROR_EXCEPTION_UNLESS(argument.Spec, "Spec must be specified");
-
-    // Every attempt rereads the current spec, so a retry applies the requested change to whatever
-    // the winner of the conflict has left behind, not to a stale snapshot. #SetPipelineSpecs
-    // retries the very same way; this path used to be the one without it.
     for (int attempt = 0;; ++attempt) {
         try {
             return DoSetPipelineDynamicSpec(argument);
         } catch (const TErrorException& exception) {
-            if (attempt + 1 >= Config_->SetSpecRetryCount || !IsRetriableSpecUpdateError(exception.Error())) {
+            if (argument.ExpectedVersion || attempt + 1 >= Config_->SetSpecRetryCount ||
+                !IsRetriableSpecUpdateError(exception.Error()))
+            {
+                throw;
+            }
+            auto delay = GetSpecUpdateRetryDelay(Config_->SetSpecRetryPeriod, attempt);
+            TDelayedExecutor::WaitForDuration(delay);
+        }
+    }
+}
+
+TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+{
+    auto specUpdateGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&SpecUpdateLock_))
+        .ValueOrThrow();
+    auto current = PersistedStateManager_->RecoverDynamicSpec();
+    THROW_ERROR_EXCEPTION_IF(argument.ExpectedVersion && *argument.ExpectedVersion != current->GetVersion(),
+        EErrorCode::SpecVersionMismatch,
+        "Spec version mismatch: expected %v, actual %v",
+        argument.ExpectedVersion.value_or(TVersion(0)),
+        current->GetVersion());
+
+    auto normalized = NormalizeDynamicSpecState(current);
+    auto base = ConvertToNode(normalized->GetBaseSpec());
+    if (argument.Remove) {
+        THROW_ERROR_EXCEPTION_IF(argument.Path.empty(), "Cannot remove the root DynamicSpec");
+        RemoveNodeByYPath(base, TYPath(argument.Path));
+    } else {
+        THROW_ERROR_EXCEPTION_UNLESS(argument.Spec, "Spec must be specified");
+        if (argument.Path.empty()) {
+            base = argument.Spec;
+        } else {
+            SetNodeByYPath(base, TYPath(argument.Path), argument.Spec);
+        }
+    }
+    auto candidate = UpdateDynamicSpecBase(current, base, Controller_->GetVersionProvider());
+    ValidateProcessFunctionGraphDynamicSpec(PersistedStateManager_->RecoverSpec()->GetValue(), candidate->GetValue());
+    if (candidate->GetVersion() != current->GetVersion()) {
+        PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, candidate, current->GetVersion());
+        Controller_->GetFlowViewKeeper()->SetSpecs(std::nullopt, candidate);
+    }
+    TSetPipelineDynamicSpecResult result;
+    result.Version = candidate->GetVersion();
+    return result;
+}
+
+TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::PatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& argument)
+{
+    for (int attempt = 0;; ++attempt) {
+        try {
+            return DoPatchPipelineDynamicSpec(argument);
+        } catch (const TErrorException& exception) {
+            if (argument.ExpectedVersion || attempt + 1 >= Config_->SetSpecRetryCount ||
+                !IsRetriableSpecUpdateError(exception.Error()))
+            {
                 throw;
             }
             auto delay = GetSpecUpdateRetryDelay(Config_->SetSpecRetryPeriod, attempt);
@@ -699,32 +832,22 @@ TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::SetPipelineDynamicSpec(c
     }
 }
 
-TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoPatchPipelineDynamicSpec(const TDynamicSpecPatchRequest& argument)
 {
     auto specUpdateGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&SpecUpdateLock_))
         .ValueOrThrow();
-    auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
-    const auto originalVersion = versionedSpec->GetVersion();
-    const auto expectedVersion = argument.ExpectedVersion.has_value() ? argument.ExpectedVersion.value() : originalVersion;
-    auto specNode = argument.Spec;
-    if (argument.Path != "") {
-        auto subNode = std::move(specNode);
-        specNode = ConvertToNode(versionedSpec->GetValue());
-        NYTree::SetNodeByYPath(specNode, TYPath(argument.Path), subNode);
+    auto current = PersistedStateManager_->RecoverDynamicSpec();
+    auto candidate = ApplyDynamicSpecPatch(
+        current,
+        argument,
+        Controller_->GetVersionProvider());
+    ValidateProcessFunctionGraphDynamicSpec(PersistedStateManager_->RecoverSpec()->GetValue(), candidate->GetValue());
+    if (candidate->GetVersion() != current->GetVersion()) {
+        PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, candidate, current->GetVersion());
+        Controller_->GetFlowViewKeeper()->SetSpecs(std::nullopt, candidate);
     }
-
-    auto newDynamicSpec = NYTree::ConvertTo<TDynamicPipelineSpecPtr>(specNode);
-    ValidateDynamicPipelineSpec(newDynamicSpec);
-    ValidateProcessFunctionGraphDynamicSpec(PersistedStateManager_->RecoverSpec()->GetValue(), newDynamicSpec);
-    versionedSpec->TrySetValue(newDynamicSpec, Controller_->GetVersionProvider());
-
-    if (versionedSpec->GetVersion() != originalVersion) { // Persist only if there are changes.
-        PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, versionedSpec, expectedVersion);
-        Controller_->GetFlowViewKeeper()->SetSpecs(std::nullopt, versionedSpec);
-    }
-
     TSetPipelineDynamicSpecResult result;
-    result.Version = versionedSpec->GetVersion();
+    result.Version = candidate->GetVersion();
     return result;
 }
 
@@ -785,14 +908,13 @@ namespace {
 
 //! Returns the spec from |persistedVersionedSpecNode| updated with |newSpecValueNode|. An unparsable
 //! |persistedVersionedSpecNode| is accepted only when |newSpecValueNode| replaces it.
-template <class TSpecValue>
-TIntrusivePtr<TVersionedValue<TSpecValue>> PrepareSpecUpdate(
+template <class TSpecValue, class TVersionedSpec = TVersionedValue<TSpecValue>>
+TIntrusivePtr<TVersionedSpec> PrepareSpecUpdate(
     const INodePtr& persistedVersionedSpecNode,
     const std::optional<INodePtr>& newSpecValueNode,
     const IVersionProviderPtr& versionProvider,
     const NLogging::TLogger& logger)
 {
-    using TVersionedSpec = TVersionedValue<TSpecValue>;
     const auto& Logger = logger;
 
     TIntrusivePtr<TVersionedSpec> spec;
@@ -811,7 +933,9 @@ TIntrusivePtr<TVersionedValue<TSpecValue>> PrepareSpecUpdate(
                 .With("Type", TypeName<TVersionedSpec>())
                 .With(ex);
 
-            spec = New<TVersionedSpec>();
+            auto row = NYTree::CloneNode(persistedVersionedSpecNode)->AsMap();
+            row->RemoveChild("value");
+            spec = ConvertTo<TIntrusivePtr<TVersionedSpec>>(row);
             replacesUnparsable = true;
         }
     }
@@ -853,7 +977,7 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                 Logger);
             const auto originalSpecVersion = persistedSpecNode ? ReadRawVersion(persistedSpecNode) : TVersion(0);
             auto persistedDynamicSpecNode = PersistedStateManager_->RecoverDynamicSpecNode();
-            auto dynamicSpec = PrepareSpecUpdate<TDynamicPipelineSpecPtr>(
+            auto dynamicSpec = PrepareSpecUpdate<TDynamicPipelineSpecPtr, TVersionedDynamicPipelineSpec>(
                 persistedDynamicSpecNode,
                 argument.DynamicSpec,
                 Controller_->GetVersionProvider(),
@@ -877,11 +1001,19 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
             }
             const auto expectedDynamicSpecVersion = argument.ExpectedDynamicSpecVersion.value_or(originalDynamicSpecVersion);
 
+            THROW_ERROR_EXCEPTION_IF(argument.ExpectedDynamicSpecVersion &&
+                    *argument.ExpectedDynamicSpecVersion != originalDynamicSpecVersion,
+                NFlow::EErrorCode::SpecVersionMismatch,
+                "Dynamic spec version mismatch: expected %v, actual %v",
+                expectedDynamicSpecVersion,
+                originalDynamicSpecVersion);
+
             if (argument.Spec) {
                 ValidatePipelineSpec(spec->GetValue());
                 ValidateTimerStoreBackends(spec->GetValue(), Config_->EnablePagedTimerStore);
             }
             if (argument.DynamicSpec) {
+                dynamicSpec = UpdateDynamicSpecBase(dynamicSpec, *argument.DynamicSpec, Controller_->GetVersionProvider());
                 ValidateDynamicPipelineSpec(dynamicSpec->GetValue());
             }
 
@@ -911,8 +1043,17 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                     }
                 }
 
+                if (argument.DynamicSpec) {
+                    auto baseErrors = NFlow::TRegistry::Get()->ValidateDynamicPipelineSpecParseability(
+                        spec->GetValue(),
+                        argument.DynamicSpec.value()->AsMap());
+                    if (!baseErrors.empty()) {
+                        errors.push_back(TError("Strict validation failed for DynamicSpec base").With(baseErrors));
+                    }
+                }
+
                 // If dynamic spec is not changed we still validate it with new static spec.
-                auto dynamicSpecNode = argument.DynamicSpec ? argument.DynamicSpec.value()->AsMap() : ConvertTo<IMapNodePtr>(dynamicSpec->GetValue());
+                auto dynamicSpecNode = ConvertTo<IMapNodePtr>(dynamicSpec->GetValue());
                 auto dynamicSpecErrors = NFlow::TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec->GetValue(), dynamicSpecNode);
                 if (!dynamicSpecErrors.empty()) {
                     errors.push_back(TError("Strict validation failed for DynamicSpec").With(dynamicSpecErrors));
@@ -990,7 +1131,7 @@ TSetTargetPipelineStateResult TLiveFlowExecutorRuntime::SetTargetPipelineState(c
     }
 
     auto dynamicSpec = PersistedStateManager_->RecoverDynamicSpec();
-    if (dynamicSpec->GetValue()->TargetState == argument.TargetPipelineState) {
+    if (dynamicSpec->GetBaseSpec()->TargetState == argument.TargetPipelineState) {
         return {};
     }
 
@@ -1012,12 +1153,15 @@ TSetTargetPipelineStateResult TLiveFlowExecutorRuntime::SetTargetPipelineState(c
 
     const auto expectedVersion = dynamicSpec->GetVersion();
 
-    dynamicSpec->GetValue()->TargetState = argument.TargetPipelineState;
-    dynamicSpec->Bump(Controller_->GetVersionProvider());
-
-    PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, dynamicSpec, expectedVersion);
-    if (keeper->TryGetFlowView()) {
-        keeper->SetSpecs(std::nullopt, dynamicSpec);
+    dynamicSpec = UpdateDynamicSpecTargetState(
+        dynamicSpec,
+        argument.TargetPipelineState,
+        Controller_->GetVersionProvider());
+    if (dynamicSpec->GetVersion() != expectedVersion) {
+        PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, dynamicSpec, expectedVersion);
+        if (keeper->TryGetFlowView()) {
+            keeper->SetSpecs(std::nullopt, dynamicSpec);
+        }
     }
 
     return {};
@@ -1791,6 +1935,7 @@ TYsonString TLiveFlowExecutorRuntime::RunCommand(
         "get-command-required-permission",
         "get-pipeline-spec",
         "get-pipeline-dynamic-spec",
+        "get-pipeline-dynamic-spec-patches",
         "get-pipeline-state",
         "set-pipeline-specs",
         "set-flow-core-target",

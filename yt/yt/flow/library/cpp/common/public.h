@@ -314,8 +314,8 @@ using TVersionedPipelineSpec = TVersionedValue<TPipelineSpecPtr>;
 DECLARE_REFCOUNTED_TYPE(TVersionedPipelineSpec);
 using TVersionedExtendedPipelineSpec = TVersionedValue<TExtendedPipelineSpecPtr>;
 DECLARE_REFCOUNTED_TYPE(TVersionedExtendedPipelineSpec);
-using TVersionedDynamicPipelineSpec = TVersionedValue<TDynamicPipelineSpecPtr>;
-DECLARE_REFCOUNTED_TYPE(TVersionedDynamicPipelineSpec);
+DECLARE_REFCOUNTED_STRUCT(TVersionedDynamicPipelineSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicSpecPatch);
 
 using TStreamsTraverse = THashMap<TStreamId, TStreamTraverseDataPtr>;
 using TVersionedStreamsTraverse = TVersionedValue<TStreamsTraverse>;

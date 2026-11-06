@@ -6,6 +6,7 @@ SRCS(
     buffer_warmup_ut.cpp
     client_credentials_authenticator_ut.cpp
     distributing_tracker_ut.cpp
+    dynamic_spec_ut.cpp
     dyntable_lease_ut.cpp
     flow_core_build_info_ut.cpp
     flow_core_version_ut.cpp

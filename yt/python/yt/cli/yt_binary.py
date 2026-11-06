@@ -2810,6 +2810,10 @@ def add_flow_parser(root_subparsers):
     add_flow_get_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_set_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_remove_pipeline_dynamic_spec_parser(add_flow_subparser)
+    add_flow_get_pipeline_dynamic_spec_patches_parser(add_flow_subparser)
+    add_flow_patch_pipeline_dynamic_spec_parser(add_flow_subparser)
+    add_flow_cancel_pipeline_dynamic_spec_patch_parser(add_flow_subparser)
+    add_flow_reset_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_get_pipeline_state_parser(add_flow_subparser)
     add_flow_get_flow_view_parser(add_flow_subparser)
     add_flow_show_logs_parser(add_flow_subparser)
@@ -2899,6 +2903,16 @@ def add_flow_get_pipeline_dynamic_spec_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
+    parser.add_argument("--view", choices=("effective", "base"), default="effective")
+    parser.add_argument("--blame", action="store_true", help="Include patch provenance for changed fields")
+
+
+def show_flow_dynamic_spec_update(yt_method):
+    @copy_docstring_from(yt_method)
+    def inner(**kwargs):
+        print_to_output(dump_data(yt_method(**kwargs)))
+
+    return inner
 
 
 def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
@@ -2920,6 +2934,66 @@ def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
+
+
+def add_flow_get_pipeline_dynamic_spec_patches_parser(add_parser):
+    parser = add_parser(
+        "get-pipeline-dynamic-spec-patches",
+        get_helper(yt.get_pipeline_dynamic_spec_patches),
+        help="Get active DynamicSpec patches and the current version",
+    )
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--patch", type=int, help="ID of one active patch")
+
+
+def get_flow_dynamic_spec_patch(**kwargs):
+    if kwargs["set"] is not None:
+        changes = kwargs.pop("set")
+        if changes and isinstance(changes[0], str):
+            changes = [changes]
+        if len(changes) == 1:
+            path, value = changes[0]
+            kwargs["set"] = (path, value.encode("utf-8"))
+        else:
+            kwargs["set_changes"] = [(path, value.encode("utf-8")) for path, value in changes]
+    print_to_output(dump_data(yt.patch_pipeline_dynamic_spec(**kwargs)))
+
+
+def add_flow_patch_pipeline_dynamic_spec_parser(add_parser):
+    parser = add_parser(
+        "patch-pipeline-dynamic-spec",
+        get_flow_dynamic_spec_patch,
+        help="Create or update a durable DynamicSpec patch",
+    )
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    parser.add_argument("--set", nargs=2, action="append", metavar=("PATH", "VALUE"),
+                        help="Set a DynamicSpec subtree; repeat to update several paths in one patch")
+    parser.add_argument("--patch", type=int, help="ID of an active patch to update")
+    parser.add_argument("--comment", help="Reason for the patch")
+    parser.add_argument("--expected-version", type=int, required=True, help="Current DynamicSpec state version")
+
+
+def add_flow_cancel_pipeline_dynamic_spec_patch_parser(add_parser):
+    parser = add_parser(
+        "cancel-pipeline-dynamic-spec-patch",
+        show_flow_dynamic_spec_update(yt.cancel_pipeline_dynamic_spec_patch),
+        help="Cancel a DynamicSpec patch",
+    )
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--patch", type=int, required=True, help="ID of the patch to cancel")
+    parser.add_argument("--expected-version", type=int, required=True, help="Current DynamicSpec state version")
+
+
+def add_flow_reset_pipeline_dynamic_spec_parser(add_parser):
+    parser = add_parser(
+        "reset-pipeline-dynamic-spec",
+        show_flow_dynamic_spec_update(yt.reset_pipeline_dynamic_spec),
+        help="Cancel all DynamicSpec patches and inherit the release base",
+    )
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--expected-version", type=int, required=True, help="Current DynamicSpec state version")
 
 
 @copy_docstring_from(yt.get_pipeline_state)

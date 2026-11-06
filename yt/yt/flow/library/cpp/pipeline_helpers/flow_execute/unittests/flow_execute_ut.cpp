@@ -14,6 +14,41 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TFlowExecuteTest, DynamicSpecPatchRequiresCasAndNonemptyComment)
+{
+    for (auto argument : {
+            R"({set_path="/x";set_value=1;comment="reason";})",
+            R"({expected_version=1;set_path="/x";set_value=1;})",
+            R"({expected_version=1;set_path="/x";set_value=1;comment="";})",
+         }) {
+        EXPECT_THROW(ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(argument)), TErrorException);
+    }
+    auto argument = ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        "{expected_version=1;set_path=\"/x\";set_value=1;comment=\"  Причина 😀  \";}"));
+    EXPECT_EQ(argument.Comment, "  Причина 😀  ");
+    auto multiPath = ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        R"({expected_version=1;set_changes=[{path="/x";value=1;};{path="/y";value=2;};];comment="reason";})"));
+    ASSERT_TRUE(multiPath.SetChanges);
+    EXPECT_EQ(multiPath.SetChanges->size(), 2u);
+    EXPECT_EQ((*multiPath.SetChanges)[1].Path, "/y");
+    EXPECT_THROW(ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        R"({expected_version=1;set_changes=[];comment="reason";})")),
+        TErrorException);
+    EXPECT_THROW(ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        R"({expected_version=1;set_path="/x";set_value=1;set_changes=[{path="/y";value=2;};];comment="reason";})")),
+        TErrorException);
+    auto commentUpdate = ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        "{expected_version=2;patch=1;comment=\"Новая причина\";}"));
+    EXPECT_EQ(commentUpdate.Patch, TVersion(1));
+    EXPECT_FALSE(commentUpdate.SetPath);
+    EXPECT_THROW(ConvertTo<TPatchPipelineDynamicSpecArg>(TYsonStringBuf(
+        "{expected_version=2;remove_path=\"/x\";comment=\"reason\";}")),
+        TErrorException);
+    EXPECT_NO_THROW(ConvertTo<TSetPipelineDynamicSpecArg>(TYsonStringBuf("{spec=1;}")));
+    EXPECT_NO_THROW(ConvertTo<TRemovePipelineDynamicSpecArg>(TYsonStringBuf("{path=\"/x\";}")));
+    EXPECT_THROW(ConvertTo<TResetPipelineDynamicSpecArg>(TYsonStringBuf("{}")), TErrorException);
+}
+
 TEST(TFlowExecuteTest, CompressedFlowViewRoundTrip)
 {
     auto keeper = New<TFlowViewKeeper>();

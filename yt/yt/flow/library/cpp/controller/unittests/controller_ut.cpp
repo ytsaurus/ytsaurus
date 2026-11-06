@@ -1010,23 +1010,26 @@ TEST_F(TControllerTest, WaitPersist)
         StartLeadingAndWaitReady();
 
         {
+            auto setDynamicSpec = [&] (TStringBuf spec, i64 expectedVersion) {
+                TSetPipelineDynamicSpecArg argument;
+                argument.Spec = ConvertTo<INodePtr>(TYsonStringBuf(spec));
+                argument.ExpectedVersion = TVersion(expectedVersion);
+
+                auto setReq = ControllerServiceProxy->FlowExecute();
+                setReq->set_command("set-pipeline-dynamic-spec");
+                setReq->set_argument(ConvertToYsonString(argument).ToString());
+                auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
+                return ConvertTo<TSetPipelineDynamicSpecResult>(TYsonStringBuf(setRsp->result())).Version.Underlying();
+            };
+
             auto getReq = ControllerServiceProxy->GetDynamicSpec();
             auto getRsp = WaitFor(getReq->Invoke()).ValueOrThrow();
 
-            {
-                auto setReq = ControllerServiceProxy->SetDynamicSpec();
-                setReq->set_expected_version(getRsp->version());
-                setReq->set_spec(getRsp->spec()); // No spec change - no version change.
-                auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
-                ASSERT_EQ(getRsp->version(), setRsp->version());
-            }
-
-            auto setReq = ControllerServiceProxy->SetDynamicSpec();
-            setReq->set_expected_version(getRsp->version());
             // Just random option.
-            setReq->set_spec(R"({"controller_connector"={"controller_wait_timeout"=1234;};})");
-            auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
-            ASSERT_GT(setRsp->version(), getRsp->version());
+            auto setVersion = setDynamicSpec(
+                R"({"controller_connector"={"controller_wait_timeout"=1234;};})",
+                getRsp->version());
+            ASSERT_GT(setVersion, getRsp->version());
 
             auto getDynamicVersion = [state = PersistedStateManagerLocalState] {
                 auto guard = Guard(state->Lock);
@@ -1034,7 +1037,7 @@ TEST_F(TControllerTest, WaitPersist)
             };
 
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
-            while (getDynamicVersion() != setRsp->version()) {
+            while (getDynamicVersion() != setVersion) {
                 YT_TLOG_INFO("Still wait until update of dynamic spec will be available in flow view.");
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
@@ -1931,6 +1934,34 @@ TEST_F(TControllerTest, BrokenSpecsCanBeViewedWithoutFlowView)
         auto flowExecuteDynamicSpec = ConvertToNode(ExecuteCommand(executor, "get-pipeline-dynamic-spec", "{}"));
         EXPECT_TRUE(AreNodesEqual(flowExecuteDynamicSpec->AsMap()->GetChildOrThrow("spec"), rawDynamicSpec));
 
+        auto patch = New<TDynamicSpecPatch>();
+        patch->Version = TVersion(123);
+        auto& change = patch->Changes.emplace_back();
+        change.Path = "/controller_connector";
+        change.Value = toNode("{controller_wait_timeout=567;}");
+        patch->Comment = "Keep the connector settings";
+        patch->Timestamp = TInstant::Seconds(5);
+        {
+            auto guard = Guard(state->Lock);
+            state->DynamicSpecNode->AsMap()->AddChild("patches", ConvertToNode(std::vector{patch}));
+        }
+        {
+            SCOPED_TRACE("Raw base and persisted patches remain readable without a FlowView");
+            auto [spec, specVersion, dynamicSpec, dynamicSpecVersion] = getNativeSpecs();
+            EXPECT_TRUE(AreNodesEqual(spec, rawSpec));
+            EXPECT_EQ(specVersion, rawVersion);
+            EXPECT_TRUE(AreNodesEqual(dynamicSpec, toNode("{controller_connector={controller_wait_timeout=567;};}")));
+            EXPECT_EQ(dynamicSpecVersion, rawVersion);
+
+            auto base = ConvertTo<IMapNodePtr>(ExecuteCommand(executor, "get-pipeline-dynamic-spec", "{view=base;}"));
+            EXPECT_TRUE(AreNodesEqual(base->GetChildOrThrow("spec"), rawDynamicSpec));
+            auto effective = ConvertTo<IMapNodePtr>(ExecuteCommand(executor, "get-pipeline-dynamic-spec", "{blame=%true;}"));
+            auto blame = effective->GetChildOrThrow("blame")->AsMap()->GetChildOrThrow("/controller_connector")->AsMap();
+            EXPECT_EQ(blame->GetChildValueOrThrow<TVersion>("patch_id"), patch->Version);
+            auto patches = ConvertTo<IMapNodePtr>(ExecuteCommand(executor, "get-pipeline-dynamic-spec-patches", "{}"));
+            EXPECT_TRUE(AreNodesEqual(patches->GetChildOrThrow("patches"), ConvertToNode(std::vector{patch})));
+        }
+
         // The status-only description carries the recovery error; the full one needs the FlowView.
         EXPECT_TRUE(WaitForCondition([&] {
             auto description = ConvertToYsonString(ExecuteCommand(executor, "describe-pipeline", "{status_only=%true;}"), EYsonFormat::Text);
@@ -2031,6 +2062,14 @@ TEST_F(TControllerTest, DynamicOnlySpecUpdateReplacesUnparsableDynamicSpec)
     ASSERT_NE(legacyDynamicSpecVersion, state->DynamicSpec->GetVersion());
     auto legacyDynamicSpecRow = Format("{version=%v;value={controller_connector=legacy_invalid;};}", legacyDynamicSpecVersion);
     state->DynamicSpecNode = ConvertToNode(TYsonStringBuf(legacyDynamicSpecRow));
+    auto patch = New<TDynamicSpecPatch>();
+    patch->Version = TVersion(123);
+    auto& change = patch->Changes.emplace_back();
+    change.Path = "/controller_connector/controller_wait_timeout";
+    change.Value = ConvertToNode(7777);
+    patch->Comment = "Keep the runtime timeout";
+    patch->Timestamp = TInstant::Seconds(5);
+    state->DynamicSpecNode->AsMap()->AddChild("patches", ConvertToNode(std::vector{patch}));
     const auto specVersion = state->Spec->GetVersion();
 
     Prepare();
@@ -2048,7 +2087,9 @@ TEST_F(TControllerTest, DynamicOnlySpecUpdateReplacesUnparsableDynamicSpec)
         EXPECT_FALSE(state->DynamicSpecNode);
         EXPECT_GT(result.DynamicSpecVersion, legacyDynamicSpecVersion);
         EXPECT_EQ(state->DynamicSpec->GetVersion(), result.DynamicSpecVersion);
-        EXPECT_EQ(state->DynamicSpec->GetValue()->ControllerConnector->ControllerWaitTimeout, TDuration::MilliSeconds(4321));
+        EXPECT_EQ(state->DynamicSpec->GetBaseSpec()->ControllerConnector->ControllerWaitTimeout, TDuration::MilliSeconds(4321));
+        EXPECT_EQ(state->DynamicSpec->GetValue()->ControllerConnector->ControllerWaitTimeout, TDuration::MilliSeconds(7777));
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(state->DynamicSpec->Patches), ConvertToNode(std::vector{patch})));
         EXPECT_EQ(state->Spec->GetVersion(), specVersion);
         EXPECT_EQ(state->Spec->GetValue()->BinaryVersion, "legacy");
     });
