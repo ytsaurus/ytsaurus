@@ -3231,6 +3231,101 @@ TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
     ValidatePipelineSpec(spec);
 }
 
+TPipelineSpecPtr MakeTwoManagersSpec(
+    TStringBuf firstManagerClassName,
+    TStringBuf firstPath,
+    TStringBuf secondManagerClassName,
+    TStringBuf secondPath)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::%v";
+                            parameters = { path = %Qv; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::%v";
+                            parameters = { path = %Qv; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""",
+        firstManagerClassName,
+        firstPath,
+        secondManagerClassName,
+        secondPath);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+TEST(TSpecYTPathOwnershipTest, EmptyClusterNormalizedToPipelineCluster)
+{
+    auto spec = MakeTwoManagersSpec(
+        "TWritingExternalStateManager",
+        "//tmp/state",
+        "TWritingExternalStateManager",
+        "<cluster=primary>//tmp/state");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec, "primary"); },
+        "claimed for writing");
+    ValidatePipelineSpec(spec);
+    ValidatePipelineSpec(spec, "secondary");
+}
+
+TEST(TSpecYTPathOwnershipTest, ClaimsUnionOfClusterAttributes)
+{
+    auto parameters = New<TSharedWriterManagerParameters>();
+    parameters->Load(ConvertToNode(TYsonStringBuf("{path=\"<cluster=a;clusters=[a;b]>//p\"}")));
+    std::vector<std::string> clusters;
+    for (const auto& claim : TRegistry::Get()->CollectYTPathClaims(parameters, "c")) {
+        clusters.push_back(claim.Cluster);
+    }
+    EXPECT_EQ(clusters, (std::vector<std::string>{"a", "b"}));
+
+    // A cluster listed in both attributes does not make an exclusive owner conflict with itself.
+    ValidatePipelineSpec(MakeTwoManagersSpec(
+        "TWritingExternalStateManager",
+        "<cluster=a;clusters=[a]>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/other"));
+}
+
+TEST(TSpecYTPathOwnershipTest, ClustersClaimedPerCluster)
+{
+    auto clustersSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<clusters=[a;b]>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/state");
+    ValidatePipelineSpec(clustersSpec);
+    ValidatePipelineSpec(clustersSpec, "c");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(clustersSpec, "b"); },
+        "claimed for writing");
+
+    auto overlappingSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<clusters=[a;b]>//tmp/state",
+        "TWritingExternalStateManager",
+        "<cluster=b>//tmp/state");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(overlappingSpec); },
+        "claimed for writing");
+
+    auto clusterSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<cluster=a>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/state");
+    ValidatePipelineSpec(clusterSpec);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDeclarationSpecCase

@@ -12,6 +12,7 @@ SRCS(
 PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
+    yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/connectors/queue
     yt/yt/library/query/engine
 )

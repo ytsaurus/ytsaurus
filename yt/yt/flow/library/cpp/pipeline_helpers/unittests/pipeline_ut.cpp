@@ -7,6 +7,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
+#include <yt/yt/client/unittests/mock/connection.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -22,6 +23,7 @@ using namespace NApi;
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Return;
+using ::testing::ReturnRef;
 using ::testing::StartsWith;
 using ::testing::StrictMock;
 
@@ -76,6 +78,12 @@ TEST(TRunPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
     auto client = New<StrictMock<TMockClient>>();
     auto operationId = NScheduler::TOperationId(TGuid::FromString("1-2-3-4"));
 
+    auto connection = New<StrictMock<TMockConnection>>();
+    const std::optional<std::string> clusterName = "primary";
+    EXPECT_CALL(*connection, GetClusterName())
+        .WillRepeatedly(ReturnRef(clusterName));
+    EXPECT_CALL(*client, GetConnection())
+        .WillRepeatedly(Return(connection));
     EXPECT_CALL(*client, NodeExists("//tmp/pipeline", _))
         .WillRepeatedly(Return(MakeFuture(true)));
     EXPECT_CALL(*client, GetTabletInfos(_, _, _))

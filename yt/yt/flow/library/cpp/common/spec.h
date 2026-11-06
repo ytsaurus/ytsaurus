@@ -1580,7 +1580,8 @@ DEFINE_REFCOUNTED_TYPE(TVersionedDynamicPipelineSpec);
 
 THashMap<TStreamId, std::vector<TStreamId>> BuildStreamGraph(const TPipelineSpecPtr& spec, bool addReadDelayEdges = false);
 void ValidateIsDirectedAcyclicGraph(const THashMap<TStreamId, std::vector<TStreamId>>& streamGraph);
-void ValidatePipelineSpec(const TPipelineSpecPtr& spec);
+//! |pipelineCluster| is the cluster of YT paths with neither `cluster` nor `clusters` in the writer-conflict check.
+void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std::string>& pipelineCluster = std::nullopt);
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& spec);
 
 //! Throws unless |id| is a valid ID of a user-defined entity of kind |entityKind|, such as a stream or a timer.

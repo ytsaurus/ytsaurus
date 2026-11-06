@@ -1009,7 +1009,7 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                 originalDynamicSpecVersion);
 
             if (argument.Spec) {
-                ValidatePipelineSpec(spec->GetValue());
+                ValidatePipelineSpec(spec->GetValue(), YTConnector_->GetPipelinePath().GetCluster());
                 ValidateTimerStoreBackends(spec->GetValue(), Config_->EnablePagedTimerStore);
             }
             if (argument.DynamicSpec) {

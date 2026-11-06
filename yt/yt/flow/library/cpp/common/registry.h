@@ -275,8 +275,12 @@ public:
 
     //! Recursively walks the (already-parsed) parameters struct and collects every
     //! YT-path ownership claim declared on a path-typed field via
-    //! `.AddOption(EYTPathOwnership)`. Each claimed path is normalized.
-    std::vector<TYTPathClaim> CollectYTPathClaims(const NYTree::TYsonStructPtr& parameters) const;
+    //! `.AddOption(EYTPathOwnership)` or `.AddOption(TYTPathOwnershipResolver)`. Each claimed path is normalized.
+    //! A path yields one claim per cluster in the union of its `cluster` and `clusters` attributes, or a claim on
+    //! |pipelineCluster| if both are unset.
+    std::vector<TYTPathClaim> CollectYTPathClaims(
+        const NYTree::TYsonStructPtr& parameters,
+        const std::optional<std::string>& pipelineCluster = std::nullopt) const;
 
     void ValidateYsonMessageType(TStringBuf name, const TYsonMessagePtr& ysonMessage) const;
 

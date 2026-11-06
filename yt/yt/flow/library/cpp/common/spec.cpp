@@ -1766,7 +1766,7 @@ void ValidateIsDirectedAcyclicGraph(const THashMap<TStreamId, std::vector<TStrea
 
 namespace {
 
-std::vector<TYTPathClaim> CollectAllYTPathClaims(const TPipelineSpecPtr& spec)
+std::vector<TYTPathClaim> CollectAllYTPathClaims(const TPipelineSpecPtr& spec, const std::optional<std::string>& pipelineCluster)
 {
     std::vector<TYTPathClaim> allClaims;
 
@@ -1781,7 +1781,7 @@ std::vector<TYTPathClaim> CollectAllYTPathClaims(const TPipelineSpecPtr& spec)
             const TYsonStructPtr& parameters) {
             std::vector<TYTPathClaim> claims;
             try {
-                claims = TRegistry::Get()->CollectYTPathClaims(parameters);
+                claims = TRegistry::Get()->CollectYTPathClaims(parameters, pipelineCluster);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(ex)
                     .With("computation_id", computationId)
@@ -1831,9 +1831,9 @@ std::vector<TYTPathClaim> CollectAllYTPathClaims(const TPipelineSpecPtr& spec)
     return allClaims;
 }
 
-void CollectAndValidateYTPaths(const TPipelineSpecPtr& spec)
+void CollectAndValidateYTPaths(const TPipelineSpecPtr& spec, const std::optional<std::string>& pipelineCluster)
 {
-    auto allClaims = CollectAllYTPathClaims(spec);
+    auto allClaims = CollectAllYTPathClaims(spec, pipelineCluster);
 
     struct TGroup
     {
@@ -1906,7 +1906,7 @@ void ValidateControllerResourceFileProviders(const TPipelineSpecPtr& spec)
 
 std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
 {
-    auto claims = CollectAllYTPathClaims(spec);
+    auto claims = CollectAllYTPathClaims(spec, /*pipelineCluster*/ std::nullopt);
     SortBy(claims, [] (const TYTPathClaim& claim) {
         return std::tuple(claim.Cluster, claim.Path, claim.Ownership);
     });
@@ -1923,7 +1923,7 @@ std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
     return claims;
 }
 
-void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
+void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std::string>& pipelineCluster)
 {
     ValidatePipelineDeclarationIds(spec.Get());
 
@@ -2420,7 +2420,7 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
         }
     }
 
-    CollectAndValidateYTPaths(spec);
+    CollectAndValidateYTPaths(spec, pipelineCluster);
 
     ValidateIsDirectedAcyclicGraph(BuildStreamGraph(spec, /*addReadDelayEdges*/ true));
 }

@@ -27,7 +27,18 @@ void ValidateSingleCluster(const TAsyncQueueWriterParametersBase& parameters)
 void TQueueInfoSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("queue_path", &TThis::QueuePath)
-        .AddOption(EYTPathOwnership::ReadOnly);
+        .AddOption(TYTPathOwnershipResolver{
+            .Resolve = [] (const NYTree::TYsonStruct& parameters) -> std::optional<EYTPathOwnership> {
+                // Sources and sinks share the spec but not the ownership.
+                if (dynamic_cast<const TCommonQueueSinkParameters*>(&parameters)) {
+                    return EYTPathOwnership::SharedWrite;
+                }
+                if (dynamic_cast<const TQueueSourceParameters*>(&parameters)) {
+                    return EYTPathOwnership::ReadOnly;
+                }
+                return std::nullopt;
+            },
+        });
 
     registrar.Parameter("update_partition_count_period", &TThis::UpdatePartitionCountPeriod)
         .Default(TDuration::Seconds(60));
