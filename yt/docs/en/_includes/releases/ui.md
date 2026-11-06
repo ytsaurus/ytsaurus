@@ -8,6 +8,63 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.31.0**" %}
+
+**Release date:** 2026-10-28
+
+
+**Release page:** [3.31.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.31.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.31.0](https://github.com/orgs/ytsaurus/packages/container/ui/1461680569?tag=3.31.0)
+
+
+#### [3.31.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.30.1...ui-v3.31.0) (2026-10-28)
+
+
+#### Features
+
+* **Accounts:** support a documentation link for account creation [YTFRONT-4921] ([027b903](https://github.com/ytsaurus/ytsaurus-ui/commit/027b9037a401aa8d258ac07b145ce8250924963b))
+* **Accounts:** switch to independent account editor dialog [YTFRONT-6021] ([0564d7e](https://github.com/ytsaurus/ytsaurus-ui/commit/0564d7ea8b874bee7eadadcfc0265d10431d4dbd))
+* **Consumer:** support named consumers in navigation [YTFRONT-5808] ([a84e4b8](https://github.com/ytsaurus/ytsaurus-ui/commit/a84e4b8192745f9c590c9b1b4d4ebb771723324e))
+* show application configuration errors [YTFRONT-5969] ([6ef3bb0](https://github.com/ytsaurus/ytsaurus-ui/commit/6ef3bb00404dec882d9f0c6aefbcf7eafdc28ddf))
+* **Flow:** add pipeline state viewer [YTFLOW-316] ([4a222bd](https://github.com/ytsaurus/ytsaurus-ui/commit/4a222bd6a94a13a8393a895fc2e35653b2e059d6))
+* **Logs:** support window scrolling integration [YTFRONT-5307] ([6beea23](https://github.com/ytsaurus/ytsaurus-ui/commit/6beea23f7e9682d638684d97edb4e4a2ae42293b))
+* **System/Nodes:** add short view mode [YTFRONT-6104] ([b38525e](https://github.com/ytsaurus/ytsaurus-ui/commit/b38525ededd9eb52f91984b879e5571430ea6192))
+* **CHYT:** configure CPU and memory when creating a clique [YTFRONT-6086] ([f2d8dd5](https://github.com/ytsaurus/ytsaurus-ui/commit/f2d8dd56fa361ef540b3d618d611d6f13cddc8a4))
+
+
+#### Bug Fixes
+
+* **cache:** bypass YT cache temporarily after writes [YTFRONT-6110] ([8c25244](https://github.com/ytsaurus/ytsaurus-ui/commit/8c2524475899de3f8e6d85013e822ee863e4c324))
+* **Monitoring:** custom shortcut value should be displayed [YTFRONT-6023] ([1a4bdeb](https://github.com/ytsaurus/ytsaurus-ui/commit/1a4bdebe0d0440ea98ff93835b01caa5f013e438))
+* **Navigation:** persist access log recursive filter in URL [YTFRONT-6075] ([01897ee](https://github.com/ytsaurus/ytsaurus-ui/commit/01897ee5e8fb566ad8ca2bd3456e550b2c41dbfb))
+* **Operation/Details:** rich ypath inputs should be displayed [YTFRONT-6080] ([62ab59f](https://github.com/ytsaurus/ytsaurus-ui/commit/62ab59f1072ad2b5adbd6b19ac41a18e0cb1b9db))
+* **Queries:** decode query titles and token descriptions [YTFRONT-6113] ([43f4490](https://github.com/ytsaurus/ytsaurus-ui/commit/43f44900f599805be841a574c16926880698d8de))
+* **BundleEditorDialog:** correct row-level cache label ([7f859c7](https://github.com/ytsaurus/ytsaurus-ui/commit/7f859c7dcf65575d685f92ca267caeb6ab10f8eb))
+* **CHYT:** narrow numeric descriptor field types [YTFRONT-6086] ([c02ec4d](https://github.com/ytsaurus/ytsaurus-ui/commit/c02ec4dfc16cb4728e58a61d1cb68d3ef4847f49))
+* **CHYT:** reset creation options on context changes [YTFRONT-6086] ([0cdce63](https://github.com/ytsaurus/ytsaurus-ui/commit/0cdce6366a9677617154c5966cc4482c3bdef4a8))
+* **CHYT:** use renamed controller defaults command [YTFRONT-6086] ([3aa7f8d](https://github.com/ytsaurus/ytsaurus-ui/commit/3aa7f8df4c340456f300dcc28dac54ce24e84d9d))
+* **FlowGraph:** include input-only streams in layout [YTFRONT-6081] ([ea55afc](https://github.com/ytsaurus/ytsaurus-ui/commit/ea55afc5dd188b0f372dd71178112a6bdff99edb))
+* **Icon:** inherit size from the current font [YTFRONT-5743] ([2adcebd](https://github.com/ytsaurus/ytsaurus-ui/commit/2adcebdfa62fe5d264e736f21b4ce5c110a06cac))
+* preserve timestamp values in table pagination [YTFRONT-6064] ([bd8abd6](https://github.com/ytsaurus/ytsaurus-ui/commit/bd8abd6976444a513bae12d6cb221aa91531124d))
+* **Queries:** restore CHYT highlighting after block comments [YTFRONT-5843] ([1bcaaab](https://github.com/ytsaurus/ytsaurus-ui/commit/1bcaaab8897c448f0cfd83adce424bec47d8068b))
+* **Queries:** sort numeric result columns correctly [YTFRONT-6099] ([5a9ac89](https://github.com/ytsaurus/ytsaurus-ui/commit/5a9ac8969ec18e2418573594cc4daab2d560dcbb))
+* **QueryTracker:** improve navigation loading and filtering [YTFRONT-5971] ([ee0eeab](https://github.com/ytsaurus/ytsaurus-ui/commit/ee0eeab8e15b565a06b6beb60f2932c5a58fe0d0))
+* **QueryTracker:** show empty history state [YTFRONT-6083] ([14c5d8d](https://github.com/ytsaurus/ytsaurus-ui/commit/14c5d8db30c49fa1adbfa30cdcafa68805baf986))
+* **StatisticTable:** measure column width after font loading ([7a8b0c0](https://github.com/ytsaurus/ytsaurus-ui/commit/7a8b0c04f5871bf76c3bb6e2be0982cf4211728c))
+* **ui:** use released components package [YTFRONT-6082] ([5a50321](https://github.com/ytsaurus/ytsaurus-ui/commit/5a5032132076b58cb053a9915f7c23cbe9829c8f))
+* **BundleEditorDialog:** correct row-level cache label ([7f859c7](https://github.com/ytsaurus/ytsaurus-ui/commit/7f859c7dcf65575d685f92ca267caeb6ab10f8eb))
+* **CHYT:** narrow numeric descriptor field types [YTFRONT-6086] ([c02ec4d](https://github.com/ytsaurus/ytsaurus-ui/commit/c02ec4dfc16cb4728e58a61d1cb68d3ef4847f49))
+* **CHYT:** reset creation options on context changes [YTFRONT-6086] ([0cdce63](https://github.com/ytsaurus/ytsaurus-ui/commit/0cdce6366a9677617154c5966cc4482c3bdef4a8))
+* **CHYT:** use renamed controller defaults command [YTFRONT-6086] ([3aa7f8d](https://github.com/ytsaurus/ytsaurus-ui/commit/3aa7f8df4c340456f300dcc28dac54ce24e84d9d))
+* **FlowGraph:** include input-only streams in layout [YTFRONT-6081] ([ea55afc](https://github.com/ytsaurus/ytsaurus-ui/commit/ea55afc5dd188b0f372dd71178112a6bdff99edb))
+* **QueryTracker:** show empty history state [YTFRONT-6083] ([14c5d8d](https://github.com/ytsaurus/ytsaurus-ui/commit/14c5d8db30c49fa1adbfa30cdcafa68805baf986))
+* **ui:** use released components package [YTFRONT-6082] ([5a50321](https://github.com/ytsaurus/ytsaurus-ui/commit/5a5032132076b58cb053a9915f7c23cbe9829c8f))
+
+{% endcut %}
+
+
 {% cut "**3.28.0**" %}
 
 **Release date:** 2026-10-01
