@@ -1088,8 +1088,7 @@ class TestSmoothMovement(SmoothMovementBase):
 
         assert exists(f"#{initial_chunk_id}")
 
-        prolonged_chunks_before = get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
-        assert [initial_chunk_id] == prolonged_chunks_before
+        wait(lambda: [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
 
         target_cell_id = [c for c in ls("//sys/tablet_cells") if c != source_cell_id][0]
         self._sync_move_tablet(tablet_id, target_cell_id)
