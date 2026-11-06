@@ -997,6 +997,13 @@ std::string FormatExpression(const TExpressionList& exprs)
     return builder.Flush();
 }
 
+std::string FormatExpressionConcise(const TExpression& expr)
+{
+    TStringBuilder builder;
+    FormatExpression(&builder, expr, /*depth*/ 0, {.ExpandAliases = false, .IsFinal = true, .Concise = true});
+    return builder.Flush();
+}
+
 std::string FormatJoin(const TJoin& join)
 {
     TStringBuilder builder;
