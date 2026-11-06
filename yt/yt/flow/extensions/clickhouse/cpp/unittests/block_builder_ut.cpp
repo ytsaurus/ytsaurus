@@ -116,6 +116,23 @@ TEST(TClickHouseTypeParserTest, Wrappers)
     EXPECT_EQ(both.Base, EClickHouseBaseType::String);
 }
 
+TEST(TClickHouseBlockBuilderTest, SimpleAggregateFunctionScalar)
+{
+    auto schema = New<TTableSchema>(std::vector{Required("value", ESimpleLogicalValueType::Uint64)});
+    std::vector<TClickHouseTableColumn> tableColumns{
+        {.Name = "value", .Type = "SimpleAggregateFunction(max, UInt64)", .DefaultKind = ""},
+    };
+    auto columns = ResolveColumns(tableColumns, schema);
+    auto specStorage = MakeStreamSpecStorage(schema);
+    auto message = MakeMessage(specStorage, schema, 0, [] (TPayloadBuilder& payload) {
+        payload.Set<ui64>(42, "value");
+    });
+    auto block = TClickHouseBlockBuilder(columns).Build({message});
+    EXPECT_EQ(block[0]->As<clickhouse::ColumnUInt64>()->At(0), 42u);
+    EXPECT_EQ(ParseClickHouseType("SimpleAggregateFunction(sum, Int64)").Base, EClickHouseBaseType::Int64);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupUniqArrayArray, Array(String))"), std::exception);
+}
+
 TEST(TClickHouseTypeParserTest, FixedString)
 {
     auto fixed = ParseClickHouseType("FixedString(16)");
