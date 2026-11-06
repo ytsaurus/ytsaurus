@@ -1,0 +1,14 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NFlow::NController {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureResourceInstances(const TFlowViewPtr& flowView);
+void ProjectResourceInstanceStatuses(const TFlowViewPtr& flowView);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NController

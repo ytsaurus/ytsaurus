@@ -986,12 +986,20 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::Apply(const s
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
 std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::Follow(
     TSequenceId sequenceIdFrom,
-    ssize_t limit)
+    ssize_t limit,
+    std::optional<TSequenceId> expectedSequenceId)
 {
     YT_TLOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow begin")
         .With("SequenceIdFrom", sequenceIdFrom);
 
     auto guard = Guard(TransactionalLock_);
+    // Superseded records are removed from KnownRecords_, so truncating a newer delta
+    // cannot reconstruct an older snapshot. Let the caller retry with a fresh snapshot.
+    THROW_ERROR_EXCEPTION_IF(expectedSequenceId && *expectedSequenceId != ConfirmedId_,
+        EErrorCode::PersistedStateSnapshotOutdated,
+        "Persisted state snapshot is outdated (ExpectedSequenceId: %v, ConfirmedSequenceId: %v)",
+        expectedSequenceId,
+        ConfirmedId_);
     if (sequenceIdFrom == ConfirmedId_) {
         return {};
     }
@@ -1055,6 +1063,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsRea
     }
     CheckpointDeque_.back()->Readers.PushBack(&transaction);
     transaction.ReadCheckpoint_ = MakeWeak(CheckpointDeque_.back());
+    transaction.ReadSequenceId_ = checkpointSequenceId;
 }
 
 template <class TDBKey, class TDBValue, class TDefaultSerializer>

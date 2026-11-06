@@ -45,6 +45,7 @@ using namespace NYson;
 
 static const TPersistedStateName FlowViewLayoutPartitionsStateName = "layout_partitions";
 static const TPersistedStateName FlowViewLayoutJobsStateName = "layout_jobs";
+static const TPersistedStateName FlowViewLayoutResourceInstancesStateName = "layout_resource_instances";
 static const TPersistedStateName FlowViewLayoutWorkerSpecsStateName = "layout_worker_specs";
 constinit const auto& Logger = FlowStateLogger;
 
@@ -234,6 +235,26 @@ void TJob::Register(TRegistrar registrar)
     registrar.Parameter("lease_id", &TThis::LeaseId);
 
     registrar.Parameter("dyntable_lease", &TThis::DyntableLease)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TResourceInstance::Register(TRegistrar registrar)
+{
+    registrar.Parameter("resource_instance_id", &TThis::ResourceInstanceId);
+    registrar.Parameter("resource_id", &TThis::ResourceId);
+    registrar.Parameter("worker_address", &TThis::WorkerAddress);
+    registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId);
+}
+
+void TResourceInstanceDynamicSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("dynamic_resource_spec", &TThis::DynamicResourceSpec)
+        .DefaultNew();
+    registrar.Parameter("target_revision", &TThis::TargetRevision)
+        .Default();
+    registrar.Parameter("preload", &TThis::Preload)
         .Default(false);
 }
 
@@ -558,6 +579,12 @@ void TFileSnapshotStatus::Register(TRegistrar registrar)
 
 void TWorkerResourceStatus::Register(TRegistrar registrar)
 {
+    registrar.Parameter("resource_id", &TThis::ResourceId)
+        .Default();
+    registrar.Parameter("load_state", &TThis::LoadState)
+        .Default(EResourceLoadState::NotLoaded);
+    registrar.Parameter("load_error", &TThis::LoadError)
+        .Default();
     registrar.Parameter("queue_size_30s", &TThis::QueueSize30s)
         .Default();
     registrar.Parameter("queue_size_10m", &TThis::QueueSize10m)
@@ -602,6 +629,8 @@ void TWorkerStatistics::Register(TRegistrar registrar)
 
 void TWorkerStatus::Register(TRegistrar registrar)
 {
+    registrar.Parameter("resource_instance_statuses", &TThis::ResourceInstanceStatuses)
+        .Default();
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
         .Default();
     registrar.Parameter("previous_crash_error", &TThis::PreviousCrashError)
@@ -641,8 +670,7 @@ void TFlowLayout::Register(TRegistrar registrar)
 
 TVersion TFlowLayout::GetVersion() const
 {
-    // Any state can be used.
-    return TVersion{CommittedPartitions_->GetControlSequenceId().Underlying()};
+    return TVersion{(SnapshotSequenceId_ ? *SnapshotSequenceId_ : CommittedPartitions_->GetControlSequenceId()).Underlying()};
 };
 
 template <class TKey, class TValue>
@@ -656,9 +684,11 @@ void TFlowLayout::AttachToControl(TPersistedStateControlPtr<std::string> control
     PersistedStateControl_ = std::move(control);
     CreateStateCommon(CommittedPartitions_, PersistedStateControl_, FlowViewLayoutPartitionsStateName);
     CreateStateCommon(CommittedJobs_, PersistedStateControl_, FlowViewLayoutJobsStateName);
+    CreateStateCommon(CommittedResourceInstances_, PersistedStateControl_, FlowViewLayoutResourceInstancesStateName);
     CreateStateCommon(CommittedWorkerSpecs_, PersistedStateControl_, FlowViewLayoutWorkerSpecsStateName);
     Partitions.SetState(CommittedPartitions_);
     Jobs.SetState(CommittedJobs_);
+    ResourceInstances.SetState(CommittedResourceInstances_);
     WorkerSpecs.SetState(CommittedWorkerSpecs_);
 }
 
@@ -673,9 +703,11 @@ TFlowLayoutPtr TFlowLayout::Clone() const
     result->PersistedStateControl_ = PersistedStateControl_;
     result->CommittedPartitions_ = CommittedPartitions_;
     result->CommittedJobs_ = CommittedJobs_;
+    result->CommittedResourceInstances_ = CommittedResourceInstances_;
     result->CommittedWorkerSpecs_ = CommittedWorkerSpecs_;
     result->Partitions.SetState(result->CommittedPartitions_);
     result->Jobs.SetState(result->CommittedJobs_);
+    result->ResourceInstances.SetState(result->CommittedResourceInstances_);
     result->WorkerSpecs.SetState(result->CommittedWorkerSpecs_);
     // Remember the source's live (write) transaction so a later CreateSnapshot(/*committed*/ false)
     // can seed the snapshot with its still-uncommitted changes. Null when cloned outside a mutation.
@@ -691,6 +723,13 @@ void TFlowLayout::SerializeAsYson(NYson::IYsonConsumer* consumer)
     consumer->OnKeyedItem("partitions");
     consumer->OnBeginMap();
     for (const auto& [key, value] : Partitions) {
+        consumer->OnKeyedItem(ToString(key));
+        Serialize(value, consumer);
+    }
+    consumer->OnEndMap();
+    consumer->OnKeyedItem("resource_instances");
+    consumer->OnBeginMap();
+    for (const auto& [key, value] : ResourceInstances) {
         consumer->OnKeyedItem(ToString(key));
         Serialize(value, consumer);
     }
@@ -712,15 +751,17 @@ void TFlowLayout::Apply(const std::vector<TPersistedStateStorageRow<std::string>
 
 std::vector<TPersistedStateStorageRow<std::string>> TFlowLayout::Follow(TSequenceId from) const
 {
-    return PersistedStateControl_->Follow(from);
+    return PersistedStateControl_->Follow(from, std::numeric_limits<ssize_t>::max(), SnapshotSequenceId_);
 }
 
 void TFlowLayout::StartMutation(TFlowStateMutationNotifierPtr notifier)
 {
     YT_ASSERT(MutationNotifier_ == nullptr);
     MutationNotifier_ = std::move(notifier);
+    SnapshotSequenceId_.reset();
     Txn_ = PersistedStateControl_->StartTransaction();
     Jobs.SetTransaction(Txn_);
+    ResourceInstances.SetTransaction(Txn_);
     Partitions.SetTransaction(Txn_);
     WorkerSpecs.SetTransaction(Txn_);
     Updated_ = 0;
@@ -737,7 +778,9 @@ void TFlowLayout::CreateSnapshot(bool committed)
         Txn_ = PersistedStateControl_->StartTransaction(/*readOnly*/ true);
     }
     SourceWriteTransaction_ = nullptr;
+    SnapshotSequenceId_ = Txn_->GetReadSequenceId();
     Jobs.SetTransaction(Txn_);
+    ResourceInstances.SetTransaction(Txn_);
     Partitions.SetTransaction(Txn_);
     WorkerSpecs.SetTransaction(Txn_);
     Updated_ = 0;
@@ -748,6 +791,7 @@ void TFlowLayout::CommitMutation(TPersistedStateCommitContext* context)
     Txn_->Commit(context);
     Txn_ = nullptr;
     Jobs.SetTransaction(Txn_);
+    ResourceInstances.SetTransaction(Txn_);
     Partitions.SetTransaction(Txn_);
     WorkerSpecs.SetTransaction(Txn_);
     MutationNotifier_ = nullptr;
@@ -1565,7 +1609,8 @@ TFlowViewPtr TFlowView::LoadFromNode(const NYTree::INodePtr& node, TPersistedSta
     auto layoutMap = layoutNode->AsMap();
     auto partitionsNode = layoutMap->FindChild("partitions");
     auto jobsNode = layoutMap->FindChild("jobs");
-    if (!partitionsNode && !jobsNode) {
+    auto resourcesNode = layoutMap->FindChild("resource_instances");
+    if (!partitionsNode && !jobsNode && !resourcesNode) {
         return flowView;
     }
 
@@ -1583,6 +1628,11 @@ TFlowViewPtr TFlowView::LoadFromNode(const NYTree::INodePtr& node, TPersistedSta
             // CreatePartition() forbids a pre-linked job; CreateJob() below restores the link.
             partition->CurrentJobId.reset();
             layout->CreatePartition(std::move(partition));
+        }
+    }
+    if (resourcesNode) {
+        for (auto& [instanceId, instance] : ConvertTo<THashMap<TResourceInstanceId, TResourceInstancePtr>>(resourcesNode)) {
+            layout->ResourceInstances.emplace(instanceId, std::move(instance));
         }
     }
     if (jobsNode) {

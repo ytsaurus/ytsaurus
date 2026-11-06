@@ -85,6 +85,16 @@ public:
 
     using TResourceBase::TResourceBase;
 
+    TFuture<void> StartBackgroundWork(TPromise<void> started, TFuture<void> gate)
+    {
+        return BIND([this_ = MakeStrong(this), started, gate] {
+            Y_UNUSED(this_);
+            started.Set();
+            NConcurrency::WaitFor(gate).ThrowOnError();
+        }).AsyncVia(GetBackgroundInvoker())
+            .Run();
+    }
+
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
         ++LoadCount;
@@ -571,6 +581,42 @@ TEST_F(TResourceStoreTest, UnloadBarsNewAcquisitionAndKeepsHeldReferences)
     EXPECT_EQ(
         Execute("dict", ECompanionResourceCommand::Unload, BuildUnloadArgument()).Status,
         ECompanionResourceExecuteStatus::Ok);
+}
+
+TEST_F(TResourceStoreTest, RetirementCancelsInstanceBackgroundWork)
+{
+    for (int retirement = 0; retirement < 3; ++retirement) {
+        SCOPED_TRACE(retirement);
+        auto incarnationId = MakeIncarnationId();
+        auto spec = BuildResourceSpec(TypeName<TUnittestDictionaryResource>());
+        ASSERT_EQ(Execute(
+            "resource",
+            ECompanionResourceCommand::Init,
+            BuildInitArgument(spec, BuildDynamicResourceSpec(), incarnationId, 1, 2 * retirement + 1))
+                .Status,
+            ECompanionResourceExecuteStatus::Ok);
+        auto resource = Find("resource")->As<TUnittestDictionaryResource>();
+        auto started = NewPromise<void>();
+        auto gate = NewPromise<void>();
+        auto work = resource->StartBackgroundWork(started, gate.ToFuture());
+        NConcurrency::WaitFor(started.ToFuture().WithTimeout(TDuration::Seconds(1))).ThrowOnError();
+        auto destroyed = resource->GetDestroyedFuture();
+
+        if (retirement == 0) {
+            EXPECT_EQ(Execute("resource", ECompanionResourceCommand::Unload, BuildUnloadArgument(incarnationId)).Status, ECompanionResourceExecuteStatus::Ok);
+        } else if (retirement == 1) {
+            EXPECT_EQ(Execute("resource", ECompanionResourceCommand::Init, BuildInitArgument(spec, BuildDynamicResourceSpec(), MakeIncarnationId(), 1, 2 * retirement + 2)).Status,
+                ECompanionResourceExecuteStatus::Ok);
+        } else {
+            Store_.Reset();
+        }
+        auto result = NConcurrency::WaitFor(work.WithTimeout(TDuration::Seconds(1)));
+        EXPECT_TRUE(result.FindMatching(NYT::EErrorCode::Canceled));
+        EXPECT_FALSE(destroyed.IsSet());
+        gate.TrySet();
+        resource.Reset();
+        EXPECT_TRUE(NConcurrency::WaitFor(destroyed.WithTimeout(TDuration::Seconds(1))).IsOK());
+    }
 }
 
 TEST_F(TResourceStoreTest, ReinitAfterUnloadCreatesFreshInstance)
@@ -1419,7 +1465,7 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
         NTesting::DefaultTestKeySchema());
 
     class TBareResource
-        : public IResource
+        : public TResourceLifecycleBase
     {
     public:
         TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override

@@ -68,7 +68,7 @@ DECLARE_REFCOUNTED_CLASS(TSimpleResource);
 // Minimal registered resource: the job manager instantiates a resource controller for every
 // resource in the spec, so the specs built by these tests must name a registered class.
 class TSimpleResource
-    : public IResource
+    : public TResourceLifecycleBase
 {
 public:
     TSimpleResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
@@ -5158,6 +5158,7 @@ TEST_F(TJobBalancerTest, PreloadDelActionAppliedToWorkerSpecs)
     dynamicSpec->Computations[compId]->Parameters->AddChild("desired_partition_count", NYTree::ConvertToNode(1u));
 
     Prepare(spec, dynamicSpec);
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
 
     // Create partitions.
     FlowView->State->StartMutation();

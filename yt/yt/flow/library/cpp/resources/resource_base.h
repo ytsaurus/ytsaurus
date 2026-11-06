@@ -60,7 +60,7 @@ DEFINE_REFCOUNTED_TYPE(TMaterializedFileProviderSnapshot);
 //! Base class for Flow resources.
 //! @see IResource for details.
 class TResourceBase
-    : public IResource
+    : public TResourceLifecycleBase
     , public virtual TReconfigurable<TDynamicResourceContext>
 {
 public:
@@ -113,6 +113,9 @@ public:
     TResourceRevisionState GetRevisionState() const override;
 
 protected:
+    //! Invoker for background work canceled by #IResource::Stop().
+    const IInvokerPtr& GetBackgroundInvoker() const;
+
     //! Materializes one exact named file revision from a delivered file snapshot.
     TFuture<TMaterializedFileProviderPtr> MaterializeFileProvider(
         const TFileSnapshotPtr& fileSnapshot,
@@ -152,6 +155,7 @@ protected:
 
 private:
     const TResourceContextPtr Context_;
+    const IInvokerPtr BackgroundInvoker_;
     TAtomicIntrusivePtr<TDynamicResourceContext> DynamicContext_;
     const NYTree::TYsonStructPtr Parameters_;
     TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;

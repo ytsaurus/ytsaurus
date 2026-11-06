@@ -39,4 +39,31 @@ void TResourceRevision::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TResourceLifecycleBase::TResourceLifecycleBase()
+    : CancelableContext_(New<TCancelableContext>())
+    , DestroyedPromise_(NewPromise<void>())
+{ }
+
+TResourceLifecycleBase::~TResourceLifecycleBase()
+{
+    DestroyedPromise_.Set();
+}
+
+void TResourceLifecycleBase::Stop()
+{
+    CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
+}
+
+const TCancelableContextPtr& TResourceLifecycleBase::GetCancelableContext() const
+{
+    return CancelableContext_;
+}
+
+TFuture<void> TResourceLifecycleBase::GetDestroyedFuture() const
+{
+    return DestroyedPromise_.ToFuture().ToUncancelable();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow

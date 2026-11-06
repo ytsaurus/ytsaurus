@@ -18,6 +18,7 @@ SRCS(
     lineage_aggregator.cpp
     persisted_state_manager.cpp
     private.cpp
+    resource_instances.cpp
     state_access.cpp
     state_manager.cpp
     stream_metrics.cpp

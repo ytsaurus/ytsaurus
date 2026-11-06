@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "resource_instances.h"
 
 #include "private.h"
 
@@ -928,14 +929,24 @@ private:
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
         };
-        auto stopJobsAndResetState = [&] (EPipelineState newState) {
-            // StopAllJobs empties the layout, which makes every lease stray, so the same call
-            // that revokes them everywhere else revokes them here. It has to happen before the
-            // new state becomes observable: a delayed worker that still holds a valid lease
-            // would commit state and output into a pipeline already seen as paused, stopped or
-            // completed.
+        auto finishPipeline = [&] (EPipelineState newState) {
             JobManager_->StopAllJobs(flowView);
             LeaseManager_->TerminateStrayLeases(flowView);
+            const auto& layout = flowView->State->ExecutionSpec->Layout;
+            std::vector<TResourceInstanceId> instanceIds;
+            for (const auto& [instanceId, _] : layout->ResourceInstances) {
+                instanceIds.push_back(instanceId);
+            }
+            for (auto instanceId : instanceIds) {
+                layout->ResourceInstances.erase(instanceId);
+            }
+            std::vector<std::string> addresses;
+            for (const auto& [address, _] : layout->WorkerSpecs) {
+                addresses.push_back(address);
+            }
+            for (const auto& address : addresses) {
+                layout->WorkerSpecs.erase(address);
+            }
             flowView->State->ExecutionSpec->PipelineState->TrySetValue(newState, VersionProvider_);
         };
         auto manageJobs = [&] {
@@ -977,11 +988,11 @@ private:
         // never weakened, only liveness is.
         LeaseManager_->TerminateStrayLeases(flowView);
         if (state == EPipelineState::Working && JobManager_->CheckPipelineCompleted(flowView)) {
-            stopJobsAndResetState(EPipelineState::Completed);
+            finishPipeline(EPipelineState::Completed);
         } else if (state == EPipelineState::Draining && JobManager_->CheckPipelineStopped(flowView)) {
-            stopJobsAndResetState(EPipelineState::Stopped);
+            finishPipeline(EPipelineState::Stopped);
         } else if (state == EPipelineState::Pausing) {
-            stopJobsAndResetState(EPipelineState::Paused);
+            finishPipeline(EPipelineState::Paused);
         }
     }
 
@@ -1844,6 +1855,9 @@ private:
             workerStatus = newWorkerStatus;
         }
 
+        auto feedbackView = flowView->CopyPtr();
+        feedbackView->Feedback = feedback;
+        ProjectResourceInstanceStatuses(feedbackView);
         return feedback;
     }
 };
@@ -1896,7 +1910,6 @@ TDuration GetLeadershipWarmupTimeout(const TDynamicPipelineSpecPtr& dynamicSpec)
 
 TDuration GetLeadershipWarmupLeft(const TFlowViewPtr& flowView, TInstant publishTime, TInstant now)
 {
-    // A layout with no jobs has nothing to protect, so a starting pipeline is never delayed.
     if (flowView->State->ExecutionSpec->Layout->Jobs.size() == 0) {
         return TDuration::Zero();
     }

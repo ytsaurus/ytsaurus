@@ -15,6 +15,7 @@ SRCS(
     lineage_aggregator_ut.cpp
     partitioning_ut.cpp
     resource_balancer_ut.cpp
+    resource_instances_ut.cpp
     state_manager_ut.cpp
     stream_metrics_ut.cpp
     worker_coef_estimator_ut.cpp

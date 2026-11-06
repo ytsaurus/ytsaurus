@@ -240,7 +240,10 @@ public:
     //! Get the greatest known sequence ID.
     TSequenceId GetSequenceId() const;
     //! Get a portion of rows for a replica to apply with.
-    std::vector<TStorageRow> Follow(TSequenceId sequenceIdFrom, ssize_t limit = std::numeric_limits<ssize_t>::max());
+    std::vector<TStorageRow> Follow(
+        TSequenceId sequenceIdFrom,
+        ssize_t limit = std::numeric_limits<ssize_t>::max(),
+        std::optional<TSequenceId> expectedSequenceId = std::nullopt);
 
     //! Create snapshot of all states and start a new consistent transaction.
     //! If `copyWritesFrom` is set (must be a transaction of this control), the new transaction is seeded with a

@@ -1,4 +1,5 @@
 #include "private.h"
+#include "resource_instances.h"
 
 #include "job_balancer.h"
 #include "job_balancer_common.h"
@@ -586,6 +587,7 @@ public:
 
     void CheckCompletedPartitions(const TFlowViewPtr& flowView) override
     {
+        EnsureResourceInstances(flowView);
         YT_TLOG_INFO("Looking for new completed partitions")
             .With("PartitionCount", flowView->Feedback->PartitionJobStatuses.size());
         ui64 foundOk = 0;
@@ -919,6 +921,7 @@ public:
 
     void DistributeJobs(const TFlowViewPtr& flowView) override
     {
+        EnsureResourceInstances(flowView);
         const auto& layout = flowView->State->ExecutionSpec->Layout;
         ui64 executing = 0;
         ui64 completing = 0;
@@ -1168,6 +1171,8 @@ public:
                 layout->WorkerSpecs.insert_or_assign(preloadAction.WorkerAddress, std::move(workerSpec));
             }
         }
+
+        EnsureResourceInstances(flowView);
 
         YT_TLOG_INFO("Finished job distributions")
             .With("Mutations", createCount + stopCount + gracefulStopCount)

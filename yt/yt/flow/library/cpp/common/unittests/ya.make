@@ -24,6 +24,7 @@ SRCS(
     payload_ut.cpp
     persisted_state_ut.cpp
     registry_ut.cpp
+    resource_instance_manager_ut.cpp
     resource_manager_ut.cpp
     resource_status_ut.cpp
     schema_ut.cpp

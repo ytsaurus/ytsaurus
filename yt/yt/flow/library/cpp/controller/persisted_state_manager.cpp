@@ -13,6 +13,7 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/ypath/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -221,7 +222,7 @@ public:
         i32 valueField = nameTable->GetIdOrRegisterName("value");
         TYPath path = YPathJoin(Connector_->GetPipelinePath().GetPath(), FlowStateObsoleteTableName);
 
-        const auto& value = ConvertToYsonString(object);
+        const auto value = ConvertToYsonString(object);
         const auto& valueBuf = value.AsStringBuf();
         if (valueBuf.size() > 50_MB) {
             YT_TLOG_WARNING("Too big object")

@@ -65,15 +65,14 @@ struct IJobTracker
 
     virtual TFuture<std::vector<TJobStatusPtr>> GetStatuses() = 0;
 
-    virtual THashMap<TResourceId, TWorkerResourceStatusPtr> GetResourceStatuses() = 0;
-
-    virtual THashMap<TResourceId, EPreloadedResourceState> GetPreloadedStates() = 0;
+    virtual void FillRuntimeStatus(const TWorkerStatusPtr& status) = 0;
 
     virtual TLineageRatios GetLineageRatios(TInstant now) = 0;
 
     virtual void Reconfigure(
         TExecutionSpecPtr executionSpec,
-        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs) = 0;
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs,
+        const THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr>& resourceDynamicSpecs) = 0;
 
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
 

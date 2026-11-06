@@ -73,11 +73,9 @@ struct TResourceSpec
     THashMap<TResourceId, TResourceDescriptionPtr> Dependencies;
     THashMap<std::string, ssize_t> RequiredCapabilities;
     bool PreloadRequired{};
-    //! When true, the resource is loaded eagerly at unit startup and kept resident for the unit's
-    //! whole lifetime (never deallocated), rather than lazily on first use. It is loaded only on the
-    //! units where some computation requires it (see TResourceDescription::Worker / ::Controller):
-    //! a resource required only on the worker is not loaded on the controller, and a resource that
-    //! no computation requires is not loaded at all. Mutually exclusive with preload_required.
+    //! Loads the resource eagerly on units where a computation requires it. Worker instances
+    //! remain resident while assigned in the layout and are released after pipeline jobs stop.
+    //! Controller instances retain their existing lifetime. Mutually exclusive with preload_required.
     bool AlwaysOn{};
 
     REGISTER_YSON_STRUCT(TResourceSpec);

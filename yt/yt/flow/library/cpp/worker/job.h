@@ -37,6 +37,7 @@ struct TJobContext
     IPayloadConverterCachePtr ConverterCache;
     IMessageDistributorPtr MessageDistributor;
     IResourceManagerPtr ResourceManager;
+    THashMap<TResourceId, TResourceInstanceId> ResourceInstanceIds;
     IInvokerPtr ControlSerializedInvoker;
     IInvokerPtr SerializedInvoker;
     IInvokerPtr PoolInvoker;

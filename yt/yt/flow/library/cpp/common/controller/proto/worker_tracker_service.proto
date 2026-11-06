@@ -75,6 +75,14 @@ message TRspHeartbeat
     // its FlowCoreVersion does not match the pipeline's FlowCoreTarget. The string
     // contains the active target.
     optional string flow_core_target_mismatch = 5;
+
+    message TResourceDynamicSpec
+    {
+        required NYT.NProto.TGuid resource_instance_id = 1;
+        required bytes spec = 2 [(NYT.NYson.NProto.yson_string) = true];
+    }
+
+    repeated TResourceDynamicSpec resources_dynamic_specs = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

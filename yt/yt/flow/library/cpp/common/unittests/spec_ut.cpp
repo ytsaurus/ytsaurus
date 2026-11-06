@@ -328,7 +328,7 @@ struct TNullSink
 YT_FLOW_DEFINE_SINK(TNullSink);
 
 struct TNullResource
-    : public IResource
+    : public TResourceLifecycleBase
 {
     TNullResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
     { }
