@@ -699,7 +699,7 @@ class TestMasterTransactions(YTEnvSetup):
         set(f"#{tx}/@owner", "u", authenticated_user="u")
         set(f"#{tx}/@owner", "v", authenticated_user="v")
         set(f"#{tx}/@owner", "u", authenticated_user="root")
-        with raises_yt_error("Transaction owner must be a user"):
+        with raises_yt_error("it is not a user"):
             set(f"#{tx}/@owner", "g", authenticated_user="root")
         commit_transaction(tx)
 

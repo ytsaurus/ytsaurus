@@ -4924,7 +4924,7 @@ private:
         }
 
         auto userId = transaction->GetInitiatorId();
-        auto it = UserIdToActiveTransactionCount_.insert({userId, 0}).first;
+        auto it = UserIdToActiveTransactionCount_.emplace(userId, 0).first;
         if (--it->second < 0) {
             YT_TLOG_ALERT("User active transaction count went negative and was reset to zero")
                 .With("UserId", userId)
