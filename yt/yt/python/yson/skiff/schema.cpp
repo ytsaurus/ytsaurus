@@ -43,6 +43,16 @@ NSkiff::EWireType GetSupportedWireTypeOrThrow(const NSkiff::TSkiffSchemaPtr& ski
     return wireType;
 }
 
+TStripOptionalResult StripSupportedOptionalOrThrow(const NSkiff::TSkiffSchemaPtr& skiffSchema)
+{
+    auto result = StripOptional(skiffSchema);
+    if (result.OptionalKind == EOptionalKind::VariantVar) {
+        THROW_ERROR_EXCEPTION("Wire type %Qlv is not supported by the Python Skiff bindings",
+            skiffSchema->GetWireType());
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkiffSchema::TSkiffSchema(

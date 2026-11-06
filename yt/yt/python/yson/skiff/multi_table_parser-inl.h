@@ -39,7 +39,7 @@ public:
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
             for (size_t fieldIndex = 0; fieldIndex < genericTableDescription.DenseFieldDescriptionList.size(); ++fieldIndex) {
                 const auto& denseFieldDescription = genericTableDescription.DenseFieldDescriptionList[fieldIndex];
-                auto [strippedSchema, optionalKind] = NSkiffExt::StripOptional(denseFieldDescription.Schema());
+                auto [strippedSchema, optionalKind] = StripSupportedOptionalOrThrow(denseFieldDescription.Schema());
                 parserTableDescription.DenseFields.emplace_back(
                     denseFieldDescription.Name(),
                     GetSupportedWireTypeOrThrow(strippedSchema),

@@ -229,11 +229,17 @@ TEST(TSkiffSchemaDescriptionTest, StripOptional)
     expectNotOptional(CreateVariant8Schema({uint64Schema, nothingSchema}));
     expectNotOptional(CreateVariant8Schema({nothingSchema, uint64Schema, uint64Schema}));
     expectNotOptional(CreateVariant16Schema({nothingSchema, uint64Schema}));
+    expectNotOptional(CreateVariantVarSchema({nothingSchema, uint64Schema, uint64Schema}));
 
     {
         auto [strippedSchema, optionalKind] = StripOptional(CreateVariant8Schema({nothingSchema, uint64Schema}));
         EXPECT_EQ(strippedSchema, uint64Schema);
         EXPECT_EQ(optionalKind, EOptionalKind::Variant8);
+    }
+    {
+        auto [strippedSchema, optionalKind] = StripOptional(CreateVariantVarSchema({nothingSchema, uint64Schema}));
+        EXPECT_EQ(strippedSchema, uint64Schema);
+        EXPECT_EQ(optionalKind, EOptionalKind::VariantVar);
     }
 }
 
@@ -243,6 +249,7 @@ TEST(TSkiffSchemaDescriptionTest, MatchesOptionalSingular)
     auto uint64Schema = CreateSimpleTypeSchema(EWireType::Uint64);
 
     EXPECT_TRUE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, nothingSchema})));
+    EXPECT_TRUE(MatchesOptionalSingular(CreateVariantVarSchema({nothingSchema, nothingSchema})));
     EXPECT_FALSE(MatchesOptionalSingular(nothingSchema));
     EXPECT_FALSE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, uint64Schema})));
 }

@@ -89,7 +89,7 @@ TTableSchemaPtr MakeTableSchema(std::vector<TColumnSchema> columns)
     return New<TTableSchema>(std::move(columns));
 }
 
-TSkiffSchemaPtr CreateOptionalSchema(TSkiffSchemaPtr schema)
+TSkiffSchemaPtr CreateVariant8OptionalSchema(TSkiffSchemaPtr schema)
 {
     return CreateVariant8Schema({
         CreateSimpleTypeSchema(EWireType::Nothing),
@@ -97,9 +97,17 @@ TSkiffSchemaPtr CreateOptionalSchema(TSkiffSchemaPtr schema)
     });
 }
 
-TSkiffSchemaPtr CreateOptionalSchema(EWireType wireType)
+TSkiffSchemaPtr CreateVariant8OptionalSchema(EWireType wireType)
 {
-    return CreateOptionalSchema(CreateSimpleTypeSchema(wireType));
+    return CreateVariant8OptionalSchema(CreateSimpleTypeSchema(wireType));
+}
+
+TSkiffSchemaPtr CreateVariantVarOptionalSchema(TSkiffSchemaPtr schema)
+{
+    return CreateVariantVarSchema({
+        CreateSimpleTypeSchema(EWireType::Nothing),
+        std::move(schema),
+    });
 }
 
 TSkiffSchemaPtr CreateSparseColumnsSchema(TSkiffSchemaList children)
@@ -442,8 +450,8 @@ std::vector<TRoundTripCase> MakeWireTypeCases()
     {
         addSchemafulAndSchemaless(name, fieldSchema, logicalType, value, writeValue);
         addSchemafulAndSchemaless(
-            "optional_" + name,
-            CreateOptionalSchema(fieldSchema),
+            "variant8_optional_" + name,
+            CreateVariant8OptionalSchema(fieldSchema),
             Optional(logicalType),
             value,
             [&] (TCheckedSkiffWriter* writer) {
@@ -451,12 +459,29 @@ std::vector<TRoundTripCase> MakeWireTypeCases()
                 writeValue(writer);
             });
         addSchemafulAndSchemaless(
-            "optional_" + name + "_null",
-            CreateOptionalSchema(fieldSchema),
+            "variant8_optional_" + name + "_null",
+            CreateVariant8OptionalSchema(fieldSchema),
             Optional(logicalType),
             /*value*/ nullptr,
             [] (TCheckedSkiffWriter* writer) {
                 writer->WriteVariant8Tag(0);
+            });
+        addSchemafulAndSchemaless(
+            "variant_var_optional_" + name,
+            CreateVariantVarOptionalSchema(fieldSchema),
+            Optional(logicalType),
+            value,
+            [&] (TCheckedSkiffWriter* writer) {
+                writer->WriteVariantVarTag(1);
+                writeValue(writer);
+            });
+        addSchemafulAndSchemaless(
+            "variant_var_optional_" + name + "_null",
+            CreateVariantVarOptionalSchema(fieldSchema),
+            Optional(logicalType),
+            /*value*/ nullptr,
+            [] (TCheckedSkiffWriter* writer) {
+                writer->WriteVariantVarTag(0);
             });
     };
 
@@ -483,12 +508,36 @@ std::vector<TRoundTripCase> MakeWireTypeCases()
             writer->WriteInt64(-1);
         });
     add(
+        "var_int32",
+        CreateSimpleTypeSchema(EWireType::VarInt32),
+        Int32(),
+        /*value*/ -1,
+        [] (TCheckedSkiffWriter* writer) {
+            writer->WriteVarInt32(-1);
+        });
+    add(
+        "var_int64",
+        CreateSimpleTypeSchema(EWireType::VarInt64),
+        Int64(),
+        /*value*/ -1,
+        [] (TCheckedSkiffWriter* writer) {
+            writer->WriteVarInt64(-1);
+        });
+    add(
         "uint64",
         CreateSimpleTypeSchema(EWireType::Uint64),
         Uint64(),
         /*value*/ 2ull,
         [] (TCheckedSkiffWriter* writer) {
             writer->WriteUint64(2);
+        });
+    add(
+        "float",
+        CreateSimpleTypeSchema(EWireType::Float),
+        Float(),
+        /*value*/ 3.0,
+        [] (TCheckedSkiffWriter* writer) {
+            writer->WriteFloat(3.0);
         });
     add(
         "double",
@@ -505,6 +554,22 @@ std::vector<TRoundTripCase> MakeWireTypeCases()
         /*value*/ "four",
         [] (TCheckedSkiffWriter* writer) {
             writer->WriteString32("four");
+        });
+    add(
+        "string_var",
+        CreateSimpleTypeSchema(EWireType::StringVar),
+        String(),
+        /*value*/ "four",
+        [] (TCheckedSkiffWriter* writer) {
+            writer->WriteStringVar("four");
+        });
+    add(
+        "string_fixed",
+        CreateStringFixedSchema(4),
+        String(),
+        /*value*/ "four",
+        [] (TCheckedSkiffWriter* writer) {
+            writer->WriteStringFixed("four");
         });
 
     return builder.Cases;
@@ -771,7 +836,7 @@ std::vector<TRoundTripCase> MakeUuidCases()
             });
         builder.Add(
             typeName + "_as_optional_uint128",
-            CreateOptionalSchema(EWireType::Uint128),
+            CreateVariant8OptionalSchema(EWireType::Uint128),
             logicalType,
             std::string(uuid),
             [&] (TCheckedSkiffWriter* writer) {
@@ -780,7 +845,7 @@ std::vector<TRoundTripCase> MakeUuidCases()
             });
         builder.Add(
             typeName + "_as_optional_string32",
-            CreateOptionalSchema(EWireType::String32),
+            CreateVariant8OptionalSchema(EWireType::String32),
             logicalType,
             std::string(uuid),
             [&] (TCheckedSkiffWriter* writer) {
@@ -846,7 +911,7 @@ std::vector<TRoundTripCase> MakeYsonCases()
 
     auto ysonSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson32"),
-        CreateOptionalSchema(EWireType::Yson32)->SetName("opt_yson32"),
+        CreateVariant8OptionalSchema(EWireType::Yson32)->SetName("opt_yson32"),
     });
     result.push_back({
         .CaseName = "scalars_and_any_values",
@@ -935,7 +1000,7 @@ std::vector<TRoundTripCase> MakeCompositeCases()
 
     auto optionalStructType = Optional(Struct("name", String(), "value", String()));
     auto optionalSchema = CreateTupleSchema({
-        CreateOptionalSchema(nameValueSchema)->SetName("value"),
+        CreateVariant8OptionalSchema(nameValueSchema)->SetName("value"),
     });
     result.push_back({
         .CaseName = "optional_struct_null",
@@ -971,7 +1036,7 @@ std::vector<TRoundTripCase> MakeCompositeCases()
 
     auto sparseOptionalSchema = CreateTupleSchema({
         CreateSparseColumnsSchema({
-            CreateOptionalSchema(nameValueSchema)->SetName("value"),
+            CreateVariant8OptionalSchema(nameValueSchema)->SetName("value"),
         }),
     });
     result.push_back({
@@ -991,7 +1056,7 @@ std::vector<TRoundTripCase> MakeCompositeCases()
         })),
     });
 
-    auto optionalNothingSchema = CreateTupleSchema({CreateOptionalSchema(EWireType::Nothing)->SetName("opt_null")});
+    auto optionalNothingSchema = CreateTupleSchema({CreateVariant8OptionalSchema(EWireType::Nothing)->SetName("opt_null")});
     for (auto singularType : {ESimpleLogicalValueType::Null, ESimpleLogicalValueType::Void}) {
         result.push_back({
             .CaseName = Format("optional_of_%lv", singularType),
@@ -1022,8 +1087,8 @@ std::vector<TRoundTripCase> MakeColumnCases()
 
     auto valuesOutOfOrderSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
-        CreateOptionalSchema(EWireType::String32)->SetName("eng"),
-        CreateOptionalSchema(EWireType::String32)->SetName("rus"),
+        CreateVariant8OptionalSchema(EWireType::String32)->SetName("eng"),
+        CreateVariant8OptionalSchema(EWireType::String32)->SetName("rus"),
     });
     result.push_back({
         .CaseName = "values_out_of_order",
@@ -1105,7 +1170,7 @@ std::vector<TRoundTripCase> MakeColumnCases()
     // The parser reports a missing dense optional column as an explicit null, hence the nullptr
     // values below.
     auto otherColumnsSchema = CreateTupleSchema({
-        CreateOptionalSchema(EWireType::Int64)->SetName("int64_column"),
+        CreateVariant8OptionalSchema(EWireType::Int64)->SetName("int64_column"),
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName(TString(OtherColumnsName)),
     });
     result.push_back({
@@ -1270,12 +1335,13 @@ std::vector<TWriterCase> MakeCompositeWriterCases()
         .SkiffSchema = CreateTupleSchema({listSchema}),
         .Expected = TExpectedError{
             "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
-            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
-            "\"string32\", \"yson32\", got \"repeated_variant8\""},
+            "\"int32\", \"int64\", \"var_int32\", \"var_int64\", \"uint8\", \"uint16\", \"uint32\", "
+            "\"uint64\", \"float\", \"double\", \"string32\", \"string_var\", \"string_fixed\", "
+            "\"yson32\", got \"repeated_variant8\""},
     });
 
     auto optionalListSchema = CreateTupleSchema({
-        CreateOptionalSchema(listSchema)->SetName("opt_list"),
+        CreateVariant8OptionalSchema(listSchema)->SetName("opt_list"),
     });
     result.push_back({
         .CaseName = "optional_complex_field_for_missing_column",
@@ -1304,7 +1370,7 @@ std::vector<TWriterCase> MakeColumnWriterCases()
 
     auto ysonSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson32"),
-        CreateOptionalSchema(EWireType::Yson32)->SetName("opt_yson32"),
+        CreateVariant8OptionalSchema(EWireType::Yson32)->SetName("opt_yson32"),
     });
     result.push_back({
         .CaseName = "missing_yson_values",
@@ -1368,12 +1434,13 @@ std::vector<TWriterCase> MakeColumnWriterCases()
     result.push_back({
         .CaseName = "variant8_of_optional",
         .SkiffSchema = CreateTupleSchema({
-            CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
+            CreateVariant8Schema({CreateVariant8OptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
         .Expected = TExpectedError{
             "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
-            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
-            "\"string32\", \"yson32\", got \"variant8\""},
+            "\"int32\", \"int64\", \"var_int32\", \"var_int64\", \"uint8\", \"uint16\", \"uint32\", "
+            "\"uint64\", \"float\", \"double\", \"string32\", \"string_var\", \"string_fixed\", "
+            "\"yson32\", got \"variant8\""},
     });
 
     return result;
@@ -1921,19 +1988,20 @@ std::vector<TParserCase> MakeColumnParserCases()
 
     result.push_back({
         .CaseName = "optional_nothing_schemaless",
-        .SkiffSchema = CreateTupleSchema({CreateOptionalSchema(EWireType::Nothing)->SetName("opt_null")}),
+        .SkiffSchema = CreateTupleSchema({CreateVariant8OptionalSchema(EWireType::Nothing)->SetName("opt_null")}),
         .Expected = TExpectedError{"Cannot create Skiff parser for column \"opt_null\""},
     });
 
     result.push_back({
         .CaseName = "variant8_of_optional",
         .SkiffSchema = CreateTupleSchema({
-            CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
+            CreateVariant8Schema({CreateVariant8OptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
         .Expected = TExpectedError{
             "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
-            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
-            "\"string32\", \"yson32\", got \"variant8\""},
+            "\"int32\", \"int64\", \"var_int32\", \"var_int64\", \"uint8\", \"uint16\", \"uint32\", "
+            "\"uint64\", \"float\", \"double\", \"string32\", \"string_var\", \"string_fixed\", "
+            "\"yson32\", got \"variant8\""},
     });
 
     return result;

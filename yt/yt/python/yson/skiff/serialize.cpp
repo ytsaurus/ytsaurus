@@ -96,7 +96,7 @@ void SerializeSkiff(
         const auto& fieldInfo = schema->GetDenseField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        auto [strippedSchema, optionalKind] = StripOptional(fieldInfo.Schema());
+        auto [strippedSchema, optionalKind] = StripSupportedOptionalOrThrow(fieldInfo.Schema());
         SerializeField(GetSupportedWireTypeOrThrow(strippedSchema), object, optionalKind == EOptionalKind::None, encoding, skiffWriter);
     }
 

@@ -159,6 +159,36 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         "03000000" "666f6f");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
+        Int32(),
+        CreateSimpleTypeSchema(EWireType::VarInt32),
+        "-42",
+        "53");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Int64(),
+        CreateSimpleTypeSchema(EWireType::VarInt64),
+        "-42",
+        "53");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Float(),
+        CreateSimpleTypeSchema(EWireType::Float),
+        "0.",
+        "00000000");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        String(),
+        CreateSimpleTypeSchema(EWireType::StringVar),
+        "\"foo\"",
+        "06" "666f6f");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        String(),
+        CreateStringFixedSchema(3),
+        "\"foo\"",
+        "666f6f");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
         Null(),
         CreateSimpleTypeSchema(EWireType::Nothing),
         "#",
@@ -191,11 +221,11 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertYsonHex(Date32(), CreateSimpleTypeSchema(EWireType::String32), "-42"),
         "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
-        "\"yson32\", got \"string32\"");
+        "\"var_int32\", \"var_int64\", \"yson32\", got \"string32\"");
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(Date32(), CreateSimpleTypeSchema(EWireType::String32), "00000000"),
         "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
-        "\"yson32\", got \"string32\"");
+        "\"var_int32\", \"var_int64\", \"yson32\", got \"string32\"");
 }
 
 TEST(TYsonSkiffConverterTest, TestYson32)

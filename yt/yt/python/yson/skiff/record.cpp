@@ -174,7 +174,7 @@ void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
         newFieldValue = Py::None();
     }
     auto fieldDescription = Schema_->GetDenseField(index);
-    auto [strippedSchema, optionalKind] = StripOptional(fieldDescription.Schema());
+    auto [strippedSchema, optionalKind] = StripSupportedOptionalOrThrow(fieldDescription.Schema());
     CheckFieldType(newFieldValue, GetSupportedWireTypeOrThrow(strippedSchema), optionalKind == EOptionalKind::None);
     DenseFields_[index] = newFieldValue;
 }
