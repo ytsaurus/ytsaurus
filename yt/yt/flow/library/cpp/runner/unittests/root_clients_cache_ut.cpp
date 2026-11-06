@@ -3,6 +3,7 @@
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 
 #include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
 
@@ -85,6 +86,46 @@ TEST(TRootClientsCacheTest, BuiltInFactory)
 
     ASSERT_TRUE(cache);
     EXPECT_TRUE(cache->GetClient("localhost:1"));
+}
+
+TEST(TRootClientsCacheTest, PipelineClusterOfFullUrlMatchesShortName)
+{
+    auto client = CreateRootClientsCache(MakeOptions())->GetClient("hahn.yt.yandex.net");
+    ASSERT_TRUE(client);
+    const auto& clusterName = client->GetConnection()->GetClusterName();
+    EXPECT_EQ(clusterName, "hahn");
+
+    // The runner preflight and #RunPipeline() validate with this name, so both see the conflict.
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R""""({
+        computations = {
+            c = {
+                computation_class_name = "NYT::NFlow::TPassthroughComputation";
+                group_by_schema = [
+                    { name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending; };
+                    { name = key; type = string; sort_order = ascending; };
+                ];
+                key_visitor_streams = { visit = {}; };
+                output_stream_ids = [t];
+                external_state_managers = {
+                    "/m1" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = "//tmp/state"; };
+                    };
+                    "/m2" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = "<cluster=hahn>//tmp/state"; };
+                    };
+                };
+            };
+        };
+        streams = {
+            t = { schema = [ { name = key; type = string; } ]; };
+        };
+    })""""));
+    ValidatePipelineSpec(spec);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(spec, clusterName),
+        "claimed for writing");
 }
 
 TEST(TRootClientsCacheTest, FactoryParametersWithoutFactory)

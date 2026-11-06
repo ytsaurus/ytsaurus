@@ -359,7 +359,7 @@ void RunPipeline(
     if (!graceful) {
         graceful = IsGracefulUpdateFromEnv();
     }
-    ValidatePipelineSpec(spec);
+    ValidatePipelineSpec(spec, client->GetConnection()->GetClusterName());
     ValidateDynamicPipelineSpec(dynamicSpec);
 
     TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));

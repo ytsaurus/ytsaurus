@@ -20,6 +20,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NFlow {
@@ -426,6 +427,47 @@ TEST_F(TSimpleExternalStateManagerTest, SyncWithoutPreloadIsNoOp)
 
     // A null transaction proves no write path is entered.
     EXPECT_NO_THROW(manager->Sync(/*transaction*/ nullptr));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPipelineSpecPtr MakeTwoStateManagersSpec(TStringBuf firstPath, TStringBuf secondPath)
+{
+    return ConvertTo<TPipelineSpecPtr>(NYson::TYsonStringBuf(Format(R""""({
+        computations = {
+            c = {
+                computation_class_name = "NYT::NFlow::TPassthroughComputation";
+                group_by_schema = [
+                    { name = hash; expression = "farm_hash(key)"; type = uint64; required = %%true; sort_order = ascending; };
+                    { name = key; type = string; sort_order = ascending; };
+                ];
+                key_visitor_streams = { visit = {}; };
+                output_stream_ids = [t];
+                external_state_managers = {
+                    "/first" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = %Qv; };
+                    };
+                    "/second" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = %Qv; };
+                    };
+                };
+            };
+        };
+        streams = {
+            t = { schema = [ { name = key; type = string; } ]; };
+        };
+    })"""",
+        firstPath,
+        secondPath)));
+}
+
+TEST(TSimpleExternalStateManagerSpecTest, ExplicitAndImplicitPipelineClusterPathsConflict)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(MakeTwoStateManagersSpec("<cluster=c>//tmp/state", "//tmp/state"), "c"),
+        "claimed for writing");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

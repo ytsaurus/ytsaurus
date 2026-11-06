@@ -29,6 +29,8 @@
 
 #include <util/charset/wide.h>
 
+#include <set>
+
 namespace NYT::NFlow {
 
 using namespace NLogging;
@@ -286,13 +288,20 @@ std::vector<TRichYPath> ReadRichYPaths(const INodePtr& node)
 
 } // namespace
 
-std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(const NYTree::TYsonStructPtr& parameters) const
+std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(
+    const NYTree::TYsonStructPtr& parameters,
+    const std::optional<std::string>& pipelineCluster) const
 {
     auto parametersNode = ConvertToNode(parameters);
 
     std::vector<TYTPathClaim> claims;
     parameters->GetMeta()->Traverse([&] (const TYsonStructTraverseContext& context) {
         auto ownership = context.Parameter->FindOption<EYTPathOwnership>();
+        if (!ownership) {
+            if (auto resolver = context.Parameter->FindOption<TYTPathOwnershipResolver>()) {
+                ownership = resolver->Resolve(*parameters);
+            }
+        }
         if (!ownership) {
             return;
         }
@@ -307,12 +316,26 @@ std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(const NYTree::TYsonStru
             if (normalized.GetPath().empty()) {
                 continue;
             }
-            claims.push_back(TYTPathClaim{
-                .Cluster = normalized.GetCluster().value_or(""),
-                .Path = normalized.GetPath(),
-                .Ownership = *ownership,
-                .ParameterKey = TString(context.Key),
-            });
+            // A path is claimed on the union of its `cluster` and `clusters` attributes, else on the pipeline cluster;
+            // a cluster listed in both is claimed once so that the owner does not conflict with itself.
+            std::set<std::string> clusters;
+            if (auto cluster = normalized.GetCluster()) {
+                clusters.insert(std::move(*cluster));
+            }
+            if (auto pathClusters = normalized.GetClusters()) {
+                clusters.insert(pathClusters->begin(), pathClusters->end());
+            }
+            if (clusters.empty()) {
+                clusters.insert(pipelineCluster.value_or(""));
+            }
+            for (const auto& cluster : clusters) {
+                claims.push_back(TYTPathClaim{
+                    .Cluster = cluster,
+                    .Path = normalized.GetPath(),
+                    .Ownership = *ownership,
+                    .ParameterKey = TString(context.Key),
+                });
+            }
         }
     });
     return claims;
