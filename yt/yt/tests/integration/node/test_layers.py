@@ -15,12 +15,13 @@ from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 import pytest
 
 import os
 import io
+import errno
 import shutil
 import gzip
 import re
@@ -4605,3 +4606,411 @@ class TestRWNbdDisk(TestNbdDiskBase):
                         },
                     },
                 })
+
+
+class TestLocationOverflowBase(TestPortoLayersBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    _TMPFS_SIZE = 512 * 1024 * 1024
+    _INODE_LIMIT = None
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_allocation_abort_on_zero_user_slots": False,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        },
+    }
+
+    @classmethod
+    def setup_class(cls):
+        import porto
+        properties = {"backend": "tmpfs", "space_limit": str(cls._TMPFS_SIZE)}
+        if cls._INODE_LIMIT is not None:
+            properties["inode_limit"] = str(cls._INODE_LIMIT)
+        vol = porto.Connection().CreateVolume(**properties)
+        cls.location_path = vol.path
+        super().setup_class()
+
+    @classmethod
+    def teardown_class(cls):
+        try:
+            super().teardown_class()
+        finally:
+            import porto
+            porto.Connection().UnlinkVolume(cls.location_path)
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.node_address = ls("//sys/cluster_nodes")[0]
+        self.controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1)
+
+    def teardown_method(self, method):
+        for name in ("disabled", "filler"):
+            if os.path.exists(f"{self.location_path}/{name}"):
+                os.remove(f"{self.location_path}/{name}")
+        filler_dir = f"{self.location_path}/filler_inodes"
+        if os.path.isdir(filler_dir):
+            shutil.rmtree(filler_dir, ignore_errors=True)
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        super().teardown_method(method)
+
+    def _assert_location_enabled(self):
+        resource_manager = f"//sys/cluster_nodes/{self.node_address}/orchid/exec_node/job_resource_manager"
+        assert get(f"{resource_manager}/resource_limits/user_slots") == 1
+        assert not os.path.exists(f"{self.location_path}/disabled")
+        assert len(get(f"//sys/cluster_nodes/{self.node_address}/@alerts")) == 0
+
+    def _wait_for_job_cleanup(self):
+        job_controller = f"//sys/cluster_nodes/{self.node_address}/orchid/exec_node/job_controller"
+        wait(lambda: (
+            get(f"{job_controller}/active_job_count") == 0
+            and len(get(f"{job_controller}/jobs_waiting_for_cleanup")) == 0
+        ))
+
+    def _fill_location(self):
+        statvfs = os.statvfs(self.location_path)
+        free = statvfs.f_bavail * statvfs.f_frsize
+        chunk = b"x" * (1024 * 1024)
+        with open(f"{self.location_path}/filler", "ab", buffering=0) as filler:
+            try:
+                written = 0
+                while written < free + 4 * 1024 * 1024:
+                    written += filler.write(chunk)
+            except OSError as error:
+                if error.errno != errno.ENOSPC:
+                    raise
+
+    def _assert_no_new_files(self, baseline):
+        new = self._location_files() - baseline
+        assert len(new) == 0, sorted(new)
+
+    def _read_abort_entry(self, operation_id, from_barrier):
+        entries = []
+
+        def read_abort_entries():
+            nonlocal entries
+            entries = read_structured_log(
+                self.path_to_run + "/logs/controller-agent-0.json.log",
+                from_barrier=from_barrier,
+                to_barrier=write_log_barrier(self.controller_agent_address),
+                row_filter=lambda e: (
+                    e.get("event_type") == "job_aborted" and
+                    e.get("operation_id") == operation_id
+                ),
+            )
+            return len(entries) > 0
+
+        wait(read_abort_entries)
+        assert len(entries) == 1, entries
+        return entries[0]
+
+
+class TestLayerLocationOverflowBase(TestLocationOverflowBase):
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_layers_cache": True,
+                "layer_locations": [
+                    {
+                        "disk_health_checker": {
+                            "check_period": 3600000,
+                        },
+                    },
+                ],
+            },
+        },
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        config["data_node"]["volume_manager"]["layer_locations"][0]["path"] = cls.location_path
+
+    def _location_files(self):
+        entries = Set()
+        for sub in ("porto_layers", "layers_meta", "volumes", "volumes_meta", "porto_volumes"):
+            directory = f"{self.location_path}/{sub}"
+            if os.path.isdir(directory):
+                for name in os.listdir(directory):
+                    entries.add(f"{sub}/{name}")
+        return entries
+
+
+class TestLayerLocationImportOverflow(TestLayerLocationOverflowBase):
+    _TMPFS_SIZE = 2 * 1024 * 1024
+
+    @authors("dann239")
+    def test_location_not_disabled_on_import_enospc(self):
+        update_controller_agent_config("system_layer_path", None)
+
+        create("file", "//tmp/layer1")
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        baseline = self._location_files()
+
+        with raises_yt_error("Layer unpacking failed"):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="true",
+                spec={
+                    "fail_on_job_restart": True,
+                    "mapper": {
+                        "layer_paths": ["//tmp/layer1"],
+                    },
+                },
+            )
+
+        self._assert_location_enabled()
+        self._assert_no_new_files(baseline)
+
+
+class TestLayerLocationVolumeCreateOverflow(TestLayerLocationOverflowBase):
+    def _warmup_cache(self):
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
+                },
+            },
+        )
+        self._wait_for_job_cleanup()
+
+    @authors("dann239")
+    @pytest.mark.parametrize("volume_type", ["local_disk", "tmpfs"])
+    def test_location_not_disabled_on_volume_create_enospc(self, volume_type):
+        create("file", "//tmp/layer1")
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        self._warmup_cache()
+
+        self._fill_location()
+
+        baseline = self._location_files()
+
+        from_barrier = write_log_barrier(self.controller_agent_address)
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="true",
+            spec={
+                "fail_on_job_restart": True,
+                "mapper": {
+                    "volumes": {
+                        "1": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                            "disk_request": {
+                                "type": volume_type,
+                                "disk_space": 1024 * 1024,
+                            },
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "/sandbox",
+                        },
+                    ],
+                },
+            },
+            track=False,
+        )
+        op.wait_for_state("failed")
+        assert op.get_job_count("aborted") == 1
+
+        entry = self._read_abort_entry(op.id, from_barrier)
+        error = str(entry["error"])
+        assert "Failed to prepare non-root volumes" in error
+        assert f'Failed to create "{volume_type}" volume' in error
+        assert "No space left on device" in error
+
+        self._wait_for_job_cleanup()
+        self._assert_location_enabled()
+        self._assert_no_new_files(baseline)
+
+
+class TestLayerLocationPostUnpackOverflow(TestLayerLocationOverflowBase):
+    _INODE_LIMIT = 16384
+
+    def _free_inodes(self):
+        return os.statvfs(self.location_path).f_favail
+
+    def _fill_inodes_leaving(self, leave):
+        path = self.location_path
+        filler_dir = f"{path}/filler_inodes"
+        os.mkdir(filler_dir)
+        free = self._free_inodes()
+        for i in range(max(0, free - leave)):
+            open(f"{filler_dir}/{i}", "w").close()
+
+    def _import_layer_job(self, layer_path):
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "mapper": {
+                    "layer_paths": [layer_path, ROOTFS_LAYER_PATH],
+                },
+            },
+        )
+        self._wait_for_job_cleanup()
+
+    @authors("dann239")
+    def test_location_not_disabled_on_post_unpack_enospc(self):
+        for name in ("//tmp/layer1", "//tmp/layer_probe1", "//tmp/layer_probe2"):
+            create("file", name)
+            write_file(name, open("layers/static-bin.tar", "rb").read())
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        self._import_layer_job("//tmp/layer_probe1")
+        free_before = self._free_inodes()
+
+        self._import_layer_job("//tmp/layer_probe2")
+        free_after = self._free_inodes()
+
+        layer_inode_count = free_before - free_after
+        assert layer_inode_count > 1, (free_before, free_after)
+
+        # Leave enough inodes except for the .meta file.
+        self._fill_inodes_leaving(layer_inode_count - 1)
+
+        baseline = self._location_files()
+
+        from_barrier = write_log_barrier(self.controller_agent_address)
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "fail_on_job_restart": True,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
+                },
+            },
+            track=False,
+        )
+        op.wait_for_state("failed")
+        assert op.get_job_count("aborted") == 1
+
+        entry = self._read_abort_entry(op.id, from_barrier)
+        error = str(entry["error"])
+
+        assert "Layer unpacking failed" not in error
+        assert "Failed to import layer" in error
+
+        self._assert_location_enabled()
+        self._assert_no_new_files(baseline)
+
+
+class TestLayerLocationHealthCheckOverflow(TestLayerLocationOverflowBase):
+    _TMPFS_SIZE = 2 * 1024 * 1024
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        layer_location = config["data_node"]["volume_manager"]["layer_locations"][0]
+        layer_location["disk_health_checker"]["check_period"] = 1000
+
+    @authors("dann239")
+    def test_location_not_disabled_on_health_check_enospc(self):
+        def health_check_ignored():
+            self._fill_location()
+            with zstd.open(self.path_to_run + "/logs/node-0.log.zst", "rt") as log:
+                return any(
+                    "Disk health check ignored" in line and self.location_path in line
+                    for line in log
+                )
+
+        wait(health_check_ignored)
+
+        self._assert_location_enabled()
+
+
+class TestCacheLocationLayerDownloadOverflow(TestLocationOverflowBase):
+    _TMPFS_SIZE = 2 * 1024 * 1024
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "chunk_cache": {
+                    "enable_pending_downloads_tracker": False,
+                },
+            },
+        },
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        config["data_node"]["cache_locations"][0]["path"] = cls.location_path
+
+    def _location_files(self):
+        files = Set()
+        for root, _, names in os.walk(self.location_path):
+            for name in names:
+                path = os.path.relpath(os.path.join(root, name), self.location_path)
+                if path != "health_check~":
+                    files.add(path)
+        return files
+
+    @authors("dann239")
+    def test_cache_location_not_disabled_on_layer_download_enospc(self):
+        update_controller_agent_config("system_layer_path", None)
+
+        create("file", "//tmp/layer1")
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        baseline = self._location_files()
+
+        from_barrier = write_log_barrier(self.controller_agent_address)
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "fail_on_job_restart": True,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                },
+            },
+            track=False,
+        )
+
+        op.wait_for_state("failed")
+        assert op.get_job_count("aborted") == 1
+
+        self._assert_location_enabled()
+
+        entry = self._read_abort_entry(op.id, from_barrier)
+        error = str(entry["error"])
+        assert "No space left on device" in error
+
+        self._assert_no_new_files(baseline)
