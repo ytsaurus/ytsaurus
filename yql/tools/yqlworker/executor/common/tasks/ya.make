@@ -1,0 +1,99 @@
+YQL_LIBRARY()
+
+SRCS(
+    runnable_tasks.cpp
+)
+
+PEERDIR(
+    library/cpp/json/yson
+    library/cpp/protobuf/json
+    yt/cpp/mapreduce/common
+    yql/essentials/core/facade
+    yql/essentials/core/file_storage
+    yql/essentials/core/file_storage/http_download
+    yql/essentials/core/langver
+    yql/essentials/core/layers
+    yql/essentials/core/services
+    yql/essentials/core/services/mounts
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/utils/backtrace
+    yql/essentials/utils/log
+    yql/essentials/utils/signals
+    yql/essentials/core
+    yql/essentials/core/url_lister
+    yql/essentials/core/qplayer/storage/file
+    contrib/ydb/library/yql/dq/comp_nodes
+    contrib/ydb/library/yql/dq/opt
+    yql/essentials/providers/common/comp_nodes
+    yql/essentials/providers/common/gateways_utils
+    yql/essentials/providers/common/provider
+    yql/essentials/providers/common/udf_resolve
+    yql/essentials/providers/common/activation
+    contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/helper
+    contrib/ydb/library/yql/providers/dq/provider
+    contrib/ydb/library/yql/providers/dq/provider/exec
+    contrib/ydb/library/yql/utils/actor_system
+    yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/clique
+    yt/yql/providers/dq/common
+    yt/yql/providers/dq/control
+    yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/global_worker_manager
+    yt/yql/providers/dq/service
+    contrib/ydb/library/actors/core
+    yql/essentials/providers/pg/provider
+    yql/essentials/core/pg_ext
+    yql/essentials/sql/v1/translation
+    yql/essentials/sql/v1/lexer/antlr4
+    yql/essentials/sql/v1/lexer/antlr4_ansi
+    yql/essentials/sql/v1/proto_parser/antlr4
+    yql/essentials/sql/v1/proto_parser/antlr4_ansi
+    yql/essentials/core/url_preprocessing
+    yql/essentials/parser/pg_wrapper
+    yt/yql/library/token_resolver
+    yt/yql/providers/yt/comp_nodes/dq/llvm16
+    yt/yql/providers/yt/gateway/native
+    yt/yql/providers/yt/gateway/profile
+    yt/yql/providers/yt/gateway/mixed
+    yt/yql/providers/yt/provider
+    yt/yql/providers/yt/lib/yt_download
+    yt/yql/providers/yt/lib/yt_url_lister
+    yt/yql/providers/yt/lib/config_clusters
+    yt/yql/providers/yt/lib/access_provider/full
+    yt/yql/providers/yt/lib/tvm_client/full
+    yql/tools/yqlworker/config
+    yql/tools/yqlworker/executor/common
+    yql/tools/yqlworker/executor/common/tasks/provider_load
+    yql/tools/yqlworker/proto
+    yql/essentials/public/langver
+)
+
+IF (NOT OPENSOURCE)
+    SRCS(
+        provider_load.cpp
+    )
+    PEERDIR(
+        yql/library/arc_download
+        yql/library/arc_lister
+        yql/library/sandbox_lister
+        yql/library/layers
+        yql/library/layers/qplayer
+        yql/mount
+        yt/yql/providers/yt/lib/secret_masker/snooper
+        contrib/ydb/library/yql/providers/clickhouse/provider
+        contrib/ydb/library/yql/providers/common/http_gateway
+        contrib/ydb/library/yql/providers/s3/provider
+        contrib/ydb/library/yql/providers/ydb/comp_nodes
+        contrib/ydb/library/yql/providers/ydb/provider
+    )
+ELSE()
+    SRCS(
+        provider_load_opensource.cpp
+    )
+    PEERDIR(
+        yt/yql/providers/yt/lib/secret_masker/dummy
+    )
+ENDIF()
+
+END()

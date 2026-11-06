@@ -1,0 +1,52 @@
+package NYql.NProto;
+
+import "yql/tools/yqlworker/interface/proto/task.proto";
+import "yql/essentials/providers/common/metrics/protos/metrics_registry.proto";
+
+
+message TGetTaskRequest {
+    optional uint32 Pid = 1;
+}
+
+message TGetTaskResponse {
+    enum EStatus {
+        UNKNOWN = 0;
+        OK = 1;
+        NO_MORE_TASKS = 2;
+    }
+
+    optional EStatus Status = 1;
+    optional ETaskAction Action = 2;
+    optional TTaskData Data = 3;
+}
+
+message TTaskWatchEventRequest {
+    enum EWatchEvent {
+        UNKOWN = 0;
+        STARTED = 1;
+        FINISHED = 2;
+        RESULTS_CHANGED = 3;
+    }
+
+    optional uint32 Pid = 1;
+    optional string TaskId = 2;
+    optional EWatchEvent Event = 3;
+
+    // filled if Event == RESULTS_CHANGED
+    optional uint32 ChangesMask = 4;  // bitmask of NProto::ETaskResultChange
+    optional TTaskResult Changes = 5;
+
+    // filled if Event == FINISHED
+    optional ETaskStatus FinishStatus = 6;
+    optional string Username = 7;
+}
+
+message TTaskWatchEventResponse {
+}
+
+message TMetricsRegistrySnapshotRequest {
+    optional TMetricsRegistrySnapshot Snapshot = 1;
+}
+
+message TMetricsRegistrySnapshotResponse {
+}

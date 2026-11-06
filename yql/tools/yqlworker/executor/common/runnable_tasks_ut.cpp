@@ -1,0 +1,923 @@
+#include "runnable_tasks.h"
+
+#include <library/cpp/yson/node/node.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/testing/unittest/registar.h>
+
+#include <util/generic/yexception.h>
+#include <util/system/thread.h>
+
+#include <functional>
+
+
+using namespace NYql;
+
+//////////////////////////////////////////////////////////////////////////////
+// TTestYqlRunnableTaskFactory
+//////////////////////////////////////////////////////////////////////////////
+class TTestYqlRunnableTaskFactory {
+public:
+    using TGatewaysConfigModifier = std::function<void(TGatewaysConfig&)>;
+
+    TTestYqlRunnableTaskFactory()
+        : TTestYqlRunnableTaskFactory([](TGatewaysConfig&) {}) {}
+
+    explicit TTestYqlRunnableTaskFactory(TGatewaysConfigModifier modifier) {
+        NProto::TTaskExecutorConfig executorCfg;
+        executorCfg.SetThreads(1);
+        executorCfg.SetQueueMaxSize(1);
+
+        TGatewaysConfig gatewaysCfg;
+        TYtGatewayConfig* ytCfg = gatewaysCfg.MutableYt();
+        ytCfg->SetGatewayThreads(1);
+
+        TStaticGatewaysConfig staticGatewaysCfg;
+
+        TYtClusterConfig* cluster = ytCfg->AddClusterMapping();
+        cluster->SetName("plato");
+        cluster->SetCluster("plato.search.yandex.net");
+        cluster->SetDefault(true);
+
+        modifier(gatewaysCfg);
+
+        TFileStorageConfig fsCfg;
+        fsCfg.SetMaxFiles(64);
+        fsCfg.SetMaxSizeMb(512);
+
+        auto metrics = CreateMetricsRegistry(GetSensorsRootGroup());
+        Slave_.Reset(new TYqlRunnableTaskFactory(gatewaysCfg, staticGatewaysCfg, fsCfg, executorCfg, {}, metrics));
+        Slave_->InitGateways();
+    }
+
+    IYqlRunnableTaskPtr Create(
+            NProto::ETaskAction action, TTaskDataPtr data,
+            ITaskWatcherPtr watcher)
+    {
+        return Slave_->Create(action, data, watcher);
+    }
+
+private:
+    THolder<TYqlRunnableTaskFactory> Slave_;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+// TCountingWatcher
+//////////////////////////////////////////////////////////////////////////////
+struct TCountingWatcher final: public ITaskWatcher {
+    std::function<void()> OnProgressSubscription;
+    std::function<void()> OnRunning;
+    ui32 StartCount = 0;
+    ui32 FinishCount = 0;
+    ui32 StatusChangesCount = 0;
+    ui32 AstChangesCount = 0;
+    ui32 PlanChangesCount = 0;
+    ui32 ResultsChangesCount = 0;
+    ui32 ErrorsChangesCount = 0;
+    ui32 ProgressChangesCount = 0;
+    ui32 RevisionChangesCount = 0;
+
+    void Output(IOutputStream* out) const {
+        (*out) << "StartCount: " << StartCount
+               << ", FinishCount: " << FinishCount
+               << ", StatusChangesCount: " << StatusChangesCount
+               << ", AstChangesCount: " << AstChangesCount
+               << ", PlanChangesCount: " << PlanChangesCount
+               << ", ResultsChangesCount: " << ResultsChangesCount
+               << ", ErrorsChangesCount: " << ErrorsChangesCount
+               << ", ProgressChangesCount: " << ProgressChangesCount
+               << ", RevisionChangesCount: " << RevisionChangesCount;
+    }
+
+private:
+    void OnStart() override {
+        StartCount++;
+    }
+
+    void OnFinish(NProto::ETaskStatus status) override {
+        Y_UNUSED(status);
+        FinishCount++;
+    }
+
+    void OnResultChange(
+            TTaskResultChanges::TMask changesMask,
+            TTaskResultPtr changes,
+            int workerPid,
+            NBus::TOnMessageContext*) override
+    {
+        Y_UNUSED(workerPid);
+
+        if (TTaskResultChanges::IsAnyStatus(changesMask)) {
+            StatusChangesCount++;
+            if (changes->GetStatus() == NProto::ETaskStatus::RUNNING && OnRunning) {
+                OnRunning();
+            }
+        }
+        if (TTaskResultChanges::AST & changesMask) {
+            AstChangesCount++;
+        }
+        if (NProto::ETaskResultChange::PLAN & changesMask) {
+            PlanChangesCount++;
+        }
+        if (NProto::ETaskResultChange::RESULTS & changesMask) {
+            ResultsChangesCount++;
+        }
+        if (NProto::ETaskResultChange::ERRORS & changesMask) {
+            ErrorsChangesCount++;
+        }
+        if (NProto::ETaskResultChange::PROGRESS & changesMask) {
+            ProgressChangesCount++;
+        }
+        if (NProto::ETaskResultChange::REVISION & changesMask) {
+            RevisionChangesCount++;
+        }
+    }
+
+    bool WillWatch(ui32 changesMask) const override {
+        if (changesMask == TTaskResultChanges::PROGRESS && OnProgressSubscription) {
+            OnProgressSubscription();
+        }
+        return true; // watch all changes
+    }
+};
+
+template <>
+void Out<TCountingWatcher>(IOutputStream& out, const TCountingWatcher& cw) {
+    cw.Output(&out);
+}
+
+TTaskDataPtr MakeStrictConfigValidationTaskData(bool strict) {
+    auto data = std::make_shared<NProto::TTaskData>();
+    data->SetId("some-id");
+    data->SetSyntax(NProto::ESyntax::SQLv1);
+    data->SetProgram("SELECT 1;");
+    data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+    data->SetStrictConfigValidation(strict);
+    return data;
+}
+
+IYqlRunnableTaskPtr RunStrictConfigValidationTask(
+        TTestYqlRunnableTaskFactory& factory,
+        NProto::ETaskAction action,
+        bool strict) {
+    auto counter = MakeIntrusive<TCountingWatcher>();
+    IYqlRunnableTaskPtr runnable = factory.Create(action, MakeStrictConfigValidationTaskData(strict), counter);
+    UNIT_ASSERT(runnable->IsIdle());
+    UNIT_ASSERT(runnable->Run());
+    UNIT_ASSERT(runnable->IsDone());
+    return runnable;
+}
+
+bool ContainsError(const NProto::TTaskResult& result, TStringBuf needle) {
+    for (const auto& err : result.GetErrors()) {
+        if (err.GetMessage().Contains(needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+    enum class EAbortPoint {
+        DuringInitialization,
+        AfterInitialization,
+        DuringFailedInitialization,
+    };
+
+    void CheckTaskAbort(EAbortPoint abortPoint) {
+        TTestYqlRunnableTaskFactory factory;
+        auto watcher = MakeIntrusive<TCountingWatcher>();
+        auto runnable = factory.Create(NProto::ETaskAction::PARSE, MakeStrictConfigValidationTaskData(false), watcher);
+        const bool duringInitialization = abortPoint != EAbortPoint::AfterInitialization;
+        ui32 abortRequests = 0;
+        auto& callback = duringInitialization ? watcher->OnProgressSubscription : watcher->OnRunning;
+        callback = [&] {
+            TThread abortThread([&] {
+                runnable->Abort();
+                runnable->Abort();
+            });
+            abortThread.Start();
+            abortThread.Join();
+            ++abortRequests;
+            if (abortPoint == EAbortPoint::DuringFailedInitialization) {
+                ythrow yexception() << "Test initialization failure";
+            }
+        };
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT_VALUES_EQUAL(abortRequests, 1);
+        UNIT_ASSERT(runnable->IsAborted());
+        UNIT_ASSERT(runnable->GetResult().GetStatus() == NProto::ETaskStatus::ABORTED);
+        UNIT_ASSERT_VALUES_EQUAL(watcher->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(watcher->StatusChangesCount, duringInitialization ? 2 : 3);
+    }
+
+} // namespace
+
+Y_UNIT_TEST_SUITE(TYqlRunnableTasksTest)
+{
+    Y_UNIT_TEST(AbortDuringProgramInitialization) {
+        CheckTaskAbort(EAbortPoint::DuringInitialization);
+    }
+
+    Y_UNIT_TEST(AbortAfterProgramInitialization) {
+        CheckTaskAbort(EAbortPoint::AfterInitialization);
+    }
+
+    Y_UNIT_TEST(AbortDuringFailedProgramInitialization) {
+        CheckTaskAbort(EAbortPoint::DuringFailedInitialization);
+    }
+
+    Y_UNIT_TEST(ParseGoodYql) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+                R"((
+                    (let res_sink (DataSink 'result))
+                    (let res (Uint32 '42))
+                    (let world (Write! world res_sink (Key) res '('('type))))
+                    (return (Commit! world res_sink))
+                ))");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        auto runnable = factory.Create(NProto::ETaskAction::PARSE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "ParseGoodYql: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetAst(),
+                "(\n"
+                    "(let res_sink (DataSink 'result))\n"
+                    "(let res (Uint32 '42))\n"
+                    "(let world (Write! world res_sink (Key) res '('('type))))\n"
+                    "(return (Commit! world res_sink))\n"
+                ")\n");
+    }
+
+    Y_UNIT_TEST(ParseBadYql) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(")(");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::PARSE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "ParseBadYql: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::ERROR);
+        UNIT_ASSERT(!result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 3);
+
+        {
+            const auto& e = result.GetErrors(0);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetRow(), 0);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetColumn(), 0);
+            UNIT_ASSERT_STRINGS_EQUAL(e.GetMessage(), "Parse Yql");
+        }
+
+        {
+            const auto& e = result.GetErrors(1);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetRow(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetColumn(), 1);
+            UNIT_ASSERT_STRINGS_EQUAL(e.GetMessage(), "Expected (");
+        }
+
+        {
+            const auto& e = result.GetErrors(2);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetRow(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(e.GetColumn(), 1);
+            UNIT_ASSERT_STRINGS_EQUAL(e.GetMessage(), "Unexpected symbols after end of root list");
+        }
+    }
+
+    Y_UNIT_TEST(ParseGoodSql) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::SQLv1);
+        data->SetProgram("SELECT 42;");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::PARSE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "ParseGoodSql: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.GetAst().empty());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(Compile) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+                R"((
+                    (let res_sink (DataSink 'result))
+                    (let res (Uint32 '42))
+                    (let world (Write! world res_sink (Key) res '('('type))))
+                    (return (Commit! world res_sink))
+                ))");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::COMPILE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "Compile: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetAst(),
+                "(\n"
+                "(let $1 (DataSink 'result))\n"
+                "(let $2 (Write! world $1 (Key) (Uint32 '42) '('('type))))\n"
+                "(return (Commit! $2 $1))\n"
+                ")\n");
+    }
+
+    Y_UNIT_TEST(Validate) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+                R"((
+                    (let res_sink (DataSink 'result))
+                    (let res (Uint32 '42))
+                    (let world (Write! world res_sink (Key) res '('('type))))
+                    (return (Commit! world res_sink))
+                ))");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::VALIDATE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "Validate: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetAst(),
+                "(\n"
+                "(let $1 (DataSink 'result))\n"
+                "(let $2 (ResWrite! world $1 (Key) (Uint32 '42) '('('type))))\n"
+                "(return (Commit! $2 $1))\n"
+                ")\n");
+    }
+
+    Y_UNIT_TEST(Optimize) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+                R"((
+                    (let res_sink (DataSink 'result))
+                    (let res (Uint32 '42))
+                    (let world (Write! world res_sink (Key) res '('('type))))
+                    (return (Commit! world res_sink))
+                ))");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::OPTIMIZE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "Optimize: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 2);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 2);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 4);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetAst(),
+                "(\n"
+                "(let $1 (DataSink 'result))\n"
+                "(let $2 (ResFill! world $1 (Key) (Uint32 '42) '('('type)) '\"yt\"))\n"
+                "(return (Commit! $2 $1))\n"
+                ")\n");
+
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetPlan(),
+                "{"
+                    "\"Detailed\"={"
+                        "\"Operations\"=["
+                            "{\"Id\"=2u;\"Name\"=\"ResFill!\"}"
+                        "];"
+                        "\"OperationRoot\"=2u;"
+                        "\"Providers\"=[];"
+                        "\"OperationStats\"={\"ResFill!\"=1u}"
+                    "};"
+                    "\"Basic\"={"
+                        "\"nodes\"=["
+                            "{\"id\"=2u;\"level\"=1u;\"name\"=\"ResFill!\";\"type\"=\"op\"}"
+                        "];"
+                        "\"links\"=["
+                        "]"
+                    "}"
+                "}");
+    }
+
+    Y_UNIT_TEST(Run) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+                R"((
+                    (let res_sink (DataSink 'result))
+                    (let res (Uint32 '42))
+                    (let world (Write! world res_sink (Key) res '('('type))))
+                    (return (Commit! world res_sink))
+                ))");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::RUN, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "Run: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 2);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 2);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 7);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 4);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 1);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetAst(),
+                "(\n"
+                "(let $1 (DataSink 'result))\n"
+                "(let $2 (ResFill! world $1 (Key) (Uint32 '42) '('('type)) '\"yt\"))\n"
+                "(return (Commit! $2 $1))\n"
+                ")\n");
+
+        UNIT_ASSERT_NO_DIFF(
+                result.GetPlan(),
+                "{"
+                    "\"Detailed\"={"
+                        "\"Operations\"=["
+                            "{\"Id\"=2u;\"Name\"=\"ResFill!\"}"
+                        "];"
+                        "\"OperationRoot\"=2u;"
+                        "\"Providers\"=[];"
+                        "\"OperationStats\"={\"ResFill!\"=1u}"
+                    "};"
+                    "\"Basic\"={"
+                        "\"nodes\"=["
+                            "{\"id\"=2u;\"level\"=1u;\"name\"=\"ResFill!\";\"type\"=\"op\"}"
+                        "];"
+                        "\"links\"=["
+                        "]"
+                    "}"
+                "}");
+
+        TStringBuf expectedResult = R"(
+        {
+            "Position"={"File"="<main>";"Row"=4;"Column"=33};
+            "Write"=[{
+                "Type"=["DataType";"Uint32"];
+                "Data"="42"
+            }]
+        })";
+
+        UNIT_ASSERT_EQUAL(NYT::NodeFromYsonString(result.GetResults(0)), NYT::NodeFromYsonString(expectedResult));
+    }
+
+    Y_UNIT_TEST(ExtractParamsFromGoodSQL) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::SQLv1);
+        data->SetProgram(
+            "declare $x as int;"
+            "select 2 * $x;");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::EXTRACT_PARAMS_META, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 1);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        UNIT_ASSERT_NO_DIFF(
+            result.GetAst(),
+            R"((
+(declare $x (DataType 'Int32))
+(let $1 (DataSink 'result))
+(let $2 (AsList (AsStruct)))
+(let $3 '('('type) '('autoref) '('columns '('('auto)))))
+(let $4 (Write! world $1 (Key) (Unordered (PersistableRepr (OrderedSqlProject $2 '((SqlProjectItem (TypeOf $2) '"" (lambda '($5) (*MayWarn (Int32 '"2") $x)) '('('autoName))))))) $3))
+(return (CommitAll! (Commit! $4 $1)))
+)
+)");
+
+        TStringBuf expectedResult = R"({"$x"=["DataType";"Int32"]})";
+        UNIT_ASSERT_NO_DIFF(result.GetResults(0), expectedResult);
+    }
+
+
+    Y_UNIT_TEST(ExtractParamsFromGoodYQL) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::YQL);
+        data->SetProgram(
+            R"((
+(let res_sink (DataSink 'result))
+(let data (Parameter '"$foo" (ParseType '"Tuple<String, Int32 ? , List<Uint32>, Dict<Int32, Bool>, Struct<a : Void, b : Double>, Variant<Int32, Bool>>")))
+(let world (Write! world res_sink (Key) data '('('type))))
+(let world (Commit! world res_sink))
+(return world)
+)
+)");
+
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::EXTRACT_PARAMS_META, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 1);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        TStringBuf expectedResult = R"({"$foo"=["TupleType";[["DataType";"String"];["OptionalType";["DataType";"Int32"]];["ListType";["DataType";"Uint32"]];["DictType";["DataType";"Int32"];["DataType";"Bool"]];["StructType";[["a";["VoidType"]];["b";["DataType";"Double"]]]];["VariantType";["TupleType";[["DataType";"Int32"];["DataType";"Bool"]]]]]]})";
+        UNIT_ASSERT_NO_DIFF(result.GetResults(0), expectedResult);
+    }
+
+    Y_UNIT_TEST(ExtractParamsWithLibs) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::SQLv1);
+
+        // error at compile phase
+        data->SetProgram(
+            R"(
+declare $x as int;
+pragma library("lib1.sql");
+import lib1 symbols $a;
+select $a($x);
+)");
+
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::EXTRACT_PARAMS_META, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 1);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        TStringBuf expectedResult = R"({"$x"=["DataType";"Int32"]})";
+        UNIT_ASSERT_NO_DIFF(result.GetResults(0), expectedResult);
+    }
+
+    Y_UNIT_TEST(ExtractParamsWithLibsAndPlaceholders) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::SQLv1);
+
+        // error at compile phase
+        data->SetProgram(
+            R"(
+declare $x as string;
+pragma library("lib1.sql","file{$x}");
+)");
+
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::EXTRACT_PARAMS_META, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 1);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+
+        TStringBuf expectedResult = R"({"$x"=["DataType";"String"]})";
+        UNIT_ASSERT_NO_DIFF(result.GetResults(0), expectedResult);
+    }
+
+    Y_UNIT_TEST(ParsePG) {
+        TTaskDataPtr data = std::make_shared<NProto::TTaskData>();
+        data->SetId("some-id");
+        data->SetSyntax(NProto::ESyntax::PG);
+        data->SetProgram("SELECT 1::text");
+        data->SetResultFormat(NProto::EDataFormat::YSON_TEXT);
+
+        TTestYqlRunnableTaskFactory factory;
+        auto counter = MakeIntrusive<TCountingWatcher>();
+        IYqlRunnableTaskPtr runnable = factory.Create(NProto::ETaskAction::PARSE, data, counter);
+        UNIT_ASSERT(runnable->IsIdle());
+        UNIT_ASSERT(runnable->Run());
+        UNIT_ASSERT(runnable->IsDone());
+        Cout << "ParseGoodSql: " << *counter << Endl;
+        UNIT_ASSERT_VALUES_EQUAL(counter->StartCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->FinishCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->StatusChangesCount, 3);
+        UNIT_ASSERT_VALUES_EQUAL(counter->AstChangesCount, 1);
+        UNIT_ASSERT_VALUES_EQUAL(counter->PlanChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ResultsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ErrorsChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->ProgressChangesCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(counter->RevisionChangesCount, 3);
+
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.HasAst());
+        UNIT_ASSERT(!result.GetAst().empty());
+        UNIT_ASSERT(!result.HasPlan());
+        UNIT_ASSERT(result.ResultsSize() == 0);
+        UNIT_ASSERT(result.GetRevision() > 0);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(PrintTaskResultChangesMask) {
+        {
+            TStringStream ss;
+            ss << TTaskResultChanges(TTaskResultChanges::MAX_VALUE);
+            UNIT_ASSERT_VALUES_EQUAL(
+                ss.Str(),
+                "0b01111111111111111111111111111111(AST|PLAN|RESULTS|ERRORS|PROGRESS|REVISION|STATISTICS)");
+        }
+        {
+            TStringStream ss;
+            ss << TTaskResultChanges(TTaskResultChanges::STATUS_MASK);
+            UNIT_ASSERT_VALUES_EQUAL(ss.Str(), "0b00000000000000000000000000111111()");
+        }
+        {
+            TStringStream ss;
+            ss << TTaskResultChanges(TTaskResultChanges::DATA_MASK);
+            UNIT_ASSERT_VALUES_EQUAL(
+                ss.Str(),
+                "0b00000000000000000111100000000000(AST|PLAN|RESULTS|ERRORS)");
+        }
+        {
+            TStringStream ss;
+            ss << TTaskResultChanges(TTaskResultChanges::PLAN | TTaskResultChanges::REVISION);
+            UNIT_ASSERT_VALUES_EQUAL(
+                ss.Str(), "0b00000000000000010001000000000000(PLAN|REVISION)");
+        }
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationFailsOnUnknownSimpleFlag) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            cfg.MutableSqlCore()->AddTranslationFlags("UnknownTestSimpleFlag");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::PARSE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::ERROR);
+        UNIT_ASSERT(result.ErrorsSize() > 0);
+        UNIT_ASSERT_C(ContainsError(result, "Unknown SQL flag"), "Expected 'Unknown SQL flag' error");
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationFailsOnUnknownExtendedFlag) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* flag = cfg.MutableSqlCore()->AddExtendedTranslationFlags();
+            flag->SetName("UnknownTestExtendedFlag");
+            flag->AddArgs("some_value");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::PARSE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::ERROR);
+        UNIT_ASSERT(result.ErrorsSize() > 0);
+        UNIT_ASSERT_C(ContainsError(result, "Unknown SQL flag"), "Expected 'Unknown SQL flag' error");
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationOffIgnoresUnknownFlags) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            cfg.MutableSqlCore()->AddTranslationFlags("UnknownTestSimpleFlag");
+            auto* flag = cfg.MutableSqlCore()->AddExtendedTranslationFlags();
+            flag->SetName("UnknownTestExtendedFlag");
+            flag->AddArgs("some_value");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::PARSE, /*strict=*/false);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationFailsOnUnknownConfigFlag) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* flag = cfg.MutableYqlCore()->AddFlags();
+            flag->SetName("UnknownTestConfigFlag");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::ERROR);
+        UNIT_ASSERT(result.ErrorsSize() > 0);
+        UNIT_ASSERT_C(ContainsError(result, "Unsupported command: UnknownTestConfigFlag"),
+                      "Expected 'Unsupported command: UnknownTestConfigFlag' error");
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationAcceptsKnownConfigFlag) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* flag = cfg.MutableYqlCore()->AddFlags();
+            flag->SetName("NodesAllocationLimit");
+            flag->AddArgs("12345");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::COMPLETED,
+            "Errors: " << (result.ErrorsSize() > 0 ? result.GetErrors(0).GetMessage() : TString("<none>")));
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationOffIgnoresUnknownConfigFlag) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* flag = cfg.MutableYqlCore()->AddFlags();
+            flag->SetName("UnknownTestConfigFlag");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/false);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationFailsOnUnknownYtPragma) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* setting = cfg.MutableYt()->AddDefaultSettings();
+            setting->SetName("UnknownYtPragma");
+            setting->SetValue("some_value");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::ERROR);
+        UNIT_ASSERT(result.ErrorsSize() > 0);
+        UNIT_ASSERT_C(ContainsError(result, "Unknown setting name"), "Expected 'Unknown setting name' error");
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationAcceptsKnownYtPragma) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* setting = cfg.MutableYt()->AddDefaultSettings();
+            setting->SetName("ValidateClusters");
+            setting->SetValue("true");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/true);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::COMPLETED,
+            "Errors: " << (result.ErrorsSize() > 0 ? result.GetErrors(0).GetMessage() : TString("<none>")));
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+
+    Y_UNIT_TEST(StrictConfigValidationOffIgnoresUnknownYtPragma) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            auto* setting = cfg.MutableYt()->AddDefaultSettings();
+            setting->SetName("UnknownYtPragma");
+            setting->SetValue("some_value");
+        });
+        auto runnable = RunStrictConfigValidationTask(factory, NProto::ETaskAction::VALIDATE, /*strict=*/false);
+        const NProto::TTaskResult& result = runnable->GetResult();
+        UNIT_ASSERT(result.GetStatus() == NProto::ETaskStatus::COMPLETED);
+        UNIT_ASSERT(result.ErrorsSize() == 0);
+    }
+}

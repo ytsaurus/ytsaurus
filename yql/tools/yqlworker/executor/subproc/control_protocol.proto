@@ -1,0 +1,35 @@
+package NYql.NProto;
+
+message TControlServerCommand {
+    enum ECommandType {
+        UNKNOWN = 0;
+        SPAWN_WORKERS = 1;
+        KILL_WORKER = 2;
+        REQUEST_READY = 3;
+    }
+
+    optional ECommandType Type = 1;
+    optional uint64 SeqNo = 2;
+
+    // filled only when Type == SPAWN_WORKERS
+    optional uint32 Count = 3;
+    optional uint32 DataServerPort = 4;
+
+    // filled only when Type == KILL_WORKER
+    optional uint32 Pid = 5;
+}
+
+message TControlClientCommand {
+    enum ECommandType {
+        UNKNOWN = 0;
+        WORKER_TERM = 1;
+        SERVER_TERM = 2;
+        SERVER_READY = 3;
+    }
+
+    optional ECommandType Type = 1;
+    optional uint64 SeqNo = 2;
+    optional uint32 Pid = 3;
+    optional uint32 Status = 4;
+    optional bool InTerminatingState = 5; // filled only for SERVER_READY
+}
