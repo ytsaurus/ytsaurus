@@ -60,6 +60,7 @@ struct TSequoiaTransactionActionSequencer
         HANDLE_ACTION_TYPE(TReqSetNode, 800)
         HANDLE_ACTION_TYPE(TReqMultisetAttributes, 900)
         HANDLE_ACTION_TYPE(TReqRemoveNodeAttribute, 1000)
+        HANDLE_ACTION_TYPE(TReqExplicitlyLockNode, 1100)
         HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 1100)
 
         #undef HANDLE_ACTION_TYPE
