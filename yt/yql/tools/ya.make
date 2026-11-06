@@ -2,6 +2,7 @@ RECURSE(
     fmrrun
     mrjob
     mrjob/impl
+    qtworker
     ytflowrun
     ytflow_worker
     ytrun
@@ -23,7 +24,6 @@ IF (NOT OPENSOURCE)
         ytfilerun
         ytfilerun/impl
         ytflowrun/full
-        qtworker
         qtworker/full
     )
 ENDIF()

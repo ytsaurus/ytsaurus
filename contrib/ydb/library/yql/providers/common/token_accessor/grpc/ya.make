@@ -1,0 +1,16 @@
+PROTO_LIBRARY()
+PROTOC_FATAL_WARNINGS()
+
+IF (OPENSOURCE)
+    EXCLUDE_TAGS(GO_PROTO)
+ELSE()
+    INCLUDE_TAGS(GO_PROTO)
+ENDIF()
+
+GRPC()
+
+SRCS(
+    token_accessor_pb.proto
+)
+
+END()
