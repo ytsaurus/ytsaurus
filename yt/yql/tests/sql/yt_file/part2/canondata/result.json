@@ -2023,9 +2023,9 @@
     ],
     "test.TestYtFile_sampling-reduce-.test[Debug]": [
         {
-            "checksum": "f459f4d70444948a5fbe1d225f85d711",
-            "size": 2642,
-            "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_sampling-reduce--Debug_/opt.yql"
+            "checksum": "81421a6e30e9dccadb9bf38b3a8ba29f",
+            "size": 2647,
+            "uri": "https://{canondata_backend}/1880306/e6c5c41dde3b6a13a7c2f1ad48898469a7ed5193/resource.tar.gz#test.TestYtFile_sampling-reduce-.test_Debug_/opt.yql"
         }
     ],
     "test.TestYtFile_sampling-reduce-.test[Plan]": [

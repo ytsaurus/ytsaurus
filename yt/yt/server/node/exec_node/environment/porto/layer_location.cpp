@@ -1121,6 +1121,7 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
             .With(ex);
 
         auto error = TError(
+            GetDisableErrorCode(ex, NYT::EErrorCode::Generic),
             "Failed to create %Qlv volume %v",
             volumeType,
             volumeId)

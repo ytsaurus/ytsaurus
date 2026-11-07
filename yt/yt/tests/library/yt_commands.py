@@ -3662,7 +3662,11 @@ def update_nodes_dynamic_config(value={}, path="", replace=False, driver=None):
 
 
 def update_controller_agent_config(path, value, wait_for_orchid=True):
-    set("//sys/controller_agents/config/" + path, value, recursive=True)
+    if value is not None:
+        set("//sys/controller_agents/config/" + path, value, recursive=True)
+    else:
+        remove("//sys/controller_agents/config/" + path, force=True)
+
     if wait_for_orchid:
         for agent in ls("//sys/controller_agents/instances"):
             orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)

@@ -6,10 +6,9 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
     lookup_rows, raises_yt_error, select_rows, generate_uuid, set_node_banned,
-    with_breakpoint, wait_breakpoint, release_breakpoint, get_job,
-    get_account_disk_space_limit, set_account_disk_space_limit, ls)
+    get_account_disk_space_limit, set_account_disk_space_limit)
 
-from yt_helpers import profiler_factory
+from yt_helpers import get_master_locate_counters, get_master_locate_count_delta
 
 from yt_type_helpers import (
     make_schema,
@@ -54,14 +53,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
             attributes.update({"schema": schema})
         create_dynamic_table(path, **attributes)
 
-    def _get_master_locate_count(self, op, job_id):
-        node = get_job(op.id, job_id)["address"]
-        job_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
-        profiler = profiler_factory().at_job_proxy(
-            node,
-            fixed_tags={"job_descriptor": job_descriptor, "host": ""})
-        return profiler.get("connection/chunk_replica_cache/master_locate_chunks")
-
     @authors("atalmenev")
     @pytest.mark.parametrize("op_type", ["map", "reduce", "map_reduce"])
     def test_hunk_chunk_replica_prefetch_locates(self, op_type):
@@ -73,28 +64,22 @@ class TestMapOnDynamicTables(YTEnvSetup):
         sync_unmount_table("//tmp/t_in")
 
         create("table", "//tmp/t_out")
-        command = with_breakpoint("cat ; BREAKPOINT")
-        monitoring = {"monitoring": {"enable": True}}
         run_op = {
-            "map": partial(map, command=command, spec={"mapper": monitoring}),
-            "reduce": partial(reduce, command=command, reduce_by="key", spec={"reducer": monitoring}),
+            "map": partial(map, command="cat"),
+            "reduce": partial(reduce, command="cat", reduce_by="key"),
             "map_reduce": partial(
                 map_reduce,
-                mapper_command=command,
+                mapper_command="cat",
                 reducer_command="cat",
                 sort_by="key",
-                reduce_by="key",
-                spec={"mapper": monitoring}),
+                reduce_by="key"),
         }[op_type]
-        op = run_op(in_="//tmp/t_in", out="//tmp/t_out", track=False)
-        job_id = wait_breakpoint(op)[0]
 
-        time.sleep(10)
-        assert self._get_master_locate_count(op, job_id) == 0
+        locate_counters = get_master_locate_counters()
+        run_op(in_="//tmp/t_in", out="//tmp/t_out")
 
-        release_breakpoint()
-        op.track()
         assert_items_equal(read_table("//tmp/t_out"), rows)
+        assert get_master_locate_count_delta(locate_counters) == 0
 
     @authors("atalmenev")
     @pytest.mark.parametrize("path", [
@@ -114,19 +99,8 @@ class TestMapOnDynamicTables(YTEnvSetup):
         sync_unmount_table("//tmp/t_in")
 
         create("table", "//tmp/t_out")
-        op = map(
-            in_=path,
-            out="//tmp/t_out",
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={"mapper": {"monitoring": {"enable": True}}},
-            track=False)
-        job_id = wait_breakpoint(op)[0]
-
-        time.sleep(10)
-        assert self._get_master_locate_count(op, job_id) == 0
-
-        release_breakpoint()
-        op.track()
+        locate_counters = get_master_locate_counters()
+        map(in_=path, out="//tmp/t_out", command="cat")
 
         if "{key}" in path:
             expected_rows = [{"key": row["key"]} for row in rows]
@@ -137,6 +111,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         else:
             expected_rows = rows
         assert_items_equal(read_table("//tmp/t_out"), expected_rows)
+        assert get_master_locate_count_delta(locate_counters) == 0
 
     @authors("atalmenev")
     @pytest.mark.parametrize("op_type", ["merge", "sort"])
@@ -154,24 +129,11 @@ class TestMapOnDynamicTables(YTEnvSetup):
             "sort": partial(sort, sort_by=["key"]),
         }[op_type]
 
-        master_profilers = [
-            profiler_factory().at_primary_master(address)
-            for address in ls("//sys/primary_masters")
-        ] + [
-            profiler_factory().at_secondary_master(cell_tag, address)
-            for cell_tag in ls("//sys/secondary_masters")
-            for address in ls(f"//sys/secondary_masters/{cell_tag}")
-        ]
-        locate_counters = [
-            profiler.counter(
-                "rpc/server/request_count",
-                tags={"yt_service": "ChunkService", "method": "LocateChunks"})
-            for profiler in master_profilers
-        ]
+        locate_counters = get_master_locate_counters()
         run_op(in_="//tmp/t_in", out="//tmp/t_out")
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
-        assert sum(counter.get_delta() for counter in locate_counters) == 0
+        assert get_master_locate_count_delta(locate_counters) == 0
 
     @authors("savrus", "apollo1321")
     @parametrize_external

@@ -423,7 +423,10 @@ bool TOperation::SetAlertWithoutArchivation(EOperationAlertType alertType, const
 {
     auto& alert = Alerts_[alertType];
 
-    if (alert.Error.GetSkeleton() == error.GetSkeleton()) {
+    // Skeletons collapse identical inner errors, including entries for different tasks.
+    bool taskCountChanged = alertType == EOperationAlertType::HighJobThreadCount &&
+        alert.Error.InnerErrors().size() != error.InnerErrors().size();
+    if (!taskCountChanged && alert.Error.GetSkeleton() == error.GetSkeleton()) {
         return false;
     }
 

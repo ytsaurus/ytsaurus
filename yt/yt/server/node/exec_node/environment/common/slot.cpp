@@ -679,8 +679,8 @@ TFuture<std::vector<TVolumeResultPtr>> TUserSlotBase::DoPrepareNonRootVolumes(
                             this_ = MakeStrong(this)
                         ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
                             if (!volumeResultsOrError.IsOK()) {
-                                THROW_ERROR_EXCEPTION("Failed to prepare non-root volumes: %v",
-                                    volumeResultsOrError);
+                                THROW_ERROR_EXCEPTION("Failed to prepare non-root volumes")
+                                    .With(volumeResultsOrError);
                             }
 
                             auto& volumeResults = volumeResultsOrError.Value();

@@ -205,13 +205,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         ])
         orchid.wait_fresh_pass()
 
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == sorted(
             [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
             key=lambda r: r["name"],
-        )
+        ))
 
         remove(path)
         self._wait_for_component_passes()
@@ -264,9 +264,9 @@ class TestMultiConsumerController(TestQueueAgentBase):
         set(f"{path}/@queue_agent_stage", "production")
         self._wait_for_component_passes()
         orchid.wait_fresh_pass()
-        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [
+        wait(lambda: select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [
             {"cluster": "primary", "path": path, "name": "my_1", "queue_agent_stage": "production"}
-        ]
+        ])
 
     @authors("panesher")
     def test_banned_multi_consumer(self):
@@ -287,9 +287,9 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert orchid.get_queue_consumer_names() == ["my_1"]
-        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [
+        wait(lambda: select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [
             {"cluster": "primary", "path": path, "name": "my_1", "queue_agent_stage": "production"}
-        ]
+        ])
 
         # Ban the consumer — controller should stop syncing and report error.
         set(f"{path}/@queue_agent_banned", True)
@@ -322,13 +322,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         assert "error" not in status
 
         assert sorted(orchid.get_queue_consumer_names()) == ["my_1", "my_2"]
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == [
             {"cluster": "primary", "path": path, "name": "my_1", "queue_agent_stage": "production"},
             {"cluster": "primary", "path": path, "name": "my_2", "queue_agent_stage": "production"},
-        ]
+        ])
 
 
 class TestNamedConsumerController(TestQueueAgentBase):

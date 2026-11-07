@@ -2089,7 +2089,8 @@ void TJobProxy::CheckMemoryUsage()
         HeartbeatExecutor_->ScheduleOutOfBand();
         auto error = WaitFor(executedEvent);
         if (error.IsOK()) {
-            auto heartbeatFuture = LastHeartbeatFuture_;
+            auto heartbeatFuture = LastHeartbeatFuture_
+                .ToImmediatelyCancelable(/*propagateCancelation*/ false);
             error = WaitFor(heartbeatFuture);
         }
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Failed to send heartbeat before memory reserve increase")

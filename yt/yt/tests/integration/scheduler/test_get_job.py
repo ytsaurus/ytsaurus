@@ -471,23 +471,6 @@ class TestGetJob(_TestGetJobCommon):
         assert slave["collective_id"] == master["id"]
         assert slave["collective_member_rank"] == 1
 
-    @authors("omgronny")
-    def test_abort_vanished_jobs_in_archive(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-
-        (job_id,) = wait_breakpoint(op)
-
-        wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        release_breakpoint()
-        op.track()
-
-        update_job_in_archive(op.id, job_id, {"transient_state": "running"})
-        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
-
     @authors("arkady-e1ppa")
     @pytest.mark.parametrize("use_get_job", [True, False])
     def test_job_preemption_info_in_archive(self, use_get_job):
@@ -722,6 +705,29 @@ class TestGetJob(_TestGetJobCommon):
             error = job.get("error")
             assert error is not None
             assert error["message"] == "Job aborted by controller agent"
+
+
+class TestGetJobVanishedJobs(_TestGetJobBase):
+    ENABLE_MULTIDAEMON = False
+    NUM_NODES = 4
+    DELTA_NODE_FLAVORS = [["data", "tablet"]] * 3 + [["exec"]]
+
+    @authors("omgronny")
+    def test_abort_vanished_jobs_in_archive(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        (job_id,) = wait_breakpoint(op)
+
+        wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
+
+        with Restarter(self.Env, NODES_SERVICE, indexes=[3]):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        update_job_in_archive(op.id, job_id, {"transient_state": "running"})
+        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):

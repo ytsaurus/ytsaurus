@@ -29,8 +29,6 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
-#include <yt/yt/library/containers/public.h>
-
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/misc/io_tags.h>
@@ -101,17 +99,6 @@ private:
 };
 
 static constexpr i64 CopyRateGaugeGrid[] = {0, 1_MB, 10_MB, 100_MB, 1000_MB};
-
-////////////////////////////////////////////////////////////////////////////////
-
-static TErrorCode GetDisableErrorCode(const TError& error)
-{
-    if (NFS::IsOutOfDiskSpaceError(error) || error.FindMatching(NContainers::EPortoErrorCode::NoSpace)) {
-        return NExecNode::EErrorCode::NotEnoughDiskSpace;
-    }
-
-    return NExecNode::EErrorCode::SlotLocationDisabled;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -882,7 +869,9 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             writer.Flush();
         } catch (const std::exception& ex) {
             // Job will be aborted.
-            auto error = TError(GetDisableErrorCode(ex), "Failed to write job proxy config into %v",
+            auto error = TError(
+                GetDisableErrorCode(ex, EErrorCode::SlotLocationDisabled),
+                "Failed to write job proxy config into %v",
                 proxyConfigPath)
                 .With(ex);
             Disable(error);
@@ -1201,7 +1190,9 @@ std::string TSlotLocation::GetPath() const
 
 void TSlotLocation::Disable(const TError& error, bool ignoreOutOfSpace)
 {
-    if (GetDisableErrorCode(error) == NExecNode::EErrorCode::NotEnoughDiskSpace) {
+    if (GetDisableErrorCode(error, EErrorCode::SlotLocationDisabled) ==
+        EErrorCode::NotEnoughDiskSpace)
+    {
         EnospcRate_.Increment();
         if (ignoreOutOfSpace) {
             YT_TLOG_WARNING("Skipping slot location disable due to an out-of-space error")
@@ -1521,7 +1512,9 @@ void TSlotLocation::DoBuildSlotRootDirectory(int slotIndex)
         return;
     }
 
-    auto locationError = TError(GetDisableErrorCode(error), "Failed to build slot root directory")
+    auto locationError = TError(
+        GetDisableErrorCode(error, EErrorCode::SlotLocationDisabled),
+        "Failed to build slot root directory")
         .With("slot_index", slotIndex)
         .With("slot_path", GetSlotPath(slotIndex))
         .With(error);

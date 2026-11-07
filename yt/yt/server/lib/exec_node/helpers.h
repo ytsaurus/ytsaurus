@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
+#include <yt/yt/core/misc/error.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,6 +13,12 @@ namespace NYT::NExecNode {
 std::string GetRootFSUserDirectory();
 
 const std::string& GetSandboxRelPath(ESandboxKind sandboxKind);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorCode GetDisableErrorCode(
+    const TError& error,
+    TErrorCode fallbackErrorCode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

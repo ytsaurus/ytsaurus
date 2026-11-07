@@ -41,11 +41,13 @@ class JobCountProfiler:
         return sum(counter.get(verbose=True, **kwargs) or 0 for counter in self._counters)
 
 
-def profiler_factory():
+def profiler_factory(driver=None):
+    if driver is None:
+        driver = get_driver()
     yt_client = YtClient(config={
         "enable_token": False,
         "backend": "native",
-        "driver_config": get_driver().get_config(),
+        "driver_config": driver.get_config(),
     })
     return ProfilerFactory(yt_client)
 
@@ -146,6 +148,33 @@ def get_chunk_owner_master_cell_counters(cypress_path, sensor_path, *args, **kwa
 
 def get_chunk_owner_master_cell_gauges(cypress_path, sensor_path, *args, **kwargs):
     return [profiler.gauge(sensor_path, *args, **kwargs) for profiler in _get_chunk_owner_master_cell_profilers(cypress_path)]
+
+
+def get_master_locate_counters(driver=None):
+    factory = profiler_factory(driver)
+    master_profilers = [
+        factory.at_primary_master(address)
+        for address in ls("//sys/primary_masters", driver=driver)
+    ] + [
+        factory.at_secondary_master(cell_tag, address)
+        for cell_tag in ls("//sys/secondary_masters", driver=driver)
+        for address in ls(f"//sys/secondary_masters/{cell_tag}", driver=driver)
+    ]
+    return [
+        profiler.counter(
+            "rpc/server/request_count",
+            tags={"yt_service": "ChunkService", "method": "LocateChunks"})
+        for profiler in master_profilers
+    ]
+
+
+def get_master_locate_count_delta(locate_counters):
+    for counter in locate_counters:
+        orchid_requests = counter.profiler.counter(
+            "rpc/server/request_count",
+            tags={"yt_service": "OrchidService", "method": "Execute"})
+        wait(lambda: orchid_requests.get_delta() > 0)
+    return sum(counter.get_delta() for counter in locate_counters)
 
 
 def skip_if_old(env, version_at_least, message):

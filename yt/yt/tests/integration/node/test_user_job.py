@@ -4117,12 +4117,14 @@ class TestIdleSlots(YTEnvSetup):
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="1")
 
         wait_breakpoint(op, "1")
-        job_id, _ = self._get_job_info(op)
+        job_id, node = self._get_job_info(op)
         release_breakpoint("1")
         op.track()
         assert self._get_actual_cpu_policy(op, job_id) == "idle"
 
         self._update_cpu_fraction(fraction=0.04)
+        # Applied dynamic config does not imply the job environment has recomputed its idle CPU limit.
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/idle_cpu_limit") < 1)
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="2")
         wait_breakpoint(op, "2")
         job_id, _ = self._get_job_info(op)
