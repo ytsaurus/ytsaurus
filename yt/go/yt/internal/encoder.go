@@ -904,6 +904,37 @@ func (e *Encoder) ReadTable(
 	return e.InvokeReadRow(ctx, call)
 }
 
+func (e *Encoder) ReadTableRaw(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.ReadTableOptions,
+) (r io.ReadCloser, err error) {
+	call := e.newCall(NewReadTableParams(path, options))
+	rr := &readTableResponse{}
+	call.OnRspParams = func(params []byte) error {
+		return yson.Unmarshal(params, &rr.params)
+	}
+	rr.ReadCloser, err = e.InvokeRead(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return rr, nil
+}
+
+type readTableResponse struct {
+	io.ReadCloser
+	params struct {
+		StartRowIndex *int64 `yson:"start_row_index"`
+	}
+}
+
+func (r *readTableResponse) StartRowIndex() (int64, bool) {
+	if r.params.StartRowIndex == nil {
+		return 0, false
+	}
+	return *r.params.StartRowIndex, true
+}
+
 func (e *Encoder) PartitionTables(
 	ctx context.Context,
 	paths []ypath.YPath,
