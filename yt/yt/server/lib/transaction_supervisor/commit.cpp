@@ -120,8 +120,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, CoordinatorPrepareMode_);
     Save(context, CoordinatorCommitMode_);
     Save(context, MaxAllowedCommitTimestamp_);
-    Save(context, AuthenticationIdentity_.User);
-    Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, AuthenticationIdentity_);
     Save(context, StrongOrderingTags_);
 }
 
@@ -158,8 +157,7 @@ void TCommit::Load(TLoadContext& context)
     Load(context, CoordinatorPrepareMode_);
     Load(context, CoordinatorCommitMode_);
     Load(context, MaxAllowedCommitTimestamp_);
-    Load(context, AuthenticationIdentity_.User);
-    Load(context, AuthenticationIdentity_.UserTag);
+    Load(context, AuthenticationIdentity_);
 
     // COMPAT(h0pless): StrongOrderingTags.
     if (ETransactionSupervisorReign::Sequencer <= contextVersion && contextVersion < ETransactionSupervisorReign::StrongOrderingTags) {
