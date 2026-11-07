@@ -447,7 +447,9 @@ void TJobProxy::SendHeartbeat()
         }
     }
 
-    LastHeartbeatFuture_ = req->Invoke().AsVoid().Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
+    LastHeartbeatFuture_ = req->Invoke().AsVoid()
+        .Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)))
+        .ToImmediatelyCancelable(/*propagateCancelation*/ false);
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -2089,9 +2091,7 @@ void TJobProxy::CheckMemoryUsage()
         HeartbeatExecutor_->ScheduleOutOfBand();
         auto error = WaitFor(executedEvent);
         if (error.IsOK()) {
-            auto heartbeatFuture = LastHeartbeatFuture_
-                .ToImmediatelyCancelable(/*propagateCancelation*/ false);
-            error = WaitFor(heartbeatFuture);
+            error = WaitFor(LastHeartbeatFuture_);
         }
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Failed to send heartbeat before memory reserve increase")
             .With(error);
