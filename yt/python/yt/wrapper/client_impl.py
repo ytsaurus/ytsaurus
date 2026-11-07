@@ -2219,8 +2219,8 @@ class YtClient(ClientState):
         return client_api.patch_pipeline_dynamic_spec(
             pipeline_path,
             client=self,
-            set=set, patch=patch, comment=comment, expected_version=expected_version,
-            format=format, set_changes=set_changes
+            set=set, patch=patch, comment=comment, expected_version=expected_version, format=format,
+            set_changes=set_changes
         )
 
     def pause_pipeline(
