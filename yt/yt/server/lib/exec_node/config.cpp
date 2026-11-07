@@ -820,7 +820,7 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("job_proxy_build_info_update_period", &TThis::JobProxyBuildInfoUpdatePeriod)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
