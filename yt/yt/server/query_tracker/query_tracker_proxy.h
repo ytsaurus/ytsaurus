@@ -22,7 +22,8 @@ public:
         NYPath::TYPath stateRoot,
         TQueryTrackerDynamicConfigPtr config,
         std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
-        int expectedTablesVersion);
+        int expectedTablesVersion,
+        std::optional<std::string> adminsGroup);
 
     void Reconfigure(const TQueryTrackerDynamicConfigPtr& config);
 
@@ -72,6 +73,7 @@ public:
 private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
+    const std::optional<std::string> AdminsGroup_;
     TQueryTrackerDynamicConfigPtr DynamicConfig_;
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     const int ExpectedTablesVersion_;
@@ -88,7 +90,8 @@ TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     NYPath::TYPath stateRoot,
     TQueryTrackerDynamicConfigPtr config,
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
-    int expectedTablesVersion);
+    int expectedTablesVersion,
+    std::optional<std::string> adminsGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

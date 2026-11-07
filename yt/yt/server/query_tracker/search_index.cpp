@@ -55,9 +55,10 @@ const std::string NoEngineFilterString = "";
 // and is necessary to perform a quick search both with and without a user filter.
 const std::string NoUserFilterString = "";
 // Each row in SearchTable and SearchMetaTable which AccessScope starts with UserPrefix
-// has a duplicate with AccessScope = SuperuserSearchAccessScope.
-// This enables superusers to search across all queries when no user filter is applied.
-const std::string SuperuserSearchAccessScope = "su";
+// has a duplicate with AccessScope = AdminSearchAccessScope.
+// This enables Query Tracker administrators to search across all queries when no user filter is applied.
+// The literal is persisted as a key in the index tables, so it is kept as is.
+const std::string AdminSearchAccessScope = "su";
 
 // This ACO is the same as all others, but does not affect ListQueries. This is needed to enable link sharing.
 constexpr TStringBuf EveryoneShareAccessControlObject = "everyone-share";
@@ -76,7 +77,7 @@ struct TQueryIndexSearchOptions
     std::string User;
     std::vector<std::string> AcosForUser;
     TTimestamp Timestamp;
-    bool IsSuperuser;
+    bool HasAdminAccess;
     TAttributeFilter Attributes;
 };
 
@@ -239,7 +240,7 @@ std::vector<std::string> GetAccessScopes(
         accessScope = AcoPrefix + accessScope;
     }
     accessScopes.push_back(UserPrefix + userName);
-    accessScopes.push_back(SuperuserSearchAccessScope);
+    accessScopes.push_back(AdminSearchAccessScope);
     return accessScopes;
 }
 
@@ -255,14 +256,19 @@ class TSearchIndexBase
     : public ISearchIndex
 {
 public:
-    TSearchIndexBase(IClientPtr stateClient, TYPath stateRoot)
+    TSearchIndexBase(
+        IClientPtr stateClient,
+        TYPath stateRoot,
+        std::optional<std::string> adminsGroup)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , AdminsGroup_(std::move(adminsGroup))
     { }
 
 protected:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+    const std::optional<std::string> AdminsGroup_;
 
     TQueryIndexSearchOptions MakeQueryIndexSearchOptions(const TListQueriesOptions& options, const std::string& user)
     {
@@ -286,10 +292,10 @@ protected:
             .With("User", user)
             .With("Subjects", MakeShrunkFormattableView(userSubjects, TDefaultFormatter(), ShrunkFormattableViewLimit));
 
-        bool isSuperuser = userSubjects.contains(SuperusersGroupName);
+        bool hasAdminAccess = HasQueryTrackerAdminAccess(userSubjects, AdminsGroup_);
         std::vector<std::string> acosForUser;
 
-        if (!isSuperuser) {
+        if (!hasAdminAccess) {
             acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true);
             YT_TLOG_DEBUG("Fetched suitable access control objects for user")
                 .With("User", user)
@@ -301,7 +307,7 @@ protected:
             .AcosForUser = std::move(acosForUser),
             .Timestamp = WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
                 .ValueOrThrow(),
-            .IsSuperuser = isSuperuser,
+            .HasAdminAccess = hasAdminAccess,
             .Attributes = std::move(attributes),
         };
     }
@@ -449,8 +455,14 @@ class TTimeBasedIndex
     : public TSearchIndexBase
 {
 public:
-    TTimeBasedIndex(IClientPtr stateClient, TYPath stateRoot)
-        : TSearchIndexBase(std::move(stateClient), std::move(stateRoot))
+    TTimeBasedIndex(
+        IClientPtr stateClient,
+        TYPath stateRoot,
+        std::optional<std::string> adminsGroup)
+        : TSearchIndexBase(
+            std::move(stateClient),
+            std::move(stateRoot),
+            std::move(adminsGroup))
     { }
 
     void AddQuery(const TQuery& query, ITransactionPtr transaction) override
@@ -752,7 +764,7 @@ private:
         const std::string& user,
         const std::vector<std::string>& acosForUser,
         const std::string& table,
-        bool isSuperuser)
+        bool hasAdminAccess)
     {
         auto fromTime = options.FromTime ? std::make_optional<i64>(options.FromTime->MicroSeconds()) : std::nullopt;
         if (options.CursorDirection == EOperationSortDirection::Future && options.CursorTime) {
@@ -794,7 +806,7 @@ private:
 
             builder.AddWhereConjunct("[is_indexed] = TRUE");
 
-            if (!isSuperuser) {
+            if (!hasAdminAccess) {
                 placeholdersFluentMap.Item("User").Value(user);
 
                 TStringBuilder conditionBuilder;
@@ -815,7 +827,7 @@ private:
                 builder.AddWhereConjunct("-[minus_start_time] <= " + ToString(toTime));
             }
 
-            if (!isSuperuser) {
+            if (!hasAdminAccess) {
                 if (table == FinishedQueriesByUserAndStartTimeTable) {
                     placeholdersFluentMap.Item("User").Value(user);
                     builder.AddWhereConjunct("user = {User}");
@@ -837,12 +849,12 @@ private:
         const std::vector<std::string>& acosForUser,
         const std::string& tableName,
         std::vector<std::pair<TTimestamp, TQueryId>>& results,
-        bool isSuperuser = false)
+        bool hasAdminAccess = false)
     {
         TQueryBuilder builder;
         TYsonString placeholderValues;
         builder.SetSource(StateRoot_ + "/" + tableName);
-        AddFilterConditions(builder, placeholderValues, requestOptions, user, acosForUser, tableName, isSuperuser);
+        AddFilterConditions(builder, placeholderValues, requestOptions, user, acosForUser, tableName, hasAdminAccess);
         builder.AddSelectExpression("[minus_start_time]");
         builder.AddSelectExpression("[query_id]");
         // We request for one more in order to understand whether the whole result fits into the limit.
@@ -886,7 +898,7 @@ private:
                 indexSearchOptions.User,
                 indexSearchOptions.AcosForUser,
                 "active_queries",
-                indexSearchOptions.IsSuperuser);
+                indexSearchOptions.HasAdminAccess);
             AddSelectExpressionsFromAttributes(builder, TActiveQueryDescriptor::Get()->GetNameTable(), indexSearchOptions.Attributes);
             AddSelectExpressionsForMerging(builder, indexSearchOptions.Attributes);
             TSelectRowsOptions selectOptions;
@@ -916,7 +928,7 @@ private:
             std::vector<TQueryId> admittedQueryIds;
             {
                 std::vector<std::pair<TTimestamp, TQueryId>> results;
-                if (indexSearchOptions.IsSuperuser && !options.UserFilter) {
+                if (indexSearchOptions.HasAdminAccess && !options.UserFilter) {
                     GetQueriesByStartTime<TFinishedQueryByStartTime>(
                         options,
                         indexSearchOptions.Timestamp,
@@ -924,7 +936,7 @@ private:
                         indexSearchOptions.AcosForUser,
                         "finished_queries_by_start_time",
                         results,
-                        indexSearchOptions.IsSuperuser);
+                        indexSearchOptions.HasAdminAccess);
                 } else {
                     GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(
                         options,
@@ -933,7 +945,7 @@ private:
                         indexSearchOptions.AcosForUser,
                         FinishedQueriesByUserAndStartTimeTable,
                         results,
-                        indexSearchOptions.IsSuperuser);
+                        indexSearchOptions.HasAdminAccess);
                     if (!indexSearchOptions.AcosForUser.empty()) {
                         GetQueriesByStartTime<TFinishedQueryByAcoAndStartTime>(
                             options,
@@ -942,7 +954,7 @@ private:
                             indexSearchOptions.AcosForUser,
                             FinishedQueriesByAcoAndStartTimeTable,
                             results,
-                            indexSearchOptions.IsSuperuser);
+                            indexSearchOptions.HasAdminAccess);
                     }
                     if (options.CursorDirection != EOperationSortDirection::None) {
                         auto compare = [&] (const std::pair<TTimestamp, TQueryId>& lhs, const std::pair<TTimestamp, TQueryId>& rhs) {
@@ -977,9 +989,15 @@ private:
     }
 };
 
-ISearchIndexPtr CreateTimeBasedIndex(IClientPtr stateClient, TYPath stateRoot)
+ISearchIndexPtr CreateTimeBasedIndex(
+    IClientPtr stateClient,
+    TYPath stateRoot,
+    std::optional<std::string> adminsGroup)
 {
-    return New<TTimeBasedIndex>(std::move(stateClient), std::move(stateRoot));
+    return New<TTimeBasedIndex>(
+        std::move(stateClient),
+        std::move(stateRoot),
+        std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -988,8 +1006,14 @@ class TTokenBasedIndex
     : public TSearchIndexBase
 {
 public:
-    TTokenBasedIndex(IClientPtr stateClient, TYPath stateRoot)
-        : TSearchIndexBase(std::move(stateClient), std::move(stateRoot))
+    TTokenBasedIndex(
+        IClientPtr stateClient,
+        TYPath stateRoot,
+        std::optional<std::string> adminsGroup)
+        : TSearchIndexBase(
+            std::move(stateClient),
+            std::move(stateRoot),
+            std::move(adminsGroup))
         , Tokenizer_(CreateRegexTokenizer())
     { }
 
@@ -1432,11 +1456,11 @@ private:
         std::vector<std::string> tokens;
         std::vector<std::string> accessScopes;
         {
-            if (indexSearchOptions.IsSuperuser) {
+            if (indexSearchOptions.HasAdminAccess) {
                 if (options.UserFilter) {
                     accessScopes.push_back(UserPrefix + options.UserFilter.value());
                 } else {
-                    accessScopes.push_back(SuperuserSearchAccessScope);
+                    accessScopes.push_back(AdminSearchAccessScope);
                 }
             } else {
                 if (!options.UserFilter || options.UserFilter.value() != indexSearchOptions.User) {
@@ -1499,7 +1523,7 @@ private:
             : NoEngineFilterString);
 
         builder.AddWhereConjunct("[user] = {User}");
-        placeholderValuesMap.Item("User").Value(options.UserFilter && options.UserFilter.value() != indexSearchOptions.User && !indexSearchOptions.IsSuperuser
+        placeholderValuesMap.Item("User").Value(options.UserFilter && options.UserFilter.value() != indexSearchOptions.User && !indexSearchOptions.HasAdminAccess
             ? options.UserFilter.value()
             : NoUserFilterString);
 
@@ -1565,7 +1589,7 @@ private:
             : NoEngineFilterString);
 
         builder.AddWhereConjunct("[user] = {User}");
-        placeholderValuesMap.Item("User").Value(options.UserFilter && options.UserFilter.value() != indexSearchOptions.User && !indexSearchOptions.IsSuperuser
+        placeholderValuesMap.Item("User").Value(options.UserFilter && options.UserFilter.value() != indexSearchOptions.User && !indexSearchOptions.HasAdminAccess
             ? options.UserFilter.value()
             : NoUserFilterString);
 
@@ -1630,9 +1654,15 @@ private:
     }
 };
 
-ISearchIndexPtr CreateTokenBasedIndex(IClientPtr stateClient, TYPath stateRoot)
+ISearchIndexPtr CreateTokenBasedIndex(
+    IClientPtr stateClient,
+    TYPath stateRoot,
+    std::optional<std::string> adminsGroup)
 {
-    return New<TTokenBasedIndex>(std::move(stateClient), std::move(stateRoot));
+    return New<TTokenBasedIndex>(
+        std::move(stateClient),
+        std::move(stateRoot),
+        std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -92,10 +92,12 @@ public:
         const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::NNative::IConnectionPtr& connection,
-        const IInvokerPtr& controlInvoker)
+        const IInvokerPtr& controlInvoker,
+        std::optional<std::string> adminsGroup)
         : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , Config_(config)
+        , AdminsGroup_(std::move(adminsGroup))
         , Files_(ConvertTo<std::optional<std::vector<TQueryFilePtr>>>(activeQuery.Files).value_or(std::vector<TQueryFilePtr>()))
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
@@ -125,7 +127,14 @@ public:
                     AdminAccessControlObjectName);
             }
 
-            if (CheckAccessControl(User_, AccessControlObjects_, StateClient_, EPermission::Administer) == ESecurityAction::Deny) {
+            auto securityAction = CheckAccessControl(
+                User_,
+                AccessControlObjects_,
+                StateClient_,
+                EPermission::Administer,
+                AdminsGroup_);
+
+            if (securityAction == ESecurityAction::Deny) {
                 THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
                     "%Qlv permission required to run %Qlv queries",
                     EPermission::Administer,
@@ -173,6 +182,7 @@ public:
 private:
     const std::string Query_;
     const TYqlEngineConfigPtr Config_;
+    const std::optional<std::string> AdminsGroup_;
     const std::vector<TQueryFilePtr> Files_;
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
@@ -491,11 +501,15 @@ class TYqlEngine
     : public IQueryEngine
 {
 public:
-    TYqlEngine(IClientPtr stateClient, TYPath stateRoot)
+    TYqlEngine(
+        IClientPtr stateClient,
+        TYPath stateRoot,
+        std::optional<std::string> adminsGroup)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
         , ProxyEngineProvider_(New<TProxyYqlEngineProvider>(StateClient_, StateRoot_))
+        , AdminsGroup_(std::move(adminsGroup))
     { }
 
     bool IsSafeToRestartQuery() const override
@@ -513,7 +527,8 @@ public:
             Config_,
             activeQuery,
             DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            AdminsGroup_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -533,6 +548,7 @@ private:
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     const IProxyEngineProviderPtr ProxyEngineProvider_;
+    const std::optional<std::string> AdminsGroup_;
     TYqlEngineConfigPtr Config_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -540,9 +556,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateYqlEngine(
+    const IClientPtr& stateClient,
+    const TYPath& stateRoot,
+    std::optional<std::string> adminsGroup)
 {
-    return New<TYqlEngine>(stateClient, stateRoot);
+    return New<TYqlEngine>(stateClient, stateRoot, std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

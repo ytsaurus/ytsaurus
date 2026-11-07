@@ -36,13 +36,18 @@ template <typename TPartial>
 NApi::TQuery PartialRecordToQuery(const TPartial& partialRecord);
 
 THashSet<std::string> GetUserSubjects(const std::string& user, const NApi::IClientPtr& client);
+bool HasQueryTrackerAdminAccess(
+    const THashSet<std::string>& userSubjects,
+    const std::optional<std::string>& adminsGroup);
+
 void ConvertAcoToOldFormat(NApi::TQuery& query);
 
 NSecurityClient::ESecurityAction CheckAccessControl(
     const std::string& user,
     const std::optional<NYson::TYsonString>& accessControlObjects,
     const NApi::IClientPtr& client,
-    NYTree::EPermission permission);
+    NYTree::EPermission permission,
+    const std::optional<std::string>& adminsGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

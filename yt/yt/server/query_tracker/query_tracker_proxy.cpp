@@ -116,13 +116,19 @@ ESecurityAction CheckQueryAccessControl(
     const std::optional<TYsonString>& accessControlObjects,
     const std::string& queryAuthor,
     const IClientPtr& client,
-    EPermission permission)
+    EPermission permission,
+    const std::optional<std::string>& adminsGroup)
 {
     if (user == queryAuthor) {
         return ESecurityAction::Allow;
     }
 
-    return CheckAccessControl(user, accessControlObjects, client, permission);
+    return CheckAccessControl(
+        user,
+        accessControlObjects,
+        client,
+        permission,
+        adminsGroup);
 }
 
 void ThrowAccessDeniedException(
@@ -195,6 +201,7 @@ void ValidateQueryPermissions(
     const std::string& user,
     const IClientPtr& client,
     EPermission permission,
+    const std::optional<std::string>& adminsGroup,
     const TLogger& logger)
 {
     static const std::vector<std::string> lookupKeys{
@@ -202,7 +209,15 @@ void ValidateQueryPermissions(
         "access_control_objects",
     };
     auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, logger);
-    if (CheckQueryAccessControl(user, query.AccessControlObjects, *query.User, client, permission) == ESecurityAction::Deny) {
+    auto securityAction = CheckQueryAccessControl(
+        user,
+        query.AccessControlObjects,
+        *query.User,
+        client,
+        permission,
+        adminsGroup);
+
+    if (securityAction == ESecurityAction::Deny) {
         ThrowAccessDeniedException(queryId, permission, user, query.AccessControlObjects, *query.User);
     }
 }
@@ -306,14 +321,16 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     TYPath stateRoot,
     TQueryTrackerDynamicConfigPtr config,
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
-    int expectedTablesVersion)
+    int expectedTablesVersion,
+    std::optional<std::string> adminsGroup)
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
+    , AdminsGroup_(std::move(adminsGroup))
     , DynamicConfig_(std::move(config))
     , EngineProviders_(std::move(engineProviders))
     , ExpectedTablesVersion_(expectedTablesVersion)
-    , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_))
-    , TokenBasedIndex_(CreateTokenBasedIndex(StateClient_, StateRoot_))
+    , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_, AdminsGroup_))
+    , TokenBasedIndex_(CreateTokenBasedIndex(StateClient_, StateRoot_, AdminsGroup_))
 { }
 
 void TQueryTrackerProxy::Reconfigure(const TQueryTrackerDynamicConfigPtr& config)
@@ -377,10 +394,10 @@ void TQueryTrackerProxy::StartQuery(
     if (options.Annotations) {
         auto annotationsMap = options.Annotations->AsMap();
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false)) {
-            if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
-                YT_TLOG_DEBUG("Attempt to create a tutorial failed; user is not a superuser")
+            if (!HasQueryTrackerAdminAccess(GetUserSubjects(user, StateClient_), AdminsGroup_)) {
+                YT_TLOG_DEBUG("Attempt to create a tutorial failed; user has no Query Tracker admin access")
                     .With("User", user);
-                THROW_ERROR_EXCEPTION("Non-superusers cannot create tutorial queries. To create one contact your cluster administrator");
+                THROW_ERROR_EXCEPTION("Users without Query Tracker admin access cannot create tutorial queries. To create one contact your cluster administrator");
             }
             if (!options.Draft) {
                 THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
@@ -503,7 +520,15 @@ void TQueryTrackerProxy::AbortQuery(
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
 
-    ValidateQueryPermissions(queryId, StateRoot_, transaction->GetStartTimestamp(), user, StateClient_, EPermission::Administer, Logger);
+    ValidateQueryPermissions(
+        queryId,
+        StateRoot_,
+        transaction->GetStartTimestamp(),
+        user,
+        StateClient_,
+        EPermission::Administer,
+        AdminsGroup_,
+        Logger);
 
     YT_TLOG_DEBUG("Aborting query")
         .With("QueryId", queryId)
@@ -592,7 +617,15 @@ TQueryResult TQueryTrackerProxy::GetQueryResult(
         TLookupRowsOptions options;
         options.KeepMissingRows = true;
 
-        ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Read, Logger);
+        ValidateQueryPermissions(
+            queryId,
+            StateRoot_,
+            timestamp,
+            user,
+            StateClient_,
+            EPermission::Read,
+            AdminsGroup_,
+            Logger);
 
         TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
         std::vector keys{
@@ -652,7 +685,15 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
         TLookupRowsOptions options;
         options.KeepMissingRows = true;
 
-        ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Read, Logger);
+        ValidateQueryPermissions(
+            queryId,
+            StateRoot_,
+            timestamp,
+            user,
+            StateClient_,
+            EPermission::Read,
+            AdminsGroup_,
+            Logger);
 
         TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
         std::vector keys{
@@ -727,7 +768,15 @@ TQuery TQueryTrackerProxy::GetQuery(
 
     options.Attributes.ValidateKeysOnly();
 
-    ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Use, Logger);
+    ValidateQueryPermissions(
+        queryId,
+        StateRoot_,
+        timestamp,
+        user,
+        StateClient_,
+        EPermission::Use,
+        AdminsGroup_,
+        Logger);
 
     auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys()) : std::nullopt;
 
@@ -776,7 +825,15 @@ void TQueryTrackerProxy::AlterQuery(
 
     auto timestamp = transaction->GetStartTimestamp();
 
-    ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Administer, Logger);
+    ValidateQueryPermissions(
+        queryId,
+        StateRoot_,
+        timestamp,
+        user,
+        StateClient_,
+        EPermission::Administer,
+        AdminsGroup_,
+        Logger);
 
     static const std::vector<std::string> lookupKeys{
         "query_id",
@@ -803,8 +860,8 @@ void TQueryTrackerProxy::AlterQuery(
     if (options.Annotations) {
         auto annotationsMap = options.Annotations->AsMap();
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false) != isTutorial) {
-            if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
-                THROW_ERROR_EXCEPTION("Non-superusers cannot change tutorial flag. To change one contact your cluster administrator");
+            if (!HasQueryTrackerAdminAccess(GetUserSubjects(user, StateClient_), AdminsGroup_)) {
+                THROW_ERROR_EXCEPTION("Users without Query Tracker admin access cannot change tutorial flag. To change one contact your cluster administrator");
             }
             if (*query.State != EQueryState::Draft) {
                 THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
@@ -1074,14 +1131,16 @@ TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     TYPath stateRoot,
     TQueryTrackerDynamicConfigPtr config,
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
-    int expectedTablesVersion)
+    int expectedTablesVersion,
+    std::optional<std::string> adminsGroup)
 {
     return New<TQueryTrackerProxy>(
         std::move(stateClient),
         std::move(stateRoot),
         std::move(config),
         std::move(engineProviders),
-        expectedTablesVersion);
+        expectedTablesVersion,
+        std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

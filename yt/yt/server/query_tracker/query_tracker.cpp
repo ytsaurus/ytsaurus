@@ -81,7 +81,8 @@ public:
         NApi::NNative::IClientPtr stateClient,
         IComponentStateCheckerPtr ComponentStateChecker,
         TYPath stateRoot,
-        int minRequiredStateVersion)
+        int minRequiredStateVersion,
+        std::optional<std::string> adminsGroup)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
         , AlertCollector_(std::move(alertCollector))
@@ -96,11 +97,14 @@ public:
             ControlInvoker_,
             BIND(&TQueryTracker::OnHealthCheck, MakeWeak(this)),
             config->HealthCheckPeriod))
-        , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_))
+        , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_, adminsGroup))
     {
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Yql] = CreateYqlEngine(
+            StateClient_, StateRoot_,
+            std::move(adminsGroup));
+
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
@@ -860,7 +864,8 @@ IQueryTrackerPtr CreateQueryTracker(
     NApi::NNative::IClientPtr stateClient,
     IComponentStateCheckerPtr ComponentStateChecker,
     TYPath stateRoot,
-    int minRequiredStateVersion)
+    int minRequiredStateVersion,
+    std::optional<std::string> adminsGroup)
 {
     return New<TQueryTracker>(
         std::move(config),
@@ -870,7 +875,8 @@ IQueryTrackerPtr CreateQueryTracker(
         std::move(stateClient),
         std::move(ComponentStateChecker),
         std::move(stateRoot),
-        minRequiredStateVersion);
+        minRequiredStateVersion,
+        std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
