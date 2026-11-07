@@ -950,7 +950,7 @@ class ClickHouseTestBase(YTEnvSetup):
         result = {}
         for base in cls.__mro__[::-1]:
             patch = base.__dict__.get("DELTA_CHYT_CONFIG", {})
-            update_inplace(result, patch)
+            update_inplace(result, copy.deepcopy(patch))
         return result
 
     @classmethod
