@@ -1,7 +1,5 @@
 from yt_env_setup import (
     YTEnvSetup,
-    Restarter,
-    CONTROLLER_AGENTS_SERVICE,
     is_asan_build,
 )
 
@@ -54,9 +52,8 @@ def get_running_job_count(op_id):
     return result["brief_progress"]["jobs"]["running"]
 
 
-class TestGetOperation(YTEnvSetup):
-    ENABLE_MULTIDAEMON = False  # test_get_operation_no_archive restarts the controller agent.
-    NUM_TEST_PARTITIONS = 4
+class _TestGetOperationBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -82,6 +79,14 @@ class TestGetOperation(YTEnvSetup):
         },
     }
 
+    def clean_build_time(self, operation_result):
+        del operation_result["brief_progress"]["build_time"]
+        del operation_result["progress"]["build_time"]
+
+
+class TestGetOperation(_TestGetOperationBase):
+    NUM_TEST_PARTITIONS = 4
+
     def setup_method(self, method):
         super(TestGetOperation, self).setup_method(method)
         sync_create_cells(1)
@@ -92,10 +97,6 @@ class TestGetOperation(YTEnvSetup):
     def teardown_method(self, method):
         remove("//sys/operations_archive", force=True)
         super(TestGetOperation, self).teardown_method(method)
-
-    def clean_build_time(self, operation_result):
-        del operation_result["brief_progress"]["build_time"]
-        del operation_result["progress"]["build_time"]
 
     @authors("bystrovserg")
     def test_get_operation(self):
@@ -482,28 +483,6 @@ class TestGetOperation(YTEnvSetup):
 
         sync_mount_table("//sys/operations_archive/ordered_by_id")
 
-    @authors("bystrovserg")
-    def test_get_operation_no_archive(self):
-        remove("//sys/operations_archive", force=True)
-
-        # The controller agent memoizes archive existence for its whole lifetime.
-        # Restart it so it observes that the archive is gone.
-        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
-
-        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), track=False)
-
-        wait_breakpoint(op)
-        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
-
-        res_api = get_operation(op.id)
-        self.clean_build_time(res_api)
-        res_cypress = _get_operation_from_cypress(op.id)
-        self.clean_build_time(res_cypress)
-
-        assert res_api["brief_progress"] == res_cypress["brief_progress"]
-        assert res_api["progress"] == res_cypress["progress"]
-
     @authors("ignat")
     def test_get_operation_profiler(self):
         if not self.ENABLE_RPC_PROXY:
@@ -652,6 +631,31 @@ class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
             "enable_heavy_runtime_parameters": True,
         },
     }
+
+
+##################################################################
+
+
+class TestGetOperationNoArchive(_TestGetOperationBase):
+    NUM_NODES = 1
+    USE_DYNAMIC_TABLES = False
+
+    @authors("bystrovserg")
+    def test_get_operation_no_archive(self):
+        assert not exists("//sys/operations_archive")
+
+        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), track=False)
+
+        wait_breakpoint(op)
+        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+
+        res_api = get_operation(op.id)
+        self.clean_build_time(res_api)
+        res_cypress = _get_operation_from_cypress(op.id)
+        self.clean_build_time(res_cypress)
+
+        assert res_api["brief_progress"] == res_cypress["brief_progress"]
+        assert res_api["progress"] == res_cypress["progress"]
 
 
 ##################################################################
