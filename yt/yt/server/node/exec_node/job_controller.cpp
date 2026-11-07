@@ -42,10 +42,13 @@
 #include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/process_exit_profiler.h>
 #include <yt/yt/core/misc/statistics.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
@@ -1986,22 +1989,24 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        // TODO(max42): not sure if running ytserver-job-proxy --build --yson from JobThread
-        // is a good idea; maybe delegate to another thread?
-
         TErrorOr<TBuildInfoPtr> buildInfo;
 
         try {
-            auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
+            buildInfo = WaitFor(BIND([] {
+                auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
+                    .ValueOrThrow();
+
+                TSubprocess jobProxy(jobProxyPath);
+                jobProxy.AddArguments({"--build", "--yson"});
+
+                auto result = jobProxy.Execute();
+                result.Status.ThrowOnError();
+
+                return ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
+            })
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run())
                 .ValueOrThrow();
-
-            TSubprocess jobProxy(jobProxyPath);
-            jobProxy.AddArguments({"--build", "--yson"});
-
-            auto result = jobProxy.Execute();
-            result.Status.ThrowOnError();
-
-            buildInfo = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
         } catch (const std::exception& ex) {
             buildInfo = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
                 .With(ex);
