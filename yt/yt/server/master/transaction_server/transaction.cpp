@@ -290,8 +290,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccountResourceUsageLeases_);
     Save(context, SequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
-    Save(context, AuthenticationIdentity_.User);
-    Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, AuthenticationIdentity_);
     Save(context, InitiatorId_);
     if (IsCypressTransactionType(GetType())) {
         Save(context, NativeTxExternalizationEnabled_);
@@ -366,8 +365,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, SequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
 
-    Load(context, AuthenticationIdentity_.User);
-    Load(context, AuthenticationIdentity_.UserTag);
+    Load(context, AuthenticationIdentity_);
     // COMPAT(ivpiskarev)
     if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
         Load(context, InitiatorId_);
