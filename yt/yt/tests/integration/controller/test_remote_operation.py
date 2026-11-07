@@ -45,7 +45,7 @@ from yt_commands import (
     sync_unmount_table,
 )
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, get_master_locate_counters, get_master_locate_count_delta
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 from yt.common import YtResponseError
@@ -1283,22 +1283,8 @@ class TestRemoteOperationWithHunks(TestSchedulerRemoteOperationCommandsBase):
         sync_unmount_table("//tmp/t_in", driver=self.remote_driver)
 
         create("table", "//tmp/t_out")
-        op = map(
-            in_=self.to_remote_path("//tmp/t_in"),
-            out="//tmp/t_out",
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={"mapper": {"monitoring": {"enable": True}}},
-            track=False)
-        job_id = wait_breakpoint(op)[0]
+        locate_counters = get_master_locate_counters(driver=self.remote_driver)
+        map(in_=self.to_remote_path("//tmp/t_in"), out="//tmp/t_out", command="cat")
 
-        time.sleep(10)
-        node = get_job(op.id, job_id)["address"]
-        job_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
-        profiler = profiler_factory().at_job_proxy(
-            node,
-            fixed_tags={"job_descriptor": job_descriptor, "host": ""})
-        assert profiler.get("connection/chunk_replica_cache/master_locate_chunks") == 0
-
-        release_breakpoint()
-        op.track()
         assert_items_equal(read_table("//tmp/t_out"), rows)
+        assert get_master_locate_count_delta(locate_counters) == 0
