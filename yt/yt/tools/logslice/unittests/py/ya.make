@@ -1,6 +1,7 @@
 PY3TEST()
 
 TEST_SRCS(
+    test_iotracker_py.py
     test_logslice_py.py
 )
 
@@ -21,6 +22,7 @@ DATA(
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-access-log-family-rejected.txt
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-nearest-archive-boundary.txt
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62021/component-routing.json
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62112/evidence.json
 )
 
 SIZE(SMALL)
