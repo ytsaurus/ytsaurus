@@ -93,7 +93,7 @@ private:
                 continue;
             }
 
-            if (!replicationCard->IsMigrated()) {
+            if (replicationCard->GetState() != EReplicationCardState::Migrated) {
                 continue;
             }
 
