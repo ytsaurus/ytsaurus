@@ -343,6 +343,24 @@ TEST_F(TLogSliceTest, ParseLogLineTime)
         R"({"message"="fake \"timestamp\"=\"2026-08-19T11:20:00Z\"";};)").has_value());
 }
 
+TEST_F(TLogSliceTest, ParseYsonInstant)
+{
+    auto expected = ParseQueryTime("2026-11-05 12:05:00,123456");
+    auto record = R"({"bytes"=4096;"instant"="1999-01-01 00:00:00,000";"instant"="2026-11-05 12:05:00,123456";};)";
+    EXPECT_EQ(ParseLogLineTime(record), expected);
+    EXPECT_EQ(ParseLogLineTime(std::string(record) + "\n{\"instant\"=\"2026-11-05 12:06:00,000000\";};"), expected);
+    for (auto invalid : {
+        R"({"bytes"=4096;};)",
+        R"({"instant"="not a timestamp";};)",
+        R"({"instant"="2026-11-05";};)",
+        R"({"instant"="2026-11-05 12:05:00,1234567";};)",
+        R"({"payload"={"instant"="2026-11-05 12:05:00,123456";};};)",
+        R"({"message"="fake \"instant\"=\"2026-11-05 12:05:00,123456\"";};)",
+    }) {
+        EXPECT_FALSE(ParseLogLineTime(invalid).has_value()) << invalid;
+    }
+}
+
 TEST_F(TLogSliceTest, ParseQueryTimeFormats)
 {
     // Full local timestamp and web-interface format denote the same instant.
@@ -575,9 +593,9 @@ TEST_F(TLogSliceTest, SliceStructuredWithQueuedLinesInLogStartBlock)
     std::vector<TLogSession> sessions{
         {{{at(3), "Logging started"}, {at(0), "msg-0"}, {at(1), "msg-1"}}, {{at(4), "msg-4"}}},
     };
-    for (const auto& [format, extension, logStartHasTime] : std::vector<std::tuple<ELogFormat, TString, bool>>{
-        {ELogFormat::Yson, ".yson", false},
-        {ELogFormat::Json, ".json", true},
+    for (const auto& [format, extension] : std::vector<std::pair<ELogFormat, TString>>{
+        {ELogFormat::Yson, ".yson"},
+        {ELogFormat::Json, ".json"},
     }) {
         for (const auto& [suffix, method] : std::vector<std::pair<TString, std::optional<ECompressionMethod>>>{
             {"", std::nullopt},
@@ -598,12 +616,8 @@ TEST_F(TLogSliceTest, SliceStructuredWithQueuedLinesInLogStartBlock)
             EXPECT_LT(at(0) - *firstTime, TDuration::MilliSeconds(1));
 
             auto logStart = Slice(logFile.Name(), at(2) + half, at(3) + half);
-            if (logStartHasTime) {
-                ASSERT_EQ(logStart.size(), 1u);
-                EXPECT_NE(logStart[0].find("Logging started"), std::string::npos);
-            } else {
-                EXPECT_TRUE(logStart.empty());
-            }
+            ASSERT_EQ(logStart.size(), 1u);
+            EXPECT_NE(logStart[0].find("Logging started"), std::string::npos);
         }
     }
 }
@@ -634,6 +648,52 @@ TEST_F(TLogSliceTest, SliceYsonAndTimeRange)
         EXPECT_NE(all[1].find(std::string(snapshot)), std::string::npos);
         auto middle = Slice(logFile.Name(), base + TDuration::Seconds(1), base + TDuration::Seconds(1));
         EXPECT_EQ(middle, (std::vector<std::string>{all[1]}));
+    }
+}
+
+TEST_F(TLogSliceTest, SliceIOTrackerAndTimeRange)
+{
+    auto base = ParseQueryTime("2026-11-05 12:00:00");
+    auto end = ParseQueryTime("2026-11-05 12:16:00");
+    std::vector<std::pair<TInstant, TString>> events = {
+        {base - TDuration::Seconds(1), "before"},
+        {base + TDuration::Minutes(5), "inside"},
+        {end + TDuration::Seconds(1), "after"},
+    };
+    for (const auto& channel : {"io_aggr", "io_raw"}) {
+        for (const auto& [suffix, method] : std::vector<std::pair<TString, std::optional<ECompressionMethod>>>{
+            {"", std::nullopt},
+            {".2.zst", ECompressionMethod::Zstd},
+            {".2026-11-05_12-16.gz", ECompressionMethod::Gzip},
+        }) {
+            SCOPED_TRACE(std::string(channel) + std::string(suffix));
+            TTempFile logFile(GenerateRandomFileName("node") + "." + channel + ".yson.log" + suffix);
+            {
+                auto writer = CreateWriter(logFile.Name(), method, ELogFormat::Yson);
+                for (const auto& [instant, message] : events) {
+                    auto event = MakeEvent(instant, message);
+                    event.Family = ELogFamily::Structured;
+                    event.Payload = MakeStructuredPayloadFromYson(
+                        NYTree::BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
+                            .Item("object_type").Value("read")
+                            .Item("message").Value(message)
+                            .Finish());
+                    writer->Write(event);
+                    writer->Flush();
+                }
+            }
+            auto lines = Slice(logFile.Name(), base, end);
+            ASSERT_EQ(lines.size(), 1u);
+            EXPECT_NE(lines[0].find("inside"), std::string::npos);
+            EXPECT_EQ(lines[0].find("timestamp"), std::string::npos);
+            auto range = TimeRange(logFile.Name());
+            ASSERT_TRUE(range.has_value());
+            auto tolerance = TDuration::MilliSeconds(1);
+            EXPECT_GT(range->first, events.front().first - tolerance);
+            EXPECT_LT(range->first, events.front().first + tolerance);
+            EXPECT_GT(range->second, events.back().first - tolerance);
+            EXPECT_LT(range->second, events.back().first + tolerance);
+        }
     }
 }
 

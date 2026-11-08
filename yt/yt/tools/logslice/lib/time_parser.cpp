@@ -324,7 +324,7 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
 
     // Structured logs are JSON or YSON lines. Callers probing a compressed block
     // may pass a prefix containing several records, but the result must describe
-    // the first line. For JSON, the formatter appends its system instant after
+    // the first line. The formatter appends its system instant after
     // payload fields, so use the last valid occurrence within that line.
     if (auto newline = line.find('\n'); newline != TStringBuf::npos) {
         line = line.SubStr(0, newline);
@@ -371,9 +371,13 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
             rest.Skip(1);
         }
         bool isYsonTimestamp = key == TimestampKey;
-        if (rest.empty() || rest.front() != (isYsonTimestamp ? '=' : ':')) {
+        if (rest.empty() ||
+            (isYsonTimestamp && rest.front() != '=') ||
+            (!isYsonTimestamp && rest.front() != ':' && rest.front() != '='))
+        {
             continue;
         }
+        bool isYsonInstant = key == InstantKey && rest.front() == '=';
         rest.Skip(1);
         while (!rest.empty() && IsAsciiSpace(rest.front())) {
             rest.Skip(1);
@@ -384,6 +388,10 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
         rest.Skip(1);
         auto end = rest.find('"');
         if (end == TStringBuf::npos) {
+            continue;
+        }
+        // "YYYY-MM-DD HH:MM:SS,f" is the shortest formatter instant.
+        if (isYsonInstant && end < 21) {
             continue;
         }
         if (isYsonTimestamp) {

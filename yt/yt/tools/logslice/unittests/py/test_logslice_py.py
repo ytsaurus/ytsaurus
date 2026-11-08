@@ -847,6 +847,16 @@ class StructuredLogContractTest(unittest.TestCase):
                     "{} pipeline output line 1 has no valid timestamp".format(log_type), stderr)
                 self.assertIn("file_status type={} status=failed".format(log_type), stderr)
 
+    def test_yson_system_instants_merge_with_scheduler_utc_timestamps(self):
+        event = '{"timestamp"="2026-08-21T14:23:11.123Z";"event_type"="snapshot";};\n'
+        started = '{"message"="Logging started";"instant"="2026-08-21 17:23:10,123";};\n'
+        for log_type in logslice.YSON_LOG_TYPES:
+            with self.subTest(log_type=log_type):
+                results = [logslice.PipelineResult(0, 0, text, "")
+                           for text in (event, started)]
+                code, stdout, stderr, _ = self._run(results, file_count=2, log_types=log_type)
+                self.assertEqual((code, stdout), (0, started + event), stderr)
+
     def test_access_pipeline_is_rejected_without_access_type(self):
         argv = [
             "logslice.py", self.HOST, "--component", self.COMPONENT,
