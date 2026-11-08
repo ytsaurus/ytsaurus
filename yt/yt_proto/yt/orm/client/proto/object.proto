@@ -1006,7 +1006,14 @@ message TProtobufStorageRawAliasOptions
     optional bool deprecated = 3;
 }
 
-// Next field 31068.
+enum EMessageStorageFormat
+{
+    MSF_YSON = 0;
+    MSF_PROTOBUF = 1;
+    MSF_KEEP_STORED = 2;
+}
+
+// Next field 31069.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1183,6 +1190,14 @@ extend google.protobuf.FieldOptions
     // Expose a bytes (or repeated bytes) alias of a protobuf_storage field.
     // The alias shares its owner's storage and uses the owner's write mode.
     optional TProtobufStorageRawAliasOptions protobuf_storage_raw_alias = 31067;
+
+    // Write format for singular/repeated message columns of type Any, at codegen edition 12+.
+    // Reads accept all supported YSON/protobuf representations regardless of this option;
+    // writes use the selected format, which defaults to MSF_YSON.
+    // MSF_KEEP_STORED preserves the previous format; in this mode, new messages use YSON
+    // when creating an object or replacing a null column value.
+    // Not supported on maps or on fixed-format protobuf_storage columns.
+    optional EMessageStorageFormat message_storage_format = 31068;
 
     // Each predicate is an ORM QL expression over field's attribute.
     // Alias `value` can be used instead of spelling out full attribute path in the expression.
