@@ -8,8 +8,8 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep,
-    get_active_primary_master_leader_address)
+    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep, cell_tag_from_id,
+    get_active_primary_master_leader_address, get_active_secondary_master_leader_address)
 
 from yt_helpers import profiler_factory
 from yt_sequoia_helpers import select_cypress_transaction_replicas
@@ -21,7 +21,7 @@ import pytest
 from flaky import flaky
 
 import builtins
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import re
@@ -62,6 +62,21 @@ class TestMasterTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 3
+
+    def transaction_expired(self, tx):
+        cell_tag = cell_tag_from_id(tx)
+        if cell_tag == 10:
+            address = get_active_primary_master_leader_address(self)
+            txs = get(f"//sys/primary_masters/{address}/orchid/transaction_finisher")
+        else:
+            address = get_active_secondary_master_leader_address(self, cell_tag)
+            txs = get(f"//sys/secondary_masters/{cell_tag}/{address}/orchid/transaction_finisher")
+
+        if tx in txs:
+            return True
+
+        gc_collect()
+        return not exists(f"#{tx}")
 
     @authors("babenko", "gritukan")
     def test_simple1(self):
@@ -224,7 +239,7 @@ class TestMasterTransactions(YTEnvSetup):
             abort_transaction(tx, authenticated_user="u")
         assert "Access denied" in str(error) or "is banned on" in str(error)
         sleep(1.5)
-        assert not exists(f"#{tx}")
+        assert self.transaction_expired(tx)
 
     @authors("kvk1920")
     def test_deadline(self):
@@ -239,8 +254,8 @@ class TestMasterTransactions(YTEnvSetup):
 
         # Check that transactions are expired after 3 seconds.
         sleep(3.0)
-        assert not exists(f"//sys/transactions/{tx1}")
-        assert not exists(f"//sys/transactions/{tx2}")
+        assert self.transaction_expired(tx1)
+        assert self.transaction_expired(tx2)
 
     @authors("levysotsky")
     @flaky(max_runs=5)
@@ -257,7 +272,7 @@ class TestMasterTransactions(YTEnvSetup):
 
         # check that transaction is expired after 8 seconds
         sleep(8.0)
-        assert not exists("//sys/transactions/{}".format(tx))
+        assert self.transaction_expired(tx)
 
     @authors("ignat")
     @flaky(max_runs=5)
@@ -284,8 +299,8 @@ class TestMasterTransactions(YTEnvSetup):
 
         sleep(3.5)
         # check that outer tx expired (and therefore inner was aborted)
-        assert not exists("//sys/transactions/" + tx_inner)
-        assert not exists("//sys/transactions/" + tx_outer)
+        assert self.transaction_expired(tx_inner)
+        assert self.transaction_expired(tx_outer)
 
     @authors("ignat", "panin")
     @flaky(max_runs=5)
@@ -517,7 +532,7 @@ class TestMasterTransactions(YTEnvSetup):
         elapsed_time = (datetime.now() - start_time).total_seconds()
         sleep(7 - elapsed_time)
         gc_collect()
-        assert not exists(f"#{tx_a}")
+        assert self.transaction_expired(tx_a)
 
     @authors("kvk1920")
     def test_prerequisite_check_failure_during_commit(self):
@@ -1232,6 +1247,21 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
             "enable_ground_update_queues": True,
         },
     }
+
+    @authors("kvk1920")
+    def test_doomed_transactions_contention(self):
+        deadline = datetime.now(timezone.utc) + timedelta(seconds=4)
+        txs = []
+        for _ in range(10):
+            if txs:
+                tx = start_transaction(tx=txs[-1], deadline=datetime_to_string(deadline))
+            else:
+                tx = start_transaction(deadline=datetime_to_string(deadline))
+            txs.append(tx)
+
+        sleep((deadline + timedelta(seconds=0.5) - datetime.now(timezone.utc)).total_seconds())
+        for tx in txs:
+            assert self.transaction_expired(tx)
 
     @authors("kvk1920")
     def test_expiration_during_ground_unavailability(self):

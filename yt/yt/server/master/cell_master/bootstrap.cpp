@@ -1247,6 +1247,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(TransactionSupervisor_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/transaction_finisher",
+        CreateVirtualNode(TransactionFinisher_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/discovery_server",
         CreateVirtualNode(DiscoveryServer_->GetYPathService()));
     SetNodeByYPath(
