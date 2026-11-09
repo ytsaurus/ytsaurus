@@ -2046,6 +2046,13 @@ IIOEnginePtr CreateIOEngineUring(
             YT_ABORT();
     }
 
+#else
+    Y_UNUSED(engineType);
+    Y_UNUSED(ioConfig);
+    Y_UNUSED(locationId);
+    Y_UNUSED(hugePageManager);
+    Y_UNUSED(profiler);
+    Y_UNUSED(logger);
 #endif
     return { };
 }

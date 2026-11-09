@@ -477,6 +477,10 @@ TWriteResponse DoWriteImpl(
     const TIOEngineSensorsPtr& sensors,
     bool enablePwritev)
 {
+#ifndef _linux_
+    Y_UNUSED(simulatedMaxBytesPerWrite);
+#endif
+
     sensors->UpdateKernelStatistics();
 
     YT_VERIFY(!request.Handle->IsOpenForDirectIO());
@@ -683,6 +687,7 @@ TFlushFileRangeResponse DoFlushFileRange(
     });
 #else
     Y_UNUSED(request);
+    Y_UNUSED(category);
 #endif
 
     return response;

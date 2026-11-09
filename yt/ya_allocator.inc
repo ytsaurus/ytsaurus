@@ -1,0 +1,6 @@
+# The bundled TCMalloc only supports Linux (Segmentation Fault for ARM M3)
+IF (OS_DARWIN)
+    ALLOCATOR(SYSTEM)
+ELSE()
+    ALLOCATOR(TCMALLOC)
+ENDIF()

@@ -2,7 +2,7 @@ GTEST(unittester-all)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(TCMALLOC)
+INCLUDE(${ARCADIA_ROOT}/yt/ya_allocator.inc)
 
 SRCS(
     config_ut.cpp

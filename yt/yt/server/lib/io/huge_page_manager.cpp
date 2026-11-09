@@ -30,6 +30,8 @@ std::optional<int> ReadParamFromMeminfo(std::string_view prefix)
             return std::stoul(std::string(removedPrefix));
         }
     }
+#else
+    Y_UNUSED(prefix);
 #endif
     return std::nullopt;
 }
@@ -331,11 +333,12 @@ private:
             return TError("Failed to allocate huge page")
                 .With(TSystemError());
         }
-#else
-        YT_UNIMPLEMENTED();
-#endif
 
         return TMutableRef(page, pageCount * hugePageSize);
+#else
+        Y_UNUSED(hugePageSize);
+        YT_UNIMPLEMENTED();
+#endif
     }
 
     void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) override
@@ -351,6 +354,7 @@ private:
                 .With(TSystemError());
         }
 #else
+        Y_UNUSED(hugePageBlob);
         YT_UNIMPLEMENTED();
 #endif
     }
@@ -412,11 +416,12 @@ private:
             return TError("Failed to mark memory MADV_HUGEPAGE")
                 .With(TSystemError(error));
         }
-#else
-        YT_UNIMPLEMENTED();
-#endif
 
         return TMutableRef(page, pageCount * hugePageSize);
+#else
+        Y_UNUSED(hugePageSize);
+        YT_UNIMPLEMENTED();
+#endif
     }
 
     void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) override
@@ -424,6 +429,7 @@ private:
 #ifdef _linux_
         ::munmap(hugePageBlob.Begin(), hugePageBlob.Size());
 #else
+        Y_UNUSED(hugePageBlob);
         YT_UNIMPLEMENTED();
 #endif
     }

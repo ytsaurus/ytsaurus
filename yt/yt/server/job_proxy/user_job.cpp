@@ -1195,6 +1195,12 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
+#ifndef _linux_
+        if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
+            THROW_ERROR_EXCEPTION("Delivery-fenced pipe writes are not supported on this platform");
+        }
+#endif
+
         EDeliveryFencedMode deliveryFencedMode = EDeliveryFencedMode::None;
         if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
             deliveryFencedMode = Config_->UseNewDeliveryFencedConnection
