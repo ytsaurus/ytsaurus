@@ -150,6 +150,7 @@ private:
         for (size_t i = 0; i < queries.size(); ++i) {
             SetupHostContext(Host_, QueryContext_, additionalQueryIds[i], traceContext);
             SetNextQueryId(additionalQueryIds[i]);
+            PrepareSettings();
             BuildPipeline(TString(queries[i]));
             ProcessPipeline();
         }
@@ -200,11 +201,11 @@ private:
         }
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
+    }
 
-        auto querySettings = ParseCustomSettings(
-            Host_->GetConfig()->QuerySettings,
-            QueryContext_->getSettingsRef().changes(),
-            Logger);
+    void PrepareSettings()
+    {
+        auto querySettings = GetQueryContext(QueryContext_)->GetContextSettings(QueryContext_);
         ConversionSettings_ = querySettings->Conversion;
         ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
         ConversionSettings_->Composite->AnnotateResultSchemaWithNativeTypes =

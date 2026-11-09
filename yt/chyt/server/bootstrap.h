@@ -32,6 +32,7 @@ private:
     const NYTree::INodePtr ConfigNode_;
     NApi::NNative::IConnectionPtr Connection_;
     THostPtr Host_;
+    TDynamicConfigManagerPtr DynamicConfigManager_;
     IClickHouseServerPtr ClickHouseServer_;
 
     NConcurrency::TActionQueuePtr ControlQueue_;
@@ -47,6 +48,10 @@ private:
 
     void DoRun();
     void InitializeConnection();
+
+    void OnDynamicConfigChanged(
+        const TClickHouseServerDynamicConfigPtr& oldConfig,
+        const TClickHouseServerDynamicConfigPtr& newConfig);
 
     void HandleSigint();
     void HandleCrashSignal();

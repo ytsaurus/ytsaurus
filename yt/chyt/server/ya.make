@@ -21,6 +21,7 @@ PEERDIR(
     yt/yt/library/clickhouse_discovery
     yt/yt/library/clickhouse_functions
     yt/yt/library/cypress_election
+    yt/yt/library/dynamic_config
     yt/yt/library/orchid
     yt/yt/library/monitoring
     yt/yt/library/tracing/jaeger
@@ -64,6 +65,7 @@ SRCS(
     custom_data_types.cpp
     dictionary_access_control.cpp
     dictionary_source.cpp
+    dynamic_config_manager.cpp
     format.cpp
     function_helpers.cpp
     GLOBAL functions_version.cpp

@@ -59,6 +59,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <Access/AccessControl.h>
 #include <Access/User.h>
 
@@ -150,6 +152,7 @@ public:
         , TaskPullerThreadPool_(CreateThreadPool(Config_->TaskPullerThreadCount, "TaskPuller"))
         , ClickHouseTaskPullerInvoker_(CreateClickHouseInvoker(TaskPullerThreadPool_->GetInvoker()))
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
+        , EffectiveConfig_(Config_)
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         TableAttributesToFetch_ = TableAttributesToFetch;
@@ -289,6 +292,15 @@ public:
     DB::ContextMutablePtr GetContext() const
     {
         return getContext();
+    }
+
+    void Reconfigure(const TYtDynamicConfigPtr& dynamicConfig)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
+
+        auto config = CloneYsonStruct(Config_);
+        config->QuerySettings = dynamicConfig->QuerySettings;
+        EffectiveConfig_.Store(std::move(config));
     }
 
     void Start()
@@ -772,9 +784,14 @@ public:
         return QueryRegistry_;
     }
 
-    TYtConfigPtr GetConfig() const
+    const TYtConfigPtr& GetConfig() const
     {
         return Config_;
+    }
+
+    TYtConfigPtr GetEffectiveConfig() const
+    {
+        return EffectiveConfig_.Acquire();
     }
 
     EInstanceState GetInstanceState() const
@@ -1035,6 +1052,8 @@ private:
     NApi::NNative::IClientPtr DictionariesClient_;
     NApi::NNative::IClientPtr SqlObjectsClient_;
     NApi::NNative::TClientCachePtr ClientCache_;
+
+    TAtomicIntrusivePtr<TYtConfig> EffectiveConfig_;
 
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
@@ -1338,6 +1357,11 @@ THost::THost(
         std::move(config)))
 { }
 
+void THost::Reconfigure(const TYtDynamicConfigPtr& dynamicConfig)
+{
+    Impl_->Reconfigure(dynamicConfig);
+}
+
 void THost::Start()
 {
     Impl_->Start();
@@ -1522,9 +1546,14 @@ TQueryRegistryPtr THost::GetQueryRegistry() const
     return Impl_->GetQueryRegistry();
 }
 
-TYtConfigPtr THost::GetConfig() const
+const TYtConfigPtr& THost::GetConfig() const
 {
     return Impl_->GetConfig();
+}
+
+TYtConfigPtr THost::GetEffectiveConfig() const
+{
+    return Impl_->GetEffectiveConfig();
 }
 
 EInstanceState THost::GetInstanceState() const
