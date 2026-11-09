@@ -34,6 +34,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/system/atomic_object.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,6 +172,8 @@ private:
     TFuture<void> LastHeartbeatFuture_ = OKFuture;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
+    TAtomicObject<TFuture<void>> AbortFuture_;
+
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
@@ -292,6 +296,7 @@ private:
     void FillStderrResult(NControllerAgent::NProto::TJobResult* jobResult);
 
     void Abort(EJobProxyExitCode exitCode);
+    void DoAbort(EJobProxyExitCode exitCode);
 
     void LogSystemStats() const;
 

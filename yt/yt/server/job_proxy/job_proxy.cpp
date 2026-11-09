@@ -655,6 +655,11 @@ void TJobProxy::DoRun()
         YT_TLOG_INFO("CPU monitor stopped");
     }
 
+    if (auto abortFuture = AbortFuture_.Load()) {
+        WaitFor(abortFuture)
+            .ThrowOnError();
+    }
+
     if (GetJobSpecHelper()->HasSidecars()) {
         FindJobProxyEnvironment()->ShutdownSidecars();
     }
@@ -2200,6 +2205,22 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
 }
 
 void TJobProxy::Abort(EJobProxyExitCode exitCode)
+{
+    auto abortFuture = AbortFuture_.Transform([&] (TFuture<void>& future) {
+        if (!future) {
+            future = BIND(&TJobProxy::DoAbort, MakeStrong(this), exitCode)
+                .AsyncVia(JobThread_->GetInvoker())
+                .Run()
+                .ToUncancelable();
+        }
+        return future;
+    });
+
+    WaitFor(abortFuture)
+        .ThrowOnError();
+}
+
+void TJobProxy::DoAbort(EJobProxyExitCode exitCode)
 {
     if (Config_->SendHeartbeatBeforeAbort) {
         auto error = WaitFor(HeartbeatExecutor_->GetExecutedEvent());
