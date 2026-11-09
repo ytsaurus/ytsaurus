@@ -224,10 +224,13 @@ class TestQueueApi(TestQueueAgentBase):
             ref = GenericObjectPath(consumer_path, "primary", name)
             advance_consumer_partitions(queue_ref, ref, offsets_by_name[name])
 
-        def validate_pull_consumer():
+        def validate_pull_consumer(partition_indexes=None):
+            if partition_indexes is None:
+                partition_indexes = data_by_partition
             for name, offsets in offsets_by_name.items():
                 ref = GenericObjectPath(consumer_path, "primary", name)
-                for partition_index, expected_data in data_by_partition.items():
+                for partition_index in partition_indexes:
+                    expected_data = data_by_partition[partition_index]
                     pulled_data = pull_consumer(str(ref), str(queue_ref), partition_index=partition_index)
                     assert len(pulled_data) == len(expected_data) - offsets[partition_index]
                     for i, expected_entry in enumerate(expected_data[offsets[partition_index]:]):
@@ -244,9 +247,11 @@ class TestQueueApi(TestQueueAgentBase):
         for name, partition_index, offset in partition_order_to_insert:
             cur_ref = GenericObjectPath(consumer_path, "primary", name)
             offsets_by_name[name][partition_index] = offset
-            advance_consumer_partitions(queue_ref, cur_ref, offsets_by_name[name])
+            advance_consumer_partitions(queue_ref, cur_ref, {partition_index: offset})
             validate_consumer_table(consumer_path, offsets_by_name)
-            validate_pull_consumer()
+            validate_pull_consumer([partition_index])
+
+        validate_pull_consumer()
 
     @authors("panesher")
     def test_invalid_api_usage(self):
