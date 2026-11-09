@@ -118,7 +118,7 @@ You can move replicas to a new location while updating the path in the replicati
 Queue replicas are queues, so you cannot directly change the number of tablets in such replicas. Resharding of queue replicas is only possible through recreating them. This can be done in the following way:
 
 1. Create new queue replicas with the desired number of shards in sync mode and specify `catchup=%false` and `replicated_table_tracker_enabled=%false` with a new path. The latter is necessary to prevent all new replicas from becoming async.
-2. Make sure that writing has started in them: the replica lag in the interface should remain close to zero, and the `replication_lag_time` attribute should increase.
+2. Make sure that writing has started in them: the replica lag in the interface should remain close to zero, and the `replication_lag_timestamp` attribute should increase.
 3. Generate a timestamp `yt generate-timestamp` and remember it.
 4. Wait until the `replication_lag_timestamp` value of _all_ replicas is greater than the timestamp generated in the previous step. You can view the `replication_lag_timestamp` of table replicas using the command:
 ```bash
