@@ -297,6 +297,7 @@ struct TPreparePlanFragmentOptions
     bool EnableScalarSubqueryOrderByAndLimit = false; // COMPAT(dtorilov): Remove after 26.2.
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
+    bool MergeVersionedRows = true;
 };
 
 struct TPreparePlanFragmentContext

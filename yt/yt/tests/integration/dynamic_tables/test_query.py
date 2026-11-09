@@ -2160,6 +2160,8 @@ class TestQuery(DynamicTablesBase):
                 "single_column_group_by_default": False,
             })
 
+        set("//tmp/t/@mount_config/row_merger_type", "new")
+
         sync_mount_table("//tmp/t")
 
         insert_rows(
@@ -2170,6 +2172,8 @@ class TestQuery(DynamicTablesBase):
             ],
             update=True,
         )
+
+        sync_flush_table("//tmp/t")
 
         insert_rows(
             "//tmp/t",
@@ -2182,29 +2186,35 @@ class TestQuery(DynamicTablesBase):
         )
 
         def test_query(query):
-            res1 = select_rows(query, merge_versioned_rows=False)
-            res2 = select_rows(query, merge_versioned_rows=True)
+            res1 = select_rows(query, merge_versioned_rows=False, expression_builder_version=2)
+            res2 = select_rows(query, merge_versioned_rows=True, expression_builder_version=2)
             assert_items_equal(res1, res2)
 
-        test_query(
-            "k1, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k1, nk1_")
+        is_first_nested = "nk1_ = try_get_int64(nk1, \"/0\") and nk2_ = try_get_int64(nk2, \"/0\")"
 
-        test_query(
-            "k2, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k2, nk1_")
+        def make_query(gk, ngk):
+            base_query = (
+                "SELECT {}, {}_, "
+                "sum(if({}, v1, 0)) as sv1, "
+                "sum(if({}, v2, 0)) as sv2, "
+                "sum(nv1_) as snv1, sum(nv2_) as snv2 "
+                "FROM [//tmp/t] ARRAY JOIN nk1 as nk1_, nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+                "GROUP BY {}, {}_").format(gk, ngk, is_first_nested, is_first_nested, gk, ngk)
 
-        test_query(
-            "k1, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k1, nk2_")
+            inner_query = (
+                "SELECT {}, sum(snv1__) as snv1_, sum(snv2__) as snv2_ "
+                "FROM (array_agg({}_, true) as {}, array_agg(snv1, true) as snv1__, array_agg(snv2, true) as snv2__) "
+                "GROUP BY {}").format(ngk, ngk, ngk, ngk)
 
-        test_query(
-            "k2, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k2, nk2_")
+            return (
+                "{}, sum(sv1) as sv1_, sum(sv2) as sv2_, ({}) as x "
+                "FROM ({}) "
+                "GROUP BY {}").format(gk, inner_query, base_query, gk)
+
+        test_query(make_query("k1", "nk1"))
+        test_query(make_query("k2", "nk1"))
+        test_query(make_query("k1", "nk2"))
+        test_query(make_query("k2", "nk2"))
 
     @authors("sabdenovch")
     def test_array_join(self):

@@ -959,6 +959,9 @@ static void FillSelectRowsOptionsBaseFromRequest(const TRequest request, TSelect
     if (request->has_udf_registry_path()) {
         options->UdfRegistryPath = request->udf_registry_path();
     }
+    if (request->has_merge_versioned_rows()) {
+        options->MergeVersionedRows = request->merge_versioned_rows();
+    }
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
@@ -1027,9 +1030,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
     }
     if (request->has_use_canonical_null_relations()) {
         options.UseCanonicalNullRelations = request->use_canonical_null_relations();
-    }
-    if (request->has_merge_versioned_rows()) {
-        options.MergeVersionedRows = request->merge_versioned_rows();
     }
     if (request->has_syntax_version()) {
         options.SyntaxVersion = request->syntax_version();

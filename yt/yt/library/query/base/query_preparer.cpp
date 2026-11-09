@@ -253,7 +253,8 @@ void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
-    TExpressionBuilder* builder)
+    TExpressionBuilder* builder,
+    bool mergeVersionedRows = true)
 {
     if (ast.WherePredicate) {
         auto wherePredicate = BuildPredicate(*ast.WherePredicate, builder, "WHERE-clause");
@@ -305,6 +306,10 @@ void PrepareQuery(
             if (!canEvaluate) {
                 break;
             }
+        }
+
+        if (!mergeVersionedRows) {
+            keyPrefix = 0;
         }
 
         touchedKeyColumns.resize(keyPrefix);
@@ -1719,7 +1724,9 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     });
 
     std::vector<TJoinClausePtr> joinClauses;
-    size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
+    size_t commonKeyPrefix = options.MergeVersionedRows
+        ? std::numeric_limits<size_t>::max()
+        : 0;
     for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
@@ -1746,7 +1753,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             });
     }
 
-    PrepareQuery(query, queryAst, builder.get());
+    PrepareQuery(query, queryAst, builder.get(), options.MergeVersionedRows);
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
