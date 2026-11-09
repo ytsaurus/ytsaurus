@@ -2127,6 +2127,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                 ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
                 : false,
             .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MergeVersionedRows = options.MergeVersionedRows,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2329,6 +2330,7 @@ NYson::TYsonString TClient::DoExplainQuery(
                 ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
                 : false,
             .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MergeVersionedRows = options.MergeVersionedRows,
         },
         HeavyRequestMemoryUsageTracker_);
 
