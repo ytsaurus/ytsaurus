@@ -38,6 +38,8 @@
 
 #include <yt/yt/library/cypress_election/config.h>
 
+#include <yt/yt/library/dynamic_config/config.h>
+
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/library/tvm/public.h>
@@ -813,6 +815,20 @@ DEFINE_REFCOUNTED_TYPE(TExecutionProfilingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TYtDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    TQuerySettingsPtr QuerySettings;
+
+    REGISTER_YSON_STRUCT(TYtDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYtDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -1011,6 +1027,9 @@ struct TClickHouseServerBootstrapConfig
 
     TYtConfigPtr Yt;
 
+    std::optional<NYPath::TYPath> DynamicConfigPath;
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+
     //! Instance will not shutdown during this period of time after receiving signal even
     //! if there are not any running queries.
     //! To avoid receiving queries after shutdown, this value should be greater than gossip period.
@@ -1037,6 +1056,20 @@ struct TClickHouseServerBootstrapConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClickHouseServerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+    TYtDynamicConfigPtr Yt;
+
+    REGISTER_YSON_STRUCT(TClickHouseServerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TClickHouseServerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

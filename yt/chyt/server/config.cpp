@@ -652,6 +652,14 @@ void TExecutionProfilingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYtDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("query_settings", &TThis::QuerySettings)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -859,6 +867,11 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("yt", &TThis::Yt)
         .DefaultNew();
 
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default();
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+
     registrar.Parameter("graceful_interruption_delay", &TThis::GracefulInterruptionDelay)
         .Default(TDuration::Seconds(2))
         // COMPAT(dakovalkov)
@@ -949,6 +962,14 @@ TPorts TClickHouseServerBootstrapConfig::GetPorts() const
         .Http = ClickHouse->HttpPort,
         .Tcp = ClickHouse->TcpPort
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClickHouseServerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("yt", &TThis::Yt)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

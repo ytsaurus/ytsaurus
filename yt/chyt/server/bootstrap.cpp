@@ -1,13 +1,14 @@
 #include "bootstrap.h"
 
-#include "launcher_compatibility.h"
-#include "stack_size_checker.h"
-#include "host.h"
 #include "clickhouse_server.h"
 #include "clickhouse_service.h"
-#include "query_registry.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
+#include "host.h"
+#include "launcher_compatibility.h"
+#include "query_registry.h"
 #include "query_service.h"
+#include "stack_size_checker.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -194,6 +195,21 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateClickHouseService(Host_.Get()));
     RpcServer_->RegisterService(CreateQueryService(Host_.Get(), RpcQueryServiceThreadPool_->GetInvoker()));
 
+    if (Config_->DynamicConfigPath) {
+        DynamicConfigManager_ = New<TDynamicConfigManager>(
+            Config_,
+            Host_->GetRootClient(),
+            GetControlInvoker());
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(
+            &TBootstrap::OnDynamicConfigChanged,
+            Unretained(this)));
+
+        SetNodeByYPath(
+            orchidRoot,
+            "/dynamic_config",
+            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+    }
+
     SetNodeByYPath(
         orchidRoot,
         "/queries",
@@ -214,6 +230,10 @@ void TBootstrap::DoRun()
     YT_TLOG_INFO("Monitoring HTTP server set up")
         .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
+
+    if (DynamicConfigManager_) {
+        DynamicConfigManager_->Start();
+    }
 
     YT_TLOG_INFO("RPC server set up")
         .With("Port", Config_->RpcPort);
@@ -266,6 +286,24 @@ void TBootstrap::InitializeConnection()
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+void TBootstrap::OnDynamicConfigChanged(
+    const TClickHouseServerDynamicConfigPtr& /*oldConfig*/,
+    const TClickHouseServerDynamicConfigPtr& newConfig)
+{
+    TSingletonManager::Reconfigure(newConfig);
+
+    // Query settings precedence: query/session > explicit static/speclet >
+    // dynamic config > built-in defaults.
+    if (auto querySettingsNode = FindNodeByYPath(ConfigNode_, "/yt/query_settings")) {
+        newConfig->Yt->QuerySettings->Load(
+            querySettingsNode,
+            /*postprocess*/ true,
+            /*setDefaults*/ false);
+    }
+
+    Host_->Reconfigure(newConfig->Yt);
 }
 
 void TBootstrap::HandleCrashSignal()

@@ -136,7 +136,7 @@ TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContex
 {
     YT_TLOG_INFO("Storage context created");
 
-    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+    Settings = queryContext->GetContextSettings(context);
 }
 
 TStorageContext::~TStorageContext()
@@ -257,7 +257,10 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    SessionSettings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+    SessionSettings = ParseCustomSettings(
+        Host->GetEffectiveConfig()->QuerySettings,
+        context->getSettingsRef().changes(),
+        Logger);
 
     if (ParentTransactionId) {
         SessionSettings->Execution->TableReadLockMode = ETableReadLockMode::Sync;
