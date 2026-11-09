@@ -516,6 +516,16 @@ BuildYsonFluently(consumer)
 
 <!------------------------------------------------------------------------------------>
 
+### Containers
+
+For general-purpose containers, prefer standard types over their wrappers and counterparts in `util`, e.g. `std::vector` over `TVector`, `std::deque` over `TDeque`, and `std::set` over `TSet`.
+
+Hash containers are the exception: prefer `THashMap` and `THashSet` over `std::unordered_map` and `std::unordered_set`, and `THashMultiMap` and `THashMultiSet` over their standard counterparts.
+
+Use other `util` container wrappers only when interoperability with existing code requires them or when the standard counterpart lacks required functionality.
+
+<!------------------------------------------------------------------------------------>
+
 ### Forward Declarations
 
 We strongly rely on forward declarations, preferring them over includes whenever possible. We extract them into separate files named `public.h`/`private.h` which serve as a collection of forward declarations for the whole directory. Forward declarations that may be used outside of the directory are placed into `public.h`, the rest are placed into `private.h` (which usually includes `public.h`).
