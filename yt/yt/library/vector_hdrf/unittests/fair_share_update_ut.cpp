@@ -52,6 +52,19 @@ protected:
         return pool;
     }
 
+    TPoolElementMockPtr CreateGpuPool(
+        std::string id,
+        int strongGuaranteeGpu,
+        std::optional<double> strongGuaranteeCpu = std::nullopt)
+    {
+        auto pool = New<TPoolElementMock>(std::move(id));
+        auto config = New<TTestJobResourcesConfig>();
+        config->Cpu = strongGuaranteeCpu;
+        config->Gpu = strongGuaranteeGpu;
+        pool->SetStrongGuaranteeResourcesConfig(config);
+        return pool;
+    }
+
     TPoolElementMockPtr CreateIntegralPool(
         std::string id,
         EIntegralGuaranteeType type,
@@ -2367,6 +2380,156 @@ TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationUn
     EXPECT_RV_NEAR(Unit * 0.25, firstFittingGang->Attributes().FairShare.Total);
     EXPECT_RV_NEAR(Unit * 0.25, secondFittingGang->Attributes().FairShare.Total);
     EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, ImplicitCpuGuaranteesDoNotOvercommitParent)
+{
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetCpu(2922.57);
+    totalResourceLimits.SetGpu(256);
+    auto rootElement = CreateRootElement();
+
+    auto parent = CreateGpuPool("Parent", 256);
+    parent->AttachParent(rootElement.Get());
+    auto firstChild = CreateGpuPool("FirstChild", 128);
+    firstChild->AttachParent(parent.Get());
+    auto secondChild = CreateGpuPool("SecondChild", 128);
+    secondChild->AttachParent(parent.Get());
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{.MainResource = EJobResourceType::Gpu});
+
+    EXPECT_LE(
+        firstChild->Attributes().InferredStrongGuaranteeResources.GetCpu() +
+            secondChild->Attributes().InferredStrongGuaranteeResources.GetCpu(),
+        parent->Attributes().InferredStrongGuaranteeResources.GetCpu());
+    EXPECT_NEAR(0.5, firstChild->Attributes().StrongGuaranteeShare[EJobResourceType::Gpu], 1e-12);
+    EXPECT_NEAR(0.5, secondChild->Attributes().StrongGuaranteeShare[EJobResourceType::Gpu], 1e-12);
+}
+
+TEST_F(TFairShareUpdateTest, ImplicitCpuGuaranteesRoundDownToHundredths)
+{
+    struct TTestCase
+    {
+        const double ParentCpu;
+        const int ChildCount;
+        const double ExpectedChildCpu;
+    };
+
+    const TTestCase testCases[] = {
+        {.ParentCpu = 0.0, .ChildCount = 3, .ExpectedChildCpu = 0.0},
+        {.ParentCpu = 1.50, .ChildCount = 3, .ExpectedChildCpu = 0.50},
+        {.ParentCpu = 3.70, .ChildCount = 3, .ExpectedChildCpu = 1.23},
+        {.ParentCpu = 3.71, .ChildCount = 3, .ExpectedChildCpu = 1.23},
+        {.ParentCpu = 2.47, .ChildCount = 2, .ExpectedChildCpu = 1.23},
+        {.ParentCpu = 1000.05, .ChildCount = 3, .ExpectedChildCpu = 333.35},
+        {.ParentCpu = 1000.26, .ChildCount = 3, .ExpectedChildCpu = 333.41},
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(Format("ParentCpu: %v, ChildCount: %v", testCase.ParentCpu, testCase.ChildCount));
+        TJobResources totalResourceLimits;
+        totalResourceLimits.SetCpu(testCase.ParentCpu);
+        totalResourceLimits.SetGpu(testCase.ChildCount);
+        auto rootElement = CreateRootElement();
+
+        for (int index = 0; index < testCase.ChildCount; ++index) {
+            auto child = CreateGpuPool(Format("Child%v", index), 1);
+            child->AttachParent(rootElement.Get());
+        }
+
+        DoFairShareUpdate(
+            totalResourceLimits,
+            rootElement,
+            TTestFairShareUpdateOptions{.MainResource = EJobResourceType::Gpu});
+
+        for (int index = 0; index < testCase.ChildCount; ++index) {
+            SCOPED_TRACE(index);
+            const auto& attributes = rootElement->GetChild(index)->Attributes();
+            EXPECT_DOUBLE_EQ(testCase.ExpectedChildCpu, static_cast<double>(attributes.InferredStrongGuaranteeResources.GetCpu()));
+        }
+    }
+}
+
+TEST_F(TFairShareUpdateTest, ImplicitCpuGuaranteesRespectExplicitCpu)
+{
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetCpu(2922.57);
+    totalResourceLimits.SetGpu(256);
+    auto rootElement = CreateRootElement();
+
+    auto parent = CreateGpuPool("Parent", 256);
+    parent->AttachParent(rootElement.Get());
+    auto explicitChild = CreateGpuPool("ExplicitChild", 128, /*strongGuaranteeCpu*/ 1461.29);
+    explicitChild->AttachParent(parent.Get());
+    auto implicitChild = CreateGpuPool("ImplicitChild", 128);
+    implicitChild->AttachParent(parent.Get());
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{.MainResource = EJobResourceType::Gpu});
+
+    EXPECT_DOUBLE_EQ(1461.29, static_cast<double>(explicitChild->Attributes().InferredStrongGuaranteeResources.GetCpu()));
+    EXPECT_DOUBLE_EQ(1461.28, static_cast<double>(implicitChild->Attributes().InferredStrongGuaranteeResources.GetCpu()));
+    EXPECT_NEAR(0.5, explicitChild->Attributes().StrongGuaranteeShare[EJobResourceType::Gpu], 1e-12);
+    EXPECT_NEAR(0.5, implicitChild->Attributes().StrongGuaranteeShare[EJobResourceType::Gpu], 1e-12);
+}
+
+TEST_P(TFairShareUpdateParametrizedTest, FifoGangReceivesFullGpuGuaranteeAfterCpuInference)
+{
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetCpu(20'000);
+    totalResourceLimits.SetGpu(1336);
+    auto rootElement = CreateRootElement();
+
+    auto parent = CreateGpuPool("Parent", 256, /*strongGuaranteeCpu*/ 2922.57);
+    parent->AttachParent(rootElement.Get());
+    auto outsideCompetitor = CreateGpuPool("OutsideCompetitor", 1080, /*strongGuaranteeCpu*/ 17077.43);
+    outsideCompetitor->AttachParent(rootElement.Get());
+    auto firstChild = CreateGpuPool("FirstChild", 128);
+    firstChild->AttachParent(parent.Get());
+    auto secondChild = CreateGpuPool("SecondChild", 128);
+    secondChild->AttachParent(parent.Get());
+    auto fifoPool = CreateGpuPool("FifoPool", 80);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(firstChild.Get());
+    auto sibling = CreateGpuPool("Sibling", 48);
+    sibling->AttachParent(firstChild.Get());
+
+    TJobResources gangDemand;
+    gangDemand.SetCpu(620);
+    gangDemand.SetGpu(80);
+    auto gang = CreateGangOperation(fifoPool.Get(), gangDemand);
+    gang->SetWeight(2.0);
+    auto smallerGang = CreateGangOperation(fifoPool.Get(), gangDemand * 0.5);
+    smallerGang->SetWeight(1.0);
+
+    TJobResources competingDemand;
+    competingDemand.SetCpu(1336);
+    competingDemand.SetGpu(1336);
+    CreateOperation(sibling.Get(), competingDemand);
+    CreateOperation(secondChild.Get(), competingDemand);
+    CreateOperation(outsideCompetitor.Get(), competingDemand);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .MainResource = EJobResourceType::Gpu,
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = GetParam(),
+        });
+
+    EXPECT_NEAR(80.0 / 1336, fifoPool->Attributes().StrongGuaranteeShare[EJobResourceType::Gpu], 1e-12);
+    ASSERT_EQ(0, gang->Attributes().FifoIndex);
+    EXPECT_EQ(0, gang->Attributes().EffectiveFifoIndex.value_or(*gang->Attributes().FifoIndex));
+    EXPECT_NEAR(80.0 / 1336, gang->Attributes().FairShare.Total[EJobResourceType::Gpu], 1e-12);
+    EXPECT_NEAR(0.0, smallerGang->Attributes().FairShare.Total[EJobResourceType::Gpu], 1e-12);
 }
 
 TEST_F(TFairShareUpdateTest, TestFifoFastPathEquivalence)
