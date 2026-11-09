@@ -38,6 +38,7 @@ struct TSyncSinkParameters
     std::optional<THashSet<std::string>> AggregateColumns;
     bool DeleteRows{};
     bool RequireSyncReplica{};
+    bool AllowMissingKeyColumns{};
 
     REGISTER_YSON_STRUCT(TSyncSinkParameters);
 
@@ -68,6 +69,7 @@ struct TAsyncSinkParameters
     std::optional<THashSet<std::string>> AggregateColumns;
     bool DeleteRows{};
     bool RequireSyncReplica{};
+    bool AllowMissingKeyColumns{};
 
     REGISTER_YSON_STRUCT(TAsyncSinkParameters);
 

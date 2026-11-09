@@ -9,15 +9,18 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 **Required parameter**
 Path to the target sorted dynamic table with the cluster specified. ||
 || `column_filter` | **Type**: `std::optional<THashSet<std::string>>`
-Which columns from the message to write to the table (default &mdash; all). When using the `delete_rows` parameter, you must specify the key columns of the target table, otherwise deletions will fail. ||
+Which columns from the message to write to the table (default &mdash; all). When using the `delete_rows` parameter, all key columns must be specified unless `allow_missing_key_columns` is enabled. If `allow_missing_key_columns` is enabled, missing key columns are treated as `null`. ||
 || `aggregate_columns` | **Type**: `std::optional<THashSet<std::string>>`
 Aggregate writes are unsupported: omit this parameter or provide an empty list. An asynchronous write may replay an already committed batch after recovery, which makes non-idempotent aggregation unsafe. ||
 || `delete_rows` | **Type**: `bool`
 **Default value**: `false`
-If set to `true`, rows will be deleted instead of inserted. In this mode, make sure that `column_filter` selects the key columns of the target table. ||
+If set to `true`, rows will be deleted instead of inserted. In this mode, make sure that `column_filter` selects the key columns of the target table. With `allow_missing_key_columns = true`, missing key columns are treated as `null`. ||
 || `require_sync_replica` | **Type**: `bool`
 **Default value**: `true`
 If set to `false`, the presence of a synchronous replica is not checked when writing rows to the target table. The default value is `true`. ||
+|| `allow_missing_key_columns` | **Type**: `bool`
+**Default value**: `false`
+If set to `true`, missing key columns of the target table are treated as `null` when writing or deleting rows. This also applies to columns absent from the input stream schema or excluded by `column_filter`. The target table schema must allow `null` in these columns. ||
 |#
 
 
