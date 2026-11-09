@@ -105,6 +105,15 @@ class TestYtflowBase(TestQueueAgentBase):
         },
     }
 
+    # Tolerate heartbeat delays without restarting runtime jobs.
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_tracker": {
+                "node_disconnection_timeout": 10000,
+            },
+        },
+    }
+
     # Avoid tablet commit timestamp batching and reuse nearby resource-limit checks.
     DELTA_NODE_CONFIG = {
         # Persist tablet journal records without the data-node batching delay.
@@ -276,7 +285,7 @@ class TestYtflowBase(TestQueueAgentBase):
                            'cache_period=100;feedback_period=10;'
                            'publish_retry_period=1000;'
                            'publish_request_timeout=10000;'
-                           'election_manager={transaction_timeout=1000;transaction_ping_period=100;'
+                           'election_manager={transaction_timeout=10000;transaction_ping_period=100;'
                            'lock_acquisition_period=100;leader_cache_update_period=100;};'
                            'controller_service={set_spec_retry_period=100};}'),
                 dict(name='_ControllerConnectorConfig',
