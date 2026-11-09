@@ -76,6 +76,8 @@ void TDynamicClickHouseConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("ignore_missing_credentials", &TThis::IgnoreMissingCredentials)
         .Default(false);
+    registrar.Parameter("enable_service_ticket_submission", &TThis::EnableServiceTicketSubmission)
+        .Default(false);
     registrar.Parameter("dead_instance_retry_count", &TThis::DeadInstanceRetryCount)
         .Default(6);
     registrar.Parameter("retry_without_update_limit", &TThis::RetryWithoutUpdateLimit)
