@@ -52,7 +52,7 @@ class TestChaos(ChaosTestBase):
     # TODO(nadya73): split this test suite.
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 40
+    NUM_TEST_PARTITIONS = 60
     NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
     NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 1
 
