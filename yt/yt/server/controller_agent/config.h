@@ -938,6 +938,8 @@ struct TControllerAgentConfig
     //! Desired number of chunks to release in one batch.
     int DesiredChunkListsPerRelease;
 
+    bool EnableUnstageChunkTreesBatching;
+
     //! Number of the master cells to use for intermediate data storage.
     int IntermediateOutputMasterCellCount;
 
