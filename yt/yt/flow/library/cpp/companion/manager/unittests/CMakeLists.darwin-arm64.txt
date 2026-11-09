@@ -56,6 +56,7 @@ target_link_options(yt-flow-library-cpp-companion-manager-unittests PRIVATE
 
 target_sources(yt-flow-library-cpp-companion-manager-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/companion_entrypoint_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/companion_process_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/java_companion_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/java_process_manager_ut.cpp

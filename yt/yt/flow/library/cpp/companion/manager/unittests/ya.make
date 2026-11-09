@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     companion_entrypoint_ut.cpp
+    companion_process_manager_ut.cpp
     config_ut.cpp
     java_companion_manager_ut.cpp
     java_process_manager_ut.cpp

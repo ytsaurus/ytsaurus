@@ -10,7 +10,7 @@ namespace NYT::NFlow::NCompanion {
 /*!
  *  Adds three Java-specific shortcut fields on top of the generic companion params.
  *  TJavaCompanionManager spawns the JVM via TJavaProcessManager using these fields directly,
- *  bypassing the generic `entrypoint`.
+ *  using `entrypoint.env` for additional environment variables.
  */
 struct TJavaCompanionManagerParameters
     : public TCompanionManagerParameters

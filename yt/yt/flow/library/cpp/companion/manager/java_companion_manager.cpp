@@ -1,4 +1,5 @@
 #include "java_companion_manager.h"
+#include "companion_entrypoint.h"
 #include "java_process_manager.h"
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -25,6 +26,10 @@ TJavaCompanionManager::TJavaCompanionManager(TResourceContextPtr context, TDynam
 
 TProcessManagerBasePtr TJavaCompanionManager::CreateProcessManager()
 {
+    THashMap<std::string, std::string> environment;
+    if (const auto& entrypoint = GetParameters()->Entrypoint) {
+        environment = entrypoint->Env;
+    }
     return New<TJavaProcessManager>(
         GetContext()->Invoker,
         CompanionClient_,
@@ -38,7 +43,8 @@ TProcessManagerBasePtr TJavaCompanionManager::CreateProcessManager()
         GetContext()->StatusProfiler->WithPrefix("/companion_process_manager"),
         GetParameters()->JdkBinPath,
         GetParameters()->Classpath,
-        GetParameters()->MainClass);
+        GetParameters()->MainClass,
+        environment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

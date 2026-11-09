@@ -30,7 +30,8 @@ public:
         const IStatusProfilerPtr& statusProfiler,
         const std::string& jdkBinPath,
         const std::string& classpath,
-        const std::string& mainClass);
+        const std::string& mainClass,
+        const THashMap<std::string, std::string>& environment = {});
 
 protected:
     //! Validates that JDK binary path, main class, and classpath are properly configured.
@@ -48,6 +49,9 @@ private:
 
     //! Fully-qualified main class name to execute.
     const std::string MainClass_;
+
+    //! Environment saved in the resource spec and reused for every incarnation.
+    const THashMap<std::string, std::string> Environment_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJavaProcessManager);
