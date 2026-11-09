@@ -31,37 +31,60 @@ func asMapNode(ysonNode any) (asMap map[string]any, err error) {
 	return
 }
 
-type configNodeWithAliases struct {
-	aliases []string
-	node    map[string]*configNodeWithAliases
+type configAliases map[string]configAlias
+
+type configAlias struct {
+	aliases  []string
+	children configAliases
 }
 
-func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWithAliases *configNodeWithAliases) bool {
+func aliases(names ...string) configAlias {
+	return configAlias{aliases: names}
+}
+
+func normalizeConfigAliases(configMapNode map[string]any, configWithAliases configAliases) (map[string]any, error) {
+	config, err := cloneNode(configMapNode)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		config = make(map[string]any)
+	}
+	configMapNode, err = asMapNode(config)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, fieldAliases := range configWithAliases {
+		for _, alias := range fieldAliases.aliases {
+			value, ok := configMapNode[alias]
+			if !ok {
+				continue
+			}
+			if _, ok := configMapNode[key]; ok {
+				return nil, fmt.Errorf("config field %q is specified more than once (alias %q)", key, alias)
+			}
+			configMapNode[key] = value
+			delete(configMapNode, alias)
+		}
+		if child, ok := configMapNode[key].(map[string]any); ok && len(fieldAliases.children) > 0 {
+			child, err = normalizeConfigAliases(child, fieldAliases.children)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", key, err)
+			}
+			configMapNode[key] = child
+		}
+	}
+	return configMapNode, nil
+}
+
+func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any) bool {
 	if len(exclusionMapNode) == 0 {
 		return true
 	}
 
 	for key, val := range exclusionMapNode {
-		aliases := []string{key}
-
-		// NB: Strawberry does not know the exact structure of the CHYT yson config, which may contain aliases.
-		// When patching the speclet config with controller's defaults, we can create an incorrect config that ignores the existing aliases.
-		// This code tries to account for the presence of aliases.
-		var nodeWithAliases *configNodeWithAliases
-		if configWithAliases != nil {
-			nodeWithAliases = configWithAliases.node[key]
-		}
-		if nodeWithAliases != nil {
-			aliases = append(aliases, nodeWithAliases.aliases...)
-		}
-
-		var configVal any
-		var ok bool
-		for _, keyAlias := range aliases {
-			if configVal, ok = configMapNode[keyAlias]; ok {
-				break
-			}
-		}
+		configVal, ok := configMapNode[key]
 		if !ok {
 			continue
 		}
@@ -69,7 +92,7 @@ func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWi
 		// It's fine if the cast doesn't succeed; the recursive calls will handle it.
 		exclusionValMap, _ := val.(map[string]any)
 		configValMap, _ := configVal.(map[string]any)
-		if pruneSpecletConfig(configValMap, exclusionValMap, configWithAliases) {
+		if pruneSpecletConfig(configValMap, exclusionValMap) {
 			delete(configMapNode, key)
 		}
 	}
@@ -78,28 +101,9 @@ func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWi
 }
 
 // Add missing keys from defaultsMapNode to configMapNode.
-func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWithAliases *configNodeWithAliases) {
+func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any) {
 	for key, defaultVal := range defaultsMapNode {
-		aliases := []string{key}
-
-		// NB: Strawberry does not know the exact structure of the CHYT yson config, which may contain aliases.
-		// When patching the speclet config with controller's defaults, we can create an incorrect config that ignores the existing aliases.
-		// This code tries to account for the presence of aliases.
-		var nodeWithAliases *configNodeWithAliases
-		if configWithAliases != nil {
-			nodeWithAliases = configWithAliases.node[key]
-		}
-		if nodeWithAliases != nil {
-			aliases = append(aliases, nodeWithAliases.aliases...)
-		}
-
-		var configVal any
-		var ok bool
-		for _, keyAlias := range aliases {
-			if configVal, ok = configMapNode[keyAlias]; ok {
-				break
-			}
-		}
+		configVal, ok := configMapNode[key]
 		if !ok {
 			configMapNode[key] = defaultVal
 			continue
@@ -108,7 +112,7 @@ func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWi
 		configValMap, configValIsMap := configVal.(map[string]any)
 		defaultValMap, defaultValIsMap := defaultVal.(map[string]any)
 		if configValIsMap && defaultValIsMap {
-			applyConfigDefaults(configValMap, defaultValMap, nodeWithAliases)
+			applyConfigDefaults(configValMap, defaultValMap)
 		}
 	}
 }
@@ -129,11 +133,11 @@ func (c *Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet
 	if len(c.config.SpecletConfigExclusionTree) > 0 {
 		ytCfgExclusionVal := c.config.SpecletConfigExclusionTree["clickhouse"]
 		ytCfgExclusionMapNode, _ := ytCfgExclusionVal.(map[string]any)
-		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode, nil)
+		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode)
 	}
 
 	if c.config.DefaultSpeclet != nil {
-		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.ClickHouseConfig, nil)
+		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.ClickHouseConfig)
 	}
 
 	if _, ok := configAsMap["path_to_regions_names_files"]; !ok {
@@ -193,36 +197,34 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
-	config, err = cloneNode(speclet.YTConfig)
-	if err != nil {
-		return
-	}
-	if config == nil {
-		config = make(map[string]any)
-	}
-	configAsMap, err := asMapNode(config)
-	if err != nil {
-		return
-	}
+// COMPAT(buyval01): migrate speclet configs and remove alias
+var ytConfigAliases = configAliases{
+	"query_settings": aliases("settings"),
+}
 
-	// TODO(buyval01): migrate speclet configs and remove alias
-	configWithAlises := &configNodeWithAliases{
-		node: map[string]*configNodeWithAliases{
-			"query_settings": &configNodeWithAliases{
-				aliases: []string{"settings"},
-			},
-		},
+func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+	configAsMap, err := normalizeConfigAliases(speclet.YTConfig, ytConfigAliases)
+	if err != nil {
+		return nil, err
 	}
+	config = configAsMap
 
 	if len(c.config.SpecletConfigExclusionTree) > 0 {
 		ytCfgExclusionVal := c.config.SpecletConfigExclusionTree["yt"]
 		ytCfgExclusionMapNode, _ := ytCfgExclusionVal.(map[string]any)
-		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode, configWithAlises)
+		ytCfgExclusionMapNode, err = normalizeConfigAliases(ytCfgExclusionMapNode, ytConfigAliases)
+		if err != nil {
+			return nil, err
+		}
+		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode)
 	}
 
 	if c.config.DefaultSpeclet != nil {
-		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.YTConfig, configWithAlises)
+		defaults, err := normalizeConfigAliases(c.config.DefaultSpeclet.YTConfig, ytConfigAliases)
+		if err != nil {
+			return nil, err
+		}
+		applyConfigDefaults(configAsMap, defaults)
 	}
 
 	if _, ok := configAsMap["clique_alias"]; !ok {
