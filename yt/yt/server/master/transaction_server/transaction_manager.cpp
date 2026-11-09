@@ -154,6 +154,17 @@ using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransacti
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TInstant> GetDeadline(const auto& ctx)
+{
+    return ctx->GetTimeout().transform([&] (TDuration timeout) -> TInstant {
+        return ctx->GetStartTime().value_or(TInstant::Now()) + timeout;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionContextGuard
 {
 public:
@@ -255,6 +266,8 @@ private:
     std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
     std::optional<TSequoiaRevisionGuard> SequoiaRevisionGuard_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! When a mirrored Cypress transaction is used as a prerequisite for another
 //! transaction commit (e.g. for committing Sequoia transactions), the
@@ -414,6 +427,8 @@ private:
     THashMap<TTransaction*, TCompactFlatSet<ILease*, 2>> TransactionToReferencedLeases_;
     THashMap<ILease*, TCompactFlatSet<TTransaction*, 4>> LeaseToReferencingTransactions_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -2262,7 +2277,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
-        context->ReplyFrom(responseFuture);
+        context->ReplyFrom(responseFuture.WithDeadline(GetDeadline(context)));
     }
 
     // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
@@ -2334,7 +2349,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
-        context->ReplyFrom(responseFuture);
+        context->ReplyFrom(responseFuture.WithDeadline(GetDeadline(context)));
         return true;
     }
 
@@ -2480,11 +2495,13 @@ public:
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+
         context->ReplyFrom(DoAbortTransaction(
             std::move(mutation),
             transaction,
             force,
-            context->GetAuthenticationIdentity()));
+            context->GetAuthenticationIdentity())
+            .WithDeadline(GetDeadline(context)));
     }
 
     // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
@@ -2521,7 +2538,8 @@ public:
             std::move(mutation),
             transaction,
             force,
-            context->GetAuthenticationIdentity()));
+            context->GetAuthenticationIdentity())
+            .WithDeadline(GetDeadline(context)));
         return true;
     }
 
