@@ -1522,7 +1522,7 @@ protected:
             bool enableKeyGuarantee)
             : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
-            , MultiChunkPool_(CreateMultiChunkPool({}))
+            , MultiChunkPool_(controller->CreateSortedMergeMultiChunkPool())
         {
             ChunkPoolInput_ = CreateTaskUpdatingAdapter(MultiChunkPool_, this);
 
@@ -3002,6 +3002,26 @@ protected:
         streamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
 
         return streamDescriptor;
+    }
+
+    IMultiChunkPoolPtr CreateSortedMergeMultiChunkPool()
+    {
+        TMultiChunkPoolOptions options;
+        if (Spec_->EnableSharedJobSizeAdjuster && Options_->EnableSortedMergeInSortJobSizeAdjustment) {
+            auto jobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
+                Spec_,
+                Options_,
+                GetOutputTablePaths().size(),
+                ExpectedPartitionCount_);
+            if (jobSizeConstraints->CanAdjustDataWeightPerJob()) {
+                options.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
+                options.InitialDataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
+            }
+        }
+
+        return CreateMultiChunkPool(
+            /*underlyingPools*/ {},
+            options);
     }
 
     IPersistentChunkPoolPtr CreateSortedMergeChunkPool(std::string name)

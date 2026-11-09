@@ -16,6 +16,7 @@ DECLARE_REFCOUNTED_STRUCT(IChunkPoolInput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutputWithOrderedCookies)
 DECLARE_REFCOUNTED_STRUCT(IChunkPool)
+DECLARE_REFCOUNTED_STRUCT(IJobSizeAdjuster)
 
 struct TPersistentChunkStripeStatistics;
 

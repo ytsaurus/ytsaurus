@@ -1,6 +1,9 @@
 #include "chunk_pool.h"
 #include "multi_chunk_pool.h"
 
+#include "config.h"
+#include "job_size_adjuster.h"
+
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
@@ -173,8 +176,17 @@ public:
     //! Used only for persistence.
     TMultiChunkPoolOutput() = default;
 
-    explicit TMultiChunkPoolOutput(std::vector<IPersistentChunkPoolOutputPtr> underlyingPools)
+    TMultiChunkPoolOutput(
+        std::vector<IPersistentChunkPoolOutputPtr> underlyingPools,
+        const TMultiChunkPoolOptions& options)
     {
+        if (options.JobSizeAdjusterConfig) {
+            YT_VERIFY(options.InitialDataWeightPerJob > 0);
+            JobSizeAdjuster_ = CreateJobSizeAdjuster(
+                options.InitialDataWeightPerJob,
+                options.JobSizeAdjusterConfig);
+        }
+
         UnderlyingPools_.reserve(underlyingPools.size());
         PendingPoolIterators_.reserve(underlyingPools.size());
 
@@ -184,6 +196,11 @@ public:
         }
 
         CheckCompleted();
+    }
+
+    void AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& /*jobSizeAdjuster*/) override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     const TProgressCounterPtr& GetJobCounter() const override
@@ -343,6 +360,10 @@ public:
         YT_VERIFY(!UnderlyingPools_[poolIndex]);
         YT_VERIFY(PendingPoolIterators_[poolIndex] == PendingPools_.end());
 
+        if (JobSizeAdjuster_) {
+            pool->AttachJobSizeAdjuster(JobSizeAdjuster_);
+        }
+
         pool->GetJobCounter()->AddParent(JobCounter_);
         pool->GetDataWeightCounter()->AddParent(DataWeightCounter_);
         pool->GetRowCounter()->AddParent(RowCounter_);
@@ -361,6 +382,8 @@ public:
 
 private:
     std::vector<IPersistentChunkPoolOutputPtr> UnderlyingPools_;
+
+    IJobSizeAdjusterPtr JobSizeAdjuster_;
 
     //! Number of uncompleted pools.
     int ActivePoolCount_ = 0;
@@ -510,6 +533,7 @@ void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, BlockedPools_);
     PHOENIX_REGISTER_FIELD(10, Finalized_);
     PHOENIX_REGISTER_FIELD(11, IsCompleted_);
+    PHOENIX_REGISTER_FIELD(12, JobSizeAdjuster_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics
@@ -540,12 +564,15 @@ public:
 
     TMultiChunkPool(
         std::vector<IPersistentChunkPoolInputPtr> underlyingPoolsInput,
-        std::vector<IPersistentChunkPoolOutputPtr> underlyingPoolsOutput)
+        std::vector<IPersistentChunkPoolOutputPtr> underlyingPoolsOutput,
+        const TMultiChunkPoolOptions& options)
         : TMultiChunkPoolInput([&] {
             YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
             return std::move(underlyingPoolsInput);
           }())
-        , TMultiChunkPoolOutput(std::move(underlyingPoolsOutput))
+        , TMultiChunkPoolOutput(
+            std::move(underlyingPoolsOutput),
+            options)
     { }
 
     void AddPool(IPersistentChunkPoolPtr pool, int poolIndex) override
@@ -574,17 +601,24 @@ IMultiChunkPoolInputPtr CreateMultiChunkPoolInput(
 }
 
 IMultiChunkPoolOutputPtr CreateMultiChunkPoolOutput(
-    std::vector<IPersistentChunkPoolOutputPtr> underlyingPools)
+    std::vector<IPersistentChunkPoolOutputPtr> underlyingPools,
+    const TMultiChunkPoolOptions& options)
 {
-    return New<TMultiChunkPoolOutput>(std::move(underlyingPools));
+    return New<TMultiChunkPoolOutput>(
+        std::move(underlyingPools),
+        options);
 }
 
 IMultiChunkPoolPtr CreateMultiChunkPool(
-    std::vector<IPersistentChunkPoolPtr> underlyingPools)
+    std::vector<IPersistentChunkPoolPtr> underlyingPools,
+    const TMultiChunkPoolOptions& options)
 {
     std::vector<IPersistentChunkPoolInputPtr> inputPools(underlyingPools.begin(), underlyingPools.end());
     std::vector<IPersistentChunkPoolOutputPtr> outputPools(underlyingPools.begin(), underlyingPools.end());
-    return New<TMultiChunkPool>(std::move(inputPools), std::move(outputPools));
+    return New<TMultiChunkPool>(
+        std::move(inputPools),
+        std::move(outputPools),
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

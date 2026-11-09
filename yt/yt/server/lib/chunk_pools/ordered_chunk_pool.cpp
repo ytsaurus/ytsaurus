@@ -86,9 +86,13 @@ public:
         }
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
-            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+            auto jobSizeAdjuster = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                jobSizeAdjuster,
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig->DataWeightFactor);
         }
 
         if (JobSizeConstraints_->GetBatchRowCount()) {
@@ -142,6 +146,7 @@ public:
         SetupSuspendedStripes();
 
         BuildJobsAndFindTeleportChunks();
+        ConsiderAdjustingJobSize();
         CheckCompleted();
     }
 
@@ -159,6 +164,7 @@ public:
         Stripes_[cookie].Resume();
         if (Finished) {
             JobManager_->Resume(cookie);
+            ConsiderAdjustingJobSize();
         }
     }
 
@@ -188,20 +194,8 @@ public:
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 
         if (JobSizeAdjuster_) {
-            // No point in enlarging jobs if we cannot at least double them.
-            auto action = EJobAdjustmentAction::None;
-            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
-                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
-            }
-
-            if (action == EJobAdjustmentAction::RebuildJobs) {
-                YT_TLOG_INFO("Job completion triggered enlargement")
-                    .With("JobCookie", cookie);
-                JobManager_->Enlarge(
-                    JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeConstraints_);
-            }
+            JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            ConsiderAdjustingJobSize();
         }
 
         CheckCompleted();
@@ -293,6 +287,23 @@ private:
     bool SingleJob_ = false;
 
     bool IsCompleted_ = false;
+
+    void ConsiderAdjustingJobSize()
+    {
+        // Avoid expensive enlargement when few adjacent pending jobs are likely to remain.
+        if (!Finished || !JobSizeAdjuster_ ||
+            JobManager_->JobCounter()->GetPending() <= JobManager_->JobCounter()->GetRunning())
+        {
+            return;
+        }
+
+        if (auto dataWeightPerJob = JobSizeAdjuster_->TryGetNewDataWeightPerJob()) {
+            JobManager_->Enlarge(
+                *dataWeightPerJob,
+                *dataWeightPerJob,
+                JobSizeConstraints_);
+        }
+    }
 
     void SetupSuspendedStripes()
     {
@@ -407,6 +418,10 @@ private:
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
                 JobSizeConstraints_);
+        }
+
+        if (JobSizeAdjuster_) {
+            JobSizeAdjuster_->Reset(JobSizeConstraints_->GetDataWeightPerJob());
         }
 
         // TODO(apollo1321): Why do we need to update input data weight here?

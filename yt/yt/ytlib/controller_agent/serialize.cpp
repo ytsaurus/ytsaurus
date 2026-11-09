@@ -15,7 +15,7 @@ bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
     return
-        version >= ToUnderlying(ESnapshotVersion::BumpTo_27_1) &&
+        version >= ToUnderlying(ESnapshotVersion::SharedJobSizeAdjuster) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 

@@ -1,5 +1,6 @@
 #include "sorted_chunk_pool.h"
 
+#include "config.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
 #include "job_size_adjuster.h"
@@ -134,9 +135,14 @@ public:
         YT_VERIFY(RowBuffer_);
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
-            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+            auto jobSizeAdjuster = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
+            JobSizeAdjustmentFactor_ = options.JobSizeAdjusterConfig->DataWeightFactor;
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                jobSizeAdjuster,
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                JobSizeAdjustmentFactor_);
         }
 
         YT_TLOG_INFO("Sorted chunk pool created")
@@ -217,6 +223,7 @@ public:
         Stripes_[cookie].Resume();
         if (Finished) {
             JobManager_->Resume(cookie);
+            ConsiderAdjustingJobSize();
         }
     }
 
@@ -235,6 +242,12 @@ public:
         }
 
         CheckCompleted();
+    }
+
+    IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
+    {
+        ConsiderAdjustingJobSize();
+        return TChunkPoolOutputWithJobManagerBase::Extract(nodeId);
     }
 
     bool IsCompleted() const override
@@ -288,26 +301,26 @@ public:
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 
         if (JobSizeAdjuster_) {
-            // No point in enlarging jobs if we cannot at least double them.
-            auto action = EJobAdjustmentAction::None;
-            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
-                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
-            }
-
-            if (action == EJobAdjustmentAction::RebuildJobs) {
-                YT_TLOG_INFO("Job completion triggered enlargement")
-                    .With("JobId", jobSummary.Id)
-                    .With("JobCookie", cookie);
-                auto primaryDataWeightRatio = static_cast<double>(JobSizeConstraints_->GetPrimaryDataWeightPerJob())
-                    / JobSizeConstraints_->GetDataWeightPerJob();
-                JobManager_->Enlarge(
-                    JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeAdjuster_->GetDataWeightPerJob() * primaryDataWeightRatio,
-                    JobSizeConstraints_);
-            }
+            JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            ConsiderAdjustingJobSize();
         }
 
         CheckCompleted();
+    }
+
+    void AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& jobSizeAdjuster) override
+    {
+        YT_VERIFY(!Finished);
+        YT_VERIFY(jobSizeAdjuster);
+        if (!JobSizeAdjuster_) {
+            return;
+        }
+
+        auto initialDataWeightPerJob = JobSizeAdjuster_->GetUnderlyingDataWeightPerJob();
+        JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+            jobSizeAdjuster,
+            initialDataWeightPerJob,
+            JobSizeAdjustmentFactor_);
     }
 
     void Lost(IChunkPoolOutput::TCookie cookie) override
@@ -352,8 +365,28 @@ private:
     TSerializableLogger StructuredLogger;
 
     std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
+    double JobSizeAdjustmentFactor_ = 0;
 
     TSortedChunkPoolStatisticsPtr ChunkPoolStatistics_;
+
+    void ConsiderAdjustingJobSize()
+    {
+        // Avoid expensive enlargement when few adjacent pending jobs are likely to remain.
+        if (!Finished || !JobSizeAdjuster_ ||
+            JobManager_->JobCounter()->GetPending() <= JobManager_->JobCounter()->GetRunning())
+        {
+            return;
+        }
+
+        if (auto dataWeightPerJob = JobSizeAdjuster_->TryGetNewDataWeightPerJob()) {
+            auto primaryDataWeightRatio = static_cast<double>(JobSizeConstraints_->GetPrimaryDataWeightPerJob())
+                / JobSizeConstraints_->GetDataWeightPerJob();
+            JobManager_->Enlarge(
+                *dataWeightPerJob,
+                *dataWeightPerJob * primaryDataWeightRatio,
+                JobSizeConstraints_);
+        }
+    }
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -642,14 +675,23 @@ private:
         // NB(max42): this method may be run several times (in particular, when
         // the resumed input is not consistent with the original input).
 
+        BuildJobsAndFindTeleportChunks();
+        ConsiderAdjustingJobSize();
+        CheckCompleted();
+    }
+
+    void BuildJobsAndFindTeleportChunks()
+    {
         FindTeleportChunks();
 
         bool succeeded = false;
+        i64 dataWeightPerJob = 0;
         ISortedJobBuilderPtr builder;
         std::vector<TJobStub> jobStubs;
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
             try {
+                dataWeightPerJob = JobSizeConstraints_->GetDataWeightPerJob();
                 builder = CreateSortedJobBuilder(
                     SortedJobOptions_,
                     JobSizeConstraints_,
@@ -699,16 +741,19 @@ private:
             .With("Statistics", ChunkPoolStatistics_);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
+            dataWeightPerJob = JobSizeConstraints_->GetDataWeightPerJob();
             JobManager_->Enlarge(
-                JobSizeConstraints_->GetDataWeightPerJob(),
+                dataWeightPerJob,
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
                 JobSizeConstraints_);
         }
 
+        if (JobSizeAdjuster_) {
+            JobSizeAdjuster_->Reset(dataWeightPerJob);
+        }
+
         auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();
         GetDataSliceCounter()->AddUncategorized(builder->GetTotalDataSliceCount() - oldDataSliceCount);
-
-        CheckCompleted();
     }
 
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
@@ -905,11 +950,12 @@ void TSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(19, MinManiacDataWeight_,
         .SinceVersion(ESnapshotVersion::IsolateManiacsInSlicing));
 
-    PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_,
-        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+    PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_);
 
     PHOENIX_REGISTER_FIELD(21, ChunkPoolStatistics_,
         .SinceVersion(ESnapshotVersion::ChunkPoolStatistics));
+
+    PHOENIX_REGISTER_FIELD(22, JobSizeAdjustmentFactor_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->RowBuffer_ = New<TRowBuffer>();
