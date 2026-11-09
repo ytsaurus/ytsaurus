@@ -996,8 +996,15 @@ class TestBackupHunkReferences(DynamicTablesBase):
             "scan_backoff_period": 100,
             **external_cell_attributes,
         })
-        set("//tmp/h/@hunk_store_writer", {"desired_hunk_count_per_chunk": 2})
+        hunk_count_per_chunk = 1000
+        set("//tmp/h/@hunk_store_writer", {"desired_hunk_count_per_chunk": hunk_count_per_chunk})
         sync_mount_table("//tmp/h")
+
+        def rotate_hunk_store():
+            hunks = self._write_hunks_with_retries("//tmp/h", ["padding"] * hunk_count_per_chunk)
+            padding_store, = {hunk["chunk_id"] for hunk in hunks}
+            wait(lambda: self._get_active_hunk_store() != padding_store)
+            return self._get_active_hunk_store()
 
         self._create_ordered_table(
             "//tmp/t",
@@ -1012,9 +1019,11 @@ class TestBackupHunkReferences(DynamicTablesBase):
             **external_cell_attributes,
         )
         sync_mount_table("//tmp/t")
+
         rows = [{"key": index, "value": f"hunk value {index}"} for index in range(5)]
         self._insert_rows_with_hunk_storage("//tmp/t", rows[:1])
         sync_flush_table("//tmp/t")
+
         initial_store_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
         assert len(initial_store_ids) == 1
         initial_store_id, = initial_store_ids
@@ -1027,20 +1036,15 @@ class TestBackupHunkReferences(DynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        # Produce two unflushed stores with hunk references {first, second} and
-        # {second, third}; first is already present in the tablet hunk list.
-        active_hunk_store = self._get_active_hunk_store()
-        assert active_hunk_store == first_hunk_store
+        assert self._get_active_hunk_store() == first_hunk_store
         self._insert_rows_with_hunk_storage("//tmp/t", rows[1:2])
-        wait(lambda: self._get_active_hunk_store() != active_hunk_store)
-        active_hunk_store = self._get_active_hunk_store()
+        second_hunk_store = rotate_hunk_store()
         self._insert_rows_with_hunk_storage("//tmp/t", rows[2:3])
 
-        # The checkpoint separates two dynamic stores without flushing either one.
         create_table_backup(["//tmp/t", "//tmp/first_backup", {"ordered_mode": "at_least"}])
 
         self._insert_rows_with_hunk_storage("//tmp/t", rows[3:4])
-        wait(lambda: self._get_active_hunk_store() != active_hunk_store)
+        third_hunk_store = rotate_hunk_store()
         self._insert_rows_with_hunk_storage("//tmp/t", rows[4:])
 
         create_table_backup(["//tmp/t", "//tmp/backup", {"ordered_mode": "at_least"}])
@@ -1050,6 +1054,7 @@ class TestBackupHunkReferences(DynamicTablesBase):
         set("//tmp/t/@mount_config/enable_store_flush", True)
         remount_table("//tmp/t")
         sync_flush_table("//tmp/t")
+
         new_store_ids = builtins.set(self._get_store_chunk_ids("//tmp/t")) - initial_store_ids
         assert len(new_store_ids) == 2
         reference_sets = {
@@ -1063,6 +1068,10 @@ class TestBackupHunkReferences(DynamicTablesBase):
         assert len(first_reference_set | second_reference_set) == 3
         assert len(first_reference_set & second_reference_set) == 1
         assert sum(first_hunk_store in refs for refs in reference_sets) == 1
+        assert reference_sets == {
+            frozenset({first_hunk_store, second_hunk_store}),
+            frozenset({second_hunk_store, third_hunk_store}),
+        }
 
         expected_hunks = sorted(first_reference_set | second_reference_set)
         restore_table_backup(["//tmp/backup", "//tmp/restored"], timeout=15000)

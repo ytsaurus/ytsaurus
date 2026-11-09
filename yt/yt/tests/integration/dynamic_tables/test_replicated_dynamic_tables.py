@@ -3438,6 +3438,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("akozhikhov")
     def test_collocated_replicated_tables(self):
         set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+        set("//sys/@config/tablet_manager/replicated_table_tracker/preferred_sync_replica_switch_cooldown", 0)
 
         self._create_cells()
 
