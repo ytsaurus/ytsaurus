@@ -475,6 +475,10 @@ private:
     STRICT_STFUNC(Follower, {
         HHFunc(TEvBecomeLeader, StartLeader)
         HHFunc(TEvBecomeFollower, StartFollower)
+        // Notifications from the previous leader's sessions can already be queued.
+        HHFunc(TEvInterconnect::TEvNodeConnected, OnExecuterConnectedStub)
+        HHFunc(TEvInterconnect::TEvNodeDisconnected, OnExecuterDisconnected)
+        HHFunc(TEvents::TEvUndelivered, OnUndelivered)
         HHFunc(TEvAllocateWorkersRequest, StartUploadAndForward)
         FORWARD(TEvFreeWorkersNotify)
         FORWARD(TEvRegisterNode)
@@ -756,6 +760,7 @@ private:
     }
 
     void TransitionToFollowerOfRemoteLeader() {
+        UnsubscribeAll();
         WaitListSize = nullptr;
         Workers.Clear();
         for (const auto& [key, value] : AllocatedResources) {
@@ -1185,6 +1190,10 @@ private:
         DropActorOrNode([&](TActorId actorId) {
             return actorId == deadActor;
         });
+    }
+
+    void OnExecuterConnectedStub(TEvInterconnect::TEvNodeConnected::TPtr& ev, const NActors::TActorContext&) {
+        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::OnExecuterConnectedStub " << ev->Get()->NodeId;
     }
 
     void OnExecuterDisconnected(TEvInterconnect::TEvNodeDisconnected::TPtr& ev, const NActors::TActorContext& /*ctx*/)

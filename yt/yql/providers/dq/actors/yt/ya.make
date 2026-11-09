@@ -22,8 +22,7 @@ IF (NOT OS_WINDOWS)
     )
 ENDIF()
 
-SET(
-    SOURCE
+SRCS(
     node_id_allocator.cpp
     node_id_allocator.h
     nodeid_assigner.cpp
@@ -33,9 +32,7 @@ SET(
 )
 
 IF (NOT OS_WINDOWS)
-    SET(
-        SOURCE
-        ${SOURCE}
+    SRCS(
         nodeid_cleaner.cpp
         nodeid_cleaner.h
         worker_registrator.cpp
@@ -50,10 +47,6 @@ IF (NOT OS_WINDOWS)
         yt_resource_manager.cpp
     )
 ENDIF()
-
-SRCS(
-    ${SOURCE}
-)
 
 END()
 
