@@ -3611,7 +3611,7 @@ class TestChaos(ChaosTestBase):
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
         replicated_table_options = {
-            "enable_replicated_table_tracker": True,
+            "enable_replicated_table_tracker": False,
             "tablet_cell_bundle_name_ttl": 1000,
             "tablet_cell_bundle_name_failure_interval": 100,
             "preferred_sync_replica_clusters": ["primary"],
@@ -3621,8 +3621,6 @@ class TestChaos(ChaosTestBase):
             "replicated_table_options": replicated_table_options
         })
         card_id = get("//tmp/crt/@replication_card_id")
-        options = get("//tmp/crt/@replicated_table_options")
-        assert options["enable_replicated_table_tracker"]
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
@@ -3636,6 +3634,9 @@ class TestChaos(ChaosTestBase):
             set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
 
         self._sync_replication_era(card_id, replicas)
+
+        alter_replication_card(card_id, enable_replicated_table_tracker=True)
+        assert get("//tmp/crt/@replicated_table_options/enable_replicated_table_tracker")
 
         for driver in self._get_drivers():
             set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"], driver=driver)
