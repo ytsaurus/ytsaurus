@@ -20,11 +20,17 @@ TQueryEvaluationContextPtr CreateQueryEvaluationContext(
     const TParsedSource& parsedSource,
     const TTableSchemaPtr& schema)
 {
-    return CreateQueryEvaluationContext(
-        PrepareExpression(
-            parsedSource,
-            *schema),
-        schema);
+    try {
+        return CreateQueryEvaluationContext(
+            PrepareExpression(
+                parsedSource,
+                *schema),
+            schema);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to create query evaluation context")
+            .With("source", parsedSource.Source)
+            .With(ex);
+    }
 }
 
 Y_WEAK TQueryEvaluationContextPtr CreateQueryEvaluationContext(

@@ -126,6 +126,10 @@ bool IsStringBinaryOp(EBinaryOp opcode);
 //! Cast values.
 TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
+//! Throws if non-null operands have different or non-integral types.
+//! Returns a value with default Id and Flags, independent of operand metadata.
+TValue EvaluateModulo(TValue lhs, TValue rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Use opaque data descriptor instead of ObjectId, CellId and MountRevision.

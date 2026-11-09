@@ -3387,6 +3387,54 @@ INSTANTIATE_TEST_SUITE_P(
             "i1 + i2",
             MakeInt64(33 + 22)),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=17; i2=5",
+            "i1 % i2",
+            MakeInt64(2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-17; i2=5",
+            "i1 % i2",
+            MakeInt64(-2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=17; i2=-5",
+            "i1 % i2",
+            MakeInt64(2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-17; i2=-5",
+            "i1 % i2",
+            MakeInt64(-2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-9223372036854775808; i2=1",
+            "i1 % i2",
+            MakeInt64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u; u2=2u",
+            "u1 % u2",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=0u; u2=18446744073709551615u",
+            "u1 % u2",
+            MakeUint64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#; i2=0",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=#; u2=0u",
+            "u1 % u2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=0; i2=#",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=0u; u2=#",
+            "u1 % u2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#; i2=#",
+            "i1 % i2",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33",
             "-i1",
             MakeInt64(-33)),
@@ -3422,6 +3470,18 @@ INSTANTIATE_TEST_SUITE_P(
             "i1=-9223372036854775808",
             "uint64(i1)",
             MakeUint64(9223372036854775808ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "uint64(i1)",
+            MakeUint64(18446744073709551615ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=1u",
+            "uint64(u1)",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=#",
+            "uint64(i1)",
+            MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "u1=17271244077285990991u",
             "u1=17271244077285990991",
@@ -3589,7 +3649,35 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "is_finite(d1)",
-            MakeNull())));
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(i1, u1, b, s1)",
+            MakeUint64(0x5f90424776524127ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(s1, b, u1, i1)",
+            MakeUint64(0xfd2435eda17206d9ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u",
+            "farm_hash(u1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1, i1)",
+            MakeUint64(0x940af1fb538b6bd5ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="a\0b")",
+            "farm_hash(s1)",
+            MakeUint64(0x0706e84ffa9edd01ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="")",
+            "farm_hash(s1)",
+            MakeUint64(0xfcc22541f5657d35ULL))));
 
 class TEvaluateLikeExpressionTest
     : public ::testing::Test
@@ -3787,9 +3875,12 @@ TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
 
     TUnversionedValue result{};
 
-    EXPECT_THROW_THAT(
-        EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
-        HasSubstr("Division by zero"));
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer, webAssembly),
+            HasSubstr("Division by zero"));
+    }
 }
 
 TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
@@ -3821,9 +3912,32 @@ TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
 
     TUnversionedValue result{};
 
-    EXPECT_THROW_THAT(
-        EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
-        HasSubstr("Division by zero"));
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer, webAssembly),
+            HasSubstr("Division by zero"));
+    }
+}
+
+TEST_F(TExpressionErrorTest, Int64_ModuloIntMinByMinusOne)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64),
+    });
+
+    auto expr = ParseAndPrepareExpression("i1 % i2", *schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result{};
+
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer, webAssembly),
+            HasSubstr("Division of INT_MIN by -1"));
+    }
 }
 
 TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)

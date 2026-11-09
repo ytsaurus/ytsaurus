@@ -231,6 +231,48 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TValue EvaluateModulo(TValue lhs, TValue rhs)
+{
+    if (lhs.Type == EValueType::Null || rhs.Type == EValueType::Null) {
+        return MakeUnversionedNullValue();
+    }
+
+    if (lhs.Type != rhs.Type) {
+        THROW_ERROR_EXCEPTION(
+            "Modulo operands have different types %Qlv and %Qlv",
+            lhs.Type,
+            rhs.Type);
+    }
+
+    switch (lhs.Type) {
+        case EValueType::Int64:
+            if (rhs.Data.Int64 == 0) {
+                THROW_ERROR_EXCEPTION("Division by zero");
+            }
+
+            if (lhs.Data.Int64 == std::numeric_limits<i64>::min() && rhs.Data.Int64 == -1) {
+                THROW_ERROR_EXCEPTION("Division of INT_MIN by -1");
+            }
+
+            return MakeUnversionedInt64Value(lhs.Data.Int64 % rhs.Data.Int64);
+
+        case EValueType::Uint64:
+            if (rhs.Data.Uint64 == 0) {
+                THROW_ERROR_EXCEPTION("Division by zero");
+            }
+
+            return MakeUnversionedUint64Value(lhs.Data.Uint64 % rhs.Data.Uint64);
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Cannot compute modulo for values of types %Qlv and %Qlv",
+                lhs.Type,
+                rhs.Type);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFeatureFlags MostFreshFeatureFlags()
 {
     return {

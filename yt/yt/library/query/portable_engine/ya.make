@@ -1,0 +1,29 @@
+LIBRARY()
+
+INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+
+SRCS(
+    GLOBAL builtin_function_profiler.cpp
+    builtin_registry.cpp
+    GLOBAL column_evaluator.cpp
+    GLOBAL column_evaluator_cache.cpp
+    evaluation_helpers.cpp
+    program.cpp
+    GLOBAL query_evaluator.cpp
+    registry.cpp
+)
+
+PEERDIR(
+    yt/yt/core
+    yt/yt/client
+    yt/yt/library/query/base
+    yt/yt/library/query/engine_api
+)
+
+PROVIDES(YT_QUERY_ENGINE)
+
+END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)
