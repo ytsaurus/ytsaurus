@@ -14,6 +14,14 @@ TAG(
     ya:strip_global_resources
 )
 
+IF (YT_SIZE_BUNDLED_TESTS AND NOT SANITIZER_TYPE)
+    TAG(ya:not_autocheck)
+ENDIF()
+
+IF (YT_SIZE_TESTS_BUNDLE AND SANITIZER_TYPE)
+    TAG(ya:not_autocheck)
+ENDIF()
+
 ENV(YT_DEBUG_TAKEN_PORT=1)
 
 SET(NO_STRIP yes)
