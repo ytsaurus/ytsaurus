@@ -18,7 +18,7 @@ While {{product-name}} masters are responsible for storing cluster metadata, the
 
 Like {{product-name}} masters, `Data Nodes` are stateful components, since they store chunks on disks. However, unlike masters, chunks are typically read and written at coarse scale, which means that both HDDs and SSDs can be used for their storage, depending on the system load. {{product-name}} supports a variety of disk types and allows grouping them into [media](../../user-guide/storage/media.md) sets to store data on different types of storage devices.
 
-## Scheduler
+## Scheduler { #scheduler }
 
 Cluster computing is enabled by a scheduling subsystem comprising a scheduler and agent controllers. The computations themselves are carried out on `Exec Nodes`.
 
