@@ -21,86 +21,38 @@ Everything strategy-related is in the `NYT::NScheduler::NStrategy` sub-namespace
 
 **Components:**
 
-**`bootstrap.h`** — Daemon bootstrap.
-- `TBootstrap` — constructs and wires all subsystems (RPC server, HTTP server, YT client, `TScheduler`, `TControllerAgentTracker`). Entry point for the scheduler binary. Exposes `GetControlInvoker(EControlQueue)` — the control thread is an `IEnumIndexedFairShareActionQueue<EControlQueue>` so that different subsystems time-share the control thread fairly.
-- `EControlQueue` itself is declared in `yt/yt/server/lib/scheduler/public.h` (shared with other server components).
+**`bootstrap.h`** — `TBootstrap` constructs and wires all subsystems (RPC server, HTTP server, YT client, `TScheduler`, `TControllerAgentTracker`) and owns the control thread: an `IEnumIndexedFairShareActionQueue<EControlQueue>` whose buckets let different subsystems time-share the thread fairly. `EControlQueue` itself is declared in `yt/yt/server/lib/scheduler/public.h`.
 
-**`scheduler.h`** — Main scheduler class.
-- `TScheduler` — top-level `TRefCounted` wrapper (Pimpl, `TImpl` lives in `.cpp`). The impl implements `NStrategy::IStrategyHost`, `INodeManagerHost`, `IOperationsCleanerHost`, and `TEventLogHostBase`.
-- Operation lifecycle: `StartOperation`, `AbortOperation`, `SuspendOperation`, `ResumeOperation`, `CompleteOperation`, `UpdateOperationParameters`, `PatchOperationSpec`, plus the `OnOperation…` callbacks from subsystems.
-- Heartbeat routing: `ProcessNodeHeartbeat(context)` — dispatches to `TNodeManager`.
-- Orchid (Cypress browser): `CreateOrchidService()` exposes live scheduler state under `//sys/scheduler/orchid`.
-- Accessors: `GetStrategy()`, `GetNodeManager()`, `GetMasterConnector()`, `GetOperationsCleaner()`, `GetBackgroundInvoker()`, plus individual lookups like `FindOperation`, `FindOperationIdByAllocationId`, `GetAllocationBriefInfo`.
+**`scheduler.h`** — `TScheduler`, the top-level Pimpl wrapper. The impl implements `NStrategy::IStrategyHost`, `INodeManagerHost`, `IOperationsCleanerHost`, and `TEventLogHostBase`; it drives the operation lifecycle (start, abort, suspend, resume, complete, runtime-parameter and spec updates, plus the `OnOperation…` callbacks from subsystems), routes node heartbeats to `TNodeManager`, and exposes live state through an Orchid service under `//sys/scheduler/orchid`.
 
-**`operation.h`** — Operation data model.
-- `TOperation : NStrategy::IOperation` — represents one user operation throughout its lifecycle (initializing → materializing → pending → running → completing → finished). Holds parsed/raw spec, runtime parameters, controller attributes (`TControllerAttributes`), alerts (`TOperationAlert`), the `IOperationControllerPtr`, optional `TOperationRevivalDescriptor`, revived allocation list, operation events history, `SecureVault`, `TemporaryTokenNodeId`, `FinishTime`, etc.
-- `TOperationEvent` — YSON-serializable `(Time, EOperationState, Attributes)` record of one state transition; appended to the operation's event log.
-- `DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH` — macro that sets `ShouldFlush_ = true` on write, marking the operation for Cypress flush.
-- `TPreprocessedSpec` + `ParseSpec` — parse user spec and merge in experiment and template overrides before the operation is registered.
+**`operation.h`** — `TOperation : NStrategy::IOperation` represents one user operation throughout its lifecycle (initializing → materializing → pending → running → completing → finished): parsed and raw spec, runtime parameters, controller attributes, alerts, the `IOperationControllerPtr`, revival descriptor and revived allocations, event history, and the properties that mark the operation for a Cypress flush when written. `TPreprocessedSpec` + `ParseSpec` merge experiment and template overrides into the user spec before registration.
 
-**`node_manager.h`** — Node shard coordinator.
-- `TNodeManager : INodeShardHost` — creates and manages the fixed-size `TNodeShard` array. Routes incoming heartbeats, allocation updates, and per-operation actions (register/unregister, abort allocations, suspend/resume) to the correct shard. Modulo-based routing via `GetNodeShardId(nodeId)`. Aggregates cross-shard statistics and maintains the address-to-id map.
-- `INodeManagerHost` — callbacks the node manager needs from `TScheduler`: strategy access, archive version, formatted resource-usage strings.
+**`node_manager.h`** — `TNodeManager : INodeShardHost` creates the fixed-size `TNodeShard` array and routes heartbeats, allocation updates and per-operation actions (register/unregister, abort allocations, suspend/resume) to the right shard by node id. It also aggregates cross-shard statistics and maintains the address-to-id map. `INodeManagerHost` is the narrow interface it needs from `TScheduler`.
 
-**`node_shard.h`** — Per-shard node heartbeat processor.
-- `TNodeShard` — processes heartbeats for its subset of exec nodes. Runs exclusively on its own cancelable invoker. Per-heartbeat work: update `TExecNode` descriptor and resource limits, consult the strategy's `INodeHeartbeatStrategyProxy` for allocation decisions, start/preempt/abort allocations, and route finished-allocation events back to the strategy.
-- `INodeShardHost` — minimal interface (`GetNodeShardId`) implemented by `TNodeManager`.
-- `TNodeShardGlobalSensors` — profiling counters shared across all shards; initialized on master connection so only the active scheduler emits metrics.
+**`node_shard.h`** — `TNodeShard` processes heartbeats for its subset of exec nodes, exclusively on its own cancelable invoker: update the `TExecNode` descriptor and resource limits, consult the strategy's `INodeHeartbeatStrategyProxy` for allocation decisions, start/preempt/abort allocations, and route finished-allocation events back to the strategy. `TNodeShardGlobalSensors` holds the profiling counters shared across shards, initialized on master connection so only the active scheduler emits metrics.
 
-**`common/exec_node.h`** — Exec node data model.
-- `TExecNode` — scheduler-side representation of one exec node. Owned by a node shard, thread affinity is that shard's invoker. Holds `ResourceLimits`, `ResourceUsage`, `DiskResources`, the running-allocation set and id→allocation map, pending aborts map, scheduling `Tags` (boolean formula), scheduling segment assignment, timestamps (heartbeat, logging), and node state flags.
+**`common/exec_node.h`** — `TExecNode`, the scheduler-side representation of one exec node, owned by a node shard: resource limits and usage, disk resources, the running-allocation set, pending aborts, scheduling tags, scheduling segment, timestamps and state flags.
 
-**`common/allocation.h`** — Allocation data model.
-- `TAllocation` — one scheduled allocation (corresponds to one job slot on a node). Holds `State` (`EAllocationState`: scheduled/running/finishing/finished), resource usage/limits/disk quota, `TAllocationAttributes`, preemption info (`PreemptionMode`, `PreemptionReason`, `PreemptedFor`, preempting-stage descriptor), and references to the owning operation and controller epoch. State transitions are driven by node shard heartbeat processing; a few scheduling-specific fields (`SchedulingIndex`, …) are flagged for future relocation into the strategy.
+**`common/allocation.h`** — `TAllocation`, one scheduled allocation (one job slot on a node): `EAllocationState` (scheduled/running/finishing/finished), resource usage, limits and disk quota, preemption info, and references to the owning operation and controller epoch. State transitions are driven by node shard heartbeat processing.
 
-**`controller_agent_tracker.h`** — Controller agent lifecycle manager.
-- `TControllerAgentTracker` — tracks all connected `TControllerAgent` instances; handles registration (`ProcessAgentHandshake`), heartbeats (`ProcessAgentHeartbeat`), and `ScheduleAllocation` heartbeats (`ProcessAgentScheduleAllocationHeartbeat`) on a dedicated cancelable heartbeat invoker. `CreateController`, `PickAgentForOperation`, `AssignOperationToAgent`, `UnregisterOperationFromAgent` — operation–agent lifecycle.
-- `HandleAgentFailure` forces an unregister when the agent's lease lapses or an RPC fails.
+**`controller_agent_tracker.h`** — `TControllerAgentTracker` tracks all connected `TControllerAgent` instances; handles handshakes, heartbeats and `ScheduleAllocation` heartbeats on a dedicated cancelable invoker; and owns the operation–agent lifecycle (pick an agent, assign and unregister operations, create controllers). `HandleAgentFailure` forces an unregister when the agent's lease lapses or an RPC fails.
 
-**`controller_agent.h`** — Per-agent state.
-- `TControllerAgent` — scheduler-side representation of one connected controller agent process. Holds:
-  - `EControllerAgentState` — state machine: `Registering → WaitingForInitialHeartbeat → Registered → Unregistering → Unregistered`.
-  - Three outboxes (scheduler → agent, `TMessageQueueOutbox`): `AllocationEventsOutbox`, `OperationEventsOutbox`, `ScheduleAllocationRequestsOutbox`.
-  - Three inboxes (agent → scheduler, `TMessageQueueInbox`): `OperationEventsInbox`, `RunningAllocationStatisticsUpdatesInbox`, `ScheduleAllocationResponsesInbox`.
-  - `Operations` set — which operations this agent currently manages.
-  - Incarnation transaction, lease, memory statistics, cancelable invokers for control and heartbeat paths.
-- The outbox/inbox pattern decouples node-shard-produced decisions from agent RPC latency: events are enqueued by one thread, drained at the next heartbeat.
+**`controller_agent.h`** — `TControllerAgent`, the scheduler-side state of one connected agent: a state machine (`Registering → WaitingForInitialHeartbeat → Registered → Unregistering → Unregistered`), the set of operations it manages, incarnation transaction, lease, and the message-queue outboxes (scheduler → agent: allocation events, operation events, schedule-allocation requests) and inboxes (agent → scheduler: operation events, running-allocation statistics, schedule-allocation responses). The outbox/inbox pattern decouples node-shard-produced decisions from agent RPC latency: events are enqueued by one thread and drained at the next heartbeat.
 
-**`operation_controller.h`** / **`operation_controller_impl.h`** — Controller-agent proxy for one operation.
-- `IOperationController : NStrategy::ISchedulingOperationController` — interface through which the scheduler drives one operation's controller lifecycle. Agent management: `AssignAgent` / `RevokeAgent` / `FindAgent`. Async lifecycle steps: `Initialize`, `Prepare`, `Materialize`, `Revive`, `Commit`, `Terminate`, `Complete`, `Register`, `Unregister`, `UpdateRuntimeParameters`, `PatchSpec`. Local notifications: `Suspend`, `Resume`, `OnAllocationAborted`, `OnAllocationFinished`, plus the matching `OnInitializationFinished` / `OnPreparationFinished` / `OnMaterializationFinished` / `OnRevivalFinished` / `OnCommitFinished` completions driven by the tracker. `SetControllerRuntimeData` updates the shared live data on each agent heartbeat; `GetFullHeartbeatProcessed()` waits until the next heartbeat round-trip completes. `ScheduleAllocation` and `GetNeededResources` are inherited from the strategy-side base.
-- `TOperationControllerImpl` — concrete implementation; posts RPCs to the assigned `TControllerAgent` or enqueues entries in its message-queue outboxes, and returns futures resolved from responses.
-- `TControllerRuntimeData` (refcounted) — live mutable state shared with the strategy: `NeededResources` (composite), `GroupedNeededResources`. Updated on each agent heartbeat.
-- Result structs: `TOperationControllerInitializeResult`, `TOperationControllerPrepareResult`, `TOperationControllerMaterializeResult`, `TOperationControllerReviveResult`, `TOperationControllerCommitResult`, `TOperationControllerUnregisterResult` — typed results returned from controller lifecycle RPCs. Each has a `FromProto(...)` conversion from the controller agent protobufs.
+**`operation_controller.h`** / **`operation_controller_impl.h`** — `IOperationController : NStrategy::ISchedulingOperationController` is the interface through which the scheduler drives one operation's controller: agent assignment and revocation, the async lifecycle steps (initialize, prepare, materialize, revive, commit, terminate, complete, register, unregister), local notifications (suspend, resume, allocation aborted / finished) and the matching completion callbacks driven by the tracker. `TOperationControllerImpl` posts RPCs to the assigned agent or enqueues entries in its outboxes and returns futures resolved from responses. `TControllerRuntimeData` is the live mutable state shared with the strategy (needed resources, grouped needed resources), updated on each agent heartbeat. Typed result structs with `FromProto` conversions wrap the lifecycle RPC responses.
 
-**`master_connector.h`** — YT master connection manager.
-- `TMasterConnector` — owns the scheduler ↔ master lifecycle. State machine: `Disconnected → Connecting → Connected → Disconnecting`. On connect, acquires a lock transaction, fetches operation state, and produces a `TMasterHandshakeResult` (with revival descriptors) consumed by other subsystems. On disconnect, cancels in-flight work and cleans up.
-- Flushes `TOperation` state changes (alerts, events, mutable attributes) into Cypress write transactions: `CreateOperationNode`, `UpdateInitializedOperationNode`, `FlushOperationNode`, `FetchOperationRevivalDescriptors`, `GetOperationNodeProgressAttributes`.
-- Strategy persistence: `InvokeStoringStrategyState(TPersistentStrategyStatePtr)` round-trips the strategy's persistent state through Cypress.
-- Token issuing: `IssueTemporaryOperationToken` creates a temporary-token Cypress node whose id is cached on the operation.
-- Watcher system: `AddCommonWatcher(requester, handler, alert?)` for batched periodic Cypress reads piggy-backed on the common tick, and `SetCustomWatcher(type, requester, handler, period, alert?, lockOptions?)` for dedicated periods or lock-guarded watchers. `EWatcherType` enumerates custom watchers (`NodeAttributes`, `PoolTrees`).
-- Signals: `MasterConnecting`, `MasterHandshake(result)`, `MasterConnected`, `MasterDisconnected`.
+**`master_connector.h`** — `TMasterConnector` owns the scheduler ↔ master lifecycle (`Disconnected → Connecting → Connected → Disconnecting`). On connect it acquires a lock transaction, fetches operation state, and produces a `TMasterHandshakeResult` (with revival descriptors) consumed by other subsystems; on disconnect it cancels in-flight work. It flushes `TOperation` state changes into Cypress, round-trips the strategy's persistent state, issues temporary operation tokens, and runs the watcher system: common watchers piggy-back on one periodic tick, custom watchers (`EWatcherType`) get their own period or lock. Signals: `MasterConnecting`, `MasterHandshake`, `MasterConnected`, `MasterDisconnected`.
 
-**`operations_cleaner.h`** — Finished-operation archiver.
-- `IOperationsCleanerHost` — narrow host interface: alert setter, `GetBackgroundInvoker`, `GetOperationsCleanerInvoker`.
-- `TOperationsCleaner` — background component that archives finished operations to the operations archive table and removes them from the in-memory map after a configurable retention period. Public API: `SubmitForArchivation(request)` / `SubmitForArchivation(ids)`, `SubmitForRemoval(requests)`, `EnqueueOperationAlertEvent`, `BuildOrchid`, `InitializeRequestFromOperation`. Signal `OperationsRemovedFromCypress` fires after each successful batch removal.
-- `TArchiveOperationRequest` / `TRemoveOperationRequest` — YSON-serializable descriptors. `TArchiveOperationRequest::GetAttributeKeys()` / `GetProgressAttributeKeys()` return the Cypress attribute lists the archivation pass needs.
-- `TOperationAlertEvent` (from `operation_alert_event.h`) — alert history record enqueued via `EnqueueOperationAlertEvent`.
+**`operations_cleaner.h`** — `TOperationsCleaner` archives finished operations to the operations archive table and removes them after a configurable retention period; it also records operation alert events. `TArchiveOperationRequest` / `TRemoveOperationRequest` are the YSON-serializable descriptors it works with. `IOperationsCleanerHost` is its narrow host interface.
 
-**`allocation_tracker_service.h`** / **`scheduler_service.h`** / **`controller_agent_tracker_service.h`** — RPC service factories.
-- `CreateAllocationTrackerService(bootstrap)` — RPC service node shards invoke through for allocation status updates. No response keeper (the service is not retry-deduped).
-- `CreateOperationService(bootstrap, responseKeeper)` — client-facing operation management (start/abort/suspend/…). Response keeper deduplicates client retries.
-- `CreateControllerAgentTrackerService(bootstrap, responseKeeper)` — controller-agent-facing handshake and heartbeats.
+**`allocation_tracker_service.h`** / **`scheduler_service.h`** / **`controller_agent_tracker_service.h`** — RPC service factories: allocation status updates from node shards (no response keeper — the protocol is idempotent), client-facing operation management, and controller-agent-facing handshake and heartbeats. The latter two deduplicate retries through a response keeper.
 
-**`helpers.h`** — Utilities.
-- `BuildMinimalOperationAttributes` / `BuildFullOperationAttributes` / `BuildMutableOperationAttributes` — YSON serialization helpers for Orchid and Cypress emission.
-- `BuildSupportedFeatures` — enumerates scheduler-supported features for the handshake response.
-- `TListOperationsResult` / `TAllocationDescription` — lightweight descriptors for Orchid views.
+**`helpers.h`** — YSON serialization helpers for operation attributes (Orchid and Cypress), `BuildSupportedFeatures` for the handshake response, and lightweight descriptors for Orchid views.
 
 **Notes:**
 - **Thread model.** The control thread is a `EControlQueue`-indexed fair-share action queue; different subsystems (user requests, master I/O, fair-share updates, GPU assignment, …) share it without starving each other. Node shards run on their own invokers. Controller-agent heartbeats run on a dedicated cancelable invoker owned by `TControllerAgentTracker`. Cross-thread communication uses futures or the explicit message-queue outbox/inbox pairs.
-- **Revival.** On restart, the master connector fetches live operations and passes them through `TMasterHandshakeResult`. Each operation is revived by calling `controller->Revive()`, which returns `TOperationControllerReviveResult` with running allocations, grouped needed resources, banned tree ids, and the "revived from snapshot" bit. Allocations flow back through `TNodeManager::FinishOperationRevival` into the node shards. The same path handles a controller agent failure. Revival spans every layer and is easy to break: read `docs/revival.md` (state machine, per-layer protocol, invariants, change checklist) before touching operation enable / disable / register / unregister or allocation update handling.
-- **Response keepers** deduplicate retried RPCs at the service layer — important because both clients and controller agents retry on timeout. `CreateAllocationTrackerService` omits the keeper since allocation updates are idempotent at the protocol level.
-- **`EControlQueue` buckets** — the scheduler relies on fair-share control-invoker scheduling to prevent any single subsystem (e.g., orchid worker, operation spec parsing, fair-share updates, master flush) from starving the others.
+- **Revival.** On restart, the master connector fetches live operations and passes them through `TMasterHandshakeResult`. Each operation is revived by calling `controller->Revive()`, which returns running allocations, grouped needed resources, banned tree ids, and the "revived from snapshot" bit; allocations flow back through `TNodeManager::FinishOperationRevival` into the node shards. The same path handles a controller agent failure. Revival spans every layer and is easy to break: read `docs/revival.md` before touching operation enable / disable / register / unregister or allocation update handling.
+- **Response keepers** deduplicate retried RPCs at the service layer — important because both clients and controller agents retry on timeout.
 - `common/` is meant to hold types shared with the strategy side of the codebase; do not add scheduler-internal state there.
 
 **See also:**
