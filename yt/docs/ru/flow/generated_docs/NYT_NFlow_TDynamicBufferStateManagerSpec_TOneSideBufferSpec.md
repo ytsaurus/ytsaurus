@@ -8,7 +8,7 @@
 || `fair_share_pool` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `3Gi`
 Размер пула для распределения по FairShare алгоритму на основании утилизации. ||
-|| `worker_group_fair_share_pool_overrides` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
+|| `worker_group_fair_share_pool_overrides` | **Тип**: `THashMap<`[NYT::NFlow::TWorkerGroupId](./all_yson_structs#NYT_NFlow_TWorkerGroupId)`, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
 **Значение по умолчанию**: `{}`
 Замена `fair_share_pool` для воркеров перечисленных [воркер-групп](../concepts/worker_groups.md) — для инсталляций, где часть воркеров имеет существенно больше памяти. Воркер, состоящий в нескольких перечисленных группах, берёт максимум: пул отражает фактически доступную память воркера. ||
 || `job_guarantee` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
@@ -20,7 +20,7 @@
 || `max_duration` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`
 Считать, что не нужно держать буффер больше, чем необходимо для `max_duration` времени работы джобы (скорость оценивается эвристически). При `enable_v2` параметр также ограничивает сверху оценку длительности эпохи джобы. Производящий output может пробовать до своей равной доли половины `fair_share_pool`, поскольку эпохи продюсера не показывают период подтверждений downstream. `job_limit` и пул воркера остаются жёсткими границами. ||
-|| `job_overrides` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
+|| `job_overrides` | **Тип**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
 **Значение по умолчанию**: `{}`
 Возможность переопределить вручную размер буффера для компьютейшен-стрима. ||
 |#

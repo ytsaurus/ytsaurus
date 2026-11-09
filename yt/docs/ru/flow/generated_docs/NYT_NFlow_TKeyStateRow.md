@@ -7,10 +7,10 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `computation_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>`
+|| `computation_id` | **Тип**: [NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)
 **Обязательный параметр**
 Идентификатор Computation'а, которому принадлежит ключ. ||
-|| `key` | **Тип**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TKeyTag, NYT::TStrongTypedefOptions{true}>`
+|| `key` | **Тип**: [NYT::NFlow::TKey](./all_yson_structs#NYT_NFlow_TKey)
 **Обязательный параметр**
 Значение ключа (YSON-словарь `{column = value; ...}` по `key_schema`). ||
 || `states` | **Тип**: `THashMap<std::string, NYT::NYson::TYsonString>`

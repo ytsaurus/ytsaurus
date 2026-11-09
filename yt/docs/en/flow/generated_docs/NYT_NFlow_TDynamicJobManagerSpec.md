@@ -99,7 +99,7 @@ See the description of the `faulty_address_window` parameter. ||
 || `partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningCoordinatorSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningCoordinatorSpec)`>`
 **Default value**: `{}`
 Pipeline partitioning settings. ||
-|| `worker_group_override` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
+|| `worker_group_override` | **Type**: `THashMap<`[NYT::NFlow::TWorkerGroupId](./all_yson_structs#NYT_NFlow_TWorkerGroupId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Default value**: `{}`
  ||
 || `partition_history_limit` | **Type**: `long`

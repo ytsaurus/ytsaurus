@@ -7,5 +7,7 @@ Source: [yt/yt/core/yson/config.h]({{source-root}}/yt/yt/core/yson/config.h)
 || **Parameter** | **Description** ||
 || `utf8_check` | **Type**: `std::optional<`[NYT::NYson::EUtf8Check](./all_yson_structs#NYT_NYson_EUtf8Check)`>`
  ||
+|| `allow_yson_list_from_map` | **Type**: `std::optional<bool>`
+ ||
 |#
 

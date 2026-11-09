@@ -17,5 +17,8 @@ Source: [yt/yt/core/yson/config.h]({{source-root}}/yt/yt/core/yson/config.h)
 || `force_enum_string_type` | **Type**: `bool`
 **Default value**: `false`
  ||
+|| `allow_yson_list_from_map` | **Type**: `bool`
+**Default value**: `false`
+ ||
 |#
 

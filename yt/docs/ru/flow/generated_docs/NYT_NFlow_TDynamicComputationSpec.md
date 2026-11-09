@@ -41,13 +41,13 @@
 Произвольные динамические параметры класса `Computation`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Динамические параметры process function. Тип параметров задаётся при регистрации `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Для графа process function содержит динамические параметры узлов в `nodes`. ||
-|| `source_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
+|| `source_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
 **Значение по умолчанию**: `{}`
 Динамические параметры всех `Sources`. ||
-|| `key_visitor_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyVisitorStreamSpec)`>>`
+|| `key_visitor_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyVisitorStreamSpec)`>>`
 **Значение по умолчанию**: `{}`
  ||
-|| `sinks` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSinkSpec](./all_yson_structs#NYT_NFlow_TDynamicSinkSpec)`>>`
+|| `sinks` | **Тип**: `THashMap<`[NYT::NFlow::TSinkId](./all_yson_structs#NYT_NFlow_TSinkId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSinkSpec](./all_yson_structs#NYT_NFlow_TDynamicSinkSpec)`>>`
 **Значение по умолчанию**: `{}`
 Динамические параметры всех `Sinks`. ||
 || `external_state_managers` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicExternalStateManagerSpec)`>>`
@@ -80,13 +80,13 @@
 || `blocked_time_window` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10m`
 Окно усреднения для доли времени, которую джоба провела заблокированной на каждом из лимитов (`blocked_share` в диагностиках). Доля нормируется на время жизни джобы, поэтому джоба, заблокированная с самого старта, показывает `~1` независимо от своего возраста. ||
-|| `input_rows_throttler_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
+|| `input_rows_throttler_id` | **Тип**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Id троттлера для ограничения скорости обработки сообщений. Если задан, перед каждой итерацией `Computation` ждёт квоту, равную числу сообщений во входном батче. Id должен присутствовать в `dynamic_spec/throttlers`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
-|| `input_bytes_throttler_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
+|| `input_bytes_throttler_id` | **Тип**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Аналогично `input_rows_throttler_id`, но квотируется суммарный `byte_size` сообщений батча &mdash; системный размер их сериализованного представления. ||
-|| `input_rows_throttler_class_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+|| `input_rows_throttler_class_id` | **Тип**: `std::optional<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`>`
 Класс квоты для троттлера из `input_rows_throttler_id`. Класс должен быть объявлен в этом троттлере; `default` выбирает зарезервированный класс с весом `1.0`. Требует заданного `input_rows_throttler_id`. ||
-|| `input_bytes_throttler_class_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+|| `input_bytes_throttler_class_id` | **Тип**: `std::optional<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`>`
 Класс квоты для троттлера из `input_bytes_throttler_id`. Класс должен быть объявлен в этом троттлере; `default` выбирает зарезервированный класс с весом `1.0`. Требует заданного `input_bytes_throttler_id`. ||
 || `skip_if_expression` | **Тип**: `std::optional<std::string>`
 YTQL-предикат, по которому входные сообщения отфильтровываются (пропускаются) ещё до обработки `Computation`. Сообщение пропускается (дропается), если предикат вычисляется в булево `true`.

@@ -7,5 +7,7 @@
 || **Параметр** | **Описание** ||
 || `utf8_check` | **Тип**: `std::optional<`[NYT::NYson::EUtf8Check](./all_yson_structs#NYT_NYson_EUtf8Check)`>`
  ||
+|| `allow_yson_list_from_map` | **Тип**: `std::optional<bool>`
+ ||
 |#
 

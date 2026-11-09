@@ -13,5 +13,7 @@
  ||
 || `file_storage` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NFileStorage::TFileStorageConfig](./all_yson_structs#NYT_NFlow_NFileStorage_TFileStorageConfig)`>`
 Опциональный постоянный локальный кеш исходных данных файловых ресурсов. Он обязателен для воркера, загружающего файловый ресурс. ||
+|| `initial_controller_connector` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicControllerConnectorSpec](./all_yson_structs#NYT_NFlow_TDynamicControllerConnectorSpec)`>`
+ ||
 |#
 

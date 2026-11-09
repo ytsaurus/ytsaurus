@@ -5,13 +5,13 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `group_name` | **Тип**: `NYT::TStrongTypedef<std::string, NYT::NFlow::TWatermarkAlignmentGroupTag, NYT::TStrongTypedefOptions{true}>`
+|| `group_name` | **Тип**: [NYT::NFlow::TWatermarkAlignmentGroup](./all_yson_structs#NYT_NFlow_TWatermarkAlignmentGroup)
 **Значение по умолчанию**: `default-alignment-group`
 Имя группы ||
 || `drift_bound` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `20m`
 Максимальное возможное опережение вотермарка отдельной партиции от вотермарка всей группы ||
-|| `read_delays` | **Тип**: `std::optional<THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>>`
+|| `read_delays` | **Тип**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`
 Опция для продвинутого использования. Если `EventTimestamp` выходного сообщения больше, чем `EventWatermark - Delay` хотя бы для одного указанного потока, то чтение приостанавливается. При неправильной настройке опция может привести к полной остановке чтения. ||
 |#
 

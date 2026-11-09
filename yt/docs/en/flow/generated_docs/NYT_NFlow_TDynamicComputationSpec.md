@@ -41,13 +41,13 @@ If the epoch is empty, the `Computation` sleeps for the specified additional tim
 Arbitrary dynamic parameters of the `Computation` class. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Dynamic process-function parameters. Their type is declared in `YT_FLOW_DEFINE_PROCESS_FUNCTION` registration. For a process function graph, it contains the dynamic parameters of the nodes in `nodes`. ||
-|| `source_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
+|| `source_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
 **Default value**: `{}`
 Dynamic parameters of all `Sources`. ||
-|| `key_visitor_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyVisitorStreamSpec)`>>`
+|| `key_visitor_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyVisitorStreamSpec)`>>`
 **Default value**: `{}`
  ||
-|| `sinks` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSinkSpec](./all_yson_structs#NYT_NFlow_TDynamicSinkSpec)`>>`
+|| `sinks` | **Type**: `THashMap<`[NYT::NFlow::TSinkId](./all_yson_structs#NYT_NFlow_TSinkId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSinkSpec](./all_yson_structs#NYT_NFlow_TDynamicSinkSpec)`>>`
 **Default value**: `{}`
 Dynamic parameters of all `Sinks`. ||
 || `external_state_managers` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicExternalStateManagerSpec)`>>`
@@ -80,13 +80,13 @@ Dynamic parameters of all `Sinks`. ||
 || `blocked_time_window` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
 Averaging window for the share of time the job spent blocked on each limit (`blocked_share` in diagnostics). The share is normalized to the job lifetime, so a job blocked from the start shows `~1` regardless of its age. ||
-|| `input_rows_throttler_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
+|| `input_rows_throttler_id` | **Type**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Throttler ID for limiting the message processing rate. If set, before each iteration the `Computation` waits for a quota equal to the number of messages in the input batch. The ID must be present in `dynamic_spec/throttlers`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
-|| `input_bytes_throttler_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
+|| `input_bytes_throttler_id` | **Type**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Similar to `input_rows_throttler_id`, but quotas the total `byte_size` of messages in the batch &mdash; the system size of their serialized representation. ||
-|| `input_rows_throttler_class_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+|| `input_rows_throttler_class_id` | **Type**: `std::optional<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`>`
 Quota class for the `input_rows_throttler_id` throttler. The class must be declared by that throttler; `default` selects the reserved class with weight `1.0`. Requires `input_rows_throttler_id` to be set. ||
-|| `input_bytes_throttler_class_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+|| `input_bytes_throttler_class_id` | **Type**: `std::optional<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`>`
 Quota class for the `input_bytes_throttler_id` throttler. The class must be declared by that throttler; `default` selects the reserved class with weight `1.0`. Requires `input_bytes_throttler_id` to be set. ||
 || `skip_if_expression` | **Type**: `std::optional<std::string>`
 YTQL predicate for filtering (skipping) input messages before `Computation` processing. A message is skipped (dropped) if the predicate evaluates to boolean `true`.

@@ -5,7 +5,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 
 #|
 || **Parameter** | **Description** ||
-|| `computation_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>`
+|| `computation_id` | **Type**: [NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)
 **Required parameter**
 The `Computation` whose internal state is read by this joiner. ||
 || `state_name` | **Type**: `std::string`

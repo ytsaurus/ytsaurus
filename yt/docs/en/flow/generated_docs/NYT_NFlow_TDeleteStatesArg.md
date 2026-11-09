@@ -13,9 +13,9 @@ The command requires the pipeline to be in `Stopped`/`Completed` state, or `forc
 
 #|
 || **Parameter** | **Description** ||
-|| `computation_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>>`
+|| `computation_id` | **Type**: `std::optional<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`>`
 ID of the Computation. Required for modes 1 and 2 (see the command description). ||
-|| `partition_id` | **Type**: `std::optional<NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>>`
+|| `partition_id` | **Type**: `std::optional<`[NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)`>`
 Partition ID. Required for mode 3 (see the command description). ||
 || `key` | **Type**: `std::optional<NYT::NYson::TYsonString>`
 Key for point lookup (mode 2). Accepted in two forms:

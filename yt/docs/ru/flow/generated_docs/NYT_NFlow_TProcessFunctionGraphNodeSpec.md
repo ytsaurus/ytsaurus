@@ -10,16 +10,16 @@
 Полное имя process function, зарегистрированной через `YT_FLOW_DEFINE_PROCESS_FUNCTION`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Статические параметры process function узла. ||
-|| `input_stream_ids` | **Тип**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Тип**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Обязательный параметр**
 Стримы, которые читает узел: входные стримы и `source_streams` компьютейшена или выходы других узлов. ||
-|| `output_stream_ids` | **Тип**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `output_stream_ids` | **Тип**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Значение по умолчанию**: `[]`
 Стримы, которые пишет узел. Стрим, который не является выходом компьютейшена, — внутренний стрим графа, и его должен читать другой узел. ||
-|| `timer_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
+|| `timer_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Значение по умолчанию**: `{}`
 Таймеры узла. `streams` и `streams_with_delays` таймера перечисляют входные стримы узла. В `TProcessFunctionSourceComputation` не поддерживаются. ||
-|| `streams_dependency` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams_dependency` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 **Значение по умолчанию**: `{}`
 Зависимости выходов и таймеров узла от его входов и таймеров. По умолчанию выход зависит от всех входов и таймеров узла, а таймер — от всех входов узла и от самого себя. ||
 |#

@@ -10,7 +10,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 Name of the corresponding class.
 
 Must be registered using `YT_FLOW_DEFINE_SINK`. ||
-|| `input_stream_ids` | **Type**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Type**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Default value**: `[]`
 List of input streams.
 

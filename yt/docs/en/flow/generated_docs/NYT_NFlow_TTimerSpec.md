@@ -8,9 +8,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `time_type` | **Type**: [NYT::NFlow::ETimeType](./all_yson_structs#NYT_NFlow_ETimeType)
 **Default value**: `event_time`
 The time type used by the timer: `event_time`, `system_time`, `real_time` ||
-|| `streams` | **Type**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams` | **Type**: `std::optional<THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 List of streams that the timer monitors. ||
-|| `streams_with_delays` | **Type**: `std::optional<THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>>`
+|| `streams_with_delays` | **Type**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`
 List of streams that the timer monitors with an individual delay specified ||
 || `deduplicate_equal_timestamps` | **Type**: `bool`
 **Default value**: `true`

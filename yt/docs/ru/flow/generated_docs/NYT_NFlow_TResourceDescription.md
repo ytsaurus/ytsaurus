@@ -5,7 +5,7 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `alias` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `alias` | **Тип**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
  ||
 || `worker` | **Тип**: `bool`
 **Значение по умолчанию**: `true`

@@ -8,7 +8,7 @@
 || `time_type` | **Тип**: [NYT::NFlow::ETimeType](./all_yson_structs#NYT_NFlow_ETimeType)
 **Значение по умолчанию**: `event_time`
 Время для сортировки: `event_time`, `system_time`, `real_time` ||
-|| `stream_delays` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>`
+|| `stream_delays` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>`
 **Значение по умолчанию**: `{}`
 Задержки для входных потоков. Если поток не указан &mdash; то задержки не будет ||
 |#

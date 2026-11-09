@@ -17,6 +17,9 @@
 || `scheduler_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `5s`
 Период запуска планировщика. ||
+|| `no_spec_iteration_backoff` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `1s`
+ ||
 || `cache_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1s`
  ||

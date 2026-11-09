@@ -8,7 +8,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `time_type` | **Type**: [NYT::NFlow::ETimeType](./all_yson_structs#NYT_NFlow_ETimeType)
 **Default value**: `event_time`
 Time for sorting: `event_time`, `system_time`, `real_time` ||
-|| `stream_delays` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>`
+|| `stream_delays` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>`
 **Default value**: `{}`
 Delays for input streams. If a stream is not specified, there is no delay ||
 |#

@@ -5,25 +5,25 @@ Source: [yt/yt/flow/library/cpp/common/timer-inl.h]({{source-root}}/yt/yt/flow/l
 
 #|
 || **Parameter** | **Description** ||
-|| `message_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TMessageIdTag>`
+|| `message_id` | **Type**: [NYT::NFlow::TMessageId](./all_yson_structs#NYT_NFlow_TMessageId)
 **Required parameter**
 Unique timer ID. ||
-|| `system_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `system_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
 Timestamp of the timer creation. ||
-|| `event_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `event_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
 Timestamp of the real event associated with this timer. ||
-|| `stream_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>`
+|| `stream_id` | **Type**: [NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)
 **Required parameter**
 The stream this message belongs to. ||
-|| `key` | **Type**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TKeyTag, NYT::TStrongTypedefOptions{true}>`
+|| `key` | **Type**: [NYT::NFlow::TKey](./all_yson_structs#NYT_NFlow_TKey)
 **Required parameter**
 Key of the timer. ||
 || `key_schema` | **Type**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 **Required parameter**
 Key schema, matches the `group_by_schema` of the corresponding `Computation`. ||
-|| `trigger_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `trigger_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
 Time for the timer to fire. ||
 |#

@@ -8,9 +8,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `external_state_joiner_class_name` | **Type**: `std::string`
 **Default value**: `NYT::NFlow::TSimpleExternalStateJoiner`
 Full class name of the external state joiner. Must be registered with the `YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER` macro (or be a library implementation such as `NYT::NFlow::TSimpleExternalStateJoiner`). ||
-|| `client_provider_resource_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `client_provider_resource_id` | **Type**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
 If set, the framework searches for a static resource with this name (must implement `IYTClientProvider`) and uses its `Get()` as the joiner's YT client. In this case, the `cluster` from the table's rich path is ignored. Mutually exclusive with `client_factory_resource_id` (this parameter takes priority). ||
-|| `client_factory_resource_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `client_factory_resource_id` | **Type**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
 If set, the framework searches for a static resource with this name (must implement `IYTClientProvider`) and uses `GetClient(cluster)` to get a YT client for the cluster from the table's rich path. Mutually exclusive with `client_provider_resource_id`. ||
 || `join_on` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TStateJoinSpec](./all_yson_structs#NYT_NFlow_TStateJoinSpec)`>`
 **Default value**: `{}`

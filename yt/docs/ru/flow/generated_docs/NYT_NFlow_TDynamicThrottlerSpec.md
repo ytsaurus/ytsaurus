@@ -29,7 +29,7 @@
 || `rpc_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `30s`
 Таймаут одного запроса `RequestQuota`. ||
-|| `classes` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
+|| `classes` | **Тип**: `THashMap<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
 **Значение по умолчанию**: `{}`
 Именованные взвешенные классы квоты. Ключи должны соответствовать `[0-9A-Za-z_-]+`. Активные классы делят полосу пропорционально весам, а свободная доля перераспределяется. ||
 || `max_grant_amount` | **Тип**: `std::optional<long>`
