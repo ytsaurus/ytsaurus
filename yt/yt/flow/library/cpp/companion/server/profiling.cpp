@@ -330,6 +330,9 @@ NProfiling::IRegistryPtr CreateComputationRegistry(const NProfiling::TSolomonReg
 TComputationCounters::TComputationCounters(NProfiling::TProfiler profiler)
     : RequestCount(profiler.Counter("/request/count"))
     , RequestSize(profiler.Summary("/request/size"))
+    , RequestMessageCount(profiler.Summary("/request/message_count"))
+    , RequestTimerCount(profiler.Summary("/request/timer_count"))
+    , RequestVisitCount(profiler.Summary("/request/visit_count"))
     , RequestDuration(profiler.Timer("/request/duration"))
     , RequestCpuTime(profiler.TimeCounter("/request/cpu_time"))
     , JobRecreationCount(profiler.Counter("/job/recreation/count"))
@@ -354,23 +357,24 @@ void TComputationCounters::ProfileResponse(NProto::NCompanion::EResponseStatus s
     ResponseCounts_[status].Increment();
 }
 
-NProfiling::TSummary TComputationCounters::GetStateSizeSummary(
+TStateMetrics TComputationCounters::GetStateMetrics(
     TStringBuf direction,
     TStringBuf stateType,
     const std::string& stateName)
 {
     auto key = Format("%v/%v/%v", direction, stateType, stateName);
 
-    auto guard = Guard(StateSizesLock_);
-    auto it = StateSizes_.find(key);
-    if (it == StateSizes_.end()) {
-        it = StateSizes_.emplace(
-            key,
-            Profiler_
-                .WithTag("direction", std::string(direction))
-                .WithTag("state_type", std::string(stateType))
-                .WithTag("state_name", stateName)
-                .Summary("/state/size"))
+    auto guard = Guard(StateMetricsLock_);
+    auto it = StateMetrics_.find(key);
+    if (it == StateMetrics_.end()) {
+        auto profiler = Profiler_
+            .WithTag("direction", std::string(direction))
+            .WithTag("state_type", std::string(stateType))
+            .WithTag("state_name", stateName);
+        it = StateMetrics_.emplace(key, TStateMetrics{
+                .Size = profiler.Summary("/state/size"),
+                .ItemCount = profiler.Summary("/state/item_count"),
+                                        })
             .first;
     }
     return it->second;

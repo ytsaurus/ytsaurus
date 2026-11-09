@@ -137,16 +137,16 @@ TJob::TJob(
             const THashSet<std::string>& names,
             TStringBuf direction,
             TStringBuf stateType,
-            TStateSizeSummaries* summaries) {
+            TStateMetricsMap* summaries) {
             for (const auto& name : names) {
-                summaries->emplace(name, Counters_->GetStateSizeSummary(direction, stateType, name));
+                summaries->emplace(name, Counters_->GetStateMetrics(direction, stateType, name));
             }
         };
-        addSummaries(InternalStateNames_, "request", "internal", &RequestInternalStateSizes_);
-        addSummaries(ExternalStateNames_, "request", "external", &RequestExternalStateSizes_);
-        addSummaries(JoinedStateNames_, "request", "joined_external", &RequestJoinedStateSizes_);
-        addSummaries(InternalStateNames_, "response", "internal", &ResponseInternalStateSizes_);
-        addSummaries(ExternalStateNames_, "response", "external", &ResponseExternalStateSizes_);
+        addSummaries(InternalStateNames_, "request", "internal", &RequestInternalStateMetrics_);
+        addSummaries(ExternalStateNames_, "request", "external", &RequestExternalStateMetrics_);
+        addSummaries(JoinedStateNames_, "request", "joined_external", &RequestJoinedStateMetrics_);
+        addSummaries(InternalStateNames_, "response", "internal", &ResponseInternalStateMetrics_);
+        addSummaries(ExternalStateNames_, "response", "external", &ResponseExternalStateMetrics_);
     }
 }
 
@@ -195,26 +195,27 @@ const THashSet<std::string>& TJob::GetJoinedStateNames() const
     return JoinedStateNames_;
 }
 
-void TJob::ProfileRequestStateSizes(const NProto::NCompanion::TReqProcessBatch& request) const
+void TJob::ProfileRequestStates(const NProto::NCompanion::TReqProcessBatch& request) const
 {
-    ProfileStateSizes(RequestInternalStateSizes_, request.internal_states());
-    ProfileStateSizes(RequestExternalStateSizes_, request.external_states());
-    ProfileStateSizes(RequestJoinedStateSizes_, request.joined_external_states());
+    ProfileStates(RequestInternalStateMetrics_, request.internal_states());
+    ProfileStates(RequestExternalStateMetrics_, request.external_states());
+    ProfileStates(RequestJoinedStateMetrics_, request.joined_external_states());
 }
 
-void TJob::ProfileResponseStateSizes(const NProto::NCompanion::TResponseData& response) const
+void TJob::ProfileResponseStates(const NProto::NCompanion::TResponseData& response) const
 {
-    ProfileStateSizes(ResponseInternalStateSizes_, response.internal_states());
-    ProfileStateSizes(ResponseExternalStateSizes_, response.external_states());
+    ProfileStates(ResponseInternalStateMetrics_, response.internal_states());
+    ProfileStates(ResponseExternalStateMetrics_, response.external_states());
 }
 
-void TJob::ProfileStateSizes(
-    const TStateSizeSummaries& summaries,
+void TJob::ProfileStates(
+    const TStateMetricsMap& summaries,
     const google::protobuf::RepeatedPtrField<NProto::NCompanion::TState>& states)
 {
     for (const auto& state : states) {
         if (auto it = summaries.find(state.name()); it != summaries.end()) {
-            it->second.Record(state.ByteSizeLong());
+            it->second.Size.Record(state.ByteSizeLong());
+            it->second.ItemCount.Record(state.stateitems_size());
         }
     }
 }
