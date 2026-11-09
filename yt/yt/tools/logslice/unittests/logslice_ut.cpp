@@ -1,6 +1,8 @@
 #include <yt/yt/tools/logslice/lib/log_slice_engine.h>
 #include <yt/yt/tools/logslice/lib/time_parser.h>
 
+#include <yt/yt/core/test_framework/framework.h>
+
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/file_log_writer.h>
 #include <yt/yt/core/logging/formatter.h>
@@ -10,31 +12,32 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/streams/zstd/zstd.h>
 
-#include <library/cpp/yt/cpu_clock/clock.h>
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/logging/structured_payload.h>
 #include <library/cpp/yt/logging/tagged_payload.h>
+
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 #include <util/generic/size_literals.h>
 
 #include <util/stream/file.h>
 #include <util/stream/str.h>
 #include <util/stream/zlib.h>
+
 #include <util/string/split.h>
+
 #include <util/system/file.h>
 #include <util/system/tempfile.h>
 
 namespace NYT::NLogSlice {
 namespace {
 
-using namespace NYT::NLogging;
 using namespace NYT::NConcurrency;
+using namespace NYT::NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -877,6 +880,74 @@ TEST_F(TLogSliceTest, SliceCutsLongLines)
     ASSERT_EQ(3u, lines.size());
     EXPECT_EQ(16_MB, lines[1].size());
     EXPECT_EQ("msg", MessageOf(lines[2]));
+}
+
+TEST_F(TLogSliceTest, DecodeOfFoundRangeHoldsSlicedLines)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto from = base + TDuration::MilliSeconds(2500);
+    auto to = base + TDuration::MilliSeconds(6500);
+    for (const auto& [suffix, method] : std::vector<std::pair<std::string, std::optional<ECompressionMethod>>>{
+        {".log", std::nullopt},
+        {".zst", ECompressionMethod::Zstd},
+        {".gz", ECompressionMethod::Gzip},
+    }) {
+        TTempFile logFile(GenerateRandomFileName("log") + suffix);
+        WriteLog(logFile.Name(), method, MakeEvents(base));
+
+        auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
+        TFile file(logFile.Name(), OpenExisting | RdOnly);
+        auto [start, end] = engine->FindRange(file, from, to, /*seekMargin*/ TDuration::Zero());
+        EXPECT_LT(start, end);
+        EXPECT_LE(end, file.GetLength());
+
+        std::string text;
+        engine->Decode(file, start, end, [&] (TStringBuf chunk) {
+            text += chunk;
+        });
+        std::vector<std::string> lines;
+        for (TStringBuf line : StringSplitter(text).Split('\n').SkipEmpty()) {
+            auto time = ParseLogLineTime(line);
+            if (time && *time >= from && *time <= to) {
+                lines.emplace_back(line);
+            }
+        }
+        EXPECT_EQ(lines, Slice(logFile.Name(), from, to)) << suffix;
+    }
+}
+
+TEST_F(TLogSliceTest, DecodeKeepsRecoveredTail)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(plainFile.Name());
+        for (int index = 0; index < 10; ++index) {
+            output << FormatLogTime(base + TDuration::Seconds(index)) << "\tI\tTest\t" << std::string(20_KB, 'x') << "\n";
+        }
+    }
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFile.Name(), ECompressionMethod::Zstd);
+    {
+        TFile file(zstdFile.Name(), OpenExisting | RdWr);
+        file.Resize(file.GetLength() - 1);
+    }
+
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, zstdFile.Name());
+    TFile file(zstdFile.Name(), OpenExisting | RdOnly);
+    auto [start, end] = engine->FindRange(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero());
+    std::string text;
+    engine->Decode(file, start, end, [&] (TStringBuf chunk) {
+        text += chunk;
+    });
+    std::vector<std::string> lines;
+    for (TStringBuf line : StringSplitter(text).Split('\n').SkipEmpty()) {
+        if (ParseLogLineTime(line)) {
+            lines.emplace_back(line);
+        }
+    }
+    EXPECT_FALSE(lines.empty());
+    EXPECT_EQ(lines, Slice(zstdFile.Name(), TInstant::Zero(), TInstant::Max()));
 }
 
 // Test wrapper: runs the streaming FilterWithGrep over an in-memory string and

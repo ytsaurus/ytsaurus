@@ -4,15 +4,18 @@
 
 #include <library/cpp/streams/zstd/zstd.h>
 
-#include <library/cpp/yt/assert/assert.h>
 #include <library/cpp/yt/error/error.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/size_literals.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
+
 #include <util/stream/file.h>
 #include <util/stream/str.h>
 #include <util/stream/zlib.h>
+
 #include <util/system/shellcommand.h>
 
 #include <algorithm>
@@ -56,9 +59,6 @@ constexpr i64 ScanWindowSize = 1 << 20;
 
 //! Buffer size for the final decode pass.
 constexpr i64 DecodeChunkSize = 256 << 10;
-
-//! Sliced lines are cut to this length.
-constexpr i64 MaxLineLength = 16_MB;
 
 TString ReadFileRange(TFile& file, i64 offset, i64 size)
 {
@@ -168,18 +168,34 @@ class TBlockSliceEngine
 public:
     void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) final
     {
-        i64 fileSize = file.GetLength();
-        if (fileSize == 0) {
-            return;
-        }
-
-        i64 startOffset = FindStartOffset(file, fileSize, from - seekMargin, to + seekMargin);
-        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin);
+        auto [startOffset, endOffset] = FindRange(file, from, to, seekMargin);
         if (endOffset <= startOffset) {
             return;
         }
 
         DecodeAndFilter(file, startOffset, endOffset, from, to, output);
+    }
+
+    std::pair<i64, i64> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) final
+    {
+        i64 fileSize = file.GetLength();
+        if (fileSize == 0) {
+            return {0, 0};
+        }
+
+        i64 startOffset = FindStartOffset(file, fileSize, from - seekMargin, to + seekMargin);
+        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin);
+        return {startOffset, std::max(startOffset, endOffset)};
+    }
+
+    void Decode(TFile& file, i64 start, i64 end, const std::function<void(TStringBuf)>& consumer) final
+    {
+        if (start >= end) {
+            return;
+        }
+        DecodeRange(file, start, end, [&] (const char* data, size_t size) {
+            consumer(TStringBuf(data, size));
+        });
     }
 
     std::optional<std::pair<TInstant, TInstant>> GetTimeRange(TFile& file) final
