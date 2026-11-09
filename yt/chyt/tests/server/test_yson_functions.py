@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBaseWithSharedClique, QueryFailedError
 
 from yt_commands import (create, write_table, read_table, authors, raises_yt_error, merge)
 
@@ -7,7 +7,7 @@ import yt.yson as yson
 import json
 
 
-class TestYsonFunctions(ClickHouseTestBase):
+class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 3
 
     def setup_method(self, method):
@@ -87,44 +87,42 @@ class TestYsonFunctions(ClickHouseTestBase):
         )
 
     @authors("max42")
-    def test_read_int64_strict(self):
-        with Clique(1) as clique:
-            for i in range(4):
-                query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
-                if i != 0:
-                    with raises_yt_error(code=QueryFailedError):
-                        clique.make_query(query)
-                else:
-                    result = clique.make_query(query)
-                    assert result[0].popitem()[1] == -42
+    def test_read_int64_strict(self, clique):
+        for i in range(4):
+            query = f"select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {i}"
+            if i != 0:
+                with raises_yt_error(code=QueryFailedError):
+                    clique.make_query(query)
+            else:
+                result = clique.make_query(query)
+                assert result[0].popitem()[1] == -42
 
     @authors("max42")
-    def test_read_uint64_strict(self):
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
-            assert result[0].popitem()[1] == 57
+    def test_read_uint64_strict(self, clique):
+        result = clique.make_query("select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
+        assert result[0].popitem()[1] == 57
 
     @authors("max42")
-    def test_read_from_subnode(self):
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
-            assert result[0].popitem()[1] == 123
+    def test_read_from_subnode(self, clique):
+        result = clique.make_query(
+            "select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0"
+        )
+        assert result[0].popitem()[1] == 123
 
     @authors("max42", "dakovalkov")
-    def test_read_int64_non_strict(self):
-        with Clique(1) as clique:
-            query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
-            result = clique.make_query(query)
-            for i, item in enumerate(result):
-                if i == 0:
-                    assert item.popitem()[1] == -42
-                elif i == 4:
-                    assert item.popitem()[1] == 57
-                else:
-                    assert item.popitem()[1] is None
+    def test_read_int64_non_strict(self, clique):
+        query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
+        result = clique.make_query(query)
+        for i, item in enumerate(result):
+            if i == 0:
+                assert item.popitem()[1] == -42
+            elif i == 4:
+                assert item.popitem()[1] == 57
+            else:
+                assert item.popitem()[1] is None
 
     @authors("max42")
-    def test_read_all_types_strict(self):
+    def test_read_all_types_strict(self, clique):
         query = (
             "select YPathInt64Strict(v, '/i64') as i64, YPathUInt64Strict(v, '/ui64') as ui64, "
             "YPathDoubleStrict(v, '/dbl') as dbl, YPathBooleanStrict(v, '/bool') as bool, "
@@ -132,8 +130,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             "YPathArrayUInt64Strict(v, '/arr_ui64') as arr_ui64, YPathArrayDoubleStrict(v, '/arr_dbl') as arr_dbl, "
             "YPathArrayBooleanStrict(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 0"
         )
-        with Clique(1) as clique:
-            result = clique.make_query(query)
+        result = clique.make_query(query)
         assert result == [
             {
                 "i64": -42,
@@ -149,7 +146,7 @@ class TestYsonFunctions(ClickHouseTestBase):
         ]
 
     @authors("max42")
-    def test_read_all_types_non_strict(self):
+    def test_read_all_types_non_strict(self, clique):
         query = (
             "select YPathInt64(v, '/i64') as i64, YPathUInt64(v, '/ui64') as ui64, "
             "YPathDouble(v, '/dbl') as dbl, YPathBoolean(v, '/bool') as bool, "
@@ -157,8 +154,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             "YPathArrayUInt64(v, '/arr_ui64') as arr_ui64, YPathArrayDouble(v, '/arr_dbl') as arr_dbl, "
             "YPathArrayBoolean(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 3"
         )
-        with Clique(1) as clique:
-            result = clique.make_query(query)
+        result = clique.make_query(query)
         assert result == [
             {
                 "i64": None,
@@ -174,117 +170,110 @@ class TestYsonFunctions(ClickHouseTestBase):
         ]
 
     @authors("gudqeit")
-    def test_parse_unexpected_type(self):
-        with Clique(1) as clique:
-            with raises_yt_error(code=QueryFailedError):
-                clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
+    def test_parse_unexpected_type(self, clique):
+        with raises_yt_error(code=QueryFailedError):
+            clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
 
-            result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
-            assert result == [{"value": []}]
+        result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
+        assert result == [{"value": []}]
 
     @authors("max42")
-    def test_const_args(self):
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
+    def test_const_args(self, clique):
+        result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
         assert result == [{"str": "xyz"}]
 
     @authors("max42", "dakovalkov")
-    def test_nulls(self):
-        with Clique(1) as clique:
-            result = clique.make_query(
-                "select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, " "YPathString('{a=1}', NULL) as c"
-            )
-            assert result == [{"a": None, "b": None, "c": None}]
+    def test_nulls(self, clique):
+        result = clique.make_query(
+            "select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, " "YPathString('{a=1}', NULL) as c"
+        )
+        assert result == [{"a": None, "b": None, "c": None}]
 
-            result = clique.make_query('select YPathInt64(v, key) from "//tmp/t"')
-            for i, item in enumerate(result):
-                if i == 0:
-                    assert item.popitem()[1] == -1
-                else:
-                    assert item.popitem()[1] is None
+        result = clique.make_query('select YPathInt64(v, key) from "//tmp/t"')
+        for i, item in enumerate(result):
+            if i == 0:
+                assert item.popitem()[1] == -1
+            else:
+                assert item.popitem()[1] is None
 
     # CHYT-157.
     @authors("max42")
-    def test_int64_as_any(self):
+    def test_int64_as_any(self, clique):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
         lst = [{"a": -(2 ** 63)}, {"a": -42}, {"a": 123456789123456789}, {"a": 2 ** 63 - 1}]
         write_table("//tmp/s1", lst)
         merge(in_="//tmp/s1", out="//tmp/s2")
 
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/s2\" order by i")
-            assert result == [{"i": row["a"]} for row in lst]
+        result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/s2\" order by i")
+        assert result == [{"i": row["a"]} for row in lst]
 
     @authors("dakovalkov")
-    def test_raw_yson_as_any(self):
+    def test_raw_yson_as_any(self, clique):
         object = {"a": [1, 2, {"b": "xxx"}]}
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
         write_table("//tmp/s1", {"a": object})
 
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathRaw(a, '') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object, "binary").decode()}]
-            result = clique.make_query("select YPathRawStrict(a, '/a') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object["a"], "binary").decode()}]
-            result = clique.make_query("select YPathRaw(a, '', 'text') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object, "text").decode()}]
-            result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
-            assert result == [{"i": None}]
-            with raises_yt_error(code=QueryFailedError):
-                clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
+        result = clique.make_query("select YPathRaw(a, '') as i from \"//tmp/s1\"")
+        assert result == [{"i": yson.dumps(object, "binary").decode()}]
+        result = clique.make_query("select YPathRawStrict(a, '/a') as i from \"//tmp/s1\"")
+        assert result == [{"i": yson.dumps(object["a"], "binary").decode()}]
+        result = clique.make_query("select YPathRaw(a, '', 'text') as i from \"//tmp/s1\"")
+        assert result == [{"i": yson.dumps(object, "text").decode()}]
+        result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
+        assert result == [{"i": None}]
+        with raises_yt_error(code=QueryFailedError):
+            clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
 
     @authors("dakovalkov")
-    def test_ypath_extract(self):
+    def test_ypath_extract(self, clique):
         object = {"a": [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
         write_table("//tmp/s1", {"a": object})
 
-        with Clique(1) as clique:
-            result = clique.make_query("select YPathExtract(a, '/a/1/1', 'UInt64') as i from \"//tmp/s1\"")
-            assert result == [{"i": object["a"][1][1]}]
-            result = clique.make_query("select YPathExtract(a, '/a/2', 'Array(UInt64)') as i from \"//tmp/s1\"")
-            assert result == [{"i": object["a"][2]}]
-            result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
-            assert result == [{"i": object["a"]}]
-            result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
-            assert result == [{"i": ""}]
-            # A numeric node extracted as String must be written in text form ("42"),
-            # not as binary YSON (which would yield bytes like "\x02T").
-            result = clique.make_query(
-                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'String') as i")
-            assert result == [{"i": "42"}]
-            result = clique.make_query(
-                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'Int64') as i")
-            assert result == [{"i": 42}]
+        result = clique.make_query("select YPathExtract(a, '/a/1/1', 'UInt64') as i from \"//tmp/s1\"")
+        assert result == [{"i": object["a"][1][1]}]
+        result = clique.make_query("select YPathExtract(a, '/a/2', 'Array(UInt64)') as i from \"//tmp/s1\"")
+        assert result == [{"i": object["a"][2]}]
+        result = clique.make_query(
+            "select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\""
+        )
+        assert result == [{"i": object["a"]}]
+        result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
+        assert result == [{"i": ""}]
+        # A numeric node extracted as String must be written in text form ("42"),
+        # not as binary YSON (which would yield bytes like "\x02T").
+        result = clique.make_query(
+            "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'String') as i")
+        assert result == [{"i": "42"}]
+        result = clique.make_query(
+            "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'Int64') as i")
+        assert result == [{"i": 42}]
 
     # CHYT-370.
     @authors("max42")
-    def test_const_arguments(self):
-        with Clique(1) as clique:
-            assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": '["foo";"bar";]'}
-            with raises_yt_error(code=QueryFailedError):
-                clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
-                clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
+    def test_const_arguments(self, clique):
+        assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": '["foo";"bar";]'}
+        with raises_yt_error(code=QueryFailedError):
+            clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
+            clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
 
     @authors("max42")
-    def test_different_format_per_row(self):
-        with Clique(1) as clique:
-            assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
-                {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
-            ]
+    def test_different_format_per_row(self, clique):
+        assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
+            {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
+        ]
 
     @authors("iharbychyk")
-    def test_yson_extract_keys(self):
-        with Clique(1) as clique:
-            assert clique.make_query("select YSONExtractKeys('{a=hello;b=[-100;200.0;300]}') as res") == [{"res": ["a", "b"]}]
-            assert clique.make_query("select YSONExtractKeys('{x={a=1;b=2};y={z={c=3}}}', 'y', 'z') as res") == [{"res": ["c"]}]
-            assert clique.make_query("select YSONExtractKeys('{a=1;b=2}', 'c') as res") == [{"res": []}]
-            assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
-            assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
+    def test_yson_extract_keys(self, clique):
+        assert clique.make_query("select YSONExtractKeys('{a=hello;b=[-100;200.0;300]}') as res") == [{"res": ["a", "b"]}]
+        assert clique.make_query("select YSONExtractKeys('{x={a=1;b=2};y={z={c=3}}}', 'y', 'z') as res") == [{"res": ["c"]}]
+        assert clique.make_query("select YSONExtractKeys('{a=1;b=2}', 'c') as res") == [{"res": []}]
+        assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
+        assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
 
     @authors("a-dyu")
-    def test_yson_to_json(self):
+    def test_yson_to_json(self, clique):
         obj = {
             "a": {
                 "i64": -42,
@@ -305,15 +294,14 @@ class TestYsonFunctions(ClickHouseTestBase):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
         write_table("//tmp/s1", {"a": obj})
 
-        with Clique(1) as clique:
-            result = clique.make_query("select ConvertYsonToJson(a) as v from \"//tmp/s1\"")
-            json_res = json.loads(result[0]["v"])
-            assert json_res == obj
-            result = clique.make_query("select ConvertYsonToJson('[]') as v")
-            json_res = json.loads(result[0]["v"])
-            assert json_res == []
-            result = clique.make_query("select ConvertYsonToJson('{a = 1}') as v")
-            json_res = json.loads(result[0]["v"])
-            assert json_res == {'a': 1}
-            result = clique.make_query("select ConvertYsonToJson(null) as v")
-            assert result[0]["v"] is None
+        result = clique.make_query("select ConvertYsonToJson(a) as v from \"//tmp/s1\"")
+        json_res = json.loads(result[0]["v"])
+        assert json_res == obj
+        result = clique.make_query("select ConvertYsonToJson('[]') as v")
+        json_res = json.loads(result[0]["v"])
+        assert json_res == []
+        result = clique.make_query("select ConvertYsonToJson('{a = 1}') as v")
+        json_res = json.loads(result[0]["v"])
+        assert json_res == {'a': 1}
+        result = clique.make_query("select ConvertYsonToJson(null) as v")
+        assert result[0]["v"] is None
