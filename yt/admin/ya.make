@@ -12,6 +12,7 @@ IF (NOT OPENSOURCE)
         acl_dumper
         cms
         common
+        common/templates
         core
         core3
         devil-hulk
