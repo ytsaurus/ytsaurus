@@ -2,6 +2,8 @@ from yt_commands import (create, create_access_control_object, create_access_con
                          write_file, ls, start_op, get, exists, create_user, sync_create_cells, print_debug,
                          get_driver, remove, make_ace, set as yt_set, select_rows, patch_op_spec)
 
+from helpers import get_disabled_cache_config
+
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
 
@@ -19,6 +21,8 @@ from yt.test_helpers.profiler import Profiler
 import yt.packages.requests as requests
 
 import yt.yson as yson
+
+import pytest
 
 if is_tsan_build():
     import yatest.common
@@ -1038,6 +1042,32 @@ class ClickHouseTestBase(YTEnvSetup):
         if getattr(method, "requires_tablet_cell", False) or getattr(type(self), "requires_tablet_cell", False):
             sync_create_cells(1)
         create_access_control_object_namespace(name="chyt")
+
+
+class ClickHouseTestBaseWithSharedClique(ClickHouseTestBase):
+    @pytest.fixture(scope="class", autouse=True)
+    def _shared_clique_environment(self):
+        super().setup_method(None)
+        try:
+            yield
+        finally:
+            super().teardown_method(None)
+
+    @pytest.fixture(scope="class")
+    def clique(self, _shared_clique_environment):
+        """Keep the default Clique alive until class-scoped environment cleanup."""
+        # Per-test Cypress writes bypass CHYT cache invalidation.
+        with Clique(1, config_patch=get_disabled_cache_config()) as clique:
+            yield clique
+
+    def setup_method(self, method):
+        # The class-scoped fixture initializes the environment once.
+        pass
+
+    def teardown_method(self, method):
+        # Base teardown would abort the shared Clique operation.
+        # Full cleanup runs after the Clique fixture exits.
+        remove("//tmp/*", recursive=True, force=True)
 
 
 def enable_sequoia(test_class):
