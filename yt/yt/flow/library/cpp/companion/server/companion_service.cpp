@@ -167,6 +167,9 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 
     counters->RequestCount.Increment();
     counters->RequestSize.Record(NRpc::GetMessageBodySize(context->GetRequestMessage()));
+    counters->RequestMessageCount.Record(request->messages_size());
+    counters->RequestTimerCount.Record(request->timers_size());
+    counters->RequestVisitCount.Record(request->visits_size());
     auto timerGuard = Finally([&] {
         counters->RequestDuration.Record(requestTimer.GetElapsedTime());
     });
@@ -190,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     }
 
     const auto& job = execution->Job;
-    job->ProfileRequestStateSizes(*request);
+    job->ProfileRequestStates(*request);
 
     // Count queued callbacks too: a timed-out RPC may be retried while its
     // original handler is still running, and both must keep using the same
@@ -254,7 +257,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     if (outcome.Status == NProto::NCompanion::RS_OK) {
         response->mutable_metrics()->set_cpu_time_ns(outcome.CpuTimeNs);
         counters->RequestCpuTime.Add(TDuration::MicroSeconds(outcome.CpuTimeNs / 1000));
-        job->ProfileResponseStateSizes(response->data());
+        job->ProfileResponseStates(response->data());
     }
 
     responseStatus = outcome.Status;

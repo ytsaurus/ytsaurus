@@ -286,6 +286,14 @@ class GrpcServerExecutionTest {
         assertEquals(2, requestSize.count());
         assertEquals(request.getSerializedSize() + followUpRequest.getSerializedSize(), requestSize.totalAmount());
 
+        var messageCount = registry.get("yt.flow.companion.request.message_count")
+                .tag("request_type", "process_batch")
+                .tag("computation_id", ProtobufRequestBuilder.COMPUTATION_ID)
+                .summary();
+        assertEquals(2, messageCount.count());
+        assertEquals(2.0, messageCount.max());
+        assertEquals(3.0, messageCount.totalAmount());
+
         var requestDuration = registry.get("yt.flow.companion.request.duration")
                 .tag("request_type", "process_batch")
                 .tag("computation_id", ProtobufRequestBuilder.COMPUTATION_ID)

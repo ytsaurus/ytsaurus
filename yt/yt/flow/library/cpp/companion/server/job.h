@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "profiling.h"
+
 #include "server_context.h"
 #include "state_store.h"
 
@@ -89,8 +91,8 @@ public:
     //! Keys of |external_state_joiners| from the static spec.
     const THashSet<std::string>& GetJoinedStateNames() const;
 
-    void ProfileRequestStateSizes(const NProto::NCompanion::TReqProcessBatch& request) const;
-    void ProfileResponseStateSizes(const NProto::NCompanion::TResponseData& response) const;
+    void ProfileRequestStates(const NProto::NCompanion::TReqProcessBatch& request) const;
+    void ProfileResponseStates(const NProto::NCompanion::TResponseData& response) const;
 
     //! Runs one epoch batch through the hosted process function and fills the
     //! response data; the function is instantiated from the registry and
@@ -121,12 +123,12 @@ private:
     THashSet<std::string> ExternalStateNames_;
     THashSet<std::string> JoinedStateNames_;
 
-    using TStateSizeSummaries = THashMap<std::string, NProfiling::TSummary>;
-    TStateSizeSummaries RequestInternalStateSizes_;
-    TStateSizeSummaries RequestExternalStateSizes_;
-    TStateSizeSummaries RequestJoinedStateSizes_;
-    TStateSizeSummaries ResponseInternalStateSizes_;
-    TStateSizeSummaries ResponseExternalStateSizes_;
+    using TStateMetricsMap = THashMap<std::string, TStateMetrics>;
+    TStateMetricsMap RequestInternalStateMetrics_;
+    TStateMetricsMap RequestExternalStateMetrics_;
+    TStateMetricsMap RequestJoinedStateMetrics_;
+    TStateMetricsMap ResponseInternalStateMetrics_;
+    TStateMetricsMap ResponseExternalStateMetrics_;
 
     //! Per-job converter cache (mirrors the in-process worker's per-job
     //! scoping): entries are keyed by schema pointers and pinned for the
@@ -143,8 +145,8 @@ private:
 
     [[nodiscard]] bool EnsureInitialized();
     std::optional<THashMap<TResourceId, IResourcePtr>> AcquireRequiredResources() const;
-    static void ProfileStateSizes(
-        const TStateSizeSummaries& summaries,
+    static void ProfileStates(
+        const TStateMetricsMap& summaries,
         const google::protobuf::RepeatedPtrField<NProto::NCompanion::TState>& states);
 };
 

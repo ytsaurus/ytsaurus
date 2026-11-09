@@ -221,6 +221,17 @@ class Test(FlowTestCppCompanionBase):
             {"computation_id": "counter", "flow_process": "companion"},
         )
 
+        labels = {"computation_id": "counter", "request_type": "process_batch", "flow_process": "companion"}
+        for item in ("message", "timer", "visit"):
+            name = f"yt.flow.companion.request.{item}_count.max"
+            sensors = self._wait_for_sensor(worker.monitoring_port, name, labels)
+            assert find_sensor(sensors, name, labels)["value"] >= 0
+
+        state_labels = dict(labels, direction="response", state_type="internal", state_name="word-state")
+        name = "yt.flow.companion.state.item_count.max"
+        sensors = self._wait_for_sensor(worker.monitoring_port, name, state_labels)
+        assert find_sensor(sensors, name, state_labels)["value"] >= 0
+
         # Node sensors remain present and untagged as companion.
         node_sensor = find_sensor(sensors, "yt.flow.worker.job_count", {"computation_id": "counter"})
         assert node_sensor is not None, "node sensors are missing from the merged endpoint"

@@ -34,6 +34,8 @@
 #include <util/generic/map.h>
 #include <util/stream/str.h>
 
+#include <tuple>
+
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -357,7 +359,8 @@ protected:
         return responseOrError.Value()->status();
     }
 
-    std::vector<INodePtr> ReadSensors()
+    std::vector<INodePtr> ReadSensors(
+        NProfiling::ESummaryPolicy summaryPolicy = NProfiling::ESummaryPolicy::Max)
     {
         Registry_->ProcessRegistrations();
         auto iteration = Registry_->GetNextIteration();
@@ -366,7 +369,7 @@ protected:
         NProfiling::TReadOptions options;
         options.Times = {{{Registry_->IndexOf(iteration)}, TInstant::Zero()}};
         options.EnableSolomonAggregates = true;
-        options.SummaryPolicy = NProfiling::ESummaryPolicy::Max;
+        options.SummaryPolicy = summaryPolicy;
         options.InstanceTags = {
             {std::string(CompanionProcessTag), std::string(CompanionProcessTagValue)},
             {"pipeline_path", "//tmp/pipeline"},
@@ -506,6 +509,76 @@ TEST_F(TProfilingTest, CompanionCountersFollowTheBatches)
     EXPECT_EQ(requestCount->AsMap()->GetChildValueOrThrow<i64>("value"), 2);
 }
 
+TEST_F(TProfilingTest, RequestItemCountsIncludeEmptyInputsAndRetries)
+{
+    auto req = Proxy_->ProcessBatch();
+    ToProto(req->mutable_request_id(), TGuid::Create());
+    ToProto(req->mutable_job_id(), TJobId(TGuid::Create()));
+    req->set_computation_id(std::string(ComputationId));
+    for (int index = 0; index < 2; ++index) {
+        auto message = NTesting::MakeTestMessage(
+            TStreamId("input"),
+            MakeKey(ui64{42}),
+            Schema_,
+            [&] (TMessageBuilder& builder) {
+                builder.SetMessageId(TMessageId(Format("m-%v", index)));
+                builder.Payload().Set(ui64{42}, "key");
+            });
+        auto* protoMessage = req->add_messages();
+        ToProto(protoMessage->mutable_message(), *message, StreamSpecs_);
+        ToProto(protoMessage->mutable_key(), message->Key);
+    }
+    for (int index = 0; index < 3; ++index) {
+        auto* timer = req->add_timers();
+        timer->set_message_id(Format("timer-%v", index));
+        timer->set_system_timestamp(0);
+        timer->set_stream_id("input");
+        ToProto(timer->mutable_key(), MakeKey(ui64{42}));
+        timer->set_trigger_timestamp(0);
+    }
+    for (int index = 0; index < 4; ++index) {
+        auto* visit = req->add_visits();
+        visit->set_message_id(Format("visit-%v", index));
+        visit->set_system_timestamp(0);
+        visit->set_stream_id("input");
+        ToProto(visit->mutable_key(), MakeKey(ui64{42}));
+    }
+
+    // Rejected requests still carry inputs; retrying must record another sample.
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        auto retry = Proxy_->ProcessBatch();
+        retry->CopyFrom(*req);
+        EXPECT_EQ(retry->Invoke().BlockingGet().ValueOrThrow()->status(), NProto::NCompanion::RS_JOB_NOT_FOUND);
+    }
+    auto checkCounts = [&] (int messages, int timers, int visits, ui64 expectedSampleCount) {
+        auto sensors = ReadSensors(NProfiling::ESummaryPolicy::All);
+        const THashMap<std::string, int> expected = {
+            {"message", messages},
+            {"timer", timers},
+            {"visit", visits},
+        };
+        for (const auto& [item, count] : expected) {
+            auto sensor = FindSensor(
+                sensors,
+                Format("yt.flow.companion.request.%v_count", item),
+                {{"computation_id", std::string(ComputationId)}, {"request_type", "process_batch"}});
+            ASSERT_TRUE(sensor) << item << " is missing among " << DumpSensorNames(sensors);
+            auto summary = sensor->AsMap()->FindChild("summary");
+            ASSERT_TRUE(summary) << NYson::ConvertToYsonString(sensor).ToString();
+            EXPECT_EQ(summary->AsMap()->GetChildValueOrThrow<double>("max"), count);
+            EXPECT_EQ(summary->AsMap()->GetChildValueOrThrow<ui64>("count"), expectedSampleCount);
+            EXPECT_EQ(summary->AsMap()->GetChildValueOrThrow<double>("sum"), expectedSampleCount * count);
+        }
+    };
+    checkCounts(2, 3, 4, /*expectedSampleCount*/ 2);
+
+    req->clear_messages();
+    req->clear_timers();
+    req->clear_visits();
+    EXPECT_EQ(req->Invoke().BlockingGet().ValueOrThrow()->status(), NProto::NCompanion::RS_JOB_NOT_FOUND);
+    checkCounts(0, 0, 0, /*expectedSampleCount*/ 1);
+}
+
 TEST_F(TProfilingTest, FailedBatchIsCountedAsErrorResponse)
 {
     auto response = ProcessBatchOrError(
@@ -560,6 +633,45 @@ TEST_F(TProfilingTest, UndeclaredStatesBuildNoSensors)
     };
     EXPECT_TRUE(stateSize("declared")) << "sensors: " << DumpSensorNames(sensors);
     EXPECT_FALSE(stateSize("undeclared"));
+    auto itemCount = FindSensor(sensors, "yt.flow.companion.state.item_count.max", {{"state_name", "declared"}});
+    ASSERT_TRUE(itemCount);
+    EXPECT_EQ(itemCount->AsMap()->GetChildValueOrThrow<double>("value"), 0);
+    EXPECT_FALSE(FindSensor(sensors, "yt.flow.companion.state.item_count.max", {{"state_name", "undeclared"}}));
+}
+
+TEST_F(TProfilingTest, StateItemCountsDistinguishEmptyAndAbsentStates)
+{
+    auto jobId = TJobId(TGuid::Create());
+    auto checkSampleCount = [&] (ui64 requestSampleCount) {
+        auto sensors = ReadSensors(NProfiling::ESummaryPolicy::All);
+        const std::vector<std::pair<std::string, ui64>> expectedSamples = {
+            {"request", requestSampleCount},
+            {"response", 0},
+        };
+        for (const auto& [direction, sampleCount] : expectedSamples) {
+            auto sensor = FindSensor(
+                sensors,
+                "yt.flow.companion.state.item_count",
+                {{"computation_id", std::string(ComputationId)},
+                    {"request_type", "process_batch"},
+                    {"direction", direction},
+                    {"state_type", "internal"},
+                    {"state_name", "declared"}});
+            ASSERT_TRUE(sensor) << direction << " is missing among " << DumpSensorNames(sensors);
+            auto summary = sensor->AsMap()->FindChild("summary");
+            ASSERT_TRUE(summary) << NYson::ConvertToYsonString(sensor).ToString();
+            EXPECT_EQ(summary->AsMap()->GetChildValueOrThrow<double>("max"), 0);
+            EXPECT_EQ(summary->AsMap()->GetChildValueOrThrow<ui64>("count"), sampleCount);
+        }
+    };
+
+    // A transmitted empty state records one zero; unchanged response states are absent.
+    EXPECT_EQ(ProcessBatch(jobId, /*withJobInfo*/ true, {"declared"}), NProto::NCompanion::RS_OK);
+    checkSampleCount(1);
+
+    // An absent state must not manufacture another zero observation.
+    EXPECT_EQ(ProcessBatch(jobId, /*withJobInfo*/ false), NProto::NCompanion::RS_OK);
+    checkSampleCount(0);
 }
 
 TEST_F(TProfilingTest, StateSizesCoverEveryWireSection)
@@ -582,6 +694,9 @@ TEST_F(TProfilingTest, StateSizesCoverEveryWireSection)
     TPayloadBuilder externalPayloadBuilder(Schema_);
     externalPayloadBuilder.Set(ui64{42}, "key");
     externalItem->set_state(ToProto<TProtobufString>(externalPayloadBuilder.Finish()));
+    auto* resetItem = externalState->add_stateitems();
+    ToProto(resetItem->mutable_key(), MakeKey(ui64{99}));
+    resetItem->set_reset(true);
 
     auto* joinedState = req->add_joined_external_states();
     joinedState->set_name("joined");
@@ -603,7 +718,8 @@ TEST_F(TProfilingTest, StateSizesCoverEveryWireSection)
     ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
 
     THashMap<std::string, double> stateMetrics;
-    for (const auto& sensor : ReadSensors()) {
+    auto sensors = ReadSensors();
+    for (const auto& sensor : sensors) {
         if (FindLabel(sensor, "sensor") != std::optional<std::string>("yt.flow.companion.state.size.max") ||
             FindLabel(sensor, "computation_id") !=
                 std::optional<std::string>(std::string(StateProfilingFunction.ComputationId)))
@@ -632,6 +748,25 @@ TEST_F(TProfilingTest, StateSizesCoverEveryWireSection)
         ASSERT_TRUE(stateMetrics.contains(labels)) << labels << " is missing from " << Format("%v", stateMetrics);
         EXPECT_GT(size, 0u);
         EXPECT_EQ(stateMetrics.at(labels), static_cast<double>(size));
+    }
+    const std::vector<std::tuple<std::string, std::string, std::string, int>> expectedCounts = {
+        {"request", "internal", "declared", 0},
+        {"request", "external", "external", 2},
+        {"request", "joined_external", "joined", 0},
+        {"response", "internal", "declared", 1},
+        {"response", "external", "external", 1},
+    };
+    for (const auto& [direction, stateType, stateName, count] : expectedCounts) {
+        auto sensor = FindSensor(
+            sensors,
+            "yt.flow.companion.state.item_count.max",
+            {{"computation_id", std::string(StateProfilingFunction.ComputationId)},
+                {"request_type", "process_batch"},
+                {"direction", direction},
+                {"state_type", stateType},
+                {"state_name", stateName}});
+        ASSERT_TRUE(sensor) << direction << "/" << stateType << "/" << stateName << " is missing among " << DumpSensorNames(sensors);
+        EXPECT_EQ(sensor->AsMap()->GetChildValueOrThrow<double>("value"), count);
     }
 }
 
