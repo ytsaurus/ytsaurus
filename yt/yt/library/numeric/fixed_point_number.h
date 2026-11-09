@@ -107,6 +107,8 @@ public:
         return lhs.Value_ >= rhs.Value_;
     }
 
+    static TFixedPointNumber FromDoubleWithFloor(double value);
+
 private:
     Underlying Value_{};
 };

@@ -384,7 +384,14 @@ void TCompositeElement::DetermineImplicitInferredStrongGuaranteeResources(
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (const auto& childImplicitGuarantee = implicitGuarantees[childIndex]) {
-                SetResource(child->Attributes().InferredStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
+                auto& resources = child->Attributes().InferredStrongGuaranteeResources;
+                if (resourceType == EJobResourceType::Cpu) {
+                    // Round down to avoid overcommitting the parent's CPU guarantee through rounding.
+                    // Otherwise, adjusting strong guarantees would also reduce GPU guarantees.
+                    resources.SetCpu(TCpuResource::FromDoubleWithFloor(*childImplicitGuarantee));
+                } else {
+                    SetResource(resources, resourceType, *childImplicitGuarantee);
+                }
             }
         }
     };
