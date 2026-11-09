@@ -756,6 +756,23 @@ class TestSequoiaInternals(YTEnvSetup):
         assert c_attr["annotation"] == annotation
 
     @authors("danilalexeev")
+    def test_list_recursive_resource_usage_with_limit(self):
+        set("//tmp/m", {
+            "a": {"x": 1},
+            "b": {"nested": {"y": 2}},
+            "c": {"nested": {"z": 3, "w": 4}},
+        })
+        expected_node_counts = {"a": 2, "b": 3, "c": 4}
+
+        for max_size in (0, 1, 2, 3):
+            items = ls("//tmp/m", attributes=["resource_usage", "recursive_resource_usage"], max_size=max_size)
+            assert [str(item) for item in items] == ["a", "b", "c"][:max_size]
+            assert items.attributes.get("incomplete", False) == (max_size < 3)
+            for item in items:
+                assert item.attributes["resource_usage"]["node_count"] == 1
+                assert item.attributes["recursive_resource_usage"]["node_count"] == expected_node_counts[str(item)]
+
+    @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):
         set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
         set("//sys/cypress_proxies/@config/vectorized_subbatch_size_overrides/descendants", 50)
