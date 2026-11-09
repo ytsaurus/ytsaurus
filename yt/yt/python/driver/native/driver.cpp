@@ -68,11 +68,16 @@ public:
             connectionType = ParseConnectionType(ExtractArgument(args, kwargs, "connection_type"));
         }
 
+        bool retryRequestQueueSizeLimitExceeded = false;
+        if (HasArgument(args, kwargs, "retry_request_queue_size_limit_exceeded")) {
+            retryRequestQueueSizeLimitExceeded = ConvertToBoolean(
+                ExtractArgument(args, kwargs, "retry_request_queue_size_limit_exceeded"));
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         INodePtr configNode;
         IDriverPtr driver;
-
 
         try {
 
@@ -95,6 +100,7 @@ public:
                     NNative::TConnectionOptions options;
                     options.TvmService = std::move(tvmService);
                     options.CreateQueueConsumerRegistrationManager = driverConfig->StartQueueConsumerRegistrationManager;
+                    options.RetryRequestQueueSizeLimitExceeded = retryRequestQueueSizeLimitExceeded;
                     connection = CreateConnection(
                         configNode,
                         std::move(options));
