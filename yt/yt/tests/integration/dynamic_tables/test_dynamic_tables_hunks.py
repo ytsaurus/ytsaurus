@@ -8,7 +8,7 @@ from yt_commands import (
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state,
-    freeze_table, unmount_table)
+    freeze_table, unmount_table, sync_control_chunk_replicator)
 
 from yt_type_helpers import make_schema
 
@@ -424,10 +424,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
             assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         else:
+            sync_control_chunk_replicator(False)
             self._set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id)
-            time.sleep(2)
-            assert hunk_chunk_id in ls("//sys/data_missing_chunks")
-            assert hunk_chunk_id in ls("//sys/parity_missing_chunks")
+            wait(lambda: hunk_chunk_id in ls("//sys/data_missing_chunks"))
+            wait(lambda: hunk_chunk_id in ls("//sys/parity_missing_chunks"))
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -5835,6 +5835,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         trim_rows("//tmp/t", 0, 10)
         wait(lambda: get("#{}/@statistics/row_count".format(get("//tmp/t/@chunk_list_id"))) == 2)
+        wait(lambda: get("#{}/@statistics/chunk_count".format(get("//tmp/t/@hunk_chunk_list_id"))) == 1)
         sync_unmount_table("//tmp/t")
         self._alter_to_static()
 
