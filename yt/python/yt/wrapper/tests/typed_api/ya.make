@@ -29,7 +29,8 @@ REQUIREMENTS(
     ram_disk:4
 )
 
-SET(YT_RECIPE_BUILD_FROM_SOURCE NO)
+# Enable to build and use fresh yt binaries
+# SET(YT_RECIPE_BUILD_FROM_SOURCE yes)
 
 DEPENDS(
     yt/packages/latest
