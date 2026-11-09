@@ -91,7 +91,9 @@ def run_test(provider, prepare, suite, case, cfg, tmpdir, tmpdir_module, mongo, 
     if no_detailed:
         log('will ignore detailed plan differences')
 
-    assert not get_gateway_cfg_patch(config), 'Patching yt test is not supported yet'
+    if get_gateway_cfg_patch(config):
+        pytest.skip('Gateways patch is not supported')
+
     # YT run
     yql_api.set_table_prefix('//' + get_test_prefix() + '/')
 
