@@ -97,6 +97,15 @@ class TestLayersBase(YTEnvSetup):
 
 class TestPortoLayersBase(TestLayersBase):
     USE_PORTO = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -110,16 +119,7 @@ class TestPortoLayersBase(TestLayersBase):
 
 
 class TestLayers(TestPortoLayersBase):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
     NUM_TEST_PARTITIONS = 2
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1,
-            "default_file_replication_factor": 1,
-        },
-    }
 
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
@@ -786,6 +786,7 @@ class TestPrivateDirectory(TestLayersBase):
 
 
 class TestProbingLayer(TestPortoLayersBase):
+    NUM_NODES = 5
     NUM_TEST_PARTITIONS = 5
 
     INPUT_TABLE = "//tmp/input_table"
