@@ -35,7 +35,7 @@ During a CHYT update:
 
    {% if audience == "public" %}  
 
-   See the [CHYT releases](../../../admin-guide/releases.md#chyt).  
+   See the [CHYT releases](../../../admin-guide/releases.md#chyt-releases).  
 
    {% endif %}
 
