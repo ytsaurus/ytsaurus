@@ -46,6 +46,8 @@ class TReqCreateChunkLists;
 class TRspCreateChunkLists;
 class TReqUnstageChunkTree;
 class TRspUnstageChunkTree;
+class TReqUnstageChunkTrees;
+class TRspUnstageChunkTrees;
 class TReqAttachChunkTrees;
 class TRspAttachChunkTrees;
 class TReqDetachChunkTrees;

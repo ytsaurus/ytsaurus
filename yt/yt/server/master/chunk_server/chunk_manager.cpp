@@ -431,6 +431,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraDetachChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraTopUpSequoiaChunkPurgatory, Unretained(this)));
@@ -810,6 +811,15 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             &TChunkManager::HydraUnstageChunkTree,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateUnstageChunkTreesMutation(TCtxUnstageChunkTreesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraUnstageChunkTrees,
             this);
     }
 
@@ -5860,6 +5870,31 @@ private:
         TRspUnstageChunkTree* response)
     {
         ExecuteUnstageChunkTreeSubrequest(request, response);
+    }
+
+    void HydraUnstageChunkTrees(
+        const TCtxUnstageChunkTreesPtr& /*context*/,
+        TReqUnstageChunkTrees* request,
+        TRspUnstageChunkTrees* /*response*/)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        const auto recursive = request->recursive();
+        std::vector<TChunkTree*> chunkTrees;
+        chunkTrees.reserve(request->chunk_tree_ids_size());
+        for (const auto& chunkTreeIdProto : request->chunk_tree_ids()) {
+            auto chunkTreeId = FromProto<TChunkTreeId>(chunkTreeIdProto);
+            chunkTrees.push_back(GetChunkTreeOrThrow(chunkTreeId));
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto* chunkTree : chunkTrees) {
+            transactionManager->UnstageObject(chunkTree->GetStagingTransaction(), chunkTree, recursive);
+        }
+
+        YT_TLOG_DEBUG("Chunk trees unstaged")
+            .With("ChunkTreeCount", request->chunk_tree_ids_size())
+            .With("Recursive", recursive);
     }
 
     void HydraAttachChunkTrees(

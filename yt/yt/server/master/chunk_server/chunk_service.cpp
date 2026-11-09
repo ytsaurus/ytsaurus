@@ -139,6 +139,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTrees)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees)
@@ -935,6 +937,21 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateUnstageChunkTreeMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTrees)
+    {
+        context->AnnotateRequest()
+            .With("ChunkTreeCount", request->chunk_tree_ids_size())
+            .With("Recursive", request->recursive());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateUnstageChunkTreesMutation(context);
         mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }

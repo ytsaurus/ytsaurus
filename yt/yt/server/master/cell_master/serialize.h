@@ -241,7 +241,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReedSolomon46And55)                                           (3366))  // savrus
     ((ForbidMergingTabletsWithCumulativeDataWeight)                 (3367))  // akozhikhov
     ((FixHunkTabletValidateReshard)                                 (3368))  // akozhikhov
-
+    ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
 );
