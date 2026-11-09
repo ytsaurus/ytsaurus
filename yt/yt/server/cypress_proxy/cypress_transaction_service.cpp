@@ -78,6 +78,7 @@ private:
 
         // But don't copy the old request ID.
         ToProto(request->Header().mutable_request_id(), requestId);
+        request->SetTimeout(context->GetTimeout());
 
         context->ReplyFrom(
             request->Invoke()
