@@ -25,7 +25,8 @@ TJavaProcessManager::TJavaProcessManager(
     const IStatusProfilerPtr& statusProfiler,
     const std::string& jdkBinPath,
     const std::string& classpath,
-    const std::string& mainClass)
+    const std::string& mainClass,
+    const THashMap<std::string, std::string>& environment)
     : TProcessManagerBase(
         invoker,
         companionClient,
@@ -40,6 +41,7 @@ TJavaProcessManager::TJavaProcessManager(
     , JdkBinPath_(jdkBinPath)
     , Classpath_(classpath)
     , MainClass_(mainClass)
+    , Environment_(environment)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +75,7 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation(const 
         .With("CompanionPort", CompanionConfig_->Port)
         .With("JdkBinPath", JdkBinPath_)
         .With("JvmOptions", effectiveJvmOptions);
-    auto process = New<TSimpleProcess>(JdkBinPath_, /*copyEnv*/ true);
+    auto process = CreateProcessWithEnvironment(JdkBinPath_, Environment_, config);
 
     std::vector<std::string> args;
     for (const auto& opt : effectiveJvmOptions) {
@@ -84,9 +86,6 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation(const 
     args.push_back(MainClass_);
     process->AddArguments(args);
 
-    // Not logged: the config may carry HTTPS client credentials.
-    auto configTxt = NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text);
-    process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
     return process;
 }
 

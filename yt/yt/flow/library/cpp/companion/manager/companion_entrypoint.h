@@ -19,6 +19,7 @@ struct TCompanionEntrypoint
     std::vector<std::string> Args;
 
     //! Additional environment variables passed to the spawned process.
+    //! Override inherited values; YT_FLOW_COMPANION_CONFIG is reserved for the runtime.
     THashMap<std::string, std::string> Env;
 
     REGISTER_YSON_STRUCT(TCompanionEntrypoint);

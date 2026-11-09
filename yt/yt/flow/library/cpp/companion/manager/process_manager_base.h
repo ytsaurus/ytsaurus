@@ -66,6 +66,12 @@ protected:
     //! This method should not call process::Spawn() method inside.
     virtual TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config) = 0;
 
+    //! Creates a process with inherited and extra environment variables and the current execution config.
+    static TIntrusivePtr<TProcessBase> CreateProcessWithEnvironment(
+        const std::string& executable,
+        const THashMap<std::string, std::string>& extraEnvironment,
+        const TCompanionExecutionConfigPtr& config);
+
     //! Checks if the companion process is available.
     //! Default implementation uses CompanionInfo endpoint.
     virtual TFuture<void> HealthCheck();

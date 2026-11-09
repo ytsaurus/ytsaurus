@@ -52,16 +52,8 @@ TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation(c
         .With("Args", Entrypoint_->Args)
         .With("CompanionPort", CompanionConfig_->Port);
 
-    auto process = New<TSimpleProcess>(TString(Entrypoint_->Executable), /*copyEnv*/ true);
+    auto process = CreateProcessWithEnvironment(Entrypoint_->Executable, Entrypoint_->Env, config);
     process->AddArguments(Entrypoint_->Args);
-
-    // Not logged: the config may carry HTTPS client credentials.
-    auto configTxt = NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text);
-    process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
-
-    for (const auto& [name, value] : Entrypoint_->Env) {
-        process->AddEnvVar(Format("%v=%v", name, value));
-    }
     return process;
 }
 
