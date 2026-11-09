@@ -16,12 +16,14 @@ from yt.common import (
 from yt.ypath import parse_ypath
 
 from yt.test_helpers import wait, WaitFailed
+from yt.test_helpers import cleanup as test_cleanup
 from yt.test_helpers.errors import raises_yt_error, retry_yt_error, assert_yt_error  # noqa
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import builtins
 import contextlib
 import copy as pycopy
+import functools
 import os
 import pytest
 import random
@@ -1019,9 +1021,12 @@ def abort_transactions(transactions, **kwargs):
         execute_batch(requests, **kwargs)
 
 
-def abort_all_transactions(**kwargs):
-    topmost_transactions = ls("//sys/topmost_transactions")
-    abort_transactions(topmost_transactions, **kwargs)
+def abort_all_user_transactions(**kwargs):
+    transactions = test_cleanup.iterate_user_transactions(
+        list_action=functools.partial(ls, **kwargs),
+        exists_action=functools.partial(exists, **kwargs),
+        get_action=functools.partial(get, **kwargs))
+    abort_transactions([str(tx) for tx in transactions], **kwargs)
 
 
 def generate_timestamp(**kwargs):
