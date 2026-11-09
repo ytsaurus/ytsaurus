@@ -883,13 +883,6 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_query_service_thread_count", &TThis::RpcQueryServiceThreadCount)
         .Default(100);
 
-    registrar.Preprocessor([] (TThis* config) {
-        auto jaegerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
-        jaegerConfig->ServiceName = "clickhouse_server";
-        jaegerConfig->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
-        jaegerConfig->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
-    });
-
     registrar.Postprocessor([] (TThis* config) {
         config->SolomonExporter->SplitRateHistogramIntoGauges = true;
 
