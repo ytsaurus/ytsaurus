@@ -1,12 +1,11 @@
 #include "duplex_ipc_channel.h"
 
-#include <yql/tools/yqlworker/misc/test.pb.h>
+#include <yql/tools/yqlworker/misc/test_support/test.pb.h>
 
 #include <yql/essentials/utils/signals/utils.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
-#include <util/datetime/cputimer.h>
 #include <util/generic/scope.h>
 
 #include <thread>
@@ -155,53 +154,4 @@ Y_UNIT_TEST_SUITE(TDuplexChannelTest) {
         }
     }
 
-    Y_UNIT_TEST(Perf) {
-        TIpcChannelEndpoint ep1, ep2;
-        std::tie(ep1, ep2) = DuplexIpcChannel();
-
-        // make the same lifetime of channel endpoint as lifetime of this thread
-        std::thread incrementer([ch = std::move(ep2)]() mutable {
-            try {
-                for (;;) {
-                    TSlimMsg msg;
-                    ch.RecvMsg(&msg);
-                    msg.SetInt32(msg.GetInt32() + 1);
-                    ch.SendMsg(msg);
-                }
-            } catch (const TPeerDead& e) {
-                // just stop iteration
-            }
-        });
-
-        Y_DEFER {
-            ep1.Close();
-#ifdef _linux_
-            incrementer.join();
-#else
-            // For non linux (e.g. maxOS) systems DuplexChannelPair() creates
-            // SOCK_DGRAM socket which can lead reader to hangup on recv() from
-            // socket. So here we datach reading thread to avoid this issue.
-            incrementer.detach();
-#endif
-        };
-
-        {
-            TSlimMsg req, resp;
-            TSimpleTimer timer;
-
-            for (ui32 i = 0; i < 10000; i++) {
-                req.SetInt32(i);
-                ep1.SendMsg(req);
-                ep1.RecvMsg(&resp);
-                UNIT_ASSERT_EQUAL(resp.GetInt32(), i + 1);
-            }
-
-            TDuration elapsed = timer.Get();
-            Cerr << "elapsed: " << elapsed << Endl;
-#ifndef WITH_VALGRIND
-            UNIT_ASSERT(elapsed < TDuration::Seconds(10));
-#endif
-            ep1.Close();
-        }
-    }
-}
+} // Y_UNIT_TEST_SUITE(TDuplexChannelTest)
