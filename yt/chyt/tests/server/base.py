@@ -295,7 +295,7 @@ class Clique(object):
             core_dump_destination=core_dump_destination,
             trampoline_log_file=os.path.join(self.log_root, "trampoline-$YT_JOB_INDEX.debug.log"),
             stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
-            ytserver_readiness_timeout=15,
+            ytserver_readiness_timeout=40,
             tvm_secret=Clique.tvm_secret,
             client=self.yt_client,
             **kwargs
