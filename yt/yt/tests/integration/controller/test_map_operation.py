@@ -2792,76 +2792,6 @@ for row in sys.stdin.buffer:
 
         assert first_read <= first_written <= chunk_reader_spent_time
 
-    @authors("coteeq")
-    def test_writer_timing_statistics(self):
-        skip_if_component_old(self.Env, (26, 2), "node")
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(), override_tablet_cell_bundle="default"
-        )
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
-
-        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
-        op = map(
-            in_=["//tmp/t1"],
-            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
-            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
-            spec={
-                "job_io": {
-                    # Try really hard to write as slow as possible
-                    "table_writer": {
-                        "block_size": 1,
-                        "desired_chunk_size": 1,
-                    }
-                }
-            }
-        )
-
-        progress = get_operation(op.id, attributes=["progress"])["progress"]
-        statistics = progress["job_statistics_v2"]
-        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
-
-        assert progress["jobs"]["completed"]["total"] == 1
-        wait(lambda: len(op.list_jobs()) == 1)
-        job_id, = op.list_jobs()
-        wait(lambda: "running" in get_job_phase_durations(get_job(op.id, job_id).get("events", [])))
-        phase_durations = get_job_phase_durations(get_job(op.id, job_id)["events"])
-        running_time_ms = phase_durations["running"].total_seconds() * 1000
-
-        eps_ms = 20
-        # The empty writer's Close() shares the single-threaded ChunkWriter queue with the two
-        # writers closing real chunks, so its overhead over the injected delay is not tiny.
-        close_eps_ms = 1000
-
-        def assert_total_time(total_time):
-            # Not very precise :(.
-            assert abs(running_time_ms - total_time) < 1000
-
-        for table_index in [0, 1]:
-            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
-            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
-            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
-            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
-
-            assert wait_time > eps_ms
-            assert write_time > eps_ms
-            assert close_time >= 100 * chunk_count
-            assert_total_time(idle_time + wait_time + write_time + close_time)
-
-        for table_index in [2]:
-            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
-            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
-            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
-            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
-
-            assert wait_time == 0
-            assert write_time == 0
-            assert 100 <= close_time < 100 + close_eps_ms  # testing_delay_before_chunk_close + eps.
-            assert_total_time(idle_time + wait_time + write_time + close_time)
-
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
@@ -3291,6 +3221,110 @@ class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsSha
 class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRootstock):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
+
+
+##################################################################
+
+
+class TestWriterTimingStatistics(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "min_repeat_delay": 1000,
+                    "max_repeat_delay": 5000,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "min_repeat_delay": 1000,
+                "max_repeat_delay": 5000,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    @authors("coteeq")
+    def test_writer_timing_statistics(self):
+        skip_if_component_old(self.Env, (26, 2), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                "job_io": {
+                    # Try really hard to write as slow as possible
+                    "table_writer": {
+                        "block_size": 1,
+                        "desired_chunk_size": 1,
+                    }
+                }
+            }
+        )
+
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
+        statistics = progress["job_statistics_v2"]
+        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
+
+        assert progress["jobs"]["completed"]["total"] == 1
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id, = op.list_jobs()
+        wait(lambda: "running" in get_job_phase_durations(get_job(op.id, job_id).get("events", [])))
+        phase_durations = get_job_phase_durations(get_job(op.id, job_id)["events"])
+        running_time_ms = phase_durations["running"].total_seconds() * 1000
+
+        eps_ms = 20
+        # The empty writer's Close() shares the single-threaded ChunkWriter queue with the two
+        # writers closing real chunks, so its overhead over the injected delay is not tiny.
+        close_eps_ms = 1000
+
+        def assert_total_time(total_time):
+            # Not very precise :(.
+            assert abs(running_time_ms - total_time) < 1000
+
+        for table_index in [0, 1]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time > eps_ms
+            assert write_time > eps_ms
+            assert close_time >= 100 * chunk_count
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
+        for table_index in [2]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time == 0
+            assert write_time == 0
+            assert 100 <= close_time < 100 + close_eps_ms  # testing_delay_before_chunk_close + eps.
+            assert_total_time(idle_time + wait_time + write_time + close_time)
 
 
 ##################################################################
