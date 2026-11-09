@@ -22,7 +22,7 @@ from .common.sensors import (
 )
 
 from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
-from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
+from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import MultiSensor, Sensor
 from yt_dashboard_generator.taggable import SystemFields, NotEquals, ContainerTemplate, SensorTemplate
@@ -30,25 +30,55 @@ from yt_dashboard_generator.taggable import SystemFields, NotEquals, ContainerTe
 ##################################################################
 
 
-def _build_process_resources(d):
+def _build_process_resources(d, backend):
     def scheduler_thread_cpu(thread):
         return SchedulerCpu("yt.resource_tracker.user_cpu").value("thread", thread)
     def ca_thread_cpu(thread):
         return CACpu("yt.resource_tracker.user_cpu").value("thread", thread)
+
+    scheduler_memory = MultiSensor(
+        SchedulerMemory("yt.memory.generic.bytes_in_use_by_app").legend_format(f"{ContainerTemplate} usage"),
+        SchedulerMemory("yt.memory.cgroup.memory_limit").legend_format(f"{ContainerTemplate} limit"),
+        MonitoringExpr(SchedulerMemory("yt.memory.cgroup.rss|yt.memory.cgroup.mapped_file"))
+            .series_sum("container")
+            .legend_format(f"{ContainerTemplate} cgroup usage"),
+    )
+
+    # Control thread is a single thread, so its usage is capped at one core.
+    scheduler_control_cpu = MultiSensor(
+        scheduler_thread_cpu("Control").container_legend_format(),
+        MonitoringExpr.constant_line(100).alias("limit"),
+    )
+
+    scheduler_node_shards_cpu = scheduler_thread_cpu("NodeShard").container_legend_format()
+    # Grafana backend does not support series_count.
+    if backend == "monitoring":
+        # Each node shard has its own thread, so the limit is one core per node shard.
+        node_shard_count = MonitoringExpr.func(
+            "series_count",
+            ['"container"'],
+            SchedulerCpu("yt.action_queue.time.cumulative.rate")
+                .value("thread", "NodeShard:*")
+                .value("yt_aggr", "1"))
+        scheduler_node_shards_cpu = MultiSensor(
+            scheduler_node_shards_cpu,
+            (node_shard_count * 100).legend_format(f"{ContainerTemplate} limit"),
+        )
+
     d.add(Rowset()
         .stack(False)
         .all(yt_host)
         .row()
-            .cell("Scheduler Memory", SchedulerMemory("yt.memory.generic.bytes_in_use_by_app").container_legend_format())
+            .cell("Scheduler Memory", scheduler_memory)
             .cell("Controller Agent Memory", CAMemory("yt.memory.generic.bytes_in_use_by_app").container_legend_format())
         .row()
             .cell("Scheduler CPU Wait", SchedulerCpu("yt.resource_tracker.cpu_wait").aggr("thread").container_legend_format())
             .cell("Controller Agent CPU Wait", CACpu("yt.resource_tracker.cpu_wait").aggr("thread").container_legend_format())
         .row()
-            .cell("Scheduler Control CPU", scheduler_thread_cpu("Control").container_legend_format())
+            .cell("Scheduler Control CPU", scheduler_control_cpu)
             .cell("Controller Agent Control CPU", ca_thread_cpu("Control").container_legend_format())
         .row()
-            .cell("Scheduler Node Shards CPU", scheduler_thread_cpu("NodeShard").container_legend_format())
+            .cell("Scheduler Node Shards CPU", scheduler_node_shards_cpu)
             .cell("Controller Agent Controllers CPU", ca_thread_cpu("Controller").container_legend_format())
         .row()
             .cell("Scheduler Thread Pools CPU", scheduler_thread_cpu("FSUpdatePool|OrchidWorker|Background")
@@ -73,7 +103,9 @@ def _build_scheduling_statistics(d):
         .stack(False)
         .row()
             .min(0)
-            .cell("Operation Count", SchedulerPools("yt.scheduler.pools.running_operation_count|yt.scheduler.pools.total_operation_count")
+            .cell("Operation Count", SchedulerPools(
+                    "yt.scheduler.pools.running_operation_count|yt.scheduler.pools.total_operation_count|"
+                    "yt.scheduler.pools.max_running_operation_count|yt.scheduler.pools.max_operation_count")
                 .value("tree", SCHEDULER_DASHBOARD_DEFAULT_TREE)
                 .value("pool", "<Root>")
                 .sensor_legend_format())
@@ -241,7 +273,7 @@ def build_scheduler_internal(has_porto, backend):
         backends=["grafana"],
     )
 
-    _build_process_resources(d)
+    _build_process_resources(d, backend)
     _build_scheduling_statistics(d)
     _build_logging(d)
     if has_porto:
