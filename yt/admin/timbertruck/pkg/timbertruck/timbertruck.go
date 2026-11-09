@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -62,7 +63,9 @@ type TimberTruck struct {
 
 	metrics metrics.Registry
 
-	handlers []streamHandler
+	handlersMu sync.Mutex
+	handlers   []streamHandler
+	serving    bool
 }
 
 func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry) (result *TimberTruck, err error) {
@@ -150,6 +153,12 @@ type StreamConfig struct {
 }
 
 func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFunc) {
+	tt.handlersMu.Lock()
+	defer tt.handlersMu.Unlock()
+	tt.addStream(config, newPipeline)
+}
+
+func (tt *TimberTruck) addStream(config StreamConfig, newPipeline NewPipelineFunc) {
 	handler := streamHandler{
 		timberTruck: tt,
 		logger: tt.logger.With(
@@ -170,16 +179,20 @@ func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFun
 	handler.logger.Info("Pipeline added")
 }
 
-// AddAndRunStream adds a new stream and launches its handler immediately.
-// It can be called while Serve(ctx) is running.
-//
-// Note: this method is not concurrent safe.
+// AddAndRunStream adds a new stream and launches its handler.
+// If Serve(ctx) is not running yet, the handler is launched by Serve(ctx).
 func (tt *TimberTruck) AddAndRunStream(ctx context.Context, config StreamConfig, newPipeline NewPipelineFunc) error {
-	tt.AddStream(config, newPipeline)
+	tt.handlersMu.Lock()
+	defer tt.handlersMu.Unlock()
+	tt.addStream(config, newPipeline)
+	if !tt.serving {
+		return nil
+	}
 	return tt.initializeStream(ctx, &tt.handlers[len(tt.handlers)-1])
 }
 
 func (tt *TimberTruck) Serve(ctx context.Context) error {
+	tt.handlersMu.Lock()
 	deprecatedStreams := tt.deprecatedStreams()
 
 	activeTasks, err := tt.datastore.ListActiveTasks()
@@ -212,8 +225,10 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 			tt.logger.Error("Error initializing stream", "error", err, "stream", tt.handlers[i].config.Name)
 		}
 	}
+	tt.serving = true
 
 	tt.launchMetricsProc(ctx)
+	tt.handlersMu.Unlock()
 
 	tt.logger.Info("Serving")
 
@@ -232,6 +247,8 @@ func (tt *TimberTruck) BoundActiveTasks(streamNames []string, boundTime time.Tim
 		streamSet[name] = struct{}{}
 	}
 
+	tt.handlersMu.Lock()
+	defer tt.handlersMu.Unlock()
 	for i := range tt.handlers {
 		stream := tt.handlers[i].config.Name
 		if _, ok := streamSet[stream]; !ok {
