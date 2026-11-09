@@ -12,6 +12,23 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSortedDynamicTableSinkParametersTest, MissingKeyColumnsAreRejectedByDefault)
+{
+    auto config = TYsonString(TStringBuf(R"({ table_path = "//tmp/t"; })"));
+    EXPECT_FALSE(ConvertTo<TSyncSinkParametersPtr>(config)->AllowMissingKeyColumns);
+    EXPECT_FALSE(ConvertTo<TAsyncSinkParametersPtr>(config)->AllowMissingKeyColumns);
+}
+
+TEST(TSortedDynamicTableSinkParametersTest, MissingKeyColumnsCanBeAllowed)
+{
+    auto config = TYsonString(TStringBuf(R"({
+        table_path = "//tmp/t";
+        allow_missing_key_columns = %true;
+    })"));
+    EXPECT_TRUE(ConvertTo<TSyncSinkParametersPtr>(config)->AllowMissingKeyColumns);
+    EXPECT_TRUE(ConvertTo<TAsyncSinkParametersPtr>(config)->AllowMissingKeyColumns);
+}
+
 TEST(TAsyncSinkParametersTest, RejectsNonEmptyAggregateColumns)
 {
     EXPECT_NO_THROW(ConvertTo<TAsyncSinkParametersPtr>(TYsonString(TStringBuf(R"({
