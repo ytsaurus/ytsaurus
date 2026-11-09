@@ -339,6 +339,17 @@ message TRspUnstageChunkTree
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqUnstageChunkTrees
+{
+    repeated NYT.NProto.TGuid chunk_tree_ids = 1;
+    required bool recursive = 2;
+}
+
+message TRspUnstageChunkTrees
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAttachChunkTrees
 {
     required NYT.NProto.TGuid parent_id = 1;

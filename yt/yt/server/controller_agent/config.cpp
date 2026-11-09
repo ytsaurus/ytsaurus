@@ -914,6 +914,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(1.0);
     registrar.Parameter("desired_chunk_lists_per_release", &TThis::DesiredChunkListsPerRelease)
         .Default(10'000);
+    registrar.Parameter("enable_unstage_chunk_trees_batching", &TThis::EnableUnstageChunkTreesBatching)
+        .Default(false);
     registrar.Parameter("intermediate_output_master_cell_count", &TThis::IntermediateOutputMasterCellCount)
         .GreaterThanOrEqual(1)
         .Default(4);

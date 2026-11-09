@@ -46,6 +46,7 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
             "snapshot_period": 3000,
             "operations_update_period": 10,
             "chunk_unstage_period": 10,
+            "enable_unstage_chunk_trees_batching": True,
         }
     }
 
@@ -1136,6 +1137,7 @@ class TestSchedulerAutoMergeCARestarts(TestSchedulerAutoMergeBase):
             "snapshot_period": 1000,
             "operations_update_period": 10,
             "chunk_unstage_period": 10,
+            "enable_unstage_chunk_trees_batching": True,
             "testing_options": {
                 "enable_events_on_fs": True,
             },

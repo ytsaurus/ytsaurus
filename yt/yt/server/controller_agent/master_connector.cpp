@@ -58,6 +58,8 @@
 
 #include <library/cpp/iterator/zip.h>
 
+#include <array>
+
 namespace NYT::NControllerAgent {
 
 using namespace NApi;
@@ -1296,29 +1298,56 @@ private:
                 ->GetClient()
                 ->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag));
 
-            auto batchReq = proxy.ExecuteBatch();
-            while (!unstageRequests.empty() &&
-                batchReq->unstage_chunk_tree_subrequests_size() < Config_->DesiredChunkListsPerRelease)
-            {
+            int unstagedCount = 0;
+            std::array<TChunkServiceProxy::TReqUnstageChunkTreesPtr, 2> requests;
+            while (!unstageRequests.empty() && unstagedCount < Config_->DesiredChunkListsPerRelease) {
                 auto unstageRequest = unstageRequests.back();
                 unstageRequests.pop_back();
-                auto req = batchReq->add_unstage_chunk_tree_subrequests();
-                ToProto(req->mutable_chunk_tree_id(), unstageRequest.ChunkTreeId);
-                req->set_recursive(unstageRequest.Recursive);
+                ++unstagedCount;
+
+                if (Config_->EnableUnstageChunkTreesBatching) {
+                    auto& req = requests[unstageRequest.Recursive];
+                    if (!req) {
+                        req = proxy.UnstageChunkTrees();
+                        req->set_recursive(unstageRequest.Recursive);
+                    }
+                    ToProto(req->add_chunk_tree_ids(), unstageRequest.ChunkTreeId);
+                } else {
+                    auto req = proxy.UnstageChunkTree();
+                    ToProto(req->mutable_chunk_tree_id(), unstageRequest.ChunkTreeId);
+                    req->set_recursive(unstageRequest.Recursive);
+
+                    YT_UNUSED_FUTURE(req->Invoke().Apply(
+                        BIND([cellTag = cellTag, chunkTreeId = unstageRequest.ChunkTreeId] (const TChunkServiceProxy::TErrorOrRspUnstageChunkTreePtr& rspOrError) {
+                            if (!rspOrError.IsOK()) {
+                                YT_TLOG_DEBUG("Error unstaging chunk tree")
+                                    .With("CellTag", cellTag)
+                                    .With("ChunkTreeId", chunkTreeId)
+                                    .With(rspOrError);
+                            }
+                        })));
+                }
+            }
+
+            if (Config_->EnableUnstageChunkTreesBatching) {
+                for (const auto& req : requests) {
+                    if (!req) {
+                        continue;
+                    }
+                    YT_UNUSED_FUTURE(req->Invoke().Apply(
+                        BIND([cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspUnstageChunkTreesPtr& rspOrError) {
+                            if (!rspOrError.IsOK()) {
+                                YT_TLOG_DEBUG("Error unstaging chunk trees")
+                                    .With("CellTag", cellTag)
+                                    .With(rspOrError);
+                            }
+                        })));
+                }
             }
 
             YT_TLOG_DEBUG("Unstaging chunk trees")
-                .With("ChunkTreeCount", batchReq->unstage_chunk_tree_subrequests_size())
+                .With("ChunkTreeCount", unstagedCount)
                 .With("CellTag", cellTag);
-
-            YT_UNUSED_FUTURE(batchReq->Invoke().Apply(
-                BIND([=, cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-                    if (!batchRspOrError.IsOK()) {
-                        YT_TLOG_DEBUG("Error unstaging chunk trees")
-                            .With("CellTag", cellTag)
-                            .With(batchRspOrError);
-                    }
-                })));
         }
     }
 
