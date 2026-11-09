@@ -21,7 +21,9 @@ namespace NYT::NJobProxy {
 
 const static NLogging::TLogger Logger("MemoryTracker");
 
+#ifdef _linux_
 const int CommandLineMaxLength = 1_KB;
+#endif
 
 using namespace NTools;
 using namespace NStatisticPath;

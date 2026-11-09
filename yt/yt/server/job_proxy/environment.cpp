@@ -1405,6 +1405,7 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.AnonWithSwapCached,
@@ -1412,10 +1413,14 @@ public:
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
@@ -1423,19 +1428,27 @@ public:
             .IOReadOps = statistics.IOReadOps,
             .IOWriteOps = statistics.IOWriteOps,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
+#ifdef _linux_
         try {
             return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
@@ -1443,6 +1456,9 @@ public:
                 .With(ex);
             return std::nullopt;
         }
+#else
+        return std::nullopt;
+#endif
     }
 
     bool UseExecFromLayer() const override
@@ -1704,6 +1720,8 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
 {
+    Y_UNUSED(jobProxyPreparationPath);
+
     switch (config->JobEnvironment.GetType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:

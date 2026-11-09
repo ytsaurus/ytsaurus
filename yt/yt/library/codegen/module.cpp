@@ -197,7 +197,7 @@ public:
                 auto llvmTriple = llvm::Triple(triple);
                 llvm::VersionTuple version;
                 llvmTriple.getMacOSXVersion(version);
-                auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
+                auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), version.getMinor().value_or(0), version.getSubminor().value_or(0));
                 auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
                 auto fixedTriple = llvm::Triple(llvmTriple.getArchName(), llvmTriple.getVendorName(), osNameAsTwine);
                 triple = llvm::Triple::normalize(fixedTriple.getTriple());
