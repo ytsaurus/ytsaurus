@@ -71,6 +71,8 @@ public:
     void Aborted(TCookie cookie, NScheduler::EAbortReason reason) override;
     void Lost(TCookie cookie) override;
 
+    void AttachJobSizeAdjuster(const NChunkPools::IJobSizeAdjusterPtr& jobSizeAdjuster) override;
+
     bool IsSplittable(NChunkPools::TOutputCookie cookie) const override;
 
     DECLARE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);

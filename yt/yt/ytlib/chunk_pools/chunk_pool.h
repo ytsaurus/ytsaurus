@@ -94,6 +94,8 @@ struct IChunkPoolOutput
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
+    //! Must be called before finishing the pool's input.
+    virtual void AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& jobSizeAdjuster) = 0;
 
     //! Raises when chunk teleports.
     DECLARE_INTERFACE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);

@@ -139,6 +139,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JournalNbd)                            (302408))
     // 27.1 starts here
     ((BumpTo_27_1)                           (302500))
+    ((SharedJobSizeAdjuster)                 (302501))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

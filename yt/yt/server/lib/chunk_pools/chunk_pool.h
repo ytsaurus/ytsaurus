@@ -120,6 +120,8 @@ class TChunkPoolOutputBase
 {
 public:
     i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
+
+    void AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& jobSizeAdjuster) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

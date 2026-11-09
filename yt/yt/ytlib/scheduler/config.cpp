@@ -1986,6 +1986,9 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
 
+    registrar.Parameter("enable_shared_job_size_adjuster", &TThis::EnableSharedJobSizeAdjuster)
+        .Default(false);
+
     registrar.Parameter("use_push_based_shuffle", &TThis::UsePushBasedShuffle)
         .Default(false);
 
