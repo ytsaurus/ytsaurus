@@ -39,7 +39,7 @@ from yt.yql.tests.common.test_framework.test_utils import (
 )
 
 from yt_commands import (
-    authors, create, mount_table, insert_rows, select_rows,
+    abort_op, authors, create, mount_table, insert_rows, select_rows,
     list_queue_consumer_registrations,
     raises_yt_error, get, get_driver, wait,
 )
@@ -242,6 +242,17 @@ class TestYtflowBase(TestQueueAgentBase):
             self.set_operations_archive_prepared(True)
 
     def teardown_method(self, method):
+        # Stop the runtime operation before cleaning cross-cluster pipeline metadata.
+        vanilla_info = get(
+            f"{self.PIPELINE_PATH}/@_yql_ytflow_vanilla_info",
+            default=None,
+        )
+
+        if vanilla_info is not None:
+            driver = get_driver(cluster=vanilla_info["runtime_cluster"])
+            abort_op(vanilla_info["operation_id"], driver=driver)
+            self._wait_for_jobs_to_vanish(driver=driver)
+
         super(TestYtflowBase, self).teardown_method(method)
 
         if self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
