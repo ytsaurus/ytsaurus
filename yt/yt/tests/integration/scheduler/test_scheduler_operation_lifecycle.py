@@ -648,7 +648,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for i in range(2):
             job_id, = wait_breakpoint(op)
             op.suspend(abort_running_jobs=True)
-            wait(lambda: op.get_job_count("aborted") == i + 1)
+            wait(lambda: op.get_job_count("aborted/scheduled/operation_suspended") == i + 1)
             # NB: Aborted job's breakpoint file persists; drop it.
             release_breakpoint(job_id=job_id)
             op.resume()
