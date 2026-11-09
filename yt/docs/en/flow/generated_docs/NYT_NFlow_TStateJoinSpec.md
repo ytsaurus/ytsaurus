@@ -7,7 +7,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `key_schema_override` | **Type**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 If set, the schema is used as the joiner key instead of the computation's `group_by_schema`. ||
-|| `key_provider_streams` | **Type**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `key_provider_streams` | **Type**: `std::optional<THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 If set, the joiner keys are taken only from messages and timers with the specified `stream_id`; `nullopt` means "from all computation input streams". ||
 |#
 

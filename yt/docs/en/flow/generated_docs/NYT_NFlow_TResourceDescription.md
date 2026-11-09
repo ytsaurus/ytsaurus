@@ -5,7 +5,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 
 #|
 || **Parameter** | **Description** ||
-|| `alias` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `alias` | **Type**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
  ||
 || `worker` | **Type**: `bool`
 **Default value**: `true`

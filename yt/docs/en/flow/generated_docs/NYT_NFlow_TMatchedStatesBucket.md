@@ -10,7 +10,7 @@ Count of matched rows for one of the categories of the `delete-states` response.
 || `total` | **Type**: `long`
 **Default value**: `0`
 Total number of matched rows in this category. ||
-|| `details` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, THashMap<std::string, long>>`
+|| `details` | **Type**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, THashMap<std::string, long>>`
 **Default value**: `{}`
 Breakdown by `computation_id → state_name → number of rows`. ||
 |#

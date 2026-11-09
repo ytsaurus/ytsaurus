@@ -11,7 +11,7 @@
 || `trace_probability` | **Тип**: `double`
 **Значение по умолчанию**: `0.0`
  ||
-|| `trace_probability_partition_override` | **Тип**: `THashMap<NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>, double>`
+|| `trace_probability_partition_override` | **Тип**: `THashMap<`[NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)`, double>`
 **Значение по умолчанию**: `{}`
  ||
 || `wall_time_half_decay_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)

@@ -5,7 +5,7 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `value` | **Тип**: `NYT::TStrongTypedef<double, NYT::NFlow::TWatermarkPercentileTag, NYT::TStrongTypedefOptions{true}>`
+|| `value` | **Тип**: [NYT::NFlow::TWatermarkPercentile](./all_yson_structs#NYT_NFlow_TWatermarkPercentile)
 **Значение по умолчанию**: `100.0`
 Процент безусловно учитываемых для расчёта `EventWatermark` событий ||
 || `delay` | **Тип**: [TDuration](./all_yson_structs#TDuration)

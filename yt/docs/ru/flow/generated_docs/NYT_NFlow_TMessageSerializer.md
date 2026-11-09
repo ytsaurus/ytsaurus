@@ -5,22 +5,22 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `message_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TMessageIdTag>`
+|| `message_id` | **Тип**: [NYT::NFlow::TMessageId](./all_yson_structs#NYT_NFlow_TMessageId)
 **Обязательный параметр**
 Уникальный id сообщения. ||
-|| `system_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `system_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
 Timestamp создания конкретного сообщения. ||
-|| `alignment_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `alignment_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
  ||
-|| `event_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `event_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
 Timestamp реального события, ассоциированного с данным сообщением. ||
-|| `stream_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>`
+|| `stream_id` | **Тип**: [NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)
 **Обязательный параметр**
 Поток, в рамках которого существует данное сообщение. ||
-|| `payload` | **Тип**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TPayloadTag, NYT::TStrongTypedefOptions{true}>`
+|| `payload` | **Тип**: [NYT::NFlow::TPayload](./all_yson_structs#NYT_NFlow_TPayload)
 **Обязательный параметр**
 Непосредственно данные. ||
 || `payload_schema` | **Тип**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`

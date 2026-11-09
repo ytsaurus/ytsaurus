@@ -8,9 +8,9 @@
 || `external_state_joiner_class_name` | **Тип**: `std::string`
 **Значение по умолчанию**: `NYT::NFlow::TSimpleExternalStateJoiner`
 Полное имя класса external state joiner'а. Должен быть зарегистрирован макросом `YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER` (или быть библиотечной реализацией, как `NYT::NFlow::TSimpleExternalStateJoiner`). ||
-|| `client_provider_resource_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `client_provider_resource_id` | **Тип**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
 Если задан, фреймворк ищет статический ресурс с этим именем (должен реализовывать `IYTClientProvider`) и использует его `Get()` как YT-клиент joiner'а. При этом `cluster` из rich path таблицы игнорируется. Взаимоисключающе с `client_factory_resource_id` (этот параметр приоритетнее). ||
-|| `client_factory_resource_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>>`
+|| `client_factory_resource_id` | **Тип**: `std::optional<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`>`
 Если задан, фреймворк ищет статический ресурс с этим именем (должен реализовывать `IYTClientProvider`) и использует `GetClient(cluster)` для получения YT-клиента под кластер из rich path таблицы. Взаимоисключающе с `client_provider_resource_id`. ||
 || `join_on` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TStateJoinSpec](./all_yson_structs#NYT_NFlow_TStateJoinSpec)`>`
 **Значение по умолчанию**: `{}`

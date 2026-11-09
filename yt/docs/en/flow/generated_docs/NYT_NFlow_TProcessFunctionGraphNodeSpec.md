@@ -10,16 +10,16 @@ Source: [yt/yt/flow/library/cpp/common/process_function_graph.h]({{source-root}}
 The fully qualified process-function name registered with `YT_FLOW_DEFINE_PROCESS_FUNCTION`. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Static parameters of the node's process function. ||
-|| `input_stream_ids` | **Type**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Type**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Required parameter**
 Streams the node reads: input streams and `source_streams` of the computation, or outputs of other nodes. ||
-|| `output_stream_ids` | **Type**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `output_stream_ids` | **Type**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Default value**: `[]`
 Streams the node writes. A stream that is not an output of the computation is internal to the graph and must be read by another node. ||
-|| `timer_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
+|| `timer_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Default value**: `{}`
 Timers of the node. The `streams` and `streams_with_delays` of a timer name input streams of the node. Not supported in `TProcessFunctionSourceComputation`. ||
-|| `streams_dependency` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams_dependency` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 **Default value**: `{}`
 Dependencies of node outputs and timers on node inputs and timers. By default, an output depends on all inputs and timers of the node, and a timer depends on all inputs of the node and on itself. ||
 |#

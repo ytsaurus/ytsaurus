@@ -5,25 +5,25 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `message_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TMessageIdTag>`
+|| `message_id` | **Тип**: [NYT::NFlow::TMessageId](./all_yson_structs#NYT_NFlow_TMessageId)
 **Обязательный параметр**
 Уникальный id таймера. ||
-|| `system_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `system_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
 Timestamp создания таймера. ||
-|| `event_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `event_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
 Timestamp реального события, ассоциированного с данным таймером. ||
-|| `stream_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>`
+|| `stream_id` | **Тип**: [NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)
 **Обязательный параметр**
 Поток, в рамках которого существует данное сообщение. ||
-|| `key` | **Тип**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TKeyTag, NYT::TStrongTypedefOptions{true}>`
+|| `key` | **Тип**: [NYT::NFlow::TKey](./all_yson_structs#NYT_NFlow_TKey)
 **Обязательный параметр**
 Ключ таймера. ||
 || `key_schema` | **Тип**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 **Обязательный параметр**
 Схема ключа, совпадает с `group_by_schema` соответствующего `Computation`. ||
-|| `trigger_timestamp` | **Тип**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `trigger_timestamp` | **Тип**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Обязательный параметр**
 Время для срабатывания таймера. ||
 |#

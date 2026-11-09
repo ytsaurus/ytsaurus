@@ -7,7 +7,7 @@
 || **Параметр** | **Описание** ||
 || `key_schema_override` | **Тип**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 Если задана, схема используется в качестве ключа joiner'а вместо `group_by_schema` computation'а. ||
-|| `key_provider_streams` | **Тип**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `key_provider_streams` | **Тип**: `std::optional<THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 Если задано, ключи для joiner'а берутся только из сообщений и таймеров с указанными `stream_id`; `nullopt` означает «из всех входных стримов computation'а». ||
 |#
 

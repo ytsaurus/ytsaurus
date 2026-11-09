@@ -5,13 +5,13 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 
 #|
 || **Parameter** | **Description** ||
-|| `group_name` | **Type**: `NYT::TStrongTypedef<std::string, NYT::NFlow::TWatermarkAlignmentGroupTag, NYT::TStrongTypedefOptions{true}>`
+|| `group_name` | **Type**: [NYT::NFlow::TWatermarkAlignmentGroup](./all_yson_structs#NYT_NFlow_TWatermarkAlignmentGroup)
 **Default value**: `default-alignment-group`
 The group name. ||
 || `drift_bound` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `20m`
 The maximum possible lead of an individual partition's watermark over the group's watermark. ||
-|| `read_delays` | **Type**: `std::optional<THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>>`
+|| `read_delays` | **Type**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`
 An advanced use option. If the `EventTimestamp` of an output message is greater than `EventWatermark - Delay` for at least one specified stream, reading is paused. If misconfigured, this option can cause a complete read stall. ||
 |#
 

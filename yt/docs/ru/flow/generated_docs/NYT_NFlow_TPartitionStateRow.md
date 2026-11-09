@@ -7,9 +7,9 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `computation_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>>`
+|| `computation_id` | **Тип**: `std::optional<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`>`
 Идентификатор Computation'а. Может отсутствовать, если партиция не привязана к конкретному Computation'у. ||
-|| `partition_id` | **Тип**: `NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>`
+|| `partition_id` | **Тип**: [NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)
 **Обязательный параметр**
 Идентификатор партиции. ||
 || `states` | **Тип**: `THashMap<std::string, NYT::NYson::TYsonString>`

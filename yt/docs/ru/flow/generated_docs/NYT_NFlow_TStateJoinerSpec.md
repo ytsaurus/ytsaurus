@@ -5,7 +5,7 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `computation_id` | **Тип**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>`
+|| `computation_id` | **Тип**: [NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)
 **Обязательный параметр**
 `Computation`, чей внутренний стейт читается этим joiner'ом. ||
 || `state_name` | **Тип**: `std::string`
