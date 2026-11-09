@@ -15,10 +15,10 @@ from yt_sequoia_helpers import not_implemented_in_sequoia
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove, link,
-    exists, create_account, create_user, make_ace, make_batch_request,
+    exists, create_account, create_user, make_ace,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
-    execute_batch, execute_command, get_active_primary_master_leader_address,
+    execute_command, get_active_primary_master_leader_address,
     start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     select_rows, lookup_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table,
@@ -4382,13 +4382,21 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @pytest.mark.parametrize("freeze", [False, True])
     def test_mount_orphaned(self, freeze):
         self._create_sorted_table("//tmp/t")
-        cells = sync_create_cells(1)
+        cell_id = sync_create_cells(1)[0]
+        cell_path = "#" + cell_id
 
-        requests = []
-        requests.append(make_batch_request("remove", path="#" + cells[0]))
-        requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
-        rsps = execute_batch(requests)
-        assert len(rsps[1]["output"]) == 0
+        removal_config_path = "//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal"
+        set(removal_config_path, False)
+        try:
+            remove(cell_path)
+            for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+                driver = get_driver(cell_index)
+                wait(lambda: get(cell_path + "/@tablet_cell_life_stage", driver=driver) == "decommissioned")
+            mount_table("//tmp/t", cell_id=cell_id, freeze=freeze)
+        finally:
+            set(removal_config_path, True)
+
+        wait(lambda: not exists(cell_path))
 
         expected_state = "frozen" if freeze else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state
