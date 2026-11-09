@@ -1495,6 +1495,19 @@ class TestBackupsShardedTx(TestBackups):
         "12": {"roles": ["transaction_coordinator"]},
     }
 
+    # NB: backup session uses eager transaction replication. For now, it isn't
+    # a big problem.
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cell_master": {
+            "alert_update_period": 500,
+            "logging": {
+                "message_level_overrides": {
+                    "Starting mirrored Cypress transaction with replication to master cells with unexpected roles": "error",
+                }
+            }
+        },
+    }
+
     def test_external(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t1", external=False)
@@ -1553,6 +1566,19 @@ class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # NB: backup session uses eager transaction replication. For now, it isn't
+    # a big problem.
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cell_master": {
+            "alert_update_period": 500,
+            "logging": {
+                "message_level_overrides": {
+                    "Starting mirrored Cypress transaction with replication to master cells with unexpected roles": "error",
+                }
+            }
+        },
+    }
 
 
 @authors("dave11ar")

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/api/client.h>
@@ -37,12 +39,14 @@ TChunkListPool::TChunkListPool(
     IInvokerPoolPtr controllerInvokerPool,
     TOperationId operationId,
     TTransactionId transactionId,
+    bool useLazyTransactionExternalization,
     bool isHunk)
     : Config_(config)
     , Client_(client)
     , ControllerInvokerPool_(controllerInvokerPool)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
+    , UseLazyTransactionExternalization_(useLazyTransactionExternalization)
     , IsHunk_(isHunk)
     , Logger(ControllerLogger().WithTag("OperationId: %v", operationId))
 {
@@ -122,7 +126,10 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     auto req = proxy.CreateChunkLists();
     GenerateMutationId(req);
 
-    ToProto(req->mutable_transaction_id(), TransactionId_);
+    auto transactionId = UseLazyTransactionExternalization_ && cellTag != CellTagFromId(TransactionId_)
+        ? MakeExternalizedTransactionId(TransactionId_, CellTagFromId(TransactionId_))
+        : TransactionId_;
+    ToProto(req->mutable_transaction_id(), transactionId);
     req->set_count(count);
     if (IsHunk_) {
         req->set_is_hunk_chunk_list(true);

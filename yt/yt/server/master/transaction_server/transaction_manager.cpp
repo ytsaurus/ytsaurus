@@ -880,6 +880,8 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
+        MaybeLogMirroredTransactionReplicationDestination(transactionId, replicatedToCellTags);
+
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId);
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
         auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
@@ -3242,7 +3244,21 @@ private:
         for (const auto& protoTransactionId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoTransactionId);
             YT_VERIFY(CellTagFromId(transactionId) == Bootstrap_->GetCellTag());
-            auto* transaction = FindTransaction(transactionId);
+
+            bool externalize = false;
+            if (GetDynamicConfig()->EnableLazyTransactionExternalization) {
+                if (IsExternalizedTransactionType(TypeFromId(transactionId))) {
+                    externalize = true;
+                }
+            } else if (IsExternalizedTransactionType(TypeFromId(transactionId))) {
+                YT_LOG_ALERT(
+                    "Lazy transaction externalization is disabled but someone requested it "
+                    "(TransactionId: %v, RequestId: %v)",
+                    transactionId,
+                    context ? context->GetRequestId() : TGuid{});
+            }
+
+            auto* transaction = FindTransaction(externalize ? OriginalFromExternalizedTransactionId(transactionId) : transactionId);
 
             if (!IsObjectAlive(transaction)) {
                 NProto::TReqNoteNoSuchTransaction noSuchTransactionRequest;
@@ -3254,16 +3270,24 @@ private:
                 continue;
             }
 
-            YT_VERIFY(transaction->IsNative());
-
-            if (transaction->IsReplicatedToCell(destinationCellTag)) {
-                skippedTransactionIds.push_back(transactionId);
-                // Don't post anything.
-                continue;
+            if (externalize) {
+                if (transaction->IsExternalizedToCell(destinationCellTag)) {
+                    skippedTransactionIds.push_back(transactionId);
+                    // Don't post anything.
+                    continue;
+                }
+                ExternalizeTransaction(transaction, {destinationCellTag});
+                YT_VERIFY(transaction->IsExternalizedToCell(destinationCellTag));
+            } else {
+                if (transaction->IsReplicatedToCell(destinationCellTag)) {
+                    skippedTransactionIds.push_back(transactionId);
+                    // Don't post anything.
+                    continue;
+                }
+                MaybeLogMirroredTransactionReplicationDestination(transactionId, {destinationCellTag});
+                ReplicateTransaction(transaction, {destinationCellTag});
+                YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
             }
-
-            ReplicateTransaction(transaction, {destinationCellTag});
-            YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
 
             postedTransactionIds.push_back(transactionId);
         }
@@ -4776,6 +4800,36 @@ private:
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
+    }
+
+    void MaybeLogMirroredTransactionReplicationDestination(TTransactionId transactionId, const TCellTagSet& destinationCellTags)
+    {
+        if (!IsCypressTransactionMirroredToSequoia(transactionId) || destinationCellTags.empty()) {
+            return;
+        }
+
+        constexpr static auto AllowedRoles =
+            EMasterCellRoles::CypressNodeHost |
+            EMasterCellRoles::SequoiaNodeHost |
+            EMasterCellRoles::TransactionCoordinator |
+            EMasterCellRoles::ExTransactionCoordinator;
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        TCellTagSet unexpectedCellTags;
+        for (auto cellTag : destinationCellTags) {
+            auto roles = multicellManager->GetMasterCellRoles(cellTag);
+            if (Any(roles & AllowedRoles)) {
+                continue;
+            }
+
+            unexpectedCellTags.insert(cellTag);
+        }
+
+        YT_LOG_TRACE_IF(!unexpectedCellTags.empty(),
+            "Starting mirrored Cypress transaction with replication to master cells with unexpected roles (TransactionId: %v, UnexpectedCellTags: %v)",
+            transactionId,
+            unexpectedCellTags);
     }
 };
 

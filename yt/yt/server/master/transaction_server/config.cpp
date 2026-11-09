@@ -127,6 +127,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("ignore_missing_lease_cells_on_forced_transaction_abort", &TThis::IgnoreMissingLeaseCellsOnForcedTransactionAbort)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_lazy_transaction_externalization", &TThis::EnableLazyTransactionExternalization)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

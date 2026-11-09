@@ -126,9 +126,19 @@ struct IChunkManager
 
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context) = 0;
+    // NB: if original request was patched use this method instead of the
+    // previous one.
+    virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
+        TCtxExecuteBatchPtr context,
+        NChunkClient::NProto::TReqExecuteBatch* request) = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
         TCtxCreateChunkPtr context) = 0;
+    // NB: if original request was patched use this method instead of the
+    // previous one.
+    virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
+        TCtxCreateChunkPtr context,
+        NChunkClient::NProto::TReqCreateChunk* request) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateConfirmChunkMutation(
         NChunkClient::NProto::TReqConfirmChunk* request,
         NChunkClient::NProto::TRspConfirmChunk* response) = 0;

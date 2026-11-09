@@ -1121,6 +1121,10 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_request_bytes_throttler", &TThis::DefaultPerUserRequestBytesThrottler)
         .Alias("default_per_user_request_bytes_throttler_config")
         .DefaultNew();
+
+    registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

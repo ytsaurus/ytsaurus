@@ -224,6 +224,12 @@ def get_dynamic_master_config():
 
         "cell_master": {
             "alert_update_period": 500,
+            "logging": {
+                "message_level_overrides": {
+                    "Unexpected Cypress transaction in ChunkService request": "alert",
+                    "Starting mirrored Cypress transaction with replication to master cells with unexpected roles": "alert",
+                }
+            }
         },
     }
 

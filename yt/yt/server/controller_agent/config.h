@@ -1345,6 +1345,9 @@ struct TControllerAgentConfig
 
     bool FailOperationsInEmptyTrees;
 
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

@@ -1284,21 +1284,35 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["controller_agent"]):
             update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
+
+            master_version = "trunk"
+            controller_agent_version = "trunk"
+            for version, components in cls.ARTIFACT_COMPONENTS.items():
+                if "master" in components:
+                    master_version = version
+                if "controller_agent" in components:
+                    controller_agent_version = version
+
             if not cls._is_ground_cluster(index) and \
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                for version, components in cls.ARTIFACT_COMPONENTS.items():
-                    yt_commands.print_debug(f"version = {version}, components = {components}")
-                    if "controller_agent" not in components:
-                        continue
-                    # COMPAT(kvk1920)
-                    if version == "trunk" or version >= "25_4":
-                        continue
+
+                # COMPAT(kvk1920)
+                if controller_agent_version != "trunk" and controller_agent_version < "25_4":
                     update_inplace(config, {
                         "set_committed_attribute_via_transaction_action": False,
                         "commit_operation_cypress_node_changes_via_system_transaction": True,
                     })
+
+            # COMPAT(kvk1920)
+            if (controller_agent_version == "trunk" or controller_agent_version >= "26_3") and \
+                    (master_version == "trunk" or master_version >= "26_3"):
+                yt_commands.print_debug("Using lazy trasaction externalization in CA")
+                update_inplace(config, {"controller_agent": {
+                    "use_lazy_transaction_externalization": True,
+                }})
+
             cls._apply_effective_config_patch(config, "DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_controller_agent_config(config, cluster_index)
@@ -2257,7 +2271,17 @@ class YTEnvSetup(object):
         if not cls.TEST_MAINTENANCE_FLAGS and cls.Env.get_component_version("ytserver-master").abi >= (23, 1):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
-        config.setdefault("chunk_service", {})
+        # COMPAT(kvk1920)
+        master_version = "trunk"
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "master" in components:
+                master_version = version
+                break
+        if master_version == "trunk" or master_version >= "26_3":
+            config.setdefault("transaction_manager", {})["enable_lazy_transaction_externalization"] = True
+            config.setdefault("chunk_service", {})["use_lazy_transaction_externalization"] = True
+        else:
+            config.setdefault("cell_master", {}).setdefault("logging", {}).setdefault("message_level_overrides")["Lazy transaction externalization is disabled but someone requested it"] = "error"
 
         # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
         if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:

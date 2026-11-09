@@ -47,6 +47,8 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/per_key_request_queue_provider.h>
 
@@ -705,7 +707,27 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateExportChunksMutation(context);
         mutation->SetCurrentTraceContext();
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        if (!transactionManager->FindTransaction(transactionId)) {
+            YT_LOG_ALERT_IF(
+                !GetDynamicConfig()->UseLazyTransactionExternalization,
+                "Unexpected lazy transaction replication during chunk export (RequestId: %v, TransactionId: %v)",
+                context->GetRequestId(),
+                transactionId);
+
+            NTransactionServer::RunTransactionReplicationSessionAndReply(
+                /*syncWithUpstream*/ false,
+                Bootstrap_,
+                {transactionId},
+                context,
+                std::move(mutation),
+                /*enableMutationBoomerangs*/ false,
+                AreCypressTransactionsInSequoiaEnabled(),
+                ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
+        } else {
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
@@ -739,7 +761,27 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateImportChunksMutation(context);
         mutation->SetCurrentTraceContext();
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        if (!transactionManager->FindTransaction(transactionId)) {
+            YT_LOG_ALERT_IF(
+                !GetDynamicConfig()->UseLazyTransactionExternalization,
+                "Unexpected lazy transaction replication during chunk import (RequestId: %v, TransactionId: %v)",
+                context->GetRequestId(),
+                transactionId);
+
+            NTransactionServer::RunTransactionReplicationSessionAndReply(
+                /*syncWithUpstream*/ false,
+                Bootstrap_,
+                {transactionId},
+                context,
+                std::move(mutation),
+                /*enableMutationBoomerangs*/ false,
+                AreCypressTransactionsInSequoiaEnabled(),
+                ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
+        } else {
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)
@@ -775,6 +817,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         // COMPAT(shakurov): remove the former.
         auto suppressUpstreamSync =
             request->suppress_upstream_sync() ||
@@ -807,13 +851,14 @@ private:
         // starting a transaction the set of cells it'll be needed to be
         // replicated to is yet unknown.
         std::vector<TTransactionId> transactionIds;
-        for (const auto& createChunkSubrequest : request->create_chunk_subrequests()) {
+        for (auto& createChunkSubrequest : *request->mutable_create_chunk_subrequests()) {
+            MaybeUseExternalizedTransactionId(&createChunkSubrequest);
             transactionIds.push_back(FromProto<TTransactionId>(createChunkSubrequest.transaction_id()));
         }
-        for (const auto& createChunkListsSubrequest : request->create_chunk_lists_subrequests()) {
+        for (auto& createChunkListsSubrequest : *request->mutable_create_chunk_lists_subrequests()) {
             transactionIds.push_back(FromProto<TTransactionId>(createChunkListsSubrequest.transaction_id()));
         }
-        for (const auto& attachChunkTreesSubrequest : request->attach_chunk_trees_subrequests()) {
+        for (auto& attachChunkTreesSubrequest : *request->mutable_attach_chunk_trees_subrequests()) {
             if (attachChunkTreesSubrequest.has_transaction_id()) {
                 transactionIds.push_back(FromProto<TTransactionId>(attachChunkTreesSubrequest.transaction_id()));
             }
@@ -835,7 +880,7 @@ private:
             Bootstrap_,
             std::move(transactionIds),
             context,
-            chunkManager->CreateExecuteBatchMutation(context),
+            chunkManager->CreateExecuteBatchMutation(context, request),
             enableMutationBoomerangs,
             AreCypressTransactionsInSequoiaEnabled(),
             ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
@@ -843,6 +888,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto parentId = FromProto<TChunkListId>(request->parent_id());
 
@@ -892,6 +939,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunkLists)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo(
             "TransactionId: %v, "
@@ -953,6 +1002,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        MaybeUseExternalizedTransactionId(request);
+
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo(
             "TransactionId: %v",
@@ -975,12 +1028,19 @@ private:
         // just the Object Service ones), then enable boomerangs here.
         const auto enableMutationBoomerangs = false;
 
+        // NB: CreateChunkMutation(context) uses request from context. In case
+        // of lazy transaction externalization the request is patched but
+        // context->Request remains unchanged.
+        auto mutation = GetDynamicConfig()->UseLazyTransactionExternalization
+            ? chunkManager->CreateCreateChunkMutation(context, request)
+            : chunkManager->CreateCreateChunkMutation(context);
+
         NTransactionServer::RunTransactionReplicationSessionAndReply(
             !suppressUpstreamSync,
             Bootstrap_,
             {transactionId},
             context,
-            chunkManager->CreateCreateChunkMutation(context),
+            std::move(mutation),
             enableMutationBoomerangs,
             AreCypressTransactionsInSequoiaEnabled(),
             ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
@@ -1172,6 +1232,23 @@ private:
 
         WaitFor(AllSucceeded(syncFutures))
             .ThrowOnError();
+    }
+
+    void MaybeUseExternalizedTransactionId(NChunkClient::NProto::TReqCreateChunk* request)
+    {
+        if (!GetDynamicConfig()->UseLazyTransactionExternalization) {
+            return;
+        }
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        if (!transactionId ||
+            !IsCypressTransactionType(TypeFromId(transactionId)) ||
+            CellTagFromId(transactionId) == Bootstrap_->GetCellTag())
+        {
+            return;
+        }
+
+        ToProto(request->mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, CellTagFromId(transactionId)));
     }
 };
 

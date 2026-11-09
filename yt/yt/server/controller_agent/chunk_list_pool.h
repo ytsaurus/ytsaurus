@@ -24,6 +24,7 @@ public:
         IInvokerPoolPtr controllerInvokerPool,
         TOperationId operationId,
         NTransactionClient::TTransactionId transactionId,
+        bool useLazyTransactionExternalization,
         bool isHunk = false);
 
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
@@ -37,6 +38,7 @@ private:
     const IInvokerPoolPtr ControllerInvokerPool_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
+    const bool UseLazyTransactionExternalization_;
     const bool IsHunk_;
 
     const NLogging::TLogger Logger;

@@ -119,6 +119,9 @@ struct TDynamicTransactionManagerConfig
     // COMPAT(shakurov)
     bool IgnoreMissingLeaseCellsOnForcedTransactionAbort;
 
+    // COMPAT(kvk1920)
+    bool EnableLazyTransactionExternalization;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);
