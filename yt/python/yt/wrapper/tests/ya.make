@@ -78,9 +78,10 @@ ELSE()
     )
 ENDIF()
 
-# To use fresh `ytserver-all` in tests user `YT_RECIPE_BUILD_FROM_SOURCE` flag.
+# To use fresh `ytserver-all` in tests use `YT_RECIPE_BUILD_FROM_SOURCE` flag.
 # F.e.: `ya make -r -ttt -j 16 $A/yt/python/yt/wrapper/tests/ -F '*test_add_remove_member*' -DYT_RECIPE_BUILD_FROM_SOURCE=yes  -P -s`
-SET(YT_RECIPE_BUILD_FROM_SOURCE NO)
+# or uncomment this
+# SET(YT_RECIPE_BUILD_FROM_SOURCE yes)
 
 DEPENDS(
     yt/packages/latest
