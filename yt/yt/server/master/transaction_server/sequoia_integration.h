@@ -55,7 +55,8 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
     std::unique_ptr<NProto::TReqReturnBoomerang> boomerang,
-    NCypressClient::TNodeId sequoiaNodeIdToLock);
+    NCypressClient::TNodeId sequoiaNodeIdToLock,
+    bool useSeparateSequoiaTransactionPerCoordinator);
 
 ////////////////////////////////////////////////////////////////////////////////
 
