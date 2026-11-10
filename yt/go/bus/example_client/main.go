@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	flagAddress = flag.String("address", "man2-4299-b52.hume.yt.gencfg-c.yandex.net:9013", "Address of YT rpc proxy")
+	flagAddress = flag.String("address", "localhost:9013", "Address of YT rpc proxy")
 	flagUseTLS  = flag.Bool("tls", false, "Use TLS")
 )
 
