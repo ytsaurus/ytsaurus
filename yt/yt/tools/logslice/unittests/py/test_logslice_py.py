@@ -646,6 +646,55 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["error"], None, None, allow_broad=False)
 
 
+class ReadOnlyTransportHooksTest(unittest.TestCase):
+    def test_shared_parser_and_transport_receive_the_same_validated_request_without_ssh(self):
+        argv = [
+            'pod-tab.example',
+            '--type',
+            'error',
+            '-t',
+            '2026-11-10 12:00:00',
+            '-e',
+            '2026-11-10 12:00:10',
+            '--',
+            '-F',
+            'needle',
+        ]
+        args, grep, _parser = logslice.parse_arguments(argv)
+        self.assertEqual(args.host, 'pod-tab.example')
+        self.assertEqual(grep, ['-F', 'needle'])
+        transport = mock.Mock(return_value=3)
+        with (
+            mock.patch('sys.argv', ['logslice.py', *argv]),
+            mock.patch.object(logslice.Ssh, '__init__') as ssh,
+            mock.patch.object(logslice, 'resolve_logslice') as build,
+        ):
+            self.assertEqual(logslice.main(transport=transport), 3)
+        ssh.assert_not_called()
+        build.assert_not_called()
+        args, types, stages, receipt = transport.call_args.args
+        self.assertEqual((args.host, types, stages), ('pod-tab.example', ['error'], [['grep', '-F', 'needle']]))
+        self.assertFalse(receipt['log_read'])
+
+    def test_invalid_requests_do_not_reach_the_transport_or_ssh(self):
+        for arguments in (
+            ['pod-tab.example'],
+            ['pod-tab.example', '--type', 'unknown'],
+            ['pod-tab.example', '--type', 'error', '-x', 'rm /tmp/forbidden'],
+        ):
+            transport = mock.Mock()
+            with (
+                self.subTest(arguments=arguments),
+                mock.patch('sys.argv', ['logslice.py', *arguments]),
+                mock.patch.object(logslice.Ssh, '__init__') as ssh,
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                logslice.main(transport=transport)
+            transport.assert_not_called()
+            ssh.assert_not_called()
+
+
 class StructuredLogContractTest(unittest.TestCase):
     HOST = "m003-hahn.sas.yp-c.yandex.net"
     COMPONENT = "master-sas5-4416"
