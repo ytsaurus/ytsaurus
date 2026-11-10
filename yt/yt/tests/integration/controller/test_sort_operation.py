@@ -6,7 +6,8 @@ from yt_commands import (
     authors, create, get, set, copy, remove, exists, wait, set_nodes_banned,
     create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
     make_ace, start_transaction, commit_transaction, insert_rows, delete_rows, read_table, write_table, sort, erase, get_operation,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table)
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table,
+    update_controller_agent_config)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
@@ -853,6 +854,42 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         assert read_table("//tmp/t_out") == rows
         assert get("//tmp/t_out/@chunk_count") >= 10
+
+    @authors("dann239")
+    @pytest.mark.timeout(300)
+    def test_shared_job_size_adjuster(self):
+        skip_if_component_old(self.Env, (26, 3), "controller-agent")
+        update_controller_agent_config(
+            "sort_operation_options/enable_sorted_merge_in_sort_job_size_adjustment",
+            True,
+        )
+
+        create("table", "//tmp/t_input")
+        rows = [{"index": i, "foo": "a" * 35000} for i in range(30)]
+        for row in reversed(rows):
+            write_table("<append=true>//tmp/t_input", row)
+
+        job_counts = {}
+        for shared in (False, True):
+            op = sort(
+                in_="//tmp/t_input",
+                out=f"<create=%true>//tmp/t_output_{shared}",
+                sort_by="index",
+                spec={
+                    "resource_limits": {"user_slots": 1},
+                    "partition_job_count": len(rows),
+                    "data_weight_per_sort_job": 36000,
+                    "pivot_keys": [[15]],
+                    "force_job_size_adjuster": True,
+                    "enable_shared_job_size_adjuster": shared,
+                },
+            )
+
+            assert read_table(f"//tmp/t_output_{shared}") == rows
+            assert get(f"{op.get_path()}/@progress/partitions/total") == 2
+            job_counts[shared] = get(f"{op.get_path()}/@progress/sorted_merge/completed/total")
+
+        assert 0 < job_counts[True] < job_counts[False]
 
     @authors("dakovalkov")
     def test_sort_with_row_count_limit(self):
