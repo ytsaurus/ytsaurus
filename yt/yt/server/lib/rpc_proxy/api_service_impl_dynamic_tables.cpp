@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -1126,6 +1128,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
+    if (context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "PullRows is only allowed for %Qv user",
+            NSecurityClient::RootUserName);
+    }
+
     const auto& path = request->path();
 
     TPullRowsOptions options;
