@@ -57,6 +57,8 @@ message THistoryTimeIndex
     optional EIndexMode mode = 6;
     // Included attributes are part of the index and can be used as selectors of select history query.
     repeated string included_attributes = 7;
+    // Hash column expression; mutually exclusive with hash_modulo.
+    optional string hash_expression = 8;
 }
 
 enum EMigrationState
