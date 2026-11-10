@@ -123,6 +123,7 @@ ELSE()
         random_sample.py
         response_stream.py
         retries.py
+        runtime_helpers.py
         run_command_with_lock.py
         run_compression_benchmarks.py
         run_operation_commands.py

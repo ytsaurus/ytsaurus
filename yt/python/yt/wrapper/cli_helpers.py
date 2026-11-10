@@ -4,6 +4,7 @@ from yt.common import get_value, update
 from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
+from yt.wrapper.runtime_helpers import mark_process_exiting_with_error
 
 import os
 import sys
@@ -60,6 +61,8 @@ def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
 def die(message=None, return_code=1):
     if message is not None:
         print(message, file=sys.stderr)
+    if return_code:
+        mark_process_exiting_with_error()
     if "YT_LOG_EXIT_CODE" in os.environ:
         logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
