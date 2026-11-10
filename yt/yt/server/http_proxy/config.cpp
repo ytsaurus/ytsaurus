@@ -280,6 +280,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         .Default(80);
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(16);
+    registrar.Parameter("heavy_command_thread_pool_size", &TThis::HeavyCommandThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
     registrar.Parameter("http_server", &TThis::HttpServer)
         .DefaultNew();
     registrar.Parameter("https_server", &TThis::HttpsServer)
@@ -449,6 +452,10 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
         .DefaultNew();
+
+    registrar.Parameter("heavy_command_thread_pool_size", &TThis::HeavyCommandThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
