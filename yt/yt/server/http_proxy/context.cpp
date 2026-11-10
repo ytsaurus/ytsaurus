@@ -106,6 +106,7 @@ bool TContext::TryPrepare()
         TryParseRequest() &&
         TryParseCommandName() &&
         TryParseUser() &&
+        TryCheckCommandAccess() &&
         TryInitFormatManager() &&
         TryGetDescriptor() &&
         TryCheckAvailability() &&
@@ -257,6 +258,22 @@ bool TContext::TryParseUser()
 
     DriverRequest_.AuthenticatedUser = authenticatedUser;
     DriverRequest_.UserRemoteAddress = GetBalancerRealIPOrRemoteAddress();
+    return true;
+}
+
+bool TContext::TryCheckCommandAccess()
+{
+    if (DriverRequest_.CommandName == "pull_rows" &&
+        DriverRequest_.AuthenticatedUser != NSecurityClient::RootUserName)
+    {
+        Response_->SetStatus(EStatusCode::Forbidden);
+        ReplyError(TError(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "PullRows is only allowed for %Qv user",
+            NSecurityClient::RootUserName));
+        return false;
+    }
+
     return true;
 }
 
