@@ -126,7 +126,7 @@ public:
             StateRoot,
             Config,
             EmptyEngineProviders,
-            0,
+            /*expectedTablesVersion*/ 0,
             /*adminsGroup*/ std::nullopt);
 
         EXPECT_CALL(*MockClient, StartTransaction(_, _))
@@ -448,7 +448,7 @@ public:
             StateRoot,
             Config,
             EmptyEngineProviders,
-            0,
+            /*expectedTablesVersion*/ 0,
             /*adminsGroup*/ std::nullopt);
         ActionQueue = New<TActionQueue>("ListQueriesThread");
         Invoker = ActionQueue->GetInvoker();
@@ -632,7 +632,7 @@ TEST_P(TListQueriesForAdminTest, ListQueries)
         StateRoot,
         Config,
         EmptyEngineProviders,
-        0,
+        /*expectedTablesVersion*/ 0,
         AdminsGroup);
     ExpectListQueriesGetAcoCalls(
         /*everyoneAcoExists*/ false,

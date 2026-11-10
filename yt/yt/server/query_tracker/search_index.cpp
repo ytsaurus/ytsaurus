@@ -77,7 +77,7 @@ struct TQueryIndexSearchOptions
     std::string User;
     std::vector<std::string> AcosForUser;
     TTimestamp Timestamp;
-    bool HasAdminAccess;
+    bool HasAdminAccess = false;
     TAttributeFilter Attributes;
 };
 
