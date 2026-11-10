@@ -203,9 +203,6 @@ struct TControllerServiceConfig
     int SetSpecRetryCount{};
     TDuration SetSpecRetryPeriod;
 
-    //! Allows pipeline specs that select the "paged" timer store backend.
-    bool EnablePagedTimerStore{};
-
     TLoadThroughputThrottlerSpecPtr TablesThrottler;
 
     REGISTER_YSON_STRUCT(TControllerServiceConfig);

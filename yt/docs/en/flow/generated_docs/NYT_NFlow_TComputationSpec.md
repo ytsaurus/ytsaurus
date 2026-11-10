@@ -104,7 +104,7 @@ An optional parameter. If not set, the table is chosen automatically: the compac
 **Default value**: `in_memory`
 Timer store of this `Computation`: `in_memory` (all timers of a partition are resident in worker memory and persisted in the `timers` table) or `paged` (timers live in pages of a dynamic table, only the pages needed for firing are resident).
 
-Static: a change means a stop and a conversion of the timers at the next start. The `paged` store does not support a `watermark_percentile` below 100 on a `Computation` with timer streams yet. The `paged` backend must be enabled on the controller with `enable_paged_timer_store`. ||
+Static: a change means a stop and a conversion of the timers at the next start. The `paged` store does not support a `watermark_percentile` below 100 on a `Computation` with timer streams yet. ||
 || `timer_page_size` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `4Ki`
 Timer page size (number of timers) for the `paged` store. At least 16. Pages are split and merged gradually under the maintenance budget. Timer rows stay in their family. ||

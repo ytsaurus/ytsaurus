@@ -57,20 +57,24 @@ Explanations:
 
 ### Timer store {#timer-store-backend}
 
-Where a computation's timers live is set by the static `timer_store_backend` field of the computation spec:
+The static `timer_store_backend` parameter in each computation's spec selects the timer store:
 
-- `in_memory` (default) — all active timers of a partition are held in the job's memory and mirrored in the `timers` table. The dynamic `timer_store_count_limit` / `timer_store_byte_size_limit` limits apply to the number and size of the timers.
-- `paged` — the timers live in pages of `timer_page_size` timers in the `timer_pages` / `timer_page_meta` / `timer_page_journal` tables, ordered by trigger time; the job keeps in memory only the head of every page family (the few batches closest to firing) and the page metadata, about one entry per `timer_page_size` timers. The `timer_store_count_limit` / `timer_store_byte_size_limit` limits apply to the resident timers. The exception is timers sharing one trigger timestamp (for example, the end of a window for every key): they stay in one page that cannot be split and is loaded whole. Shared-page exploration grows geometrically when few timers belong to the partition. Reading completes the known nearest-timer window before firing. The write allowance is configured by `timer_store.timer_write_multiplier` in the dynamic spec.
+- `in_memory` (default) — all active timers of a partition are held in the job's memory and persisted in the `timers` table.
+- `paged` — timers are stored in {{product-name}} tables in pages of about `timer_page_size` timers. Only timers closest to firing and page metadata are loaded into memory. Timers with the same trigger timestamp are kept in one page and loaded together.
 
-The dynamic `timer_write_multiplier` limits timer row writes per iteration. Its default is 2. The value must be finite and at least 1. Let `R` be the mandatory writes for new or replacement timers, after deduplication. At most `floor(timer_write_multiplier * R)` timer rows may be written. Repartitioning transfers use the remaining allowance. Without mandatory writes, existing timers remain in shared or nested pages. They fire from the resident portion belonging to the partition. Deletions and page metadata do not count. Unused allowance does not carry over.
+The dynamic `timer_store_count_limit` and `timer_store_byte_size_limit` parameters limit the number and size of timers in memory for both stores. The `paged` store does not support a `watermark_percentile` below 100 for computations with timer streams.
 
-Changing `timer_store_backend` is a static spec change: the pipeline is stopped, and at the next start every job moves the timers of its partition between the `timers` table and the pages before its first iteration, in batches of separate transactions; an interrupted move is continued at the next start. A change of `deduplicate_equal_timestamps` is applied at a start the same way: the pages of the partition are rewritten into the new form, duplicates within a page are collapsed, and duplicates in different pages are removed when they fire. A page shared with a neighbouring partition after repartitioning is rewritten by the partition that owns the beginning of its key range; the other one waits for it to start. A change of `timer_page_size` applies gradually: pages are split and merged over several iterations without moving timer rows. A limitation of the first stage: `paged` is incompatible with a `watermark_percentile` below 100 on a computation with timers; such a spec is rejected by the validation.
+For `paged`, the dynamic `timer_store.timer_write_multiplier` parameter limits timer row writes per iteration. The allowance is a multiple of the mandatory writes of new and replacement timers. Its default is 2. The value must be finite and at least 1. The remaining allowance is used to move timers after repartitioning. Deletions and metadata writes do not count toward the allowance.
 
-The `paged` store must be enabled on the controller with the `enable_paged_timer_store` parameter (the `controller_service` section of the controller config). The current release ships with it disabled. A spec with `timer_store_backend: paged` is rejected. The flag is checked when a spec is set: a pipeline whose stored spec already selects `paged` keeps running. This keeps a rollback safe. The previous release cannot read the page format yet. It must never meet that format in pipeline data. Before a downgrade to a release without `paged` support, switch such computations to `in_memory` in the spec and wait for the conversion. Timers move from the pages back to the `timers` table at the next job start.
+To change `timer_store_backend`, stop the pipeline and update its spec. At the next start, jobs move their timers to the selected store before processing begins. An interrupted move resumes at the next start. A change to `deduplicate_equal_timestamps` also takes effect when jobs start. A new `timer_page_size` is applied gradually during processing.
 
-Every timer page has a format version (`format_version` in `timer_page_meta`). A job refuses to start when it meets a page with a version newer than it supports. Such a page was written by a newer binary. The only safe moves are to upgrade or to roll back. A new format version will be rolled out in two releases. First comes a binary that reads both versions and writes the old one. Then comes a binary that writes the new one and converts old pages when a job starts.
+Timers of computations and timer streams removed from the spec are not deleted automatically.
 
-The timers of a computation or timer stream removed from the spec stay in the tables: they are never removed automatically.
+#### Rolling back to a version without paged support {#timer-store-rollback}
+
+A rollback is allowed only when all computations use `timer_store_backend: in_memory` and the transfer of timers out of pages has completed.
+
+If the pipeline has used `paged`, stop it and switch the affected computations to `in_memory`. Start the pipeline on a version that supports `paged`. Wait until all jobs finish initialization and begin processing. Only then proceed with the rollback. Changing the spec alone is not enough: the older version cannot read timers left in pages.
 
 ## Processing order {#timer-ordering}
 
