@@ -219,12 +219,12 @@ PHOENIX_DEFINE_TYPE(TDiscreteJobSizeAdjuster);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IDiscreteJobSizeAdjuster> CreateDiscreteJobSizeAdjuster(
-    const IJobSizeAdjusterPtr& underlying,
+    IJobSizeAdjusterPtr underlying,
     i64 dataWeightPerJob,
     double dataWeightFactor)
 {
     return std::make_unique<TDiscreteJobSizeAdjuster>(
-        underlying,
+        std::move(underlying),
         dataWeightPerJob,
         dataWeightFactor);
 }

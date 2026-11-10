@@ -289,6 +289,7 @@ public:
                 BIND([=] {
                     auto guard = WaitFor(AcquireProcessCreationGuard(creationState))
                         .ValueOrThrow();
+
                     return process->Spawn();
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
