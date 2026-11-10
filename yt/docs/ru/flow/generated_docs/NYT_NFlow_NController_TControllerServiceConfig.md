@@ -11,9 +11,6 @@
 || `set_spec_retry_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `5s`
 Время между попытками. ||
-|| `enable_paged_timer_store` | **Тип**: `bool`
-**Значение по умолчанию**: `false`
-Разрешает спеки пайплайна, выбирающие хранилище таймеров `paged` (`timer_store_backend`). По умолчанию выключено: спека, у которой `paged` получается хотя бы у одного вычисления, отклоняется. Проверка выполняется при установке спеки: пайплайн, чья сохранённая спека уже выбирает `paged`, продолжает работать. ||
 || `tables_throttler` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TLoadThroughputThrottlerSpec](./all_yson_structs#NYT_NFlow_TLoadThroughputThrottlerSpec)`>`
 **Значение по умолчанию**: `{}`
  ||

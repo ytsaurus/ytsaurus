@@ -11,9 +11,6 @@ Number of attempts to update the spec in case of errors. ||
 || `set_spec_retry_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `5s`
 Time between attempts. ||
-|| `enable_paged_timer_store` | **Type**: `bool`
-**Default value**: `false`
-Allows pipeline specs that select the `paged` timer store backend (`timer_store_backend`). Disabled by default: a spec that resolves `paged` for any computation is rejected. The check applies when a spec is set: a pipeline whose stored spec already selects `paged` keeps running. ||
 || `tables_throttler` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TLoadThroughputThrottlerSpec](./all_yson_structs#NYT_NFlow_TLoadThroughputThrottlerSpec)`>`
 **Default value**: `{}`
  ||

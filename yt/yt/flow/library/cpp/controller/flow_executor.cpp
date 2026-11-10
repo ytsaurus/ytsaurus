@@ -1014,7 +1014,6 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
 
             if (argument.Spec) {
                 ValidatePipelineSpec(spec->GetValue(), YTConnector_->GetPipelinePath().GetCluster());
-                ValidateTimerStoreBackends(spec->GetValue(), Config_->EnablePagedTimerStore);
             }
             if (argument.DynamicSpec) {
                 dynamicSpec = UpdateDynamicSpecBase(dynamicSpec, *argument.DynamicSpec, Controller_->GetVersionProvider());
@@ -1984,21 +1983,6 @@ void TLiveFlowExecutorRuntime::AuthorizeCommand(EPermission permission, const st
 ////////////////////////////////////////////////////////////////////////////////
 
 } // anonymous namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateTimerStoreBackends(const TPipelineSpecPtr& spec, bool enablePagedTimerStore)
-{
-    if (enablePagedTimerStore) {
-        return;
-    }
-    for (const auto& [computationId, computationSpec] : spec->Computations) {
-        if (computationSpec->TimerStoreBackend == ETimerStoreBackend::Paged) {
-            THROW_ERROR_EXCEPTION("\"timer_store_backend\" = \"paged\" is not enabled on this controller (enable_paged_timer_store)")
-                .With("computation_id", computationId);
-        }
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
