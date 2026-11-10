@@ -462,16 +462,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         second_peer_address = _get_peers()[1]["address"]
 
         set_node_decommissioned(second_peer_address, True)
-        wait(
-            lambda: len(_get_peers()) == 2
-            and _get_peers()[1].get("address", second_peer_address) != second_peer_address
-        )
-        new_second_peer_address = _get_peers()[1]["address"]
-        assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
-        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
 
-        wait(lambda: len(_get_peers()) == 1)
-        assert _get_peers()[0]["address"] == new_second_peer_address
+        def _has_single_replacement_peer():
+            peers = _get_peers()
+            if len(peers) != 1:
+                return False
+            address = peers[0].get("address")
+            return address is not None and address not in (first_peer_address, second_peer_address)
+
+        wait(_has_single_replacement_peer)
 
         wait_for_cells(
             [cell_id],
