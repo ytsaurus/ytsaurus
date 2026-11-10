@@ -197,6 +197,7 @@ class FlowExecuteTestBase(FlowTestBase):
 
             known_commands = [
                 "list",
+                "get-supported-features",
                 "get-command-required-permission",
                 "get-flow-view",
                 "get-flow-view-v2",
@@ -234,6 +235,9 @@ class FlowExecuteTestBase(FlowTestBase):
             res = self.client.flow_execute(self.pipeline_path, flow_command="list")
             if self.CHECK_KNOWN_COMMANDS:
                 assert res == known_commands
+
+            features = self.client.flow_execute(self.pipeline_path, flow_command="get-supported-features")
+            assert features == ["dynamic_spec_patches"]
 
             # Test get-command-required-permission.
             res = self.client.flow_execute(

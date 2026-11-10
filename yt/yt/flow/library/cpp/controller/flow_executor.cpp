@@ -6,6 +6,7 @@
 #include "controller.h"
 #include "persisted_state_manager.h"
 #include "state_access.h"
+#include "supported_features.h"
 #include "yt_connector.h"
 
 #include <yt/yt/flow/library/cpp/common/authenticator.h>
@@ -288,6 +289,9 @@ TFlowExecutor::TFlowExecutor(IFlowExecutorRuntimePtr runtime)
 
     RegisterCommand("list", EPermission::Read, [this] (const auto&) {
         return ConvertToYsonString(Commands_);
+    });
+    RegisterCommand("get-supported-features", EPermission::Read, [] (const auto&) {
+        return ConvertToYsonString(TEnumTraits<EControllerFeature>::GetDomainValues());
     });
     RegisterCommand("get-command-required-permission", EPermission::Read, [this] (const auto& argument) {
         auto parsedArgument = ConvertTo<TGetCommandRequiredPermissionArg>(argument);
@@ -1932,6 +1936,8 @@ TYsonString TLiveFlowExecutorRuntime::RunCommand(
     // These commands let an operator view and repair the pipeline specs while the FlowView cannot be
     // recovered; get-command-required-permission precedes every flow-execute request of the native client.
     static const THashSet<std::string> CommandsAllowedWithoutFlowView = {
+        "list",
+        "get-supported-features",
         "get-command-required-permission",
         "get-pipeline-spec",
         "get-pipeline-dynamic-spec",

@@ -281,6 +281,26 @@ protected:
     }
 };
 
+TEST_P(TFlowExecutorSpecUpdateTest, SupportedFeaturesWithoutFlowView)
+{
+    WaitFor(BIND([this] {
+        Keeper_->Reset();
+        const auto argument = TYsonString(TStringBuf("{}"));
+        auto commands = ConvertTo<std::vector<std::string>>(Executor_->Execute("list", argument, "alice"));
+        EXPECT_THAT(commands, ::testing::Contains("get-supported-features"));
+        auto features = ConvertTo<std::vector<std::string>>(Executor_->Execute("get-supported-features", argument, "alice"));
+        EXPECT_THAT(features, ::testing::ElementsAre("dynamic_spec_patches"));
+        auto permission = ConvertTo<IMapNodePtr>(Executor_->Execute(
+            "get-command-required-permission",
+            TYsonString(TStringBuf("{command=get-supported-features;}")),
+            "alice"));
+        EXPECT_EQ(permission->GetChildValueOrThrow<EPermission>("permission"), EPermission::Read);
+        EXPECT_EQ(PersistCount_, 0);
+    }).AsyncVia(Queue_->GetInvoker())
+            .Run())
+        .ThrowOnError();
+}
+
 TEST_P(TFlowExecutorSpecUpdateTest, DynamicUpdateRevalidatesAfterStaticUpdate)
 {
     RunConcurrentUpdates(/*staticFirst*/ true);
