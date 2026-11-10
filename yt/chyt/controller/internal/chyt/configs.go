@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -609,7 +610,7 @@ func (c *Controller) getServerConfig(ctx context.Context, oplet *strawberry.Ople
 		return nil, fmt.Errorf("invalid yt config: %v", err)
 	}
 
-	serverConfig := c.config.ServerConfig
+	serverConfig := maps.Clone(c.config.ServerConfig)
 	if serverConfig == nil {
 		serverConfig = make(map[string]any)
 	}
