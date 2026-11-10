@@ -30,6 +30,8 @@ struct TParallelFileReaderOptions
     FLUENT_FIELD_OPTION(TFileReaderOptions, ReaderOptions);
 
     /// @brief Create transaction and take snapshot lock on readed file.
+    ///
+    /// The ranges are then read in this transaction; without it each range reader follows `ReaderOptions`.
     FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 

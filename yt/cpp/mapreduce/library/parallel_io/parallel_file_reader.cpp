@@ -149,6 +149,10 @@ private:
         auto options = Options_.ReaderOptions_.GetOrElse({});
         options.Offset(range.Begin);
         options.Length(range.Length());
+        if (Options_.CreateTransaction_) {
+            // Client_ is the transaction holding the snapshot lock taken in Initialize.
+            options.CreateTransaction(false);
+        }
         auto reader = Client_->CreateFileReader(ToReadPath_, options);
         return TBlob::FromString(reader->ReadAll());
     }
