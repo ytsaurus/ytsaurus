@@ -68,6 +68,7 @@ MakeTypeErasedTransactionStateCreator()
 }
 
 template <
+    class TReturnType,
     class TTransaction,
     class TSaveContext,
     class TLoadContext,
@@ -75,7 +76,7 @@ template <
     class TState,
     class... TArgs
 >
-TCallback<void(
+TCallback<TReturnType(
     TTransaction*,
     TStringBuf,
     ITransactionActionState<TSaveContext, TLoadContext>*,
@@ -90,15 +91,16 @@ TCallback<void(
         TTransaction* transaction,
         TStringBuf value,
         ITransactionActionState<TSaveContext, TLoadContext>* state,
-        const TArgs&... args)
+        const TArgs&... args) -> TReturnType
     {
+        // TODO(h0pless): Think about caching deserialized requests.
         TProto typedValue;
         DeserializeProto(&typedValue, TRef::FromStringBuf(value));
         if constexpr(std::is_same_v<TState, void>) {
-            handler(transaction, &typedValue, args...);
+            return handler(transaction, &typedValue, args...);
         } else {
             auto* typedState = static_cast<TState*>(state->GetUnderlying());
-            handler(transaction, &typedValue, typedState, args...);
+            return handler(transaction, &typedValue, typedState, args...);
         }
     });
 }
@@ -113,13 +115,15 @@ TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>
     TTypedTransactionActionDescriptor<TTransaction, TProto, TState> descriptor)
     : Type_(descriptor.GetType())
     , CreateState_(NDetail::MakeTypeErasedTransactionStateCreator<TSaveContext, TLoadContext, TState>())
-    , Prepare_(NDetail::MakeTypeErasedTransactionActionHandler<TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionPrepareOptions&>(
+    , GenerateStrongOrderingTags_(NDetail::MakeTypeErasedTransactionActionHandler<THashSet<std::string>, TTransaction, TSaveContext, TLoadContext, TProto, TState>(
+        std::move(descriptor.GenerateStrongOrderingTags)))
+    , Prepare_(NDetail::MakeTypeErasedTransactionActionHandler<void, TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionPrepareOptions&>(
         std::move(descriptor.Prepare)))
-    , Commit_(NDetail::MakeTypeErasedTransactionActionHandler<TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionCommitOptions&>(
+    , Commit_(NDetail::MakeTypeErasedTransactionActionHandler<void, TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionCommitOptions&>(
         std::move(descriptor.Commit)))
-    , Abort_(NDetail::MakeTypeErasedTransactionActionHandler<TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionAbortOptions&>(
+    , Abort_(NDetail::MakeTypeErasedTransactionActionHandler<void, TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionAbortOptions&>(
         std::move(descriptor.Abort)))
-    , Serialize_(NDetail::MakeTypeErasedTransactionActionHandler<TTransaction, TSaveContext, TLoadContext, TProto, TState>(
+    , Serialize_(NDetail::MakeTypeErasedTransactionActionHandler<void, TTransaction, TSaveContext, TLoadContext, TProto, TState>(
         std::move(descriptor.Serialize)))
 { }
 
@@ -128,6 +132,17 @@ auto TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadCon
     -> std::unique_ptr<IActionState>
 {
     return CreateState_ ? CreateState_() : nullptr;
+}
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
+THashSet<std::string> TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>::GenerateStrongOrderingTags(
+    TTransaction* transaction,
+    TStringBuf value,
+    IActionState* state) const
+{
+    return GenerateStrongOrderingTags_
+        ? GenerateStrongOrderingTags_(transaction, value, state)
+        : THashSet<std::string>{};
 }
 
 template <class TTransaction, class TSaveContext, class TLoadContext>

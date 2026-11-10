@@ -4,6 +4,8 @@
 #include "transaction.h"
 #endif
 
+#include "record_helpers.h"
+
 #include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/table_client/record_helpers.h>
@@ -59,11 +61,17 @@ void ISequoiaTransaction::DatalessLockRow(
     const TRecord& record,
     NTableClient::ELockType lockType)
 {
+    TStrongOrderingTags strongOrderingTags;
+    if (GetFeatures().UseFineGrainedOrderingTags.value_or(false)) {
+        strongOrderingTags = GetStrongOrderingTags(record);
+    }
+
     auto key = record.ToKey(GetRowBuffer().Get());
     DatalessLockRow(
         masterCellTag,
         TRecord::Table,
         key,
+        std::move(strongOrderingTags),
         lockType);
 }
 
@@ -73,9 +81,16 @@ void ISequoiaTransaction::LockRow(
     NTableClient::ELockType lockType)
 {
     auto key = record.ToKey(GetRowBuffer().Get());
+
+    TStrongOrderingTags strongOrderingTags;
+    if (GetFeatures().UseFineGrainedOrderingTags.value_or(false)) {
+        strongOrderingTags = GetStrongOrderingTags(record);
+    }
+
     LockRow(
         TRecord::Table,
         key,
+        std::move(strongOrderingTags),
         lockType);
 }
 
@@ -90,9 +105,16 @@ void ISequoiaTransaction::WriteRow(
         GetRowBuffer().Get(),
         TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
+
+    TStrongOrderingTags strongOrderingTags;
+    if (GetFeatures().UseFineGrainedOrderingTags.value_or(false)) {
+        strongOrderingTags = GetStrongOrderingTags(record);
+    }
+
     WriteRow(
         TRecord::Table,
         row,
+        std::move(strongOrderingTags),
         lockType);
 }
 
@@ -112,9 +134,16 @@ void ISequoiaTransaction::WriteRow(
         GetRowBuffer().Get(),
         TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
+
+    TStrongOrderingTags strongOrderingTags;
+    if (GetFeatures().UseFineGrainedOrderingTags.value_or(false)) {
+        strongOrderingTags = GetStrongOrderingTags(record);
+    }
+
     WriteRow(
         descriptor,
         row,
+        std::move(strongOrderingTags),
         lockType);
 }
 
@@ -122,7 +151,13 @@ template <class TRecordKey>
 void ISequoiaTransaction::DeleteRow(const TRecordKey& recordKey)
 {
     auto key = NTableClient::FromRecordKey(recordKey, GetRowBuffer().Get());
-    DeleteRow(TRecordKey::Table, key);
+
+    TStrongOrderingTags strongOrderingTags;
+    if (GetFeatures().UseFineGrainedOrderingTags.value_or(false)) {
+        strongOrderingTags = GetStrongOrderingTags(recordKey);
+    }
+
+    DeleteRow(TRecordKey::Table, key, std::move(strongOrderingTags));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

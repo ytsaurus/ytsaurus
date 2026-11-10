@@ -60,6 +60,7 @@ struct ISequoiaTransaction
         NObjectClient::TCellTag masterCellTag,
         ESequoiaTable table,
         NTableClient::TLegacyKey key,
+        TStrongOrderingTags strongOrderingTags,
         NTableClient::ELockType lockType) = 0;
 
     template <class TRecordKey>
@@ -71,6 +72,7 @@ struct ISequoiaTransaction
     virtual void LockRow(
         ESequoiaTable table,
         NTableClient::TLegacyKey key,
+        TStrongOrderingTags strongOrderingTags,
         NTableClient::ELockType lockType) = 0;
 
     template <class TRecordKey>
@@ -81,10 +83,12 @@ struct ISequoiaTransaction
     virtual void WriteRow(
         ESequoiaTable table,
         NTableClient::TUnversionedRow row,
+        TStrongOrderingTags strongOrderingTags = {},
         NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive) = 0;
     virtual void WriteRow(
         TSequoiaTablePathDescriptor tableDescriptor,
         NTableClient::TUnversionedRow row,
+        TStrongOrderingTags strongOrderingTags = {},
         NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive) = 0;
 
     template <class TRecord>
@@ -101,7 +105,8 @@ struct ISequoiaTransaction
 
     virtual void DeleteRow(
         ESequoiaTable table,
-        NTableClient::TUnversionedRow row) = 0;
+        NTableClient::TUnversionedRow row,
+        TStrongOrderingTags strongOrderingTags = {}) = 0;
 
     template <class TRecordKey>
     void DeleteRow(const TRecordKey& key);
@@ -129,12 +134,12 @@ struct ISequoiaTransaction
 
     //! Used to collect strong ordering tags to be passed to commit options.
     //! For details see the corresponding field in #TCommitOptions.
-    virtual void AddStrongOrderingTags(const std::vector<std::string>& tags) = 0;
+    virtual void AddStrongOrderingTags(const THashSet<std::string>& tags) = 0;
 
     //! Same as the above, but sends tags to specific cells only.
     virtual void AddStrongOrderingTags(
         NObjectClient::TCellTag cellTag,
-        const std::vector<std::string>& tags) = 0;
+        const THashSet<std::string>& tags) = 0;
 
     //! Transaction will be registered in the corresponding barriers, which will allow to wait
     //! until all side effects of its commit are actually applied.

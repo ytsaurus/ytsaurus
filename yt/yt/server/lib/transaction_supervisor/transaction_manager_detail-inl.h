@@ -21,6 +21,39 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::Register
 }
 
 template <class TTransaction, class TSaveContext, class TLoadContext>
+THashSet<std::string> TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::GenerateStrongOrderingTags(TTransaction* transaction)
+{
+    if (transaction->Actions().empty()) {
+        return {};
+    }
+
+    TTransactionActionGuard transactionActionGuard;
+    THashSet<std::string> tags;
+
+    for (auto& action : transaction->Actions()) {
+        try {
+            auto it = ActionDescriptorMap_.find(action.Type);
+            if (it == ActionDescriptorMap_.end()) {
+                THROW_ERROR_EXCEPTION("Action %Qv is not registered",
+                    action.Type);
+            }
+            const auto& descriptor = it->second;
+            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
+            auto actionTags = descriptor.GenerateStrongOrderingTags(transaction, action.Value, state);
+            tags.insert(actionTags.begin(), actionTags.end());
+        } catch (const std::exception& ex) {
+            YT_TLOG_DEBUG("Failed to generate strong ordering tags")
+                .With("TransactionId", transaction->GetId())
+                .With("ActionType", action.Type)
+                .With(ex);
+            throw;
+        }
+    }
+
+    return tags;
+}
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
 void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunPrepareTransactionActions(
     TTransaction* transaction,
     const TTransactionPrepareOptions& options)
@@ -42,8 +75,7 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunPrepa
 
     TTransactionActionGuard transactionActionGuard;
 
-    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
-        auto& action = transaction->Actions()[index];
+    for (auto& action : transaction->Actions()) {
         try {
             auto it = ActionDescriptorMap_.find(action.Type);
             if (it == ActionDescriptorMap_.end()) {
@@ -78,8 +110,7 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunCommi
     }
 
     TTransactionActionGuard transactionActionGuard;
-    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
-        auto& action = transaction->Actions()[index];
+    for (auto& action : transaction->Actions()) {
         bool needDestroyState = false;
         try {
             auto it = ActionDescriptorMap_.find(action.Type);
@@ -159,8 +190,7 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunAbort
 template <class TTransaction, class TSaveContext, class TLoadContext>
 void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunSerializeTransactionActions(TTransaction* transaction)
 {
-    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
-        auto& action = transaction->Actions()[index];
+    for (auto& action : transaction->Actions()) {
         try {
             auto it = ActionDescriptorMap_.find(action.Type);
             if (it == ActionDescriptorMap_.end()) {
