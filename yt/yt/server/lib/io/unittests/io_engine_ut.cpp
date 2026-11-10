@@ -7,12 +7,14 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <yt/yt/server/lib/io/huge_page_manager.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/private.h>
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
 
+#include <atomic>
 #include <limits>
 #include <optional>
 
@@ -36,6 +38,173 @@ void WriteFile(const std::string& fileName, TRef data)
 {
     TFile file(fileName, WrOnly | CreateAlways);
     file.Pwrite(data.Begin(), data.Size(), 0);
+}
+
+// Provides an aligned staging blob smaller than the request to verify bounded reuse.
+class TTestHugePageManager
+    : public IHugePageManager
+{
+public:
+    TTestHugePageManager(i64 blobSize, i64 alignment)
+        : BlobSize_(blobSize)
+        , Alignment_(alignment)
+    { }
+
+    TErrorOr<TSharedMutableRef> ReserveHugePageBlob() override
+    {
+        ++ReservationCount_;
+        return TSharedMutableRef::AllocateAligned(
+            BlobSize_,
+            Alignment_,
+            {.InitializeStorage = false},
+            {});
+    }
+
+    int GetUsedHugePageCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetHugePageMemoryLimit() const override
+    {
+        return BlobSize_;
+    }
+
+    i64 GetHugePageBlobSize() const override
+    {
+        return BlobSize_;
+    }
+
+    i64 GetHugePageSize() const override
+    {
+        return Alignment_;
+    }
+
+    bool IsEnabled() const override
+    {
+        return true;
+    }
+
+    void Reconfigure(const THugePageManagerDynamicConfigPtr& /*config*/) override
+    { }
+
+    int GetReservationCount() const
+    {
+        return ReservationCount_.load();
+    }
+
+private:
+    const i64 BlobSize_;
+    const i64 Alignment_;
+
+    std::atomic<int> ReservationCount_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestHugePageManager)
+
+class TIOEngineHugePageTest
+    : public ::testing::TestWithParam<EIOEngineType>
+{ };
+
+TEST_P(TIOEngineHugePageTest, ReusesSmallerBlobForOversizedWrite)
+{
+    constexpr i64 DirectIOBlockSize = 4_KB;
+    auto hugePageManager = New<TTestHugePageManager>(2 * DirectIOBlockSize, DirectIOBlockSize);
+
+    auto config = NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf("{}")));
+    auto engine = NIO::CreateIOEngine(
+        GetParam(),
+        config,
+        /*locationId*/ "default",
+        /*profiler*/ {},
+        /*logger*/ {},
+        /*fairShareQueue*/ nullptr,
+        /*hugePageManager*/ hugePageManager);
+
+    const i64 blockSize = engine->GetBlockSize();
+    const i64 dataSize = 3 * blockSize + 123;
+    auto storage = GenerateRandomBlob(dataSize + 1);
+    auto data = storage.Slice(1, dataSize + 1);
+    ASSERT_NE(reinterpret_cast<i64>(data.Begin()) % blockSize, 0);
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+    auto file = WaitForFast(engine->Open({fileName, RdWr | CreateAlways | DirectAligned}))
+        .ValueOrThrow();
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+
+    auto firstBoundary = blockSize + 17;
+    auto secondBoundary = 2 * blockSize + 31;
+    auto response = WaitForFast(engine->Write({
+        .Handle = file,
+        .Offset = 0,
+        .Buffers = {
+            TSharedRef(),
+            data.Slice(0, firstBoundary),
+            data.Slice(firstBoundary, firstBoundary),
+            data.Slice(firstBoundary, secondBoundary),
+            data.Slice(secondBoundary, data.Size()),
+        },
+        .Flush = true,
+    }))
+        .ValueOrThrow();
+
+    auto paddedSize = AlignUp(dataSize, blockSize);
+    EXPECT_EQ(response.WrittenBytes, paddedSize);
+    EXPECT_EQ(response.IOWriteRequests, 2);
+
+    WaitForFast(engine->FlushFile({file, EFlushFileMode::Data}))
+        .ThrowOnError();
+    file.Reset();
+
+    auto actual = TSharedMutableRef::Allocate(paddedSize);
+    TFile rawFile(fileName, RdOnly);
+    rawFile.Pload(actual.Begin(), actual.Size(), 0);
+
+    auto expected = TSharedMutableRef::Allocate(paddedSize);
+    memcpy(expected.Begin(), data.Begin(), data.Size());
+    memset(expected.Begin() + data.Size(), 0, paddedSize - data.Size());
+    EXPECT_TRUE(TRef::AreBitwiseEqual(actual, expected));
+    EXPECT_EQ(hugePageManager->GetReservationCount(), 1);
+}
+
+TEST_P(TIOEngineHugePageTest, ReusesSmallerBlobForOversizedRead)
+{
+    constexpr i64 DirectIOBlockSize = 4_KB;
+    auto hugePageManager = New<TTestHugePageManager>(2 * DirectIOBlockSize, DirectIOBlockSize);
+    auto config = NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf(
+        "{min_request_size_to_use_huge_pages = 0;}")));
+    auto engine = NIO::CreateIOEngine(
+        GetParam(),
+        config,
+        /*locationId*/ "default",
+        /*profiler*/ {},
+        /*logger*/ {},
+        /*fairShareQueue*/ nullptr,
+        /*hugePageManager*/ hugePageManager);
+
+    const i64 dataSize = 3 * engine->GetBlockSize();
+    auto data = GenerateRandomBlob(dataSize);
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+    WriteFile(fileName, data);
+
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
+        .ValueOrThrow();
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+
+    auto response = WaitForFast(engine->Read(
+        {{file, 0, dataSize}},
+        EWorkloadCategory::Idle,
+        /*tagCookie*/ {},
+        /*sessionId*/ {},
+        /*useDedicatedAllocations*/ true))
+        .ValueOrThrow();
+
+    ASSERT_EQ(response.OutputBuffers.size(), 1u);
+    EXPECT_TRUE(TRef::AreBitwiseEqual(response.OutputBuffers[0], data));
+    EXPECT_EQ(response.IORequests, 2);
+    EXPECT_EQ(hugePageManager->GetReservationCount(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -861,6 +1030,14 @@ TEST_P(TIOEngineDirectIOWriteTest, WriteWithUnalignedBufferAndSize)
 
     EXPECT_TRUE(TRef::AreBitwiseEqual(ReadFile(fileName, fileSize), initialData));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TIOEngineHugePageTest,
+    TIOEngineHugePageTest,
+    ::testing::Values(
+        EIOEngineType::ThreadPool,
+        EIOEngineType::FairShareThreadPool,
+        EIOEngineType::FairShareHierarchical));
 
 INSTANTIATE_TEST_SUITE_P(
     TIOEngineDirectIOWriteTest,

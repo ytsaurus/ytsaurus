@@ -557,6 +557,22 @@ std::vector<TSharedRef> TIOEngineBase::PrepareDirectIOWriteBuffers(
     return {std::move(writeBlob)};
 }
 
+TSharedMutableRef TIOEngineBase::AllocateWriteStagingBlob(
+    i64 size,
+    i64 directIoBlockSize)
+{
+    auto hugePageBlob = AllocateHugeBlob();
+    if (hugePageBlob &&
+        reinterpret_cast<i64>(hugePageBlob.Begin()) % directIoBlockSize == 0 &&
+        static_cast<i64>(hugePageBlob.Size()) >= directIoBlockSize)
+    {
+        return hugePageBlob;
+    }
+
+    size = AlignUp(size, directIoBlockSize);
+    return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
+}
+
 TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
 {
     TSharedMutableRef hugePageBlob;
