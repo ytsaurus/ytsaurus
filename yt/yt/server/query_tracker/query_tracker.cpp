@@ -106,7 +106,8 @@ public:
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Yql] = CreateYqlEngine(
-            StateClient_, StateRoot_,
+            StateClient_,
+            StateRoot_,
             std::move(adminsGroup));
 
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
@@ -393,7 +394,7 @@ private:
         // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
         auto newState = optionalRecord->State == EQueryState::Running ? EQueryState::Pending : optionalRecord->State;
         std::optional<TError> acquisitionError;
-        auto engine = Engines_[queryRecord.Engine];
+        const auto& engine = GetOrCrash(Engines_, queryRecord.Engine);
 
         bool hasPreviousNonFinishingRun =
             queryRecord.LeaseTransactionId != NullTransactionId &&

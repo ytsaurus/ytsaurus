@@ -26,6 +26,7 @@
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -1189,7 +1190,7 @@ private:
                     queryClient,
                     ypath,
                     commonErrorAttributes
-                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TDiscoveredSecret> {
+                ] (const TErrorOr<TYsonString>& valueOrError) -> TFuture<TDiscoveredSecret> {
                     if (!valueOrError.IsOK()) {
                         return MakeFuture<TDiscoveredSecret>(TError("Cannot get provided secret")
                             .With(commonErrorAttributes)
@@ -1232,7 +1233,7 @@ private:
                         return queryClient->CreateFileReader(ypath.GetPath())
                             .Apply(BIND([
                                 discoveredSecret = std::move(discoveredSecret)
-                            ](const NApi::IFileReaderPtr& fileReader) mutable {
+                            ] (const NApi::IFileReaderPtr& fileReader) mutable {
                                 auto contentRef = fileReader->ReadAll();
                                 auto contentBuf = contentRef.ToStringBuf();
                                 contentBuf.ChopSuffix("\n");
@@ -1307,12 +1308,12 @@ private:
                         discoveredSubcategory = subcategoryOrError.Value();
                     }
 
-                    // TODO: switch back to has_category when api will provide empty category
+                    // TODO(ngc224): Switch back to has_category when the API provides an empty category.
                     if (src.category() || discoveredCategory) {
                         if (src.category() &&
                             discoveredCategory &&
-                            src.category() != *discoveredCategory
-                        ) {
+                            src.category() != *discoveredCategory)
+                        {
                             auto error = TError("Found mismatch between provided and discovered secret categories")
                                 .With(commonErrorAttributes)
                                 .With("provided_category", src.category())
@@ -1331,12 +1332,12 @@ private:
                         dst["category"] = TString(secretIdBuf);
                     }
 
-                    // TODO: switch back to has_subcategory when api will provide empty subcategory
+                    // TODO(ngc224): Switch back to has_subcategory when the API provides an empty subcategory.
                     if (src.subcategory() || discoveredSubcategory) {
                         if (src.subcategory() &&
                             discoveredSubcategory &&
-                            src.subcategory() != *discoveredSubcategory
-                        ) {
+                            src.subcategory() != *discoveredSubcategory)
+                        {
                             auto error = TError("Found mismatch between provided and discovered secret subcategories")
                                 .With(commonErrorAttributes)
                                 .With("provided_subcategory", src.subcategory())
