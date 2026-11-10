@@ -1,7 +1,8 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, exists, remove,
+
+    authors, wait, create, ls, get, set, exists, remove, copy,
     create_account, create_network_project,
     create_user, create_group, create_tablet_cell_bundle, make_ace,
     add_member, remove_member, remove_group, remove_user,
@@ -10,6 +11,8 @@ from yt_commands import (
     build_snapshot, print_debug,
     make_batch_request, execute_batch, raise_batch_error,
 )
+
+from yt_driver_bindings import Driver
 
 import yt_error_codes
 
@@ -21,6 +24,7 @@ from yt.common import YtError
 from yt.yson import YsonBoolean, YsonEntity
 
 import pytest
+from copy import deepcopy
 import builtins
 import datetime
 import time
@@ -1082,12 +1086,45 @@ class TestUsersRpcProxy(TestUsers):
 
 class TestUsersMulticell(TestUsers):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["cypress_node_host"]},
     }
+
+    @authors("kvk1920")
+    @with_additional_threads
+    def test_cross_cell_request_queue_size_limit(self):
+        create_user("u")
+        set("//sys/users/u/@request_limits/read_request_rate/per_cell/11", 1)
+        set("//sys/users/u/@request_queue_size_limit", 1)
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 11})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 13})
+        copy("//tmp/t", "//tmp/p/t")
+
+        start_time = datetime.datetime.now(datetime.timezone.utc)
+
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(
+            driver_config,
+            retry_request_queue_size_limit_exceeded=True)
+
+        threads = []
+        for _ in range(5):
+            for path in ("//tmp/t", "//tmp/p/t"):
+                threads.append(
+                    self.spawn_additional_thread(
+                        target=lambda: get(f"{path}/@chunk_merger_mode", authenticated_user="u", driver=driver)))
+
+        for t in threads:
+            t.join()
+
+        finish_time = datetime.datetime.now(datetime.timezone.utc)
+        assert finish_time - start_time >= datetime.timedelta(seconds=5)
 
     @authors("aleksandra-zh")
     def test_request_limit_cell_names(self):
