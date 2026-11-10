@@ -16,6 +16,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/chaos_server/helpers.h>
+
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_visitor.h>
@@ -217,6 +219,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isQueueConsumer = table->IsQueueConsumer();
     bool isQueueProducer = table->IsQueueProducer();
     bool isNative = table->IsNative();
+    bool isReplicated = table->IsReplicated();
+    bool isChaosTable = isDynamic && trunkTable->GetReplicationCardId();
 
     TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ isDynamic);
 
@@ -296,6 +300,19 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && trunkTable->GetReplicationCardId()));
+    if (isChaosTable) {
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Era)
+            .SetExternal(isExternal));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CoordinatorCellIds)
+            .SetExternal(isExternal));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
+            .SetExternal(isExternal));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
+            .SetExternal(isExternal));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CollocatedReplicationCardIds)
+            .SetExternal(isExternal)
+            .SetOpaque(true));
+    }
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
@@ -401,12 +418,13 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationId)
-        .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
-        .SetWritable(true)
-        .SetRemovable(true)
-        .SetReplicated(true));
+        .SetPresent((isReplicated && trunkTable->GetReplicationCollocation()) || isChaosTable)
+        .SetExternal(isExternal && isChaosTable)
+        .SetWritable(isReplicated)
+        .SetRemovable(isReplicated)
+        .SetReplicated(isReplicated));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationTablePaths)
-        .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
+        .SetPresent(isReplicated && trunkTable->GetReplicationCollocation())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BackupState)
         .SetExternal(isExternal)
@@ -1279,8 +1297,24 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
     bool isQueue = table->IsQueue();
     bool isQueueConsumer = table->IsQueueConsumer();
     bool isQueueProducer = table->IsQueueProducer();
+    auto replicationCardId = table->GetReplicationCardId();
 
     switch (key) {
+        case EInternedAttributeKey::Era:
+        case EInternedAttributeKey::CoordinatorCellIds:
+        case EInternedAttributeKey::Replicas:
+        case EInternedAttributeKey::ReplicationCollocationId:
+        case EInternedAttributeKey::ReplicatedTableOptions:
+        case EInternedAttributeKey::CollocatedReplicationCardIds:
+            if (!table->IsDynamic() || !replicationCardId) {
+                break;
+            }
+
+            return GetReplicationCardAttribute(
+                Bootstrap_->GetClusterConnection(),
+                replicationCardId,
+                key);
+
         case EInternedAttributeKey::TableChunkFormatStatistics:
             if (isExternal) {
                 break;

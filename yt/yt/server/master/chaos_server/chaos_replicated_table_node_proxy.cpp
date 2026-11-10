@@ -22,8 +22,6 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
-
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -439,56 +437,15 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Era:
-                return GetReplicationCard()
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
-                        return BuildYsonStringFluently()
-                            .Value(card->Era);
-                    }));
-
             case EInternedAttributeKey::CoordinatorCellIds:
-                return GetReplicationCard({.IncludeCoordinators = true})
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
-                        return BuildYsonStringFluently()
-                            .Value(card->CoordinatorCellIds);
-                    }));
-
-            case EInternedAttributeKey::Replicas: {
-                auto options = TReplicationCardFetchOptions{
-                    .IncludeProgress = true,
-                    .IncludeHistory = true,
-                    .IncludeReplicatedTableOptions = true,
-                };
-
-                return GetReplicationCard(options)
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
-                        auto replicasLags = ComputeReplicasLag(card->Replicas);
-                        auto lastEraTimestamp = GetLastEraTimestamp(card);
-                        return BuildYsonStringFluently()
-                            .DoMapFor(replicasLags, [&] (TFluentMap fluent, const auto& lagPair) {
-                                const auto& [replicaId, replicaLag] = lagPair;
-                                const auto& replicas = card->Replicas;
-                                const auto& replica = replicas.find(replicaId)->second;
-                                const auto& replicaHistory = replica.History;
-                                auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-                                bool replicaReachedLastOwnEra =
-                                    (!replicaHistory.empty() && minTimestamp >= replicaHistory.back().Timestamp);
-                                fluent
-                                    .Item(ToString(replicaId))
-                                    .BeginMap()
-                                        .Item("cluster_name").Value(replica.ClusterName)
-                                        .Item("replica_path").Value(replica.ReplicaPath)
-                                        .Item("state").Value(replica.State)
-                                        .Item("mode").Value(replica.Mode)
-                                        .Item("content_type").Value(replica.ContentType)
-                                        .Item("replication_lag_timestamp").Value(minTimestamp)
-                                        .Item("replication_lag_time").Value(replicaLag)
-                                        .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
-                                        .Item("replica_reached_last_own_era").Value(replicaReachedLastOwnEra)
-                                        .Item("replica_reached_last_global_era").Value(minTimestamp >= lastEraTimestamp)
-                                    .EndMap();
-                            });
-                    }));
-            }
+            case EInternedAttributeKey::Replicas:
+            case EInternedAttributeKey::ReplicatedTableOptions:
+            case EInternedAttributeKey::ReplicationCollocationId:
+            case EInternedAttributeKey::CollocatedReplicationCardIds:
+                return GetReplicationCardAttribute(
+                    Bootstrap_->GetClusterConnection(),
+                    table->GetReplicationCardId(),
+                    key);
 
             case EInternedAttributeKey::Schema: {
                 if (!table->GetSchema()) {
@@ -496,43 +453,6 @@ private:
                 }
                 const auto& tableManager = Bootstrap_->GetTableManager();
                 return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
-            }
-
-            case EInternedAttributeKey::ReplicatedTableOptions:
-                return GetReplicationCard({.IncludeReplicatedTableOptions = true})
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
-                        return BuildYsonStringFluently()
-                            .Value(card->ReplicatedTableOptions);
-                    }));
-
-            case EInternedAttributeKey::ReplicationCollocationId:
-                return GetReplicationCard()
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
-                        return BuildYsonStringFluently()
-                            .Value(card->ReplicationCardCollocationId);
-                    }));
-
-            case EInternedAttributeKey::CollocatedReplicationCardIds: {
-                auto id = GetThisImpl()->GetReplicationCardId();
-                auto connection = Bootstrap_->GetClusterConnection();
-                return GetReplicationCard()
-                    .AsUnique().Apply(BIND([connection = std::move(connection), id] (TReplicationCardPtr&& card) {
-                        if (card->ReplicationCardCollocationId.IsEmpty()) {
-                            return MakeFuture(
-                                BuildYsonStringFluently()
-                                    .BeginList()
-                                    .EndList());
-                        }
-
-                        return GetCollocatedReplicationCards(
-                            card->ReplicationCardCollocationId,
-                            id,
-                            std::move(connection))
-                            .AsUnique().Apply(BIND([] (std::vector<TReplicationCardId>&& ids) {
-                                return BuildYsonStringFluently()
-                                    .Value(ids);
-                            }));
-                    }));
             }
 
             case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
@@ -611,39 +531,6 @@ private:
             GetThisImpl()->GetReplicationCardId(),
             options,
             bypassCache);
-    }
-
-    static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
-        TReplicationCardCollocationId collocationId,
-        TReplicationCardId replicationCardId,
-        NNative::IConnectionPtr connection)
-    {
-        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByObjectIdOrThrow(replicationCardId));
-        proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
-        auto req = proxy.GetReplicationCardCollocation();
-        ToProto(req->mutable_replication_card_collocation_id(), collocationId);
-        return req->Invoke()
-            .AsUnique().Apply(BIND([] (TChaosNodeServiceProxy::TErrorOrRspGetReplicationCardCollocationPtr&& result) {
-                if (!result.IsOK()) {
-                    return TErrorOr<std::vector<TReplicationCardId>>(TError(result));
-                }
-
-                return TErrorOr(
-                    FromProto<std::vector<TReplicationCardId>>(result.Value()->replication_card_ids()));
-            }));
-    }
-
-    static TTimestamp GetLastEraTimestamp(const TReplicationCardPtr& card)
-    {
-        for (const auto& replica : card->Replicas) {
-            for (const auto& historyItem : replica.second.History) {
-                if (historyItem.Era == card->Era) {
-                    return historyItem.Timestamp;
-                }
-            }
-        }
-
-        return NullTimestamp;
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
