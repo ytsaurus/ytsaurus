@@ -38,6 +38,7 @@ public:
     bool TryParseRequest();
     bool TryParseCommandName();
     bool TryParseUser();
+    bool TryCheckCommandAccess();
     bool TryInitFormatManager();
     bool TryGetDescriptor();
     bool TryCheckAvailability();

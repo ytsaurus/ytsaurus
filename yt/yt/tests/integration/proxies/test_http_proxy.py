@@ -160,6 +160,12 @@ class TestHttpProxy(HttpProxyTestBase):
         rsp = requests.get(self._get_proxy_address() + "/ping")
         rsp.raise_for_status()
 
+    @authors("shamteev")
+    def test_pull_rows_requires_root(self):
+        create_user("careless_ai_user")
+        with raises_yt_error("PullRows is only allowed", code=yt_error_codes.AuthorizationErrorCode):
+            self._execute_command("POST", "pull_rows", params={}, user="careless_ai_user")
+
     @authors("prime")
     def test_version(self):
         rsp = requests.get(self._get_proxy_address() + "/version")

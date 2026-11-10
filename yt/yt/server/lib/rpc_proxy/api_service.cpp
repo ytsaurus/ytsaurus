@@ -64,6 +64,7 @@
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
 #include <yt/yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/client/chunk_client/config.h>
 
@@ -4792,6 +4793,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
+    if (context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "PullRows is only allowed for %Qv user",
+            NSecurityClient::RootUserName);
+    }
+
     const auto& path = request->path();
 
     TPullRowsOptions options;

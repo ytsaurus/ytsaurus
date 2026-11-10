@@ -5216,6 +5216,19 @@ class TestChaosRpcProxy(TestChaos):
         },
     }
 
+    @authors("shamteev")
+    def test_pull_rows_requires_root(self):
+        create_user("careless_ai_user")
+        with raises_yt_error("PullRows is only allowed", code=yt_error_codes.AuthorizationErrorCode):
+            pull_rows(
+                "//tmp/nonexistent",
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
+                upstream_replica_id="0-0-0-0",
+                authenticated_user="careless_ai_user")
+
     @authors("savrus")
     def test_in_sync_async_replicas(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
