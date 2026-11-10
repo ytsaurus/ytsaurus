@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <contrib/libs/pdqsort/pdqsort.h>
+
 #include <algorithm>
 
 namespace NYT::NFlow {
@@ -33,6 +35,7 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(ResultReady, false);
 
     //! Call Result() to get the result. If not ready, Result() may return garbage.
+    //! The ready result is sorted according to the comparator.
     DEFINE_BYREF_RO_PROPERTY(std::vector<T>, Result);
 
     //! Actual window size can be slightly less that desired.

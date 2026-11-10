@@ -35,6 +35,7 @@ SRCS(
 PEERDIR(
     contrib/libs/eigen
     contrib/libs/openssl
+    contrib/libs/pdqsort
     library/cpp/build_info
     library/cpp/yt/error
     library/cpp/yt/memory

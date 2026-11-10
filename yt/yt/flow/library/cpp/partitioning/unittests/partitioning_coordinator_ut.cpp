@@ -7,6 +7,8 @@
 #include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
+#include <yt/yt/flow/library/cpp/misc/remedian_splitter.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
@@ -1006,6 +1008,35 @@ TEST_F(TPivotRebalanceTest, PivotThresholdUsesCurrentCountDuringGrowth)
     EXPECT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(10)));
     EXPECT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(20)));
     EXPECT_EQ(*partitions[2]->UpperKey, MakeKey(ui64(30)));
+}
+
+TEST_F(TPivotRebalanceTest, RemedianPivotsProduceContiguousPartitions)
+{
+    TRemedianSplitter<ui64> splitter(/*partCount*/ 8, /*desiredWindowSize*/ 408);
+    for (int batch = 0; batch < 17; ++batch) {
+        for (int index = 0; index < 24; ++index) {
+            splitter.Push(ui64(10 + (index < 4 ? batch - 2 * (batch % 2) : batch)));
+        }
+    }
+
+    ASSERT_TRUE(splitter.IsResultReady());
+
+    Controller_->PartitioningSpec->DesiredPartitionCount = 8;
+    SetFeedback(/*lowCpu*/ 0.9, /*highCpu*/ 0.1, /*lowPivot*/ 25, /*highPivot*/ 75);
+    auto& pivots = GetFeedback(0)->InputMetrics->Global.Pivots;
+    pivots.clear();
+
+    for (ui64 pivot : splitter.Result()) {
+        pivots.push_back(MakeKey(pivot));
+    }
+
+    RunIteration();
+    auto partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 8u);
+
+    for (int index = 1; index < std::ssize(partitions); ++index) {
+        EXPECT_EQ(*partitions[index - 1]->UpperKey, *partitions[index]->LowerKey);
+    }
 }
 
 TEST_F(TPivotRebalanceTest, RepeatedPivotsDoNotCreateEmptyPartitions)
