@@ -30,6 +30,9 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/fluent_log.h>
+
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/net/config.h>
 
@@ -240,6 +243,61 @@ static void RefreshToken(const TString& user, const TString& token, const THashM
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+void LogQueryFinished(
+    TQueryId queryId,
+    const TString& user,
+    const TReqStartQuery& request,
+    const TString& agentId,
+    const std::optional<TString>& flavor,
+    const std::optional<TYsonString>& progress,
+    const std::optional<TString>& ast,
+    const std::optional<TYsonString>& statistics,
+    const std::optional<TYsonString>& plan,
+    const TError& agentError,
+    const TError& yqlError)
+{
+    std::optional<TYsonString> settings;
+    if (request.yql_request().has_settings()) {
+        settings = SanitizeQuerySettingsForLogging(TYsonString(request.yql_request().settings()));
+        if (!settings) {
+            settings = ConvertToYsonString("Failed to parse query settings for logging");
+        }
+    }
+
+    LogStructuredEventFluently(YqlAgentStructuredLogger(), ELogLevel::Info)
+        .Item("log_timestamp").Value(TInstant::Now())
+        .Item("query_id").Value(queryId)
+        .Item("query").Value(request.yql_request().query())
+        .Item("user").Value(user)
+        .Item("agent_id").Value(agentId)
+        .Item("execute_mode").Value(request.yql_request().mode())
+        .DoIf(settings.has_value(), [&] (auto fluent) {
+            fluent.Item("settings").Value(*settings);
+        })
+        .DoIf(flavor.has_value(), [&] (auto fluent) {
+            fluent.Item("flavor").Value(*flavor);
+        })
+        .DoIf(progress.has_value(), [&] (auto fluent) {
+            fluent.Item("progress").Value(*progress);
+        })
+        .DoIf(ast.has_value(), [&] (auto fluent) {
+            fluent.Item("ast").Value(*ast);
+        })
+        .DoIf(statistics.has_value(), [&] (auto fluent) {
+            fluent.Item("statistics").Value(*statistics);
+        })
+        .DoIf(plan.has_value(), [&] (auto fluent) {
+            fluent.Item("plan").Value(*plan);
+        })
+        .DoIf(!agentError.IsOK(), [&] (auto fluent) {
+            fluent.Item("agent_error").Value(agentError);
+        })
+        .DoIf(!yqlError.IsOK(), [&] (auto fluent) {
+            fluent.Item("yql_error").Value(yqlError);
+        })
+        .Finish();
+}
 
 std::optional<NYql::TLangVersion> ParseYQLVersion(const std::string& version)
 {
@@ -711,16 +769,37 @@ private:
         auto queryState = TQueryState{
             .QueryId = queryId,
         };
+        TError yqlError;
+        std::optional<TString> flavor;
+        std::optional<TYsonString> progress;
+        std::optional<TString> ast;
+        std::optional<TYsonString> statistics;
+        std::optional<TYsonString> plan;
 
         auto makeCommonQueryError = [&] {
             return TError("Failed to run query")
                 .With("query_id", queryId);
         };
 
+        auto logQueryFinishedGuard = Finally([&] {
+            LogQueryFinished(
+                queryId,
+                user,
+                request,
+                AgentId_,
+                flavor,
+                progress,
+                ast,
+                statistics,
+                plan,
+                queryState.Error,
+                yqlError);
+        });
+
         try {
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
-            auto flavor = DetectFlavorFromSettings(settings);
+            flavor = DetectFlavorFromSettings(settings);
 
             std::vector<TQueryFile> files;
             files.reserve(yqlRequest.files_size());
@@ -807,9 +886,15 @@ private:
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
 
+            progress = std::optional<TYsonString>(result.Progress);
+            ast = result.Ast;
+            statistics = std::optional<TYsonString>(result.Statistics);
+            plan = std::optional<TYsonString>(result.Plan);
+
             if (result.YsonError) {
+                yqlError = ConvertTo<TError>(TYsonString(*result.YsonError));
                 YT_TLOG_INFO("YQL plugin query run failed")
-                    .With(ConvertTo<TError>(TYsonString(*result.YsonError)));
+                    .With(yqlError);
             } else {
                 YT_TLOG_INFO("YQL plugin query run completed");
             }
@@ -865,6 +950,7 @@ private:
 
             response.mutable_yql_response()->Swap(&yqlResponse);
         } catch (const TFiberCanceledException&) {
+            queryState.Error = TError(NYT::EErrorCode::Canceled, "Query was canceled");
             Cleanup(queryState, "fiber cancellation");
             throw;
         } catch (const std::exception& ex) {

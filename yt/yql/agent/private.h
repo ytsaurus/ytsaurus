@@ -13,6 +13,7 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, YqlAgentLogger, "YqlAgent");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, YqlAgentStructuredLogger, "YqlAgentStructuredLog");
 YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, YqlAgentProfiler, NProfiling::TProfiler("/yql_agent"));
 
 ////////////////////////////////////////////////////////////////////////////////

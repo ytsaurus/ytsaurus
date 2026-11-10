@@ -23,6 +23,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -35,6 +37,10 @@
 #include <library/cpp/yt/memory/ref.h>
 
 #include <yql/essentials/public/result_format/yql_result_format_response.h>
+
+#include <yql/tools/yqlworker/interface/proto/task.pb.h>
+
+#include <util/stream/str.h>
 
 namespace NYT::NYqlAgent {
 
@@ -53,6 +59,40 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = YqlAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TYsonString> SanitizeQuerySettingsForLogging(const TYsonString& settings)
+{
+    try {
+        auto settingsMap = ConvertTo<IMapNodePtr>(settings);
+        settingsMap->RemoveChild("tokens");
+
+        if (auto taskDataNode = settingsMap->FindChild("yql_task_data")) {
+            NYql::NProto::TTaskData taskData;
+            if (!taskData.ParseFromString(taskDataNode->GetValue<TString>())) {
+                return std::nullopt;
+            }
+
+            taskData.ClearAuthData();
+            taskData.ClearUserAuthData();
+            taskData.ClearGatewaysConfig();
+            taskData.ClearGatewaysConfigPatch();
+
+            TStringStream taskDataYson;
+            TYsonWriter writer(&taskDataYson);
+            WriteProtobufMessage(&writer, taskData);
+
+            settingsMap->RemoveChild("yql_task_data");
+            settingsMap->AddChild("yql_task_data", ConvertToNode(TYsonString(taskDataYson.Str())));
+        }
+
+        return ConvertToYsonString(settingsMap);
+    } catch (const std::exception&) {
+        // Do not include input or parser errors: both may contain credentials.
+        return std::nullopt;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
