@@ -5165,21 +5165,18 @@ class TestChaosSpecial(ChaosTestBase):
             new_replica = new_replicas[data_replica_index]
             driver = get_driver(cluster=cluster_name)
 
-            create(
-                "table",
-                "//tmp/t.new",
-                schema=make_schema(new_schema, unique_keys=True),
-                driver=driver,
-            )
+            table_attributes = {"schema": make_schema(new_schema, unique_keys=True)}
+            self._update_mount_config(table_attributes)
+            create("table", "//tmp/t.new", attributes=table_attributes, driver=driver)
 
             timestamp = generate_timestamp(driver=driver)
             wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[data_replica_index]}/replication_lag_timestamp") > timestamp)
             sync_unmount_table("//tmp/t", driver=driver)
             merge(
-                in_="//tmp/t",
+                in_="//tmp/t{key,value}",
                 out=f"<output_timestamp={timestamp}>//tmp/t.new",
                 mode="ordered",
-                schema_inference_mode="from_output",
+                spec={"schema_inference_mode": "from_output"},
                 driver=driver
             )
             replication_progress = get("//tmp/t/@replication_progress", driver=driver)
@@ -5197,6 +5194,7 @@ class TestChaosSpecial(ChaosTestBase):
                 driver=driver
             )
             sync_mount_table("//tmp/t.new", driver=driver)
+            _validate_schema(new_schema, "//tmp/t.new", driver=driver)
 
             # remove old replicas and tables
             for i in (data_replica_index, queue_replica_index):
