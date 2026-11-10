@@ -14,6 +14,7 @@ IF (NOT OPENSOURCE)
         dqrun
         dqrun_light
         experimental
+        qt_ban
         qt_release_helper
         qt_stress
         qt_e2e
