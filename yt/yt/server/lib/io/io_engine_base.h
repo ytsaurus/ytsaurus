@@ -251,6 +251,12 @@ protected:
         const std::vector<TSharedRef>& buffers,
         i64 directIoBlockSize);
 
+    //! Returns an available suitable huge-page blob for synchronous write
+    //! staging, or an aligned blob large enough to hold the entire write.
+    TSharedMutableRef AllocateWriteStagingBlob(
+        i64 size,
+        i64 directIoBlockSize);
+
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
