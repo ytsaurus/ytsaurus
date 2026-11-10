@@ -12,6 +12,10 @@ namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<NYson::TYsonString> SanitizeQuerySettingsForLogging(const NYson::TYsonString& settings);
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool ReorderAndSaveRows(
     NTableClient::TRowBufferPtr rowBuffer,
     NTableClient::TNameTablePtr sourceNameTable,
