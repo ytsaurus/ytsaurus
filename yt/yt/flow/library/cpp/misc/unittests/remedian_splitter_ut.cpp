@@ -219,6 +219,34 @@ TEST(TRemedianSplitter, UpdateTest)
     }
 }
 
+TEST(TRemedianSplitter, MixedOrderlinessPreservesPivotOrder)
+{
+    for (bool reversed : {false, true}) {
+        auto compare = [&] (int lhs, int rhs) {
+            return reversed ? lhs > rhs : lhs < rhs;
+        };
+
+        TRemedianSplitter<int, decltype(compare)> splitter(/*partCount*/ 8, /*desiredWindowSize*/ 408, compare);
+        ASSERT_EQ(splitter.GetLeafSize(), 24);
+        ASSERT_EQ(splitter.GetInnerSize(0), 17);
+        ASSERT_EQ(splitter.GetInnerHeight(), 1);
+
+        // The first pivot's samples alternate while the others increase.
+        for (int batch = 0; batch < 3 * 17; ++batch) {
+            for (int index = 0; index < 24; ++index) {
+                int value = index < 4 ? batch - 2 * (batch % 2) : batch;
+                splitter.Push(reversed ? -value : value);
+            }
+
+            if (batch >= 16) {
+                ASSERT_TRUE(splitter.IsResultReady());
+                ASSERT_TRUE(std::ranges::is_sorted(splitter.Result(), compare))
+                    << ::testing::PrintToString(splitter.Result());
+            }
+        }
+    }
+}
+
 struct TValue
 {
     ui64 Value;
