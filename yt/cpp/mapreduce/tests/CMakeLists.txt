@@ -14,6 +14,6 @@
 
 add_subdirectory(yt_initialize_hook)
 add_subdirectory(yt_unittest_lib)
-add_subdirectory(gtest_main)
 add_subdirectory(native)
+add_subdirectory(gtest_main)
 add_subdirectory(lib)

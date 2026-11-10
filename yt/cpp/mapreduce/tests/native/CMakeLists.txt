@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(test_helpers)
 add_subdirectory(proto_lib)
 add_subdirectory(misc)
 add_subdirectory(misc_core_http)
