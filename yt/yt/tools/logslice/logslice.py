@@ -1808,8 +1808,8 @@ def split_argv(argv):
     return argv, []
 
 
-def parse_arguments(argv):
-    left, grep_args = split_argv(argv)
+def _run_main(context):
+    left, grep_args = split_argv(sys.argv[1:])
 
     parser = argparse.ArgumentParser(
         prog="logslice.py",
@@ -1884,11 +1884,6 @@ def parse_arguments(argv):
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="print ssh commands to stderr")
     args = parser.parse_args(left)
-    return args, grep_args, parser
-
-
-def _run_main(context, transport=None):
-    args, grep_args, parser = parse_arguments(sys.argv[1:])
 
     # Build and validate the post-processing pipeline before any slow work (binary
     # resolution/build, ssh, scp), so a wrong argument is reported instantly.
@@ -1985,8 +1980,6 @@ def _run_main(context, transport=None):
 
     execution_result = make_execution_result(cron_job or args.component)
     context["result"] = execution_result
-    if transport is not None:
-        return transport(args, log_types, stages, execution_result)
     ssh = Ssh(
         args.host,
         args.verbose,
@@ -2224,10 +2217,10 @@ def _run_main(context, transport=None):
     return exit_code
 
 
-def main(transport=None):
+def main():
     context = {}
     try:
-        return _run_main(context, transport=transport)
+        return _run_main(context)
     except (SystemExit, OSError, subprocess.SubprocessError) as error:
         result = context.get("result")
         if result is None:
