@@ -103,6 +103,38 @@ TEST(FileIo, ReadRange)
     EXPECT_EQ(result, fileData.SubStr(offset, length));
 }
 
+TEST(FileIo, OptionallyCreateChildTransactionForRead)
+{
+    TTestReaderFixture testReaderFixture;
+    auto client = testReaderFixture.GetClient();
+    const auto path = testReaderFixture.GetWorkingDir() + "/file";
+    const auto getLockCount = [&] {
+        return client->Get(path + "/@lock_count").AsUint64();
+    };
+    {
+        auto reader = client->CreateFileReader(path, TFileReaderOptions().CreateTransaction(false));
+        EXPECT_EQ(getLockCount(), 0u);
+        EXPECT_EQ(reader->ReadAll(), testReaderFixture.GetFileData());
+    }
+    {
+        // CreateTransaction default is true
+        auto reader = client->CreateFileReader(path);
+        EXPECT_EQ(getLockCount(), 1u);
+        EXPECT_EQ(reader->ReadAll(), testReaderFixture.GetFileData());
+    }
+    // Without a transaction of its own the reader still reads in the client's transaction
+    {
+        const auto transactionPath = testReaderFixture.GetWorkingDir() + "/transaction_file";
+        auto transaction = client->StartTransaction();
+        auto writer = transaction->CreateFileWriter(transactionPath);
+        writer->Write("transaction data");
+        writer->Finish();
+        auto reader = transaction->CreateFileReader(transactionPath, TFileReaderOptions().CreateTransaction(false));
+        EXPECT_EQ(reader->ReadAll(), "transaction data");
+        EXPECT_FALSE(client->Exists(transactionPath));
+    }
+}
+
 void TryWriteFile(TFileWriterOptions options)
 {
     TTestFixture fixture;
