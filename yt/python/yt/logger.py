@@ -10,7 +10,10 @@ import hashlib
 import logging
 import os
 import re
+import threading
 import time
+
+from collections import defaultdict
 
 LOG_ONCE_BUFF = {}
 MAX_BUFF_LEN = 1000
@@ -75,6 +78,83 @@ class SimpleColorizedStreamHandler(logging.StreamHandler):
 formatter = None
 
 
+class BeforeFirstLogHandler(logging.StreamHandler):
+    """Run registered callbacks before forwarding the first log record."""
+
+    def __init__(self, handler):
+        logging.StreamHandler.__init__(self, getattr(handler, "stream", None))
+        self.setLevel(handler.level)
+        self._handler = handler
+        self._callbacks = defaultdict(list)
+        self._callbacks_lock = threading.Lock()
+        self._callbacks_started = False
+
+    def add_callback(self, log_level, callback):
+        with self._callbacks_lock:
+            if not self._callbacks_started:
+                self._callbacks[log_level].append(callback)
+                return
+
+        warning("Cannot add a before-first-log callback after logging has started")
+
+    def setFormatter(self, new_formatter):
+        logging.Handler.setFormatter(self, new_formatter)
+        self._handler.setFormatter(new_formatter)
+
+    def emit(self, record):
+        started = False
+        if self._callbacks:
+            with self._callbacks_lock:
+                if not self._callbacks_started:
+                    self._callbacks_started = True
+                    started = True
+                    callbacks = self._callbacks.get(record.levelno)
+                else:
+                    callbacks = None
+
+            if callbacks is not None:
+                for callback in list(callbacks):
+                    try:
+                        if callback():
+                            callbacks.remove(callback)
+                            if not callbacks:
+                                del self._callbacks[record.levelno]
+                                break
+                    except Exception:
+                        pass
+
+        try:
+            self._handler.handle(record)
+        finally:
+            if started:
+                self._callbacks_started = False
+
+    def flush(self):
+        self._handler.flush()
+
+    def close(self):
+        try:
+            self._handler.close()
+        finally:
+            logging.Handler.close(self)
+
+
+def add_before_first_log_callback(log_level, callback):
+    """Register a callback to run before the first record emitted by YT logging with same logging level.
+
+    A callback is retried by emiting log records until it returns True.
+    """
+    if not callable(callback):
+        raise TypeError("callback must be callable")
+
+    for handler in LOGGER.handlers:
+        if isinstance(handler, BeforeFirstLogHandler):
+            handler.add_callback(log_level, callback)
+            return
+
+    warning("YT logger has no before-first-log handler")
+
+
 def set_formatter(new_formatter):
     global formatter
     formatter = new_formatter
@@ -91,9 +171,11 @@ LOGGER.propagate = False
 set_log_level_from_config(LOGGER)
 
 if logger_config.LOG_PATH is None:
-    LOGGER.addHandler(SimpleColorizedStreamHandler())
+    _base_handler = SimpleColorizedStreamHandler()
 else:
-    LOGGER.addHandler(logging.FileHandler(logger_config.LOG_PATH))
+    _base_handler = logging.FileHandler(logger_config.LOG_PATH)
+
+LOGGER.addHandler(BeforeFirstLogHandler(_base_handler))
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 

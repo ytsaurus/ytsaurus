@@ -54,7 +54,7 @@ import fnmatch
 import shlex
 import signal
 import time
-from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
+from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter, SUPPRESS
 from datetime import datetime
 from typing import Optional
 
@@ -3263,6 +3263,14 @@ def _get_version():
     return "\n".join(result)
 
 
+class _PrintVersionAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        formatter = parser._get_formatter()
+        formatter.add_text(_get_version())
+        parser._print_message(formatter.format_help(), sys.stdout)
+        parser.exit()
+
+
 def _prepare_config_parser():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
@@ -3290,7 +3298,8 @@ def _prepare_parser():
                             description=DESCRIPTION,
                             epilog=EPILOG)
 
-    parser.add_argument("--version", action="version", version=_get_version())
+    parser.add_argument("--version", action=_PrintVersionAction, nargs=0, default=SUPPRESS,
+                        help="show program's version number and exit")
 
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
