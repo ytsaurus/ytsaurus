@@ -1007,6 +1007,9 @@ struct TDynamicChunkServiceConfig
     // COMPAT(kvk1920)
     bool UseLazyTransactionExternalization;
 
+    // COMPAT(aleksandra-zh)
+    bool AlertOnChunkServiceExecuteBatch;
+
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 
     static void Register(TRegistrar registrar);

@@ -1202,6 +1202,9 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("alert_on_chunk_service_execute_batch", &TThis::AlertOnChunkServiceExecuteBatch)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

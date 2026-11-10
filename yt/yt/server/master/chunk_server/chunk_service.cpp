@@ -835,6 +835,11 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
+        YT_TLOG_ALERT_IF(
+            GetDynamicConfig()->AlertOnChunkServiceExecuteBatch,
+            "Chunk service ExecuteBatch request is recieved")
+            .With("RequestId", context->GetRequestId());
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         // NB: Supporting lazy transaction replication here is required for (at
         // least) the following reason. When starting operations, controller
