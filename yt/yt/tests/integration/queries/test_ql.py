@@ -208,6 +208,109 @@ class TestQueriesQL(YTEnvSetup):
         q.track()
         assert_items_equal(q.read_result(0), [{"p": p + 2} for p in range(2)])
 
+    @authors("artemmashin")
+    @pytest.mark.parametrize("stringify", [False, True])
+    def test_output_row_limit(self, query_tracker, stringify):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
+        insert_rows("//tmp/t", rows)
+
+        output_row_limit = 1
+        settings = {
+            "cluster": "primary",
+            "output_row_limit": output_row_limit,
+            "fail_on_incomplete_result": False,
+        }
+        if stringify:
+            settings["output_row_limit"] = yson.dumps(output_row_limit)
+
+        q = start_query("ql", "* from [//tmp/t] order by key limit 3", settings=settings)
+        q.track()
+        assert_items_equal(q.read_result(0), rows[:output_row_limit])
+
+    @authors("artemmashin")
+    @pytest.mark.parametrize("stringify", [False, True])
+    @pytest.mark.parametrize("fail_on_incomplete_result", [False, True])
+    def test_fail_on_incomplete_result(self, query_tracker, stringify, fail_on_incomplete_result):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
+        insert_rows("//tmp/t", rows)
+
+        output_row_limit = 1
+        settings = {
+            "cluster": "primary",
+            "output_row_limit": output_row_limit,
+            "fail_on_incomplete_result": fail_on_incomplete_result,
+        }
+        if stringify:
+            settings["fail_on_incomplete_result"] = yson.dumps(fail_on_incomplete_result)
+
+        q = start_query("ql", "* from [//tmp/t] order by key limit 3", settings=settings)
+        if fail_on_incomplete_result:
+            with raises_yt_error("Query terminated prematurely due to excessive output"):
+                q.track()
+            assert q.get_state() == "failed"
+        else:
+            q.track()
+            assert_items_equal(q.read_result(0), rows[:output_row_limit])
+
+    @authors("artemmashin")
+    @pytest.mark.parametrize("stringify", [False, True])
+    def test_settings_parsing(self, query_tracker, stringify):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
+        insert_rows("//tmp/t", rows)
+
+        for name, value in [
+            ("cluster", "primary"),
+            ("rpc_proxy_role", "default"),
+            ("input_row_limit", 1_000_000),
+            ("output_row_limit", 1_000_000),
+            # A numeric-looking setting must remain a string, not be parsed as a YSON number.
+            ("execution_pool", "123"),
+            ("execution_backend", "native"),
+            ("use_lookup_cache", False),
+            ("udf_registry_path", "//tmp/udfs"),
+            ("statistics_aggregation", "depth_omit_node"),
+            ("enable_code_cache", True),
+            ("use_canonical_null_relations", False),
+            ("merge_versioned_rows", True),
+            ("use_order_by_in_join_subqueries", False),
+            ("syntax_version", 1),
+            ("expression_builder_version", 1),
+            ("allow_full_scan", True),
+            ("allow_join_without_index", False),
+            ("fail_on_incomplete_result", True),
+        ]:
+            if stringify and isinstance(value, (bool, int)):
+                value = yson.dumps(value, yson_format="text")
+
+            settings = {"cluster": "primary", name: value}
+            self._assert_select_result("//tmp/t", settings, rows, False)
+
+    @authors("artemmashin")
+    def test_settings_parsing_error(self, query_tracker):
+        for name, value in [
+            ("cluster", 1),
+            ("execution_backend", "invalid"),
+            ("output_row_limit", "invalid"),
+            ("syntax_version", "invalid"),
+            ("fail_on_incomplete_result", "invalid"),
+        ]:
+            settings = {"cluster": "primary", name: value}
+            q = start_query("ql", "* from [//tmp/t]", settings=settings)
+            with raises_yt_error("Error parsing setting value") as err:
+                q.track()
+            parsing_error = err[0].find_matching_error(
+                predicate=lambda error: error.message == "Error parsing setting value")
+            assert parsing_error is not None
+            assert parsing_error.attributes["key"] == name
+            assert parsing_error.attributes["value"] == value
+            assert q.get_state() == "failed"
+
 
 ##################################################################
 
