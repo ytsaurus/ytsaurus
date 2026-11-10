@@ -45,7 +45,6 @@ namespace {
             Y_ENSURE(response.GetInt32() == index + 1, "Unexpected response: " << response.GetInt32() << ", request: " << index);
             ++index;
         }
-        state.SetItemsProcessed(state.iterations());
     }
 
     BENCHMARK(DuplexRoundTrips)->UseRealTime();
