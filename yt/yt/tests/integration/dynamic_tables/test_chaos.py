@@ -80,13 +80,16 @@ class TestChaos(ChaosTestBase):
         "31": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
-    def setup_method(self, method):
-        super(TestChaos, self).setup_method(method)
-
+    @pytest.fixture
+    def native_driver(self):
         native_config = deepcopy(self.Env.configs["driver"])
         native_config["connection_type"] = "native"
         native_config["api_version"] = 3
-        self.native_driver = Driver(native_config)
+        driver = Driver(native_config)
+        try:
+            yield driver
+        finally:
+            driver.terminate()
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -4766,7 +4769,7 @@ class TestChaos(ChaosTestBase):
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
     @authors("osidorkin")
-    def test_crt_tablets_info(self):
+    def test_crt_tablets_info(self, native_driver):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -4812,7 +4815,7 @@ class TestChaos(ChaosTestBase):
         def _get_safe_trim_row_count(path: str, tablet_index: int):
             results = get_safe_trim_row_count(
                 [(path, tablet_index, ts)],
-                driver=self.native_driver
+                driver=native_driver
             )
             assert len(results) == 1
             return results[0]["value"]
