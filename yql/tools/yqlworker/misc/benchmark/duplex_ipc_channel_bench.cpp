@@ -10,8 +10,6 @@
 
 namespace {
 
-    constexpr ui32 RoundTripCount = 10000;
-
     void Respond(NYql::TIpcChannelEndpoint channel) {
         try {
             for (;;) {
@@ -39,15 +37,15 @@ namespace {
 
         TSlimMsg request;
         TSlimMsg response;
+        ui32 index = 0;
         for ([[maybe_unused]] auto iteration : state) {
-            for (ui32 index = 0; index < RoundTripCount; ++index) {
-                request.SetInt32(index);
-                sender.SendMsg(request);
-                sender.RecvMsg(&response);
-                Y_ENSURE(response.GetInt32() == index + 1, "Unexpected response: " << response.GetInt32() << ", request: " << index);
-            }
+            request.SetInt32(index);
+            sender.SendMsg(request);
+            sender.RecvMsg(&response);
+            Y_ENSURE(response.GetInt32() == index + 1, "Unexpected response: " << response.GetInt32() << ", request: " << index);
+            ++index;
         }
-        state.SetItemsProcessed(state.iterations() * RoundTripCount);
+        state.SetItemsProcessed(state.iterations());
     }
 
     BENCHMARK(DuplexRoundTrips)->UseRealTime();
