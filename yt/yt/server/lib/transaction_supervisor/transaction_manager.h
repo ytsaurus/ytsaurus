@@ -74,6 +74,8 @@ struct ITransactionManager
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
         const std::vector<TCellId>& cellIdsToSyncWith) = 0;
 
+    virtual THashSet<std::string> GenerateStrongOrderingTags(TTransactionId transactionId) = 0;
+
     virtual void PrepareTransactionCommit(
         TTransactionId transactionId,
         const TTransactionPrepareOptions& options) = 0;

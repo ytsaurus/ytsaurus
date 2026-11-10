@@ -969,7 +969,11 @@ protected:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
-        SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
+        const auto& options = SequoiaTransaction_->GetOptions();
+        if (options.Features.UseCoarseGrainedOrderingTags.value_or(true)) {
+            SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+        }
 
         // NB: |CoordinatorCellId_| may be null here but it's OK.
         return SequoiaTransaction_->Commit({
@@ -1961,6 +1965,26 @@ private:
         YT_VERIFY(target);
 
         ValidateTransactionAncestors(*target);
+
+        /* Parent transaction tag is needed to avoid the following scenario:
+         *  |------------------------------+-------------------------------+-------------------------------------|
+         *  |          Coordinator         |           Participant         |           Dynamic table             |
+         *  |------------------------------+-------------------------------+-------------------------------------|
+         *  |       Send Abort Child       |                               | Child is present; Parent is present |
+         *  |                              |      Prepare Abort Child      | Child is present; Parent is present |
+         *  |      Commit Abort Child      |                               | Child is present; Parent is present |
+         *  |                              |                               |          Parent is present          |
+         *  |      Send Abort Parent       |                               |          Parent is present          |
+         *  |                              |      Prepare Abort Parent     |          Parent is present          |
+         *  |     Commit Abort Parent      |                               |          Parent is present          |
+         *  |                              |      Commit Abort Parent      |                                     |
+         *  |                              |      Commit Abort Child       |                                     |
+         *  |------------------------------+-------------------------------+-------------------------------------|
+         */
+        if (!target->AncestorIds.empty()) {
+            auto parentId = target->AncestorIds.back();
+            SequoiaTransaction_->AddStrongOrderingTags({ToString(parentId)});
+        }
 
         return CollectDependentAndNestedTransactionsAndFinishThem(std::move(*target));
     }

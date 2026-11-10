@@ -682,7 +682,11 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
     MaybeLockAndReplicateCypressTransaction();
 
     SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
-    SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
+    const auto& options = SequoiaTransaction_->GetOptions();
+    if (options.Features.UseCoarseGrainedOrderingTags.value_or(true)) {
+        SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+    }
 
     WaitFor(SequoiaTransaction_->Commit({
             .CoordinatorCellId = coordinatorCellId,

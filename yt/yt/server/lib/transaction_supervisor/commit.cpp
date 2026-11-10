@@ -57,7 +57,7 @@ TCommit::TCommit(
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    TStrongOrderingTagsMap strongOrderingTags,
+    TCellIdToStrongOrderingTagList strongOrderingTags,
     TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity)
     : TransactionId_(transactionId)
@@ -226,6 +226,18 @@ std::vector<std::string> TCommit::GetStrongOrderingTagsForCell(TCellId cellId) c
     }
 
     return it->second;
+}
+
+void TCommit::AddStrongOrderingTagsForCell(const THashSet<std::string>& tags, TCellId cellId)
+{
+    if (tags.empty()) {
+        return;
+    }
+
+    std::ranges::move(
+        tags,
+        std::back_inserter(StrongOrderingTags_[cellId]));
+    SortUnique(StrongOrderingTags_[cellId]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

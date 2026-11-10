@@ -2536,7 +2536,10 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         auto coordinatorCellId = Client_->GetNativeConnection()->GetMasterCellId(coordinatorCellTag);
         auto targetCellId = Client_->GetNativeConnection()->GetMasterCellId(targetCellTag);
 
-        TStrongOrderingTagsMap strongOrderingTags{{coordinatorCellId, {NNative::SequoiaCypressOrderingTag}}};
+        // TODO(h0pless): remove SequoiaCypressOrderingTag when fine-grained locks will be the default.
+        TCellIdToStrongOrderingTagSet strongOrderingTags{{coordinatorCellId, {NNative::SequoiaCypressOrderingTag, ToString(transactionId)}}};
+        // NB: targetCellId may be the same as coordinatorCellId.
+        strongOrderingTags[targetCellId].insert({NNative::SequoiaCypressOrderingTag, ToString(nodeId), ToString(transactionId)});
         if (coordinatorCellTag != targetCellTag) {
             // Output completion transaction should become committed on node's
             // native cell.
@@ -2550,8 +2553,6 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
                 coordinatorCellId);
             WaitFor(request->Invoke())
                 .ThrowOnError();
-
-            strongOrderingTags[targetCellId] = {NNative::SequoiaCypressOrderingTag};
         }
 
         // It is just a way to run custom logic at master.
