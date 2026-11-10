@@ -1,7 +1,6 @@
-#include "chunk_pool.h"
 #include "multi_chunk_pool.h"
 
-#include "config.h"
+#include "chunk_pool.h"
 #include "job_size_adjuster.h"
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>

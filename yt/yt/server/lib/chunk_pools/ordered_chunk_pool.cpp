@@ -90,7 +90,7 @@ public:
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
             JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
-                jobSizeAdjuster,
+                std::move(jobSizeAdjuster),
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig->DataWeightFactor);
         }

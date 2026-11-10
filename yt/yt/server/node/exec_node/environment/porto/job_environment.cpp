@@ -275,6 +275,7 @@ public:
 
                 auto guard = WaitFor(AcquireProcessCreationGuard(creationState))
                     .ValueOrThrow();
+
                 auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
                 guard->Release();
 
