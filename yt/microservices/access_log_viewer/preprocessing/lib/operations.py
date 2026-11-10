@@ -672,7 +672,7 @@ def find_diff(cluster, token, log_root, res_root, period, store_from, check_stal
 def bulk(
     cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_tables, store_for,
     network_project, node_id_dict_cluster, node_id_dict_path, users_to_ignore, token_env_variable,
-    recompute_stale,
+    recompute_stale, keep_1d,
 ):
     store_from = None
     if store_for is not None:
@@ -690,6 +690,8 @@ def bulk(
         logger.info("Stale in dst:\n%s", "\n".join(f"    {str(item)}" for item in stale))
     to_process = (new + stale)[:max_tables]
     logger.info("Process:\n%s", "\n".join(f"    {str(item)}" for item in to_process))
+    if keep_1d:
+        excess = [table for table in excess if table[1] != "1d"]
     remove_tables(cluster, token, result_root, excess)
     aops.PipelineWatcher(
         aops.Parallel(
