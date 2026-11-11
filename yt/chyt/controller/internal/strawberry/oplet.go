@@ -780,47 +780,6 @@ func integerAsInt(value any) (int, bool) {
 	return int(n), true
 }
 
-func totalJobCountFromSpec(spec map[string]any) (int, error) {
-	tasksValue, ok := spec["tasks"]
-	if !ok {
-		return 0, yterrors.Err("operation spec does not contain tasks")
-	}
-
-	tasks, ok := tasksValue.(map[string]any)
-	if !ok {
-		return 0, yterrors.Err("tasks type is not 'map'",
-			yterrors.Attr("tasks", tasksValue),
-			yterrors.Attr("type", fmt.Sprintf("%T", tasksValue)))
-	}
-
-	totalJobCount := 0
-	for taskName, taskValue := range tasks {
-		task, ok := taskValue.(map[string]any)
-		if !ok {
-			return 0, yterrors.Err("task type is not 'map'",
-				yterrors.Attr("task_name", taskName),
-				yterrors.Attr("task", taskValue),
-				yterrors.Attr("type", fmt.Sprintf("%T", taskValue)))
-		}
-
-		jobCountValue, ok := task["job_count"]
-		if !ok {
-			return 0, yterrors.Err("task does not contain job_count",
-				yterrors.Attr("task_name", taskName))
-		}
-		jobCount, ok := integerAsInt(jobCountValue)
-		if !ok {
-			return 0, yterrors.Err("job_count is not a non-negative integer representable as int",
-				yterrors.Attr("task_name", taskName),
-				yterrors.Attr("job_count", jobCountValue),
-				yterrors.Attr("type", fmt.Sprintf("%T", jobCountValue)))
-		}
-		totalJobCount += jobCount
-	}
-
-	return totalJobCount, nil
-}
-
 func (oplet *Oplet) needsBackoff() bool {
 	return oplet.persistentState.BackoffUntil.After(time.Now())
 }
@@ -1223,6 +1182,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		networkProject = oplet.strawberrySpeclet.NetworkProject
 	}
 
+	var jobCount *int
 	if _, ok := spec["tasks"]; ok {
 		tasks, ok := spec["tasks"].(map[string]any)
 		if !ok {
@@ -1230,6 +1190,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 				yterrors.Attr("tasks", spec["tasks"]),
 				yterrors.Attr("type", reflect.TypeOf(spec["tasks"]).String()))
 		}
+		totalJobCount := 0
 		for key := range tasks {
 			task, ok := tasks[key].(map[string]any)
 			if !ok {
@@ -1238,6 +1199,13 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 					yterrors.Attr("task", tasks[key]),
 					yterrors.Attr("type", reflect.TypeOf(tasks[key]).String()))
 			}
+			count, ok := integerAsInt(task["job_count"])
+			if !ok {
+				return yterrors.Err("invalid task job_count",
+					yterrors.Attr("task_name", key),
+					yterrors.Attr("job_count", task["job_count"]))
+			}
+			totalJobCount += count
 			if networkProject != nil {
 				task["network_project"] = *networkProject
 			}
@@ -1245,6 +1213,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 				task["layer_paths"] = oplet.strawberrySpeclet.LayerPaths
 			}
 		}
+		jobCount = &totalJobCount
 	}
 
 	spec["secure_vault"] = oplet.Secrets()
@@ -1297,12 +1266,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	operationStarted = true
 	oplet.persistentState.YTOpID = opID
-	oplet.persistentState.YTOpJobCount = nil
-	if jobCount, err := totalJobCountFromSpec(spec); err != nil {
-		oplet.l.Warn("failed to get job count from operation spec", log.Error(err))
-	} else {
-		oplet.persistentState.YTOpJobCount = &jobCount
-	}
+	oplet.persistentState.YTOpJobCount = jobCount
 
 	oplet.persistentState.YTOpState = yt.StateInitializing
 	oplet.persistentState.YTOpSuspended = false
