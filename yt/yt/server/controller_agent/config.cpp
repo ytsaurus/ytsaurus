@@ -61,6 +61,9 @@ void TTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_events_on_fs", &TThis::EnableEventsOnFs)
         .Default(false);
+
+    registrar.Parameter("enable_cypress_sleep_state", &TThis::EnableCypressSleepState)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -782,6 +782,9 @@ class OperationReviveBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "testing_options": {
+                "enable_cypress_sleep_state": True,
+            },
             "snapshot_period": 500,
             "operation_time_limit_check_period": 100,
             "operation_build_progress_period": 100,

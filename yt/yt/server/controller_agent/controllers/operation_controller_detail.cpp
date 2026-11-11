@@ -421,7 +421,9 @@ void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
 {
     fluent
         .BeginMap()
-            .Item("commit_sleep_started").Value(CommitSleepStarted_)
+            .DoIf(Config_->TestingOptions->EnableCypressSleepState, [&] (TFluentMap fluent) {
+                fluent.Item("commit_sleep_started").Value(CommitSleepStarted_);
+            })
             .Item("dynamic_spec").Value(SpecManager_->GetSpec())
         .EndMap();
 }
@@ -2549,7 +2551,7 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
     auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
     auto skipOnSecondEntrance = Spec_->TestingOperationOptions->NoDelayOnSecondEntranceToCommit;
 
-    {
+    if (Config_->TestingOptions->EnableCypressSleepState) {
         auto proxy = CreateObjectServiceWriteProxy(Host_->GetClient());
 
         auto path = GetOperationPath(OperationId_) + "/@testing";

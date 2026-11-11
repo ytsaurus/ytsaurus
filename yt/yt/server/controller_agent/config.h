@@ -79,6 +79,7 @@ struct TTestingOptions
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
 
     bool EnableEventsOnFs;
+    bool EnableCypressSleepState;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 
