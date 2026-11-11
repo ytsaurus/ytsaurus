@@ -3,7 +3,7 @@ from yt_scheduler_helpers import (
 )
 
 from yt_commands import (
-    get, wait, exists
+    get, wait, exists, run_sleeping_vanilla
 )
 
 from yt_helpers import read_structured_log
@@ -14,6 +14,20 @@ import builtins
 GPU_STRUCTURED_LOG_CATEGORY = "SchedulerGpuStructuredLog"
 
 NULL_GUID = "0-0-0-0"
+
+
+def run_unschedulable_gpu_op(gpu_limit, spec=None, **kwargs):
+    # Keep the operation alive for scheduler tests despite having no matching nodes.
+    spec = {
+        **(spec or {}),
+        "scheduling_tag_filter": "nonexistent_gpu_test_tag",
+        "sanity_check_delay": 600 * 1000,
+    }
+    return run_sleeping_vanilla(
+        task_patch={"gpu_limit": gpu_limit, "enable_gpu_layers": False},
+        spec=spec,
+        **kwargs,
+    )
 
 
 def is_default_guid(guid):
