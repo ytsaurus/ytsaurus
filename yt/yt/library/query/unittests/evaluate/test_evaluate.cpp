@@ -620,6 +620,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
     options.ExecutionBackend = evaluateOptions.ExecutionBackend;
     options.AllowUnorderedGroupByWithLimit = evaluateOptions.AllowUnorderedGroupByWithLimit;
     options.MaxJoinBatchSize = evaluateOptions.MaxJoinBatchSize;
+    options.MaxJitStackFrameSize = evaluateOptions.MaxJitStackFrameSize;
 
     auto aggregatedStatistics = TQueryStatistics();
 

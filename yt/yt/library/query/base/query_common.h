@@ -208,6 +208,7 @@ struct TQueryOptions
     i64 RowsetProcessingBatchSize = DefaultRowsetProcessingBatchSize;
     i64 WriteRowsetSize = DefaultWriteRowsetSize;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+    std::optional<int> MaxJitStackFrameSize;
 
     EStatisticsAggregation StatisticsAggregation = EStatisticsAggregation::DepthOmitNode;
 

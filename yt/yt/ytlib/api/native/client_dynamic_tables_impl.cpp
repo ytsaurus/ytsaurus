@@ -1924,6 +1924,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.AllowReverseScanForOrderBy = queryConfig
         ? queryConfig->AllowReverseScanForOrderBy.value_or(false)
         : false;
+    if (queryConfig) {
+        queryOptions.MaxJitStackFrameSize = queryConfig->MaxJitStackFrameSize;
+    }
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",
