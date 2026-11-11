@@ -1292,7 +1292,9 @@ private:
             };
 
             if (GetDynamicConfig()->NoRestartingNodesDisposal &&
-                node->GetAggregatedState() == ENodeState::Online &&
+                std::ranges::all_of(node->MulticellDescriptors(), [] (const auto& descriptor) {
+                    return descriptor.second.State == ENodeState::Online;
+                }) &&
                 options.Flavors.contains(ENodeFlavor::Data) &&
                 options.LocationIndexesInHeartbeatsSupported &&
                 Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker->EnablePerLocationFullHeartbeats &&
