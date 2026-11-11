@@ -3,11 +3,6 @@ RECURSE(
     docker
     go
     java
+    kotlin
     python
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        kotlin
-    )
-ENDIF()
