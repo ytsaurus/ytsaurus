@@ -1762,19 +1762,16 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus")
     @pytest.mark.timeout(150)
-    def test_cell_bundle_distribution_new(self):
-        self._test_cell_bundle_distribution(True)
-
-    @authors("savrus")
-    @flaky(max_runs=5)
-    def test_cell_bundle_distribution_old(self):
-        self._test_cell_bundle_distribution(False)
+    def test_cell_bundle_distribution(self):
+        self._test_cell_bundle_distribution(test_decommission=False)
 
     @authors("gritukan")
     @pytest.mark.timeout(150)
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_tablet_cell_balancer_works_after_decommission(self):
-        self._test_cell_bundle_distribution(True)
+        if self.USE_SEQUOIA:
+            pytest.skip("Test is too long and has no Sequoia specifics")
+        self._test_cell_bundle_distribution(test_decommission=True)
 
     @authors("savrus")
     def test_cell_bundle_options(self):
