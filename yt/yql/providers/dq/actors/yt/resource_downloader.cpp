@@ -1,5 +1,6 @@
 
 #include "yt_wrapper.h"
+#include "local_job_proxy.h"
 
 #include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/log/log.h>
@@ -14,6 +15,8 @@
 #include <library/cpp/yson/node/node_io.h>
 
 #include <util/system/fs.h>
+#include <util/folder/tempdir.h>
+#include <util/system/env.h>
 
 #include <yt/cpp/mapreduce/interface/fluent.h>
 
@@ -31,6 +34,8 @@ public:
         : TRichActor<TYtResourceDownloader>(&TYtResourceDownloader::Handler)
         , Options(options)
         , Coordinator(coordinator)
+        // Different downloaders can download same ObjectId, so to prevent conflicts each downloader creates its own tempdir
+        , TempDir(TTempDir::NewTempDir(options.TmpDir))
     {
     }
 
@@ -58,19 +63,30 @@ private:
     void Bootstrap(const NActors::TActorContext& ctx) {
         YtWrapper = Coordinator->GetWrapper(
             ctx.ActorSystem(),
-            Options.YtBackend.GetProxyAddress(),
+            Options.UploadClusterAddress,
             Options.YtBackend.GetUser(),
-            Options.YtBackend.GetToken());
+            Options.YtBackend.GetToken(),
+            GetResourceDownloadProxySocket(Options.YtBackend, Options.UploadClusterAddress, GetEnv("YT_JOB_PROXY_SOCKET_PATH")));
         DownloadFile();
     }
 
     void DownloadFile() {
+        // Another source may have completed while this downloader was waiting to retry.
+        while (CurrentFileId < Options.Files.size() && Options.FileCache->Contains(Options.Files[CurrentFileId].LocalFileName)) {
+            ++CurrentFileId;
+            Retry = 0;
+        }
+        if (CurrentFileId == Options.Files.size()) {
+            PassAway();
+            return;
+        }
+
         TString remotePath = Options.UploadPrefix + "/";
         NYT::NApi::TFileReaderOptions options;
 
         auto& file = Options.Files[CurrentFileId];
         remotePath += file.GetRemoteFileName(); /* md5 */
-        TString localFileName = Options.TmpDir + "/" + file.GetRemoteFileName();
+        TString localFileName = TempDir.Name() + "/" + file.GetRemoteFileName();
 
         YQL_CLOG(DEBUG, ProviderDq) << "Downloading file " << CurrentFileId+1 << "/" << Options.Files.size() << " " << remotePath << "->" << localFileName;
         auto message = MakeHolder<TEvReadFile>(NYT::NYPath::TYPath(remotePath), localFileName, options);
@@ -84,7 +100,7 @@ private:
     void SaveToCache() {
         auto& file = Options.Files[CurrentFileId];
         Options.FileCache->AddFile(
-            Options.TmpDir + "/" + file.GetRemoteFileName(), /* /tmp/md5 */
+            TempDir.Name() + "/" + file.GetRemoteFileName(),
             file.LocalFileName  /* md5 */);
     }
 
@@ -92,7 +108,7 @@ private:
         auto result = std::get<0>(*ev->Get());
         auto& file = Options.Files[CurrentFileId];
         const TString remotePath = Options.UploadPrefix + "/" + file.GetRemoteFileName();
-        const TString localFileName = Options.TmpDir + "/" + file.GetRemoteFileName();
+        const TString localFileName = TempDir.Name() + "/" + file.GetRemoteFileName();
 
         if (result.IsOK()) {
             SaveToCache();
@@ -123,6 +139,7 @@ private:
 
     TResourceManagerOptions Options;
     const ICoordinationHelper::TPtr Coordinator;
+    const TTempDir TempDir;
 
     TActorId YtWrapper;
 
@@ -135,7 +152,7 @@ IActor* CreateYtResourceDownloader(
     const TResourceManagerOptions& options,
     const ICoordinationHelper::TPtr& coordinator)
 {
-    Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
+    Y_ABORT_UNLESS(!options.UploadClusterAddress.empty());
     Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
     Y_ABORT_UNLESS(!options.Files.empty());
     Y_ABORT_UNLESS(!options.UploadPrefix.empty());

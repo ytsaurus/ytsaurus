@@ -17,5 +17,8 @@
 || `force_enum_string_type` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||
+|| `allow_yson_list_from_map` | **Тип**: `bool`
+**Значение по умолчанию**: `false`
+ ||
 |#
 

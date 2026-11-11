@@ -21,7 +21,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateYqlEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot);
+IQueryEnginePtr CreateYqlEngine(
+    const NApi::IClientPtr& stateClient,
+    const NYPath::TYPath& stateRoot,
+    std::optional<std::string> adminsGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

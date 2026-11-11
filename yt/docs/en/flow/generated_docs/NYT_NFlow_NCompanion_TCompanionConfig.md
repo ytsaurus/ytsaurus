@@ -7,10 +7,10 @@ Source: [yt/yt/flow/library/cpp/companion/client/config.h]({{source-root}}/yt/yt
 || **Parameter** | **Description** ||
 || `port` | **Type**: `int`
 **Default value**: `0`
-The port on which the worker talks to the companion process. The companion does not start without it. For a vanilla launch it is filled in automatically: `10082` while the worker task runs on fixed ports (`port_count = 0`), or the value of `YT_PORT_2` with `port_count = 3`. ||
+The port on which the worker talks to the companion process. The companion does not start without it. For a vanilla launch it is filled in automatically: `10082` while the worker task runs on fixed ports (`port_count` is unset or `0`), or the value of `YT_PORT_2` when at least three ports are allocated. ||
 || `monitoring_port` | **Type**: `int`
 **Default value**: `0`
- ||
+The port that exposes companion metrics. The default `0` disables this endpoint. For a vanilla launch it is filled in automatically: `10083` while the worker task runs on fixed ports (`port_count` is unset or `0`), or the value of `YT_PORT_3` when at least four ports are allocated. With three allocated ports, companion RPC works but companion metrics remain disabled. ||
 || `companion_process_count` | **Type**: `int`
 **Default value**: `0`
  ||

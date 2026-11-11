@@ -101,7 +101,7 @@ For details, see [The distribute flag (Go)](distribute.md).
 
 The entry point of a Go companion is the `main` function. In it, configure the computations through `flow.Pipeline` and call `pipeline.Run()`. The `main` function from [WordCount](examples/wordcount.md):
 
-[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/word_count/main.go)
+{% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 If your functions need additional resources (a dictionary, a cache, an HTTP client, and so on), `main` is the place to create them: put them into the fields of the value that is bound to the computation.
 
@@ -183,7 +183,7 @@ Here is what happens:
 
 Unknown command-line flags are skipped rather than rejected: the pipeline binary is your own program, and it is free to declare its own flags.
 
-`flow_server` is passed explicitly through `--flow-bin` and isn’t embedded into the Go binary: this keeps the pipeline lightweight, and whoever starts the pipeline chooses the `flow_server` version.
+`flow_server` is not embedded in the Go binary: this keeps the pipeline lightweight and allows whoever starts the pipeline to select the `flow_server` version. If `--flow-bin` is not specified, the runner uses the path from the `YT_FLOW_BIN` environment variable.
 
 The entire startup is performed by `flow_server`: it validates the spec, creates a vanilla operation if needed, **installs the pipeline spec** (`set-pipeline-specs`), and starts the pipeline. The Go side only *builds* and enriches the spec and never installs it directly.
 

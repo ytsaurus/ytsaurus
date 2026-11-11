@@ -5,6 +5,7 @@
 #include "config.h"
 #include "debug_build_warning.h"
 #include "endpoint_provider.h"
+#include "jobtruck_log_writer.h"
 #include "network_bandwidth.h"
 #include "node_info.h"
 #include "porto_tracker.h"
@@ -41,6 +42,7 @@
 #include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
 #include <yt/yt/flow/library/cpp/common/job_directory.h>
+#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
@@ -236,6 +238,30 @@ private:
     NWorker::IControllerConnectorPtr ControllerConnector_;
 
 private:
+    static void PatchLogManagerConfig(
+        TFlowNodeConfigPtr config,
+        TRichYPath pipelinePath,
+        EFlowRunMode mode)
+    {
+        if (!Any(mode & EFlowRunMode::Controller)) {
+            return;
+        }
+
+        static const std::string QueueWriterName = "ControllerLogWriter";
+        static const std::string JobtruckWriterName = "JobtruckLogWriter";
+        static const std::string PublicControllerCategory = "PublicFlowController";
+
+        auto logManagerConfig = config->GetSingletonConfig<TLogManagerConfig>();
+        EmplaceOrCrash(logManagerConfig->Writers, QueueWriterName, GetQueueLogWriterConfig(pipelinePath));
+        EmplaceOrCrash(logManagerConfig->Writers, JobtruckWriterName, GetJobtruckLogWriterConfig(pipelinePath));
+
+        auto ruleConfig = New<TRuleConfig>();
+        ruleConfig->IncludeCategories = THashSet<std::string>({PublicControllerCategory});
+        ruleConfig->Writers = {QueueWriterName, JobtruckWriterName};
+        ruleConfig->MinLevel = ELogLevel::Info;
+        logManagerConfig->Rules.push_back(ruleConfig);
+    }
+
     void DoRunNode()
     {
         // Unconditional configuring.
@@ -253,6 +279,7 @@ private:
 
         TErrorCodicils::Initialize();
         RegisterQueueLogWriterFactory();
+        RegisterJobtruckLogWriterFactory();
 
         // Config-dependent configuring.
         Mode_ = ParseMode();
@@ -490,6 +517,7 @@ private:
             .ClientOptions = PipelineAuthenticator_->GetClientOptions(),
             .Parameters = Config_->ClientsCacheFactory,
         });
+        clientsCache = CreateJobProxyClientsCache(std::move(clientsCache));
         CommonYTConnector_ = CreateCommonYTConnector(clientsCache, PipelinePath_);
         SetQueueLogWriterClient(CommonYTConnector_->GetClient());
 
@@ -610,7 +638,8 @@ private:
             JobTracker_,
             streamSpecStorage,
             Config_->IgnoreSingletonsDynamicConfig,
-            WorkerStatusProfiler_);
+            WorkerStatusProfiler_,
+            Config_->Worker->InitialControllerConnector);
         ControllerConnector_->Initialize();
 
         SetNodeByYPath(
@@ -648,6 +677,10 @@ private:
             NController::PublicControllerLogger(),
             {},
             NController::ControllerProfiler());
+        SetJobtruckLogWriterContext(
+            CommonYTConnector_->GetClient(),
+            NodeInfo_,
+            ControllerStatusProfiler_->ErrorState("/jobtruck_log_writer"));
 
         WorkerTracker_ = CreateWorkerTracker(ControlQueue_, ControllerYTConnector_, NodeInfo_);
         ControllerThreadPool_ = NConcurrency::CreateFairShareThreadPool(Config_->Controller->ControllerThreads, "Controller");
@@ -846,26 +879,6 @@ private:
             tracerConfig->CollectorChannelConfig->Address = Format("%v%v", pipelineYTAttributes.MonitoringProject, JaegerCollectorAddressSuffix);
         }
         return tracerConfig;
-    }
-
-    static void PatchLogManagerConfig(TFlowNodeConfigPtr config, NYPath::TRichYPath pipelinePath, EFlowRunMode mode)
-    {
-        if (!Any(mode & EFlowRunMode::Controller)) {
-            return;
-        }
-        static const std::string logWriterName = "ControllerLogWriter";
-        auto logManagerConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
-        EmplaceOrCrash(logManagerConfig->Writers, logWriterName, GetQueueLogWriterConfig(pipelinePath));
-
-        auto ruleConfig = New<NLogging::TRuleConfig>();
-        ruleConfig->IncludeCategories = THashSet<std::string>({
-            "PublicFlowController",
-        });
-        ruleConfig->Writers = {
-            TString(logWriterName),
-        };
-        ruleConfig->MinLevel = NLogging::ELogLevel::Info;
-        logManagerConfig->Rules.push_back(ruleConfig);
     }
 };
 

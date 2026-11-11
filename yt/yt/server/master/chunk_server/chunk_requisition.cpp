@@ -191,6 +191,7 @@ int TChunkReplication::GetSize() const
 
 bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const
 {
+    int totalReplicationFactor = 0;
     for (auto entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
         if (medium->IsOffshore()) {
@@ -198,14 +199,16 @@ bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isE
         }
 
         YT_VERIFY(medium->IsDomestic());
-        if (!medium->AsDomestic()->GetTransient() &&
-            (entry.Policy().GetReplicationFactor() >= MinVitalReplicationFactor || isErasureChunk))
-        {
-            return true;
+        if (!medium->AsDomestic()->GetTransient()) {
+            if (isErasureChunk) {
+                return true;
+            }
+
+            totalReplicationFactor += entry.Policy().GetReplicationFactor();
         }
     }
 
-    return false;
+    return totalReplicationFactor >= MinVitalReplicationFactor;
 }
 
 bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const

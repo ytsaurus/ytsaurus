@@ -15,7 +15,6 @@ PEERDIR(
     ${YT_TESTS_ROOT}/sequoia
     ${YT_TESTS_ROOT}/queues
     ${YT_TESTS_ROOT}/scheduler
-    ${YT_TESTS_ROOT}/scheduler_simulator
     ${YT_TESTS_ROOT}/queries
 )
 
@@ -28,6 +27,7 @@ IF (NOT SANITIZER_TYPE)
         size_m
         size_s
         s3
+        scheduler_simulator
         fake_blackbox
         yt_cli
         stress
@@ -40,7 +40,7 @@ IF (NOT OPENSOURCE)
     )
 ENDIF()
 
-IF (NOT YT_TEAMCITY)
+IF (NOT YT_TEAMCITY AND SANITIZER_TYPE != "address")
     RECURSE(
         yt_fibers_printer
     )

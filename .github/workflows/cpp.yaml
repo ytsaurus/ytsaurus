@@ -1,13 +1,15 @@
 name: C++ CI
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
-      - query-tracker/[0-9]+\.[0-9]+
-      - chyt/[0-9]+\.[0-9]+
+  # push:
+  #   branches:
+  #     - main
+  #     - stable/[0-9]+\.[0-9]+
+  #     - query-tracker/[0-9]+\.[0-9]+
+  #     - chyt/[0-9]+\.[0-9]+
 
 
 env:

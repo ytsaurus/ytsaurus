@@ -112,6 +112,7 @@ class TestPartitionTablesBase(YTEnvSetup):
 
 
 class TestPartitionTablesCommand(TestPartitionTablesBase):
+    NUM_TEST_PARTITIONS = 2
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1

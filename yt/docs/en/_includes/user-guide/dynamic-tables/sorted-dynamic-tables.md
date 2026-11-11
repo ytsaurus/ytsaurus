@@ -28,11 +28,11 @@ You must specify at least one key column in the table schema. If this is not don
 
 ### Changing a table schema and type
 
-You can change the schema of an existing dynamic table using the `alter-table` command. For the command to be successful, the table must be [unmounted](../../../user-guide/dynamic-tables/overview.md#mount_table), and the new schema must be compatible with the old one. There are no changes to the data written to the disk, because the old data is suitable for the new schema.
+You can change the schema of an existing dynamic table using the `alter-table` command. For the command to be successful, the table must be [unmounted](../../../user-guide/dynamic-tables/operations.md#mount_table), and the new schema must be compatible with the old one. There are no changes to the data written to the disk, because the old data is suitable for the new schema.
 
 Use `alter-table` to convert a static table into a dynamic table. For more information, see [MapReduce for dynamic tables](../../../user-guide/dynamic-tables/mapreduce.md#convert_table).
 
-### Reading rows
+### Reading rows {#reading-rows}
 
 The client can read rows by a given key using the `lookup` method. To do this, you need to specify the table name, a timestamp defining the slice of data to be read (`<= t`), and the names of the columns that interest you. This is a point query: it requires all key components to be specified. There is a type of API call that allows multiple rows to be read in a single query by different keys.
 
@@ -47,7 +47,7 @@ The `sync_last_committed` and `async_last_committed` labels do not guarantee a c
 
 For a table with non-atomic changes, `sync_last_committed` and `async_last_committed` modes are equivalent, since no two-phase commit occurs.
 
-### Running a script
+### Running a script {#running-a-script}
 
 The system understands an [SQL-like dialect](../../../user-guide/dynamic-tables/dyn-query-language.md), which can be used to select and aggregate volumes of data in millions of rows in real time. As with the row read operation by key, a timestamp can be specified in the query, relative to which the query must be executed.
 
@@ -69,8 +69,7 @@ For aggregating columns, the semantics of `retention_timestamp` are **undefined*
 
 {% endnote %}
 
-
-### Inserting a row { #insert_rows }
+### Inserting a row {#insert_rows}
 
 You can insert data using the `insert_rows` method within an active transaction. To do this, you must provide the rows to write. Each such row must include all key fields. Some data fields specified in the schema may be missing.
 
@@ -89,7 +88,7 @@ When reading and executing an SQL query, the data is visible only when the trans
 
 {% endnote %}
 
-### Deleting rows
+### Deleting rows {#deleting-rows}
 
 Within the transaction, the client can delete a row or a set of rows by reporting the appropriate keys.
 
@@ -97,7 +96,7 @@ Semantically, if a row with the specified key was in the table, it will be delet
 
 As with most MVCC systems, deletion in {{product-name}} comes down to writing a row without data, but with a special `tombstone` marker that signals deletion. This means that freeing up disk space from deleted rows does not happen immediately, but in a delayed manner. Deleting rows also does not instantly increase reading speed. On the contrary, it causes a slowdown, because during read operations data is merged.
 
-### Locking rows
+### Locking rows {#locking-rows}
 
 The client can lock rows within a transaction. Locking guarantees that the row will not be changed in other transactions during the current transaction. A single row can be locked from multiple transactions. You can specify individual `lock` column groups to be locked and a `weak` or `strong` lock mode.
 

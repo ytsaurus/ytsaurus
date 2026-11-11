@@ -1,3 +1,4 @@
+import html
 import json
 import re
 
@@ -5,7 +6,6 @@ from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
 from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
     MIN_VISIBLE_BLOCKED_TIME_SHARE,
     format_limit_entry,
-    get_group_by_columns,
     is_computation_warning,
     is_edge_warning,
     iter_read_delay_edges,
@@ -17,11 +17,73 @@ _WARNING_NODE_STYLE = "fill:#ffcccc,color:#333,stroke:#cc0000"
 _WARNING_LINK_STYLE = "stroke:#cc0000,stroke-width:2px"
 # Read-delay edge style: dashed golden arrow (mirrors dot_graph.py).
 _READ_DELAY_LINK_STYLE = "stroke:#ccaa00,stroke-width:1px,stroke-dasharray:5 5"
+# Data-channel edge style (mirrors DataChannelLinkStyle in controller/describe/draw_pipeline_graph.cpp).
+_DATA_CHANNEL_LINK_STYLE = "stroke:#3366cc,stroke-width:1px"
+
+
+def _endpoint_node(entity_id):
+    """Sources and sinks are nodes keyed by their describe graph entity ids, like in the UI and the C++ renderer."""
+    return "e_" + _mermaid_safe_id(entity_id)
+
+
+def _append_endpoint_nodes(graph, lines):
+    lines.append("  %% Sources and sinks")
+    for entity_id, source in sorted(graph.sources.items()):
+        label = _mermaid_safe_label(f"{source.name}\n{source.class_name}")
+        lines.append(f'  {_endpoint_node(entity_id)}[/"{label}"/]')
+    for entity_id, sink in sorted(graph.sinks.items()):
+        label = _mermaid_safe_label(f"{sink.name}\n{sink.class_name}")
+        lines.append(f'  {_endpoint_node(entity_id)}[\\"{label}"\\]')
+
+
+def _append_endpoint_edges(graph, lines):
+    """Append source -> its stream and input stream -> sink edges; return their count."""
+    lines.append("  %% Source and sink edges")
+    count = 0
+    for entity_id, source in sorted(graph.sources.items()):
+        for stream_id in source.stream_ids:
+            if stream_id in graph.streams:
+                lines.append(f"  {_endpoint_node(entity_id)} --> s_{_mermaid_safe_id(stream_id)}")
+                count += 1
+    for entity_id, sink in sorted(graph.sinks.items()):
+        for stream_id in sink.stream_ids:
+            if stream_id in graph.streams:
+                lines.append(f"  s_{_mermaid_safe_id(stream_id)} --> {_endpoint_node(entity_id)}")
+                count += 1
+    return count
+
+
+def _append_data_channel_edges(graph, lines, edge_index):
+    """Append dashed sink -> source edges; return their edge indices."""
+    lines.append("  %% Data-channel edges")
+    indices = []
+    for edge in graph.data_channel_edges:
+        arrow = "-.->|" + _mermaid_safe_edge_label(edge.label) + "|" if edge.label else "-.->"
+        lines.append(f"  {_endpoint_node(edge.sink_id)} {arrow} {_endpoint_node(edge.source_id)}")
+        indices.append(edge_index + len(indices))
+    return indices
+
+
+def escape_html_text(diagram):
+    """Escape a diagram for the HTML page: the browser decodes the page text once, and mermaid then decodes the
+    entities of the diagram itself (such as ``&lbrace;`` in labels)."""
+    return html.escape(diagram, quote=False)
 
 
 def _mermaid_safe_id(raw_id):
-    """Convert an arbitrary string into a valid Mermaid node identifier."""
-    return re.sub(r"[^a-zA-Z0-9_]", "_", raw_id)
+    """Convert an arbitrary string into a valid Mermaid node identifier, injectively (mirrors MermaidSafeId in
+    controller/describe/draw_pipeline_graph.cpp): [a-zA-Z0-9] stay as is, '_' becomes '__', and any other byte becomes
+    '_' and two lowercase hex digits."""
+    result = []
+    for byte in raw_id.encode("utf-8"):
+        char = chr(byte)
+        if char.isascii() and char.isalnum():
+            result.append(char)
+        elif char == "_":
+            result.append("__")
+        else:
+            result.append(f"_{byte:02x}")
+    return "".join(result)
 
 
 def _mermaid_safe_label(text):
@@ -54,30 +116,30 @@ def _mermaid_safe_edge_label(text):
 
     The pipe character | terminates the label, double-quotes break parsing, and
     braces are node syntax; they are escaped as HTML entities, like the node
-    labels do it.
+    labels do it. Other shape and comment syntax is encoded as Mermaid #<code>; entities.
     """
-    return text.replace("|", "/").replace('"', "'").replace("{", "&lbrace;").replace("}", "&rbrace;")
+    text = text.replace("|", "/").replace('"', "'").replace("{", "&lbrace;").replace("}", "&rbrace;")
+    return re.sub(r"[()\[\]<>#]", lambda m: f"#{ord(m.group(0))};", text)
 
 
 def _make_computation_label(computation):
-    parts = [computation.computation_id, computation.spec["computation_class_name"]]
+    parts = [computation.computation_id, computation.class_name]
 
-    group_by_columns = get_group_by_columns(computation)
+    group_by_columns = computation.group_by
     if group_by_columns:
         parts.append(f"GroupBy: {group_by_columns}")
 
-    state = computation.spec["parameters"].get("state", {}).get("path")
+    state = computation.state_path
     if state:
         parts.append(f"State: {state}")
 
-    processing_mode = computation.spec["parameters"].get("processing_mode", "exactly_once")
+    processing_mode = computation.processing_mode
     if processing_mode != "exactly_once":
         parts.append(f"ProcessingMode: {processing_mode}")
 
-    watermark_alignment = computation.spec.get("watermark_strategy", {}).get("watermark_alignment", {})
-    if "read_delays" in watermark_alignment:
+    if computation.read_delays:
         # Render read_delays as compact JSON (YSON not available in label context).
-        delays_str = json.dumps(watermark_alignment["read_delays"], ensure_ascii=False)
+        delays_str = json.dumps(computation.read_delays, ensure_ascii=False, default=str)
         parts.append(f"ReadDelays: {delays_str}")
 
     if is_computation_warning(computation):
@@ -85,9 +147,7 @@ def _make_computation_label(computation):
             usage, partition_id = computation.max_cpu_usage
             parts.append(f"⚠ MaxCpuUsage {usage:.3f}")
 
-        unstable_partition_count = computation.unstable_job_count + (
-            computation.total_partition_count - computation.total_job_count
-        )
+        unstable_partition_count = computation.unstable_partition_count
         if unstable_partition_count > 0:
             parts.append(f"⚠ UnstablePartitions: {unstable_partition_count}/{computation.total_partition_count}")
 
@@ -106,12 +166,8 @@ def _make_computation_label(computation):
 
 
 def _make_stream_label(stream):
-    parts = [stream.stream_id]
-    if stream.source_stream_spec is not None:
-        parts.append("(source)")
-    if stream.sink_stream_specs:
-        parts.append("(sink)")
-    return _mermaid_safe_label("\n".join(parts))
+    # Sources and sinks are nodes of their own.
+    return _mermaid_safe_label(stream.stream_id)
 
 
 def _make_edge_label(edge: EdgeLimitInfo):
@@ -140,6 +196,7 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
         node_id = "s_" + _mermaid_safe_id(stream.stream_id)
         label = _make_stream_label(stream)
         lines.append(f'  {node_id}(["{label}"])')
+    _append_endpoint_nodes(graph, lines)
 
     # Computation nodes.
     lines.append("  %% Computations")
@@ -175,6 +232,8 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
                 warning_edge_indices.append(edge_index)
             edge_index += 1
 
+    edge_index += _append_endpoint_edges(graph, lines)
+
     # Read-delay edges: dashed arrows between streams.
     lines.append("  %% Read-delay edges")
     for blocker_stream_id, delayed_stream_id, delay_duration in iter_read_delay_edges(graph):
@@ -184,6 +243,9 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
         lines.append(f"  {blocker_node} -->|{safe_delay}| {delayed_node}")
         read_delay_edge_indices.append(edge_index)
         edge_index += 1
+
+    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index)
+    edge_index += len(data_channel_edge_indices)
 
     # Style warning nodes.
     lines.append("  %% Styles")
@@ -199,6 +261,10 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
     # Style read-delay edges.
     for idx in read_delay_edge_indices:
         lines.append(f"  linkStyle {idx} {_READ_DELAY_LINK_STYLE}")
+
+    # Style data-channel edges.
+    for idx in data_channel_edge_indices:
+        lines.append(f"  linkStyle {idx} {_DATA_CHANNEL_LINK_STYLE}")
 
     # Clickable computation nodes (open YT UI).
     lines.append("  %% Links")
@@ -222,6 +288,7 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
         node_id = "s_" + _mermaid_safe_id(stream.stream_id)
         label = _make_stream_label(stream)
         lines.append(f'  {node_id}(["{label}"])')
+    _append_endpoint_nodes(graph, lines)
 
     # Computation nodes: one node per (computation, set-of-outputs) pair, same as StreamClusterBuilder.
     lines.append("  %% Computations (unrolled)")
@@ -238,7 +305,7 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
             outputs = [
                 output_stream_id
                 for output_stream_id in computation.output_streams
-                if stream.stream_id in computation.spec["streams_dependency"][output_stream_id]
+                if stream.stream_id in computation.streams_dependency.get(output_stream_id, ())
             ]
             concatenated_sorted_outputs = ",".join(sorted(outputs))
             key = (computation_id, concatenated_sorted_outputs)
@@ -246,7 +313,7 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
             if key not in computation_node_ids:
                 local_idx = len(outputs_to_computation_node_id)
                 outputs_to_computation_node_id[concatenated_sorted_outputs] = local_idx
-                raw_node_id = f"{computation_id}_{local_idx}"
+                raw_node_id = f"{computation_id}|{local_idx}"
                 mermaid_node_id = "c_" + _mermaid_safe_id(raw_node_id)
                 computation_node_ids[key] = mermaid_node_id
 
@@ -273,6 +340,8 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
                 warning_edge_indices.append(edge_index)
             edge_index += 1
 
+    edge_index += _append_endpoint_edges(graph, lines)
+
     # Read-delay edges: dashed arrows between streams.
     lines.append("  %% Read-delay edges")
     for blocker_stream_id, delayed_stream_id, delay_duration in iter_read_delay_edges(graph):
@@ -282,6 +351,9 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
         lines.append(f"  {blocker_node} -->|{safe_delay}| {delayed_node}")
         read_delay_edge_indices.append(edge_index)
         edge_index += 1
+
+    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index)
+    edge_index += len(data_channel_edge_indices)
 
     # Style warning nodes.
     lines.append("  %% Styles")
@@ -298,6 +370,10 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
     for idx in read_delay_edge_indices:
         lines.append(f"  linkStyle {idx} {_READ_DELAY_LINK_STYLE}")
 
+    # Style data-channel edges.
+    for idx in data_channel_edge_indices:
+        lines.append(f"  linkStyle {idx} {_DATA_CHANNEL_LINK_STYLE}")
+
     # Clickable computation nodes (open YT UI).
     lines.append("  %% Links")
     for (computation_id, _), mermaid_node_id in computation_node_ids.items():
@@ -311,8 +387,8 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
 
 def render_mermaid_graph(graph, output_path, orientation="vertical"):
     """Render both mermaid diagrams into a single HTML file at output_path."""
-    computations_diagram = build_mermaid_computations_graph(graph, orientation)
-    streams_diagram = build_mermaid_streams_graph(graph, orientation)
+    computations_diagram = escape_html_text(build_mermaid_computations_graph(graph, orientation))
+    streams_diagram = escape_html_text(build_mermaid_streams_graph(graph, orientation))
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">

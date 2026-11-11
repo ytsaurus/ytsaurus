@@ -328,7 +328,7 @@ struct TNullSink
 YT_FLOW_DEFINE_SINK(TNullSink);
 
 struct TNullResource
-    : public IResource
+    : public TResourceLifecycleBase
 {
     TNullResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
     { }
@@ -608,6 +608,21 @@ struct TReadingExternalStateJoiner
 
 YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(TReadingExternalStateJoiner);
 
+struct TVisitorDrivenReadingExternalStateJoiner
+    : public TReadingExternalStateJoiner
+{
+    static constexpr bool VisitorDriven = true;
+
+    using TReadingExternalStateJoiner::TReadingExternalStateJoiner;
+
+    bool IsVisitorDriven() const override
+    {
+        return true;
+    }
+};
+
+YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(TVisitorDrivenReadingExternalStateJoiner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -865,6 +880,125 @@ TEST(TSpecTest, UnusedOutputStream)
     )"""");
     auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
     ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, TimerStoreSettingsOfComputation)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                defaults = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                };
+                explicit = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    timer_page_size = 256;
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+
+    const auto& defaults = GetOrCrash(spec->Computations, "defaults");
+    EXPECT_EQ(defaults->TimerStoreBackend, ETimerStoreBackend::InMemory);
+    EXPECT_EQ(static_cast<i64>(defaults->TimerPageSize), TComputationSpec::DefaultTimerPageSize);
+    const auto& overridden = GetOrCrash(spec->Computations, "explicit");
+    EXPECT_EQ(overridden->TimerStoreBackend, ETimerStoreBackend::Paged);
+    EXPECT_EQ(static_cast<i64>(overridden->TimerPageSize), 256);
+
+    // The pipeline spec has no timer store settings of its own, so nothing is lost on a round trip.
+    auto roundTripped = ConvertTo<TPipelineSpecPtr>(ConvertToNode(spec));
+    EXPECT_EQ(GetOrCrash(roundTripped->Computations, "defaults")->TimerStoreBackend, ETimerStoreBackend::InMemory);
+    EXPECT_EQ(GetOrCrash(roundTripped->Computations, "explicit")->TimerStoreBackend, ETimerStoreBackend::Paged);
+}
+
+TEST(TSpecTest, PagedTimerStoreRejectsPercentile)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    timer_streams = {
+                        timer = {};
+                    };
+                    watermark_strategy = {
+                        watermark_percentile = {
+                            value = 90;
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "does not support \"watermark_percentile\"");
+
+    // Without timer streams the percentile concerns input streams only and is allowed.
+    TStringBuf noTimersYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    watermark_strategy = {
+                        watermark_percentile = {
+                            value = 90;
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    ValidatePipelineSpec(ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(noTimersYson)));
+}
+
+TEST(TSpecTest, TimerPageSizeTooSmall)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            timer_page_size = 1;
+        }
+    )"""");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson)); },
+        "timer_page_size");
+}
+
+TEST(TSpecTest, ProcessFunctionGraphTimerPageSize)
+{
+    auto parseSpec = [] (int pageSize) {
+        return ConvertTo<TComputationSpecPtr>(TYsonStringBuf(Format(R""""(
+            {
+                computation_class_name = "NYT::NFlow::TProcessFunctionComputation";
+                group_by_schema = [{name = key; type = uint64;}];
+                input_stream_ids = [input];
+                timer_page_size = %v;
+                process_function_graph = {
+                    nodes = {
+                        consume = {
+                            processing_function = "test_function";
+                            input_stream_ids = [input];
+                        };
+                    };
+                };
+            }
+        )"""",
+            pageSize)));
+    };
+    EXPECT_THROW_WITH_SUBSTRING(parseSpec(15), "timer_page_size");
+    EXPECT_EQ(static_cast<i64>(parseSpec(16)->TimerPageSize), 16);
 }
 
 TEST(TSpecTest, CycleFound)
@@ -2776,6 +2910,77 @@ TEST(TSpecTest, KeyVisitorStreamSweepingOverrideJoinerRejected)
         "would feed it group-by keys");
 }
 
+TPipelineSpecPtr MakeWeakJoinerSpec(TStringBuf visitStreamBody, TStringBuf joinerClass)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %%true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {%v}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "%v";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""",
+        visitStreamBody,
+        joinerClass);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesAcceptVisitorDrivenJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    ValidatePipelineSpec(spec);
+    const auto& computationSpec = GetOrCrash(spec->Computations, TComputationId("c"));
+    const auto& streamSpec = GetOrCrash(computationSpec->KeyVisitorStreams, TStreamId("visit_iter"));
+    ASSERT_TRUE(streamSpec->WeakExternalNames);
+    EXPECT_TRUE(streamSpec->WeakExternalNames->contains("/j"));
+}
+
+// A lookup joiner is fed per visit and has nothing to list in step with the sweep.
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectLookupJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not a registered visitor-driven joiner class");
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectUnknownJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/missing"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "references unknown external state joiner");
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectJoinerListedAsStrongToo)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(external_names = ["/j"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "both external_names and weak_external_names");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSpecYTPathOwnershipTest, TwoExclusiveWritersSamePathConflict)
@@ -3024,6 +3229,101 @@ TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
     )"""");
     auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
     ValidatePipelineSpec(spec);
+}
+
+TPipelineSpecPtr MakeTwoManagersSpec(
+    TStringBuf firstManagerClassName,
+    TStringBuf firstPath,
+    TStringBuf secondManagerClassName,
+    TStringBuf secondPath)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::%v";
+                            parameters = { path = %Qv; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::%v";
+                            parameters = { path = %Qv; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""",
+        firstManagerClassName,
+        firstPath,
+        secondManagerClassName,
+        secondPath);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+TEST(TSpecYTPathOwnershipTest, EmptyClusterNormalizedToPipelineCluster)
+{
+    auto spec = MakeTwoManagersSpec(
+        "TWritingExternalStateManager",
+        "//tmp/state",
+        "TWritingExternalStateManager",
+        "<cluster=primary>//tmp/state");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec, "primary"); },
+        "claimed for writing");
+    ValidatePipelineSpec(spec);
+    ValidatePipelineSpec(spec, "secondary");
+}
+
+TEST(TSpecYTPathOwnershipTest, ClaimsUnionOfClusterAttributes)
+{
+    auto parameters = New<TSharedWriterManagerParameters>();
+    parameters->Load(ConvertToNode(TYsonStringBuf("{path=\"<cluster=a;clusters=[a;b]>//p\"}")));
+    std::vector<std::string> clusters;
+    for (const auto& claim : TRegistry::Get()->CollectYTPathClaims(parameters, "c")) {
+        clusters.push_back(claim.Cluster);
+    }
+    EXPECT_EQ(clusters, (std::vector<std::string>{"a", "b"}));
+
+    // A cluster listed in both attributes does not make an exclusive owner conflict with itself.
+    ValidatePipelineSpec(MakeTwoManagersSpec(
+        "TWritingExternalStateManager",
+        "<cluster=a;clusters=[a]>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/other"));
+}
+
+TEST(TSpecYTPathOwnershipTest, ClustersClaimedPerCluster)
+{
+    auto clustersSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<clusters=[a;b]>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/state");
+    ValidatePipelineSpec(clustersSpec);
+    ValidatePipelineSpec(clustersSpec, "c");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(clustersSpec, "b"); },
+        "claimed for writing");
+
+    auto overlappingSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<clusters=[a;b]>//tmp/state",
+        "TWritingExternalStateManager",
+        "<cluster=b>//tmp/state");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(overlappingSpec); },
+        "claimed for writing");
+
+    auto clusterSpec = MakeTwoManagersSpec(
+        "TSharedWriterExternalStateManager",
+        "<cluster=a>//tmp/state",
+        "TWritingExternalStateManager",
+        "//tmp/state");
+    ValidatePipelineSpec(clusterSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3288,6 +3588,17 @@ TEST(TExternalStateManagerSpecTest, AutoPreloadParsesFalse)
     auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
         R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; auto_preload = %false; parameters = {}})"));
     EXPECT_FALSE(spec->AutoPreload);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TDynamicTimerStoreSpecTest, WriteMultiplier)
+{
+    EXPECT_EQ(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf("{}"))->TimerWriteMultiplier, 2.0);
+    EXPECT_EQ(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf("{timer_write_multiplier=1;}"))->TimerWriteMultiplier, 1.0);
+    for (auto value : {"0.9", "-1", "%nan", "%inf", "%-inf"}) {
+        EXPECT_THROW(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf(Format("{timer_write_multiplier=%v;}", value))), std::exception);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

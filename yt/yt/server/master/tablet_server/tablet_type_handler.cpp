@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NTabletServer {

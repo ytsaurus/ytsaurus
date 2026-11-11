@@ -17,13 +17,13 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `binary_checksum` | **Type**: `std::string`
 **Default value**: `TString("")`
  ||
-|| `computations` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TComputationSpec](./all_yson_structs#NYT_NFlow_TComputationSpec)`>>`
+|| `computations` | **Type**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TComputationSpec](./all_yson_structs#NYT_NFlow_TComputationSpec)`>>`
 **Default value**: `{}`
 A named enumeration of all pipeline nodes. Keys must match `[0-9A-Za-z_-]+`. ||
-|| `resources` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceSpec](./all_yson_structs#NYT_NFlow_TResourceSpec)`>>`
+|| `resources` | **Type**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceSpec](./all_yson_structs#NYT_NFlow_TResourceSpec)`>>`
 **Default value**: `{}`
 A named enumeration of all resources. Keys must match `[0-9A-Za-z_-]+`. ||
-|| `streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
+|| `streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
 **Default value**: `{}`
 A named enumeration of all data streams. Keys must match `[0-9A-Za-z_-]+`. ||
 |#

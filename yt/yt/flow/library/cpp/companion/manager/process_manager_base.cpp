@@ -13,6 +13,7 @@
 #include <library/cpp/yt/misc/guid.h>
 
 #include <util/string/strip.h>
+#include <util/system/env.h>
 #include <util/system/getpid.h>
 #include <util/system/mem_info.h>
 #include <util/system/shellcommand.h>
@@ -161,6 +162,28 @@ void TProcessManagerBase::Shutdown()
         YT_TLOG_ERROR("Failed to shutdown auto-restartable companion process")
             .With(ex);
     }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TIntrusivePtr<TProcessBase> TProcessManagerBase::CreateProcessWithEnvironment(
+    const std::string& executable,
+    const THashMap<std::string, std::string>& extraEnvironment,
+    const TCompanionExecutionConfigPtr& config)
+{
+    auto process = New<TSimpleProcess>(executable, /*copyEnv*/ false);
+
+    // Spec values override inherited variables. The runtime config belongs to this incarnation.
+    auto environment = extraEnvironment;
+    IterateEnv([&] (TStringBuf name, TStringBuf value) {
+        environment.emplace(std::string(name), std::string(value));
+    });
+    environment["YT_FLOW_COMPANION_CONFIG"] = NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text).ToString();
+    // Do not log environment values: they may contain credentials.
+    for (const auto& [name, value] : environment) {
+        process->AddEnvVar(Format("%v=%v", name, value));
+    }
+    return process;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

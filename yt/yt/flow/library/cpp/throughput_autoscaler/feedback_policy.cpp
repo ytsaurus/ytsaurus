@@ -64,7 +64,7 @@ bool HasSupportedCapacityGain(
 TThroughputFeedbackPolicy::TThroughputFeedbackPolicy(
     TThroughputFeedbackState state,
     TThroughputSpecPtr config,
-    TPartitioningSpecPtr partitioningSpec,
+    TDynamicPartitioningSpecPtr partitioningSpec,
     NLogging::TLogger logger)
     : State_(std::move(state))
     , Logger_(std::move(logger))
@@ -72,12 +72,12 @@ TThroughputFeedbackPolicy::TThroughputFeedbackPolicy(
     Reconfigure(std::move(config), std::move(partitioningSpec));
 }
 
-void TThroughputFeedbackPolicy::Reconfigure(TThroughputSpecPtr config, TPartitioningSpecPtr partitioningSpec)
+void TThroughputFeedbackPolicy::Reconfigure(TThroughputSpecPtr config, TDynamicPartitioningSpecPtr partitioningSpec)
 {
     static const auto DefaultConfig = New<TThroughputSpec>();
-    static const auto DefaultPartitioningSpec = New<TPartitioningSpec>();
+    static const auto DefaultPartitioningSpec = New<TDynamicPartitioningSpec>();
     Config_ = config ? std::move(config) : TThroughputSpecPtr(DefaultConfig);
-    PartitioningSpec_ = partitioningSpec ? std::move(partitioningSpec) : TPartitioningSpecPtr(DefaultPartitioningSpec);
+    PartitioningSpec_ = partitioningSpec ? std::move(partitioningSpec) : TDynamicPartitioningSpecPtr(DefaultPartitioningSpec);
 }
 
 const TThroughputFeedbackState& TThroughputFeedbackPolicy::GetState() const

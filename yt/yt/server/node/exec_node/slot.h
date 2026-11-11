@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 #include <util/stream/file.h>
 
 namespace NYT::NExecNode {
@@ -39,13 +41,11 @@ struct IUserSlot
     //! Kill all possibly running processes and clean sandboxes.
     virtual TFuture<void> CleanProcesses() = 0;
 
-    //! Remove Porto volumes and layers imported into porto place by the user job,
-    //! preserving the volumes mounted at the given paths (e.g. reusable root volume).
-    virtual void CleanUserImportedPortoResources(
-        const THashSet<std::string>& preservedVolumePaths = {}) = 0;
+    //! Clean workspace resources while preserving volumes recorded by the secretary.
+    //! Must run after process cleanup and before volumes are released.
+    virtual void CleanJobWorkspaceResources(const TJobFSSecretary& fsSecretary) = 0;
 
-    //! Remove the porto place directory. Called during allocation cleanup.
-    virtual void CleanPortoPlace() = 0;
+    virtual void CleanAllocationWorkspace() = 0;
 
     virtual void CleanSandbox() = 0;
 
@@ -95,40 +95,6 @@ struct IUserSlot
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
-
-    //! Prepare overlay layers for a set of artifact keys.
-    //! Returns one future per layer (parallel index).
-    virtual std::vector<TFuture<TOverlayData>> PrepareLayers(
-        TJobId jobId,
-        const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
-
-    virtual TFuture<IVolumePtr> PrepareRootVolume(
-        std::vector<TOverlayData> overlayDataArray,
-        const TBaseVolumeParamsPtr& volumeParams,
-        const TVolumePreparationOptions& options) = 0;
-
-    virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        std::vector<TOverlayData> overlayDataArray,
-        const TBaseVolumeParamsPtr& volumeParams,
-        const TVolumePreparationOptions& options) = 0;
-
-    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        TJobId jobId,
-        const IVolumePtr& rootVolume,
-        const std::vector<TBaseVolumeParamsPtr>& volumes,
-        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
-
-    virtual TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume) = 0;
-
-    virtual TFuture<void> LinkVolumes(
-        const IVolumePtr& rootVolume,
-        const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
-
     virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
     virtual NBus::NTcp::TBusServerConfigPtr GetPrivateBusServerConfig() const = 0;
@@ -176,8 +142,6 @@ struct IUserSlot
     //! Must be called before any action with slot.
     virtual void SetAllocationId(TAllocationId allocationId) = 0;
 
-    virtual TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
-
     virtual TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const = 0;
 
     virtual void ValidateEnabled() const = 0;
@@ -188,11 +152,11 @@ DEFINE_REFCOUNTED_TYPE(IUserSlot)
 ////////////////////////////////////////////////////////////////////////////////
 
 IUserSlotPtr CreateSlot(
-    TSlotManager* slotManager,
+    TNonNullPtr<TSlotManager> slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    NExecNode::IBootstrap* bootstrap,
+    TNonNullPtr<NExecNode::IBootstrap> bootstrap,
     const std::string& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,

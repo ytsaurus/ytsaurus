@@ -1,5 +1,7 @@
 #include "graph_entity_id.h"
 
+#include <library/cpp/yt/string/format.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NFlow::NDescribe {
@@ -24,6 +26,11 @@ TGraphEntityId MakeSinkGraphId(const TSinkId& globalSinkId)
 TGraphEntityId MakeComputationGraphId(const TComputationId& computationId)
 {
     return TGraphEntityId(Concat<std::string>(ComputationPrefix, computationId.Underlying()));
+}
+
+TSinkId MakeGlobalSinkId(const TComputationId& computationId, const TSinkId& localSinkId)
+{
+    return TSinkId(Format("%v/%v", computationId, localSinkId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

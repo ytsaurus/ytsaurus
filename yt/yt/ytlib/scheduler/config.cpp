@@ -22,13 +22,18 @@
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/yt/client/chunk_client/public.h>
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/library/containers/porto_helpers.h>
+
+#include <yt/yt/library/nbd/chunk/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
+#include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
@@ -125,7 +130,8 @@ void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
 template <class TConfig>
 void RegisterDiskSpace(TYsonStructRegistrar<TConfig>& registrar)
 {
-    registrar.Parameter("disk_space", &TConfig::DiskSpace);
+    registrar.Parameter("disk_space", &TConfig::DiskSpace)
+        .GreaterThanOrEqual(0);
 }
 
 template <class TConfig>
@@ -155,7 +161,6 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
         .Default();
 
     registrar.Postprocessor([&] (TConfig* config) {
-        // NBD disk size shall not exceed NExecNode::MaxNbdDiskSize.
         if (config->NbdDisk && config->DiskSpace > NExecNode::MaxNbdDiskSize) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
                 .With("max_disk_space", NExecNode::MaxNbdDiskSize)
@@ -590,7 +595,7 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
         .Default(3);
     registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
         .GreaterThanOrEqual(1)
-        .Default(NExecNode::DefaultNbdMultiplexingParallelism);
+        .Default(NNbd::NChunk::DefaultNbdMultiplexingParallelism);
 
     registrar.Postprocessor([&] (TNbdDiskConfig* config) {
         if (config->MinDataNodeCount > config->MaxDataNodeCount) {
@@ -922,6 +927,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
+    registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
+        .Default(true);
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 
@@ -1084,7 +1092,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
         .Default(true);
@@ -1315,6 +1323,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("enable_input_table_index", &TThis::EnableInputTableIndex)
         .Default();
     registrar.Parameter("environment", &TThis::Environment)
+        .Default();
+    // Filled in by the controller agent from the docker image config;
+    // not meant to be set by users.
+    registrar.Parameter("docker_image_environment", &TThis::DockerImageEnvironment)
         .Default();
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default(1)
@@ -1974,6 +1986,9 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
 
+    registrar.Parameter("enable_shared_job_size_adjuster", &TThis::EnableSharedJobSizeAdjuster)
+        .Default(false);
+
     registrar.Parameter("use_push_based_shuffle", &TThis::UsePushBasedShuffle)
         .Default(false);
 
@@ -2530,6 +2545,10 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
 
+            if (taskName == "source" || taskName == "sink") {
+                THROW_ERROR_EXCEPTION("Task name %Qv is reserved", taskName);
+            }
+
             taskSpec->TaskTitle = taskName;
 
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
@@ -2602,7 +2621,8 @@ void TJobResourcesConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.BaseClassParameter("cpu", &TJobResourcesConfig::Cpu)
         .Default()
-        .GreaterThanOrEqual(0);
+        .GreaterThanOrEqual(0)
+        .LessThan(static_cast<double>(std::numeric_limits<TCpuResource>::max()));
     registrar.BaseClassParameter("network", &TJobResourcesConfig::Network)
         .Default()
         .GreaterThanOrEqual(0);

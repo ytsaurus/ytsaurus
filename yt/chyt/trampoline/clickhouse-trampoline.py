@@ -331,7 +331,7 @@ def wait_for_readiness(timeout, ytserver_clickhouse_process):
     # Just in case some request hangs during HTTP server initialization.
     REQUEST_TIMEOUT = 3
     BACKOFF = 3
-    while time.time() - start_time < timeout:
+    while True:
         # Check if clickhouse process is not dead yet.
         if ytserver_clickhouse_process.poll() is not None:
             logger.info("ytserver-clickhouse is already dead, stopping checking readiness")
@@ -342,6 +342,8 @@ def wait_for_readiness(timeout, ytserver_clickhouse_process):
                 return
         except Exception:
             logger.exception("Exception while making HTTP request")
+        if time.time() - start_time >= timeout:
+            break
         time.sleep(BACKOFF)
     logger.error("HTTP server is not ready for %s seconds, sending SIGABRT to ytserver-clickhouse", timeout)
     ytserver_clickhouse_process.send_signal(signal.SIGABRT)

@@ -130,7 +130,7 @@ SELECT * FROM $j;
 Функции объединяют результаты одного и более шаблонов подзапросов, переданных аргументами. Требуется совпадение количества параметров в этих шаблонах подзапросов.
 
 * `SubqueryExtend` требует совпадения схем подзапросов;
-* `SubqueryUnionAll` работает по тем же правилам, что и [ListUnionAll](../builtins/list.md#ListUnionAll);
+* `SubqueryUnionAll` работает по тем же правилам, что и [ListUnionAll](../builtins/list.md#listunionall);
 * `SubqueryMerge` использует те же ограничения, что и `SubqueryExtend`, а также выдаёт сортированный результат в случае если все подзапросы одинаково отсортированы;
 * `SubqueryUnionMerge` использует те же ограничения, что и `SubqueryUnionAll`, а также выдаёт сортированный результат в случае если все подзапросы одинаково отсортированы.
 
@@ -161,7 +161,7 @@ PROCESS $s();
 И выполняют подстановку в шаблон подзапроса в качестве параметра каждый элемент из списка, после чего объединяют полученные подзапросы.
 
 * `SubqueryExtendFor` требует совпадения схем подзапросов;
-* `SubqueryUnionAllFor` работает по тем же правилам, что и [ListUnionAll](../builtins/list.md#ListUnionAll);
+* `SubqueryUnionAllFor` работает по тем же правилам, что и [ListUnionAll](../builtins/list.md#listunionall);
 * `SubqueryMergeFor` использует те же ограничения, что и `SubqueryExtendFor`, а также выдаёт сортированный результат в случае, если все подзапросы одинаково отсортированы;
 * `SubqueryUnionMergeFor` использует те же ограничения, что и `SubqueryUnionAllFor`, а также выдаёт сортированный результат в случае, если все подзапросы одинаково отсортированы.
 
@@ -176,7 +176,7 @@ $s = SubqueryExtendFor([1,2,3],$sub);
 PROCESS $s();
 ```
 
-## SubqueryOrderBy, SubqueryAssumeOrderBy
+## SubqueryOrderBy, SubqueryAssumeOrderBy {#subqueryorderby,-subqueryassumeorderby} {#subquery-order-by}
 
 Добавление сортировки в шаблон подзапроса `SubqueryOrderBy` или указание о наличии таковой `SubqueryAssumeOrderBy`.
 

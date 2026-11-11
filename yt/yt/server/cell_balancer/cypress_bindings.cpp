@@ -81,6 +81,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
         .Default();
+    registrar.Parameter("fair_share_pool_weights", &TThis::FairSharePoolWeights)
+        .Default();
     registrar.Parameter("init_chaos_bundles", &TThis::InitChaosBundles)
         .Default(false);
     registrar.Parameter("additional_chaos_cell_count", &TThis::AdditionalChaosCellCount)
@@ -308,6 +310,8 @@ void TAllocationRequestSpec::Register(TRegistrar registrar)
 void TAllocationRequestStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("state", &TThis::State)
+        .Default();
+    registrar.Parameter("yp_cluster", &TThis::YPCluster)
         .Default();
     registrar.Parameter("node_id", &TThis::NodeId)
         .Default();
@@ -568,6 +572,9 @@ void TBundleDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
+        .Default();
+
+    registrar.Parameter("fair_share_pool_weights", &TThis::FairSharePoolWeights)
         .Default();
 }
 

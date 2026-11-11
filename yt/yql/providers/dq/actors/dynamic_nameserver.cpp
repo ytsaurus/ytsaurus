@@ -116,6 +116,7 @@ namespace NYql::NDqs {
                 }
 
                 auto response = MakeHolder<TEvRegisterNodeResponse>(GetNodesInfo(), request.GetEpoch());
+                *response->Record.MutableResponse()->MutableDownloadGroups() = request.GetDownloadGroups();
                 *response->Record.MutableResponse()->MutableDownloadList() = request.GetDownloadList();
                 YQL_CLOG(TRACE, ProviderDq) << "Nameserver RegisterNode response"
                     << " sender=" << ev->Sender

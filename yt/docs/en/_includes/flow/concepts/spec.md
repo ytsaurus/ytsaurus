@@ -95,7 +95,7 @@ This module runs **after** `IdlePartitions`. Idle partitions are already exclude
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TTimerSpec.md) %}
 
-If you don’t specify `streams` and `streams_with_delays`, the timer monitors the streams according to `streams_dependency` with zero extra delay.
+If you don’t specify `streams` and `streams_with_delays`, the timer monitors the streams according to `streams_dependency` with zero extra delay. For `current_time` timers, `streams` and `streams_with_delays` are ignored: such a timer triggers when the current time reaches `TriggerTimestamp`.
 
 #### Source {#source_spec}
 

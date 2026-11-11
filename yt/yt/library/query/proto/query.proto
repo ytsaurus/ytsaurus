@@ -290,7 +290,7 @@ message TQuery
     required int64 output_row_limit = 3;
 
     optional int64 offset = 16 [default = 0];
-    required int64 limit = 4;
+    optional int64 limit = 4;
 
     required NYT.NTableClient.NProto.TTableSchemaExt original_schema = 5;
     repeated TColumnDescriptor schema_mapping = 6;
@@ -308,6 +308,9 @@ message TQuery
     optional bool use_disjoint_group_by = 13 [default = false];
     optional bool infer_ranges = 14 [default = true];
     required bool is_final = 15;
+
+    // EScanOrder; COMPAT(sabdenovch): absent means that scan order is derived from other clauses.
+    optional uint32 scan_order = 20;
 }
 
 message TQueryOptions

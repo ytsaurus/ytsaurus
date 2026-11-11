@@ -18,7 +18,11 @@ int AbslStackUnwinder(
     const void* /*uc*/,
     int* /*minDroppedFrames*/)
 {
-    NBacktrace::TLibunwindCursor cursor;
+    unw_context_t context;
+    if (unw_getcontext(&context) != 0) {
+        return 0;
+    }
+    TLibunwindCursor cursor(context);
 
     for (int i = 0; i < skipFrames + 1; ++i) {
         cursor.MoveNext();

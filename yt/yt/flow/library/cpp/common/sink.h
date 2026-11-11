@@ -88,6 +88,10 @@ public:
     //! blocking here can delay graph progress.
     virtual void Init(IInitContextPtr initContext) = 0;
 
+    //! Must be called before destruction when the sink is no longer needed, even if #Init() failed.
+    //! Stops background activities on a best-effort basis and may break reference cycles.
+    virtual void Terminate();
+
     // Distribute the message asynchronously.
     // |onDistributed| allows the core to release its output copy. Any unfinished
     // external finalization must remain visible through #BuildInflight().

@@ -111,6 +111,7 @@
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -398,6 +399,7 @@ void TJobProxy::SendHeartbeat()
 
     auto job = FindJob();
     if (!job) {
+        LastHeartbeatFuture_ = OKFuture;
         return;
     }
 
@@ -445,7 +447,9 @@ void TJobProxy::SendHeartbeat()
         }
     }
 
-    req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
+    LastHeartbeatFuture_ = req->Invoke().AsVoid()
+        .Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)))
+        .ToImmediatelyCancelable(/*propagateCancelation*/ false);
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -651,6 +655,11 @@ void TJobProxy::DoRun()
         YT_TLOG_INFO("CPU monitor stopped");
     }
 
+    if (auto abortFuture = AbortFuture_.Load()) {
+        WaitFor(abortFuture)
+            .ThrowOnError();
+    }
+
     if (GetJobSpecHelper()->HasSidecars()) {
         FindJobProxyEnvironment()->ShutdownSidecars();
     }
@@ -688,6 +697,10 @@ void TJobProxy::DoRun()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping public RPC server")
             .With(error);
+    }
+
+    if (auto delay = Config_->JobTestingOptions->DelayBeforeReportResult) {
+        TDelayedExecutor::WaitForDuration(*delay);
     }
 
     FillJobResult(&result);
@@ -953,7 +966,7 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_->Start();
 
         JobIoMeter_ = New<TJobIoMeter>(
-            Config_->JobIoMeterMaxHistoryDuration,
+            std::min(Config_->IOConsumedReportWindow, Config_->JobIoMeterMaxHistoryDuration),
             Config_->EnableJobIoStatistics);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
@@ -2077,6 +2090,16 @@ void TJobProxy::CheckMemoryUsage()
         YT_TLOG_DEBUG("Requesting node for memory usage increase")
             .With("OldMemoryReserve", RequestedMemoryReserve_.load())
             .With("NewMemoryReserve", memoryReserve);
+        // The node may abort the job for overdraft on this request, reporting the statistics it has.
+        // Deliver fresh max_memory first; otherwise the controller agent cannot tell which process overdrafted.
+        auto executedEvent = HeartbeatExecutor_->GetExecutedEvent();
+        HeartbeatExecutor_->ScheduleOutOfBand();
+        auto error = WaitFor(executedEvent);
+        if (error.IsOK()) {
+            error = WaitFor(LastHeartbeatFuture_);
+        }
+        YT_TLOG_ERROR_UNLESS(error.IsOK(), "Failed to send heartbeat before memory reserve increase")
+            .With(error);
         RequestedMemoryReserve_ = memoryReserve;
         UpdateResourceUsage();
     }
@@ -2182,6 +2205,22 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
 }
 
 void TJobProxy::Abort(EJobProxyExitCode exitCode)
+{
+    auto abortFuture = AbortFuture_.Transform([&] (TFuture<void>& future) {
+        if (!future) {
+            future = BIND(&TJobProxy::DoAbort, MakeStrong(this), exitCode)
+                .AsyncVia(JobThread_->GetInvoker())
+                .Run()
+                .ToUncancelable();
+        }
+        return future;
+    });
+
+    WaitFor(abortFuture)
+        .ThrowOnError();
+}
+
+void TJobProxy::DoAbort(EJobProxyExitCode exitCode)
 {
     if (Config_->SendHeartbeatBeforeAbort) {
         auto error = WaitFor(HeartbeatExecutor_->GetExecutedEvent());

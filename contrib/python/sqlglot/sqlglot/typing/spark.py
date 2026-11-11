@@ -30,17 +30,12 @@ EXPRESSION_METADATA = {
         }
     },
     **{
-        exp_type: {"returns": exp.DType.INT}
-        for exp_type in {
-            exp.ArraySize,
-        }
-    },
-    **{
         exp_type: {"returns": exp.DType.VARCHAR}
         for exp_type in {
             exp.Collation,
             exp.CurrentTimezone,
             exp.Randstr,
+            exp.ToChar,
         }
     },
     **{
@@ -56,5 +51,6 @@ EXPRESSION_METADATA = {
         }
     },
     exp.BitmapCount: {"returns": exp.DType.BIGINT},
+    exp.Grouping: {"returns": exp.DType.TINYINT},
     exp.Localtimestamp: {"returns": exp.DType.TIMESTAMPNTZ},
 }

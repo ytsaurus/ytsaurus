@@ -10,7 +10,7 @@
 Имя соответствующего класса.
 
 Должен быть зарегистрирован с помощью `YT_FLOW_DEFINE_SINK`. ||
-|| `input_stream_ids` | **Тип**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Тип**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Значение по умолчанию**: `[]`
 Список входных потоков.
 

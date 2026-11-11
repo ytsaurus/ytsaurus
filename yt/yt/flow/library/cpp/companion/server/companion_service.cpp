@@ -7,11 +7,12 @@
 
 #include "private.h"
 
+#include <yt/yt/flow/library/cpp/misc/cpu_accounting.h>
+
 #include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
-#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -23,7 +24,6 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <util/system/datetime.h>
 #include <util/system/getpid.h>
 
 namespace NYT::NFlow::NCompanionServer {
@@ -51,30 +51,6 @@ struct TBatchOutcome
     NProto::NCompanion::EResponseStatus Status = NProto::NCompanion::RS_OK;
     ui64 CpuTimeNs = 0;
 };
-
-//! Runs |callback| on the current fiber and returns the CPU time it consumed,
-//! in nanoseconds, accounted across suspensions. The checkpoint/guard pattern
-//! follows worker/traced_invoker.cpp: a resumed fiber runs on a single OS
-//! thread until it next suspends, so the checkpoint (set at start/resume) and
-//! the delta (taken at suspend/finish) always read the same thread's clock.
-ui64 RunWithCpuAccounting(const std::function<void()>& callback)
-{
-    ui64 cpuTimeMicros = 0;
-    ui64 checkpoint = ThreadCPUTime();
-    auto accumulate = [&] {
-        auto now = ThreadCPUTime();
-        cpuTimeMicros += now - checkpoint;
-        checkpoint = now;
-    };
-    NConcurrency::TContextSwitchGuard cpuTimeGuard(
-        /*out*/ accumulate,
-        /*in*/ [&] {
-            checkpoint = ThreadCPUTime();
-        });
-    callback();
-    accumulate();
-    return cpuTimeMicros * 1000;
-}
 
 } // namespace
 
@@ -191,6 +167,9 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 
     counters->RequestCount.Increment();
     counters->RequestSize.Record(NRpc::GetMessageBodySize(context->GetRequestMessage()));
+    counters->RequestMessageCount.Record(request->messages_size());
+    counters->RequestTimerCount.Record(request->timers_size());
+    counters->RequestVisitCount.Record(request->visits_size());
     auto timerGuard = Finally([&] {
         counters->RequestDuration.Record(requestTimer.GetElapsedTime());
     });
@@ -214,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     }
 
     const auto& job = execution->Job;
-    job->ProfileRequestStateSizes(*request);
+    job->ProfileRequestStates(*request);
 
     // Count queued callbacks too: a timed-out RPC may be retried while its
     // original handler is still running, and both must keep using the same
@@ -259,7 +238,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
             }
 
             bool processed = false;
-            auto cpuTimeNs = RunWithCpuAccounting([&] {
+            auto cpuTime = RunWithCpuAccounting([&] {
                 processed = job->ProcessBatch(*request, data);
             });
             if (!processed) {
@@ -269,7 +248,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
                     .With("JobId", jobId);
                 return {.Status = NProto::NCompanion::RS_RESOURCE_NOT_INITIALIZED};
             }
-            return {.Status = NProto::NCompanion::RS_OK, .CpuTimeNs = cpuTimeNs};
+            return {.Status = NProto::NCompanion::RS_OK, .CpuTimeNs = cpuTime.NanoSeconds()};
         })
             .AsyncVia(execution->Invoker)
             .Run())
@@ -278,7 +257,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     if (outcome.Status == NProto::NCompanion::RS_OK) {
         response->mutable_metrics()->set_cpu_time_ns(outcome.CpuTimeNs);
         counters->RequestCpuTime.Add(TDuration::MicroSeconds(outcome.CpuTimeNs / 1000));
-        job->ProfileResponseStateSizes(response->data());
+        job->ProfileResponseStates(response->data());
     }
 
     responseStatus = outcome.Status;

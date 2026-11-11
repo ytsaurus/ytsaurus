@@ -12,6 +12,7 @@ IF (NOT OPENSOURCE)
         acl_dumper
         cms
         common
+        common/templates
         core
         core3
         devil-hulk
@@ -35,4 +36,8 @@ IF (NOT OPENSOURCE)
         ytdyncfgen
         experiments
     )
+ENDIF()
+
+IF (OS_LINUX AND NOT OPENSOURCE)
+    RECURSE(periscope)
 ENDIF()

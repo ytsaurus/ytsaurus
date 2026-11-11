@@ -66,7 +66,8 @@ COVERAGE_INCOMPLETE_EXIT = 4
 LOG_ROTATION_GAP_TOLERANCE = timedelta(minutes=1)
 STANDARD_LOG_TYPES = ("debug", "info", "error")
 YSON_LOG_TYPES = ("event_log", "gpu_event_log")
-LOG_TYPES = STANDARD_LOG_TYPES + ("access",) + YSON_LOG_TYPES
+IOTRACKER_LOG_TYPES = ("io_aggr", "io_raw")
+LOG_TYPES = STANDARD_LOG_TYPES + ("access",) + YSON_LOG_TYPES + IOTRACKER_LOG_TYPES
 LOG_TYPE_ALIASES = {"access.json": "access"}
 
 # Path of this script inside Arcadia, used both to locate the binary and to
@@ -137,12 +138,17 @@ def parse_log_types(value):
         if item not in LOG_TYPES:
             raise ValueError(
                 "unknown log type {!r}; expected debug, info, error, access, "
-                "access.json, event_log, gpu_event_log, a "
+                "access.json, event_log, gpu_event_log, io_aggr, io_raw, a "
                 "comma-separated combination, or all".format(item))
         if item not in result:
             result.append(item)
     if not result:
         raise ValueError("at least one log type is required")
+    if any(log_type in IOTRACKER_LOG_TYPES for log_type in result) and any(
+            log_type not in IOTRACKER_LOG_TYPES for log_type in result):
+        raise ValueError(
+            "io_aggr and io_raw cannot be combined with other types; "
+            "request them separately")
     # YSON merge keys are UTC; the other families use server-local wall time.
     if any(log_type in YSON_LOG_TYPES for log_type in result) and any(
             log_type not in YSON_LOG_TYPES for log_type in result):
@@ -161,9 +167,29 @@ LOG_RECORD_JSON_TIME_RE = re.compile(
 LOG_RECORD_YSON_TIME_RE = re.compile(
     r'(?<!\\)"timestamp"\s*=\s*"(?P<stamp>\d{4}-\d{2}-\d{2}T'
     r'\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)"')
+LOG_RECORD_YSON_INSTANT_RE = re.compile(
+    r'(?<!\\)"instant"\s*=\s*"(?P<stamp>\d{4}-\d{2}-\d{2} '
+    r'\d{2}:\d{2}:\d{2}[,.]\d{1,6})"')
+YSON_RECORD_TOKEN_RE = re.compile(r'"(?:[^"\\]|\\.)*"|[{}]')
 
 
-def _timestamped_record_iter(lines, source_index, line_records=False, parse_yson=False):
+def _yson_instant_match(line):
+    depth = 0
+    match = None
+    for token in YSON_RECORD_TOKEN_RE.finditer(line):
+        text = token.group()
+        if text == "{":
+            depth += 1
+        elif text == "}":
+            depth -= 1
+        elif depth == 1 and text == '"instant"':
+            if line[token.end():].lstrip().startswith("="):
+                match = LOG_RECORD_YSON_INSTANT_RE.match(line, token.start())
+    return match
+
+
+def _timestamped_record_iter(
+        lines, source_index, line_records=False, parse_yson=False, server_utc_offset=None):
     current = None
     ordinal = 0
     for line in lines:
@@ -172,9 +198,11 @@ def _timestamped_record_iter(lines, source_index, line_records=False, parse_yson
             if parse_yson and match is None else None
         if yson_match is not None:
             match = yson_match
+        elif match is None and parse_yson:
+            match = _yson_instant_match(line)
         elif match is None:
-            json_matches = list(LOG_RECORD_JSON_TIME_RE.finditer(line))
-            match = json_matches[-1] if json_matches else None
+            instant_matches = list(LOG_RECORD_JSON_TIME_RE.finditer(line))
+            match = instant_matches[-1] if instant_matches else None
         if match or line_records:
             if current is not None:
                 yield current
@@ -183,9 +211,11 @@ def _timestamped_record_iter(lines, source_index, line_records=False, parse_yson
             else:
                 stamp = match.group("stamp").replace(",", ".").replace(
                     " ", "T")
-                if yson_match is not None:
-                    stamp = parse_user_time(stamp, utc_offset=timedelta(0)).isoformat(
-                        timespec="microseconds")
+                if parse_yson:
+                    instant = parse_user_time(stamp, utc_offset=timedelta(0))
+                    if yson_match is None and server_utc_offset is not None:
+                        instant -= server_utc_offset
+                    stamp = instant.isoformat(timespec="microseconds")
             current = [stamp, source_index, ordinal, line]
             ordinal += 1
         elif current is None:
@@ -211,14 +241,16 @@ def merge_timestamped_outputs(outputs, parse_yson=False):
     return "".join(record[3] for record in records)
 
 
-def write_merged_pipeline_outputs(outputs, destination, parse_yson=False):
+def write_merged_pipeline_outputs(
+        outputs, destination, parse_yson=False, server_utc_offset=None):
     """Merge ordered pipeline streams without loading them into memory."""
     record_streams = [
         _timestamped_record_iter(
             completed.iter_stdout_lines(),
             source_index,
             line_records=completed.line_records,
-            parse_yson=parse_yson)
+            parse_yson=parse_yson,
+            server_utc_offset=server_utc_offset)
         for source_index, completed in enumerate(outputs)
     ]
     for record in heapq.merge(
@@ -232,13 +264,25 @@ def structured_output_timestamp_error(completed, log_type):
     if log_type == "access":
         pattern, field, log_format = LOG_RECORD_JSON_TIME_RE, "instant", "JSON"
     elif log_type in YSON_LOG_TYPES:
-        pattern, field, log_format = LOG_RECORD_YSON_TIME_RE, "timestamp", "YSON"
+        pattern, field, log_format = LOG_RECORD_YSON_TIME_RE, "timestamp or instant", "YSON"
+    elif log_type in IOTRACKER_LOG_TYPES:
+        pattern, field, log_format = LOG_RECORD_YSON_INSTANT_RE, "instant", "YSON"
     else:
         return None
     if completed.operational_returncode != 0 or not completed.has_output:
         return None
     for line_number, line in enumerate(completed.iter_stdout_lines(), 1):
-        if pattern.search(line) is None:
+        match = _yson_instant_match(line) if log_type in IOTRACKER_LOG_TYPES \
+            else pattern.search(line)
+        if match is None and log_type in YSON_LOG_TYPES:
+            match = _yson_instant_match(line)
+        valid = match is not None
+        if valid and log_type in IOTRACKER_LOG_TYPES + YSON_LOG_TYPES:
+            try:
+                valid = parse_user_time(match.group("stamp"), utc_offset=timedelta(0)) is not None
+            except (ValueError, OverflowError):
+                valid = False
+        if not valid:
             return (
                 "{} pipeline output line {} has no valid {}; "
                 "retain the {} {} field for timestamp merging"
@@ -858,6 +902,8 @@ CHANNEL_BY_TYPE = {
     "access": "access.json",
     "event_log": "event_log",
     "gpu_event_log": "gpu_event_log",
+    "io_aggr": "io_aggr.yson",
+    "io_raw": "io_raw.yson",
 }
 
 
@@ -1449,6 +1495,11 @@ def infer_host_component(host):
             "exec": "exec-node",
         }[node.group("role")]
         return role, "node"
+    if re.search(r"(?:^|-)tab-balancer(?:-|$)", short):
+        location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)(?:-|$)", short)
+        return "tablet-balancer", (
+            "tablet-balancer-" + location.group("location") if location else None
+        )
     if re.search(r"(?:^|-)tab(?:-|$)", short):
         return "tablet-node", "node"
     if re.search(r"(?:^|-)master-cache(?:-|$)", short):
@@ -1475,12 +1526,18 @@ def infer_host_component(host):
     if re.search(r"(?:^|-)master(?:-|$)", short) or \
             re.match(r"^m(?:c)?\d+(?:-|$)", short):
         return "master", "master"
+    location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)-node-", short)
+    if location:
+        return "node", "node-" + location.group("location")
     return None, None
 
 
 def _resolve_base(role, component, available):
     if component in available:
         return component
+    # Location-qualified hosts require their exact base, not a prefix match.
+    if role in ("node", "tablet-balancer"):
+        return None
     if role == "master":
         matches = [
             candidate for candidate in available
@@ -1763,9 +1820,10 @@ def _run_main(context):
     parser.add_argument("host", help="remote machine name")
     parser.add_argument("--type", default=None,
                         help="log type: debug, error, info, access/access.json, "
-                             "event_log, gpu_event_log, comma-separated "
+                             "event_log, gpu_event_log, io_aggr, io_raw, comma-separated "
                              "types, or all (default: info on Cron, debug otherwise); event_log and "
-                             "gpu_event_log cannot be combined with other types")
+                             "gpu_event_log cannot be combined with other types; "
+                             "IOTracker types require a finite Data Node window")
     parser.add_argument(
         "--component",
         default=None,
@@ -1851,6 +1909,14 @@ def _run_main(context):
             else infer_host_component(args.host)[0]
         if role != "scheduler":
             parser.error("event_log and gpu_event_log are available only for scheduler routes")
+    io_tracker = any(log_type in IOTRACKER_LOG_TYPES for log_type in log_types)
+    if io_tracker:
+        if infer_host_component(args.host)[0] != "data-node":
+            parser.error("io_aggr and io_raw are available only on Data Node hosts")
+        if args.component and not re.fullmatch(r"node(?:-[a-z0-9]+)*", args.component):
+            parser.error("IOTracker --component must be an exact Data Node base")
+        if args.archive_dir:
+            parser.error("IOTracker logs use the component's existing logs directory")
 
     stages = []
     if grep_args:
@@ -1875,8 +1941,28 @@ def _run_main(context):
         if end_from_start is not None and not args.end:
             args.end = end_from_start
 
-    start_time = parse_user_time(args.start) if args.start else None
-    end_time = parse_user_time(args.end) if args.end else None
+    try:
+        initial_offset = timedelta(0) if io_tracker else None
+        start_time = parse_user_time(args.start, utc_offset=initial_offset) if args.start else None
+        end_time = parse_user_time(args.end, utc_offset=initial_offset) if args.end else None
+    except (ValueError, OverflowError):
+        if io_tracker:
+            parser.error("IOTracker logs require a valid finite -t/-e window in ascending order")
+        raise
+    if io_tracker:
+        if start_time is None or end_time is None:
+            parser.error("IOTracker logs require a valid finite -t/-e window in ascending order")
+        bounds = [args.start.strip(), args.end.strip()]
+        if any(
+                (len(bound) > 10 and bound[10] == "T" and not ISO_UTC_RE.fullmatch(bound))
+                or re.search(r"[,.]\d{7,}$", bound) for bound in bounds):
+            parser.error("IOTracker logs require timestamps supported by the native slicer")
+        both_utc = all(ISO_UTC_RE.fullmatch(bound) for bound in bounds)
+        both_local = all(
+            not ISO_UTC_RE.fullmatch(bound) and not TIME_OF_DAY_RE.fullmatch(bound)
+            and bound.lower() != "now" for bound in bounds)
+        if (both_utc or both_local) and start_time > end_time:
+            parser.error("IOTracker logs require a valid finite -t/-e window in ascending order")
     if args.start and start_time is None:
         eprint("Warning: could not parse start time {!r}; "
                "scanning all files.".format(args.start))
@@ -1915,6 +2001,9 @@ def _run_main(context):
         if args.start else None
     end_time = parse_server_time(args.end, server_timezone) \
         if args.end else None
+    if io_tracker and (
+            start_time is None or end_time is None or start_time > end_time):
+        parser.error("could not normalize IOTracker window to the server timezone")
     if args.start and start_time is None:
         eprint("Warning: could not normalize start time {!r} to remote "
                "timezone {}; log coverage remains unresolved."
@@ -2071,7 +2160,9 @@ def _run_main(context):
                 write_merged_pipeline_outputs(
                     outputs,
                     sys.stdout,
-                    parse_yson=any(log_type in YSON_LOG_TYPES for log_type in log_types))
+                    parse_yson=any(log_type in YSON_LOG_TYPES + IOTRACKER_LOG_TYPES
+                                   for log_type in log_types),
+                    server_utc_offset=parse_utc_offset(server_timezone))
         finally:
             for completed in outputs:
                 completed.close()
@@ -2081,6 +2172,8 @@ def _run_main(context):
         and execution_result["log_read"] \
         and gaps == []
     if exit_code == GLOBAL_NO_MATCH_EXIT and not definitive_no_match:
+        exit_code = COVERAGE_INCOMPLETE_EXIT
+    if io_tracker and exit_code == 0 and gaps != []:
         exit_code = COVERAGE_INCOMPLETE_EXIT
     matched = sum(item["match_count"] for item in results
                   if item["status"] == "matched")

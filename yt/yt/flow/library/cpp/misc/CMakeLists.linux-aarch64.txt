@@ -38,6 +38,7 @@ target_link_libraries(library-cpp-misc PUBLIC
   yutil
   contrib-libs-eigen
   contrib-libs-openssl
+  contrib-libs-pdqsort
   library-cpp-build_info
   cpp-yt-error
   cpp-yt-memory
@@ -60,6 +61,7 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/identifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/cow_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/crash_recorder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/cpu_accounting.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/indexed_yson_string.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/lexicographically_serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/linear_system.cpp
@@ -98,6 +100,7 @@ target_link_libraries(library-cpp-misc.global PUBLIC
   yutil
   contrib-libs-eigen
   contrib-libs-openssl
+  contrib-libs-pdqsort
   library-cpp-build_info
   cpp-yt-error
   cpp-yt-memory

@@ -9,10 +9,20 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/client/driver/proxy_discovery_cache.h>
+
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <type_traits>
 
 namespace NYT::NQueryTracker {
 
@@ -103,10 +113,41 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        auto settings = ConvertToAttributes(activeQuery.Settings);
-        auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
+        auto settings = ConvertTo<IMapNodePtr>(activeQuery.Settings);
+        auto cluster = FindSetting<std::string>(settings.Get(), "cluster").value_or(Config_->DefaultCluster);
+        auto proxyRole = FindSetting<std::string>(settings.Get(), "rpc_proxy_role").value_or(DefaultRpcProxyRole);
+        auto nativeConnection = ClusterDirectory_->GetConnectionOrThrow(cluster);
+        auto nativeClient = nativeConnection->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User));
+        auto nativeConfig = nativeConnection->GetConfig();
+
+        auto proxyDiscovery = NDriver::CreateProxyDiscoveryCache(New<TAsyncExpiringCacheConfig>(), nativeClient);
+        auto proxies = WaitFor(proxyDiscovery->Discover(NDriver::TProxyDiscoveryRequest{.Role = proxyRole}))
+            .ValueOrThrow();
+        if (proxies.Addresses.empty()) {
+            THROW_ERROR_EXCEPTION("No RPC proxies found for cluster %Qv and role %Qv", cluster, proxyRole);
+        }
+
+        auto tokenAttributes = CreateEphemeralAttributes();
+        tokenAttributes->Set("responsible", "query_tracker");
+        tokenAttributes->Set("query_id", activeQuery.Key.QueryId);
+        auto tokenOptions = TIssueTemporaryTokenOptions{
+            .ExpirationTimeout = nativeConfig->DefaultSelectRowsTimeout + TDuration::Minutes(1),
+        };
+        auto token = WaitFor(nativeClient->IssueTemporaryToken(activeQuery.User, tokenAttributes, tokenOptions))
+            .ValueOrThrow();
+
+        auto rpcConfig = New<NRpcProxy::TConnectionConfig>();
+        rpcConfig->BusClient = nativeConfig->BusClient;
+        rpcConfig->ProxyAddresses = std::move(proxies.Addresses);
+        rpcConfig->EnableProxyDiscovery = false;
+        rpcConfig->DefaultSelectRowsTimeout = nativeConfig->DefaultSelectRowsTimeout;
+        rpcConfig->UdfRegistryPath = nativeConfig->UdfRegistryPath;
+        auto rpcConnection = NRpcProxy::CreateConnection(rpcConfig);
+        auto queryClient = rpcConnection->CreateClient(TClientOptions::FromToken(std::move(token.Token)));
+
         auto options = GetOptions(settings.Get());
-        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions::FromUser(activeQuery.User));
+        options.InputRowLimit = options.InputRowLimit.value_or(nativeConfig->DefaultInputRowLimit);
+        options.OutputRowLimit = options.OutputRowLimit.value_or(nativeConfig->DefaultOutputRowLimit);
         return New<TQLQueryHandler>(
             StateClient_,
             StateRoot_,
@@ -134,44 +175,65 @@ private:
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 
-    static TSelectRowsOptions GetOptions(IAttributeDictionary* settings)
+    template <class T>
+    static std::optional<T> FindSetting(IMapNode* settings, TStringBuf key)
+    {
+        auto value = settings->FindChild(key);
+        if (!value) {
+            return std::nullopt;
+        }
+
+        try {
+            if (std::is_arithmetic_v<T> && value->GetType() == ENodeType::String) {
+                return ConvertTo<T>(NYson::TYsonString(value->AsString()->GetValue()));
+            }
+            return ConvertTo<T>(value);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing setting value")
+                .With("key", key)
+                .With("value", value)
+                .With(ex);
+        }
+    }
+
+    static TSelectRowsOptions GetOptions(IMapNode* settings)
     {
         auto options = TSelectRowsOptions();
 
-        options.InputRowLimit = settings->Find<i64>("input_row_limit");
-        options.OutputRowLimit = settings->Find<i64>("output_row_limit");
-        options.ExecutionPool = settings->Find<std::string>("execution_pool");
-        options.ExecutionBackend = settings->Find<EExecutionBackend>("execution_backend");
-        options.UseLookupCache = settings->Find<bool>("use_lookup_cache");
-        options.UdfRegistryPath = settings->Find<TYPath>("udf_registry_path");
-        if (auto statisticsAggregation = settings->Find<EStatisticsAggregation>("statistics_aggregation")) {
+        options.InputRowLimit = FindSetting<i64>(settings, "input_row_limit");
+        options.OutputRowLimit = FindSetting<i64>(settings, "output_row_limit");
+        options.ExecutionPool = FindSetting<std::string>(settings, "execution_pool");
+        options.ExecutionBackend = FindSetting<EExecutionBackend>(settings, "execution_backend");
+        options.UseLookupCache = FindSetting<bool>(settings, "use_lookup_cache");
+        options.UdfRegistryPath = FindSetting<TYPath>(settings, "udf_registry_path");
+        if (auto statisticsAggregation = FindSetting<EStatisticsAggregation>(settings, "statistics_aggregation")) {
             options.StatisticsAggregation = *statisticsAggregation;
         }
-        if (auto enableCodeCache = settings->Find<bool>("enable_code_cache")) {
+        if (auto enableCodeCache = FindSetting<bool>(settings, "enable_code_cache")) {
             options.EnableCodeCache = *enableCodeCache;
         }
-        if (auto useCanonicalNullRelations = settings->Find<bool>("use_canonical_null_relations")) {
+        if (auto useCanonicalNullRelations = FindSetting<bool>(settings, "use_canonical_null_relations")) {
             options.UseCanonicalNullRelations = *useCanonicalNullRelations;
         }
-        if (auto mergeVersionedRows = settings->Find<bool>("merge_versioned_rows")) {
+        if (auto mergeVersionedRows = FindSetting<bool>(settings, "merge_versioned_rows")) {
             options.MergeVersionedRows = *mergeVersionedRows;
         }
-        if (auto useOrderByInJoinSubqueries = settings->Find<bool>("use_order_by_in_join_subqueries")) {
+        if (auto useOrderByInJoinSubqueries = FindSetting<bool>(settings, "use_order_by_in_join_subqueries")) {
             options.UseOrderByInJoinSubqueries = *useOrderByInJoinSubqueries;
         }
-        if (auto syntaxVersion = settings->Find<int>("syntax_version")) {
+        if (auto syntaxVersion = FindSetting<int>(settings, "syntax_version")) {
             options.SyntaxVersion = *syntaxVersion;
         }
-        if (auto expressionBuilderVersion = settings->Find<int>("expression_builder_version")) {
+        if (auto expressionBuilderVersion = FindSetting<int>(settings, "expression_builder_version")) {
             options.ExpressionBuilderVersion = *expressionBuilderVersion;
         }
-        if (auto allowFullScan = settings->Find<bool>("allow_full_scan")) {
+        if (auto allowFullScan = FindSetting<bool>(settings, "allow_full_scan")) {
             options.AllowFullScan = *allowFullScan;
         }
-        if (auto allowJoinWithoutIndex = settings->Find<bool>("allow_join_without_index")) {
+        if (auto allowJoinWithoutIndex = FindSetting<bool>(settings, "allow_join_without_index")) {
             options.AllowJoinWithoutIndex = *allowJoinWithoutIndex;
         }
-        if (auto failOnIncompleteResult = settings->Find<bool>("fail_on_incomplete_result")) {
+        if (auto failOnIncompleteResult = FindSetting<bool>(settings, "fail_on_incomplete_result")) {
             options.FailOnIncompleteResult = *failOnIncompleteResult;
         }
 

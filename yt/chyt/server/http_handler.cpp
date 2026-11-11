@@ -161,11 +161,6 @@ public:
             return;
         }
 
-        YT_TLOG_DEBUG("Preparing clickhouse user")
-            .With("UserName", userName);
-        Host_->PrepareClickHouseUser(userName);
-        YT_TLOG_DEBUG("User prepared");
-
         DB::HTTPHandler::handleRequest(request, response, writeEvent);
     }
 

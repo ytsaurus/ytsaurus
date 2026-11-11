@@ -64,7 +64,6 @@ TCompanionComputationBaseAdapter<TBase>::GetRequiredCompanionResources()
         const auto& alias = description->Alias ? *description->Alias : resourceId;
         auto resource = this->GetContext()->GetStaticResource(alias)->template TryAs<TCompanionResource>();
         if (resource) {
-            resource = resource->GetCurrentResource();
             result.push_back({
                 .ResourceId = resourceId,
                 .Alias = alias,

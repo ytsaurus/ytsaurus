@@ -102,6 +102,7 @@ struct TReqExecuteBatchRetriesOptions
     TDuration StartBackoff;
     TDuration MaxBackoff;
     double BackoffMultiplier;
+    double BackoffJitter;
     int RetryCount;
 };
 

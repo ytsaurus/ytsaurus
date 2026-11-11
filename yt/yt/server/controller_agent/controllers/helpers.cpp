@@ -361,7 +361,7 @@ std::string TDockerImageSpec::GetDockerImage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TRichYPath> GetLayerPathsFromDockerImage(
+TDockerImageHint GetDockerImageHint(
     const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage)
 {
@@ -391,9 +391,17 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
                 rspTags->AsMap()->GetKeys());
         }
 
-        auto layerPaths = ConvertTo<std::vector<TRichYPath>>(rspTag);
-        std::reverse(layerPaths.begin(), layerPaths.end());
-        return layerPaths;
+        TDockerImageHint result;
+
+        // Entries written by older registry versions carry no attributes.
+        const auto& entryAttributes = rspTag->Attributes();
+        if (auto env = entryAttributes.FindYson("env")) {
+            result.Config.Env = ConvertTo<std::vector<std::string>>(env);
+        }
+
+        result.Layers = ConvertTo<std::vector<TRichYPath>>(rspTag);
+        std::reverse(result.Layers.begin(), result.Layers.end());
+        return result;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
             "Failed to load docker image %v:%v",
@@ -402,6 +410,8 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
             .With(ex);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void GenerateDockerAuthFromToken(
     const NYTree::IMapNodePtr& secureVault,
@@ -447,6 +457,31 @@ bool HasJobUniquenessRequirements(
     return operationSpec->FailOnJobRestart ||
         std::any_of(userJobSpecs.begin(), userJobSpecs.end(), [] (const auto& userJobSpec) {
             return userJobSpec->FailOnJobRestart;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasNbdDiskRequest(const NScheduler::TUserJobSpecPtr& userJobSpec)
+{
+    if (!userJobSpec) {
+        return false;
+    }
+
+    return std::ranges::any_of(
+        userJobSpec->Volumes,
+        [] (const auto& volume) {
+            return volume.second->DiskRequest &&
+                volume.second->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd;
+        });
+}
+
+bool HasNbdDiskRequests(const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs)
+{
+    return std::ranges::any_of(
+        userJobSpecs,
+        [] (const auto& userJobSpec) {
+            return HasNbdDiskRequest(userJobSpec);
         });
 }
 

@@ -61,6 +61,7 @@ import decorator
 import functools
 import shutil
 import hashlib
+import math
 
 from time import sleep, time
 from threading import Thread
@@ -362,6 +363,7 @@ class YTEnvSetup(object):
     NUM_CHAOS_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = True
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
@@ -774,11 +776,20 @@ class YTEnvSetup(object):
         if cls.NUM_TEST_PARTITIONS == 1:
             return [items]
 
+        # Rendezvous hashing with bounded loads: no partition exceeds ceil(n / N) tests,
+        # and adding or removing a test moves only a few others unless ceil(n / N) changes.
+        # NB: Assignment depends on the whole set of collected items, so it must be the same
+        # when listing and when running tests.
+        def get_hash(key):
+            return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+        capacity = math.ceil(len(items) / cls.NUM_TEST_PARTITIONS)
         partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
-        for item in items:
-            nodeid = item.nodeid.encode("utf-8")
-            hexdigest = hashlib.md5(nodeid).hexdigest()
-            partitions[int(hexdigest, 16) % len(partitions)].append(item)
+        for item in sorted(items, key=lambda item: get_hash(item.nodeid)):
+            index = max(
+                (index for index, partition in enumerate(partitions) if len(partition) < capacity),
+                key=lambda index: get_hash(f"{item.nodeid}#{index}"))
+            partitions[index].append(item)
         return partitions
 
     @classmethod
@@ -1141,7 +1152,8 @@ class YTEnvSetup(object):
         cls.remote_envs = []
 
         if test_name is None:
-            test_name = cls.__name__
+            # Classes in different modules may share a name; their working directories must not.
+            test_name = f"{cls.__module__.rsplit('.', 1)[-1]}.{cls.__name__}"
         cls.test_name = test_name
 
         cls.liveness_checkers = []
@@ -1353,7 +1365,7 @@ class YTEnvSetup(object):
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
             if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
                 if cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index):
-                    cls._wait_for_sequoia_node_host_available(driver)
+                    cls._wait_for_sequoia_node_host_available(driver, cluster_index)
                     yt_commands.remove("//sys/operations", force=True, driver=driver)
                     yt_commands.create("rootstock", "//sys/operations", force=True, driver=driver)
                 elif "11" in cls.get_param("MASTER_CELL_DESCRIPTORS", 0) and \
@@ -1473,13 +1485,18 @@ class YTEnvSetup(object):
             return
 
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
-            assert cell_tag in cell_tags
+            assert cell_tag in cell_tags, (
+                f"Unknown master cell tag {cell_tag} in MASTER_CELL_DESCRIPTORS "
+                f"(cluster index: {cluster_index}, configured cell tags: {cell_tags})"
+            )
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
+        cell_tags = [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]
+        cls._validate_cell_descriptors(cluster_index, cell_tags)
         multidaemon_config = configs["multi"]
 
-        for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
+        for cell_index, cell_tag in enumerate(cell_tags):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
                 cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
                 if not cls.get_param("USE_SEQUOIA", cluster_index):
@@ -1558,21 +1575,35 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["controller_agent"]):
             update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
+
+            master_version = "trunk"
+            controller_agent_version = "trunk"
+            for version, components in cls.ARTIFACT_COMPONENTS.items():
+                if "master" in components:
+                    master_version = version
+                if "controller_agent" in components:
+                    controller_agent_version = version
+
             if not cls._is_ground_cluster(index) and \
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                for version, components in cls.ARTIFACT_COMPONENTS.items():
-                    yt_commands.print_debug(f"version = {version}, components = {components}")
-                    if "controller_agent" not in components:
-                        continue
-                    # COMPAT(kvk1920)
-                    if version == "trunk" or version >= "25_4":
-                        continue
+
+                # COMPAT(kvk1920)
+                if controller_agent_version != "trunk" and controller_agent_version < "25_4":
                     update_inplace(config, {
                         "set_committed_attribute_via_transaction_action": False,
                         "commit_operation_cypress_node_changes_via_system_transaction": True,
                     })
+
+            # COMPAT(kvk1920)
+            if (controller_agent_version == "trunk" or controller_agent_version >= "26_3") and \
+                    (master_version == "trunk" or master_version >= "26_3"):
+                yt_commands.print_debug("Using lazy trasaction externalization in CA")
+                update_inplace(config, {"controller_agent": {
+                    "use_lazy_transaction_externalization": True,
+                }})
+
             # COMPAT(pogorelov): controller-agent versions before 26.2 default to
             # the legacy sorted pool; force the new one to match trunk behavior.
             controller_agent_version = None
@@ -1808,15 +1839,37 @@ class YTEnvSetup(object):
             env.restore_default_rpc_proxy_dynamic_config()
 
     @classmethod
-    def _wait_for_sequoia_node_host_available(cls, driver):
+    def _wait_for_sequoia_node_host_available(cls, driver, cluster_index):
         yt_commands.print_debug("Waiting for cell with \"sequoia_node_host\" role")
-        wait(lambda: yt_commands.create(
-            "rootstock",
-            "//check_cell_role",
-            force=True,
-            driver=driver),
-            ignore_exceptions=True)
-        yt_commands.remove("//check_cell_role", force=True, driver=driver)
+        expected_cell_tags = {
+            int(cell_tag)
+            for cell_tag, descriptor in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index).items()
+            if "sequoia_node_host" in descriptor["roles"]
+        }
+        assert expected_cell_tags
+
+        def check_cell_role():
+            yt_commands.remove("//check_cell_role", force=True, driver=driver)
+            return yt_commands.create("rootstock", "//check_cell_role", force=True, driver=driver)
+
+        def proxies_have_sequoia_node_hosts():
+            proxies = yt_commands.ls("//sys/cypress_proxies", driver=driver)
+            if len(proxies) != cls.get_param("NUM_CYPRESS_PROXIES", cluster_index):
+                return False
+
+            paths = [
+                f"//sys/cypress_proxies/{proxy}/orchid/master_cell_directory/role_to_cell_tags/sequoia_node_host"
+                for proxy in proxies
+            ]
+            # COMPAT(babenko): Older Cypress proxies do not expose cached master cell roles.
+            if any(not yt_commands.exists(path, driver=driver) for path in paths):
+                wait(check_cell_role, ignore_exceptions=True)
+                yt_commands.remove("//check_cell_role", force=True, driver=driver)
+                return True
+
+            return all(set(yt_commands.get(path, driver=driver)) == expected_cell_tags for path in paths)
+
+        wait(proxies_have_sequoia_node_hosts)
 
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
@@ -1845,7 +1898,6 @@ class YTEnvSetup(object):
 
         self._restore_globals(
             cluster_index=cluster_index,
-            scheduler_count=scheduler_count,
             scheduler_pool_trees_root=scheduler_pool_trees_root,
             driver=driver,
         )
@@ -1935,6 +1987,7 @@ class YTEnvSetup(object):
                 orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
+            self._wait_for_scheduler_state_restored(driver=driver)
 
         if not self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
@@ -1944,7 +1997,7 @@ class YTEnvSetup(object):
                         "MASTER_CELL_DESCRIPTORS",
                         cluster_index
                     ).values()):
-            self._wait_for_sequoia_node_host_available(driver)
+            self._wait_for_sequoia_node_host_available(driver, cluster_index)
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)
@@ -2299,6 +2352,14 @@ class YTEnvSetup(object):
         except KeyError:
             return None
 
+    @classmethod
+    def add_cleanup_ignore_object_ids(cls, *object_ids):
+        """Preserve objects across per-method cleanup without modifying parent classes."""
+        cls._cleanup_ignore_object_ids = [
+            *getattr(cls, "_cleanup_ignore_object_ids", []),
+            *object_ids,
+        ]
+
     def _remove_objects(self, enable_secondary_cells_cleanup, driver=None):
         def list_multiple_action(list_kwargs):
             responses = yt_commands.execute_batch(
@@ -2404,7 +2465,6 @@ class YTEnvSetup(object):
 
     def _restore_globals(self,
                          cluster_index,
-                         scheduler_count,
                          scheduler_pool_trees_root,
                          driver=None):
         dynamic_master_config = self._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index)
@@ -2491,9 +2551,6 @@ class YTEnvSetup(object):
         if should_set_default_config:
             yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config, driver=driver)
 
-        if scheduler_count > 0:
-            self._wait_for_scheduler_state_restored(driver=driver)
-
     @classmethod
     def _apply_cypress_proxy_dynamic_config_patches(cls, config, cluster_index):
         if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
@@ -2571,7 +2628,17 @@ class YTEnvSetup(object):
         if not cls.TEST_MAINTENANCE_FLAGS and cls.Env.get_component_version("ytserver-master").abi >= (23, 1):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
-        config.setdefault("chunk_service", {})
+        # COMPAT(kvk1920)
+        master_version = "trunk"
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "master" in components:
+                master_version = version
+                break
+        if master_version == "trunk" or master_version >= "26_3":
+            config.setdefault("transaction_manager", {})["enable_lazy_transaction_externalization"] = True
+            config.setdefault("chunk_service", {})["use_lazy_transaction_externalization"] = True
+        else:
+            config.setdefault("cell_master", {}).setdefault("logging", {}).setdefault("message_level_overrides")["Lazy transaction externalization is disabled but someone requested it"] = "error"
 
         # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
         if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
@@ -2777,6 +2844,7 @@ class YTEnvSetup(object):
                 yt_commands.make_batch_request(abort_command, operation_id=operation_id)),
             remove_action=lambda *args, **kwargs: remove_requests.append(
                 yt_commands.make_batch_request("remove", *args, **kwargs)),
+            remove_operations_archive=self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN,
         )
 
         for response in yt_commands.execute_batch(abort_requests, driver=driver):

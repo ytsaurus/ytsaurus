@@ -23,8 +23,8 @@
 #include <contrib/ydb/library/yql/providers/dq/interface/yql_dq_task_preprocessor.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/exec/yql_dq_exectransformer.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_provider.h>
-#include <contrib/ydb/library/yql/providers/yt/actors/yql_yt_provider_factories.h>
-#include <contrib/ydb/library/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
+#include <yt/yql/providers/yt/actors/yql_yt_provider_factories.h>
+#include <yt/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
 #include <contrib/ydb/library/yql/utils/bindings/utils.h>
 
 #include <util/stream/file.h>

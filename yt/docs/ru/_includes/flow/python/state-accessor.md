@@ -16,29 +16,36 @@ StateAccessor — интерфейс для чтения, модификации
 
 Запись новых значений в таблицу стейта осуществляется транзакционно в рамках [эпохи](../../../flow/concepts/glossary.md#epoch).
 
-## Четыре типа аксессоров {#accessor-types}
+## Типы аксессоров {#accessor-types}
 
-Python SDK предоставляет четыре вида аксессоров для работы со стейтом:
+Выберите аксессор по расположению и формату стейта:
 
-| Аксессор | Формат | Получение | Описание |
-|----------|--------|-----------|----------|
-| [YsonStateAccessor](../../../flow/python/internal-state.md#yson-state-accessor) | YSON (dict) | `ctx.state(name, msg)` | Сериализация Python dict в YSON |
-| [RawStateAccessor](../../../flow/python/internal-state.md#raw-state-accessor) | `bytes` | `ctx.raw_state(name, msg)` | Сырые байты без сериализации |
-| [ProtoStateAccessor](../../../flow/python/internal-state.md#proto-state-accessor) | Protobuf | `ctx.proto_state(name, msg, ProtoClass)` | Сериализация через Protobuf |
-| [ExternalStateAccessor](../../../flow/python/external-state.md) | Payload (строка таблицы) | `ctx.external_state("/name", msg)` | Типизированный доступ к внешней таблице |
+#|
+|| **Аксессор** | **Формат** | **Получение** | **Описание** ||
+|| [YsonStateAccessor](../../../flow/python/internal-state.md#yson-state-accessor) | YSON (dict) | `ctx.state(name, msg)` | Сериализация Python dict в YSON ||
+|| [RawStateAccessor](../../../flow/python/internal-state.md#raw-state-accessor) | `bytes` | `ctx.raw_state(name, msg)` | Сырые байты без сериализации ||
+|| [ProtoStateAccessor](../../../flow/python/internal-state.md#proto-state-accessor) | Protobuf | `ctx.proto_state(name, msg, ProtoClass)` | Сериализация через Protobuf ||
+|| [ExternalStateAccessor](../../../flow/python/external-state.md) | Payload (строка таблицы) | `ctx.external_state("/name", msg)` | Типизированный доступ к внешней таблице ||
+|| [ReadOnlyExternalStateAccessor](../../../flow/python/external-state.md#external-state-joiner) | Payload (строка таблицы) | `ctx.joined_external_state("/name", msg)` | Чтение через joiner в формате строк таблицы ||
+|| [ProtoExternalStateAccessor](../../../flow/python/external-state.md#proto-external-state) | Protobuf | `ctx.proto_external_state("/name", msg, ProtoClass)` | Явная запись снапшотов через менеджер с поддержкой protobuf ||
+|| [ProtoExternalStateAccessor (только чтение)](../../../flow/python/external-state.md#proto-external-state) | Protobuf | `ctx.joined_proto_external_state("/name", msg, ProtoClass)` | Чтение снапшотов через joiner с поддержкой protobuf ||
+|#
 
-Первые три аксессора работают с [внутренним стейтом](../../../flow/python/internal-state.md) (таблицы управляются Flow автоматически). `ExternalStateAccessor` работает с [внешним стейтом](../../../flow/python/external-state.md) (пользователь создаёт таблицу самостоятельно).
+Первые три аксессора работают с [внутренним стейтом](../../../flow/python/internal-state.md) (таблицами управляет Flow). Внешние аксессоры используют настроенный менеджер или joiner и таблицу, которую вы создаёте самостоятельно. Формат задаёт эта реализация; выбор Python-аксессора его не меняет. См. [условия использования и доступность protobuf-стейта](../../../flow/python/external-state.md#proto-external-state).
 
-## Общий API {#common-api}
+## Общий API внутреннего стейта {#common-api}
 
 Все внутренние аксессоры (`YsonStateAccessor`, `RawStateAccessor`, `ProtoStateAccessor`) предоставляют единый набор методов:
 
-| Метод | Описание |
-|-------|----------|
-| `get()` | Получить значение стейта (или `None`, если стейт отсутствует) |
-| `set(value)` | Установить значение стейта |
-| `clear()` | Удалить стейт для текущего ключа |
-| `get_or_default(default)` | Получить значение или вернуть `default` |
+#|
+|| **Метод** | **Описание** ||
+|| `get()` | Получить значение стейта (или `None`, если стейт отсутствует) ||
+|| `set(value)` | Установить значение стейта ||
+|| `clear()` | Удалить стейт для текущего ключа ||
+|| `get_or_default(default)` | Получить значение или вернуть `default` ||
+|#
+
+Внутренние аксессоры также поддерживают `read_only()`. Их значения [живые и общие для батча](../../../flow/python/internal-state.md#in-place). У внешних аксессоров отдельный контракт: строковый стейт читается по полям через `Payload`, а protobuf-стейт возвращает независимые снапшоты сообщений, для записи которых нужен явный `set()`. Аксессоры присоединённого внешнего стейта запрещают запись.
 
 ## Получение аксессора {#getting-accessor}
 
@@ -65,21 +72,25 @@ class MyFunction(RowFunction):
 ```
 
 Параметры:
-- `name` — строка с именем стейта, объявленным в [статической спеке](../../../flow/concepts/glossary.md#spec-and-dynamic-spec). Для внутренних стейтов — произвольная строка из `internal_states`; для внешних стейтов — ключ из `external_state_managers`, обязательно начинающийся с `/`.
+- `name` — строка с именем стейта, объявленным в [статической спеке](../../../flow/concepts/glossary.md#spec-and-dynamic-spec). Для внутренних стейтов — строка из `internal_states`; для внешних — ключ из `external_state_managers` или, для присоединённого стейта, `external_state_joiners`, начинающийся с `/`.
 - `message` / `timer` — сообщение или таймер, для [ключа](../../../flow/concepts/glossary.md#key) которого нужно получить стейт.
-- `ProtoClass` (только для `proto_state`) — класс Protobuf-сообщения для десериализации.
+- `ProtoClass` (для `proto_state`, `proto_external_state` и `joined_proto_external_state`) — класс Protobuf-сообщения для десериализации. Для внешнего стейта имя дескриптора должно совпадать с `proto_type` менеджера или joiner-а.
 
 ## Когда использовать какой тип {#choosing-type}
 
-| Ситуация | Рекомендуемый аксессор |
-|----------|----------------------|
-| Простой словарь с несколькими полями | `ctx.state()` (YSON) |
-| Произвольные двоичные данные | `ctx.raw_state()` (Raw) |
-| Структурированные данные с фиксированной схемой | `ctx.proto_state()` (Protobuf) |
-| Данные, к которым нужен доступ из других систем | `ctx.external_state("/name", msg)` (External) |
-| Данные, требующие пользовательской таблицы | `ctx.external_state("/name", msg)` (External) |
+#|
+|| **Ситуация** | **Рекомендуемый аксессор** ||
+|| Простой словарь с несколькими полями | `ctx.state()` (YSON) ||
+|| Произвольные двоичные данные | `ctx.raw_state()` (Raw) ||
+|| Структурированные данные с фиксированной схемой | `ctx.proto_state()` (Protobuf) ||
+|| Данные, к которым нужен доступ из других систем | `ctx.external_state("/name", msg)` (External) ||
+|| Данные, требующие пользовательской таблицы | `ctx.external_state("/name", msg)` (External) ||
+|| Чтение строк таблицы без записи | `ctx.joined_external_state("/name", msg)` ||
+|| Внешний менеджер с поддержкой protobuf-стейта | `ctx.proto_external_state("/name", msg, ProtoClass)` ||
+|| Чтение protobuf-стейта через совместимый joiner | `ctx.joined_proto_external_state("/name", msg, ProtoClass)` ||
+|#
 
-## См. также
+## См. также {#see-also}
 
 - [Internal State (Python)](../../../flow/python/internal-state.md)
 - [External State (Python)](../../../flow/python/external-state.md)

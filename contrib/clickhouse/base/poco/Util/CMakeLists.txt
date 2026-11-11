@@ -12,68 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(base-poco-Util)
-
-
-target_compile_options(base-poco-Util PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(base-poco-Util PRIVATE
-  -DPOCO_HAVE_FD_EPOLL
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_OS_FAMILY_UNIX
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(base-poco-Util PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
-)
-
-target_include_directories(base-poco-Util PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
-)
-
-target_link_libraries(base-poco-Util PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  base-poco-JSON
-  base-poco-XML
-)
-
-target_sources(base-poco-Util PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/AbstractConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/Application.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/ConfigurationView.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/FilesystemConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/HelpFormatter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/IniFileConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/IntValidator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/JSONConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/LayeredConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/LoggingConfigurator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/LoggingSubsystem.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/MapConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/Option.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/OptionCallback.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/OptionException.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/OptionProcessor.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/OptionSet.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/PropertyFileConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/RegExpValidator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/ServerApplication.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/Subsystem.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/SystemConfiguration.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/Timer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/TimerTask.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/Validator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/src/XMLConfiguration.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

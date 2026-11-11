@@ -346,6 +346,8 @@ private:
     std::optional<NJobAgent::TJobProfile> JobProxyPeakMemoryProfile_;
     NControllerAgent::TCoreInfos CoreInfos_;
 
+    bool FailRequested_ = false;
+
     bool InterruptionRequested_ = false;
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
     TInstant InterruptionDeadline_;
@@ -589,7 +591,7 @@ private:
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
-    TArtifactDownloadOptions MakeArtifactDownloadOptions();
+    TArtifactDownloadContext MakeArtifactDownloadContext();
 
     // Start async artifacts download.
     TFuture<std::vector<TArtifactPtr>> DownloadArtifacts();
@@ -614,10 +616,9 @@ private:
 
     void UpdateIOStatistics(const TStatistics& statistics);
 
-    void UpdateArtifactStatistics(
+    void UpdateFileArtifactStatistics(
         i64 compressedDataSize,
-        bool cacheHit,
-        bool isLayer);
+        ECacheEventType cacheEventType);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
 

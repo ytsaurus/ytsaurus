@@ -67,8 +67,20 @@ jobs:
             ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
           '
 
-      - name: Unittests
+      - name: Check unit test binaries
+        id: check-unittest-binaries
         if: ${{ inputs.run-unittests && !cancelled() }}
+        shell: bash
+        run: |
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            if ! find "../${{ inputs.build-dir }}" -type f \( -name "unittester-*" -o -name "*-ut" \) -print -quit | grep -q .; then
+              echo "::error::No unit test binaries found in ../${{ inputs.build-dir }}"
+              exit 1
+            fi
+          '
+
+      - name: Unittests
+        if: ${{ inputs.run-unittests && !cancelled() && steps.check-unittest-binaries.outcome == 'success' }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '

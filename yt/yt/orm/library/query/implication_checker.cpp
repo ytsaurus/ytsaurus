@@ -258,7 +258,17 @@ std::vector<TExtendedConstraints> ParseToNormalForm(
         return ParseToNormalForm(expr, aliasMap, crossOp, unionOp);
     };
 
+    auto makeUnparsed = [&] {
+        TExtendedConstraints constraints;
+        constraints.UnparsedConstraints.push_back(expression);
+        return std::vector<TExtendedConstraints>{std::move(constraints)};
+    };
+
     if (const auto* binary = expression->As<TBinaryOpExpression>()) {
+        if (NQueryClient::IsLogicalBinaryOp(binary->Opcode) && !HasScalarOperands(*binary)) {
+            return makeUnparsed();
+        }
+
         if (binary->Opcode == crossOp) {
             return CrossProduct(recurse(binary->Lhs[0]), recurse(binary->Rhs[0]));
         }
@@ -359,9 +369,7 @@ std::vector<TExtendedConstraints> ParseToNormalForm(
         }
     }
 
-    TExtendedConstraints constraints;
-    constraints.UnparsedConstraints.push_back(expression);
-    return {std::move(constraints)};
+    return makeUnparsed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

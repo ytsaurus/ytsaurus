@@ -175,12 +175,11 @@ void EmitHierarchicalJoinInfo(
 
 void GetFrontQueryInfo(
     TFluentMap fluent,
-    const TConstBaseQueryPtr query,
-    bool allowUnorderedGroupByWithLimit)
+    const TConstBaseQueryPtr query)
 {
     fluent
-        .Item("is_ordered_scan").Value(query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered)
-        .Item("scan_order").Value(FormatEnum(query->GetScanOrder(allowUnorderedGroupByWithLimit)))
+        .Item("is_ordered_scan").Value(query->ScanOrder == EScanOrder::Ordered)
+        .Item("scan_order").Value(FormatEnum(query->ScanOrder))
         .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
             fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
         });
@@ -190,7 +189,7 @@ void GetFrontQueryInfo(
     }
 }
 
-void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnorderedGroupByWithLimit)
+void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query)
 {
     const auto& predicate = query->WhereClause;
 
@@ -235,7 +234,7 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnord
     EmitHierarchicalJoinInfo(fluent, query->HierarchicalJoinsBeforeGroupBy, "hierarchical_joins_before_group_by");
     EmitHierarchicalJoinInfo(fluent, query->HierarchicalJoinsAfterGroupBy, "hierarchical_joins_after_group_by");
 
-    GetFrontQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
+    GetFrontQueryInfo(fluent, query);
 }
 
 void BuildQueryDescriptor(
@@ -244,7 +243,6 @@ void BuildQueryDescriptor(
     const TPlanFragmentPtr& fragment,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
-    bool allowUnorderedGroupByWithLimit,
     bool allowReverseScanForOrderBy,
     bool subquery = false)
 {
@@ -253,16 +251,33 @@ void BuildQueryDescriptor(
     fluent
         .Item(subquery ? "subquery" : "query").DoMap([&] (auto fluent) {
             if (fragment->SubqueryFragment) {
-                GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
+                GetQueryInfo(fluent, query);
                 BuildQueryDescriptor(
                     fluent,
                     connection,
                     fragment->SubqueryFragment,
                     options,
                     memoryChunkProvider,
-                    allowUnorderedGroupByWithLimit,
                     allowReverseScanForOrderBy,
                     /*subquery*/ true);
+            } else if (fragment->UnionAllQuery) {
+                GetQueryInfo(fluent, query);
+
+                fluent
+                    .Item("union_all_subqueries").DoListFor(
+                        fragment->UnionAllQuery->SubqueryFragments,
+                        [&] (auto fluent, const TPlanFragmentPtr& subqueryPlanFragment) {
+                            fluent.Item().DoMap([&] (auto fluent) {
+                                BuildQueryDescriptor(
+                                    fluent,
+                                    connection,
+                                    subqueryPlanFragment,
+                                    options,
+                                    memoryChunkProvider,
+                                    allowReverseScanForOrderBy,
+                                    /*subquery*/ true);
+                            });
+                        });
             } else {
                 auto inferred = InferQueryRanges(
                     connection,
@@ -274,18 +289,18 @@ void BuildQueryDescriptor(
 
                 const auto& coordinatedQuery = inferred.CoordinatedQuery;
 
-                GetQueryInfo(fluent, coordinatedQuery, allowUnorderedGroupByWithLimit);
+                GetQueryInfo(fluent, coordinatedQuery);
                 GetReadRangesInfo(fluent, connection, query, fragment->DataSource, inferred, options, memoryChunkProvider);
 
                 auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(coordinatedQuery);
                 fluent
                     .Item("bottom_query")
                     .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
-                        GetQueryInfo(fluent, bottomQuery, allowUnorderedGroupByWithLimit);
+                        GetQueryInfo(fluent, bottomQuery);
                     });
                 fluent.Item("front_query")
                     .DoMap([&, frontQuery = frontQuery] (auto fluent) {
-                        GetFrontQueryInfo(fluent, frontQuery, allowUnorderedGroupByWithLimit);
+                        GetFrontQueryInfo(fluent, frontQuery);
                     });
             }
         });
@@ -297,7 +312,6 @@ NYson::TYsonString BuildExplainQueryYson(
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
-    bool allowUnorderedGroupByWithLimit,
     bool allowReverseScanForOrderBy)
 {
     return BuildYsonStringFluently()
@@ -311,7 +325,6 @@ NYson::TYsonString BuildExplainQueryYson(
                 fragment,
                 options,
                 memoryChunkProvider,
-                allowUnorderedGroupByWithLimit,
                 allowReverseScanForOrderBy);
         });
 }

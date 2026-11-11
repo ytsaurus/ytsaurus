@@ -1,5 +1,7 @@
 #include "functions.h"
 
+#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/output_collector.h>
@@ -47,6 +49,7 @@ void TFinalMessage::Register(TRegistrar registrar)
 
 // The functions below are referenced by their registered names in the pipeline spec only.
 
+//! Copies the key of a queue row or of a #TKeyMessage into a #TKeyMessage.
 class TQueueReaderFunction
     : public IProcessFunction
 {
@@ -59,6 +62,52 @@ public:
         auto result = New<TKeyMessage>();
         result->Key = GetColumnValue<ui64>(message, "key");
         output->AddMessage(context->ConvertToMessage(result));
+    }
+};
+
+//! Derives two offer keys per input and loads their statuses in one batch.
+class TManualStatusJoinFunction
+    : public IBatchProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        context->InitExternalStateClient(Status_, "/status");
+    }
+
+    void Process(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        THashSet<TKey> keys;
+        for (const auto& message : input->GetMessages()) {
+            for (int index = 0; index < 2; ++index) {
+                keys.insert(GetOfferKey(message, index));
+            }
+        }
+
+        NConcurrency::WaitFor(Status_.PreloadKeyStates(keys))
+            .ThrowOnError();
+
+        for (const auto& message : input->GetMessages()) {
+            for (int index = 0; index < 2; ++index) {
+                auto state = Status_.GetState(GetOfferKey(message, index));
+                auto result = New<TFinalMessage>();
+                result->Key = GetColumnValue<ui64>(message, "key");
+                result->Kind = index;
+                result->Count = state->IsEmpty() ? -1 : state->GetColumnValue<i64>("status");
+                output->SetParents({message}, {}, {})->AddMessage(context->ConvertToMessage(result));
+            }
+        }
+    }
+
+private:
+    TJoinedStateKeyClient<TSimpleExternalState> Status_;
+
+    static TKey GetOfferKey(const TInputMessageConstPtr& message, int index)
+    {
+        return MakeKey(Format("%v/%v", GetColumnValue<ui64>(message, "key"), index));
     }
 };
 
@@ -99,7 +148,7 @@ class TStateAndTimerFunction
 public:
     void Init(const IRuntimeInitContextPtr& context) override
     {
-        Increment_ = context->GetParameters<TCounterParameters>()->Increment;
+        Parameters_ = context->GetParameters<TCounterParameters>();
         context->InitClient<i64>(Count_, "count");
     }
 
@@ -109,7 +158,9 @@ public:
         const IRuntimeContextPtr& context) override
     {
         auto state = Count_.GetState(message->Key);
-        *state = *state + Increment_ * context->GetDynamicParameters<TCounterDynamicParameters>()->Multiplier;
+        auto parameters = context->GetParameters<TCounterParameters>();
+        YT_VERIFY(parameters == Parameters_);
+        *state = *state + parameters->Increment * context->GetDynamicParameters<TCounterDynamicParameters>()->Multiplier;
 
         auto result = New<TStageMessage>();
         result->Key = GetColumnValue<ui64>(message, "key");
@@ -136,7 +187,7 @@ public:
     }
 
 private:
-    i64 Increment_ = 1;
+    TIntrusivePtr<TCounterParameters> Parameters_;
     TMutableStateKeyClient<i64> Count_;
 };
 
@@ -177,6 +228,7 @@ YT_FLOW_DEFINE_YSON_MESSAGE(TStageMessage);
 YT_FLOW_DEFINE_YSON_MESSAGE(TFinalMessage);
 
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TQueueReaderFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TManualStatusJoinFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TStateAndTimerFunction, TCounterParameters, TCounterDynamicParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TMergeFunction);
 

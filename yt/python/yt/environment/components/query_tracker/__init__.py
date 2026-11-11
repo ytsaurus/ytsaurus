@@ -26,6 +26,8 @@ class QueryTracker(YTServerComponentBase, YTComponent):
     def prepare(self, env, config):
         logger.info("Preparing query tracker")
 
+        self.modify_query_tracker_config = config.get("modify_query_tracker_config")
+
         if env.get_ytserver_all_path() is not None:
             ytserver_all_path = os.path.abspath(env.get_ytserver_all_path())
             os.symlink(ytserver_all_path, os.path.join(env.get_bin_path(), f"ytserver-{self.DASHED_NAME}"))
@@ -137,6 +139,12 @@ class QueryTracker(YTServerComponentBase, YTComponent):
                 "update_period": "100ms",
             },
         }
+
+    def override_common_settings(self, config, instance_index: int):
+        if self.modify_query_tracker_config is not None:
+            self.modify_query_tracker_config(config)
+
+        return config
 
     def wait_for_readiness(self, address):
         wait(lambda: self.client.get(f"//sys/query_tracker/instances/{address}/orchid/service/version"),

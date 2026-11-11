@@ -4,12 +4,13 @@ TEST_SRCS(
     test.py
 )
 
+REQUIREMENTS(cpu:1)
+
 IF (SANITIZER_TYPE OR NOT OPENSOURCE)
     REQUIREMENTS(ram:32)
 ENDIF()
 
 IF (SANITIZER_TYPE OR WITH_VALGRIND)
-    TIMEOUT(1800)
     SIZE(LARGE)
     INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
 ELSE()
@@ -19,7 +20,7 @@ ELSE()
 ENDIF()
 
 FORK_TESTS()
-FORK_SUBTESTS()
+# No FORK_SUBTESTS() to keep all modes of a SQL case in one process so they share run_file.cache.
 SPLIT_FACTOR(10)
 
 DEPENDS(
@@ -42,9 +43,5 @@ PEERDIR(
 )
 
 NO_CHECK_IMPORTS()
-
-IF (SANITIZER_TYPE == "memory")
-    TAG(ya:not_autocheck) # YQL-15385
-ENDIF()
 
 END()

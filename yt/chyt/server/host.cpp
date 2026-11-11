@@ -26,11 +26,7 @@
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/helpers.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
@@ -62,6 +58,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <Access/AccessControl.h>
 #include <Access/User.h>
@@ -195,18 +193,14 @@ public:
     TImpl(
         THost* owner,
         IInvokerPtr controlInvoker,
-        TYtConfigPtr config,
-        TConnectionCompoundConfigPtr connectionConfig,
-        EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-        NYTree::INodePtr clusterConnectionNode,
-        TPorts ports)
+        NNative::IConnectionPtr connection,
+        TPorts ports,
+        TYtConfigPtr config)
         : Owner_(owner)
         , ControlInvoker_(std::move(controlInvoker))
         , Config_(std::move(config))
+        , Connection_(std::move(connection))
         , Ports_(ports)
-        , ConnectionConfig_(std::move(connectionConfig))
-        , ConnectionDynamicConfigPolicy_(connectionDynamicConfigPolicy)
-        , ClusterConnectionNode_(std::move(clusterConnectionNode))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -225,6 +219,7 @@ public:
         , ClickHouseTaskPullerInvoker_(CreateClickHouseInvoker(TaskPullerThreadPool_->GetInvoker()))
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
         , RemoteTableSchemaCaches_(RemoteClustersLimit)
+        , EffectiveConfig_(Config_)
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         TableAttributesToFetch_ = TableAttributesToFetch;
@@ -254,7 +249,7 @@ public:
 
         if (Config_->CypressObjectRepository) {
             CypressObjectRepository_ = New<TCypressObjectRepository>(
-                DictionariesClient_,
+                SqlObjectsClient_,
                 Config_->CypressObjectRepository,
                 FetcherInvoker_);
         }
@@ -364,6 +359,15 @@ public:
     DB::ContextMutablePtr GetContext() const
     {
         return getContext();
+    }
+
+    void Reconfigure(const TYtDynamicConfigPtr& dynamicConfig)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
+
+        auto config = CloneYsonStruct(Config_);
+        config->QuerySettings = dynamicConfig->QuerySettings;
+        EffectiveConfig_.Store(std::move(config));
     }
 
     void Start()
@@ -947,9 +951,14 @@ public:
         return QueryRegistry_;
     }
 
-    TYtConfigPtr GetConfig() const
+    const TYtConfigPtr& GetConfig() const
     {
         return Config_;
+    }
+
+    TYtConfigPtr GetEffectiveConfig() const
+    {
+        return EffectiveConfig_.Acquire();
     }
 
     EInstanceState GetInstanceState() const
@@ -1188,10 +1197,8 @@ private:
     THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
     const TYtConfigPtr Config_;
+    const NNative::IConnectionPtr Connection_;
     TPorts Ports_;
-    const TConnectionCompoundConfigPtr ConnectionConfig_;
-    const EClusterConnectionDynamicConfigPolicy ConnectionDynamicConfigPolicy_;
-    const NYTree::INodePtr ClusterConnectionNode_;
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
@@ -1207,13 +1214,13 @@ private:
     IInvokerPtr ClickHouseTaskPullerInvoker_;
     TActionQueuePtr SystemLogTableExporterActionQueue_;
 
-    NApi::NNative::IConnectionPtr Connection_;
-
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
     NApi::NNative::IClientPtr DictionariesClient_;
     NApi::NNative::IClientPtr SqlObjectsClient_;
     NApi::NNative::TClientCachePtr ClientCache_;
+
+    TAtomicIntrusivePtr<TYtConfig> EffectiveConfig_;
 
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
@@ -1250,38 +1257,7 @@ private:
 
     void InitializeClients()
     {
-        NApi::NNative::TConnectionOptions connectionOptions;
-        connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-        connectionOptions.CreateQueueConsumerRegistrationManager =
-            Config_->CypressObjectRepository && Config_->MaterializedViews;
-
-        Connection_ = NApi::NNative::CreateConnection(
-            ConnectionConfig_,
-            connectionOptions);
         ChannelFactory_ = Connection_->GetChannelFactory();
-
-        if (ConnectionDynamicConfigPolicy_ != EClusterConnectionDynamicConfigPolicy::FromStaticConfig) {
-            // Cache sizes belong to the clique's memory budget, including overrides
-            // applied by the bootstrap config postprocessor.
-            auto cachePatch = BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("block_cache").Value(ConnectionConfig_->Dynamic->BlockCache)
-                    .Item("chunk_meta_cache").Value(ConnectionConfig_->Dynamic->ChunkMetaCache)
-                .EndMap();
-            auto staticPatch = ConnectionDynamicConfigPolicy_ == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
-                ? cachePatch
-                : PatchNode(ClusterConnectionNode_, cachePatch);
-            NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
-                Connection_,
-                EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
-                staticPatch,
-                Logger());
-            Connection_->GetClusterDirectorySynchronizer()->Start();
-        }
-
-        // Kick-start node directory synchronizing; otherwise it will start only with first query.
-        Connection_->GetNodeDirectorySynchronizer()->Start();
-
         ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
         auto getClientForUser = [&] (const std::string& user) {
@@ -1540,20 +1516,21 @@ private:
 
 THost::THost(
     IInvokerPtr controlInvoker,
+    NNative::IConnectionPtr connection,
     TPorts ports,
-    TYtConfigPtr config,
-    TConnectionCompoundConfigPtr connectionConfig,
-    EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-    NYTree::INodePtr clusterConnectionNode)
+    TYtConfigPtr config)
     : Impl_(New<TImpl>(
         this,
         std::move(controlInvoker),
-        std::move(config),
-        std::move(connectionConfig),
-        connectionDynamicConfigPolicy,
-        std::move(clusterConnectionNode),
-        ports))
+        std::move(connection),
+        ports,
+        std::move(config)))
 { }
+
+void THost::Reconfigure(const TYtDynamicConfigPtr& dynamicConfig)
+{
+    Impl_->Reconfigure(dynamicConfig);
+}
 
 void THost::Start()
 {
@@ -1751,9 +1728,14 @@ TQueryRegistryPtr THost::GetQueryRegistry() const
     return Impl_->GetQueryRegistry();
 }
 
-TYtConfigPtr THost::GetConfig() const
+const TYtConfigPtr& THost::GetConfig() const
 {
     return Impl_->GetConfig();
+}
+
+TYtConfigPtr THost::GetEffectiveConfig() const
+{
+    return Impl_->GetEffectiveConfig();
 }
 
 EInstanceState THost::GetInstanceState() const

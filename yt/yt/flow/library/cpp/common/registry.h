@@ -55,6 +55,16 @@ struct TComputationInvokesProcessFunctionSync<T, std::void_t<decltype(T::Invokes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Parameters of sources and sinks parsed by #TRegistry::ValidatePipelineSpecParseability, keyed by
+//! (computation id, local stream or sink id). Entities that fail to parse are absent.
+struct TParsedPipelineParameters
+{
+    THashMap<std::pair<TComputationId, TStreamId>, NYTree::TYsonStructPtr> Sources;
+    THashMap<std::pair<TComputationId, TSinkId>, NYTree::TYsonStructPtr> Sinks;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRegistry
 {
 public:
@@ -275,14 +285,20 @@ public:
 
     //! Recursively walks the (already-parsed) parameters struct and collects every
     //! YT-path ownership claim declared on a path-typed field via
-    //! `.AddOption(EYTPathOwnership)`. Each claimed path is normalized.
-    std::vector<TYTPathClaim> CollectYTPathClaims(const NYTree::TYsonStructPtr& parameters) const;
+    //! `.AddOption(EYTPathOwnership)` or `.AddOption(TYTPathOwnershipResolver)`. Each claimed path is normalized.
+    //! A path yields one claim per cluster in the union of its `cluster` and `clusters` attributes, or a claim on
+    //! |pipelineCluster| if both are unset.
+    std::vector<TYTPathClaim> CollectYTPathClaims(
+        const NYTree::TYsonStructPtr& parameters,
+        const std::optional<std::string>& pipelineCluster = std::nullopt) const;
 
     void ValidateYsonMessageType(TStringBuf name, const TYsonMessagePtr& ysonMessage) const;
 
     // Validate spec and return list of errors.
     // Possible errors: failed parsing, unrecognized fields.
-    std::vector<TError> ValidatePipelineSpecParseability(const NYTree::IMapNodePtr& specNode) const;
+    std::vector<TError> ValidatePipelineSpecParseability(
+        const NYTree::IMapNodePtr& specNode,
+        TParsedPipelineParameters* parsedParameters = nullptr) const;
     std::vector<TError> ValidateDynamicPipelineSpecParseability(const TPipelineSpecPtr& spec, const NYTree::IMapNodePtr& dynamicSpecNode) const;
 
 protected:

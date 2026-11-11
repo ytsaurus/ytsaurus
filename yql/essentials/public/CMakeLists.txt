@@ -15,3 +15,4 @@
 add_subdirectory(udf)
 add_subdirectory(decimal)
 add_subdirectory(types)
+add_subdirectory(utf8)

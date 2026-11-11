@@ -376,6 +376,7 @@ type StartTxOptions struct {
 	Attributes                 map[string]any `http:"attributes,omitnil"`
 
 	*TransactionOptions
+	*MutatingOptions
 	*ReadRetryOptions
 }
 
@@ -1334,6 +1335,8 @@ type AlterTableOptions struct {
 type AlterTableReplicaOptions struct {
 	Enabled *bool             `http:"enabled,omitnil"`
 	Mode    *TableReplicaMode `http:"mode,omitnil"`
+
+	*MutatingOptions
 }
 
 // Tx is high level API for master transactions.
@@ -1386,6 +1389,10 @@ type LookupRowsOptions struct {
 
 	// Columns filters columns in lookup result.
 	Columns []string `http:"column_names,omitnil"`
+
+	// VersionedReadOptions adds "$timestamp:columnName" to the result
+	// if ReadMode is VersionedReadModeLatestTimestamp.
+	VersionedReadOptions *VersionedReadOptions `http:"versioned_read_options,omitnil"`
 
 	*TransactionOptions
 }
@@ -1458,6 +1465,10 @@ type SelectRowsOptions struct {
 	UseCanonicalNullRelations *bool `http:"use_canonical_null_relations,omitnil"`
 
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
+
+	// VersionedReadOptions adds "$timestamp:columnName" to the result
+	// if ReadMode is VersionedReadModeLatestTimestamp.
+	VersionedReadOptions *VersionedReadOptions `http:"versioned_read_options,omitnil"`
 
 	PlaceholderValues any `http:"placeholder_values,omitnil"`
 

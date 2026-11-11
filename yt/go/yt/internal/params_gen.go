@@ -710,6 +710,7 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 		w.Any(o.Attributes)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
@@ -737,6 +738,7 @@ func logStartTxOptions(o *yt.StartTxOptions) []log.Field {
 		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
 	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
 	return fields
 }
@@ -2176,6 +2178,7 @@ func writeAlterTableReplicaOptions(w *yson.Writer, o *yt.AlterTableReplicaOption
 		w.MapKeyString("mode")
 		w.Any(o.Mode)
 	}
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func logAlterTableReplicaOptions(o *yt.AlterTableReplicaOptions) []log.Field {
@@ -2189,6 +2192,7 @@ func logAlterTableReplicaOptions(o *yt.AlterTableReplicaOptions) []log.Field {
 	if o.Mode != nil {
 		fields = append(fields, log.Any("mode", o.Mode))
 	}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	return fields
 }
 
@@ -2220,6 +2224,10 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 		w.MapKeyString("column_names")
 		w.Any(o.Columns)
 	}
+	if o.VersionedReadOptions != nil {
+		w.MapKeyString("versioned_read_options")
+		w.Any(o.VersionedReadOptions)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
@@ -2236,6 +2244,9 @@ func logLookupRowsOptions(o *yt.LookupRowsOptions) []log.Field {
 	}
 	if o.Columns != nil {
 		fields = append(fields, log.Any("column_names", o.Columns))
+	}
+	if o.VersionedReadOptions != nil {
+		fields = append(fields, log.Any("versioned_read_options", o.VersionedReadOptions))
 	}
 	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	return fields
@@ -2426,6 +2437,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("timestamp")
 		w.Any(o.Timestamp)
 	}
+	if o.VersionedReadOptions != nil {
+		w.MapKeyString("versioned_read_options")
+		w.Any(o.VersionedReadOptions)
+	}
 	if o.PlaceholderValues != nil {
 		w.MapKeyString("placeholder_values")
 		w.Any(o.PlaceholderValues)
@@ -2453,6 +2468,9 @@ func logSelectRowsOptions(o *yt.SelectRowsOptions) []log.Field {
 	}
 	if o.Timestamp != nil {
 		fields = append(fields, log.Any("timestamp", o.Timestamp))
+	}
+	if o.VersionedReadOptions != nil {
+		fields = append(fields, log.Any("versioned_read_options", o.VersionedReadOptions))
 	}
 	if o.PlaceholderValues != nil {
 		fields = append(fields, log.Any("placeholder_values", o.PlaceholderValues))
@@ -3959,6 +3977,10 @@ func (p *StartTxParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *StartTxParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
+}
+
+func (p *StartTxParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 func (p *StartTxParams) ReadRetryOptions() **yt.ReadRetryOptions {
@@ -7012,6 +7034,10 @@ func (p *AlterTableReplicaParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("replica_id")
 	w.Any(p.id)
 	writeAlterTableReplicaOptions(w, p.options)
+}
+
+func (p *AlterTableReplicaParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type CreateTableBackupParams struct {

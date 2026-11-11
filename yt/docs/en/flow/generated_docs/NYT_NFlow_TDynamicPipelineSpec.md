@@ -8,13 +8,13 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `target_state` | **Type**: [NYT::NFlow::EPipelineState](./all_yson_structs#NYT_NFlow_EPipelineState)
 **Default value**: `unknown`
 Target state of the system. Use the `start-pipeline`, `stop-pipeline`, and `pause-pipeline` commands to change it. ||
-|| `computations` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicComputationSpec](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec)`>>`
+|| `computations` | **Type**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicComputationSpec](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec)`>>`
 **Default value**: `{}`
 Named list of all pipeline nodes. ||
-|| `resources` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicResourceSpec](./all_yson_structs#NYT_NFlow_TDynamicResourceSpec)`>>`
+|| `resources` | **Type**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicResourceSpec](./all_yson_structs#NYT_NFlow_TDynamicResourceSpec)`>>`
 **Default value**: `{}`
  ||
-|| `throttlers` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
+|| `throttlers` | **Type**: `THashMap<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
 **Default value**: `{}`
 A set of named distributed throttlers common to all `Computation` pipeline nodes. Keys are throttler IDs and must match `[0-9A-Za-z_-]+`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `job_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
@@ -35,6 +35,9 @@ A set of named distributed throttlers common to all `Computation` pipeline nodes
 || `enable_mermaid_graph_describe` | **Type**: `bool`
 **Default value**: `false`
  ||
+|| `enable_united_stream_metrics` | **Type**: `bool`
+**Default value**: `true`
+Enables export of metrics for aggregated streams to Monitoring (`true` by default). Setting this option to `false` stops these exports, so dependent alerts, dashboards, and reports no longer receive the data. The option affects metric export only; metrics for individual streams continue to be exported. ||
 || `flow_view_cache_codec` | **Type**: [NYT::NCompression::ECodec](./all_yson_structs#NYT_NCompression_ECodec)
 **Default value**: `zstd_2`
  ||

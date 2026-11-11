@@ -701,11 +701,18 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        ValidateAccountedWriteLogMemory();
+
         TransactionIdToLockState_.clear();
         TransactionIdToWriteLogState_.clear();
 
-        // TODO(tea-mur): Proper validation of write log memory accounting. See YT-29082
-        IncreaseAccountedWriteLogMemory(-WriteLogsMemoryTrackerGuard_.GetSize());
+        WriteLogsMemoryTrackerGuard_.SetSize(0);
+        Tablet_->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].store(
+            0,
+            std::memory_order::relaxed);
+
+        Tablet_->SetPendingUserWriteRecordCount(0);
+        Tablet_->SetPendingReplicatorWriteRecordCount(0);
     }
 
     void Save(TSaveContext& context) const override
@@ -756,11 +763,15 @@ public:
         for (int index = 0; index < std::ssize(TransactionIdToWriteLogState_); ++index) {
             auto transactionId = Load<TTransactionId>(context);
             const auto& writeLogState = GetOrCrash(TransactionIdToWriteLogState_, transactionId);
-            writeLogState->AsyncLoad(context);
+            auto lockedGuard = TWriteLogMemoryAccountingGuard(this, writeLogState->LockedWriteLog);
+            auto locklessGuard = TWriteLogMemoryAccountingGuard(this, writeLogState->LocklessWriteLog);
+            auto delayedMemoryUsage = writeLogState->GetDelayedWriteLog().GetMemoryUsage();
+            auto delayedGuard = Finally([this, &writeLogState, delayedMemoryUsage] {
+                IncreaseAccountedWriteLogMemory(
+                    writeLogState->GetDelayedWriteLog().GetMemoryUsage() - delayedMemoryUsage);
+            });
 
-            IncreaseAccountedWriteLogMemory(writeLogState->LockedWriteLog.GetByteSize());
-            IncreaseAccountedWriteLogMemory(writeLogState->LocklessWriteLog.GetByteSize());
-            IncreaseAccountedWriteLogMemory(writeLogState->GetDelayedWriteLog().GetByteSize());
+            writeLogState->AsyncLoad(context);
         }
     }
 
@@ -780,16 +791,13 @@ public:
 
             for (const auto& writeRecord : writeLogState->LockedWriteLog) {
                 LockRows(transaction, writeRecord);
-                UpdateWriteRecordCounters(transaction, writeRecord);
             }
 
-            for (const auto& writeRecord : writeLogState->LocklessWriteLog) {
-                UpdateWriteRecordCounters(transaction, writeRecord);
-            }
-
-            for (const auto& writeRecord : writeLogState->GetDelayedWriteLog()) {
-                UpdateWriteRecordCounters(transaction, writeRecord);
-            }
+            UpdateWriteRecordCounters(
+                transaction,
+                std::ssize(writeLogState->LockedWriteLog) +
+                    std::ssize(writeLogState->LocklessWriteLog) +
+                    std::ssize(writeLogState->GetDelayedWriteLog()));
 
             if (writeLogState->RowsPrepared) {
                 PrepareLockedRows(transaction);
@@ -1034,19 +1042,19 @@ private:
             const TTransactionWriteLog& writeLog)
             : Owner_(owner)
             , WriteLog_(writeLog)
-            , BytesUsedAtCreation_(WriteLog_.GetByteSize())
+            , MemoryUsageAtCreation_(WriteLog_.GetMemoryUsage())
         { }
 
         ~TWriteLogMemoryAccountingGuard()
         {
-            i64 delta = WriteLog_.GetByteSize() - BytesUsedAtCreation_;
+            i64 delta = WriteLog_.GetMemoryUsage() - MemoryUsageAtCreation_;
             Owner_->IncreaseAccountedWriteLogMemory(delta);
         }
 
     private:
         TTabletWriteManager* Owner_;
         const TTransactionWriteLog& WriteLog_;
-        i64 BytesUsedAtCreation_;
+        i64 MemoryUsageAtCreation_;
     };
 
     THashMap<TTransactionId, TTransactionWriteLogStatePtr> TransactionIdToWriteLogState_;
@@ -1153,6 +1161,23 @@ private:
             std::memory_order::relaxed);
     }
 
+    void ValidateAccountedWriteLogMemory()
+    {
+        i64 expectedMemoryUsage = 0;
+        for (const auto& [_, writeState] : TransactionIdToWriteLogState_) {
+            expectedMemoryUsage += writeState->LockedWriteLog.GetMemoryUsage();
+            expectedMemoryUsage += writeState->LocklessWriteLog.GetMemoryUsage();
+            expectedMemoryUsage += writeState->GetDelayedWriteLog().GetMemoryUsage();
+        }
+
+        if (WriteLogsMemoryTrackerGuard_) {
+            auto accountedMemoryUsage = WriteLogsMemoryTrackerGuard_.GetSize();
+            YT_TLOG_ALERT_IF(accountedMemoryUsage != expectedMemoryUsage, "Write log memory accounting mismatch")
+                .With("AccountedMemoryUsage", accountedMemoryUsage)
+                .With("ExpectedMemoryUsage", expectedMemoryUsage);
+        }
+    }
+
     void FreezeWriteLog(TTransactionIndexedWriteLog* writeLog)
     {
         auto guard = TWriteLogMemoryAccountingGuard(
@@ -1164,14 +1189,12 @@ private:
 
     void UpdateWriteRecordCounters(
         TTransaction* transaction,
-        const TTransactionWriteRecord& writeRecord,
-        int multiplier = 1)
+        int delta)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        IncreaseAccountedWriteLogMemory(writeRecord.GetByteSize() * multiplier);
         bool replicatorWrite = IsReplicatorWrite(transaction);
-        IncrementTabletPendingWriteRecordCount(replicatorWrite, multiplier);
+        IncrementTabletPendingWriteRecordCount(replicatorWrite, delta);
     }
 
     void EnqueueTransactionWriteRecord(
@@ -1203,7 +1226,7 @@ private:
             writeLog->Enqueue(writeRecord);
         }
 
-        UpdateWriteRecordCounters(transaction, writeRecord);
+        UpdateWriteRecordCounters(transaction, /*delta*/ 1);
 
         YT_TLOG_DEBUG("Write record enqueued")
             .With("TransactionId", transaction->GetId())
@@ -1219,9 +1242,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        for (const auto& writeRecord : *writeLog) {
-            UpdateWriteRecordCounters(transaction, writeRecord, /*multiplier*/ -1);
-        }
+        UpdateWriteRecordCounters(transaction, -std::ssize(*writeLog));
 
         auto guard = TWriteLogMemoryAccountingGuard(
             this,

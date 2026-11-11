@@ -5,22 +5,22 @@ Source: [yt/yt/flow/library/cpp/common/message-inl.h]({{source-root}}/yt/yt/flow
 
 #|
 || **Parameter** | **Description** ||
-|| `message_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TMessageIdTag>`
+|| `message_id` | **Type**: [NYT::NFlow::TMessageId](./all_yson_structs#NYT_NFlow_TMessageId)
 **Required parameter**
 Unique message ID. ||
-|| `system_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `system_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
 Timestamp of the specific message creation. ||
-|| `alignment_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `alignment_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
  ||
-|| `event_timestamp` | **Type**: `NYT::TStrongTypedef<unsigned long, NYT::NFlow::TSystemTimestampTag, NYT::TStrongTypedefOptions{true}>`
+|| `event_timestamp` | **Type**: [NYT::NFlow::TSystemTimestamp](./all_yson_structs#NYT_NFlow_TSystemTimestamp)
 **Required parameter**
 Timestamp of the real event associated with this message. ||
-|| `stream_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>`
+|| `stream_id` | **Type**: [NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)
 **Required parameter**
 The stream this message belongs to. ||
-|| `payload` | **Type**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TPayloadTag, NYT::TStrongTypedefOptions{true}>`
+|| `payload` | **Type**: [NYT::NFlow::TPayload](./all_yson_structs#NYT_NFlow_TPayload)
 **Required parameter**
 The data itself. ||
 || `payload_schema` | **Type**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`

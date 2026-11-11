@@ -39,9 +39,11 @@ public:
         ui16 interconnectPort,
         const TString& hostName,
         const TString& ip,
-        TGlobalWorkerManagerActorIdOptions actorIdOptions)
+        TGlobalWorkerManagerActorIdOptions actorIdOptions,
+        EGwmHostAddress gwmHostAddress)
         : Config(config), SchedulerConfig(schedulerConfig)
         , ActorIdOptions(actorIdOptions)
+        , GwmHostAddress(gwmHostAddress)
         , Role(role)
         , Host(hostName)
         , Ip(ip)
@@ -112,7 +114,7 @@ public:
 
         auto attributes = NYT::BuildYsonNodeFluently()
             .BeginMap()
-                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetHostname())
+                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetGwmHost())
                 .Item(NCommonAttrs::GRPCPORT_ATTR).Value(GrpcPort) // optional
                 .Item(NCommonAttrs::UPLOAD_EXECUTABLE_ATTR).Value("true") // compat
             .EndMap();
@@ -160,11 +162,11 @@ public:
         Register(actorSystem, CreateNodeIdCleaner(GetWrapper(actorSystem), co));
     }
 
-    TString GetHostname() override {
+    TString GetHostname() const override {
         return Host;
     }
 
-    TString GetIp() override {
+    TString GetIp() const override {
         return Ip;
     }
 
@@ -220,14 +222,14 @@ public:
         return *Config;
     }
 
-    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) override {
-        auto key = std::make_tuple(proxyAddress, user, token);
+    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token, const TString& jobProxySocketPath = {}) override {
+        auto key = std::make_tuple(proxyAddress, user, token, jobProxySocketPath);
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         if (it != Yt.end()) {
             return it->second;
         } else {
-            auto client = GetYtClient(proxyAddress, user, token);
+            auto client = GetYtClient(proxyAddress, user, token, jobProxySocketPath);
             auto wrapper = CreateYtWrapper(client, proxyAddress);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
@@ -241,12 +243,12 @@ public:
 
     NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) override {
         const auto& config = GetConfig();
-        return GetWrapper(actorSystem, config.GetProxyAddress(), config.GetUser(), config.GetToken());
+        return GetWrapper(actorSystem, config.GetProxyAddress(), config.GetUser(), config.GetToken(), /*jobProxySocketPath*/ {});
     }
 
     NActors::TActorId GetWrapper() override {
         const auto& config = GetConfig();
-        auto key = std::make_tuple(config.GetProxyAddress(), config.GetUser(), config.GetToken());
+        auto key = std::make_tuple(config.GetProxyAddress(), config.GetUser(), config.GetToken(), TString());
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         Y_ABORT_UNLESS(it != Yt.end());
@@ -292,18 +294,27 @@ public:
     }
 
 protected:
+    TString GetGwmHost() const
+    {
+        return GwmHostAddress == EGwmHostAddress::Ip ? GetGrpcHost() : GetHostname();
+    }
+
     TActorId Register(TActorSystem* actorSystem, IActor* actor) {
         auto id = actorSystem->Register(actor);
         Children.push_back(id);
         return id;
     }
 
-    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token)
+    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token, const TString& jobProxySocketPath = {})
     {
         NYT::NApi::NRpcProxy::TConnectionConfigPtr config = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
         config->RequestCodec = NYT::NCompression::ECodec::Lz4;
         config->ClusterUrl = proxyAddress;
         config->ConnectionType = NYT::NApi::EConnectionType::Rpc;
+        if (!jobProxySocketPath.empty()) {
+            config->ProxyUnixDomainSocket = jobProxySocketPath;
+            config->EnableProxyDiscovery = false;
+        }
 
         auto connection = NYT::NApi::NRpcProxy::CreateConnection(config);
 
@@ -324,6 +335,7 @@ protected:
     const TMaybe<NProto::TDqConfig::TYtCoordinator> Config;
     const NProto::TDqConfig::TScheduler SchedulerConfig;
     const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
+    const EGwmHostAddress GwmHostAddress;
 
     TString Role;
 
@@ -333,7 +345,7 @@ protected:
     TString NodeName;
 
     TMutex Mutex;
-    THashMap<std::tuple<TString, TString, TString>, TActorId> Yt;
+    THashMap<std::tuple<TString, TString, TString, TString>, TActorId> Yt;
 
     ui32 NodeId = -1;
     TString GrpcPort = "";
@@ -355,8 +367,9 @@ public:
         ui16 interconnectPort,
         const TString& host,
         const TString& ip,
-        TGlobalWorkerManagerActorIdOptions actorIdOptions)
-        : TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions)
+        TGlobalWorkerManagerActorIdOptions actorIdOptions,
+        EGwmHostAddress gwmHostAddress)
+        : TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress)
     { }
 
     NActors::IActor* CreateLockOnCluster(NActors::TActorId ytWrapper, const TString& prefix, const TString& lockName, bool temporary) override {
@@ -369,7 +382,7 @@ public:
         auto attributes = NYT::BuildYsonNodeFluently()
             .BeginMap()
                 .Item(NCommonAttrs::ACTOR_NODEID_ATTR).Value(NodeId)
-                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetHostname())
+                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetGwmHost())
                 .Item(NCommonAttrs::GRPCPORT_ATTR).Value(GrpcPort) // optional
                 .Item(NCommonAttrs::UPLOAD_EXECUTABLE_ATTR).Value("true") // compat
             .EndMap();
@@ -394,7 +407,8 @@ ICoordinationHelper::TPtr CreateUploadCoordinationHelper(const TString& hostName
         /*interconnectPort*/ 0,
         hostName,
         /*ip*/ {},
-        /*actorIdOptions*/ {});
+        /*actorIdOptions*/ {},
+        EGwmHostAddress::Hostname);
 }
 
 ICoordinationHelper::TPtr CreateCoordiantionHelper(
@@ -404,7 +418,8 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     ui16 interconnectPort,
     const TString& host,
     const TString& ip,
-    TGlobalWorkerManagerActorIdOptions actorIdOptions)
+    TGlobalWorkerManagerActorIdOptions actorIdOptions,
+    EGwmHostAddress gwmHostAddress)
 {
     NProto::TDqConfig::TYtCoordinator config = cfg;
     const auto proxyAddress = config.GetProxyAddress();
@@ -438,9 +453,9 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     config.SetToken(token);
 
     if (config.GetLockType() == "dummy") {
-        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
+        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress);
     } else {
-        return new TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
+        return new TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress);
     }
 }
 

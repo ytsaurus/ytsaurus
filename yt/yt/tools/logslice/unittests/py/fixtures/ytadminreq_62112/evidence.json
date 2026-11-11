@@ -1,0 +1,137 @@
+{
+  "saved045": {
+    "skill": "logslice",
+    "script": "scripts/logslice.py",
+    "argv": [
+      "klg1-7548-dat-node-seneca-klg.klg.yp-c.yandex.net",
+      "--type",
+      "info",
+      "-t",
+      "2026-11-05 12:54:00",
+      "-e",
+      "2026-11-05 12:56:00",
+      "--",
+      "-F",
+      "-e",
+      "config",
+      "-e",
+      "Config"
+    ],
+    "call_id": "call-0e7fefc3dfa5e7b775af064abeb06afa",
+    "result_id": "result-34723d42ce5bc3e1cdbb7a260a35cd0a",
+    "record_id": "record-8de1389dd66f74f7766e427583b7476b",
+    "collected_at_msk": "2026-11-06 16:06:41 MSK",
+    "exit_code": 0,
+    "stdout": "2026-11-05 12:55:19,986129\tI\tClusterNode\tDynamic config changed (HeartbeatType: Cluster)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:19,987417\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareHierarchical, LocationId: store0, LocationId: store0)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,016584\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareHierarchical, LocationId: store1, LocationId: store1)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,046826\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store2, LocationId: store2)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,075714\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store3, LocationId: store3)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,112574\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store4, LocationId: store4)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,139237\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store5, LocationId: store5)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,171368\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store6, LocationId: store6)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,203694\tI\tDataNode\tDynamic IO engine reconfigured (Type: FairShareUring, LocationId: store7, LocationId: store7)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,231039\tI\tDataNode\tDynamic config changed (HeartbeatType: Data)\tControl\tfea67074ab746ef6\t\n2026-11-05 12:55:20,248565\tI\tDynamicConfig\tSuccessfully updated dynamic config (DynamicConfigManagerName: ClusterNode)\tControl\tfea67074ab746ef6\t\n",
+    "stderr": "Log routing: role=data-node component=node base=node-klg1-7548 source=hostname confidence=high\nResolved log roots: logs\nFound 115 info log file(s) for component 'node-klg1-7548' (live).\nSelected 1 live file(s): node-klg1-7548.log.2026-11-05_13-00.zst .. node-klg1-7548.log.2026-11-05_13-00.zst\nfile_status type=info status=matched matches=11 file=logs/node-klg1-7548.log.2026-11-05_13-00.zst\nsummary timezone=+0300 window_start=2026-11-05 12:54:00 window_end=2026-11-05 12:56:00 files=1 matches=11 failure_class=none exit_code=0\n{\"gaps\": [], \"log_read\": true, \"outcome\": \"success\", \"requested_component\": null, \"result\": \"matched\", \"selected_base\": \"node-klg1-7548\", \"selected_component\": \"node\", \"selected_files\": [\"logs/node-klg1-7548.log.2026-11-05_13-00.zst\"]}\n",
+    "stdout_truncated": false,
+    "stderr_truncated": false,
+    "timed_out": false,
+    "original_sha256": "54281c6bfa9413bc5bfee462089f525d84527866b2b9f808f0b59c68610aefd7"
+  },
+  "saved105": {
+    "skill": "logslice",
+    "script": "scripts/logslice.py",
+    "argv": [
+      "klg1-7548-dat-node-seneca-klg.klg.yp-c.yandex.net",
+      "--component",
+      "node-klg1-7548.io_aggr.yson",
+      "--type",
+      "info",
+      "-t",
+      "2026-11-05 12:00:00",
+      "-e",
+      "2026-11-05 12:16:00",
+      "--",
+      "-F",
+      "read"
+    ],
+    "call_id": "call-b814ddefebeb982ae34ae26f34b791fe",
+    "result_id": "result-5c65958366d63bf5954fd336d366fa70",
+    "record_id": "record-c1b15b1ab79084a21cfd7489afc3e21a",
+    "collected_at_msk": "2026-11-06 16:23:42 MSK",
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "--component 'node-klg1-7548.io_aggr.yson' was not found; discovered: node-klg1-7548\n{\"gaps\": null, \"log_read\": false, \"outcome\": \"failed\", \"requested_component\": \"node-klg1-7548.io_aggr.yson\", \"result\": \"operational_failure\", \"selected_base\": null, \"selected_component\": null, \"selected_files\": []}\n",
+    "stdout_truncated": false,
+    "stderr_truncated": false,
+    "timed_out": false,
+    "original_sha256": "7c78510ffaf2910844bb1ea49c9351d11fca46e4170f13d3dbc4d2fc2b19a2b9"
+  },
+  "saved102": {
+    "skill": "ytget",
+    "script": "scripts/ytget.py",
+    "argv": [
+      "-p",
+      "seneca-klg",
+      "//sys/cluster_nodes/klg1-7548-dat-node-seneca-klg.klg.yp-c.yandex.net:9012/orchid/config/logging",
+      "--project",
+      "writers",
+      "rules",
+      "--output-format",
+      "json"
+    ],
+    "call_id": "call-79628efa32101fe2ad7af4d1bca6bd5b",
+    "result_id": "result-005e73fc30e978686597e3db9d619eba",
+    "record_id": "record-6b1ea55d550d03c0de4ff3dd427244b5",
+    "collected_at_msk": "2026-11-06 16:23:12 MSK",
+    "exit_code": 0,
+    "stdout_truncated": false,
+    "stderr_truncated": false,
+    "timed_out": false,
+    "original_sha256": "f245bb27d92eada4569f892d92c53563e959b146688a61b4d24482f1bb9869d4",
+    "logging_excerpt": {
+      "writers": {
+        "io_aggregate": {
+          "common_fields": {
+            "cluster": "seneca-klg"
+          },
+          "file_name": "/yt/disk2/seneca-klg-data/dat-node-instance-logs/klg1-7548-dat-node-seneca-klg/node-klg1-7548.io_aggr.yson.log",
+          "format": "yson",
+          "type": "file"
+        },
+        "io_raw": {
+          "common_fields": {
+            "cluster": "seneca-klg"
+          },
+          "compression_method": "zstd",
+          "enable_compression": 1,
+          "file_name": "/yt/disk2/seneca-klg-data/dat-node-instance-logs/klg1-7548-dat-node-seneca-klg/node-klg1-7548.io_raw.yson.log.zst",
+          "format": "yson",
+          "type": "file"
+        }
+      },
+      "rules": [
+        {
+          "family": "structured",
+          "include_categories": [
+            "IOAggregate"
+          ],
+          "min_level": "info",
+          "writers": [
+            "io_aggregate"
+          ]
+        },
+        {
+          "family": "structured",
+          "include_categories": [
+            "IORaw"
+          ],
+          "min_level": "info",
+          "writers": [
+            "io_raw"
+          ]
+        }
+      ]
+    }
+  },
+  "synthetic": {
+    "notice": "The directory listing and formatter-shaped record below are synthetic; no IOTracker stream content was retrieved.",
+    "directory_entries": [
+      "node-klg1-7548.log",
+      "node-klg1-7548.io_aggr.yson.log",
+      "node-klg1-7548.io_raw.yson.log.zst"
+    ],
+    "record": "{\"bytes\"=4096;\"io_requests\"=1;\"object_type\"=\"read\";\"instant\"=\"2026-11-05 12:05:00,000000\";\"level\"=\"info\";\"category\"=\"IOAggregate\";}\n"
+  }
+}

@@ -1176,6 +1176,8 @@ class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):
     NUM_REMOTE_CLUSTERS = 2
     NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 0
     NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 0
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {}
+    MASTER_CELL_DESCRIPTORS_REMOTE_1 = {}
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {

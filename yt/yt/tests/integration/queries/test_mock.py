@@ -1,8 +1,8 @@
 from .base import QueriesTestBase
 
 from yt_commands import (
-    abort_transaction, add_member, authors, create_access_control_object, remove,
-    make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
+    abort_transaction, add_member, authors, create_access_control_object, create_group,
+    remove, make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
     set, get, insert_rows, sync_compact_table, generate_uuid, ls)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
@@ -29,6 +29,16 @@ import pyarrow as pa
 
 import pytest
 import time
+
+
+ADMIN_GROUPS = ("superusers", "qt_admins")
+
+
+def add_query_tracker_admin(user, admin_group):
+    if admin_group != "superusers":
+        create_group(admin_group)
+
+    add_member(user, admin_group)
 
 
 def expect_queries(queries, list_result, incomplete=False):
@@ -440,6 +450,70 @@ class TestQueryTrackerBan(QueriesTestBase):
         start_query("mock", "run_forever")
         return False
 
+    @authors("sinister")
+    def test_active_queries_metrics_on_banned_tracker(self, query_tracker):
+        address = query_tracker.query_tracker.addresses[0]
+        instance_path = f"//sys/query_tracker/instances/{address}"
+        monitoring_port = get(f"{instance_path}/orchid/config/monitoring_port")
+        active_queries_metric = profiler_factory().at_query_tracker(address).gauge("query_tracker/active_queries")
+
+        def exported_query_count(state):
+            response = requests.get(f"http://localhost:{monitoring_port}/solomon/all", timeout=10)
+            response.raise_for_status()
+            for sensor in response.json()["sensors"]:
+                labels = sensor["labels"]
+                if (
+                    labels.get("sensor") == "yt.query_tracker.active_queries"
+                    and labels.get("state") == state
+                    and "engine" not in labels
+                    and "assigned_tracker" not in labels
+                ):
+                    return sensor.get("value")
+
+        query = start_query("mock", "run_forever")
+        wait(lambda: query.get_state() == "running")
+        wait(lambda: active_queries_metric.get({"state": "Running"}) == 1)
+        wait(lambda: exported_query_count("Running") == 1)
+
+        set(f"{instance_path}/@banned", True)
+        pending_query_ids = [generate_uuid() for _ in range(2)]
+        try:
+            wait(lambda: get(f"{instance_path}/orchid/state_checker/banned"))
+            insert_rows("//sys/query_tracker/active_queries", [{
+                "query_id": query_id,
+                "engine": "mock",
+                "user": "root",
+                "query": "run_forever",
+                "incarnation": 0,
+                "start_time": 0,
+                "execution_start_time": 0,
+                "state": "pending",
+                "settings": {},
+                "annotations": {},
+            } for query_id in pending_query_ids])
+
+            wait(lambda: active_queries_metric.get({"state": "Pending"}) == 2)
+            wait(lambda: exported_query_count("Pending") == 2)
+            assert active_queries_metric.get({"state": "Running"}) == 1
+
+            iterations_path = f"{instance_path}/orchid/query_tracker/acquisition_iterations"
+            acquisition_iterations = get(iterations_path)
+            wait(lambda: get(iterations_path) - acquisition_iterations >= 3)
+            rows = select_rows("* from [//sys/query_tracker/active_queries]")
+            assert {row["query_id"]: row["state"] for row in rows if row["query_id"] in pending_query_ids} == {
+                query_id: "pending" for query_id in pending_query_ids
+            }
+        finally:
+            set(f"{instance_path}/@banned", False)
+
+        wait(lambda: active_queries_metric.get({"state": "Running"}) == 3)
+        wait(lambda: active_queries_metric.get({"state": "Pending"}) == 0)
+        wait(lambda: exported_query_count("Running") == 3)
+        wait(lambda: query.get_state() == "running", ignore_exceptions=True)
+        query.abort()
+        for query_id in pending_query_ids:
+            Query(query_id).abort()
+
     @authors("mpereskokova")
     def test_query_tracker_ban(self, query_tracker):
         address = query_tracker.query_tracker.addresses[0]
@@ -623,6 +697,10 @@ class TestAccessControl(QueriesTestBase):
 
     ENABLE_MULTIDAEMON = True
 
+    @classmethod
+    def modify_query_tracker_config(cls, config):
+        config["admins_group"] = "qt_admins"
+
     @authors("krock21")
     def test_no_acos(self, query_tracker):
         create_user("u1")
@@ -675,6 +753,50 @@ class TestAccessControl(QueriesTestBase):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_denies_author")
         q_u1.get(authenticated_user="u1")
+
+    @authors("ngc224")
+    @pytest.mark.parametrize("admin_group", ADMIN_GROUPS)
+    def test_query_tracker_admins_bypass_access_control(self, query_tracker, admin_group):
+        create_user("u1")
+        create_user("qt_admin")
+        add_query_tracker_admin("qt_admin", admin_group)
+
+        q = start_query(
+            "mock",
+            "run_forever",
+            authenticated_user="u1",
+            access_control_object="nobody",
+        )
+
+        q.get(authenticated_user="qt_admin")
+        expect_queries([q], list_queries(authenticated_user="qt_admin"))
+        q.alter(authenticated_user="qt_admin", annotations={"owner": "u1"})
+        wait(lambda: q.get_state() == "running")
+        q.abort(authenticated_user="qt_admin")
+
+        finished = start_query(
+            "mock",
+            "complete_after",
+            authenticated_user="u1",
+            access_control_objects=["nobody"],
+            settings={
+                "duration": 0,
+                "results": [{
+                    "schema": [{"name": "value", "type": "int64"}],
+                    "rows": [{"value": 42}],
+                }],
+            },
+        )
+
+        finished.track()
+
+        assert finished.get_result(
+            0, authenticated_user="qt_admin"
+        )["schema"][0]["name"] == "value"
+
+        assert list(finished.read_result(
+            0, authenticated_user="qt_admin")
+        ) == [{"value": 42}]
 
     @authors("krock21")
     def test_get(self, query_tracker):
@@ -1272,9 +1394,9 @@ class TestTutorials(QueriesTestBase):
         u2q3 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
         u2q4 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
 
-        with raises_yt_error("Non-superusers cannot create tutorial queries"):
+        with raises_yt_error("Users without Query Tracker admin access cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
-        with raises_yt_error("Non-superusers cannot create tutorial queries"):
+        with raises_yt_error("Users without Query Tracker admin access cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
 
         def check_tutorial_queries():
@@ -1327,7 +1449,7 @@ class TestTutorials(QueriesTestBase):
         from_ordinary_to_tutorial.get()
         with raises_yt_error("Tutorials should be in draft state"):
             ordinary_not_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
-        with raises_yt_error("Non-superusers cannot change tutorial flag"):
+        with raises_yt_error("Users without Query Tracker admin access cannot change tutorial flag"):
             ordinary_not_superuser.alter(annotations={"is_tutorial": True}, authenticated_user="u2")
 
         # check that there are no tutorials in common search

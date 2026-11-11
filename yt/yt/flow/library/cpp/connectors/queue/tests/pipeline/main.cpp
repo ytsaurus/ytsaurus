@@ -16,12 +16,21 @@ public:
 
     void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
     {
+        if (InputSchema_ && *InputSchema_ == *message.PayloadSchema) {
+            THROW_ERROR_EXCEPTION_UNLESS(InputSchema_ == message.PayloadSchema,
+                "Queue source recreated an unchanged payload schema");
+        }
+        InputSchema_ = message.PayloadSchema;
+
         auto builder = MakeOutputMessageBuilder("data");
         for (i64 i = 0; i < GetColumnValue<i64>(message, "repeat"); ++i) {
             builder.Payload().Set(GetColumnValue<TStringBuf>(message, "data"), "data");
             output->AddMessage(builder.Finish());
         }
     }
+
+private:
+    NTableClient::TTableSchemaPtr InputSchema_;
 };
 
 YT_FLOW_DEFINE_COMPUTATION(TReader);

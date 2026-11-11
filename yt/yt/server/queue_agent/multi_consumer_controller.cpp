@@ -21,6 +21,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -70,8 +72,17 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
 {
     YT_VERIFY(batchSize > 0);
 
+    // TODO(YT-29995): Drop support for legacy multi consumer tables without "hash" key column.
+    auto tableInfo = WaitFor(client->GetTableMountCache()->GetTableInfo(path))
+        .ValueOrThrow();
+    const auto& columns = tableInfo->Schemas[ETableSchemaKind::Primary]->Columns();
+    bool hasHashColumn = !columns.empty() && columns.front().Name() == "hash";
+
+    TStringBuf keyPrefix = hasHashColumn ? "hash, queue_consumer_name" : "queue_consumer_name";
+    int nameIndex = hasHashColumn ? 1 : 0;
+
     THashSet<std::string> consumerNames;
-    std::optional<std::string> lastName;
+    std::optional<std::pair<std::optional<ui64>, std::string>> lastKey;
     auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
 
@@ -79,19 +90,23 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
         TSelectRowsOptions options;
         options.Timestamp = timestamp;
         TStringBuf where;
-        if (lastName) {
-            where = "WHERE queue_consumer_name > {last_name}";
+        if (lastKey) {
+            where = hasHashColumn
+                ? "WHERE (hash, queue_consumer_name) > ({last_hash}, {last_name})"
+                : "WHERE queue_consumer_name > {last_name}";
             options.PlaceholderValues = BuildYsonStringFluently()
                 .BeginMap()
-                    .Item("last_name").Value(*lastName)
+                    .OptionalItem("last_hash", lastKey->first)
+                    .Item("last_name").Value(lastKey->second)
                 .EndMap();
         }
 
-        // NB: queue_consumer_name is the first key column, so WHERE is a PK prefix and not a full scan.
         auto query = Format(
-            "queue_consumer_name FROM [%v] %v ORDER BY queue_consumer_name LIMIT %v",
+            "%v FROM [%v] %v ORDER BY %v LIMIT %v",
+            keyPrefix,
             path,
             where,
+            keyPrefix,
             batchSize);
 
         auto selectResult = WaitFor(client->SelectRows(query, options))
@@ -106,17 +121,23 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
         }
 
         for (const auto& row : rows) {
-            THROW_ERROR_EXCEPTION_IF(row.GetCount() != 1, "Expected 1 value in row while selecting \"queue_consumer_name\"");
-            consumerNames.insert(FromUnversionedValue<std::string>(row[0]));
+            THROW_ERROR_EXCEPTION_IF(
+                static_cast<int>(row.GetCount()) != nameIndex + 1,
+                "Unexpected value count in row while selecting %v",
+                keyPrefix);
+            consumerNames.insert(FromUnversionedValue<std::string>(row[nameIndex]));
         }
 
         if (std::ssize(rows) < batchSize) {
             return consumerNames;
         }
 
-        auto newLastName = FromUnversionedValue<std::string>(rows.Back()[0]);
-        YT_VERIFY(!lastName || newLastName > *lastName);
-        lastName = std::move(newLastName);
+        const auto& lastRow = rows.Back();
+        auto newLastKey = std::pair(
+            hasHashColumn ? std::optional(FromUnversionedValue<ui64>(lastRow[0])) : std::nullopt,
+            FromUnversionedValue<std::string>(lastRow[nameIndex]));
+        YT_VERIFY(!lastKey || newLastKey > *lastKey);
+        lastKey = std::move(newLastKey);
     }
 
     YT_TLOG_ALERT_AND_THROW("Exceeded maximum number of iterations while selecting consumer names from user table")
@@ -124,7 +145,8 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
         .With("BatchSize", batchSize)
         .With("MaxIterations", MaxSelectConsumerNamesIterations)
         .With("ConsumerNameCount", consumerNames.size())
-        .With("LastName", lastName);
+        .With("LastHash", lastKey->first)
+        .With("LastName", lastKey->second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

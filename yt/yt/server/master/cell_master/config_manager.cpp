@@ -90,7 +90,7 @@ public:
 
         ReplicateConfigToSecondaryMasters();
 
-        YT_UNUSED_FUTURE(HydraManager_->Reconfigure(Config_->HydraManager));
+        HydraManager_->Reconfigure(Config_->HydraManager);
 
         const auto& janitor = Bootstrap_->GetHydraFacade()->GetLocalJanitor();
         janitor->Reconfigure(Config_->HydraManager);
@@ -191,9 +191,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!HasMutationContext());
 
-        // Wait for config to be applied, so that it has all overrides after LeaderActive call.
-        WaitFor(HydraManager_->Reconfigure(Config_->HydraManager))
-            .ThrowOnError();
+        // NB: Must not yield; called from Hydra lifetime callbacks.
+        HydraManager_->Reconfigure(Config_->HydraManager);
 
         ConfigChanged_.Fire(Config_);
     }

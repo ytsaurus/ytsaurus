@@ -27,11 +27,16 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         NTransactionClient::TTransactionId transactionId,
-        const NLogging::TLogger& logger);
+        const NLogging::TLogger& logger,
+        std::optional<bool> useLazyTransactionExternalizationOverride = std::nullopt);
 
     void RegisterChunk(
         NChunkClient::TChunkId chunkId,
-        NObjectClient::TCellTag destinationCellTag);
+        NObjectClient::TCellTag destinationCellTag,
+        NTransactionClient::TTransactionId sourceTransactionId,
+        NTransactionClient::TTransactionId destinationTransactionId);
+
+    void RegisterChunk(NChunkClient::TChunkId chunkId, NObjectClient::TCellTag destinationCellTag);
 
     TFuture<void> Run();
 
@@ -40,6 +45,7 @@ private:
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NTransactionClient::TTransactionId TransactionId_;
+    const bool UseLazyTransactionExternalization_;
 
     NLogging::TLogger Logger;
 
@@ -47,13 +53,19 @@ private:
     {
         TChunkEntry(
             NChunkClient::TChunkId chunkId,
-            NObjectClient::TCellTag destinationCellTag)
+            NTransactionClient::TTransactionId sourceTransactionId,
+            NObjectClient::TCellTag destinationCellTag,
+            NTransactionClient::TTransactionId destinationTransactionId)
             : ChunkId(chunkId)
+            , SourceTransactionId(sourceTransactionId)
             , DestinationCellTag(destinationCellTag)
+            , DestinationTransactionId(destinationTransactionId)
         { }
 
         NChunkClient::TChunkId ChunkId;
+        NTransactionClient::TTransactionId SourceTransactionId;
         NObjectClient::TCellTag DestinationCellTag;
+        NTransactionClient::TTransactionId DestinationTransactionId;
         NChunkClient::NProto::TChunkImportData Data;
     };
 
@@ -61,13 +73,19 @@ private:
 
     void DoRun();
 
-    int GetExportedObjectCount(NObjectClient::TCellTag cellTag);
+    int GetExportedObjectCount(NObjectClient::TCellTag cellTag, NTransactionClient::TTransactionId transactionId);
     void Export();
-    void DoExport(NObjectClient::TCellTag cellTag, const std::vector<TChunkEntry*>& chunks);
+    void DoExport(
+        NObjectClient::TCellTag cellTag,
+        const std::vector<TChunkEntry*>& chunks,
+        NTransactionClient::TTransactionId sourceTransactionId);
 
-    int GetImportedObjectCount(NObjectClient::TCellTag cellTag);
+    int GetImportedObjectCount(NObjectClient::TCellTag cellTag, NTransactionClient::TTransactionId transactionId);
     void Import();
-    void DoImport(NObjectClient::TCellTag cellTag, const std::vector<TChunkEntry*>& chunks);
+    void DoImport(
+        NObjectClient::TCellTag cellTag,
+        const std::vector<TChunkEntry*>& chunks,
+        NTransactionClient::TTransactionId destinationTransactionId);
 
 };
 

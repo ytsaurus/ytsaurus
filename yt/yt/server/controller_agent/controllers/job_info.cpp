@@ -235,6 +235,8 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
     PHOENIX_REGISTER_FIELD(48, CollectiveInfo,
         .SinceVersion(ESnapshotVersion::DistributedJobManagers));
+    PHOENIX_REGISTER_FIELD(49, JournalNbdChunkListId,
+        .SinceVersion(ESnapshotVersion::JournalNbd));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;

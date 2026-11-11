@@ -17,10 +17,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
-// TODO(sabdenovch): Deprecate this.
-constexpr i64 OrderedReadWithPrefetchHint = UnorderedReadHint - 1;
-constexpr i64 MaxQueryLimit = OrderedReadWithPrefetchHint - 1;
+constexpr i64 MaxQueryLimit = std::numeric_limits<i64>::max() - 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,7 +288,7 @@ struct TSubqueryExpression
     TConstOrderClausePtr OrderClause;
 
     i64 Offset = 0;
-    i64 Limit = UnorderedReadHint;
+    std::optional<i64> Limit;
 
     using TExpression::TExpression;
 };
@@ -510,8 +507,9 @@ struct TBaseQuery
 
     i64 Offset = 0;
 
-    // TODO(sabdenovch): Update protocol and fix it
-    i64 Limit = UnorderedReadHint;
+    std::optional<i64> Limit;
+
+    EScanOrder ScanOrder = EScanOrder::Ordered;
 
     // True if the grouping key uses each column of primary key.
     // In this case, some additional optimizations can be applied.
@@ -521,21 +519,19 @@ struct TBaseQuery
 
     bool ForceLightRangeInference = false;
 
-    bool IsReverseScan = false;
+    bool Prefetching = false;
 
     explicit TBaseQuery(TGuid id = TGuid::Create());
 
     TBaseQuery(const TBaseQuery& other);
-
-    EScanOrder GetScanOrder(bool allowUnorderedGroupByWithLimit) const;
-
-    bool IsPrefetching() const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
     virtual TTableSchemaPtr GetTableSchema(bool castToQLType = true) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBaseQuery)
+
+EScanOrder DeriveLegacyScanOrder(const TConstBaseQueryPtr& query, bool allowUnorderedGroupByWithLimit);
 
 struct TQuery
     : public TBaseQuery
@@ -583,6 +579,19 @@ struct TFrontQuery
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUnionAllQuery
+    : public TRefCounted
+{
+    std::vector<TPlanFragmentPtr> SubqueryFragments;
+    TTableSchemaPtr Schema;
+};
+
+DEFINE_REFCOUNTED_TYPE(TUnionAllQuery)
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);

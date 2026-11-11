@@ -45,7 +45,7 @@ constinit const auto Logger = SequoiaReconstructorLogger;
 
 namespace {
 
-constexpr auto CommandSuffix = " ytserver-sequoia-reconstructor";
+constexpr auto CommandSuffix = " --component ytserver-sequoia-reconstructor";
 
 IClientPtr CreateYtClient(TMulticellMapReduceSequoiaReconstructorConfigPtr config)
 {
@@ -53,7 +53,7 @@ IClientPtr CreateYtClient(TMulticellMapReduceSequoiaReconstructorConfigPtr confi
         THROW_ERROR_EXCEPTION("Config for rpc connection is not supported yet");
     }
 
-    auto clientConfig = MakeIntrusive<NYT::TConfig>(*NYT::TConfig::Get());
+    auto clientConfig = MakeIntrusive<TConfig>(*TConfig::Get());
     if (config->Pool) {
         clientConfig->Pool = *config->Pool;
     }

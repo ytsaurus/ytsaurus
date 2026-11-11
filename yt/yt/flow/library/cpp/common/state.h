@@ -25,6 +25,11 @@ void ValidateStateName(const std::string& name);
 //! or ``WithPrefix("/state")`` uniformly.
 std::string ExtendStateNamePrefix(TStringBuf prefix, TStringBuf segment);
 
+//! Controller state name segments under which a computation controller nests the states of its sources and sinks:
+//! ``<segment>/<local stream or sink id>``.
+inline constexpr TStringBuf SourcesStateNameSegment = "sources";
+inline constexpr TStringBuf SinksStateNameSegment = "sinks";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Placeholder payload for computations that need the state machinery but keep

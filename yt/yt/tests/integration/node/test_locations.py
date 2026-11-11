@@ -543,6 +543,22 @@ class CacheLocationOverflowBase(YTEnvSetup):
     _BACKEND = None
     _EXPECTED_ERROR = None
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_allocation_abort_on_zero_user_slots": False,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "chunk_cache": {
+                    "enable_pending_downloads_tracker": False,
+                },
+            },
+        },
+    }
+
     @classmethod
     def setup_class(cls):
         import porto
@@ -626,13 +642,16 @@ class CacheLocationOverflowBase(YTEnvSetup):
             assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
             assert not os.path.exists(f"{self.cache_volume_path}/disabled")
 
-        leftover_temp_files = [
-            os.path.join(root, name)
-            for root, _, files in os.walk(self.cache_volume_path)
-            for name in files
-            if name.endswith("~")
-        ]
-        assert len(leftover_temp_files) == 0, leftover_temp_files
+        def check_no_temp_files():
+            leftover_temp_files = [
+                os.path.join(root, name)
+                for root, _, files in os.walk(self.cache_volume_path)
+                for name in files
+                if name.endswith("~")
+            ]
+            assert len(leftover_temp_files) == 0, leftover_temp_files
+
+        wait_no_assert(check_no_temp_files)
 
         def read_abort_entries():
             return read_structured_log(
@@ -670,6 +689,12 @@ class TestSlotLocationOverflow(YTEnvSetup):
 
     _TMPFS_SIZE = 1024 * 1024 * 1024
     _INODE_LIMIT = 1024
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_allocation_abort_on_zero_user_slots": False,
+        },
+    }
 
     @classmethod
     def setup_class(cls):

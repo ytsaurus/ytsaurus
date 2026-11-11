@@ -5,6 +5,9 @@
 #include "resource_controller.h"
 #include "spec_validation.h"
 
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -137,6 +140,13 @@ struct IResource
     //! @see IResourceController.
     using TController = TNullResourceController;
 
+    //! Requests cancellation of background work when the owner retires this instance.
+    //! Idempotent; does not wait for destruction or invalidate published data.
+    virtual void Stop() = 0;
+
+    //! Completes after the derived resource has been destroyed.
+    virtual TFuture<void> GetDestroyedFuture() const = 0;
+
     //! Loads the resource with its dependencies.
     /*!
      *  This method is called to load the resource and prepare it for use.
@@ -189,6 +199,27 @@ struct IResource
 };
 
 DEFINE_REFCOUNTED_TYPE(IResource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourceLifecycleBase
+    : public IResource
+{
+public:
+    TResourceLifecycleBase();
+    ~TResourceLifecycleBase() override;
+
+    void Stop() final;
+    TFuture<void> GetDestroyedFuture() const final;
+
+protected:
+    //! Cancellation scope for instance-owned background futures and invokers.
+    const TCancelableContextPtr& GetCancelableContext() const;
+
+private:
+    const TCancelableContextPtr CancelableContext_;
+    const TPromise<void> DestroyedPromise_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

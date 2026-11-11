@@ -1,5 +1,7 @@
 PY3TEST()
 
+SET(YT_SIZE_TESTS_BUNDLE yes)
+
 SET(YT_SPLIT_FACTOR 55)
 
 SET(YT_TIMEOUT 2400)
@@ -11,6 +13,8 @@ ENDIF()
 ENV(YT_TEST_FILTER=LARGE)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
+
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(

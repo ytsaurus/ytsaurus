@@ -105,12 +105,12 @@ class TestPoolMetrics(YTEnvSetup):
         create_pool("child1", parent_name="parent")
         create_pool("child2", parent_name="parent")
 
-        create("table", "//t_input")
-        create("table", "//t_output")
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
 
         # write table of 2 chunks because we want 2 jobs
-        write_table("//t_input", [{"key": i} for i in range(0, 100)])
-        write_table("<append=%true>//t_input", [{"key": i} for i in range(100, 500)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(0, 100)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(100, 500)])
 
         # create directory backed by block device and accessible to job
         os.makedirs(self.default_disk_path)
@@ -156,21 +156,21 @@ class TestPoolMetrics(YTEnvSetup):
         custom_metric_sum_sensor = profiler.gauge("scheduler/pools/metrics/my_custom_metric_sum", tags={"pool": "child2"})
 
         op11 = map(
-            in_="//t_input",
-            out="//t_output",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
         op12 = map(
-            in_="//t_input",
-            out="//t_output",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
 
         op2 = map(
-            in_="//t_input",
-            out="//t_output",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
             command=map_cmd,
             spec={"job_count": 2, "pool": "child2"},
         )
@@ -292,7 +292,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
         assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
@@ -449,7 +449,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
         assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
@@ -465,7 +465,7 @@ class TestPoolMetrics(YTEnvSetup):
         abort_job(job_to_abort)
 
         # Wait for restarted job to reach breakpoint.
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1 and jobs[0] != job_to_abort
         release_breakpoint(job_id=jobs[0])
 
@@ -574,7 +574,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1
 
         total_time_before_restart = total_time_counter.get_delta()
@@ -630,7 +630,7 @@ class TestPoolMetrics(YTEnvSetup):
         exec_time_counter = research_profiler.counter("scheduler/pools/metrics/exec_time")
         prepare_time_counter = research_profiler.counter("scheduler/pools/metrics/prepare_time")
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         job_ids = list(op.get_running_jobs())
         assert len(job_ids) == 1

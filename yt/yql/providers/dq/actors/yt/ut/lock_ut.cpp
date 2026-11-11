@@ -53,6 +53,63 @@ struct TLockTestRuntime {
 
 Y_UNIT_TEST_SUITE(TYtLockTest) {
 
+    Y_UNIT_TEST(FirstLockAttemptIsImmediate) {
+        TLockTestRuntime env;
+        const auto start = env.Runtime.GetTimeProvider()->Now();
+
+        auto createRequest = env.GrabCreatePrefixRequest();
+
+        UNIT_ASSERT(createRequest);
+        UNIT_ASSERT_VALUES_EQUAL(env.Runtime.GetTimeProvider()->Now() - start, TDuration::Zero());
+    }
+
+    Y_UNIT_TEST(FailedLockAttemptsAreRetriedAfterFiveSeconds) {
+        TLockTestRuntime env;
+        auto createRequest = env.GrabCreatePrefixRequest();
+        UNIT_ASSERT(createRequest);
+
+        for (size_t attempt = 0; attempt < 2; ++attempt) {
+            const auto start = env.Runtime.GetTimeProvider()->Now();
+            env.Runtime.Send(new IEventHandle(
+                env.LockActor,
+                env.YtActor,
+                new TEvCreateNodeResponse(
+                    createRequest->Get()->RequestId,
+                    NYT::TErrorOr<NYT::NCypressClient::TNodeId>(NYT::TError("Test prefix creation failure")))));
+
+            createRequest = env.GrabCreatePrefixRequest();
+
+            UNIT_ASSERT(createRequest);
+            UNIT_ASSERT_VALUES_EQUAL(env.Runtime.GetTimeProvider()->Now() - start, TDuration::Seconds(5));
+        }
+    }
+
+    Y_UNIT_TEST(FollowerPollsLeaderInfoEveryFiveSeconds) {
+        TLockTestRuntime env;
+        auto createRequest = env.GrabCreatePrefixRequest();
+        UNIT_ASSERT(createRequest);
+
+        auto start = env.Runtime.GetTimeProvider()->Now();
+        env.SwitchToFollowerMode();
+
+        for (int poll = 0; poll < 2; ++poll) {
+            auto getNodeRequest = env.Runtime.GrabEdgeEvent<TEvGetNode>(
+                env.YtActor,
+                TDuration::Seconds(5));
+
+            UNIT_ASSERT(getNodeRequest);
+            UNIT_ASSERT_VALUES_EQUAL(env.Runtime.GetTimeProvider()->Now() - start, TDuration::Seconds(5));
+
+            start = env.Runtime.GetTimeProvider()->Now();
+            env.Runtime.Send(new IEventHandle(
+                env.LockActor,
+                env.YtActor,
+                new TEvGetNodeResponse(
+                    getNodeRequest->Get()->RequestId,
+                    NYT::TErrorOr<NYT::NYson::TYsonString>(NYT::NYson::TYsonString(TStringBuf("{}"))))));
+        }
+    }
+
     Y_UNIT_TEST(DelayedCreateNodeResponseDoesNotStartTransactionInFollowerMode) {
         TLockTestRuntime env;
 

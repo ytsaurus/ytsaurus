@@ -12,6 +12,7 @@ from sqlglot.generators.presto import PrestoGenerator, amend_exploded_column_tab
 
 
 class TrinoGenerator(PrestoGenerator):
+    SUPPORTS_TEMPORAL_PRECISION = True
     EXCEPT_INTERSECT_SUPPORT_ALL_CLAUSE = True
     DECLARE_DEFAULT_ASSIGNMENT = "DEFAULT"
     PROPERTIES_LOCATION = {
@@ -34,7 +35,7 @@ class TrinoGenerator(PrestoGenerator):
             [
                 transforms.eliminate_qualify,
                 transforms.eliminate_distinct_on,
-                transforms.explode_projection_to_unnest(1),
+                transforms.explode_projection_to_unnest(1, unnest_map=True),
                 transforms.eliminate_semi_and_anti_joins,
                 amend_exploded_column_table,
             ]
@@ -52,6 +53,39 @@ class TrinoGenerator(PrestoGenerator):
         exp.JSONPathSubscript,
     }
 
+    def concatws_sql(self, expression: exp.ConcatWs) -> str:
+        if expression.args.get("flatten"):
+            arrays = []
+            has_array = False
+            has_unknown = False
+
+            for arg in expression.expressions[1:]:
+                if isinstance(arg, exp.Array) or arg.is_type(exp.DType.ARRAY):
+                    has_array = True
+                    arg = exp.func("COALESCE", exp.cast(arg, "ARRAY<TEXT>"), exp.array())
+                else:
+                    if (not arg.type or arg.is_type(exp.DType.UNKNOWN)) and not isinstance(
+                        arg, exp.CONSTANTS
+                    ):
+                        has_unknown = True
+
+                    arg = exp.array(exp.cast(arg, exp.DType.TEXT))
+
+                arrays.append(arg)
+
+            if has_unknown:
+                self.unsupported("Cannot transpile CONCAT_WS with unknown argument types to Trino.")
+
+            if has_array:
+                array = (
+                    exp.ArrayConcat(this=arrays[0], expressions=arrays[1:])
+                    if len(arrays) > 1
+                    else arrays[0]
+                )
+                return self.func("CONCAT_WS", expression.expressions[0], array)
+
+        return super().concatws_sql(expression)
+
     def functionspecification_sql(self, expression: exp.FunctionSpecification) -> str:
         characteristics = expression.args.get("characteristics")
         characteristics_sql = (
@@ -64,11 +98,79 @@ class TrinoGenerator(PrestoGenerator):
         body = self.sql(expression, "expression")
         return f"FUNCTION {self.sql(expression, 'this')}{characteristics_sql}{with_sql} {body}"
 
+    def ifblock_sql(self, expression: exp.IfBlock) -> str:
+        # ELSEIF chains are nested into `false` at parse time (see
+        # TrinoParser._parse_routine_if), so this flattens them back out rather
+        # than recursing on ifblock_sql itself, which would re-wrap each link in
+        # its own IF ... END IF.
+        branches: list[str] = []
+        node: exp.Expr | None = expression
+
+        while isinstance(node, exp.IfBlock):
+            keyword = "IF" if not branches else "ELSEIF"
+            branches.append(f"{keyword} {self.sql(node, 'this')} THEN {self.sql(node, 'true')};")
+            node = node.args.get("false")
+
+        if node is not None:
+            branches.append(f"ELSE {self.sql(node)};")
+
+        return f"{' '.join(branches)} END IF"
+
+    def casestatement_sql(self, expression: exp.CaseStatement) -> str:
+        # Mirrors case_sql, using `;`-terminated statement bodies and END CASE
+        # instead of a single value expression per branch and bare END.
+        this = self.sql(expression, "this")
+        branches = [f"CASE {this}" if this else "CASE"]
+
+        for node in expression.args["ifs"]:
+            branches.append(f"WHEN {self.sql(node, 'this')} THEN {self.sql(node, 'true')};")
+
+        default = expression.args.get("default")
+        if default:
+            branches.append(f"ELSE {self.sql(default)};")
+
+        branches.append("END CASE")
+        return " ".join(branches)
+
+    def whileblock_sql(self, expression: exp.WhileBlock) -> str:
+        label = expression.args.get("label")
+        label_sql = f"{self.sql(label)}: " if label else ""
+        condition = self.sql(expression, "this")
+        body = self.sql(expression, "body")
+        return f"{label_sql}WHILE {condition} DO {body}; END WHILE"
+
+    def loopblock_sql(self, expression: exp.LoopBlock) -> str:
+        label = expression.args.get("label")
+        label_sql = f"{self.sql(label)}: " if label else ""
+        body = self.sql(expression, "body")
+        return f"{label_sql}LOOP {body}; END LOOP"
+
+    def repeatblock_sql(self, expression: exp.RepeatBlock) -> str:
+        label = expression.args.get("label")
+        label_sql = f"{self.sql(label)}: " if label else ""
+        body = self.sql(expression, "body")
+        until = self.sql(expression, "until")
+        return f"{label_sql}REPEAT {body}; UNTIL {until} END REPEAT"
+
+    def leave_sql(self, expression: exp.Leave) -> str:
+        return f"LEAVE {self.sql(expression, 'this')}"
+
+    def iterate_sql(self, expression: exp.Iterate) -> str:
+        return f"ITERATE {self.sql(expression, 'this')}"
+
     def jsonextract_sql(self, expression: exp.JSONExtract) -> str:
         if not expression.args.get("json_query"):
             return super().jsonextract_sql(expression)
 
         json_path = self.sql(expression, "expression")
+
+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from
+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the
+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.
+        if isinstance(expression.expression, exp.JSONPath):
+            quote = self.dialect.QUOTE_START
+            json_path = f"{quote}lax {json_path.removeprefix(quote)}"
+
         option = self.sql(expression, "option")
         option = f" {option}" if option else ""
 

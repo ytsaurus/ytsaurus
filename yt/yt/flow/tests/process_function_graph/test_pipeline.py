@@ -7,6 +7,7 @@ import yatest.common
 
 from yt.common import wait
 from yt.yt.flow.library.python.bullied_process import ProcessExitedNormallyException
+from yt.yt.flow.library.python.client.state_unpack import unpack_state
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.queue import batching_write_rows
@@ -61,10 +62,91 @@ class TestProcessFunctionGraph(FlowTestBase):
     def output_rows(self):
         return list(self.client.select_rows(f"key, count, branch_count, kind from [{self.work_yt_path}/output_queue]"))
 
+    @pytest.mark.authors(["sergeypozdeev"])
+    @pytest.mark.parametrize("restart_before_commit", [False, True])
+    def test_manual_join_in_source_graph(self, restart_before_commit):
+        run_yt_sync("primary", self.work_yt_path)
+        status_path = f"{self.work_yt_path}/offer_status"
+        input_path = f"{self.work_yt_path}/left_queue"
+        self.client.insert_rows(status_path, [{"offer_id": "7/0", "status": 10}, {"offer_id": "7/1", "status": 11}])
+        self.client.insert_rows(input_path, [{"key": key, "$tablet_index": 0} for key in (7, 7, 8)])
+
+        config = get_yson_config(self.config_path)
+        computations = config["spec"]["computations"]
+        source = computations["left_reader"]
+        source["output_stream_ids"] = ["result"]
+        source["source_streams"]["queue"]["parameters"].update(
+            {
+                "queue_path": f"<cluster=primary>{input_path}",
+                "consumer_path": f"<cluster=primary>{self.work_yt_path}/left_consumer",
+                "finite": False,
+            }
+        )
+        source["sinks"] = computations["graph"]["sinks"]
+        source["sinks"]["queue"]["parameters"]["queue_path"] = f"{self.work_yt_path}/output_queue"
+        nodes = source["process_function_graph"]["nodes"]
+        nodes.pop("relay")
+        nodes["join"] = {
+            "processing_function": "NYT::NFlow::NProcessFunctionGraphTest::TManualStatusJoinFunction",
+            "input_stream_ids": ["left_keys"],
+            "output_stream_ids": ["result"],
+        }
+        source["external_state_joiners"] = {
+            "/functions/join/status": {
+                "external_state_joiner_class_name": "NYT::NFlow::TSimpleExternalStateJoiner",
+                "auto_preload": False,
+                "join_on": {
+                    "key_schema_override": [{"name": "offer_id", "type": "string", "required": True}],
+                },
+                "parameters": {"path": f"<cluster=primary>{status_path}"},
+            },
+        }
+        marker = Path(self.path_to_flow_logs) / "manual_join_before_commit"
+        if restart_before_commit:
+            nodes["after_join"] = {
+                "processing_function": "NYT::NFlow::NProcessFunctionGraphTest::TGraphRecoveryFunction",
+                "processing_function_parameters": {"marker_path": str(marker)},
+                "input_stream_ids": ["result"],
+            }
+        config["spec"]["computations"] = {"manual_join_source": source}
+        config["dynamic_spec"]["computations"] = {
+            "manual_join_source": {
+                "batch_duration": 100,
+                "parameters": {"desired_partition_count": 1},
+                "external_state_joiners": {"/functions/join/status": {"parameters": {"cache": {"ttl": 0}}}},
+            },
+        }
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "manual_join.yson")
+
+        def rows():
+            return sorted((row["key"], row["kind"], row["count"]) for row in self.output_rows())
+
+        first_epoch = sorted([(7, 0, 10), (7, 1, 11)] * 2 + [(8, 0, -1), (8, 1, -1)])
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": config_path}, start_watcher_thread=False
+        ) as federation:
+            if restart_before_commit:
+                wait(lambda: self.marker_lines(marker), timeout=120)
+                assert self.output_rows() == []
+                federation.workers[0].restart()
+                wait(lambda: len(self.marker_lines(Path(str(marker) + ".attempts"))) >= 2, timeout=120)
+                assert self.output_rows() == []
+                Path(str(marker) + ".release").touch()
+            wait(lambda: rows() == first_epoch, timeout=120)
+
+            # The same key must be reloaded in a later epoch, including a previously absent row.
+            self.client.insert_rows(status_path, [{"offer_id": "7/0", "status": 30}, {"offer_id": "8/0", "status": 40}])
+            self.client.insert_rows(input_path, [{"key": key, "$tablet_index": 0} for key in (7, 8)])
+            expected = sorted(first_epoch + [(7, 0, 30), (7, 1, 11), (8, 0, 40), (8, 1, -1)])
+            wait(lambda: rows() == expected, timeout=120)
+
     def graph_states(self):
-        rows = self.client.select_rows(f'name, state from [{self.pipeline_path}/states] where computation_id = "graph"')
+        rows = self.client.select_rows(f'* from [{self.pipeline_path}/states] where computation_id = "graph"')
         return {
-            row["name"].lstrip("/"): row["state"] for row in rows if row["name"].lstrip("/").startswith("functions/")
+            row["name"].lstrip("/"): unpack_state(row)
+            for row in rows
+            if row["name"].lstrip("/").startswith("functions/")
         }
 
     def check_result(self):

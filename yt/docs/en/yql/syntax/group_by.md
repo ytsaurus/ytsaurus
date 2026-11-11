@@ -139,7 +139,7 @@ You can use SessionWindow in GROUP BY only once.
 
 
 
-## ROLLUP, CUBE, and GROUPING SETS {#rollup}
+## ROLLUP, CUBE, and GROUPING SETS {#rollup} {#rollup-cube-group-sets}
 
 The results of calculating the aggregate function as subtotals for the groups and overall totals over individual columns or whole table.
 

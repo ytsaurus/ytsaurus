@@ -6,10 +6,14 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/persisted_state_control.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/native_client/public.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/ypath/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -43,8 +47,112 @@ static const std::string FlowStateKey = "flow_view";                  // backwar
 static const std::string SpecKey = "spec";
 static const std::string DynamicSpecKey = "dynamic_spec";
 static const std::string FlowCoreTargetKey = "flow_core_target";
+static const std::string PipelineStateReplicaKey = "pipeline_state_replica";
 static const std::string CustomRuntimeDataAttribute = "custom_runtime_data";
 static const std::string SystemTimestampColumnName = "system_timestamp";
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+//! Reads the pipeline state from a raw FlowState node, so the rest of FlowState may be unparsable.
+TVersionedPipelineStatePtr ReadRawPipelineState(const INodePtr& flowStateNode)
+{
+    auto node = FindNodeByYPath(flowStateNode, "/execution_spec/pipeline_state");
+    return node ? ConvertTo<TVersionedPipelineStatePtr>(node) : New<TVersionedPipelineState>();
+}
+
+//! Replacement of one spec embedded in FlowState.
+struct TEmbeddedSpecRepair
+{
+    TStringBuf Path;
+    //! Unset if unreadable.
+    std::optional<TVersion> EmbeddedVersion;
+    //! Why the embedded spec needs a replacement.
+    TError Error;
+    INodePtr Replacement;
+    TVersion CanonicalVersion;
+    //! Why no replacement is possible.
+    TError ReplacementError;
+
+    bool IsNeeded() const
+    {
+        return !Error.IsOK();
+    }
+};
+
+template <class TVersionedSpec>
+TEmbeddedSpecRepair InspectEmbeddedSpec(const INodePtr& flowStateNode, TStringBuf path)
+{
+    TEmbeddedSpecRepair repair{
+        .Path = path,
+    };
+    auto embedded = FindNodeByYPath(flowStateNode, TYPath(path));
+    if (!embedded) {
+        return repair;
+    }
+
+    try {
+        repair.EmbeddedVersion = ReadRawVersion(embedded);
+    } catch (const std::exception&) {
+    }
+
+    // A zero version means that no spec has been applied yet.
+    if (repair.EmbeddedVersion == TVersion(0)) {
+        return repair;
+    }
+
+    try {
+        ConvertTo<TIntrusivePtr<TVersionedSpec>>(embedded);
+    } catch (const std::exception& ex) {
+        repair.Error = TError("Pipeline spec cannot be parsed")
+            .With(TError(ex));
+    }
+
+    return repair;
+}
+
+template <class TVersionedSpec>
+void PrepareReplacement(TEmbeddedSpecRepair* repair, const INodePtr& canonical)
+{
+    if (!repair->EmbeddedVersion) {
+        repair->ReplacementError = TError("Embedded spec version cannot be read");
+        return;
+    }
+
+    if (!canonical) {
+        repair->ReplacementError = TError("Canonical spec is missing");
+        return;
+    }
+
+    // Validation errors of the canonical spec are reported by the controller once FlowState is recovered.
+    try {
+        ConvertTo<TIntrusivePtr<TVersionedSpec>>(canonical);
+    } catch (const std::exception& ex) {
+        repair->ReplacementError = TError("Canonical spec cannot be parsed")
+            .With(TError(ex));
+        return;
+    }
+
+    repair->CanonicalVersion = ReadRawVersion(canonical);
+    if (repair->CanonicalVersion <= *repair->EmbeddedVersion) {
+        repair->ReplacementError = TError(
+            "Canonical spec version %v is not greater than embedded spec version %v",
+            repair->CanonicalVersion,
+            *repair->EmbeddedVersion);
+        return;
+    }
+
+    // The embedded version is kept below the canonical one, so the controller re-applies the canonical spec.
+    auto replacement = CloneNode(canonical)->AsMap();
+    replacement->RemoveChild("version");
+
+    YT_VERIFY(replacement->AddChild("version", ConvertToNode(*repair->EmbeddedVersion)));
+
+    repair->Replacement = std::move(replacement);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,8 +163,8 @@ struct TCommitContext
 
     TCommitContext()
     {
-        // Reserve 2 rows for updating flow_view_obsolete and important versions.
-        StatementCount = 2;
+        // Reserve 3 rows for updating flow_view_obsolete, important versions and the pipeline state replica.
+        StatementCount = 3;
     }
 
     TFlowStatePtr FlowState;
@@ -114,7 +222,7 @@ public:
         i32 valueField = nameTable->GetIdOrRegisterName("value");
         TYPath path = YPathJoin(Connector_->GetPipelinePath().GetPath(), FlowStateObsoleteTableName);
 
-        const auto& value = ConvertToYsonString(object);
+        const auto value = ConvertToYsonString(object);
         const auto& valueBuf = value.AsStringBuf();
         if (valueBuf.size() > 50_MB) {
             YT_TLOG_WARNING("Too big object")
@@ -137,8 +245,11 @@ public:
     }
 
 private:
-    template <typename T>
-    TIntrusivePtr<T> ReadObsoleteObjectCommon(const NApi::IClientBasePtr client, const std::string& name)
+    //! Reads all |names| in one lookup. Only lookups in a transaction read one snapshot across tablets;
+    //! outside one, each tablet answers at its own last committed timestamp.
+    std::vector<std::optional<TYsonString>> ReadObsoleteObjectsYsonCommon(
+        const NApi::IClientBasePtr& client,
+        const std::vector<std::string>& names)
     {
         auto nameTable = New<TNameTable>();
         i32 keyField = nameTable->GetIdOrRegisterName("key");
@@ -147,9 +258,12 @@ private:
 
         auto rowBuffer = New<TRowBuffer>();
         std::vector<TLegacyKey> keysToLookup;
-        auto keyToLookup = rowBuffer->AllocateUnversioned(1);
-        keyToLookup[0] = rowBuffer->CaptureValue(MakeUnversionedStringValue(name, keyField));
-        keysToLookup.push_back(keyToLookup);
+        for (const auto& name : names) {
+            auto keyToLookup = rowBuffer->AllocateUnversioned(1);
+            keyToLookup[0] = rowBuffer->CaptureValue(MakeUnversionedStringValue(name, keyField));
+            keysToLookup.push_back(keyToLookup);
+        }
+
         auto range = MakeSharedRange(std::move(keysToLookup), std::move(rowBuffer));
 
         NApi::TLookupRowsOptions lookupRowsOptions;
@@ -162,24 +276,41 @@ private:
         auto result = WaitFor(std::move(future)).ValueOrThrow();
         const auto& rowset = result.Rowset;
         const auto& rows = rowset->GetRows();
-        if (rows.Empty() || !rows[0]) {
-            return New<T>();
-        }
-        const auto& row = rows[0];
-        if (!row) {
-            return New<T>();
-        }
         auto schema = rowset->GetSchema();
         valueField = schema->GetColumnIndexOrThrow("value");
-        auto str = FromUnversionedValue<std::optional<TYsonString>>(row[valueField]);
-        if (!str) {
+
+        std::vector<std::optional<TYsonString>> values(names.size());
+        for (int index = 0; index < std::ssize(names) && index < std::ssize(rows); ++index) {
+            if (const auto& row = rows[index]) {
+                values[index] = FromUnversionedValue<std::optional<TYsonString>>(row[valueField]);
+            }
+        }
+
+        return values;
+    }
+
+    std::optional<TYsonString> ReadObsoleteObjectYsonCommon(
+        const NApi::IClientBasePtr& client,
+        const std::string& name)
+    {
+        return std::move(ReadObsoleteObjectsYsonCommon(client, {name})[0]);
+    }
+
+    template <typename T>
+    TIntrusivePtr<T> ReadObsoleteObjectCommon(const NApi::IClientBasePtr client, const std::string& name)
+    {
+        auto yson = ReadObsoleteObjectYsonCommon(client, name);
+        if (!yson) {
             return New<T>();
         }
-        auto res = ConvertTo<TIntrusivePtr<T>>(*str);
+
+        auto res = ConvertTo<TIntrusivePtr<T>>(*yson);
+
         YT_TLOG_INFO("Read obsolete object completed")
             .With("Type", TypeName<T>())
             .With("Table", FlowStateObsoleteTableName)
             .With("Key", name);
+
         return res;
     }
 
@@ -194,6 +325,34 @@ public:
     TIntrusivePtr<T> ReadObsoleteObject(const std::string& name)
     {
         return ReadObsoleteObjectCommon<T>(Connector_->GetClient(), name);
+    }
+
+    std::optional<TYsonString> ReadObsoleteObjectYson(
+        const NApi::ITransactionPtr& transaction,
+        const std::string& name)
+    {
+        return ReadObsoleteObjectYsonCommon(transaction, name);
+    }
+
+    std::optional<TYsonString> ReadObsoleteObjectYson(const std::string& name)
+    {
+        return ReadObsoleteObjectYsonCommon(Connector_->GetClient(), name);
+    }
+
+    std::vector<std::optional<TYsonString>> ReadObsoleteObjectsYson(
+        const NApi::ITransactionPtr& transaction,
+        const std::vector<std::string>& names)
+    {
+        return ReadObsoleteObjectsYsonCommon(transaction, names);
+    }
+
+    //! Starts a tablet transaction for reading only: its lookups read one snapshot at its start timestamp.
+    NApi::ITransactionPtr StartSnapshotTransaction()
+    {
+        TTransactionStartOptions options;
+        options.Timeout = Config_->Timeout;
+        return WaitFor(Connector_->StartTransaction(NYT::NTransactionClient::ETransactionType::Tablet, options))
+            .ValueOrThrow();
     }
 
     //! Get some rows with SequenceId > lastSequenceId, ordered by SequenceId.
@@ -367,8 +526,10 @@ public:
 
     void CheckDynamicSpecVersion(TVersion expectedVersion, const NApi::ITransactionPtr& transaction)
     {
-        auto spec = PersistedStateStorageHandler_->ReadObsoleteObject<TVersionedDynamicPipelineSpec>(transaction, DynamicSpecKey);
-        auto actualVersion = spec->GetVersion();
+        // Only the version is read, so an unparsable persisted value can still be replaced.
+        auto spec = PersistedStateStorageHandler_->ReadObsoleteObjectYson(transaction, DynamicSpecKey);
+        auto actualVersion = spec ? ReadRawVersion(ConvertToNode(*spec)) : TVersion(0);
+
         THROW_ERROR_EXCEPTION_UNLESS(
             actualVersion == expectedVersion,
             NFlow::EErrorCode::SpecVersionMismatch,
@@ -387,11 +548,21 @@ public:
             "Can not decrease pipeline state version");
         auto path = YPathJoin(Connector_->GetPipelinePath().GetPath(), FlowStateKey);
         auto stateManager = MakeStrong(this);
+
+        // The replica is written together with the state in FlowState, so it is up to date whenever the state
+        // has not changed since the last persist.
+        auto replica = newVersions->PipelineStateVersion != expectedVersions->PipelineStateVersion
+            ? CloneYsonStruct(flowState->ExecutionSpec->PipelineState)
+            : nullptr;
+
         TCommitContext context;
         context.FlowState = flowState;
-        context.Callback = [weakThis = MakeWeak(this), &newVersions, expectedVersions] (NApi::ITransactionPtr& transaction) {
+        context.Callback = [weakThis = MakeWeak(this), &newVersions, expectedVersions, replica] (NApi::ITransactionPtr& transaction) {
             if (auto strongThis = weakThis.Lock()) {
                 strongThis->HandleImportantVersions(expectedVersions, newVersions, transaction);
+                if (replica) {
+                    strongThis->PersistedStateStorageHandler_->WriteObsoleteObject(transaction, PipelineStateReplicaKey, replica);
+                }
             } else {
                 THROW_ERROR_EXCEPTION("Controller state manager is dead");
             }
@@ -404,12 +575,26 @@ public:
     TFlowStatePtr RecoverFlowState() override
     {
         YT_TLOG_INFO("Flow state recover started");
-        auto flowState = PersistedStateStorageHandler_->ReadObsoleteObject<TFlowState>(FlowStateKey);
+
+        auto flowState = RecoverFlowStateWithValidSpecs();
         auto control = New<TPersistedStateControl<std::string>>(PersistedStateStorageHandler_);
         flowState->AttachToControl(control);
         control->Recover();
         YT_TLOG_INFO("Flow state recover completed");
         return flowState;
+    }
+
+    TObservedPipelineState RecoverPersistedPipelineState() override
+    {
+        // Every lookup of the resolution reads the snapshot at the start timestamp of this transaction.
+        auto transaction = PersistedStateStorageHandler_->StartSnapshotTransaction();
+        auto abortTransaction = Finally([&] {
+            YT_UNUSED_FUTURE(transaction->Abort());
+        });
+
+        return ResolvePipelineState([&] (const std::vector<std::string>& keys) {
+            return PersistedStateStorageHandler_->ReadObsoleteObjectsYson(transaction, keys);
+        });
     }
 
     void PersistSpecs(
@@ -470,6 +655,18 @@ public:
         YT_TLOG_INFO("RecoverDynamicSpec finished")
             .With("Version", result->GetVersion());
         return result;
+    }
+
+    INodePtr RecoverSpecNode() override
+    {
+        auto yson = PersistedStateStorageHandler_->ReadObsoleteObjectYson(SpecKey);
+        return yson ? ConvertToNode(*yson) : nullptr;
+    }
+
+    INodePtr RecoverDynamicSpecNode() override
+    {
+        auto yson = PersistedStateStorageHandler_->ReadObsoleteObjectYson(DynamicSpecKey);
+        return yson ? ConvertToNode(*yson) : nullptr;
     }
 
     void AdvanceInputMessagesWatermark(TSystemTimestamp watermark) override
@@ -548,6 +745,26 @@ private:
     const IYTConnectorPtr Connector_;
     const TPersistedStateManagerConfigPtr Config_;
     const TIntrusivePtr<TPersistedStateStorageHandler> PersistedStateStorageHandler_;
+
+    TFlowStatePtr RecoverFlowStateWithValidSpecs()
+    {
+        auto flowStateYson = PersistedStateStorageHandler_->ReadObsoleteObjectYson(FlowStateKey);
+        if (!flowStateYson) {
+            return New<TFlowState>();
+        }
+
+        // The repair needs a node tree of the whole FlowState, so build it only when FlowState cannot be parsed.
+        try {
+            return ConvertTo<TFlowStatePtr>(*flowStateYson);
+        } catch (const std::exception& ex) {
+            YT_TLOG_INFO("Persisted FlowState cannot be parsed, checking embedded pipeline specs")
+                .With(ex);
+        }
+
+        auto flowStateNode = ConvertToNode(*flowStateYson);
+        RepairEmbeddedPipelineSpecs(flowStateNode, RecoverSpecNode(), RecoverDynamicSpecNode());
+        return ConvertTo<TFlowStatePtr>(flowStateNode);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -568,6 +785,128 @@ TPipelineImportantVersionsPtr MakePipelineImportantVersions(const TFlowStatePtr&
     versions->PipelineStateVersion = flowState->ExecutionSpec->PipelineState->GetVersion();
     versions->FlowCoreTargetVersion = flowState->ExecutionSpec->FlowCoreTarget->GetVersion();
     return versions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersion ReadRawVersion(const INodePtr& versionedValue)
+{
+    auto versionNode = versionedValue->AsMap()->FindChild("version");
+    return versionNode ? ConvertTo<TVersion>(versionNode) : TVersion(0);
+}
+
+TObservedPipelineState ResolvePipelineState(const TObsoleteStateLookup& lookup)
+{
+    auto rows = lookup({ImportantVersionsKey, PipelineStateReplicaKey});
+    auto importantVersions = rows[0]
+        ? ConvertTo<TPipelineImportantVersionsPtr>(*rows[0])
+        : New<TPipelineImportantVersions>();
+    auto observe = [&] (EPipelineState state) {
+        return TObservedPipelineState{
+            .ExpectedVersions = importantVersions,
+            .State = state,
+            // Without a FlowView the controller cannot apply specs, so waiting for sync would never
+            // end. Concurrent changes are rejected by the version checks of the persisting transactions.
+            .Synced = true,
+        };
+    };
+
+    TVersionedPipelineStatePtr replica;
+    if (rows[1]) {
+        try {
+            replica = ConvertTo<TVersionedPipelineStatePtr>(*rows[1]);
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Ignoring unreadable pipeline state replica")
+                .With(ex);
+        }
+    }
+
+    // The replica is written together with the important versions whenever the state changes, so in
+    // one snapshot a replica at the important state version holds the current state. A replica at
+    // another version is left from a controller that does not write it.
+    if (replica && replica->GetVersion() == importantVersions->PipelineStateVersion) {
+        return observe(replica->GetValue());
+    }
+
+    YT_TLOG_DEBUG("Reading persisted FlowState to resolve pipeline state");
+
+    auto flowStateRows = lookup({FlowStateKey});
+    auto state = flowStateRows[0]
+        ? ReadRawPipelineState(ConvertToNode(*flowStateRows[0]))
+        : New<TVersionedPipelineState>();
+    // FlowState and the important versions are written in one transaction by the only writer.
+    THROW_ERROR_EXCEPTION_UNLESS(
+        state->GetVersion() == importantVersions->PipelineStateVersion,
+        "Persisted pipeline state version %v differs from the important pipeline state version %v",
+        state->GetVersion(),
+        importantVersions->PipelineStateVersion);
+
+    return observe(state->GetValue());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RepairEmbeddedPipelineSpecs(
+    const INodePtr& flowStateNode,
+    const INodePtr& canonicalSpec,
+    const INodePtr& canonicalDynamicSpec)
+{
+    auto staticRepair = InspectEmbeddedSpec<TVersionedPipelineSpec>(flowStateNode, "/execution_spec/pipeline_spec");
+    auto dynamicRepair = InspectEmbeddedSpec<TVersionedDynamicPipelineSpec>(flowStateNode, "/execution_spec/dynamic_pipeline_spec");
+    if (!staticRepair.IsNeeded() && !dynamicRepair.IsNeeded()) {
+        return;
+    }
+
+    std::optional<EPipelineState> pipelineState;
+    try {
+        pipelineState = ReadRawPipelineState(flowStateNode)->GetValue();
+    } catch (const std::exception&) {
+    }
+
+    if (staticRepair.IsNeeded()) {
+        if (pipelineState == EPipelineState::Stopped || pipelineState == EPipelineState::Paused) {
+            PrepareReplacement<TVersionedPipelineSpec>(&staticRepair, canonicalSpec);
+        } else {
+            staticRepair.ReplacementError = TError("Static pipeline spec can be replaced only in Stopped or Paused state")
+                .With("pipeline_state", pipelineState);
+        }
+    }
+
+    if (dynamicRepair.IsNeeded()) {
+        PrepareReplacement<TVersionedDynamicPipelineSpec>(&dynamicRepair, canonicalDynamicSpec);
+    }
+
+    // Nothing is replaced unless every needed replacement is possible.
+    std::vector<TError> errors;
+    for (const auto* repair : {&staticRepair, &dynamicRepair}) {
+        if (repair->IsNeeded() && !repair->Replacement) {
+            auto error = TError("Embedded pipeline spec cannot be recovered")
+                .With("path", repair->Path)
+                .With(repair->Error)
+                .With(repair->ReplacementError);
+            errors.push_back(std::move(error));
+        }
+    }
+
+    if (!errors.empty()) {
+        THROW_ERROR_EXCEPTION("Cannot recover the pipeline specs embedded in FlowState")
+            .With(errors);
+    }
+
+    for (const auto* repair : {&staticRepair, &dynamicRepair}) {
+        if (!repair->Replacement) {
+            continue;
+        }
+
+        SetNodeByYPath(flowStateNode, TYPath(repair->Path), repair->Replacement);
+
+        YT_TLOG_INFO("Substituted unparsable embedded pipeline spec")
+            .With("Path", repair->Path)
+            .With("EmbeddedVersion", repair->EmbeddedVersion)
+            .With("CanonicalVersion", repair->CanonicalVersion)
+            .With("PipelineState", pipelineState)
+            .With(repair->Error);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

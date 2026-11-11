@@ -22,6 +22,7 @@ PY_SRCS(
     yt_dashboards/bundle_ui/resources.py
     yt_dashboards/bundle_ui/user_load.py
     yt_dashboards/cache.py
+    yt_dashboards/chaos_bundle.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
     yt_dashboards/cluster_workloads.py
@@ -75,6 +76,7 @@ ELSE()
     PY_SRCS(
         TOP_LEVEL
         yt_dashboards/common/settings.py
+        yt_dashboards/id_to_path_updater.py
         yt_dashboards/yandex_constants.py
     )
 ENDIF()

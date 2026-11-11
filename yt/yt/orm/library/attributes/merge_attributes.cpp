@@ -45,7 +45,7 @@ TYsonString MergeValueLists(std::vector<TAttributeValue> attributeValues, EYsonF
     for (int index = 0; index < listSize; ++index) {
         std::vector<TAttributeValue> valuesAtIndex;
         for (const auto& [attributeIndex, attributeValue] : Enumerate(attributeValues)) {
-            auto list = lists[attributeIndex];
+            const auto& list = lists[attributeIndex];
             valuesAtIndex.push_back({
                 .Path = attributeValue.Path,
                 .Value = ConvertToYsonString(list->FindChild(index))
@@ -137,7 +137,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     std::vector<TAttributeValue> attributeValues,
     EYsonFormat format,
     EMergeAttributesMode mergeAttributesMode,
-    std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
+    const std::function<void(bool, std::vector<NYPath::TYPath>)>& mismatchCallback)
 {
     std::vector<TAttributeValue> result;
     std::vector<TAttributeValue> nonWildcardAttributes;

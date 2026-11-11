@@ -5,7 +5,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 
 #|
 || **Parameter** | **Description** ||
-|| `value` | **Type**: `NYT::TStrongTypedef<double, NYT::NFlow::TWatermarkPercentileTag, NYT::TStrongTypedefOptions{true}>`
+|| `value` | **Type**: [NYT::NFlow::TWatermarkPercentile](./all_yson_structs#NYT_NFlow_TWatermarkPercentile)
 **Default value**: `100.0`
  ||
 || `delay` | **Type**: [TDuration](./all_yson_structs#TDuration)

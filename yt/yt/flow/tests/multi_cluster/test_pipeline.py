@@ -36,12 +36,12 @@ EXPECTED_DATA.sort()
 ##################################################################
 
 
-class TestMultiCluster(FlowTestBase):
+class MultiClusterTestBase(FlowTestBase):
     FLOW_BINARY_PATH = FLOW_BINARY_PATH
     DRIVER_BACKEND = "rpc"
 
     def setup_method(self, method):
-        super(TestMultiCluster, self).setup_method(method)
+        super(MultiClusterTestBase, self).setup_method(method)
         self.input_queue = self.work_yt_path + "/input_queue"
         self.consumer = self.work_yt_path + "/consumer"
         self.output_queue_one = self.work_yt_path + "/output_queue"
@@ -50,8 +50,8 @@ class TestMultiCluster(FlowTestBase):
         self.first_replica_cluster_name = self.remote_cluster_names[0]
         self.all_replica_cluster_names = self.remote_cluster_names[:2]
 
-    def prepare_environment(self):
-        run_primary_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
+    def prepare_environment(self, pipeline_replica_cluster=None):
+        run_primary_yt_sync("primary", self.work_yt_path, TABLET_COUNT, pipeline_replica_cluster)
         for replica_name in self.all_replica_cluster_names:
             run_remote_yt_sync(replica_name, self.work_yt_path, TABLET_COUNT)
 
@@ -85,6 +85,8 @@ class TestMultiCluster(FlowTestBase):
 
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
 
+
+class TestMultiCluster(MultiClusterTestBase):
     @pytest.mark.authors(["biwboris0"])
     def test_async_queue_sink_multi_cluster(self):
         self.prepare_environment()
@@ -94,8 +96,12 @@ class TestMultiCluster(FlowTestBase):
 
         # Step 0 - unmount all tables on remote clusters but one. Write half of data
         for i in range(1, len(self.all_replica_cluster_names)):
-            self.cluster_name_to_client[self.all_replica_cluster_names[i]].unmount_table(self.output_queue_multi, sync=True)
-        batching_write_rows(INPUT_DATA[: EVENT_COUNT // 2], lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
+            self.cluster_name_to_client[self.all_replica_cluster_names[i]].unmount_table(
+                self.output_queue_multi, sync=True
+            )
+        batching_write_rows(
+            INPUT_DATA[: EVENT_COUNT // 2], lambda batch: self.client.insert_rows(self.input_queue, batch), 100
+        )
 
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": pipeline_config_path},
@@ -112,9 +118,13 @@ class TestMultiCluster(FlowTestBase):
 
             # Step 1 - mount all remote tables from step 0 and ummount other one. Write the other half of data
             for i in range(1, len(self.all_replica_cluster_names)):
-                self.cluster_name_to_client[self.all_replica_cluster_names[i]].mount_table(self.output_queue_multi, sync=True)
+                self.cluster_name_to_client[self.all_replica_cluster_names[i]].mount_table(
+                    self.output_queue_multi, sync=True
+                )
             remote_client_0.unmount_table(self.output_queue_multi, sync=True)
-            batching_write_rows(INPUT_DATA[EVENT_COUNT // 2 :], lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
+            batching_write_rows(
+                INPUT_DATA[EVENT_COUNT // 2 :], lambda batch: self.client.insert_rows(self.input_queue, batch), 100
+            )
             self.client.start_pipeline(self.pipeline_path)
 
             # With finite=False we can't wait for "completed"
@@ -126,10 +136,7 @@ class TestMultiCluster(FlowTestBase):
             self.client.stop_pipeline(self.pipeline_path)
             self.wait_pipeline_state("stopped", timeout=60)
 
-            one_cluster_data = [
-                row["data"]
-                for row in list(first_replica_client.select_rows(one_cluster_expr))
-            ]
+            one_cluster_data = [row["data"] for row in list(first_replica_client.select_rows(one_cluster_expr))]
             one_cluster_data.sort()
             assert one_cluster_data == EXPECTED_DATA
 

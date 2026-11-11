@@ -26,12 +26,19 @@ And binaries — their roles depend on the language:
   * `run.sh` — the Java launcher script for the jar and companion; it takes the fully qualified main class as its first argument.
   * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `classpath` out of the companion resource parameters: the runner keeps a declared `classpath` as is and assumes the jars are already in the job environment.
 
+- Kotlin
+
+  * `run.sh` — the JVM launcher generated for the Kotlin program; it takes the fully qualified main class as its first argument. For the Word Count module, deploy it together with `wordcount_kotlin_bin.jar` and the dependency directory `wordcount_kotlin_bin/`, preserving their relative layout. The module targets JDK 21 and also produces `jdk.tar`: `WITH_JDK()` packs this archive but does not automatically unpack or deploy a `jdk/` directory. On the launch host, provide Java 21 through `JAVA_HOME` or a leading `run.sh -j <path/to/java>` option; `-j` takes priority. Run the script from the directory containing this artifact layout because its paths are relative to the current directory. The separate `flow-java` docker example uses Java 17, so its image is not a guaranteed runtime for this JDK 21 module. Kotlin uses the same Java SDK; see [Getting started (Kotlin)](../../../flow/kotlin/getting-started.md).
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `classpath` out of companion resource parameters when the runner should ship the jars. A declared `classpath` is preserved; if every Java companion resource declares one, the runner ships no companion jars, while a mixed spec still ships jars for resources without `classpath`.
+
 - Go
 
   * `pipeline` — a Go binary: launcher plus companion.
   * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./go_companion` as is and assumes the companion is already in the job environment.
 
 {% endlist %}
+
+The JVM runner applies JDK and classpath enrichment only for this enabled Vanilla mode. In docker jobs, the JDK path precedence is resource `jdk_bin_path`, then `YT_FLOW_JDK_BIN_PATH`, then the launcher JVM path; the selected path must exist in the job image and provide a compatible runtime. In porto jobs that use the supplied JDK layer, `YT_FLOW_JDK_BIN_PATH` overrides the layer path and a different resource path is ignored. A worker with explicit layers does not use the supplied JDK layer, so it needs a compatible resource or environment JDK path. Direct custom deployments must provide their own JDK, jars, and companion parameters.
 
 ## How to enable {#enable}
 
@@ -45,7 +52,7 @@ Add the `vanilla` block to your pipeline config:
 };
 ```
 
-The required fields are `pool` and `worker.count`. By default, the controller has one job, and each controller and worker job gets `cpu_limit = 6` and `memory_limit = 18 GiB`. Without a network project, the launcher asks {{product-name}} to allocate job ports. With a network project, each job has its own IP and uses fixed ports unless its launcher requests job ports: `rpc_port = 10080`, `monitoring_port = 10081`, and `companion.port = 10082`. See [Additional parameters](#advanced-config) for port allocation details.
+The required fields are `pool` and `worker.count`. By default, the controller has one job, and each controller and worker job gets `cpu_limit = 6` and `memory_limit = 18 GiB`. Without a network project, the launcher asks {{product-name}} to allocate job ports. With a network project, each job has its own IP and uses fixed ports unless its launcher requests job ports: `rpc_port = 10080`, `monitoring_port = 10081`, `companion.port = 10082`, and `companion.monitoring_port = 10083`. See [Additional parameters](#advanced-config) for port allocation details.
 
 {% if audience == "internal" %}
 
@@ -85,14 +92,85 @@ And the task fields (`controller`/`worker`):
 || `layers` | Cypress paths of the porto layers mounted into the task’s root filesystem. A non-empty list on at least one task enables porto jobs for the whole operation ||
 || `system_layer_path` | The task’s base OS layer; overrides the default system layer ||
 || `set_container_cpu_limit` | Request a container CPU ceiling equal to `cpu_limit` on execution backends that support it. Defaults to `%false`; when disabled, the runner leaves the operation field unset. ||
-|| `port_count` | Number of ports requested from {{product-name}} instead of using fixed ports. Without a network project, the default is 2 for the controller and 3 for the worker; `0` keeps fixed ports unless a companion launcher raises `worker.port_count` ||
+|| `port_count` | Number of ports requested from {{product-name}} instead of using fixed ports. Without a network project, native C++ and JVM launches default to 2 for the controller and 4 for the worker; Python and Go launchers set an omitted worker value to 3. `0` keeps fixed ports unless a companion launcher raises `worker.port_count` ||
 |#
 
-On a shared-network host, fixed ports of neighboring jobs can collide. The launcher therefore sets `port_count = 2` for the controller and `port_count = 3` for the worker when no network project is configured. An explicit `0` selects fixed ports again unless a companion launcher raises `worker.port_count`. Allocated ports take priority over the node config: `YT_PORT_0` is `rpc_port` and `bus_server.port`, `YT_PORT_1` is `monitoring_port`, and `YT_PORT_2` is `companion.port`. A controller or a worker without a [companion](../../concepts/companion.md) needs two ports; a worker with a companion needs three. With fewer ports, some remain fixed and can still collide.
+On a shared-network host, fixed ports of neighboring jobs can collide. Without a network project, native C++ and JVM launches therefore default `port_count` to `2` for the controller and `4` for the worker; an explicit `0` selects fixed ports again unless a companion launcher raises `worker.port_count`. Allocated ports take priority over the node config: `YT_PORT_0` is `rpc_port` and `bus_server.port`, `YT_PORT_1` is `monitoring_port`, `YT_PORT_2` is `companion.port`, and `YT_PORT_3` is `companion.monitoring_port` (optional). A worker without a companion needs two ports; a worker with a companion needs at least three. If a task requests fewer ports than needed, some endpoints remain fixed or the companion cannot start; without the fourth port, only companion metrics are disabled.
 
-The Go and Python companion launchers raise `worker.port_count` to at least `3` when Vanilla is enabled, including when the value is omitted or explicitly set to `0`. Their worker ports are allocated even with a network project; the controller follows the rules above.
+The Python companion launcher sets `worker.port_count` to `3` when the field is omitted, set to the YSON entity `#`, or has a nonzero integer value below `3`, but preserves an explicit `0` so that the worker uses fixed ports. The Go launcher sets an omitted or integer value below `3` to `3`, including an explicit `0`. Their worker ports are allocated even with a network project unless Python receives the explicit zero; the controller follows the rules above. Java and Kotlin use the JVM runner and do not change `worker.port_count` automatically.
+
+## Accessing {{product-name}} through job proxy {#job-proxy-readers}
+
+Use job proxy for Flow requests to the cluster running the vanilla operation. This option applies to bulk static table reads, queue reads, loading and saving state, dynamic table writes, and transaction commits.
+
+Requests bypass the shared RPC proxy: a local Unix socket replaces the network hop to that proxy. This reduces load on shared RPC proxies and can reduce latency and increase throughput when those proxies are the bottleneck. Vanilla jobs need spare CPU and memory: RPC request processing and buffers move to each job's job proxy. Changing the route does not by itself remove bottlenecks in storage servers or user computations.
+
+Add [`enable_rpc_proxy_in_job_proxy`](../../../user-guide/data-processing/operations/operations-options.md#user_script_options) to `vanilla.worker`:
+
+```yson
+enable_rpc_proxy_in_job_proxy = %true;
+```
+
+Data path:
+
+```text
+Flow → RPC client → Unix socket → job proxy → native client → cluster servers
+```
+
+Job proxy is a separate process on a {{product-name}} execution node. It starts the job's user process, monitors its resources, and reports statistics to the node. In a vanilla Flow operation, the user process is a Flow worker. Job proxy already exists without this option; the flag enables its RPC API and exports the local socket path in `YT_JOB_PROXY_SOCKET_PATH`.
+
+The Flow launcher passes the execution cluster in `YT_FLOW_JOB_PROXY_CLUSTER`. All clients from the shared Flow cache use the local socket for this cluster, including table reads, state access, writes, and transaction commits. The authenticator client also uses job proxy. Clients with identical settings within one cache share a connection while retaining their authentication options. An explicit proxy role such as `my-cluster/my-proxy-role` is also replaced by the local socket for the execution cluster. Requests to other clusters keep using their regular RPC proxies.
+
+This option is incompatible with a custom root clients cache factory (`SetRootClientsCacheFactory`). This combination fails at startup to preserve the custom client semantics.
+
+### Separating RPC traffic into transport bands {#job-proxy-multiplexing}
+
+With many partitions, service RPCs can compete with data streams, such as `ReadTable`, for processing and data transfer through job proxy. [`enable_control_multiplexing_band`](../../generated_docs/all_yson_structs.md#NYT_NApi_NRpcProxy_TConnectionConfig) routes methods that support it, including `CommitTransaction`, `PingTransaction`, `AbortTransaction`, and `DetachTransaction`, to the `control` band. `ReadTable` stays in `default`. Bands use separate transport connections and queues, but share the host's CPU, memory, and bandwidth.
+
+These are Flow client-side settings. The `enable_control_multiplexing_band` flag belongs to an individual RPC connection and selects the band for supported methods; it applies to both job proxy and regular RPC proxy connections. The `tcp_dispatcher.multiplexing_bands` settings control transport connection parallelism across the Flow process. They do not configure the dispatcher in the separate job proxy process.
+
+Separation helps when service requests wait behind data streams in a shared transport queue. Additional connections consume resources and do not eliminate CPU contention or storage-server overload. Choose parallelism based on service RPC latency, throughput, and resource use.
+
+The following config fragment enables job proxy for workers, selects `control` for supported RPCs, and sets parallelism to 4 in `default` and 1 in `control` for each transport channel. These values are an example to tune for your workload, not new defaults.
+
+```yson
+{
+    vanilla = {
+        worker = {enable_rpc_proxy_in_job_proxy = %true;};
+        node_config = {
+            clients_cache = {
+                default_connection = {
+                    enable_control_multiplexing_band = %true;
+                };
+            };
+        };
+    };
+    dynamic_spec = {
+        singletons = {
+            tcp_dispatcher = {
+                multiplexing_bands = {
+                    default = {
+                        min_multiplexing_parallelism = 4;
+                        max_multiplexing_parallelism = 4;
+                    };
+                    control = {
+                        min_multiplexing_parallelism = 1;
+                        max_multiplexing_parallelism = 1;
+                    };
+                };
+            };
+        };
+    };
+}
+```
+
+See the [transport band reference](../../generated_docs/all_yson_structs.md#NYT_NBus_NTcp_TMultiplexingBandConfig) for `min_multiplexing_parallelism` and `max_multiplexing_parallelism`.
+
+If the cluster has a `clients_cache.per_cluster_connection` entry, set `enable_control_multiplexing_band` in that connection too: it does not inherit `default_connection`.
 
 ## Run the pipeline {#run}
+
+`com.example.pipeline.PipelineMain` in the Java commands is a placeholder. The Kotlin commands use the Word Count example’s entry-point class. In both the run and validation sections, replace the applicable name with the fully qualified class name of your pipeline. Run JVM commands from the directory containing `run.sh`, the program jar, and its dependency directory.
 
 {% list tabs %}
 
@@ -114,6 +192,12 @@ The Go and Python companion launchers raise `worker.port_count` to at least `3` 
   ./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server
   ```
 
+- Kotlin
+
+  ```bash
+  ./run.sh tech.ytsaurus.flow.examples.wordcount.WordCountApplication --config pipeline.yson --flow-bin flow_server
+  ```
+
 - Go
 
   ```bash
@@ -126,11 +210,31 @@ After the start, the runner by default (`YT_FLOW_WAIT=1`) waits until the pipeli
 
 ### Validate the spec only {#validate-only}
 
-The C++ and Java runners support `--validate-only`: they parse and validate the static and dynamic specs locally without sending them to the controller. An invalid spec makes the runner fail; a valid one exits successfully. The Python and Go launchers do not forward this flag to `flow_server` and may start or update the pipeline instead. The command below uses the C++ runner.
+To check the spec locally without sending it to the controller, pass `--validate-only` to the C++ or JVM runner. The runner parses and validates the static and dynamic spec, then exits without side effects. If the spec is invalid, it exits with an error; otherwise, it exits successfully. The JVM runner forwards the flag to `flow_server`, so this works for both Java and Kotlin. The Python and Go launchers do not forward the flag to `flow_server`; invoking them with it may start or update the pipeline instead.
+
+For a C++ pipeline:
 
 ```bash
 ./pipeline --config pipeline.yson --validate-only
 ```
+
+For a Java or Kotlin pipeline, provide the real entry-point class and `flow_server` path. The Java command keeps the placeholder used above, while the Kotlin command keeps the Word Count example class:
+
+{% list tabs %}
+
+- Java
+
+  ```bash
+  ./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server --validate-only
+  ```
+
+- Kotlin
+
+  ```bash
+  ./run.sh tech.ytsaurus.flow.examples.wordcount.WordCountApplication --config pipeline.yson --flow-bin flow_server --validate-only
+  ```
+
+{% endlist %}
 
 ## See also
 

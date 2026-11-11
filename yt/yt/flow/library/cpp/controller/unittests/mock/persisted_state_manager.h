@@ -20,6 +20,7 @@ struct TMockPersistedStateManager
         const TPipelineImportantVersionsPtr& expectedVersions),
         (override));
     MOCK_METHOD(TFlowStatePtr, RecoverFlowState, (), (override));
+    MOCK_METHOD(TObservedPipelineState, RecoverPersistedPipelineState, (), (override));
 
     MOCK_METHOD(void, PersistSpecs, (
         const std::optional<TVersionedPipelineSpecPtr>& spec,
@@ -30,6 +31,8 @@ struct TMockPersistedStateManager
 
     MOCK_METHOD(TVersionedPipelineSpecPtr, RecoverSpec, (), (override));
     MOCK_METHOD(TVersionedDynamicPipelineSpecPtr, RecoverDynamicSpec, (), (override));
+    MOCK_METHOD(NYTree::INodePtr, RecoverSpecNode, (), (override));
+    MOCK_METHOD(NYTree::INodePtr, RecoverDynamicSpecNode, (), (override));
 
     MOCK_METHOD(void, PersistFlowCoreTarget, (
         const TVersionedFlowCoreTargetPtr& flowCoreTarget,

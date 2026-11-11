@@ -19,10 +19,14 @@ def run_check(secrets, yt_client, logger, options, states):
 
     disconnected_query_trackers = []
     connected_query_tracker_count = 0
-    query_tracker_instances = yt_client_no_retries.list("//sys/query_tracker/instances")
+    query_tracker_instances = yt_client_no_retries.list("//sys/query_tracker/instances", attributes=["banned"])
 
     all_errors = []
     for instance in query_tracker_instances:
+        if instance.attributes.get("banned", False):
+            logger.info(f"Skipping banned query tracker {instance}")
+            continue
+
         logger.info(f"Collecting alerts from {instance}")
         alerts = None
 

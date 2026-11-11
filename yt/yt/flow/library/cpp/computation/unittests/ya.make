@@ -3,8 +3,11 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    read_delay_ut.cpp
     availability_groups_ut.cpp
     compact_output_store_ut.cpp
+    key_count_observer_ut.cpp
+    key_count_computation_ut.cpp
     computation_base_ut.cpp
     computation_tracer_ut.cpp
     processing_observation_accumulator_ut.cpp
@@ -27,6 +30,10 @@ SRCS(
     state_client_ut.cpp
     state_providers_ut.cpp
     swift_map_validation_ut.cpp
+    paged_timer_store_differential_ut.cpp
+    paged_timer_store_ut.cpp
+    timer_page_catalogue_ut.cpp
+    timer_page_data_ut.cpp
     timer_store_ut.cpp
     transform_ordered_source_validation_ut.cpp
     watermark_generator_ut.cpp

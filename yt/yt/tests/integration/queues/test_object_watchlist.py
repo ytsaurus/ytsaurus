@@ -65,10 +65,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         # Possible to create chaos replicated queues.
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-        create("chaos_replicated_table",
-               "//tmp/chaos_rep_q1",
-               attributes={"chaos_cell_bundle": "chaos_bundle",
-                           "schema": [{"name": "data", "type": "string"}]})
+        self._insistent_create("chaos_replicated_table",
+                               "//tmp/chaos_rep_q1",
+                               attributes={"chaos_cell_bundle": "chaos_bundle",
+                                           "schema": [{"name": "data", "type": "string"}]})
 
         # Object without schema is not a queue, consumer, or producer.
         create("chaos_replicated_table",
@@ -303,9 +303,9 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         create("table", "//tmp/q1", attributes={"dynamic": False, "schema": [{"name": "data", "type": "string"}]})
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-        create("chaos_replicated_table",
-               "//tmp/chaos_rep_q1",
-               attributes={"chaos_cell_bundle": "chaos_bundle"})
+        self._insistent_create("chaos_replicated_table",
+                               "//tmp/chaos_rep_q1",
+                               attributes={"chaos_cell_bundle": "chaos_bundle"})
 
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
@@ -410,10 +410,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         create("replicated_table", "//tmp/rep_q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-        create("chaos_replicated_table",
-               "//tmp/chaos_rep_q1",
-               attributes={"chaos_cell_bundle": "chaos_bundle",
-                           "schema": [{"name": "data", "type": "string"}]})
+        self._insistent_create("chaos_replicated_table",
+                               "//tmp/chaos_rep_q1",
+                               attributes={"chaos_cell_bundle": "chaos_bundle",
+                                           "schema": [{"name": "data", "type": "string"}]})
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/rep_q1", "//tmp/chaos_rep_q1")
 
         consumer_schema = [{"name": "data", "type": "string", "sort_order": "ascending"},
@@ -535,10 +535,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                            "schema": consumer_schema})
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-        create("chaos_replicated_table",
-               "//tmp/chaos_rep_c1",
-               attributes={"chaos_cell_bundle": "chaos_bundle",
-                           "schema": consumer_schema})
+        self._insistent_create("chaos_replicated_table",
+                               "//tmp/chaos_rep_c1",
+                               attributes={"chaos_cell_bundle": "chaos_bundle",
+                                           "schema": consumer_schema})
         QueueAgentHelpers.assert_registered_consumers_are()
 
         for consumer_name in ("c1", "rep_c1", "chaos_rep_c1"):
@@ -568,10 +568,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                            "schema": producer_schema})
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-        create("chaos_replicated_table",
-               "//tmp/chaos_rep_p1",
-               attributes={"chaos_cell_bundle": "chaos_bundle",
-                           "schema": producer_schema})
+        self._insistent_create("chaos_replicated_table",
+                               "//tmp/chaos_rep_p1",
+                               attributes={"chaos_cell_bundle": "chaos_bundle",
+                                           "schema": producer_schema})
         QueueAgentHelpers.assert_registered_producers_are()
 
         for producer_name in ("p1", "rep_p1", "chaos_rep_p1"):

@@ -26,10 +26,6 @@ TNodeId CreatePipelineNode(
     auto initializeTables = attributes->GetAndRemove<bool>("initialize_tables", true);
     attributes->Set(PipelineFormatVersionAttribute, CurrentPipelineFormatVersion);
 
-    auto getTablePath = [&path] (TStringBuf tableName) {
-        return YPathJoin(path, ToYPathLiteral(tableName));
-    };
-
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Create pipeline %v", path));
@@ -49,6 +45,18 @@ TNodeId CreatePipelineNode(
     }();
 
     if (initializeTables) {
+        const auto& definitions = GetPipelineTableDefinitions();
+        for (const auto& [name, definition] : BuildPipelineNodeDefinitions(definitions)) {
+            TCreateNodeOptions createOptions;
+            createOptions.Attributes = definition.Attributes->Clone();
+            createOptions.IgnoreExisting = options.IgnoreExisting;
+            WaitFor(transaction->CreateNode(
+                BuildPipelineTablePath(path, name),
+                definition.Type,
+                createOptions))
+                .ThrowOnError();
+        }
+
         std::vector<TFuture<void>> createTableFutures;
         auto addCreateFutures = [&] (const auto& definitions) {
             for (const auto& [name, definition] : definitions) {
@@ -56,11 +64,10 @@ TNodeId CreatePipelineNode(
                 createOptions.Attributes = BuildPipelineTableAttributes(definition);
                 createOptions.IgnoreExisting = options.IgnoreExisting;
                 createTableFutures.push_back(
-                    transaction->CreateNode(getTablePath(name), EObjectType::Table, createOptions)
+                    transaction->CreateNode(BuildPipelineTablePath(path, name), EObjectType::Table, createOptions)
                         .AsVoid());
             }
         };
-        const auto& definitions = GetPipelineTableDefinitions();
         addCreateFutures(definitions.Tables);
         addCreateFutures(definitions.Queues);
 
@@ -75,7 +82,7 @@ TNodeId CreatePipelineNode(
         std::vector<TFuture<void>> mountTableFutures;
         auto addMountFutures = [&] (const auto& definitions) {
             for (const auto& [name, _] : definitions) {
-                mountTableFutures.push_back(client->MountTable(getTablePath(name))
+                mountTableFutures.push_back(client->MountTable(BuildPipelineTablePath(path, name))
                         .AsVoid());
             }
         };

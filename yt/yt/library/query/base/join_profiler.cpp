@@ -188,7 +188,8 @@ public:
             if (UseOrderByInJoinSubqueries_) {
                 joinSubquery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
             }
-            joinSubquery->Limit = OrderedReadWithPrefetchHint;
+            joinSubquery->ScanOrder = EScanOrder::Ordered;
+            joinSubquery->Prefetching = true;
 
             YT_TLOG_DEBUG("Evaluating remote subquery")
                 .With("SubqueryId", joinSubquery->Id);
@@ -419,8 +420,10 @@ private:
                 if (UseOrderByInJoinSubqueries_) {
                     newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
                 }
-                // COMPAT(lukyan): Use ordered read without modification of protocol
-                newQuery->Limit = OrderedReadWithPrefetchHint;
+                newQuery->Prefetching = true;
+                newQuery->ScanOrder = EScanOrder::Ordered;
+            } else {
+                newQuery->ScanOrder = EScanOrder::Unordered;
             }
         } else {
             if (mode == EJoinSubqueryMode::Lookup) {
@@ -440,7 +443,8 @@ private:
             }
 
             newQuery->InferRanges = false;
-            newQuery->Limit = OrderedReadWithPrefetchHint;
+            newQuery->Prefetching = true;
+            newQuery->ScanOrder = EScanOrder::Ordered;
             if (UseOrderByInJoinSubqueries_) {
                 newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
             }

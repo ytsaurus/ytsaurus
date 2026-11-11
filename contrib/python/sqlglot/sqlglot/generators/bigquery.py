@@ -15,6 +15,7 @@ from sqlglot.dialects.dialect import (
     inline_array_unless_query,
     max_or_greatest,
     min_or_least,
+    no_filter_sql,
     no_ilike_sql,
     regexp_replace_sql,
     rename_func,
@@ -229,8 +230,7 @@ def _levenshtein_sql(self: BigQueryGenerator, expression: exp.Levenshtein) -> st
 
 
 def _json_extract_sql(self: BigQueryGenerator, expression: JSON_EXTRACT_TYPE) -> str:
-    name = expression.meta_get("name") or expression.sql_name()
-    upper = name.upper()
+    upper = self.function_name(expression).upper()
 
     dquote_escaping = upper in DQUOTES_ESCAPING_JSON_FUNCTIONS
 
@@ -257,6 +257,7 @@ class BigQueryGenerator(generator.Generator):
     RENAME_TABLE_WITH_DB = False
     NVL2_SUPPORTED = False
     UNNEST_WITH_ORDINALITY = False
+    CAST_TO_INT_ROUNDS = True
     COLLATE_IS_FUNC = True
     LIMIT_ONLY_LITERALS = True
     SUPPORTS_TABLE_ALIAS_COLUMNS = False
@@ -292,7 +293,7 @@ class BigQueryGenerator(generator.Generator):
         exp.RowNumber,
     )
 
-    TS_OR_DS_TYPES = (
+    TS_OR_DS_TYPES: t.ClassVar = (
         exp.TsOrDsToDatetime,
         exp.TsOrDsToTimestamp,
         exp.TsOrDsToTime,
@@ -335,6 +336,7 @@ class BigQueryGenerator(generator.Generator):
         exp.DatetimeAdd: date_add_interval_sql("DATETIME", "ADD"),
         exp.DatetimeSub: date_add_interval_sql("DATETIME", "SUB"),
         exp.DateFromUnixDate: rename_func("DATE_FROM_UNIX_DATE"),
+        exp.Filter: no_filter_sql,
         exp.FromTimeZone: lambda self, e: self.func(
             "DATETIME", self.func("TIMESTAMP", e.this, e.args.get("zone")), "'UTC'"
         ),
@@ -712,6 +714,11 @@ class BigQueryGenerator(generator.Generator):
             expr = expr.this
 
         return self.func("CONTAINS_SUBSTR", this, expr, expression.args.get("json_scope"))
+
+    def parsejson_sql(self, expression: exp.ParseJSON) -> str:
+        if expression.args.get("is_literal"):
+            return f"JSON {self.sql(expression, 'this')}"
+        return super().parsejson_sql(expression)
 
     def cast_sql(self, expression: exp.Cast, safe_prefix: str | None = None) -> str:
         this = expression.this

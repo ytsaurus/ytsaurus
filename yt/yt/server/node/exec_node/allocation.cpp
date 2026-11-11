@@ -5,6 +5,7 @@
 #include "job_controller.h"
 #include "job_fs_secretary.h"
 #include "slot.h"
+#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -208,9 +209,7 @@ TAllocation::TAllocation(
     , NetworkPriority_(networkPriority)
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
-    , FSSecretary_(New<TJobFSSecretary>(
-        Bootstrap_,
-        Logger))
+    , FSSecretary_(Bootstrap_->GetSlotManager()->CreateJobFSSecretary(Logger))
 {
     YT_VERIFY(bootstrap);
 
@@ -605,12 +604,8 @@ void TAllocation::CreateAndSettleJob(
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    const auto& resourceHolder = GetResourceHolder();
-    if (auto state = resourceHolder->GetState(); state == EResourcesState::Acquired) {
-        StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())->Prepare();
-    } else {
-        YT_VERIFY(state == EResourcesState::Pending);
-    }
+    auto resourceState = GetResourceHolder()->GetState();
+    YT_VERIFY(resourceState == EResourcesState::Acquired || resourceState == EResourcesState::Pending);
 
     auto job = CreateJob(
         jobId,
@@ -770,7 +765,7 @@ void TAllocation::OnAllocationFinished(
     auto allocationLogger = Logger;
 
     // The resource holder is captured to keep the user slot alive (enabled and not
-    // returned to the slot pool) until porto place cleanup completes; otherwise the
+    // returned to the slot pool) until allocation workspace cleanup completes; otherwise the
     // same SlotIndex may be picked by another allocation that would then race with
     // our cleanup. The resource holder destructor releases base resources (calling
     // UserSlot_->ResetState which requires JobThread affinity), so the callback
@@ -792,14 +787,14 @@ void TAllocation::OnAllocationFinished(
                     .With(removeResult);
             }
 
-            fsSecretary->ReleasePreparedLayers();
+            fsSecretary->ReleaseWorkspaceResources();
             fsSecretary->ReleaseArtifacts();
 
             if (userSlot) {
                 try {
-                    userSlot->CleanPortoPlace();
+                    userSlot->CleanAllocationWorkspace();
                 } catch (const std::exception& ex) {
-                    YT_TLOG_ERROR("Failed to clean porto place")
+                    YT_TLOG_ERROR("Failed to clean allocation workspace")
                         .With(ex);
                 }
             }
@@ -874,7 +869,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
     }();
 
     if (settleNewJob) {
-        AllSet(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
+        AllSucceeded(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
             .AsUnique().Subscribe(BIND([
                 jobId = job->GetId(),
                 this,

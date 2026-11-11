@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 type urlMessage struct {
 	flow.YSONMessage
 	Host string `yson:"host"`

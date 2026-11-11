@@ -1256,6 +1256,8 @@ private:
                     for (int index = 0; index < dataPartCount - erasedPartCount; ++index) {
                         repairedParts.push_back(preservedParts[index]);
                     }
+
+                    repairedParts.resize(dataPartCount);
                     auto decodedRows = DecodeErasureJournalRows(codec, repairedParts, Logger);
 
                     const auto& expectedRows = batch->Rows;

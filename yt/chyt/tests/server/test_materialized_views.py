@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, with_tablet_cell
 
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
@@ -112,6 +112,8 @@ class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
 
 
 class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("buyval01")
     @pytest.mark.parametrize("table_range", [False, True])
     def test_populate(self, table_range):
@@ -125,6 +127,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             source_expression = 'concatYtTablesRange("//tmp/source_directory")'
         self._check_populate(source_expression, lambda rows: write_table("<append=%true>" + source_path, rows))
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
@@ -179,6 +182,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP TABLE no_such_mv")
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_rejections(self):
         dict_schema = [
@@ -354,6 +358,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
 
             abort_transaction(transaction_id)
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh(self):
         write_table("//tmp/source", [
@@ -523,6 +528,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 key=lambda row: row["key"])
             assert sorted(read_table("//tmp/target"), key=lambda row: row["key"]) == expected_rows
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_table_range_background_refresh(self):
         create("map_node", "//tmp/source_directory")
@@ -588,6 +594,9 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 },
             }
             assert read_table("//tmp/target") == []
+
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: get(clique.query_log_table_path + "/@tablet_state") == "mounted")
 
             refresh_query_count = get_refresh_query_count()
             create("table", "//tmp/empty_part", attributes={"schema": self.SCHEMA})
@@ -669,6 +678,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 {"key": 4, "value": "after-restart-processed"},
             ])
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh_handles_source_replacement(self):
         config_patch = {
@@ -699,6 +709,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 "total_row_count": 1,
             }]
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh_handles_target_replacement(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
@@ -719,6 +730,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             write_table("<append=%true>//tmp/source", new_rows)
             wait(lambda: read_table("//tmp/target") == new_rows, timeout=10)
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh_lock_contention(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 1000}}}
@@ -746,6 +758,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
 
             wait(lambda: read_table("//tmp/target") == expected_rows, timeout=10)
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh_query_failure(self):
         int_schema = [
@@ -825,6 +838,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert progress["last_error"] == ""
             assert all(not partition["last_error"] for partition in progress["partitions"])
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_background_refresh_parent_transaction_abort(self):
         config_patch = {
@@ -928,6 +942,8 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
 
 
 class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, ClickHouseQueueAgentTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     def _create_queue_source(self, partition_count=1):
         remove("//tmp/source")
         self._create_queue(

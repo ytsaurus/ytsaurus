@@ -7,7 +7,10 @@ VERSION(Service-proxy-version)
 IF (PYTHON2)
     PEERDIR(contrib/python/zstandard/py2)
 ELSE()
-    PEERDIR(contrib/python/zstandard/py3)
+    PEERDIR(
+        contrib/python/zstandard/py3
+        contrib/python/zstandard/rust
+    )
 ENDIF()
 
 NO_LINT()
@@ -17,4 +20,5 @@ END()
 RECURSE(
     py2
     py3
+    rust
 )

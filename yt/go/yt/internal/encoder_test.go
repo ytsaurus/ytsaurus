@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -8,8 +9,77 @@ import (
 
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
+	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 )
+
+func TestVersionedReadOptionsHTTP(t *testing.T) {
+	for _, verb := range []Verb{VerbSelectRows, VerbLookupRows} {
+		for _, tc := range []struct {
+			name     string
+			options  *yt.VersionedReadOptions
+			expected map[string]any
+		}{
+			{name: "omitted"},
+			{
+				name:     "empty",
+				options:  &yt.VersionedReadOptions{},
+				expected: map[string]any{},
+			},
+			{
+				name:     "default",
+				options:  &yt.VersionedReadOptions{ReadMode: yt.VersionedReadModeDefault},
+				expected: map[string]any{"read_mode": "default"},
+			},
+			{
+				name:     "latest timestamp",
+				options:  &yt.VersionedReadOptions{ReadMode: yt.VersionedReadModeLatestTimestamp},
+				expected: map[string]any{"read_mode": "latest_timestamp"},
+			},
+		} {
+			t.Run(string(verb)+"/"+tc.name, func(t *testing.T) {
+				called := false
+				encoder := &Encoder{
+					StartCall: func() *Call { return &Call{} },
+					InvokeReadRow: func(_ context.Context, call *Call) (yt.TableReader, error) {
+						called = true
+						require.Equal(t, verb, call.Params.HTTPVerb())
+
+						var buffer bytes.Buffer
+						writer := yson.NewWriterFormat(&buffer, yson.FormatText)
+						writer.BeginMap()
+						call.Params.MarshalHTTP(writer)
+						writer.EndMap()
+						require.NoError(t, writer.Finish())
+
+						var params map[string]any
+						require.NoError(t, yson.Unmarshal(buffer.Bytes(), &params))
+						if tc.options == nil {
+							require.NotContains(t, params, "versioned_read_options")
+						} else {
+							require.Equal(t, tc.expected, params["versioned_read_options"])
+						}
+						return nil, nil
+					},
+				}
+
+				var err error
+				switch verb {
+				case VerbSelectRows:
+					_, err = encoder.SelectRows(context.Background(), "* from [//tmp/table]", &yt.SelectRowsOptions{
+						VersionedReadOptions: tc.options,
+					})
+				case VerbLookupRows:
+					_, err = encoder.LookupRows(context.Background(), "//tmp/table", []any{map[string]any{"key": int64(1)}}, &yt.LookupRowsOptions{
+						VersionedReadOptions: tc.options,
+					})
+				}
+				require.NoError(t, err)
+				require.True(t, called)
+			})
+		}
+	}
+}
 
 func TestReadTablePartitionPassesSkiffSchema(t *testing.T) {
 	tableSchema := &schema.Schema{Columns: []schema.Column{{Name: "value", Type: schema.TypeInt64}}}

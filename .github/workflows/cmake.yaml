@@ -1,11 +1,13 @@
 name: CMake CI
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - stable/*
+  # push:
+  #   branches:
+  #     - main
+  #     - stable/*
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -34,7 +36,7 @@ jobs:
           memory: 64GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 744GB
+          disk-size: 837GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
@@ -60,6 +62,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-types: '["relwithdebinfo"]'
+      build-gpuagent: false
       run-unittests: true
       run-integration-tests: true
       run-python-tests: true

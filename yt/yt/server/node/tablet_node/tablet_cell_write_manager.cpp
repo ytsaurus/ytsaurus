@@ -427,6 +427,9 @@ public:
     }
 
 private:
+    struct TWriteBufferTag
+    { };
+
     const ITabletCellWriteManagerHostPtr Host_;
     ICodec* const ChangelogCodec_;
 
@@ -634,7 +637,14 @@ private:
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
 
         auto data = codec->Decompress(compressedRecordData);
-        auto rowBuffer = New<TRowBuffer>();
+        auto nodeMemoryTracker = tablet->TryGetNodeMemoryUsageTracker();
+        auto rowBuffer = New<TRowBuffer>(
+            TWriteBufferTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            nodeMemoryTracker
+                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletDynamic)
+                : nullptr,
+            /*allowMemoryOvercommit*/ true);
         auto reader = CreateWireProtocolReader(data, rowBuffer);
         auto commands = ParseWriteCommands(
             tablet->TableSchemaData(),
@@ -847,7 +857,14 @@ private:
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
 
         auto data = codec->Decompress(compressedRecordData);
-        auto rowBuffer = New<TRowBuffer>();
+        auto nodeMemoryTracker = tablet->TryGetNodeMemoryUsageTracker();
+        auto rowBuffer = New<TRowBuffer>(
+            TWriteBufferTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            nodeMemoryTracker
+                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletDynamic)
+                : nullptr,
+            /*allowMemoryOvercommit*/ true);
         auto reader = CreateWireProtocolReader(data, rowBuffer);
         auto commands = ParseWriteCommands(
             tablet->TableSchemaData(),

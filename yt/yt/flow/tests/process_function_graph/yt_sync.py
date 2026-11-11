@@ -34,6 +34,19 @@ def run_yt_sync(cluster: str, folder: str) -> None:
         },
     }
 
+    queues["offer_status"] = {
+        "default": {
+            "$merge_presets": ["builtin:table_preset"],
+            "schema": [
+                {"name": "offer_id", "type": "string", "required": True, "sort_order": "ascending"},
+                {"name": "status", "type": "int64"},
+            ],
+            "clusters": {
+                "_all_data_clusters": {"attributes": {"tablet_count": 1}},
+            },
+        },
+    }
+
     consumers = {}
     for name in ("left", "right"):
         consumers[f"{name}_consumer"] = {

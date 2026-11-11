@@ -3,6 +3,7 @@ from yt_env_setup import (
     Restarter,
     MASTERS_SERVICE,
     is_asan_build,
+    with_portals_dir,
 )
 
 from yt_dynamic_tables_base import DynamicTablesBase
@@ -14,10 +15,10 @@ from yt_sequoia_helpers import not_implemented_in_sequoia
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove, link,
-    exists, create_account, create_user, make_ace, make_batch_request,
+    exists, create_account, create_user, make_ace,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
-    execute_batch, execute_command, get_active_primary_master_leader_address,
+    execute_command, get_active_primary_master_leader_address,
     start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     select_rows, lookup_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table,
@@ -461,16 +462,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         second_peer_address = _get_peers()[1]["address"]
 
         set_node_decommissioned(second_peer_address, True)
-        wait(
-            lambda: len(_get_peers()) == 2
-            and _get_peers()[1].get("address", second_peer_address) != second_peer_address
-        )
-        new_second_peer_address = _get_peers()[1]["address"]
-        assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
-        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
 
-        wait(lambda: len(_get_peers()) == 1)
-        assert _get_peers()[0]["address"] == new_second_peer_address
+        def _has_single_replacement_peer():
+            peers = _get_peers()
+            if len(peers) != 1:
+                return False
+            address = peers[0].get("address")
+            return address is not None and address not in (first_peer_address, second_peer_address)
+
+        wait(_has_single_replacement_peer)
 
         wait_for_cells(
             [cell_id],
@@ -2479,6 +2479,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     assert store.attributes["type"] == "dynamic_store"
 
     @authors("cherepashka")
+    @with_portals_dir
     def test_owning_nodes(self):
         def check_owning_nodes(object_id, owning_nodes):
             cell_indicies = {0}  # primary cell
@@ -2511,10 +2512,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     assert store.attributes["type"] == "dynamic_store"
         assert len(chunk_views_ids) > 0
 
-        copy("//tmp/t", "//home/t", recursive=True, force=True)
-        copy("//home/t", "//tmp/t1")
+        copy("//tmp/t", "//portals/t")
+        copy("//portals/t", "//tmp/t1")
         for chunk_view_id in chunk_views_ids:
-            check_owning_nodes(chunk_view_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+            check_owning_nodes(chunk_view_id, ["//tmp/t", "//portals/t", "//tmp/t1"])
 
     @authors("savrus", "ifsmirnov")
     def test_select_rows_access_tracking(self):
@@ -2996,11 +2997,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert _insert(False)
 
-    def _get_orchid_memory_limits(self, node, category):
-        return get(
-            "//sys/cluster_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-            .format(node, category))
-
     def _get_random_string(self, length):
         return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
@@ -3024,19 +3020,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 insert_rows("//tmp/t", [{"key": i, "value": self._get_random_string(100)}])
             return time.time() - start_time
 
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        node_address = get_tablet_leader_address(tablet_id)
-        old_tablet_static = self._get_orchid_memory_limits(node_address, "tablet_static")
-        new_tablet_static = old_tablet_static + 1024
-
         expected_max_time = 9
 
         bundle_dynamic_config = {
             "%true": {
                 "config_annotation": "foo",
-                "memory_limits": {
-                    "tablet_static" : new_tablet_static,
-                },
                 "medium_throughput_limits" : {
                     "default" : {
                         "write_byte_rate" : 50
@@ -3045,7 +3033,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             }
         }
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
 
         # Wait while changes actually take place
         wait(lambda: _get_insert_time(5) > expected_max_time)
@@ -3056,13 +3043,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         bundle_dynamic_config = {
             "%true": {
                 "config_annotation": "foo",
-                "memory_limits": {
-                    "tablet_static" : old_tablet_static,
-                }
             }
         }
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == old_tablet_static)
 
         # Wait while changes actually take place
         wait(lambda: _get_insert_time(5) < expected_max_time)
@@ -4113,6 +4096,101 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 for item in get(f"{cell_path}/@health_history")
             ))
 
+    @authors("sabdenovch")
+    def test_chunk_prolongation(self):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
+        sync_create_cells(1)
+        create("table", "//tmp/a", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            "mount_config": {
+                "enable_chunk_prolongation": True,
+            }
+        })
+        sync_mount_table("//tmp/a")
+        insert_rows("//tmp/a", [{"key": 0, "value": list(range(5))}])
+        sync_flush_table("//tmp/a")
+        initial_chunk_id = get("//tmp/a/@chunk_ids/0")
+        tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: get("//tmp/a/@chunk_ids/0") != initial_chunk_id)
+
+        assert exists(f"#{initial_chunk_id}")
+        assert [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: not exists(f"#{initial_chunk_id}"))
+        wait(lambda: initial_chunk_id not in get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
+
+        assert get(f"#{tablet_id}/orchid/prolonged_chunk_ids") != []
+        sync_unmount_table("//tmp/a", force=True)
+        tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/@prolonged_chunk_count") == 0
+
+    @authors("sabdenovch")
+    def test_chunk_view_prolongation(self):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
+        sync_create_cells(1)
+        create("table", "//tmp/a", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            "mount_config": {
+                "enable_chunk_prolongation": True,
+                "min_data_ttl": 0,
+                "max_data_ttl": 0,
+                "min_data_versions": 0,
+                "max_data_versions": 0,
+            },
+        })
+        sync_mount_table("//tmp/a")
+        insert_rows("//tmp/a", [{"key": i, "value": 0} for i in range(9)])
+        sync_unmount_table("//tmp/a")
+        initial_chunk_id = get("//tmp/a/@chunk_ids/0")
+
+        # Single chunk behind three chunk views, two in the first tablet, one in the second.
+        # Cut the middle out of the chunk to prevent chunk views from remerging.
+        sync_reshard_table("//tmp/a", [[], [2], [3], [6]])
+        set("//tmp/a/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/a", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: get("//tmp/a/@tablets/1/statistics/chunk_count") == 0)
+        sync_unmount_table("//tmp/a", first_tablet_index=1, last_tablet_index=1)
+        set("//tmp/a/@mount_config", {"enable_chunk_prolongation": True})
+        sync_reshard_table("//tmp/a", [[], [6]])
+        first_tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+        second_tablet_id = get("//tmp/a/@tablets/1/tablet_id")
+
+        chunk_tree = get(f"#{get('//tmp/a/@chunk_list_id')}/@tree")
+        assert chunk_tree[0][0].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[0][0]) == [initial_chunk_id]
+        assert chunk_tree[0][1].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[0][1]) == [initial_chunk_id]
+        assert chunk_tree[1][0].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[1][0]) == [initial_chunk_id]
+
+        # Tablet node should handle a chunk being "prolonged twice".
+        # Master should handle same chunk being prolonged and deprolonged by two tablets.
+        set("//tmp/a/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/a")
+        wait(lambda: initial_chunk_id not in get("//tmp/a/@chunk_ids"))
+        assert exists(f"#{initial_chunk_id}")
+        wait(lambda: [initial_chunk_id] == get(f"#{first_tablet_id}/orchid/prolonged_chunk_ids"))
+        wait(lambda: [initial_chunk_id] == get(f"#{second_tablet_id}/orchid/prolonged_chunk_ids"))
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: not exists(f"#{initial_chunk_id}"))
+        wait(lambda: initial_chunk_id not in get(f"#{first_tablet_id}/orchid/prolonged_chunk_ids"))
+        wait(lambda: initial_chunk_id not in get(f"#{second_tablet_id}/orchid/prolonged_chunk_ids"))
+
 
 ##################################################################
 
@@ -4135,6 +4213,64 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
                 "snapshot_replication_factor": 3,
             },
         )
+
+
+##################################################################
+
+
+class TestDynamicTablesHighParityErasureJournals(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 10
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "hydra_manager": {"snapshot_build_period": 100000000},
+            "changelogs": {"writer": {"validate_erasure_coding": True}},
+        },
+    }
+
+    @authors("savrus")
+    @pytest.mark.parametrize("erasure_codec, read_quorum, write_quorum", [
+        ("reed_solomon_3_3", 4, 5),
+        ("reed_solomon_4_6", 5, 9),
+        ("reed_solomon_5_5", 6, 9),
+    ])
+    def test_tablet_cell_journal_recovery(self, erasure_codec, read_quorum, write_quorum):
+        set("//sys/tablet_cell_bundles/default/@options", {
+            "changelog_account": "sys",
+            "changelog_erasure_codec": erasure_codec,
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": read_quorum,
+            "changelog_write_quorum": write_quorum,
+            "snapshot_account": "sys",
+            "snapshot_replication_factor": 3,
+        })
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t", mount_config={"enable_store_flush": False})
+        sync_mount_table("//tmp/t", cell_id=cell_id)
+
+        snapshot_id = build_snapshot(cell_id=cell_id)
+        wait(lambda: get(f"#{cell_id}/@max_snapshot_id") == snapshot_id)
+        rows = [{"key": key, "value": f"value-{key}"} for key in range(20)]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", [{"key": key} for key in range(20)]) == rows
+        assert get("//tmp/t/@chunk_ids") == []
+
+        changelogs_path = f"//sys/tablet_cells/{cell_id}/changelogs"
+        changelogs = ls(changelogs_path, attributes=["erasure_codec", "replication_factor", "read_quorum", "write_quorum"])
+        assert changelogs
+        for changelog in changelogs:
+            assert changelog.attributes["erasure_codec"] == erasure_codec
+            assert changelog.attributes["replication_factor"] == 1
+            assert changelog.attributes["read_quorum"] == read_quorum
+            assert changelog.attributes["write_quorum"] == write_quorum
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=["default"]):
+            assert get(f"#{cell_id}/@max_snapshot_id") == snapshot_id
+
+        assert lookup_rows("//tmp/t", [{"key": key} for key in range(20)]) == rows
+        insert_rows("//tmp/t", [{"key": 20, "value": "after-recovery"}])
+        assert lookup_rows("//tmp/t", [{"key": 20}]) == [{"key": 20, "value": "after-recovery"}]
 
 
 ##################################################################
@@ -4245,13 +4381,21 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @pytest.mark.parametrize("freeze", [False, True])
     def test_mount_orphaned(self, freeze):
         self._create_sorted_table("//tmp/t")
-        cells = sync_create_cells(1)
+        cell_id = sync_create_cells(1)[0]
+        cell_path = "#" + cell_id
 
-        requests = []
-        requests.append(make_batch_request("remove", path="#" + cells[0]))
-        requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
-        rsps = execute_batch(requests)
-        assert len(rsps[1]["output"]) == 0
+        removal_config_path = "//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal"
+        set(removal_config_path, False)
+        try:
+            remove(cell_path)
+            for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+                driver = get_driver(cell_index)
+                wait(lambda: get(cell_path + "/@tablet_cell_life_stage", driver=driver) == "decommissioned")
+            mount_table("//tmp/t", cell_id=cell_id, freeze=freeze)
+        finally:
+            set(removal_config_path, True)
+
+        wait(lambda: not exists(cell_path))
 
         expected_state = "frozen" if freeze else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state
@@ -4467,6 +4611,10 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     ENABLE_HTTP_PROXY = True
 
     DELTA_RPC_PROXY_CONFIG = {"cluster_connection": {"use_uniform_prepare_signatures": True}}
+
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
+        "use_worker_pool_for_bus_xfer": True,
+    }
 
     @authors("gritukan")
     def test_suspend_tablet_cell(self):
@@ -4689,7 +4837,6 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["cypress_node_host", "chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["transaction_coordinator"]},
     }
 
     @classmethod

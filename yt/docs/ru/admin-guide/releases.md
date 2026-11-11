@@ -15,7 +15,7 @@
 
 {% include notitle [Strawberry](../_includes/releases/strawberry.md) %}
 
-## CHYT {#chyt}
+## CHYT {#chyt} {#chyt-releases}
 
 {% include notitle [CHYT](../_includes/releases/chyt.md) %}
 

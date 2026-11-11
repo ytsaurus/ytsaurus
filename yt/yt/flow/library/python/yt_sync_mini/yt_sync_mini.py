@@ -26,6 +26,7 @@ import yt.yson as yson
 from yt.wrapper.errors import YtResponseError
 
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_FILE_PRESET
+from yt.yt.flow.library.python.pipeline_tables import PIPELINE_NODES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_ORDERED_TABLE_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_QUEUES_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_SORTED_TABLE_PRESET
@@ -338,16 +339,29 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
         f"create pipeline node {path}",
     )
 
-    # 2. Inner tables, all in a single master transaction (matches
-    # NYT::NFlow::CreatePipelineNode semantics: either all tables are
+    # 2. Inner objects, all in a single master transaction (matches
+    # NYT::NFlow::CreatePipelineNode semantics: either all objects are
     # created and visible to the controller, or none are).
     pipeline_root = path.rstrip("/")
     table_definitions, queue_definitions = _get_pipeline_table_definitions()
     items = list(table_definitions.items()) + list(queue_definitions.items())
     presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+    inner_paths = list(PIPELINE_NODES) + [name for name, _ in items]
+    node_paths = sorted(
+        set(PIPELINE_NODES)
+        | {name[:slash] for name in inner_paths for slash, character in enumerate(name) if character == "/"}
+    )
 
     def create_inner_tables():
         with client.Transaction(type="master", attributes={"title": f"Create pipeline {path}"}):
+            for name in node_paths:
+                descriptor = PIPELINE_NODES.get(name, {"type": "map_node", "attributes": {}})
+                client.create(
+                    descriptor["type"],
+                    f"{pipeline_root}/{name}",
+                    ignore_existing=True,
+                    attributes=copy.deepcopy(descriptor["attributes"]),
+                )
             for name, descriptor in items:
                 table_preset = presets.get(name, {})
                 attributes = _table_attributes(

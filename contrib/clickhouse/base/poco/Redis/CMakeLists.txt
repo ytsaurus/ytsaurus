@@ -12,48 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(base-poco-Redis)
-
-
-target_compile_options(base-poco-Redis PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(base-poco-Redis PRIVATE
-  -DPOCO_HAVE_FD_EPOLL
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_OS_FAMILY_UNIX
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(base-poco-Redis PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/include
-)
-
-target_include_directories(base-poco-Redis PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
-)
-
-target_link_libraries(base-poco-Redis PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  base-poco-Net
-)
-
-target_sources(base-poco-Redis PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Array.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/AsyncReader.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Client.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Command.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Error.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Exception.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/RedisEventArgs.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/RedisStream.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/src/Type.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

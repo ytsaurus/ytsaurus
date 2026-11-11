@@ -1,8 +1,13 @@
 #pragma once
 
 #include <util/datetime/base.h>
+
+#include <util/generic/size_literals.h>
+#include <util/generic/strbuf.h>
 #include <util/generic/string.h>
+
 #include <util/stream/output.h>
+
 #include <util/system/file.h>
 
 #include <functional>
@@ -39,18 +44,38 @@ ECompressionCodec DetectCompressionCodec(TStringBuf fileName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Sliced lines are cut to this length.
+constexpr i64 MaxLineLength = 16_MB;
+
 //! A pluggable engine that extracts the lines of a log file within a time window.
 struct ILogSliceEngine
 {
     virtual ~ILogSliceEngine() = default;
 
     //! Writes every plain-text log line whose timestamp lies within the inclusive
-    //! window [from, to] to [output].
-    virtual void Slice(TFile& file, TInstant from, TInstant to, IOutputStream& output) = 0;
+    //! window [from, to] to [output]. The file is searched and decoded from
+    //! [seekMargin] before [from] to [seekMargin] after [to], so lines written out
+    //! of order by up to [seekMargin] are found too. Lines are cut to 16 MiB; a line
+    //! whose timestamp falls past the cut (a long JSON record) is dropped.
+    virtual void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) = 0;
+
+    //! Returns the byte range [first, second) of [file] that Slice decodes for the
+    //! window [from, to] and [seekMargin]. It starts at a block boundary; second is
+    //! never less than first.
+    virtual std::pair<i64, i64> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) = 0;
+
+    //! Decodes the byte range [start, end) of [file] and passes the decoded text to
+    //! [consumer] in order, in chunks of any size; a chunk is valid only during the call.
+    //! The text is neither cut into lines nor filtered by time. As in Slice, a decode
+    //! error ends the text after the last byte that decoded, and an I/O error is thrown.
+    virtual void Decode(TFile& file, i64 start, i64 end, const std::function<void(TStringBuf)>& consumer) = 0;
 
     //! Returns the timestamps of the first and last timestamped log lines of [file],
     //! or null if the file is empty or contains no timestamped lines.
     virtual std::optional<std::pair<TInstant, TInstant>> GetTimeRange(TFile& file) = 0;
+
+    //! Returns the first timestamp of GetTimeRange; reads only up to the first timestamped block.
+    virtual std::optional<TInstant> FindFirstTime(TFile& file) = 0;
 };
 
 using ILogSliceEnginePtr = std::unique_ptr<ILogSliceEngine>;

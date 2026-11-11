@@ -1,8 +1,11 @@
 #pragma once
 
+#include "job_environment.h"
 #include "private.h"
 #include "public.h"
 #include "slot.h"
+
+#include "environment/common/public.h"
 
 #include <yt/yt/server/node/data_node/public.h>
 
@@ -104,9 +107,15 @@ public:
 
     TFuture<void> CleanSandboxes(int slotIndex, bool initializing = false);
 
-    TFuture<void> CleanPortoPlace(int slotIndex);
+    TFuture<void> CleanAllocationDirectories(int slotIndex);
 
     std::string GetSlotPath(int slotIndex) const;
+
+    //! Invoker for blocking filesystem work on this location.
+    const IInvokerPtr& GetHeavyInvoker() const;
+
+    //! Invoker serializing tool invocations on this location.
+    const IInvokerPtr& GetToolInvoker() const;
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
 
@@ -150,24 +159,12 @@ public:
 
     void OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config);
 
-    TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
-
     TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
 
     void ValidateEnabled() const;
 
     //! Get path to slot location (not to slot location of a particular index).
     std::string GetPath() const;
-
-    //! Remove volumes from porto place for a specific slot, excluding the given porto mount paths.
-    void RemoveVolumesFromPortoPlace(
-        int slotIndex,
-        const IVolumeManagerPtr& volumeManager,
-        const THashSet<std::string>& preservedVolumePaths = {},
-        bool initializing = false);
-
-    //! Remove layers from porto place for a specific slot.
-    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager, bool initializing = false);
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -176,6 +173,7 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> SlotManagerDynamicConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const int SlotCount_;
+    const TJobEnvironmentCapabilities JobEnvironmentCapabilities_;
 
     const std::function<int(int)> SlotIndexToUserId_;
 
@@ -192,6 +190,7 @@ private:
 
     //! This invoker is used for invoking tools in a child process.
     const IInvokerPtr ToolInvoker_;
+    const std::unique_ptr<TJobFilesystem> Filesystem_;
 
     const NServer::TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;

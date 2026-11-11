@@ -1196,7 +1196,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
@@ -1478,7 +1478,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -1512,7 +1512,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1738,7 +1738,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         )
 
         blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
-        wait_breakpoint()
+        wait_breakpoint(blocking_op)
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -1930,7 +1930,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         op2 = run_test_vanilla(with_breakpoint("BREAKPOINT") + "; sleep 1000", spec={"pool_trees": ["default", "other"]})
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint([op1, op2], job_count=2)
         op1.wait_for_fresh_snapshot()
         op2.wait_for_fresh_snapshot()
 
@@ -2147,7 +2147,7 @@ class TestOffloadingPools(YTEnvSetup):
             task_patch={"network_project": "n"},
             job_count=2)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
@@ -2177,7 +2177,7 @@ class TestOffloadingPools(YTEnvSetup):
             task_patch={"network_project": "n"},
             job_count=1)
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
@@ -2259,7 +2259,7 @@ class TestOffloadingPools(YTEnvSetup):
             spec={"pool": "primary_pool", "scheduling_tag_filter": "!x"},
             job_count=2)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))

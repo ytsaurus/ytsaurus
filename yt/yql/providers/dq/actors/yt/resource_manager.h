@@ -58,6 +58,7 @@ namespace NYql {
         NYql::NProto::TDqConfig::TYtBackend YtBackend;
 
         TString UploadPrefix;
+        TString UploadClusterAddress;
         TString LockName;
         TString LogFile;
 

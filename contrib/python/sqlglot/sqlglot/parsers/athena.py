@@ -4,7 +4,6 @@ import typing as t
 
 from sqlglot import exp
 from sqlglot.errors import ErrorLevel
-from sqlglot.parser import Parser
 from sqlglot.parsers.trino import TrinoParser
 from sqlglot.tokens import TokenType, Token
 
@@ -20,13 +19,22 @@ class AthenaTrinoParser(TrinoParser):
         TokenType.USING: lambda self: self._parse_as_command(self._prev),
     }
 
+    DDL_SELECT_TOKENS = {*TrinoParser.DDL_SELECT_TOKENS, TokenType.USING}
 
-class AthenaParser(Parser):
+    def _parse_ddl_select(self) -> exp.Expr | None:
+        if self._match(TokenType.USING):
+            return self._parse_as_command(self._prev)
+
+        return super()._parse_ddl_select()
+
+
+class AthenaParser(AthenaTrinoParser):
     def __init__(
         self,
         error_level: ErrorLevel | None = None,
         error_message_context: int = 100,
         max_errors: int = 3,
+        max_nodes: int = -1,
         dialect: DialectType = None,
         hive: Hive | None = None,
         trino: Trino | None = None,
@@ -41,6 +49,7 @@ class AthenaParser(Parser):
             error_level=error_level,
             error_message_context=error_message_context,
             max_errors=max_errors,
+            max_nodes=max_nodes,
             dialect=dialect,
         )
 
@@ -48,11 +57,13 @@ class AthenaParser(Parser):
             error_level=error_level,
             error_message_context=error_message_context,
             max_errors=max_errors,
+            max_nodes=max_nodes,
         )
         self._trino_parser = AthenaTrinoParser(
             error_level=error_level,
             error_message_context=error_message_context,
             max_errors=max_errors,
+            max_nodes=max_nodes,
             dialect=trino,
         )
 

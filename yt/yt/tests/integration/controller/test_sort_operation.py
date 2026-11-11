@@ -1,12 +1,13 @@
 from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
-from yt_helpers import with_push_based_shuffle
+from yt_helpers import skip_if_component_old, with_push_based_shuffle
 
 from yt_commands import (
-    authors, create, get, set, copy, remove, exists, wait,
+    authors, create, get, set, copy, remove, exists, wait, set_nodes_banned,
     create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
     make_ace, start_transaction, commit_transaction, insert_rows, delete_rows, read_table, write_table, sort, erase, get_operation,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table)
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table,
+    update_controller_agent_config)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
@@ -853,6 +854,42 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         assert read_table("//tmp/t_out") == rows
         assert get("//tmp/t_out/@chunk_count") >= 10
+
+    @authors("dann239")
+    @pytest.mark.timeout(300)
+    def test_shared_job_size_adjuster(self):
+        skip_if_component_old(self.Env, (27, 1), "controller-agent")
+        update_controller_agent_config(
+            "sort_operation_options/enable_sorted_merge_in_sort_job_size_adjustment",
+            True,
+        )
+
+        create("table", "//tmp/t_input")
+        rows = [{"index": i, "foo": "a" * 35000} for i in range(30)]
+        for row in reversed(rows):
+            write_table("<append=true>//tmp/t_input", row)
+
+        job_counts = {}
+        for shared in (False, True):
+            op = sort(
+                in_="//tmp/t_input",
+                out=f"<create=%true>//tmp/t_output_{shared}",
+                sort_by="index",
+                spec={
+                    "resource_limits": {"user_slots": 1},
+                    "partition_job_count": len(rows),
+                    "data_weight_per_sort_job": 36000,
+                    "pivot_keys": [[15]],
+                    "force_job_size_adjuster": True,
+                    "enable_shared_job_size_adjuster": shared,
+                },
+            )
+
+            assert read_table(f"//tmp/t_output_{shared}") == rows
+            assert get(f"{op.get_path()}/@progress/partitions/total") == 2
+            job_counts[shared] = get(f"{op.get_path()}/@progress/sorted_merge/completed/total")
+
+        assert 0 < job_counts[True] < job_counts[False]
 
     @authors("dakovalkov")
     def test_sort_with_row_count_limit(self):
@@ -2707,6 +2744,47 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         )
 
         assert read_table("//tmp/out") == expected
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("partition_count", [1, 2])
+    def test_skip_unavailable_chunk(self, partition_count):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
+        create("table", "//tmp/lost", attributes={"replication_factor": 1})
+        write_table("//tmp/lost", [{"key": 0}])
+        create("table", "//tmp/available")
+        write_table("//tmp/available", [{"key": 2}, {"key": 1}])
+        create("table", "//tmp/out")
+
+        chunk_id = get_singular_chunk_id("//tmp/lost")
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        assert len(replicas) == 1
+
+        try:
+            op = sort(
+                in_=["//tmp/lost", "//tmp/available"],
+                out="//tmp/out",
+                sort_by="key",
+                track=False,
+                spec={
+                    "suspend_operation_after_materialization": True,
+                    "partition_count": partition_count,
+                    "unavailable_chunk_strategy": "skip",
+                    "unavailable_chunk_tactics": "skip",
+                    "partition_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                    "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                },
+            )
+            wait(lambda: get(op.get_path() + "/@suspended"))
+
+            set_nodes_banned(replicas, True)
+            wait(lambda: not get(f"#{chunk_id}/@available"))
+
+            op.resume()
+            op.track()
+            assert read_table("//tmp/out") == [{"key": 1}, {"key": 2}]
+        finally:
+            set_nodes_banned(replicas, False)
 
 
 ##################################################################

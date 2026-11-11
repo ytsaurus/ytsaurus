@@ -160,7 +160,7 @@ references to `IOperationController` and `IOperationControllerHost`.
 - Implements `ScheduleAllocation` → delegates to tasks via `TTask::ScheduleJob`.
 - Implements `SettleJob` → returns pre-built `TJobStartInfo` (JobId + serialized spec blob).
 - Processes job events: `OnJobInfoReceivedFromNode`, `OnAllocationAborted`, `OnAllocationFinished`.
-- Manages Cypress transactions (`ETransactionType`: Async/Input/Output/Debug/OutputCompletion/DebugCompletion).
+- Manages Cypress transactions (`ETransactionType`: Async/Input/Output/Debug/OutputCompletion/DebugCompletion/JournalNbd).
 - Builds and caches progress YSON (`GetProgress`, `GetBriefProgress`).
 - Implements snapshot serialization (`SaveSnapshot`, `LoadSnapshot`).
 - Uses `IMPLEMENT_SAFE_METHOD` macro to wrap all virtual methods in assertion-failure guards

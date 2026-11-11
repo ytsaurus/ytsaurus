@@ -16,6 +16,8 @@ import pytest
 
 
 class TestComposite(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("max42", "buyval01")
     def test_dict(self):
         create("table", "//tmp/t", attributes={"schema": [

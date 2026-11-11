@@ -1,4 +1,5 @@
 #include "yt_wrapper.h"
+#include "local_job_proxy.h"
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -11,6 +12,21 @@ namespace NYql {
 namespace {
 
 Y_UNIT_TEST_SUITE(TYtWrapperTest) {
+    Y_UNIT_TEST(ResourceDownloadProxyRequiresItsOwnFlagAndSocket) {
+        NProto::TDqConfig::TYtBackend backend;
+        for (const TString clusterAddress : {"my_great_proxy_address1", "my_great_proxy_address2"}) {
+            for (const bool tables : {false, true}) {
+                backend.SetUseLocalJobProxyForTableReads(tables);
+                backend.SetUseLocalJobProxyForResourceDownloads(false);
+                backend.SetProxyAddress(clusterAddress);
+                UNIT_ASSERT(GetResourceDownloadProxySocket(backend, "my_great_proxy_address1", "/slot/proxy.sock").empty());
+                backend.SetUseLocalJobProxyForResourceDownloads(true);
+                UNIT_ASSERT_VALUES_EQUAL(GetResourceDownloadProxySocket(backend, "my_great_proxy_address1", "/slot/proxy.sock"), clusterAddress == "my_great_proxy_address1" ? "/slot/proxy.sock" : "");
+                UNIT_ASSERT(GetResourceDownloadProxySocket(backend, "my_great_proxy_address1", {}).empty());
+            }
+        }
+    }
+
     Y_UNIT_TEST(ComputesFileMd5WithoutHint)
     {
         TTempFileHandle file;

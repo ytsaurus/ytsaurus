@@ -255,6 +255,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullQueue)
             auto* response = &context->Response();
             response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
             response->set_start_offset(queueRowset->GetStartOffset());
+            YT_OPTIONAL_SET_PROTO(response, response_size_limit_reached, result.ResponseSizeLimitReached);
 
             ProcessPullQueueDetailedProfilingInfo(
                 timer,
@@ -331,6 +332,7 @@ void TApiService::PullQueueConsumerImpl(
             auto* response = &context->Response();
             response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
             response->set_start_offset(queueRowset->GetStartOffset());
+            YT_OPTIONAL_SET_PROTO(response, response_size_limit_reached, result.ResponseSizeLimitReached);
 
             ProcessPullQueueDetailedProfilingInfo(
                 timer,

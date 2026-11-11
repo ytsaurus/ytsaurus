@@ -176,6 +176,7 @@ struct TBundleDynamicConfig
     TCpuLimitsPtr CpuLimits;
     TMemoryLimitsPtr MemoryLimits;
     THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, double> FairSharePoolWeights;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

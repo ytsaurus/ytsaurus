@@ -39,21 +39,22 @@ void AccumulateLimits(
 }
 
 // Aggregates one partition's limits into ITS OWN computation's stats, keyed by graph entity id.
-// Stream ids the spec does not declare for this computation (absent from |knownStreamIds|) are
+// Stream ids the spec does not declare for this computation (absent from |streamGraphIds|) are
 // skipped, so partitions of different computations sharing a global stream never collide.
 void AggregateLimits(
     const THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>& jobLimits,
     const TPartitionId& partitionId,
-    const THashSet<TStreamId>& knownStreamIds,
+    const THashMap<TStreamId, TGraphEntityId>& streamGraphIds,
     THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& computationStats)
 {
     for (const auto& [limitType, streamLimits] : jobLimits) {
         for (const auto& [rawStreamId, status] : streamLimits) {
-            if (!knownStreamIds.contains(rawStreamId)) {
-                // Stream id is not declared for this computation; skip.
+            const auto* streamGraphId = streamGraphIds.FindPtr(rawStreamId);
+            if (!streamGraphId) {
                 continue;
             }
-            AccumulateLimits(computationStats[MakeStreamGraphId(rawStreamId)][limitType], status, partitionId);
+
+            AccumulateLimits(computationStats[*streamGraphId][limitType], status, partitionId);
         }
     }
 }
@@ -80,6 +81,23 @@ void FillGraphLimits(
         auto& computation = computationIt->second;
         const auto& computationSpec = specIt->second;
 
+        // Jobs report the limits of source streams (e.g. the read window) by their local ids.
+        THashMap<TStreamId, TGraphEntityId> inputStreamGraphIds;
+        for (const auto& streamId : computationSpec->InputStreamIds) {
+            inputStreamGraphIds.emplace(streamId, MakeStreamGraphId(streamId));
+        }
+
+        for (const auto& [localStreamId, _] : computationSpec->SourceStreams) {
+            inputStreamGraphIds.emplace(
+                localStreamId,
+                MakeStreamGraphId(MakeGlobalStreamId(computationId, localStreamId, computationSpec)));
+        }
+
+        THashMap<TStreamId, TGraphEntityId> outputStreamGraphIds;
+        for (const auto& streamId : computationSpec->OutputStreamIds) {
+            outputStreamGraphIds.emplace(streamId, MakeStreamGraphId(streamId));
+        }
+
         for (const auto& partitionDescription : partitionDescriptions) {
             if (!partitionDescription.Partition ||
                 !partitionDescription.PartitionJobStatus ||
@@ -89,8 +107,8 @@ void FillGraphLimits(
             }
             const auto& partitionId = partitionDescription.Partition->PartitionId;
             const auto& jobStatus = *partitionDescription.PartitionJobStatus->CurrentJobStatus;
-            AggregateLimits(jobStatus.InputLimits, partitionId, computationSpec->InputStreamIds, computation.InputLimitStats);
-            AggregateLimits(jobStatus.OutputLimits, partitionId, computationSpec->OutputStreamIds, computation.OutputLimitStats);
+            AggregateLimits(jobStatus.InputLimits, partitionId, inputStreamGraphIds, computation.InputLimitStats);
+            AggregateLimits(jobStatus.OutputLimits, partitionId, outputStreamGraphIds, computation.OutputLimitStats);
         }
     }
 }
@@ -215,6 +233,20 @@ std::string FormatCountShort(i64 count)
     return Format("%.0f%v", value, Units[unit]);
 }
 
+//! A whole number of hours, minutes or seconds: 3600 is "1h", 120 is "2m", 45 is "45s".
+std::string FormatSecondsShort(i64 seconds)
+{
+    if (seconds != 0 && seconds % 3600 == 0) {
+        return Format("%vh", seconds / 3600);
+    }
+
+    if (seconds != 0 && seconds % 60 == 0) {
+        return Format("%vm", seconds / 60);
+    }
+
+    return Format("%vs", seconds);
+}
+
 struct TRenderedKind
 {
     double Severity = 0;
@@ -240,10 +272,16 @@ std::optional<TRenderedKind> RenderKindStats(const std::string& kind, const TStr
     double blockedScore = blocked / WarningBlockedTimeShareThreshold;
     result.Severity = std::max(fillScore, blockedScore);
 
-    // Count limits (e.g. output_store_count) are counts, not bytes.
-    bool isCount = kind.ends_with("_count");
     auto formatValue = [&] (i64 value) {
-        return isCount ? FormatCountShort(value) : FormatBytesShort(value);
+        if (kind.ends_with("_count")) {
+            return FormatCountShort(value);
+        }
+
+        if (kind.ends_with("_seconds")) {
+            return FormatSecondsShort(value);
+        }
+
+        return FormatBytesShort(value);
     };
 
     bool isController = kind == ControllerLimitType;

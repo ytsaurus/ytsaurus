@@ -136,6 +136,7 @@ void TSyncSink::DoDistribute(NApi::IDynamicTableTransactionPtr transaction, cons
 
     NYT::NApi::TModifyRowsOptions options;
     options.RequireSyncReplica = GetParameters()->RequireSyncReplica;
+    options.AllowMissingKeyColumns = GetParameters()->AllowMissingKeyColumns;
     transaction->ModifyRows(GetParameters()->TablePath.GetPath(), NameTable_, std::move(modifications), options);
 }
 
@@ -178,6 +179,7 @@ bool TAsyncSink::TryWriteBatch(const std::vector<TOutputMessageConstPtr>& messag
 
         NApi::TModifyRowsOptions options;
         options.RequireSyncReplica = GetParameters()->RequireSyncReplica;
+        options.AllowMissingKeyColumns = GetParameters()->AllowMissingKeyColumns;
         transaction->ModifyRows(
             GetParameters()->TablePath.GetPath(),
             NameTable_,

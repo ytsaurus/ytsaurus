@@ -13,6 +13,7 @@ SRCS(
     debug_build_warning.cpp
     endpoint_provider.cpp
     init.cpp
+    jobtruck_log_writer.cpp
     node.cpp
     node_info.cpp
     queue_log_writer.cpp
@@ -38,6 +39,7 @@ ELSE()
 ENDIF()
 
 PEERDIR(
+    yt/yt/flow/library/cpp/jobtruck
     yt/yt/flow/library/cpp/vanilla
     yt/yt/flow/library/cpp/worker/no_engine
     yt/yt/flow/library/cpp/pipeline_helpers

@@ -198,7 +198,12 @@ NYTree::INodePtr MakePrettyForUIDynamicComputationSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateSpecs(TPipelineSpecPtr pipelineSpec, TDynamicPipelineSpecPtr dynamicPipelineSpec, std::vector<TMessage>& messages);
+//! Also returns the source and sink parameters it parses, if |parsedParameters| is set.
+void ValidateSpecs(
+    TPipelineSpecPtr pipelineSpec,
+    TDynamicPipelineSpecPtr dynamicPipelineSpec,
+    std::vector<TMessage>& messages,
+    TParsedPipelineParameters* parsedParameters = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

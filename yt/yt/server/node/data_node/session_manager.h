@@ -1,15 +1,19 @@
 #pragma once
 
 #include "public.h"
+#include "session.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
+#include <yt/yt/library/syncmap/map.h>
+
 #include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <atomic>
+#include <string>
 
 namespace NYT::NDataNode {
 
@@ -85,6 +89,10 @@ private:
 
     std::set<TSessionCreatedAtSortIndex> SessionToCreatedAt_;
 
+    NConcurrency::TSyncMap<std::string, TWriteSessionStartCountersPtr> WriteSessionStartCounters_;
+
+    TWriteSessionStartCountersPtr GetOrCreateWriteSessionStartCounters(const std::string& mediumName);
+
     ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 
     void OnSessionLeaseExpired(TChunkId chunkId);
@@ -107,4 +115,3 @@ DEFINE_REFCOUNTED_TYPE(TSessionManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

@@ -188,7 +188,7 @@ An alternative way of solving the problem is by using the `pivot_keys` option ex
 ------
 #### **Q: When I launch a Reduce or a MapReduce, I can see that the amount of data coming in to the reduce jobs varies greatly. What is the reason, and how do I make the split more uniform?** {#different-data-volume}
 
-The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/reduce.md#rabota-s-bolshimi-klyuchami-—-reduce_combiner).
+The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner).
 
 If the error arises in a [Reduce](../../user-guide/data-processing/operations/reduce.md) whose input includes more than one table (normally, dozens or hundreds), the scheduler may not have enough samples to break input data down more precisely and achieve uniformity. It is a good idea to utilize [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) instead of [Reduce](../../user-guide/data-processing/operations/reduce.md) in this case.
 

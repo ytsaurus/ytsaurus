@@ -28,7 +28,7 @@ class TThroughputFeedbackTest
 {
 protected:
     TThroughputSpecPtr Config_ = New<TThroughputSpec>();
-    TPartitioningSpecPtr ComputationSpec_ = New<TPartitioningSpec>();
+    TDynamicPartitioningSpecPtr ComputationSpec_ = New<TDynamicPartitioningSpec>();
     TThroughputFeedbackPolicy Policy_{{}, Config_, ComputationSpec_, Logger};
     const TThroughputFeedbackState& State_ = Policy_.GetState();
     TThroughputPartitioningObservation Observation_ = Observation();

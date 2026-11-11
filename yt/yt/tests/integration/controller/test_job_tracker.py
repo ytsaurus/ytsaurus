@@ -250,7 +250,7 @@ class TestJobTracker(YTEnvSetup):
 
         update_controller_agent_config("enable_snapshot_building", False)
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         job_info = self._get_job_info(op, job_id)
 
@@ -310,7 +310,7 @@ class TestJobTracker(YTEnvSetup):
 
         op.ensure_running()
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -385,7 +385,7 @@ class TestJobTracker(YTEnvSetup):
         op.wait_for_fresh_snapshot()
         update_controller_agent_config("enable_snapshot_building", False)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -430,7 +430,7 @@ class TestJobTracker(YTEnvSetup):
 
         op.ensure_running()
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -494,7 +494,7 @@ class TestJobTracker(YTEnvSetup):
 
         op.ensure_running()
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -549,7 +549,7 @@ class TestJobTracker(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -814,7 +814,7 @@ class TestJobTrackerRaces(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op2)
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
         wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
@@ -925,7 +925,7 @@ class TestJobTrackerControllerCancellation(YTEnvSetup):
             with_breakpoint("BREAKPOINT", breakpoint_name="barrier_job"),
             spec={"enable_multiple_jobs_in_allocation": True},
         )
-        job_id, = wait_breakpoint(breakpoint_name="barrier_job")
+        job_id, = wait_breakpoint(op, breakpoint_name="barrier_job")
         allocation_id = get_allocation_id_from_job_id(job_id)
 
         create_pool("blocker_pool", attributes={"resource_limits": {"cpu": 1}})
@@ -1006,7 +1006,7 @@ class TestStoredJobRemoval(YTEnvSetup):
             job_count=2,
         )
 
-        job_to_abort, job_to_keep = wait_breakpoint(job_count=2)
+        job_to_abort, job_to_keep = wait_breakpoint(op, job_count=2)
         # Wait for fresh snapshot to prevent fast job releasing.
         op.wait_for_fresh_snapshot()
 
@@ -1019,7 +1019,7 @@ class TestStoredJobRemoval(YTEnvSetup):
 
         release_breakpoint(job_id=job_to_abort)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         assert len(new_job_ids) == 2
         if new_job_ids[0] == job_to_keep:
             job_to_release = new_job_ids[1]

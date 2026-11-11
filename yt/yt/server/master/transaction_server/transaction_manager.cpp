@@ -156,6 +156,17 @@ using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransacti
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TInstant> GetDeadline(const auto& ctx)
+{
+    return ctx->GetTimeout().transform([&] (TDuration timeout) -> TInstant {
+        return ctx->GetStartTime().value_or(TInstant::Now()) + timeout;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionContextGuard
 {
 public:
@@ -257,6 +268,8 @@ private:
     std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
     std::optional<TSequoiaRevisionGuard> SequoiaRevisionGuard_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! When a mirrored Cypress transaction is used as a prerequisite for another
 //! transaction commit (e.g. for committing Sequoia transactions), the
@@ -417,6 +430,8 @@ private:
     THashMap<TTransaction*, TCompactFlatSet<ILease*, 2>> TransactionToReferencedLeases_;
     THashMap<ILease*, TCompactFlatSet<TTransaction*, 4>> LeaseToReferencingTransactions_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -602,6 +617,9 @@ public:
         // Coordinator: TReqCommitCypressTransaction, late prepare
         // Participant: TReqCommitTransaction, commit only
         RegisterTransactionActionHandlers<NProto::TReqCommitCypressTransaction>({
+            .GenerateStrongOrderingTags = BIND_NO_PROPAGATE(
+                &TTransactionManager::GenerateStrongOrderingTagsCommitCypressTransactionInSequoia,
+                Unretained(this)),
             .Prepare = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraPrepareCommitCypressTransactionInSequoia,
                 Unretained(this)),
@@ -612,6 +630,9 @@ public:
         // TODO(kvk1920): consider renaming TReqCommitTransaction ->
         // TReqCommitForeignTransaction.
         RegisterTransactionActionHandlers<NProto::TReqCommitTransaction>({
+            .GenerateStrongOrderingTags = BIND_NO_PROPAGATE(
+                &TTransactionManager::GenerateStrongOrderingTagsCommitTransactionInSequoia,
+                Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraCommitCommitForeignTransactionInSequoia,
                 Unretained(this)),
@@ -889,6 +910,8 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
+
+        MaybeLogMirroredTransactionReplicationDestination(transactionId, replicatedToCellTags);
 
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId);
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
@@ -2057,6 +2080,22 @@ public:
             .With("TransactionId", transaction->GetId());
     }
 
+    THashSet<std::string> GenerateStrongOrderingTags(TTransactionId transactionId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_TLOG_DEBUG("Cannot fetch strong ordering tags; no such Sequoia transaction")
+                .With("TransactionId", transactionId)
+                .With("CellTag", Bootstrap_->GetCellTag());
+
+            return {};
+        }
+
+        return TTransactionManagerBase::GenerateStrongOrderingTags(transaction);
+    }
+
     void CommitTransaction(
         TTransactionId transactionId,
         const TTransactionCommitOptions& options,
@@ -2295,7 +2334,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
-        context->ReplyFrom(responseFuture);
+        context->ReplyFrom(responseFuture.WithDeadline(GetDeadline(context)));
     }
 
     // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
@@ -2367,7 +2406,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
-        context->ReplyFrom(responseFuture);
+        context->ReplyFrom(responseFuture.WithDeadline(GetDeadline(context)));
         return true;
     }
 
@@ -2512,11 +2551,13 @@ public:
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+
         context->ReplyFrom(DoAbortTransaction(
             std::move(mutation),
             transaction,
             force,
-            context->GetAuthenticationIdentity()));
+            context->GetAuthenticationIdentity())
+            .WithDeadline(GetDeadline(context)));
     }
 
     // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
@@ -2553,7 +2594,8 @@ public:
             std::move(mutation),
             transaction,
             force,
-            context->GetAuthenticationIdentity()));
+            context->GetAuthenticationIdentity())
+            .WithDeadline(GetDeadline(context)));
         return true;
     }
 
@@ -3009,6 +3051,38 @@ private:
         PrepareTransactionCommit(transactionId, options);
     }
 
+    THashSet<std::string> GenerateStrongOrderingTagsForTransactionCommit(auto* request)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        if (!config->SequoiaManager->UseFineGrainedOrderingTags) {
+            return {};
+        }
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
+
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            return {};
+        }
+
+        THashSet<std::string> tags;
+        for (auto& branchedNode : transaction->BranchedNodes()) {
+            tags.insert(ToString(branchedNode->GetId()));
+        }
+
+        return tags;
+    }
+
+    THashSet<std::string> GenerateStrongOrderingTagsCommitTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitTransaction* request)
+    {
+        return GenerateStrongOrderingTagsForTransactionCommit(request);
+    }
+
     void HydraCommitCommitForeignTransactionInSequoia(
         TTransaction* /*sequoiaTransaction*/,
         NProto::TReqCommitTransaction* request,
@@ -3097,6 +3171,13 @@ private:
 
             throw;
         }
+    }
+
+    THashSet<std::string> GenerateStrongOrderingTagsCommitCypressTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitCypressTransaction* request)
+    {
+        return GenerateStrongOrderingTagsForTransactionCommit(request);
     }
 
     void HydraCommitCommitCypressTransactionInSequoia(
@@ -3292,7 +3373,24 @@ private:
         for (const auto& protoTransactionId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoTransactionId);
             YT_VERIFY(CellTagFromId(transactionId) == Bootstrap_->GetCellTag());
-            auto* transaction = FindTransaction(transactionId);
+
+            bool externalize = false;
+            if (GetDynamicConfig()->EnableLazyTransactionExternalization) {
+                if (IsExternalizedTransactionType(TypeFromId(transactionId))) {
+                    externalize = true;
+                }
+            } else {
+                YT_TLOG_ALERT_IF(
+                    IsExternalizedTransactionType(TypeFromId(transactionId)),
+                    "Lazy transaction externalization is disabled but someone requested it")
+                    .With("TransactionId", transactionId)
+                    .WithIf(
+                        static_cast<bool>(context),
+                        "RequestId",
+                        YT_LAZY(context->GetRequestId()));
+            }
+
+            auto* transaction = FindTransaction(externalize ? OriginalFromExternalizedTransactionId(transactionId) : transactionId);
 
             if (!IsObjectAlive(transaction)) {
                 NProto::TReqNoteNoSuchTransaction noSuchTransactionRequest;
@@ -3304,16 +3402,24 @@ private:
                 continue;
             }
 
-            YT_VERIFY(transaction->IsNative());
-
-            if (transaction->IsReplicatedToCell(destinationCellTag)) {
-                skippedTransactionIds.push_back(transactionId);
-                // Don't post anything.
-                continue;
+            if (externalize) {
+                if (transaction->IsExternalizedToCell(destinationCellTag)) {
+                    skippedTransactionIds.push_back(transactionId);
+                    // Don't post anything.
+                    continue;
+                }
+                ExternalizeTransaction(transaction, {destinationCellTag});
+                YT_VERIFY(transaction->IsExternalizedToCell(destinationCellTag));
+            } else {
+                if (transaction->IsReplicatedToCell(destinationCellTag)) {
+                    skippedTransactionIds.push_back(transactionId);
+                    // Don't post anything.
+                    continue;
+                }
+                MaybeLogMirroredTransactionReplicationDestination(transactionId, {destinationCellTag});
+                ReplicateTransaction(transaction, {destinationCellTag});
+                YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
             }
-
-            ReplicateTransaction(transaction, {destinationCellTag});
-            YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
 
             postedTransactionIds.push_back(transactionId);
         }
@@ -3456,9 +3562,10 @@ private:
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto& bulkInsertState = transaction->BulkInsertState();
 
+        THashSet<TTableId> tableIdsSet;
         for (const auto& [externalCellTag, tableIds] : lockableDynamicTablesToAdd) {
             for (auto tableId : tableIds) {
-                if (bulkInsertState.HasConflict(tableId)) {
+                if (bulkInsertState.HasConflict(tableId) || !tableIdsSet.insert(tableId).second) {
                     THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
                         .With("transaction_id", transactionId)
                         .With("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())
@@ -4896,7 +5003,7 @@ private:
         }
 
         auto userId = transaction->GetInitiatorId();
-        auto it = UserIdToActiveTransactionCount_.insert({userId, 0}).first;
+        auto it = UserIdToActiveTransactionCount_.emplace(userId, 0).first;
         if (--it->second < 0) {
             YT_TLOG_ALERT("User active transaction count went negative and was reset to zero")
                 .With("UserId", userId)
@@ -4968,6 +5075,36 @@ private:
         }
 
         FlushUserActiveTransactionCountAlertThresholdExceededReports();
+    }
+
+    void MaybeLogMirroredTransactionReplicationDestination(TTransactionId transactionId, const TCellTagSet& destinationCellTags)
+    {
+        if (!IsCypressTransactionMirroredToSequoia(transactionId) || destinationCellTags.empty()) {
+            return;
+        }
+
+        constexpr static auto AllowedRoles =
+            EMasterCellRoles::CypressNodeHost |
+            EMasterCellRoles::SequoiaNodeHost |
+            EMasterCellRoles::TransactionCoordinator |
+            EMasterCellRoles::ExTransactionCoordinator;
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        TCellTagSet unexpectedCellTags;
+        for (auto cellTag : destinationCellTags) {
+            auto roles = multicellManager->GetMasterCellRoles(cellTag);
+            if (Any(roles & AllowedRoles)) {
+                continue;
+            }
+
+            unexpectedCellTags.insert(cellTag);
+        }
+
+        YT_TLOG_TRACE_IF(!unexpectedCellTags.empty(),
+            "Starting mirrored Cypress transaction with replication to master cells with unexpected roles")
+            .With("TransactionId", transactionId)
+            .With("UnexpectedCellTags", unexpectedCellTags);
     }
 };
 

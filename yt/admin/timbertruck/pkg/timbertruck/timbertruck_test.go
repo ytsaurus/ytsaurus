@@ -2,6 +2,7 @@ package timbertruck_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -313,4 +314,67 @@ func TestMoveWhenStopped(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"bar"}, readChan(t, stream1Chan, 1, 5*time.Second))
 	require.Equal(t, []string{"\n"}, readChan(t, stream1Chan, 1, 5*time.Second))
+}
+
+func TestAddAndRunStreamBeforeAndDuringServe(t *testing.T) {
+	workingDir := path.Join(t.TempDir(), "timbertruck_work")
+	logsDir := path.Join(t.TempDir(), "logs")
+
+	err := os.MkdirAll(workingDir, 0755)
+	require.NoError(t, err)
+	err = os.MkdirAll(logsDir, 0755)
+	require.NoError(t, err)
+
+	const streamCount = 24
+	logFile := func(i int) string {
+		return path.Join(logsDir, fmt.Sprintf("log%v", i))
+	}
+	var lines []string
+	for i := 0; i < streamCount; i++ {
+		line := fmt.Sprintf("line%v\n", i)
+		lines = append(lines, line)
+		err = os.WriteFile(logFile(i), []byte(line), 0644)
+		require.NoError(t, err)
+	}
+
+	config := newTestConfig(workingDir)
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	streamChan := make(chan string, 2*streamCount)
+	addAndRunStream := func(i int) {
+		err := tt.AddAndRunStream(
+			ctx,
+			timbertruck.StreamConfig{
+				Name:    fmt.Sprintf("stream%v", i),
+				LogFile: logFile(i),
+			},
+			createTestStreamPipeline(streamChan),
+		)
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < streamCount/2; i++ {
+		addAndRunStream(i)
+	}
+	require.NoDirExists(t, path.Join(workingDir, "stream0", "staging"))
+
+	serveEndChan := make(chan error)
+	go func() {
+		err := tt.Serve(ctx)
+		serveEndChan <- err
+	}()
+
+	for i := streamCount / 2; i < streamCount; i++ {
+		addAndRunStream(i)
+	}
+
+	require.ElementsMatch(t, lines, readChan(t, streamChan, streamCount, 5*time.Second))
+
+	cancel()
+	err = <-serveEndChan
+	require.ErrorIs(t, err, context.Canceled)
 }

@@ -6,8 +6,8 @@ from sqlglot import exp, generator, transforms
 from sqlglot.dialects.dialect import (
     any_value_to_max_sql,
     arrow_json_extract_sql,
-    concat_to_dpipe_sql,
     count_if_to_sum,
+    groupconcat_sql,
     no_ilike_sql,
     no_pivot_sql,
     no_tablesample_sql,
@@ -16,12 +16,11 @@ from sqlglot.dialects.dialect import (
     strposition_sql,
 )
 from sqlglot.generator import unsupported_args
-from sqlglot.optimizer.scope import find_in_scope
 from sqlglot.tokens import TokenType
 
 
 def _transform_create(expression: exp.Expr) -> exp.Expr:
-    """Move primary key to a column and enforce auto_increment on primary keys."""
+    """Move primary key to a column and place auto_increment after it."""
     schema = expression.this
 
     if isinstance(expression, exp.Create) and isinstance(schema, exp.Schema):
@@ -53,12 +52,9 @@ def _transform_create(expression: exp.Expr) -> exp.Expr:
                     auto_increment = constraint
                     auto_increment_index = i
 
-            if auto_increment is not None and (
-                primary_key_index == -1 or auto_increment_index < primary_key_index
-            ):
+            if auto_increment is not None and 0 <= auto_increment_index < primary_key_index:
                 column.constraints.remove(auto_increment)
-                if primary_key_index != -1:
-                    column.constraints.insert(primary_key_index, auto_increment)
+                column.constraints.insert(primary_key_index, auto_increment)
 
     return expression
 
@@ -69,7 +65,9 @@ def _generated_to_auto_increment(expression: exp.Expr) -> exp.Expr:
 
     generated = expression.find(exp.GeneratedAsIdentityColumnConstraint)
 
-    if generated:
+    # Only rewrite true identity columns. Expression-bearing forms are computed
+    # columns (GENERATED ALWAYS AS (expr)) and must keep their expression.
+    if generated and generated.expression is None:
         t.cast(exp.ColumnConstraint, generated.parent).pop()
 
         not_null = expression.find(exp.NotNullColumnConstraint)
@@ -88,8 +86,9 @@ def _offset_to_limit(expression: exp.Expr) -> exp.Expr:
         return expression
 
     offset = expression.args.get("offset")
+    limit = expression.args.get("limit")
 
-    if offset and not expression.args.get("limit"):
+    if offset and (not limit or (isinstance(limit, exp.Limit) and limit.is_limit_all)):
         expression.limit(-1, copy=False)
 
     return expression
@@ -100,6 +99,7 @@ class SQLiteGenerator(generator.Generator):
     TRY_SUPPORTED = False
     SUPPORTS_UESCAPE = False
     SUPPORTS_DECODE_CASE = False
+    SET_OP_PARENTHESIZED_OPERANDS = False
 
     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
 
@@ -149,7 +149,6 @@ class SQLiteGenerator(generator.Generator):
         **generator.Generator.TRANSFORMS,
         exp.AnyValue: any_value_to_max_sql,
         exp.Chr: rename_func("CHAR"),
-        exp.Concat: concat_to_dpipe_sql,
         exp.CountIf: count_if_to_sum,
         exp.Create: transforms.preprocess([_transform_create]),
         exp.CurrentDate: lambda *_: "CURRENT_DATE",
@@ -163,7 +162,6 @@ class SQLiteGenerator(generator.Generator):
         exp.JSONArrayAgg: unsupported_args("order", "null_handling", "return_type", "strict")(
             rename_func("JSON_GROUP_ARRAY")
         ),
-        exp.JSONExtractScalar: arrow_json_extract_sql,
         exp.JSONObjectAgg: lambda self, e: self._jsonobject_sql(e, name="JSON_GROUP_OBJECT"),
         exp.Levenshtein: unsupported_args("ins_cost", "del_cost", "sub_cost", "max_dist")(
             rename_func("EDITDIST3")
@@ -172,6 +170,7 @@ class SQLiteGenerator(generator.Generator):
         exp.LogicalAnd: rename_func("MIN"),
         exp.Pivot: no_pivot_sql,
         exp.Rand: rename_func("RANDOM"),
+        exp.RegexpLike: lambda self, e: self.binary(e, "REGEXP"),
         exp.Select: transforms.preprocess(
             [
                 _offset_to_limit,
@@ -205,6 +204,16 @@ class SQLiteGenerator(generator.Generator):
 
     LIMIT_FETCH = "LIMIT"
 
+    def autoincrementcolumnconstraint_sql(
+        self, expression: exp.AutoIncrementColumnConstraint
+    ) -> str:
+        column = expression.find_ancestor(exp.ColumnDef)
+        if column and column.find(exp.PrimaryKeyColumnConstraint):
+            return super().autoincrementcolumnconstraint_sql(expression)
+
+        self.unsupported("SQLite AUTOINCREMENT requires an INTEGER PRIMARY KEY")
+        return ""
+
     def insert_sql(self, expression: exp.Insert) -> str:
         if expression.args.get("ignore"):
             expression.set("ignore", False)
@@ -229,6 +238,13 @@ class SQLiteGenerator(generator.Generator):
             return self.function_fallback_sql(expression)
         return arrow_json_extract_sql(self, expression)
 
+    def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:
+        if expression.args.get("json_subtype"):
+            # json_extract() keeps the JSON subtype on object/array results;
+            # ->> strips it, observable when the result feeds another JSON function
+            return self.func("JSON_EXTRACT", expression.this, expression.expression)
+        return arrow_json_extract_sql(self, expression)
+
     def dateadd_sql(self, expression: exp.DateAdd) -> str:
         modifier = expression.expression
         unit = expression.args.get("unit")
@@ -237,6 +253,21 @@ class SQLiteGenerator(generator.Generator):
         if isinstance(modifier, exp.Interval):
             unit = unit or modifier.unit
             modifier = modifier.this
+
+        modifier = modifier.unnest()
+        if (
+            unit
+            and not isinstance(modifier, exp.Literal)
+            and not (isinstance(modifier, exp.Neg) and modifier.this.is_number)
+        ):
+            return self.func(
+                "DATE",
+                expression.this,
+                exp.DPipe(
+                    this=exp.paren(modifier),
+                    expression=exp.Literal.string(f" {unit.name}"),
+                ),
+            )
         modifier = modifier.name if modifier.is_string else self.sql(modifier)
         modifier = f"'{modifier} {unit.name}'" if unit else f"'{modifier}'"
         return self.func("DATE", expression.this, modifier)
@@ -246,6 +277,19 @@ class SQLiteGenerator(generator.Generator):
             return self.func("DATE", expression.this)
 
         return super().cast_sql(expression)
+
+    # https://www.sqlite.org/gencol.html
+    # Inline unsupported check: mypyc cannot compile @unsupported_args on an
+    # override of an undecorated base-class method.
+    def computedcolumnconstraint_sql(self, expression: exp.ComputedColumnConstraint) -> str:
+        if expression.args.get("data_type"):
+            self.unsupported("SQLite generated columns do not support a data type")
+
+        this = expression.this
+        this_sql = self.sql(this) if isinstance(this, exp.Paren) else f"({self.sql(this)})"
+        storage = " STORED" if expression.args.get("persisted") else ""
+        not_null = " NOT NULL" if expression.args.get("not_null") else ""
+        return f"AS {this_sql}{storage}{not_null}"
 
     # Note: SQLite's TRUNC always returns REAL (e.g., trunc(10.99) -> 10.0), not INTEGER.
     # This creates a transpilation gap affecting division semantics, similar to Presto.
@@ -291,42 +335,55 @@ class SQLiteGenerator(generator.Generator):
         elif unit == "MICROSECOND":
             sql = f"{sql} * 86400000000.0"
         elif unit == "NANOSECOND":
-            sql = f"{sql} * 8640000000000.0"
+            sql = f"{sql} * 86400000000000.0"
         else:
             self.unsupported(f"DATEDIFF unsupported for '{unit}'.")
 
         return f"CAST({sql} AS INTEGER)"
 
-    # https://www.sqlite.org/lang_aggfunc.html#group_concat
     def groupconcat_sql(self, expression: exp.GroupConcat) -> str:
-        this = expression.this
-        distinct = find_in_scope(expression, exp.Distinct)
+        node = expression.parent if isinstance(expression.parent, exp.Filter) else expression
+        window = node.parent
 
-        if distinct:
-            this = distinct.expressions[0]
-            distinct_sql = "DISTINCT "
-        else:
-            distinct_sql = ""
+        if (
+            isinstance(expression.this, exp.Order)
+            and isinstance(window, exp.Window)
+            and window.this is node
+        ):
+            self.unsupported(
+                "SQLite GROUP_CONCAT window functions do not support argument ORDER BY"
+            )
+            expression.set("this", expression.this.this)
 
-        if isinstance(expression.this, exp.Order):
-            self.unsupported("SQLite GROUP_CONCAT doesn't support ORDER BY.")
-            if expression.this.this and not distinct:
-                this = expression.this.this
+        return groupconcat_sql(
+            self, expression, func_name="GROUP_CONCAT", sep=None, within_group=False
+        )
 
-        separator = expression.args.get("separator")
-        return f"GROUP_CONCAT({distinct_sql}{self.format_args(this, separator)})"
+    def _greatest_least_sql(self, expression: exp.Greatest | exp.Least) -> str:
+        if not expression.expressions:
+            return self.sql(expression, "this")
 
-    def least_sql(self, expression: exp.Least) -> str:
-        if expression.expressions:
-            return rename_func("MIN")(self, expression)
+        name = "MAX" if isinstance(expression, exp.Greatest) else "MIN"
 
-        return self.sql(expression, "this")
+        if not expression.args.get("ignore_nulls"):
+            return rename_func(name)(self, expression)
+
+        # SQLite's multi-argument MAX/MIN return NULL if any argument is NULL.
+        # GREATEST(a, b, c) -> MAX(COALESCE(a, b, c), COALESCE(b, c, a), COALESCE(c, a, b)).
+        args = [expression.this, *expression.expressions]
+
+        coalesces = []
+        for i in range(len(args)):
+            rotated = args[i:] + args[:i]
+            coalesces.append(exp.Coalesce(this=rotated[0], expressions=rotated[1:]))
+
+        return self.func(name, *coalesces)
 
     def greatest_sql(self, expression: exp.Greatest) -> str:
-        if expression.expressions:
-            return rename_func("MAX")(self, expression)
+        return self._greatest_least_sql(expression)
 
-        return self.sql(expression, "this")
+    def least_sql(self, expression: exp.Least) -> str:
+        return self._greatest_least_sql(expression)
 
     def transaction_sql(self, expression: exp.Transaction) -> str:
         this = expression.this
@@ -351,6 +408,7 @@ class SQLiteGenerator(generator.Generator):
         if (
             expression.text("kind").upper() == "RANGE"
             and expression.text("start").upper() == "CURRENT ROW"
+            and expression.args.get("end") is None
         ):
             return "RANGE CURRENT ROW"
 

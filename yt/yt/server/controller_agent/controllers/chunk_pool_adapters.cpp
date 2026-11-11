@@ -134,6 +134,11 @@ void TChunkPoolOutputAdapterBase::Lost(TCookie cookie)
     UnderlyingOutput_->Lost(cookie);
 }
 
+void TChunkPoolOutputAdapterBase::AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& jobSizeAdjuster)
+{
+    UnderlyingOutput_->AttachJobSizeAdjuster(jobSizeAdjuster);
+}
+
 bool TChunkPoolOutputAdapterBase::IsSplittable(NChunkPools::TOutputCookie cookie) const
 {
     return UnderlyingOutput_->IsSplittable(cookie);

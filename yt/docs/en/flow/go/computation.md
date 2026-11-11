@@ -37,7 +37,7 @@ For a source, `TSwiftOrderedSourceCompanionComputation` is suitable only for det
 
 A computation is created by a constructor and registered in `flow.Pipeline` through `pipeline.Add`. Here is an example from [Shuffle](examples/shuffle.md), where the companion serves both ends of the pipeline — the source and the transform:
 
-[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
+{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 The constructors take two required parameters:
 
@@ -188,36 +188,7 @@ The low-level `flow.Payload`, `flow.PayloadBuilder`, and `rt.MessageBuilder` rem
 
 The function from [WordCount](examples/wordcount.md) counts the occurrences of every word in the key’s [state](../../flow/concepts/glossary.md#state):
 
-```go
-type wordCountMapper struct{}
-
-var _ flow.RowFunction = (*wordCountMapper)(nil)
-
-func (*wordCountMapper) OnMessage(
-	ctx context.Context,
-	rt flow.Runtime,
-	msg flow.ExtendedMessage,
-	out flow.OutputCollector,
-) error {
-	var input wordMessage
-	if err := msg.ConvertTo(&input); err != nil {
-		return err
-	}
-
-	state, err := flow.OpenYSONState[wordCountState](rt, wordStateName, msg)
-	if err != nil {
-		return err
-	}
-
-	fresh := state.Empty()
-	counter := state.Value()
-	if fresh {
-		counter.Word = input.Word
-	}
-	counter.Count++
-	return nil
-}
-```
+{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
 
 ### Optional handlers {#optional-handlers}
 

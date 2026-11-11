@@ -40,14 +40,13 @@ public:
 
     THost(
         IInvokerPtr controlInvoker,
+        NApi::NNative::IConnectionPtr connection,
         TPorts ports,
-        TYtConfigPtr config,
-        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig,
-        NApi::NNative::EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-        NYTree::INodePtr clusterConnectionNode);
+        TYtConfigPtr config);
 
     virtual ~THost() override;
 
+    void Reconfigure(const TYtDynamicConfigPtr& dynamicConfig);
     void Start();
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state);
@@ -141,7 +140,8 @@ public:
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
-    TYtConfigPtr GetConfig() const;
+    const TYtConfigPtr& GetConfig() const;
+    TYtConfigPtr GetEffectiveConfig() const;
 
     EInstanceState GetInstanceState() const;
 

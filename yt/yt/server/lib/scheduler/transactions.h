@@ -41,6 +41,7 @@ void FromProto(TRichTransactionId* transactionId, const NProto::TRichTransaction
 struct TControllerTransactionIds
 {
     NTransactionClient::TTransactionId AsyncId;
+    NTransactionClient::TTransactionId JournalNbdId;
     NTransactionClient::TTransactionId InputId;
     NTransactionClient::TTransactionId OutputId;
     NTransactionClient::TTransactionId DebugId;
@@ -63,6 +64,7 @@ void FromProto(TControllerTransactionIds* transactionIds, const NControllerAgent
 struct TOperationTransactions
 {
     NApi::ITransactionPtr AsyncTransaction;
+    NApi::ITransactionPtr JournalNbdTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;

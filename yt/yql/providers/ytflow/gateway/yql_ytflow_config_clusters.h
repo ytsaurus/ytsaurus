@@ -36,6 +36,7 @@ public:
 public:
     TString GetAuth(const TString& clusterAlias) const;
     TString GetRealName(const TString& clusterAlias) const;
+    TString GetAlias(const TString& clusterRealName) const;
     TString GetProxyUrl(const TString& clusterAlias) const;
 
     THashMap<std::string, std::string> GetProxyUrlAliasingRules() const;

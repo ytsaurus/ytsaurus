@@ -29,6 +29,8 @@ void TSyncSinkParameters::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
         .Default(true);
+    registrar.Parameter("allow_missing_key_columns", &TThis::AllowMissingKeyColumns)
+        .Default(false);
 }
 
 DEFINE_REFCOUNTED_TYPE(TSyncSinkParameters);
@@ -52,6 +54,8 @@ void TAsyncSinkParameters::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
         .Default(true);
+    registrar.Parameter("allow_missing_key_columns", &TThis::AllowMissingKeyColumns)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* parameters) {
         THROW_ERROR_EXCEPTION_IF(

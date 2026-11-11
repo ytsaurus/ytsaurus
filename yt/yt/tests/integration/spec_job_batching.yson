@@ -1,0 +1,5 @@
+{
+    job_batching={
+        enabled=%true;
+    };
+}

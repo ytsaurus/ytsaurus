@@ -212,7 +212,7 @@ public:
             gate = DownloadGate_;
             BlockedContentId_.clear();
         }
-        gate.Set();
+        gate.TrySet();
     }
 
     static int GetDownloadCount(const std::string& contentId)
@@ -526,7 +526,7 @@ public:
             BlockedInitializationValue_.clear();
             gate = InitializationGate_;
         }
-        gate.Set();
+        gate.TrySet();
     }
 
     static void BlockValidation(const std::string& value)
@@ -551,7 +551,7 @@ public:
             BlockedValidationValue_.clear();
             gate = ValidationGate_;
         }
-        gate.Set();
+        gate.TrySet();
     }
 
 protected:
@@ -1392,11 +1392,10 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
     EXPECT_EQ(target->ActiveFileSnapshot->Id, snapshotId);
     EXPECT_FALSE(target->PreparingFileSnapshot);
 
-    WaitFor(BIND([] {
-    }).AsyncVia(queue->GetInvoker())
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
-    stateManager->Sync();
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     controller.Reset();
@@ -1565,11 +1564,10 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
         view->GetChildValueOrThrow<TFileSnapshotId>("preparing_file_snapshot_id"),
         target->PreparingFileSnapshot->Id);
 
-    WaitFor(BIND([] {
-    }).AsyncVia(queue->GetInvoker())
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
-    stateManager->Sync();
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     controller.Reset();
@@ -1747,11 +1745,10 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     target = controller->BuildTargetRevision();
     ASSERT_TRUE(target->ActiveFileSnapshot);
     const auto activeSnapshotId = target->ActiveFileSnapshot->Id;
-    WaitFor(BIND([] {
-    }).AsyncVia(queue->GetInvoker())
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
-    stateManager->Sync();
     controller.Reset();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(5));
@@ -1997,7 +1994,10 @@ TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
     ASSERT_TRUE(age);
     EXPECT_NEAR(*age, 3600, 30);
 
-    stateManager->Sync();
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
     controller.Reset();
     TFakeFileProvider::SetDiscoveryError("file");
     auto restoredState = New<TStateManagerMock>();
@@ -2114,11 +2114,10 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProvid
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    WaitFor(BIND([] {
-    }).AsyncVia(queue->GetInvoker())
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
-    stateManager->Sync();
     controller.Reset();
 
     TFakeFileProvider::SetDiscoveryError("left");
@@ -2310,7 +2309,10 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
         GetLatestFileSnapshot(pendingTarget)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v0");
 
-    stateManager->Sync();
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     auto restored = MakeNamedController(
@@ -2436,11 +2438,10 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    WaitFor(BIND([] {
-    }).AsyncVia(queue->GetInvoker())
+    WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
+            .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
-    stateManager->Sync();
     controller.Reset();
 
     TFakeFileProvider::SetDiscoveryError("left");
@@ -2561,6 +2562,253 @@ TEST_F(TFileResourceTest, MalformedTargetIsReportedAndCanRecover)
         EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 2);
         EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
     }
+}
+
+TEST_F(TFileResourceTest, CancelInitialLoadBeforeTarget)
+{
+    auto queue = New<TActionQueue>();
+    auto resource = MakeResource(queue->GetInvoker());
+    auto loadFuture = resource->Load({});
+
+    loadFuture.Cancel(TError("Resource instance retired"));
+    EXPECT_TRUE(loadFuture.IsSet());
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(1, "v1")));
+    WaitFor(BIND([] {
+    }).AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+    EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v1"), 0);
+    EXPECT_THROW_WITH_SUBSTRING(resource->Lock(), "no initialized data");
+}
+
+TEST_F(TFileResourceTest, CancelInitialLoadDuringMaterialization)
+{
+    auto queue = New<TActionQueue>();
+    TFakeFileProvider::Block("v1");
+    auto unblock = Finally([] {
+        TFakeFileProvider::Unblock();
+    });
+    auto target = MakeTarget(1, "v1");
+    auto resource = MakeResource(queue->GetInvoker(), target);
+    auto loadFuture = resource->Load({});
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+
+    loadFuture.Cancel(TError("Resource instance retired"));
+    EXPECT_TRUE(loadFuture.IsSet());
+    auto destroyedFuture = resource->GetDestroyedFuture();
+    resource.Reset();
+    EXPECT_TRUE(WaitFor(destroyedFuture.WithTimeout(TDuration::Seconds(1))).IsOK());
+}
+
+TEST_F(TFileResourceTest, CancelInitialLoadKeepsSharedDownload)
+{
+    auto queue = New<TActionQueue>();
+    auto storage = New<TFakeFileStorage>();
+    TFakeFileProvider::Block("v1");
+    auto unblock = Finally([] {
+        TFakeFileProvider::Unblock();
+    });
+    auto target = MakeTarget(1, "v1");
+    auto resource = MakeResource(queue->GetInvoker(), target, storage);
+    auto otherResource = MakeResource(queue->GetInvoker(), target, storage);
+    auto loadFuture = resource->Load({});
+    auto otherLoadFuture = otherResource->Load({});
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    WaitFor(BIND([] {
+    }).AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+
+    loadFuture.Cancel(TError("Resource instance retired"));
+    ASSERT_TRUE(loadFuture.IsSet());
+    EXPECT_FALSE(WaitFor(loadFuture).IsOK());
+    TFakeFileProvider::Unblock();
+    WaitFor(otherLoadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+
+    EXPECT_EQ(otherResource->Lock()->Value, "payload:v1");
+    EXPECT_THROW_WITH_SUBSTRING(resource->Lock(), "no initialized data");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
+    EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v1"), 1);
+}
+
+TEST_F(TFileResourceTest, CancelInitialLoadInterruptsInitialization)
+{
+    auto queue = New<TActionQueue>();
+    TTestFileResource::BlockInitialization("payload:v1");
+    auto unblock = Finally([] {
+        TTestFileResource::UnblockInitialization();
+    });
+    auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"));
+    auto loadFuture = resource->Load({});
+    WaitFor(TTestFileResource::GetInitializationStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+
+    loadFuture.Cancel(TError("Resource instance retired"));
+    EXPECT_TRUE(loadFuture.IsSet());
+    auto destroyedFuture = resource->GetDestroyedFuture();
+    resource.Reset();
+    EXPECT_TRUE(WaitFor(destroyedFuture.WithTimeout(TDuration::Seconds(1))).IsOK());
+}
+
+TEST_F(TFileResourceTest, CancelInitialLoadInterruptsValidation)
+{
+    auto queue = New<TActionQueue>();
+    TTestFileResource::BlockValidation("payload:v1");
+    auto unblock = Finally([] {
+        TTestFileResource::UnblockValidation();
+    });
+    auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"));
+    auto loadFuture = resource->Load({});
+    WaitFor(TTestFileResource::GetValidationStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+
+    loadFuture.Cancel(TError("Resource instance retired"));
+    EXPECT_TRUE(loadFuture.IsSet());
+    auto destroyedFuture = resource->GetDestroyedFuture();
+    resource.Reset();
+    EXPECT_TRUE(WaitFor(destroyedFuture.WithTimeout(TDuration::Seconds(1))).IsOK());
+}
+
+class TFileResourceRetirementTest
+    : public TFileResourceTest
+    , public ::testing::WithParamInterface<std::tuple<bool, bool>>
+{ };
+
+TEST_P(TFileResourceRetirementTest, RetiredInstanceReleasesBlockedBackgroundPreparation)
+{
+    auto queue = New<TActionQueue>();
+    auto managerContext = New<TResourceManagerContext>();
+    managerContext->Invoker = queue->GetInvoker();
+    managerContext->Logger = NLogging::TLogger("FileResourceRetirementTest");
+    managerContext->StatusProfiler = CreateSyncStatusProfiler();
+    managerContext->FileStorage = New<TFakeFileStorage>();
+    auto manager = CreateResourceManager(managerContext);
+    const auto resourceId = TResourceId("test");
+    const THashMap<TResourceId, TResourceSpecPtr> specs{{resourceId, MakeResourceSpec()}};
+    auto instance = New<TResourceInstance>();
+    instance->ResourceId = resourceId;
+    instance->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    auto dynamicSpec = New<TResourceInstanceDynamicSpec>();
+    dynamicSpec->TargetRevision = MakeTarget(1, "v1");
+    manager->ReconfigureInstances(
+        specs,
+        {{instance->ResourceInstanceId, instance}},
+        {{instance->ResourceInstanceId, dynamicSpec}});
+    WaitFor(manager->Load({instance->ResourceInstanceId}).WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    auto resource = manager->Get(instance->ResourceInstanceId)->As<TTestFileResource>();
+    auto initialData = resource->Lock();
+
+    auto [blockValidation, destroyManager] = GetParam();
+    if (blockValidation) {
+        TTestFileResource::BlockValidation("payload:v2");
+    } else {
+        TTestFileResource::BlockInitialization("payload:v2");
+    }
+    auto unblock = Finally([] {
+        TTestFileResource::UnblockInitialization();
+        TTestFileResource::UnblockValidation();
+    });
+    dynamicSpec = New<TResourceInstanceDynamicSpec>();
+    dynamicSpec->TargetRevision = MakeTarget(2, "v2");
+    manager->ReconfigureInstances(
+        specs,
+        {{instance->ResourceInstanceId, instance}},
+        {{instance->ResourceInstanceId, dynamicSpec}});
+    auto started = blockValidation
+        ? TTestFileResource::GetValidationStartedFuture()
+        : TTestFileResource::GetInitializationStartedFuture();
+    WaitFor(started.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+
+    auto destroyed = resource->GetDestroyedFuture();
+    if (destroyManager) {
+        manager.Reset();
+    } else {
+        manager->ReconfigureInstances(specs, {}, {});
+    }
+    resource.Reset();
+    EXPECT_TRUE(WaitFor(destroyed.WithTimeout(TDuration::Seconds(1))).IsOK());
+    EXPECT_EQ(initialData->Value, "payload:v1");
+
+    if (destroyManager) {
+        return;
+    }
+
+    auto successor = New<TResourceInstance>();
+    successor->ResourceId = resourceId;
+    successor->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    dynamicSpec = New<TResourceInstanceDynamicSpec>();
+    dynamicSpec->TargetRevision = MakeTarget(3, "v3");
+    manager->ReconfigureInstances(
+        specs,
+        {{successor->ResourceInstanceId, successor}},
+        {{successor->ResourceInstanceId, dynamicSpec}});
+    EXPECT_TRUE(WaitFor(manager->Load({successor->ResourceInstanceId})
+            .WithTimeout(TDuration::Seconds(1)))
+            .IsOK());
+    manager->ReconfigureInstances(specs, {}, {});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    BackgroundPreparation,
+    TFileResourceRetirementTest,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool()));
+
+TEST_F(TFileResourceTest, StopBeforeLoadRejectsFutureTargets)
+{
+    auto queue = New<TActionQueue>();
+    auto resource = MakeResource(queue->GetInvoker());
+    resource->Stop();
+    resource->Stop();
+    auto load = resource->Load({});
+    ASSERT_TRUE(load.IsSet());
+    EXPECT_FALSE(WaitFor(load).IsOK());
+
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(1, "v1")));
+    WaitFor(BIND([] {
+    }).AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 0);
+    EXPECT_THROW_WITH_SUBSTRING(resource->Lock(), "no initialized data");
+}
+
+TEST_F(TFileResourceTest, StopAfterLoadKeepsSharedDownloadAndPublishedData)
+{
+    auto queue = New<TActionQueue>();
+    auto storage = New<TFakeFileStorage>();
+    auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"), storage);
+    WaitFor(resource->Load({})).ThrowOnError();
+    auto accessor = resource->Lock();
+
+    TFakeFileProvider::Block("v2");
+    auto unblock = Finally([] {
+        TFakeFileProvider::Unblock();
+    });
+    auto otherResource = MakeResource(queue->GetInvoker(), MakeTarget(2, "v2"), storage);
+    auto otherLoad = otherResource->Load({});
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(2, "v2")));
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    WaitFor(BIND([] {
+    }).AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+
+    resource->Stop();
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(3, "v3")));
+    auto destroyed = resource->GetDestroyedFuture();
+    resource.Reset();
+    EXPECT_TRUE(WaitFor(destroyed.WithTimeout(TDuration::Seconds(1))).IsOK());
+    TFakeFileProvider::Unblock();
+    WaitFor(otherLoad.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(otherResource->Lock()->Value, "payload:v2");
+    EXPECT_EQ(accessor->Value, "payload:v1");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v2"), 1);
+    EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v3"), 0);
 }
 
 TEST_F(TFileResourceTest, InitialLoadPublishesState)

@@ -985,7 +985,7 @@ class TestComplexTypesMisc(YTEnvSetup):
     def test_complex_types_alter(self):
         create(
             "table",
-            "//table",
+            "//tmp/table",
             attributes={
                 "schema": make_schema(
                     [
@@ -994,11 +994,11 @@ class TestComplexTypesMisc(YTEnvSetup):
                 )
             },
         )
-        tx_write_table("//table", [{"column": []}])
+        tx_write_table("//tmp/table", [{"column": []}])
 
         with raises_yt_error("Cannot insert a new required column"):
             alter_table(
-                "//table",
+                "//tmp/table",
                 schema=make_schema(
                     [
                         make_column("column", list_type("int64")),
@@ -1008,7 +1008,7 @@ class TestComplexTypesMisc(YTEnvSetup):
             )
 
         alter_table(
-            "//table",
+            "//tmp/table",
             schema=make_schema(
                 [
                     make_column("column", list_type("int64")),
@@ -1349,7 +1349,6 @@ class TestLogicalType(YTEnvSetup):
 
     @authors("ermolovd")
     def test_logical_type_column_constrains(self):
-        remove("//test-table", force=True)
         with raises_yt_error('Computed column "key1" type mismatch: declared type'):
             create(
                 "table",

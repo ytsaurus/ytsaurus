@@ -9,10 +9,13 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NFlow {
 
@@ -100,6 +103,19 @@ protected:
         auto watermarkState = New<TWatermarkState>();
         watermarkState->Streams[InputStreamId] = watermarks;
         store->UpdateWatermarkState(watermarkState);
+    }
+
+    // Advances only the current timestamp; stream watermarks stay at zero.
+    void SetCurrentTimestamp(const ITimerStorePtr& store, ui64 timestamp)
+    {
+        auto watermarkState = New<TWatermarkState>();
+        watermarkState->CurrentTimestamp = TSystemTimestamp(timestamp);
+        store->UpdateWatermarkState(watermarkState);
+    }
+
+    TInflightStreamTraverseDataPtr GetInflight(const ITimerStorePtr& store)
+    {
+        return GetOrCrash(store->BuildInflight(), TimerStreamId);
     }
 
     i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
@@ -219,7 +235,7 @@ TEST(TTimerTriggerConditionsTest, ResolveConditions)
         emptyDelaysSpec->Streams = THashSet<TStreamId>{"ignored"};
         emptyDelaysSpec->StreamsWithDelays.emplace();
 
-        auto conditions = BuildTimerTriggerConditions(context);
+        auto conditions = BuildTimerTriggerConditions(context->TimerSpecs, context->StreamsDependency);
         ASSERT_EQ(conditions.size(), 5u);
         for (const auto& [timerId, condition] : conditions) {
             EXPECT_EQ(condition.TimeType, timeType);
@@ -268,7 +284,45 @@ TEST_F(TTimerStoreTest, InitialCountIsZero)
     auto store = CreateTimerStore(context, MakeDynamicContext());
     WaitFor(store->Init()).ThrowOnError();
 
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
+    EXPECT_TRUE(store->IsEmpty());
+}
+
+TEST_F(TTimerStoreTest, EmptyBatchDoesNotReserveRowLimit)
+{
+    auto store = CreateTimerStore(MakeContext(), MakeDynamicContext());
+    WaitFor(store->Init())
+        .ThrowOnError();
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 80'000'000, /*maxByteSize*/ 1_MB);
+    EXPECT_TRUE(batch.empty());
+    EXPECT_EQ(batch.capacity(), 0u);
+}
+
+TEST_F(TTimerStoreTest, BatchReservesOnlyAllowedTriggeredTimersWithinRowLimit)
+{
+    for (i64 maxRows : {2, 80'000'000}) {
+        auto context = MakeContext();
+        const TStreamId otherStreamId("other-timer");
+        context->TimerSpecs[otherStreamId] = context->TimerSpecs[TimerStreamId];
+        context->StreamsDependency[otherStreamId].insert(InputStreamId);
+        auto store = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(store->Init())
+            .ThrowOnError();
+        auto otherTimer = MakeTimer("third");
+        otherTimer.StreamId = otherStreamId;
+        store->Register({MakeTimer("first"), MakeTimer("second"), otherTimer, MakeTimer("future", /*triggerTimestamp*/ 2000)});
+        SetWatermark(store, /*timestamp*/ 1000);
+
+        auto blockedBatch = store->GetNextBatch(/*allowedStreams*/ {}, maxRows, /*maxByteSize*/ 1_MB);
+        EXPECT_TRUE(blockedBatch.empty());
+        EXPECT_EQ(blockedBatch.capacity(), 0u);
+
+        auto batch = store->GetNextBatch({TimerStreamId, otherStreamId}, maxRows, /*maxByteSize*/ 1_MB);
+        auto expectedCount = std::min<i64>(maxRows, 3);
+        EXPECT_EQ(std::ssize(batch), expectedCount);
+        EXPECT_EQ(batch.capacity(), expectedCount);
+    }
 }
 
 TEST_F(TTimerStoreTest, RegisterIncreasesCount)
@@ -282,10 +336,11 @@ TEST_F(TTimerStoreTest, RegisterIncreasesCount)
     auto timer2 = MakeTimer("timer-2", /*triggerTimestamp*/ 200);
 
     store->Register({timer1});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    EXPECT_FALSE(store->IsEmpty());
 
     store->Register({timer2});
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 }
 
 TEST_F(TTimerStoreTest, UnregisterDecreasesCount)
@@ -299,13 +354,14 @@ TEST_F(TTimerStoreTest, UnregisterDecreasesCount)
     auto timer2 = MakeTimer("timer-2", /*triggerTimestamp*/ 200);
 
     store->Register({timer1, timer2});
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 
     store->Unregister({New<TInputTimer>(TTimer(timer1))});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     store->Unregister({New<TInputTimer>(TTimer(timer2))});
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
+    EXPECT_TRUE(store->IsEmpty());
 }
 
 TEST_F(TTimerStoreTest, RegisterAndSyncWritesToTable)
@@ -442,6 +498,36 @@ TEST_F(TTimerStoreTest, TracksReadyLifecycle)
     EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
 }
 
+TEST_F(TTimerStoreTest, ReportsMinTriggerTimestampAndReadyVolume)
+{
+    auto context = MakeContext();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init())
+        .ThrowOnError();
+
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 10)});
+    auto inflight = GetInflight(store);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_GT(inflight->InflightMetrics->ByteSize.value_or(0), 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
+
+    SetWatermark(store, /*timestamp*/ 100);
+    inflight = GetInflight(store);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 1);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, inflight->InflightMetrics->ByteSize);
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+
+    store->Unregister(batch);
+    inflight = GetInflight(store);
+    EXPECT_FALSE(inflight->MinTriggerTimestamp);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
+}
+
 TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
 {
     auto table = New<NTables::TInMemoryTimers>();
@@ -466,9 +552,10 @@ TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
 
     auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
     WaitFor(restoredStore->Init()).ThrowOnError();
-    ASSERT_EQ(restoredStore->GetCount(), 1);
+    ASSERT_EQ(restoredStore->GetInMemoryCount(), 1);
     auto inflight = restoredStore->BuildInflight().at(TimerStreamId);
     EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
 
     SetWatermark(restoredStore, /*timestamp*/ 100);
     inflight = restoredStore->BuildInflight().at(TimerStreamId);
@@ -542,6 +629,40 @@ TEST_F(TTimerStoreTest, EventTimeTypeTriggersOnEventWatermark)
     EXPECT_EQ(batchTriggered[0]->MessageId, TMessageId("timer-1"));
 }
 
+TEST_F(TTimerStoreTest, CurrentTimeIgnoresStreamDelays)
+{
+    auto context = MakeContext(/*table*/ nullptr, ETimeType::CurrentTime);
+    context->TimerSpecs[TimerStreamId]->StreamsWithDelays = {{InputStreamId, TDuration::Seconds(30)}};
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+
+    SetCurrentTimestamp(store, /*timestamp*/ 49);
+    EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+
+    SetCurrentTimestamp(store, /*timestamp*/ 50);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
+}
+
+TEST_F(TTimerStoreTest, CurrentTimeWithoutStreamsWaitsForTriggerTimestamp)
+{
+    auto context = MakeContext(/*table*/ nullptr, ETimeType::CurrentTime);
+    context->TimerSpecs[TimerStreamId]->Streams.emplace();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+
+    SetCurrentTimestamp(store, /*timestamp*/ 49);
+    EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+
+    SetCurrentTimestamp(store, /*timestamp*/ 50);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
+}
+
 // When multiple timers have the same TriggerTimestamp, GetNextBatch returns them
 // in ascending MessageId order (lexicographic).
 // DeduplicateEqualTimestamps=false so all three timers with the same (Key, TriggerTimestamp)
@@ -606,7 +727,7 @@ TEST_F(TTimerStoreTest, DeduplicateEqualTimestampsKeepsLowestEventTimestamp)
     store->Register({timerLate, timerEarly});
 
     // Only one timer must remain after deduplication.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/registered_count"), 2);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/offered_count"), 0);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/unregistered_count"), 0);
@@ -639,7 +760,7 @@ TEST_F(TTimerStoreTest, UnregisterTriggeredTimerThenGetNextBatch)
 
     // Unregister the already-triggered timer.
     store->Unregister({New<TInputTimer>(TTimer(timer))});
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
 
     // GetNextBatch must not crash and must return empty.
     auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1 << 20);
@@ -669,7 +790,7 @@ TEST_F(TTimerStoreTest, DeduplicateTriggeredTimerThenGetNextBatch)
         /*systemTimestamp*/ 100,
         /*eventTimestamp*/ 20);
     store->Register({timerOld});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 2: Advance watermark — T1 moves to TriggeredTimers_.
     SetWatermark(store, /*timestamp*/ 100);
@@ -684,7 +805,11 @@ TEST_F(TTimerStoreTest, DeduplicateTriggeredTimerThenGetNextBatch)
     store->Register({timerNew});
 
     // After deduplication, only one timer must remain.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    // The evicted timer was triggered, so nothing is ready until the survivor triggers.
+    auto inflight = GetInflight(store);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
 
     // Step 4: Re-trigger watermark so timerNew moves from SortedTimers_ to TriggeredTimers_.
     // (TriggerTimers() is only called inside UpdateWatermarkState.)
@@ -730,7 +855,7 @@ TEST_F(TTimerStoreTest, GetNextBatchThenRegisterDuplicateAndUnregisterOriginal)
     store->Unregister({New<TInputTimer>(TTimer(timer1))});
 
     // Timer2 must survive.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 5: Timer2 is already triggered (watermark=100 >= triggerTimestamp=50),
     // so it should appear in the next GetNextBatch.
@@ -768,7 +893,7 @@ TEST_F(TTimerStoreTest, ExtractedTimerIsNotDeduplicated)
         /*systemTimestamp*/ 100,
         /*eventTimestamp*/ 20);
     store->Register({timer1});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 2: Trigger and extract timer1 via GetNextBatch.
     SetWatermark(store, /*timestamp*/ 100);
@@ -787,7 +912,7 @@ TEST_F(TTimerStoreTest, ExtractedTimerIsNotDeduplicated)
     store->Register({timer2});
 
     // Step 4: Both timers must survive — timer1 was already extracted, timer2 is new.
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

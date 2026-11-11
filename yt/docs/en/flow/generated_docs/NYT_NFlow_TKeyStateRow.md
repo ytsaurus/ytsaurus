@@ -7,10 +7,10 @@ A single row in the `key_states`, `external_key_states`, `joined_external_key_st
 
 #|
 || **Parameter** | **Description** ||
-|| `computation_id` | **Type**: `NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>`
+|| `computation_id` | **Type**: [NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)
 **Required parameter**
 ID of the Computation to which the key belongs. ||
-|| `key` | **Type**: `NYT::TStrongTypedef<NYT::NFlow::TCompactUnversionedOwningRow, NYT::NFlow::TKeyTag, NYT::TStrongTypedefOptions{true}>`
+|| `key` | **Type**: [NYT::NFlow::TKey](./all_yson_structs#NYT_NFlow_TKey)
 **Required parameter**
 Key value (YSON Dict `{column = value; ...}` by `key_schema`). ||
 || `states` | **Type**: `THashMap<std::string, NYT::NYson::TYsonString>`

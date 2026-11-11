@@ -4,7 +4,7 @@ from yt_commands import (create, authors, write_table, insert_rows, get, sync_re
 
 from yt_type_helpers import optional_type
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
 
 from helpers import get_disabled_cache_config
 
@@ -22,7 +22,7 @@ import pytest
 
 
 class TestInputFetching(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 10
+    NUM_TEST_PARTITIONS = 14
 
     @authors("max42", "evgenstf")
     @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])
@@ -111,6 +111,7 @@ class TestInputFetching(ClickHouseTestBase):
             # This case should not be optimized.
             clique.make_query_and_validate_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
 
+    @with_tablet_cell
     @authors("max42")
     def test_dynamic_table_farm_hash(self):
         create(
@@ -168,6 +169,7 @@ class TestInputFetching(ClickHouseTestBase):
                 {"key": "k1", "value": "v1"}
             ]
 
+    @with_tablet_cell
     @authors("max42")
     def test_dynamic_table_farm_hash_two_components(self):
         create(
@@ -572,6 +574,7 @@ class TestInputFetching(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`, `//tmp/d/t2`, "
                                      "`//tmp/d/t2`, `//tmp/d/t2`)") == [{"a": 1}] * 5
 
+    @with_tablet_cell
     @authors("gudqeit")
     def test_reading_multiple_dynamic_tables(self):
         foo_data = [{"key": i, "value": "foo" + str(i)} for i in range(10)]
@@ -611,6 +614,7 @@ class TestInputFetching(ClickHouseTestBase):
             query = "select * from `//tmp/dt_1` as a join `//tmp/dt_2` as b using key where key = 0"
             assert_items_equal(clique.make_query(query), [{'key': 0, 'value': 'foo0', 'b.value': 'bar0'}])
 
+    @with_tablet_cell
     @authors("gudqeit")
     def test_reading_dynamic_and_static_tables(self):
         data = [{"key": 0, "value": "foo"}]
@@ -1315,6 +1319,7 @@ class TestInputFetching(ClickHouseTestBase):
                     {"ts": "2024-10-10 00:00:00.000000"},
                 ])
 
+    @with_tablet_cell
     @authors("achulkov2")
     def test_queue_many_stores_yt_11825(self):
         create("table", "//tmp/t", attributes={"dynamic": True, "schema": [{"name": "a", "type": "int64"}], "enable_dynamic_store_read": True})
@@ -1348,6 +1353,8 @@ class TestInputFetching(ClickHouseTestBase):
 
 
 class TestReadInOrder(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 6
+
     @staticmethod
     def make_query(clique, query, **kwargs):
         kwargs["full_response"] = True
@@ -1568,6 +1575,7 @@ class TestReadInOrder(ClickHouseTestBase):
         for query_id, query_and_expected_result in expected_read_in_order_modes.items():
             assert read_in_order_modes[query_id] == query_and_expected_result[1], f"Mode differs from expected for query {query_and_expected_result[0]}"
 
+    @with_tablet_cell
     @authors("achulkov2")
     def test_optimize_read_in_order_nulls_and_nans(self):
         # TODO(ivanzhukov): (CHYT-1470) bring back after read-in-order for concatYtTables(...) is supported
@@ -1749,6 +1757,7 @@ class TestReadInOrder(ClickHouseTestBase):
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
+    @with_tablet_cell
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
     @pytest.mark.parametrize("second_sort_order", ["ascending", "descending"])
@@ -1945,6 +1954,7 @@ class TestReadInOrder(ClickHouseTestBase):
             },
         }
 
+    @with_tablet_cell
     @authors("ivanzhukov")
     @pytest.mark.timeout(300)
     @pytest.mark.parametrize("instance_count", [1, 2])
@@ -2126,6 +2136,7 @@ class TestReadInOrder(ClickHouseTestBase):
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
+    @with_tablet_cell
     @authors("ivanzhukov")
     @pytest.mark.timeout(300)
     @pytest.mark.parametrize("instance_count", [1, 2])
@@ -2232,6 +2243,7 @@ class TestReadInOrder(ClickHouseTestBase):
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
+    @with_tablet_cell
     @authors("ivanzhukov")
     def test_read_in_order_not_applicable_but_sorted(self):
         table_path = "//tmp/t"
@@ -2280,6 +2292,7 @@ class TestReadInOrder(ClickHouseTestBase):
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
+    @with_tablet_cell
     @authors("ivanzhukov")
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
     def test_read_in_order_dynamic_table(self, enable_dynamic_store_read):
@@ -2338,6 +2351,8 @@ class TestReadInOrder(ClickHouseTestBase):
 
 
 class TestInferReadRange(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def _get_config_patch(self):
         return {
             "yt": {
@@ -2405,6 +2420,7 @@ class TestInferReadRange(ClickHouseTestBase):
                         assert clique.make_query(query, settings=settings) == [
                             {"a": a, "b": b} for a in range(4) for b in range(6) if matches(a, b)]
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_simple_range(self):
         schema = [
@@ -2432,6 +2448,7 @@ class TestInferReadRange(ClickHouseTestBase):
                 [{"key": i} for i in range(chunks_count * rows_per_chunk)]
             )
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_supported_ranges(self):
         create(
@@ -2549,6 +2566,7 @@ class TestInferReadRange(ClickHouseTestBase):
 
                 base_check("//tmp/t_str", f"a IN {set_template.format(data="\'ab\', \'bb\'")}", 2, [{"a": "ab"}, {"a": "bb"}])
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_clickhouse_bool(self):
         create(
@@ -2662,6 +2680,7 @@ class TestInferReadRange(ClickHouseTestBase):
             res = clique.make_query("select value from \"//tmp/t\" where key = 1 order by value")
             assert res == [{"value": "v1"}, {"value": "v2"}]
 
+    @with_tablet_cell
     @authors("buyval01")
     def test_low_cardinality_key(self):
         create(
@@ -2699,6 +2718,8 @@ class TestInferReadRange(ClickHouseTestBase):
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def _create_table(self):
         create(
             "table",

@@ -259,17 +259,14 @@ TEST(TParallelFileReaderTest, BadFilePath)
     EXPECT_THROW(reader->ReadNextBatch(), NYT::TErrorResponse);
 }
 
-TEST(TParallelFileReaderTest, ExceptionFromReadJob)
-{
-    constexpr size_t NumThreads = 2;
-
-    class TLockMock
+namespace {
+    class TLockStub
         : public ILock
     {
     public:
         const TLockId& GetId() const override
         {
-            Y_ABORT("TLockMock");
+            Y_ABORT("TLockStub");
         }
 
         /// Get cypress node id of locked object.
@@ -281,9 +278,14 @@ TEST(TParallelFileReaderTest, ExceptionFromReadJob)
 
         const ::NThreading::TFuture<void>& GetAcquiredFuture() const override
         {
-            Y_ABORT("TLockMock");
+            Y_ABORT("TLockStub");
         }
     };
+} // namespace
+
+TEST(TParallelFileReaderTest, ExceptionFromReadJob)
+{
+    constexpr size_t NumThreads = 2;
 
     class TTransactionMockCreateFileReader
         : public TTransactionMock
@@ -291,7 +293,7 @@ TEST(TParallelFileReaderTest, ExceptionFromReadJob)
     public:
         ILockPtr Lock(const TYPath&, ELockMode, const TLockOptions&) override
         {
-            return ::MakeIntrusive<TLockMock>();
+            return ::MakeIntrusive<TLockStub>();
         }
 
         void Unlock(const TYPath&, const TUnlockOptions&) override
@@ -329,6 +331,80 @@ TEST(TParallelFileReaderTest, ExceptionFromReadJob)
 
     auto reader = CreateParallelFileReader(client, "nonExistentFile", TParallelFileReaderOptions().BatchSize(10).ThreadCount(NumThreads));
     EXPECT_THROW(reader->ReadNextBatch(), yexception);
+}
+
+TEST(TParallelFileReaderTest, RangesAreReadInTheSnapshotLockTransaction)
+{
+    class TZeroFileReader
+        : public IFileReader
+    {
+    public:
+        explicit TZeroFileReader(size_t size)
+            : Left_(size)
+        { }
+
+    protected:
+        size_t DoRead(void* buf, size_t len) override
+        {
+            len = std::min(len, Left_);
+            memset(buf, 0, len);
+            Left_ -= len;
+            return len;
+        }
+
+    private:
+        size_t Left_;
+    };
+
+    class TTransactionMockCountingRanges
+        : public TTransactionMock
+    {
+    public:
+        ILockPtr Lock(const TYPath&, ELockMode, const TLockOptions&) override
+        {
+            return ::MakeIntrusive<TLockStub>();
+        }
+
+        void Unlock(const TYPath&, const TUnlockOptions&) override
+        {
+        }
+
+        TNode Get(const TYPath&, const TGetOptions&) override
+        {
+            return 100;
+        }
+
+        IFileReaderPtr CreateFileReader(const TRichYPath&, const TFileReaderOptions& options) override
+        {
+            ++Ranges;
+            if (options.CreateTransaction_) {
+                ++RangesWithTransaction;
+            }
+            return ::MakeIntrusive<TZeroFileReader>(static_cast<size_t>(*options.Length_));
+        }
+
+        std::atomic<int> Ranges = 0;
+        std::atomic<int> RangesWithTransaction = 0;
+    };
+
+    class TClientMockStartTransaction
+        : public TClientMock
+    {
+    public:
+        ITransactionPtr StartTransaction(const TStartTransactionOptions&) override
+        {
+            return Transaction;
+        }
+
+        ::TIntrusivePtr<TTransactionMockCountingRanges> Transaction = ::MakeIntrusive<TTransactionMockCountingRanges>();
+    };
+
+    auto client = ::MakeIntrusive<TClientMockStartTransaction>();
+
+    auto reader = CreateParallelFileReader(client, "file", TParallelFileReaderOptions().BatchSize(30));
+    EXPECT_EQ(reader->ReadAll().size(), 100u);
+    EXPECT_EQ(client->Transaction->Ranges, 4);
+    EXPECT_EQ(client->Transaction->RangesWithTransaction, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

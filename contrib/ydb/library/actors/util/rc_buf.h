@@ -749,11 +749,6 @@ class TRcBuf {
         template<typename T> static T& Unwrap(TObjectHolder<T>& holder) { return holder.Object->Value; }
         template<typename T> static const T& Unwrap(const TObjectHolder<T>& holder) { return holder.Object->Value; }
 
-        template<typename TOwner>
-        static TBackendHolder Clone(TOwner& value) {
-            return VisitRaw(value, [](EType type, auto& value) { return Construct(type, value); });
-        }
-
         // true when the backend is a TString holder referenced by more than one TRcBuf
         static bool IsStringShared(const TBackendHolder& owner) {
             if (!owner || static_cast<EType>(owner.Data[0] & TypeMask) != EType::STRING) {
@@ -767,6 +762,11 @@ class TRcBuf {
                     return false;
                 }
             });
+        }
+
+        template<typename TOwner>
+        static TBackendHolder Clone(TOwner& value) {
+            return VisitRaw(value, [](EType type, auto& value) { return Construct(type, value); });
         }
 
         // Runs the destructor of the alternative T over the (already untagged) holder storage.

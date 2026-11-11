@@ -23,6 +23,7 @@ TAG(
     ya:large_tests_on_single_slots
 )
 
+
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         yav:YT_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:yt_token
@@ -40,6 +41,7 @@ ELSE()
 ENDIF()
 
 PEERDIR(
+    yt/python/yt/cli
     yt/python/yt/wrapper
     yt/python/yt/wrapper/testlib
     yt/python/yt/testlib
@@ -76,8 +78,13 @@ ELSE()
     )
 ENDIF()
 
+# To use fresh `ytserver-all` in tests use `YT_RECIPE_BUILD_FROM_SOURCE` flag.
+# F.e.: `ya make -r -ttt -j 16 $A/yt/python/yt/wrapper/tests/ -F '*test_add_remove_member*' -DYT_RECIPE_BUILD_FROM_SOURCE=yes  -P -s`
+# or uncomment this
+# SET(YT_RECIPE_BUILD_FROM_SOURCE yes)
+
 DEPENDS(
-    yt/yt/packages/tests_package
+    yt/packages/latest
 
     # It is used in some tests to run separate cluster.
     # TODO(ignat): improve tests machinery to avoid using yt_local.
@@ -171,6 +178,7 @@ TEST_SRCS(
     test_dynamic_table_commands.py
     test_errors.py
     test_file_commands.py
+    test_flow_commands.py
     test_fuse.py
     test_ipython.py
     test_job_commands.py

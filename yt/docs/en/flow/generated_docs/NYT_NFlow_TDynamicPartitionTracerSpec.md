@@ -11,7 +11,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `trace_probability` | **Type**: `double`
 **Default value**: `0.0`
  ||
-|| `trace_probability_partition_override` | **Type**: `THashMap<NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>, double>`
+|| `trace_probability_partition_override` | **Type**: `THashMap<`[NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)`, double>`
 **Default value**: `{}`
  ||
 || `wall_time_half_decay_period` | **Type**: [TDuration](./all_yson_structs#TDuration)

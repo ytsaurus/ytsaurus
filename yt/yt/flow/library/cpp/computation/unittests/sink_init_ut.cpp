@@ -10,17 +10,30 @@
 
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
+#include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
+#include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/flow/library/cpp/serializer/state.h>
+
+#include <yt/yt/flow/library/cpp/tables/partition_states.h>
+#include <yt/yt/flow/library/cpp/tables/state.h>
+
+#include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/cache/cache.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/timestamp_provider.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
 
@@ -31,6 +44,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <atomic>
+#include <memory>
+#include <utility>
 
 namespace NYT::NFlow {
 
@@ -49,6 +64,319 @@ namespace {
 const TStreamId OutputStreamId("output");
 const TUniqueSeqNo JobGeneration(42);
 
+using TWarmupStateKey = NTables::IPartitionStates::TTableKey;
+
+struct TBufferWarmupTransactionProbe
+{
+    struct TChange
+    {
+        TWarmupStateKey Key;
+        std::optional<TUnversionedOwningRow> Row;
+    };
+
+    struct TAttempt
+    {
+        TTimestamp StartTimestamp = TTimestamp(0);
+        bool TimestampWritten = false;
+        bool HasDelete = false;
+        std::vector<TChange> Changes;
+    };
+
+    const TPartitionId PartitionId = TPartitionId(TGuid::Create());
+    const TPartitionId OtherPartitionId = TPartitionId(TGuid::Create());
+    const TLeaseId LeaseId = TLeaseId(TGuid::Create());
+    const TTableSchemaPtr StateSchema = MakeStateSchema();
+    THashMap<TWarmupStateKey, TUnversionedOwningRow> Rows;
+    std::vector<TWarmupStateKey> StateLookups;
+    std::vector<TWarmupStateKey> AttemptedDeletes;
+    std::vector<TWarmupStateKey> CommittedDeletes;
+    std::optional<TTimestamp> LastCommittedTimestamp;
+    TError NextCleanupError;
+    bool CommitBeforeError = false;
+    int FailedCleanupCommits = 0;
+    int TimestampLookups = 0;
+    ui64 NextTimestamp = 1;
+
+    TWarmupStateKey LegacyKey() const
+    {
+        return {PartitionId, LegacyBufferWarmupStateName};
+    }
+
+    TWarmupStateKey CanonicalKey() const
+    {
+        return {PartitionId, BufferWarmupStateName};
+    }
+
+    static TTableSchemaPtr MakeStateSchema()
+    {
+        std::vector<TColumnSchema> columns{
+            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
+        };
+        const auto schema = NYsonSerializer::GetYsonStateSchema<NTables::TInternalState>();
+        for (const auto& column : schema->TableSchema->Columns()) {
+            columns.push_back(column);
+        }
+        return New<TTableSchema>(std::move(columns));
+    }
+
+    static TUnversionedValue GetCell(
+        const TNameTablePtr& nameTable,
+        TUnversionedRow row,
+        TStringBuf name)
+    {
+        const auto id = nameTable->GetIdOrThrow(name);
+        for (const auto& value : row) {
+            if (value.Id == id) {
+                return value;
+            }
+        }
+        YT_ABORT();
+    }
+
+    static TWarmupStateKey DecodeKey(
+        const TNameTablePtr& nameTable,
+        TUnversionedRow row)
+    {
+        return {
+            FromUnversionedValue<TPartitionId>(GetCell(nameTable, row, "partition_id")),
+            FromUnversionedValue<std::string>(GetCell(nameTable, row, "name")),
+        };
+    }
+
+    TUnversionedOwningRow CaptureStateUpdate(
+        const TNameTablePtr& nameTable,
+        TUnversionedRow row) const
+    {
+        TUnversionedOwningRowBuilder builder;
+        for (auto value : row) {
+            value.Id = StateSchema->GetColumnIndexOrThrow(nameTable->GetName(value.Id));
+            builder.AddValue(value);
+        }
+        return builder.FinishRow();
+    }
+
+    void ApplyUpdate(const TWarmupStateKey& key, TUnversionedRow update)
+    {
+        std::vector<TUnversionedValue> values;
+        for (int index = 0; index < std::ssize(StateSchema->Columns()); ++index) {
+            values.push_back(MakeUnversionedNullValue(index));
+        }
+        if (auto it = Rows.find(key); it != Rows.end()) {
+            for (const auto& value : it->second) {
+                values[value.Id] = value;
+            }
+        }
+        for (const auto& value : update) {
+            values[value.Id] = value;
+        }
+        TUnversionedOwningRowBuilder builder;
+        for (const auto& value : values) {
+            builder.AddValue(value);
+        }
+        Rows[key] = builder.FinishRow();
+    }
+
+    void Seed(const TWarmupStateKey& key, TYsonString payload)
+    {
+        const auto schema = NYsonSerializer::GetYsonStateSchema<NTables::TInternalState>();
+        auto state = New<NYsonSerializer::TState>(schema);
+        state->Init();
+        auto value = New<NTables::TInternalState>();
+        value->State = std::move(payload);
+        state->SetValue(value);
+        auto mutation = state->FlushMutation();
+        const auto& update = std::get<NYsonSerializer::TUpdateMutation>(mutation);
+        auto nameTable = TNameTable::FromSchema(*schema->TableSchema);
+        auto captured = CaptureStateUpdate(nameTable, update);
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue(ToString(key.PartitionId), 0));
+        builder.AddValue(MakeUnversionedStringValue(key.Name, 1));
+        for (const auto& cell : captured) {
+            builder.AddValue(cell);
+        }
+        auto row = builder.FinishRow();
+        ApplyUpdate(key, row);
+    }
+
+    TYsonString ReadState(const TWarmupStateKey& key) const
+    {
+        const auto schema = NYsonSerializer::GetYsonStateSchema<NTables::TInternalState>();
+        auto state = New<NYsonSerializer::TState>(schema);
+        state->Init(Rows.at(key), NYsonSerializer::PrepareMapping(schema, StateSchema));
+        auto value = state->GetValueAs<NTables::TInternalState>();
+        YT_VERIFY(value->State);
+        return *value->State;
+    }
+
+    TUnversionedLookupRowsResult Lookup(
+        const NYPath::TYPath& path,
+        const TNameTablePtr& nameTable,
+        const TSharedRange<TLegacyKey>& keys)
+    {
+        auto owningRows = std::make_shared<std::vector<TUnversionedOwningRow>>();
+        std::vector<TUnversionedRow> rows;
+        TTableSchemaPtr schema;
+        if (path == "//pipeline/partition_states") {
+            schema = StateSchema;
+            for (const auto& row : keys) {
+                auto key = DecodeKey(nameTable, row);
+                StateLookups.push_back(key);
+                if (auto it = Rows.find(key); it != Rows.end()) {
+                    owningRows->push_back(it->second);
+                    rows.push_back(owningRows->back());
+                } else {
+                    rows.emplace_back();
+                }
+            }
+        } else {
+            YT_VERIFY(path == "//pipeline/partition_transactions");
+            ++TimestampLookups;
+            schema = New<TTableSchema>(std::vector<TColumnSchema>{
+                TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
+                TColumnSchema("last_transaction_start_timestamp", EValueType::Uint64),
+            });
+            for (const auto& key : keys) {
+                EXPECT_EQ(
+                    FromUnversionedValue<TPartitionId>(GetCell(nameTable, key, "partition_id")),
+                    PartitionId);
+                if (LastCommittedTimestamp) {
+                    TUnversionedOwningRowBuilder builder;
+                    builder.AddValue(MakeUnversionedStringValue(ToString(PartitionId), 0));
+                    builder.AddValue(MakeUnversionedUint64Value(LastCommittedTimestamp->Underlying(), 1));
+                    owningRows->push_back(builder.FinishRow());
+                    rows.push_back(owningRows->back());
+                } else {
+                    rows.emplace_back();
+                }
+            }
+        }
+        return {
+            .Rowset = CreateRowset(std::move(schema), MakeSharedRange(std::move(rows), owningRows)),
+        };
+    }
+
+    void ApplyCommitted(const TAttempt& attempt)
+    {
+        for (const auto& change : attempt.Changes) {
+            if (change.Row) {
+                ApplyUpdate(change.Key, *change.Row);
+            } else {
+                Rows.erase(change.Key);
+                CommittedDeletes.push_back(change.Key);
+            }
+        }
+        LastCommittedTimestamp = attempt.StartTimestamp;
+    }
+
+    void Install(TMockClient* client)
+    {
+        ON_CALL(*client, LookupRows(_, _, _, _))
+            .WillByDefault([this] (
+                const NYPath::TYPath& path,
+                TNameTablePtr nameTable,
+                const TSharedRange<TLegacyKey>& keys,
+                const TLookupRowsOptions&) {
+                return MakeFuture(Lookup(path, nameTable, keys));
+            });
+        ON_CALL(*client, StartTransaction(_, _))
+            .WillByDefault([this] (auto, const auto&) -> TFuture<ITransactionPtr> {
+                auto attempt = std::make_shared<TAttempt>();
+                attempt->StartTimestamp = TTimestamp(NextTimestamp++);
+                auto transaction = New<NiceMock<TMockTransaction>>();
+                transaction->StartTimestamp = attempt->StartTimestamp;
+                ON_CALL(*transaction, ModifyRows(_, _, _, _))
+                    .WillByDefault([this, attempt] (
+                        const NYPath::TYPath& path,
+                        TNameTablePtr nameTable,
+                        const TSharedRange<TRowModification>& modifications,
+                        const TModifyRowsOptions&) {
+                        for (const auto& modification : modifications) {
+                            if (path == "//pipeline/partition_states") {
+                                if (const auto* erase = std::get_if<NRowModifications::TDeleteRow>(&modification)) {
+                                    auto key = DecodeKey(nameTable, erase->Key);
+                                    AttemptedDeletes.push_back(key);
+                                    attempt->Changes.push_back({key, std::nullopt});
+                                    attempt->HasDelete = true;
+                                } else {
+                                    const auto& write = std::get<NRowModifications::TWriteRow>(modification);
+                                    attempt->Changes.push_back({
+                                        DecodeKey(nameTable, write.Row),
+                                        CaptureStateUpdate(nameTable, write.Row),
+                                    });
+                                }
+                            } else {
+                                YT_VERIFY(path == "//pipeline/partition_transactions");
+                                const auto& write = std::get<NRowModifications::TWriteRow>(modification);
+                                EXPECT_EQ(
+                                    GetCell(nameTable, write.Row, "last_transaction_start_timestamp").Data.Uint64,
+                                    attempt->StartTimestamp.Underlying());
+                                attempt->TimestampWritten = true;
+                            }
+                        }
+                    });
+                ON_CALL(*transaction, Commit(_))
+                    .WillByDefault([this, attempt] (const TTransactionCommitOptions& options) {
+                        EXPECT_THAT(options.PrerequisiteTransactionIds, ElementsAre(LeaseId));
+                        EXPECT_TRUE(attempt->TimestampWritten);
+                        TError error;
+                        if (attempt->HasDelete) {
+                            error = std::exchange(NextCleanupError, TError());
+                            if (!error.IsOK()) {
+                                ++FailedCleanupCommits;
+                            }
+                        }
+                        if (error.IsOK() || CommitBeforeError) {
+                            ApplyCommitted(*attempt);
+                        }
+                        if (!error.IsOK()) {
+                            return MakeFuture<TTransactionCommitResult>(error);
+                        }
+                        return MakeFuture(TTransactionCommitResult{});
+                    });
+                return MakeFuture<ITransactionPtr>(transaction);
+            });
+    }
+};
+
+class TRecordingBufferWarmupState
+    : public IPartitionBufferState
+{
+public:
+    bool Enabled = true;
+    TDuration RefreshPeriod = TDuration::Zero();
+    TPartitionBufferWarmup CurrentWarmup;
+    std::vector<TPartitionBufferWarmup> Seeds;
+    TStreamLimitUsageStateMap OutputStates{
+        {OutputStreamId, New<TStreamLimitUsageState>()},
+    };
+
+    void SeedWarmup(const TPartitionBufferWarmup& warmup) override
+    {
+        Seeds.push_back(warmup);
+    }
+
+    TPartitionBufferWarmup GetWarmup() override
+    {
+        return CurrentWarmup;
+    }
+
+    bool IsWarmupEnabled() override
+    {
+        return Enabled;
+    }
+
+    TDuration GetWarmupRefreshPeriod() override
+    {
+        return RefreshPeriod;
+    }
+
+    const TStreamLimitUsageStateMap& GetOutputStreamLimitUsageStates() const override
+    {
+        return OutputStates;
+    }
+};
+
 struct TSinkInitProbe
 {
     enum class EEventType
@@ -62,6 +390,7 @@ struct TSinkInitProbe
         Sync,
         ContextCommit,
         Commit,
+        Terminate,
     };
 
     struct TEvent
@@ -85,6 +414,14 @@ struct TSinkInitProbe
     bool AckOnDistribute = true;
     bool AckInPreSyncFlush = false;
     int OutputWriteCalls = 0;
+    bool CancelDuringPrepare = false;
+    TPromise<void> PrepareStarted = NewPromise<void>();
+    TPromise<void> PrepareBlocked = NewPromise<void>();
+    ssize_t TerminationsBeforeDestruction = 0;
+    std::shared_ptr<TBufferWarmupTransactionProbe> WarmupTransactions;
+    IPartitionBufferStatePtr PartitionBufferState;
+    bool ClearBufferStateBeforeRun = false;
+    int EpochCount = 1;
 };
 
 std::atomic<TSinkInitProbe*>& GetActiveSinkInitProbe()
@@ -163,6 +500,11 @@ public:
     void Commit() override
     {
         Record(TSinkInitProbe::EEventType::Commit);
+    }
+
+    void Terminate() override
+    {
+        Record(TSinkInitProbe::EEventType::Terminate);
     }
 
     void UpdateWatermarkState(TWatermarkStatePtr /*state*/) override
@@ -268,6 +610,12 @@ private:
             .Type = TSinkInitProbe::EEventType::Prepare,
         });
 
+        if (Probe_->CancelDuringPrepare) {
+            Probe_->PrepareStarted.Set();
+            WaitFor(Probe_->PrepareBlocked.ToFuture())
+                .ThrowOnError();
+        }
+
         if (Probe_->DistributeOnPrepare) {
             const auto& schema = GetContext()->StreamSpecStorage->GetSchema(OutputStreamId);
             TMessageBuilder builder(OutputStreamId, schema);
@@ -323,10 +671,12 @@ private:
             }
             THROW_ERROR_EXCEPTION("Processing status test completed");
         }
-        auto iterGuard = StartRunIteration(context);
-        auto transaction = PrepareTransaction(context);
-        Commit(context, transaction);
-        FinishRunIteration();
+        for (int epoch = 0; epoch < Probe_->EpochCount; ++epoch) {
+            auto iterGuard = StartRunIteration(context);
+            auto transaction = PrepareTransaction(context);
+            Commit(context, transaction);
+            FinishRunIteration();
+        }
         THROW_ERROR_EXCEPTION("Sink init test stopped after one epoch");
     }
 
@@ -425,18 +775,22 @@ TError RunProductionWiredComputation(
 
     auto client = New<NiceMock<TMockClient>>();
     client->SetTimestampProvider(timestampProvider);
-    auto transaction = New<NiceMock<TMockTransaction>>();
-    transaction->StartTimestamp = TTimestamp(1);
-    ON_CALL(*transaction, ModifyRows(_, _, _, _))
-        .WillByDefault([probe] (const auto& path, auto, const auto&, auto) {
-            if (path == "//pipeline/compact_partition_output_messages" || path == "//pipeline/compact_output_messages") {
-                ++probe->OutputWriteCalls;
-            }
-        });
-    ON_CALL(*transaction, Commit(_))
-        .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
-    ON_CALL(*client, StartTransaction(_, _))
-        .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
+    if (probe->WarmupTransactions) {
+        probe->WarmupTransactions->Install(client.Get());
+    } else {
+        auto transaction = New<NiceMock<TMockTransaction>>();
+        transaction->StartTimestamp = TTimestamp(1);
+        ON_CALL(*transaction, ModifyRows(_, _, _, _))
+            .WillByDefault([probe] (const auto& path, auto, const auto&, auto) {
+                if (path == "//pipeline/compact_partition_output_messages" || path == "//pipeline/compact_output_messages") {
+                    ++probe->OutputWriteCalls;
+                }
+            });
+        ON_CALL(*transaction, Commit(_))
+            .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
+        ON_CALL(*client, StartTransaction(_, _))
+            .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
+    }
 
     auto partition = New<TPartition>();
     partition->PartitionId = TPartitionId(TGuid::Create());
@@ -474,6 +828,18 @@ TError RunProductionWiredComputation(
     };
 
     auto dynamicContext = MakeDynamicContext();
+    if (const auto& transactions = probe->WarmupTransactions) {
+        partition->PartitionId = transactions->PartitionId;
+        job->PartitionId = transactions->PartitionId;
+        job->LeaseId = transactions->LeaseId;
+        context->LoadThroughputThrottler = New<TLoadThroughputThrottler>(
+            CreateNamedUnlimitedThroughputThrottler("warmup-test", context->Profiler),
+            context->Logger,
+            context->Profiler);
+        context->PartitionBufferState = probe->PartitionBufferState;
+        dynamicContext->DynamicComputationSpec->StateManager->Format->Compress = false;
+        dynamicContext->DynamicComputationSpec->StateManager->Format->RecodeProbability = 0.0;
+    }
 
     auto runContext = New<TTestComputationRunContext>();
     probe->DistributeOnPrepare = distributeOnPrepare;
@@ -482,13 +848,16 @@ TError RunProductionWiredComputation(
     auto resetProbe = Finally([] {
         GetActiveSinkInitProbe().store(nullptr);
     });
-    return WaitFor(BIND([
+    TIntrusivePtr<TProductionWiredSinkInitComputation> computation;
+    auto execution = BIND([
+        &computation,
         context = std::move(context),
         dynamicContext = std::move(dynamicContext),
         runContext = std::move(runContext),
-        reconfigureBeforeRun = std::move(reconfigureBeforeRun)
+        reconfigureBeforeRun = std::move(reconfigureBeforeRun),
+        probe
     ] {
-        auto computation = New<TProductionWiredSinkInitComputation>(
+        computation = New<TProductionWiredSinkInitComputation>(
             context,
             dynamicContext);
         computation->UpdateWatermarkState(New<TWatermarkState>());
@@ -496,10 +865,23 @@ TError RunProductionWiredComputation(
         if (reconfigureBeforeRun) {
             computation->Reconfigure(reconfigureBeforeRun);
         }
+        if (probe->ClearBufferStateBeforeRun) {
+            context->PartitionBufferState.Reset();
+        }
         computation->RunForTest(runContext);
     })
-            .AsyncVia(queue->GetInvoker())
-            .Run());
+        .AsyncVia(queue->GetInvoker())
+        .Run();
+    if (probe->CancelDuringPrepare) {
+        EXPECT_TRUE(WaitFor(probe->PrepareStarted.ToFuture().WithTimeout(TDuration::Seconds(5))).IsOK());
+        execution.Cancel(TError(NYT::EErrorCode::Canceled, "Cancel retained computation"));
+    }
+    auto result = WaitFor(execution);
+    probe->TerminationsBeforeDestruction = std::count_if(probe->Events.begin(), probe->Events.end(), [] (const auto& event) {
+        return event.Type == TSinkInitProbe::EEventType::Terminate;
+    });
+    computation.Reset();
+    return result;
 }
 
 std::vector<TSinkInitProbe::TEvent> GetEvents(
@@ -516,6 +898,243 @@ std::vector<TSinkInitProbe::TEvent> GetEvents(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+MATCHER_P(BitwiseEqualRows, expected, "")
+{
+    if (arg.size() != expected.size()) {
+        return false;
+    }
+    for (const auto& [key, row] : expected) {
+        auto it = arg.find(key);
+        if (it == arg.end() || !TBitwiseUnversionedRowEqual()(it->second, row)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+TPartitionBufferWarmup MakeTestWarmup(double cycleSeconds)
+{
+    TPartitionBufferWarmup result;
+    result.InputSpeeds[TStreamId("input")] = 100.0 * cycleSeconds;
+    result.OutputSpeeds[OutputStreamId] = 200.0 * cycleSeconds;
+    result.EpochCycleSeconds = cycleSeconds;
+    return result;
+}
+
+std::shared_ptr<TBufferWarmupTransactionProbe> MakeSeededWarmupTransactions()
+{
+    auto result = std::make_shared<TBufferWarmupTransactionProbe>();
+    result->Seed(result->LegacyKey(), ConvertToYsonString(std::string("corrupt warmup")));
+    result->Seed(result->CanonicalKey(), ConvertToYsonString(MakeTestWarmup(1.0)));
+    for (const auto* name : {
+            "/application",
+            "__buffer_warmup/child",
+            "__buffer_warmup_extra",
+            "/__buffer_warmup/child"})
+    {
+        result->Seed({result->PartitionId, name}, ConvertToYsonString(std::string(name)));
+    }
+    result->Seed(
+        {result->OtherPartitionId, LegacyBufferWarmupStateName},
+        ConvertToYsonString(std::string("other legacy")));
+    result->Seed(
+        {result->OtherPartitionId, BufferWarmupStateName},
+        ConvertToYsonString(MakeTestWarmup(9.0)));
+    return result;
+}
+
+TError RunWarmupComputation(
+    TSinkInitProbe* probe,
+    std::shared_ptr<TBufferWarmupTransactionProbe> transactions,
+    IPartitionBufferStatePtr buffer)
+{
+    probe->WarmupTransactions = std::move(transactions);
+    probe->PartitionBufferState = std::move(buffer);
+    return RunProductionWiredComputation(MakeSpec({}), std::nullopt, probe, false, true);
+}
+
+TEST(TBufferWarmupCleanupTest, PreservesCanonicalAndUnrelatedRows)
+{
+    auto transactions = MakeSeededWarmupTransactions();
+    const auto legacy = transactions->LegacyKey();
+    auto expected = transactions->Rows;
+    expected.erase(legacy);
+    auto buffer = New<TRecordingBufferWarmupState>();
+    buffer->RefreshPeriod = TDuration::Hours(1);
+    TSinkInitProbe probe;
+
+    auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+    ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    EXPECT_THAT(transactions->Rows, BitwiseEqualRows(expected));
+    EXPECT_THAT(transactions->StateLookups, ElementsAre(TWarmupStateKey{transactions->PartitionId, "/__buffer_warmup"}));
+    EXPECT_THAT(transactions->AttemptedDeletes, ElementsAre(TWarmupStateKey{transactions->PartitionId, "__buffer_warmup"}));
+    EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+    ASSERT_EQ(buffer->Seeds.size(), 1u);
+    EXPECT_EQ(buffer->Seeds[0].InputSpeeds, MakeTestWarmup(1.0).InputSpeeds);
+    EXPECT_EQ(buffer->Seeds[0].OutputSpeeds, MakeTestWarmup(1.0).OutputSpeeds);
+    EXPECT_EQ(buffer->Seeds[0].EpochCycleSeconds, 1.0);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::ContextCommit).size(), 1u);
+}
+
+TEST(TBufferWarmupCleanupTest, CleansWithDisabledOrNullWarmup)
+{
+    for (bool clearBufferState : {false, true}) {
+        SCOPED_TRACE(clearBufferState);
+        auto transactions = MakeSeededWarmupTransactions();
+        const auto legacy = transactions->LegacyKey();
+        auto expected = transactions->Rows;
+        expected.erase(legacy);
+        auto buffer = New<TRecordingBufferWarmupState>();
+        buffer->Enabled = false;
+        TSinkInitProbe probe;
+        probe.ClearBufferStateBeforeRun = clearBufferState;
+
+        auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+        ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+        EXPECT_THAT(transactions->Rows, BitwiseEqualRows(expected));
+        EXPECT_TRUE(transactions->StateLookups.empty());
+        EXPECT_TRUE(buffer->Seeds.empty());
+        EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+        EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::ContextCommit).size(), 1u);
+    }
+}
+
+TEST(TBufferWarmupCleanupTest, FreshPartitionWritesCanonicalWarmup)
+{
+    auto transactions = std::make_shared<TBufferWarmupTransactionProbe>();
+    const auto legacy = transactions->LegacyKey();
+    const auto canonical = transactions->CanonicalKey();
+    auto buffer = New<TRecordingBufferWarmupState>();
+    buffer->CurrentWarmup = MakeTestWarmup(2.0);
+    TSinkInitProbe probe;
+
+    auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+    ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    ASSERT_TRUE(transactions->Rows.contains(canonical));
+    EXPECT_FALSE(transactions->Rows.contains(legacy));
+    EXPECT_EQ(transactions->Rows.size(), 1u);
+    EXPECT_EQ(transactions->ReadState(canonical), ConvertToYsonString(buffer->CurrentWarmup));
+    EXPECT_THAT(transactions->StateLookups, ElementsAre(canonical));
+    EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+    EXPECT_TRUE(buffer->Seeds.empty());
+}
+
+TEST(TBufferWarmupCleanupTest, RefreshesRecoveredCanonicalWarmup)
+{
+    auto transactions = MakeSeededWarmupTransactions();
+    const auto legacy = transactions->LegacyKey();
+    const auto canonical = transactions->CanonicalKey();
+    auto expectedUnrelated = transactions->Rows;
+    expectedUnrelated.erase(legacy);
+    expectedUnrelated.erase(canonical);
+    auto buffer = New<TRecordingBufferWarmupState>();
+    buffer->CurrentWarmup = MakeTestWarmup(3.0);
+    TSinkInitProbe probe;
+
+    auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+    ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    ASSERT_TRUE(transactions->Rows.contains(canonical));
+    EXPECT_EQ(transactions->ReadState(canonical), ConvertToYsonString(buffer->CurrentWarmup));
+    auto actualUnrelated = transactions->Rows;
+    actualUnrelated.erase(canonical);
+    EXPECT_THAT(actualUnrelated, BitwiseEqualRows(expectedUnrelated));
+    ASSERT_EQ(buffer->Seeds.size(), 1u);
+    EXPECT_EQ(buffer->Seeds[0].EpochCycleSeconds, 1.0);
+    EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+}
+
+TEST(TBufferWarmupCleanupTest, BoundsCleanupPerJobAndRepeatsAfterRestart)
+{
+    auto transactions = MakeSeededWarmupTransactions();
+    const auto legacy = transactions->LegacyKey();
+    auto expected = transactions->Rows;
+    expected.erase(legacy);
+    auto buffer = New<TRecordingBufferWarmupState>();
+    buffer->Enabled = false;
+    for (int run = 0; run < 3; ++run) {
+        SCOPED_TRACE(run);
+        if (run == 2) {
+            transactions->Seed(legacy, ConvertToYsonString(std::string("recreated by old worker")));
+        }
+        TSinkInitProbe probe;
+        probe.EpochCount = 2;
+
+        auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+        ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+        EXPECT_THAT(transactions->Rows, BitwiseEqualRows(expected));
+        EXPECT_EQ(transactions->CommittedDeletes.size(), static_cast<size_t>(run + 1));
+        EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::ContextCommit).size(), 2u);
+    }
+    EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy, legacy, legacy));
+    EXPECT_TRUE(transactions->StateLookups.empty());
+}
+
+TEST(TBufferWarmupCleanupTest, RetriesFailedAndUncertainCommit)
+{
+    for (bool commitBeforeError : {false, true}) {
+        SCOPED_TRACE(commitBeforeError);
+        auto transactions = MakeSeededWarmupTransactions();
+        const auto legacy = transactions->LegacyKey();
+        auto expected = transactions->Rows;
+        expected.erase(legacy);
+        transactions->NextCleanupError = TError(NYT::EErrorCode::Timeout, "Injected lost commit reply");
+        ASSERT_TRUE(IsFlowRetriableError(transactions->NextCleanupError));
+        transactions->CommitBeforeError = commitBeforeError;
+        auto buffer = New<TRecordingBufferWarmupState>();
+        buffer->Enabled = false;
+        TSinkInitProbe probe;
+
+        auto error = RunWarmupComputation(&probe, transactions, buffer);
+
+        ASSERT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+        EXPECT_THAT(transactions->Rows, BitwiseEqualRows(expected));
+        EXPECT_EQ(transactions->FailedCleanupCommits, 1);
+        EXPECT_EQ(transactions->TimestampLookups, 1);
+        EXPECT_EQ(transactions->AttemptedDeletes.size(), commitBeforeError ? 1u : 2u);
+        for (const auto& key : transactions->AttemptedDeletes) {
+            EXPECT_EQ(key, legacy);
+        }
+        EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+        EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::ContextCommit).size(), 1u);
+    }
+}
+
+TEST(TBufferWarmupCleanupTest, CanceledCommitPreservesRowsAndRestartRetries)
+{
+    auto transactions = MakeSeededWarmupTransactions();
+    const auto legacy = transactions->LegacyKey();
+    const auto before = transactions->Rows;
+    transactions->NextCleanupError = TError(NYT::EErrorCode::Canceled, "Injected cancellation");
+    auto buffer = New<TRecordingBufferWarmupState>();
+    buffer->Enabled = false;
+    TSinkInitProbe failedProbe;
+
+    auto failed = RunWarmupComputation(&failedProbe, transactions, buffer);
+
+    EXPECT_FALSE(failed.IsOK());
+    EXPECT_NE(failed.GetMessage(), "Sink init test stopped after one epoch");
+    EXPECT_THAT(transactions->Rows, BitwiseEqualRows(before));
+    EXPECT_THAT(transactions->AttemptedDeletes, ElementsAre(legacy));
+    EXPECT_TRUE(transactions->CommittedDeletes.empty());
+    EXPECT_EQ(transactions->FailedCleanupCommits, 1);
+    EXPECT_TRUE(GetEvents(failedProbe, TSinkInitProbe::EEventType::ContextCommit).empty());
+
+    TSinkInitProbe restartedProbe;
+    auto restarted = RunWarmupComputation(&restartedProbe, transactions, buffer);
+
+    ASSERT_EQ(restarted.GetMessage(), "Sink init test stopped after one epoch");
+    auto expected = before;
+    expected.erase(legacy);
+    EXPECT_THAT(transactions->Rows, BitwiseEqualRows(expected));
+    EXPECT_THAT(transactions->CommittedDeletes, ElementsAre(legacy));
+    EXPECT_EQ(GetEvents(restartedProbe, TSinkInitProbe::EEventType::ContextCommit).size(), 1u);
+}
 
 TEST(TComputationStatusPublicationTest, PublishesCommittedObservationWithTraverse)
 {
@@ -573,7 +1192,8 @@ TEST(TSinkInitTest, RunsPartitionSinkThroughFirstEpoch)
     for (const auto& event : probe.Events) {
         eventTypes.push_back(event.Type);
     }
-    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, PreSyncFlush, Sync, ContextCommit, Commit));
+    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, PreSyncFlush, Sync, ContextCommit, Commit, Terminate));
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
     const auto constructions = GetEvents(probe, Construct);
     ASSERT_EQ(constructions.size(), 1u);
     for (const auto& event : probe.Events) {
@@ -720,6 +1340,16 @@ TEST(TSinkInitTest, InitializesEveryKeyedSinkBeforePrepareAndReusesMatchingSink)
     ASSERT_EQ(distributions.size(), 1u);
     ASSERT_EQ(syncs.size(), 2u);
     ASSERT_EQ(commits.size(), 2u);
+    const auto terminations = GetEvents(probe, TSinkInitProbe::EEventType::Terminate);
+    ASSERT_EQ(terminations.size(), 2u);
+    for (const auto& construction : constructions) {
+        EXPECT_EQ(
+            std::count_if(terminations.begin(), terminations.end(), [&] (const auto& termination) {
+                return termination.Instance == construction.Instance;
+            }),
+            1);
+    }
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 2);
 
     auto prepare = std::find_if(probe.Events.begin(), probe.Events.end(), [] (const auto& event) {
         return event.Type == TSinkInitProbe::EEventType::Prepare;
@@ -749,7 +1379,24 @@ TEST(TSinkInitTest, InitFailurePreventsPrepare)
 
     EXPECT_EQ(error.GetMessage(), "Recording sink init failed");
     EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Init).size(), 1u);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Terminate).size(), 1u);
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
     EXPECT_TRUE(GetEvents(probe, TSinkInitProbe::EEventType::Prepare).empty());
+}
+
+TEST(TSinkInitTest, TerminatesSinksWhenCanceledComputationRemainsOwned)
+{
+    TSinkInitProbe probe;
+    probe.CancelDuringPrepare = true;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("ordinary"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ false);
+
+    EXPECT_TRUE(error.FindMatching(NYT::EErrorCode::Canceled));
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Terminate).size(), 1u);
 }
 
 TEST(TSinkInitTest, RejectsMismatchingParentKeyBeforeDistribution)

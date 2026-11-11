@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):
     TRY_SUPPORTED = False
     SUPPORTS_UESCAPE = False
     SUPPORTS_DECODE_CASE = False
+    CAST_TO_INT_ROUNDS = True
 
     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
 
@@ -70,6 +71,9 @@ class DremioGenerator(generator.Generator):
         exp.DateAdd: _date_delta_sql("DATE_ADD"),
         exp.DateSub: _date_delta_sql("DATE_SUB"),
         exp.GenerateSeries: rename_func("ARRAY_GENERATE_RANGE"),
+        exp.RegexpSplit: lambda self, e: self.func(
+            "REGEXP_SPLIT", e.this, e.expression, e.args.get("mode"), e.args.get("limit")
+        ),
     }
 
     def version_sql(self, expression: exp.Version) -> str:

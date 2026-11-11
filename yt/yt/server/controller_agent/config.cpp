@@ -64,6 +64,9 @@ void TTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_events_on_fs", &TThis::EnableEventsOnFs)
         .Default(false);
+
+    registrar.Parameter("enable_cypress_sleep_state", &TThis::EnableCypressSleepState)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -327,10 +330,22 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJournalNbdOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_limit_formula", &TThis::ThreadLimitFormula)
         .DefaultCtor([] { return MakeArithmeticFormula("250000"); });
+    registrar.Parameter("journal_nbd", &TThis::JournalNbd)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -902,6 +917,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(1.0);
     registrar.Parameter("desired_chunk_lists_per_release", &TThis::DesiredChunkListsPerRelease)
         .Default(10'000);
+    registrar.Parameter("enable_unstage_chunk_trees_batching", &TThis::EnableUnstageChunkTreesBatching)
+        .Default(false);
     registrar.Parameter("intermediate_output_master_cell_count", &TThis::IntermediateOutputMasterCellCount)
         .GreaterThanOrEqual(1)
         .Default(4);
@@ -1514,6 +1531,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_operations_on_offshore_media", &TThis::ForbidOperationsOnOffshoreMedia)
         .Default(true);
+
+    registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
+        .Default(false);
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;

@@ -313,18 +313,10 @@ TClickHouseRequestOptions MakeClickHouseRequestOptions(
 }
 
 EClickHouseFailureAction GetClickHouseFailureAction(
-    EWriteGuarantee guarantee,
-    bool insertStarted,
     EClickHouseErrorKind errorKind,
     const TClickHouseRequestOptions& requestOptions,
     TClickHouseAttemptState* attemptState)
 {
-    if (!insertStarted) {
-        return EClickHouseFailureAction::Retry;
-    }
-    if (guarantee == EWriteGuarantee::AtMostOnce) {
-        return EClickHouseFailureAction::Acknowledge;
-    }
     if (errorKind == EClickHouseErrorKind::Unclassified) {
         ++attemptState->UnclassifiedInsertAttempts;
     }
@@ -1033,16 +1025,9 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
 
                 auto errorKind = ClassifyClickHouseError(ex);
                 auto action = GetClickHouseFailureAction(
-                    request.Guarantee,
-                    /*insertStarted*/ true,
                     errorKind,
                     requestOptions,
                     &attemptState);
-                if (action == EClickHouseFailureAction::Acknowledge) {
-                    ++request.NextShardIndex;
-                    attemptState = {};
-                    continue;
-                }
                 if (action == EClickHouseFailureAction::Fail) {
                     static constexpr auto TerminalMessage = "Giving up insert into ClickHouse"_sb;
                     auto terminalError = TError(TerminalMessage)
@@ -1114,8 +1099,6 @@ TCommonClickHouseSink::TCommonClickHouseSink(
     , ErrorState_(statusProfiler->ErrorState("/writing"))
     , StreamSchemas_(std::move(streamSchemas))
 {
-    // Validated here rather than at session startup: #EnsureSessionStartedWithRetry() retries
-    // a failed startup forever, so a bad spec would never surface as a failure there.
     ValidateShardingKeyColumns(Parameters_->ShardingKeyColumns, StreamSchemas_);
 }
 
@@ -1196,29 +1179,6 @@ void TCommonClickHouseSink::EnsureSessionStarted()
         error.ThrowOnError();
     }
     ErrorState_->ClearError();
-}
-
-void TCommonClickHouseSink::EnsureSessionStartedWithRetry()
-{
-    if (Session_) {
-        return;
-    }
-
-    while (true) {
-        auto error = TryStartSession();
-        if (error.IsOK()) {
-            ErrorState_->ClearError();
-            return;
-        }
-        ErrorState_->SetError(error);
-        // Fiber cancellation is not a std::exception and must escape this retry loop.
-        TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->RetryBackoff);
-    }
-}
-
-TIntrusivePtr<TRefCounted> TCommonClickHouseSink::GetSessionLifetime() const
-{
-    return Session_;
 }
 
 std::vector<std::string> TCommonClickHouseSink::GetShardTargetIdentityFingerprints() const
@@ -1364,58 +1324,6 @@ void TAtLeastOnceClickHouseSink::DoDistribute(
     std::vector<TOutputMessageConstPtr> batch(messages.begin(), messages.end());
     WaitFor(WriteMessages(EWriteGuarantee::AtLeastOnce, std::nullopt, batch))
         .ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAtMostOnceClickHouseSink::TAtMostOnceClickHouseSink(
-    TSinkContextPtr context,
-    TDynamicSinkContextPtr dynamicContext)
-    : TDelegatingAsyncSinkBase(std::move(context), std::move(dynamicContext))
-    , TCommonClickHouseSink(
-        GetParameters(),
-        GetDynamicParameters(),
-        GetContext()->StatusProfiler,
-        CollectInputStreamSchemas(GetContext(), GetSpec()),
-        TDelegatingAsyncSinkBase::Logger)
-{
-    SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
-        TCommonClickHouseSink::Reconfigure(GetDynamicParameters());
-    }));
-}
-
-TAtMostOnceClickHouseSink::~TAtMostOnceClickHouseSink()
-{
-    if (auto session = GetSessionLifetime()) {
-        SuspendDestructionGuarded({std::move(session)});
-    }
-}
-
-bool TAtMostOnceClickHouseSink::IsAtMostOnceStrategyEnabled() const
-{
-    const auto& strategy = GetParameters()->AtMostOnceStrategy;
-    return strategy && strategy->Enabled;
-}
-
-void TAtMostOnceClickHouseSink::Distribute(
-    const TOutputMessageConstPtr& message,
-    TOnDistributedCallback onDistributed)
-{
-    if (IsAtMostOnceStrategyEnabled()) {
-        EnsureSessionStartedWithRetry();
-    } else {
-        EnsureSessionStarted();
-    }
-    TDelegatingAsyncSinkBase::Distribute(message, std::move(onDistributed));
-}
-
-void TAtMostOnceClickHouseSink::DoInit(const std::string& /*producerId*/)
-{ }
-
-std::pair<TFuture<void>, ui64> TAtMostOnceClickHouseSink::DoDistribute(const TOutputMessageConstPtr& message, i64 /*seqNo*/)
-{
-    auto future = WriteMessages(EWriteGuarantee::AtMostOnce, std::nullopt, {message});
-    return {std::move(future), message->ByteSize};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

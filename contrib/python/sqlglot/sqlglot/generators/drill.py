@@ -25,10 +25,12 @@ def _str_to_date(self: DrillGenerator, expression: exp.StrToDate) -> str:
 
 
 class DrillGenerator(generator.Generator):
+    BYTE_STRING_FUNCTION = "UNHEX"
     SELECT_KINDS: tuple[str, ...] = ()
     TRY_SUPPORTED = False
     SUPPORTS_UESCAPE = False
     SUPPORTS_DECODE_CASE = False
+    CAST_TO_INT_ROUNDS = True
     SUPPORTS_LIKE_QUANTIFIERS = False
 
     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS
@@ -103,6 +105,11 @@ class DrillGenerator(generator.Generator):
             f"CAST(SUBSTR(REPLACE(CAST({self.sql(e, 'this')} AS VARCHAR), '-', ''), 1, 8) AS INT)"
         ),
     }
+
+    def bytestring_sql(self, expression: exp.ByteString) -> str:
+        if expression.args.get("is_bytes"):
+            return super().bytestring_sql(expression)
+        return self.sql(exp.Literal.string(expression.this))
 
     def ilike_sql(self, expression: exp.ILike) -> str:
         if isinstance(expression.expression, (exp.All, exp.Any)):

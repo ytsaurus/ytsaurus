@@ -1,0 +1,11 @@
+GO_LIBRARY()
+
+LICENSE(MIT)
+
+VERSION(v0.6.2)
+
+SRCS(
+    lzx.go
+)
+
+END()

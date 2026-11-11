@@ -83,6 +83,7 @@ class FlowExecuteTestBase(FlowTestBase):
     CHECK_KNOWN_COMMANDS = _env_flag("FLOW_EXECUTE_CHECK_KNOWN_COMMANDS")
     CHECK_SPEC_VERSIONS = _env_flag("FLOW_EXECUTE_CHECK_SPEC_VERSIONS")
     TEST_FLOW_CORE_TARGET = _env_flag("FLOW_EXECUTE_TEST_FLOW_CORE_TARGET")
+    TEST_LEGACY_SPEC_RECOVERY = _env_flag("FLOW_EXECUTE_TEST_LEGACY_SPEC_RECOVERY")
 
     def setup_method(self, method):
         super(FlowExecuteTestBase, self).setup_method(method)
@@ -140,6 +141,17 @@ class FlowExecuteTestBase(FlowTestBase):
 
         wait(epoch_is_sync, timeout=180)
 
+    def _wait_dynamic_spec_sync(self, version):
+        wait(
+            lambda: self.client.get_flow_view(
+                self.pipeline_path,
+                view_path="/state/execution_spec/dynamic_pipeline_spec/version",
+                cache=False,
+            )
+            == version,
+            timeout=180,
+        )
+
     @pytest.mark.authors(["thenewone"])
     @pytest.mark.parametrize(
         ("workers_count", "controllers_count", "problems"),
@@ -185,13 +197,20 @@ class FlowExecuteTestBase(FlowTestBase):
 
             known_commands = [
                 "list",
+                "get-supported-features",
                 "get-command-required-permission",
                 "get-flow-view",
                 "get-flow-view-v2",
                 "get-pipeline-spec",
                 "set-pipeline-spec",
+                "remove-pipeline-spec",
                 "get-pipeline-dynamic-spec",
                 "set-pipeline-dynamic-spec",
+                "get-pipeline-dynamic-spec-patches",
+                "patch-pipeline-dynamic-spec",
+                "remove-pipeline-dynamic-spec",
+                "cancel-pipeline-dynamic-spec-patch",
+                "reset-pipeline-dynamic-spec",
                 "set-pipeline-specs",
                 "get-pipeline-state",
                 "set-target-pipeline-state",
@@ -217,6 +236,9 @@ class FlowExecuteTestBase(FlowTestBase):
             res = self.client.flow_execute(self.pipeline_path, flow_command="list")
             if self.CHECK_KNOWN_COMMANDS:
                 assert res == known_commands
+
+            features = self.client.flow_execute(self.pipeline_path, flow_command="get-supported-features")
+            assert features == ["dynamic_spec_patches"]
 
             # Test get-command-required-permission.
             res = self.client.flow_execute(
@@ -326,7 +348,13 @@ class FlowExecuteTestBase(FlowTestBase):
             assert res == {"spec": spec, "version": version}
 
             spec["job_tracker"]["load_throughput_throttler"]["period"] = 1002
-            version = set_dyn_spec_bumped(version, flow_argument={"spec": spec, "expected_version": version})
+            version = set_dyn_spec_bumped(
+                version,
+                flow_argument={
+                    "spec": spec,
+                    "expected_version": version,
+                },
+            )
 
             res = exec_get_dyn_spec(flow_argument={})
             assert res == {"spec": spec, "version": version}
@@ -336,13 +364,18 @@ class FlowExecuteTestBase(FlowTestBase):
             res = exec_get_dyn_spec(flow_argument={"path": test_path})
             assert res == {"spec": 1002, "version": version}
 
-            version = set_dyn_spec_bumped(version, flow_argument={"spec": 1003, "path": test_path})
+            version = set_dyn_spec_bumped(
+                version,
+                flow_argument={"spec": 1003, "path": test_path},
+            )
 
             res = exec_get_dyn_spec(flow_argument={"path": test_path})
             assert res == {"spec": 1003, "version": version}
 
             version = set_dyn_spec_bumped(
-                version, flow_argument=json.dumps({"spec": 1004, "path": test_path}), input_format="json"
+                version,
+                flow_argument=json.dumps({"spec": 1004, "path": test_path}),
+                input_format="json",
             )
 
             res = exec_get_dyn_spec(flow_argument={"path": test_path}, output_format="yson")
@@ -428,6 +461,33 @@ class FlowExecuteTestBase(FlowTestBase):
                 == 0.5
             )
 
+            remove_path = "/computations/reader/watermark_strategy"
+            wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "paused")
+            with pytest.raises(YtResponseError, match="stop the pipeline"):
+                self.client.remove_pipeline_spec(self.pipeline_path, spec_path=remove_path)
+            with pytest.raises(YtResponseError, match="Spec version mismatch"):
+                self.client.remove_pipeline_spec(
+                    self.pipeline_path,
+                    spec_path=remove_path,
+                    expected_version=new_static_spec_version + 1,
+                    force=True,
+                )
+            removed = self.client.remove_pipeline_spec(
+                self.pipeline_path,
+                spec_path=remove_path,
+                expected_version=new_static_spec_version,
+                force=True,
+            )
+            assert removed["version"] > new_static_spec_version
+            after_remove = self.client.flow_execute(
+                self.pipeline_path, flow_command="get-pipeline-spec", flow_argument={}
+            )
+            assert after_remove["version"] == removed["version"]
+            assert (
+                after_remove["spec"]["computations"]["reader"]["watermark_strategy"]["watermark_percentile"]["value"]
+                == 100.0
+            )
+
             self.client.flow_execute(
                 self.pipeline_path,
                 flow_command="set-target-pipeline-state",
@@ -468,7 +528,10 @@ class FlowExecuteTestBase(FlowTestBase):
             with pytest.raises(YtError, match="Incorrect format csv"):
                 exec_get_dyn_spec(flow_argument={}, output_format="csv")
             with pytest.raises(YtError, match="Incorrect format proto"):
-                exec_set_dyn_spec(flow_argument={"spec": spec}, output_format="proto")
+                exec_set_dyn_spec(
+                    flow_argument={"spec": spec},
+                    output_format="proto",
+                )
 
             with pytest.raises(YtResponseError, match='Cannot parse "map"; expected "begin_map", actual "begin_list"'):
                 exec_get_flow_view(flow_argument=[1, 2, 3])
@@ -512,7 +575,12 @@ class FlowExecuteTestBase(FlowTestBase):
                 match="Error reading parameter /expected_version\n\\s*"
                 'Cannot parse "long"; expected one of the tokens {"int64_value", "uint64_value", }, actual "boolean_value"',
             ):
-                exec_set_dyn_spec(flow_argument={"spec": {}, "expected_version": True})
+                exec_set_dyn_spec(
+                    flow_argument={
+                        "spec": {},
+                        "expected_version": True,
+                    }
+                )
             with pytest.raises(YtResponseError, match="Missing required parameter /spec"):
                 exec_set_dyn_spec(flow_argument={"expected_version": 0})
             with pytest.raises(YtResponseError, match='Unrecognized field "/use_magic" has been encountered'):
@@ -562,7 +630,11 @@ class FlowExecuteTestBase(FlowTestBase):
                 console_flow_execute("get-pipeline-dynamic-spec", "{}", "--input-format=json")
             )["version"]
             spec["job_tracker"]["load_throughput_throttler"]["period"] = 1010
-            res = console_flow_execute("set-pipeline-dynamic-spec", yson.dumps({"spec": spec}), "--input-format=yson")
+            res = console_flow_execute(
+                "set-pipeline-dynamic-spec",
+                yson.dumps({"spec": spec}),
+                "--input-format=yson",
+            )
             dynamic_spec_version = yson.loads(res)["version"]
             assert dynamic_spec_version > old_dynamic_spec_version
             assert yson.loads(res) == {"version": dynamic_spec_version}
@@ -781,6 +853,13 @@ class FlowExecuteTestBase(FlowTestBase):
         # Stop pipeline before updating specs.
         self.client.pause_pipeline(self.pipeline_path)
         wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "paused")
+        current_dynamic_spec = self.client.flow_execute(self.pipeline_path, "get-pipeline-dynamic-spec", {})
+        reset_result = self.client.flow_execute(
+            self.pipeline_path,
+            "reset-pipeline-dynamic-spec",
+            {"expected_version": current_dynamic_spec["version"]},
+        )
+        self._wait_dynamic_spec_sync(reset_result["version"])
 
         # Get current specs.
         old_static_spec = self.client.flow_execute(
@@ -848,6 +927,130 @@ class FlowExecuteTestBase(FlowTestBase):
 
         # Start pipeline again.
         self.client.start_pipeline(self.pipeline_path)
+
+    @pytest.mark.authors(["timoninmaxim"])
+    def test_patch_dynamic_spec(self):
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config(finite=False)
+
+        def execute(command, argument=None):
+            return self.client.flow_execute(self.pipeline_path, command, argument or {})
+
+        def get_spec(view="effective", blame=False):
+            return execute("get-pipeline-dynamic-spec", {"view": view, "blame": blame})
+
+        def get_patches(patch=None):
+            return execute("get-pipeline-dynamic-spec-patches", {"patch": patch})
+
+        def patch_dynamic_spec(**argument):
+            previous_version = get_spec()["version"]
+            result = execute("patch-pipeline-dynamic-spec", {"expected_version": previous_version, **argument})
+            assert result["version"] > previous_version
+            assert get_spec()["version"] == result["version"]
+            return result["patch_id"]
+
+        def console(command, *arguments, output_format=None):
+            yt_binary = yatest.common.binary_path("yt/python/yt/wrapper/bin/yt_make/yt")
+            command_line = [yt_binary, "--proxy", "primary", "flow", command, self.pipeline_path, *map(str, arguments)]
+            if output_format is not None:
+                command_line.extend(["--format", output_format])
+            result = yatest.common.execute(command_line)
+            if output_format == "json":
+                return yson.json_to_yson(json.loads(result.stdout))
+            return yson.loads(result.stdout)
+
+        period_path = "/job_tracker/load_throughput_throttler/period"
+        future_path = "/computations/reader/parameters/future"
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ) as federation:
+            self.client.pause_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("paused")
+
+            assert get_patches()["patches"] == []
+            execute("set-pipeline-dynamic-spec", {"path": period_path, "spec": 1001})
+            assert get_spec("base")["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1001
+            assert console("get-pipeline-dynamic-spec", "--view", "base")["spec"] == get_spec("base")["spec"]
+
+            before_patch = get_spec()["version"]
+            for comment in (None, ""):
+                argument = {"set_path": period_path, "set_value": 1001, "expected_version": before_patch}
+                if comment is not None:
+                    argument["comment"] = comment
+                with pytest.raises(YtResponseError, match="comment"):
+                    execute("patch-pipeline-dynamic-spec", argument)
+                assert get_spec()["version"] == before_patch
+
+            pin_id = patch_dynamic_spec(set_path=period_path, set_value=1001, comment="Pin period / причина")
+            assert pin_id == get_spec()["version"]
+            patch = get_patches(pin_id)["patches"][0]
+            assert patch["patch_id"] == pin_id
+            assert patch["comment"] == "Pin period / причина"
+            assert patch["changes"] == [{"path": period_path, "value": 1001}]
+            assert "operation" not in patch
+            blame = get_spec(blame=True)["blame"]
+            assert blame[period_path]["patch_id"] == pin_id
+            assert console("get-pipeline-dynamic-spec-patches", "--patch", pin_id)["patches"][0]["patch_id"] == pin_id
+
+            execute("set-pipeline-dynamic-spec", {"path": period_path, "spec": 1002})
+            assert get_spec()["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1001
+            assert get_spec("base")["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1002
+
+            future_id = patch_dynamic_spec(set_path=future_path, set_value="pinned", comment="Pin future")
+            execute("set-pipeline-dynamic-spec", {"path": future_path, "spec": "from release"})
+            assert get_spec()["spec"]["computations"]["reader"]["parameters"]["future"] == "pinned"
+            assert {item["patch_id"] for item in get_patches()["patches"]} == {pin_id, future_id}
+
+            batch_id = patch_dynamic_spec(
+                set_changes=[
+                    {"path": period_path, "value": 1003},
+                    {"path": "/computations/reader/parameters/batch", "value": "enabled"},
+                ],
+                comment="Change two parameters",
+            )
+            assert batch_id != pin_id
+            assert get_spec()["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1003
+            assert get_spec()["spec"]["computations"]["reader"]["parameters"]["batch"] == "enabled"
+            assert len(get_patches(batch_id)["patches"][0]["changes"]) == 2
+            assert get_spec(blame=True)["blame"][period_path]["patch_id"] == batch_id
+
+            with pytest.raises(YtResponseError, match="Spec version mismatch"):
+                execute(
+                    "cancel-pipeline-dynamic-spec-patch",
+                    {
+                        "patch": pin_id,
+                        "expected_version": before_patch,
+                    },
+                )
+            assert {item["patch_id"] for item in get_patches()["patches"]} == {pin_id, future_id, batch_id}
+
+            snapshot = (get_spec("base"), get_spec(), get_patches())
+            federation.controllers[0].restart()
+            wait(
+                lambda: (get_spec("base"), get_spec(), get_patches()) == snapshot,
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            self.wait_pipeline_state("paused")
+
+            version = get_spec()["version"]
+            execute("cancel-pipeline-dynamic-spec-patch", {"patch": batch_id, "expected_version": version})
+            assert get_spec()["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1001
+            assert "batch" not in get_spec()["spec"]["computations"]["reader"]["parameters"]
+
+            version = get_spec()["version"]
+            execute("cancel-pipeline-dynamic-spec-patch", {"patch": pin_id, "expected_version": version})
+            assert get_spec()["spec"]["job_tracker"]["load_throughput_throttler"]["period"] == 1002
+            assert [item["patch_id"] for item in get_patches()["patches"]] == [future_id]
+
+            version = get_spec()["version"]
+            execute("reset-pipeline-dynamic-spec", {"expected_version": version})
+            assert get_patches()["patches"] == []
+            assert get_spec()["spec"]["computations"]["reader"]["parameters"]["future"] == "from release"
+            assert get_spec()["spec"]["target_state"] == "paused"
 
     @pytest.mark.authors(["mikari"])
     def test_read_states(self):
@@ -1295,6 +1498,160 @@ class FlowExecuteTestBase(FlowTestBase):
                 == hashlib.sha256(ssl.PEM_cert_to_DER_cert(new_leader["certificate_pem"])).hexdigest().upper()
             )
 
+    @pytest.mark.authors(["pechatnov"])
+    def test_legacy_spec_recovery_without_flow_view(self):
+        if not self.TEST_LEGACY_SPEC_RECOVERY:
+            pytest.skip("legacy spec recovery requires the trunk controller")
+
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config(finite=False)
+        pipeline_config = get_yson_config(pipeline_config_path)
+        obsolete_state_table = f"{self.pipeline_path}/flow_state_obsolete"
+
+        def read_obsolete_state_rows():
+            rows = {}
+            for row in self.client.select_rows(f"key, value FROM [{obsolete_state_table}]"):
+                key = row["key"].decode("utf-8") if isinstance(row["key"], bytes) else row["key"]
+                value = row["value"]
+                if isinstance(value, (bytes, bytearray)):
+                    value = yson.loads(bytes(value))
+                rows[key] = value
+            return rows
+
+        def check_pipeline_state_rows(expected_state):
+            # One transaction writes the state into FlowState, important versions and the replica.
+            rows = read_obsolete_state_rows()
+            state = rows["flow_view"]["execution_spec"]["pipeline_state"]
+            replica_state = rows["pipeline_state_replica"]
+            assert state["value"] == expected_state
+            assert rows["important_versions"]["pipeline_state_versions"] == state["version"]
+            assert replica_state["version"] == state["version"]
+            assert replica_state["value"] == state["value"]
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            run_pipeline=False,
+            workers_count=1,
+            controllers_count=1,
+        ):
+            actual_flow_core_target = self.client.flow_execute(
+                self.pipeline_path,
+                "get-controller-orchid",
+                {"path": "/node_info/flow_core_version"},
+            )["value"]
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-flow-core-target",
+                {"flow_core_target": actual_flow_core_target},
+            )
+            wait(
+                lambda: self.client.get_flow_view(
+                    self.pipeline_path,
+                    "/state/execution_spec/flow_core_target/value",
+                    cache=False,
+                )
+                == actual_flow_core_target
+            )
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-pipeline-specs",
+                {
+                    "spec": pipeline_config["spec"],
+                    "dynamic_spec": pipeline_config["dynamic_spec"],
+                    "validate_strict": True,
+                },
+            )
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("working")
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+
+        check_pipeline_state_rows("stopped")
+
+        # Emulate a spec format that this controller cannot parse, written by a controller without the
+        # replica; the replacement spec drops a computation that the persisted traverse data still has.
+        persisted_rows = read_obsolete_state_rows()
+        legacy_spec = deepcopy(persisted_rows["spec"])
+        legacy_spec["value"]["computations"] = "legacy_invalid"
+        corrupted_flow_state = deepcopy(persisted_rows["flow_view"])
+        corrupted_flow_state["execution_spec"]["pipeline_spec"]["value"]["computations"] = "legacy_invalid"
+        replacement_spec = deepcopy(persisted_rows["spec"]["value"])
+        del replacement_spec["computations"]["state_writer"]
+        replacement_dynamic_spec = deepcopy(persisted_rows["dynamic_spec"]["value"])
+        del replacement_dynamic_spec["computations"]["state_writer"]
+        assert "state_writer" in corrupted_flow_state["traverse_data"]["computations"]
+
+        self.client.delete_rows(obsolete_state_table, [{"key": "pipeline_state_replica"}])
+        self.client.insert_rows(
+            obsolete_state_table,
+            [
+                {"key": "flow_view", "value": corrupted_flow_state},
+                {"key": "spec", "value": legacy_spec},
+            ],
+        )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            run_pipeline=False,
+            workers_count=1,
+            controllers_count=1,
+        ):
+            assert self.client.get_pipeline_state(self.pipeline_path) == "stopped"
+            assert self.client.flow_execute(self.pipeline_path, "get-pipeline-state", {})["pipeline_state"] == "stopped"
+            # The spec that the controller cannot parse is still viewable as stored.
+            stored_spec = self.client.get_pipeline_spec(self.pipeline_path, spec_path="/computations")
+            assert stored_spec["spec"] == "legacy_invalid"
+            assert stored_spec["version"] == legacy_spec["version"]
+            permission = self.client.flow_execute(
+                self.pipeline_path,
+                "get-command-required-permission",
+                {"command": "get-pipeline-state"},
+            )
+            assert permission["permission"] == ["read"]
+
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-flow-core-target",
+                {"flow_core_target": actual_flow_core_target},
+            )
+            self.client.flow_execute(
+                self.pipeline_path,
+                "set-pipeline-specs",
+                {
+                    "spec": replacement_spec,
+                    "dynamic_spec": replacement_dynamic_spec,
+                    "validate_strict": True,
+                },
+            )
+
+            # Describe the recovered pipeline before the controller applies the replacement spec.
+            def describe_pipeline():
+                try:
+                    self.client.flow_execute(self.pipeline_path, "describe-pipeline", {})
+                    return True
+                except YtResponseError:
+                    return False
+
+            wait(describe_pipeline, timeout=60)
+
+            def get_synced_flow_view():
+                try:
+                    flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                except YtResponseError:
+                    return None
+                if flow_view["state"]["execution_spec"]["pipeline_spec"] != flow_view["current_spec"]:
+                    return None
+                return flow_view
+
+            wait(lambda: get_synced_flow_view() is not None, timeout=60)
+            recovered_flow_view = get_synced_flow_view()
+            assert recovered_flow_view["current_spec"]["value"] == replacement_spec
+            assert recovered_flow_view["current_spec"]["version"] > legacy_spec["version"]
+
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("working")
+            check_pipeline_state_rows("working")
+
     @pytest.mark.authors(["timoninmaxim"])
     def test_mutating_commands_rejected_when_completed(self):
         self.prepare_environment()
@@ -1321,7 +1678,8 @@ class FlowExecuteTestBase(FlowTestBase):
             if self.TEST_FLOW_CORE_TARGET:
                 self.client.flow_execute(self.pipeline_path, flow_command="get-flow-core-target", flow_argument={})
 
-            completed_final_msg = "Recreate the pipeline to recover"
+            # Case-insensitive: older controllers capitalize the phrase.
+            completed_final_msg = "(?i)recreate the pipeline to recover"
 
             for target in ("stopped", "paused", "completed"):
                 with pytest.raises(YtResponseError, match=completed_final_msg):
@@ -1331,7 +1689,7 @@ class FlowExecuteTestBase(FlowTestBase):
                         flow_argument={"target_pipeline_state": target},
                     )
 
-            # Spec updates that go through CheckPipelineSafeForSpecUpdate are rejected on Completed.
+            # Spec updates that go through ValidatePipelineSafeForSpecUpdate are rejected on Completed.
             # set-pipeline-spec delegates to set-pipeline-specs and so inherits the gate.
             current_spec = self.client.flow_execute(
                 self.pipeline_path, flow_command="get-pipeline-spec", flow_argument={}
@@ -1365,7 +1723,8 @@ class FlowExecuteTestBase(FlowTestBase):
             if self.TEST_FLOW_CORE_TARGET:
                 with pytest.raises(
                     YtResponseError,
-                    match=r'Cannot update FlowCoreTarget in state "Completed"',
+                    # Case-insensitive: older controllers print the state capitalized.
+                    match=r'(?i)Cannot update FlowCoreTarget in state "completed"',
                 ):
                     self.client.flow_execute(
                         self.pipeline_path,

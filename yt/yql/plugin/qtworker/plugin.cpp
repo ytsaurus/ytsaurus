@@ -198,6 +198,7 @@ public:
     {
         NYql::NWorkerApi::TMsgBusWorkerApiConfig busConfig;
         busConfig.Port = QtWorkerInspectorPort_;
+        busConfig.BindLoopbackOnly = false;
 
         WorkerApi_ = NYql::NWorkerApi::MakeMsgBusWorkerApi(std::move(busConfig));
 

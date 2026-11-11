@@ -1,3 +1,4 @@
+from yt.common import YT_NULL_TRANSACTION_ID
 from yt.wrapper import YtClient
 from yt.wrapper.testlib.helpers import wait
 
@@ -154,8 +155,6 @@ class TestResourceUsage(YTEnvSetup):
             "import-snapshot",
             "--snapshot-id",
             "latest",
-            "--node-id-dict-cluster",
-            self.Env.get_http_proxy_address(),
         ]
         if extra_args:
             args.extend(extra_args)
@@ -1017,6 +1016,84 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         assert chunk_count > 1
 
     @authors("ilyaibraev")
+    def test_get_resource_usage_without_path_resolution(self, yt_client: YtClient, home_ypath: str):
+        yt_client.set(f"{home_ypath}/@account", "test_account")
+        table_path = f"{home_ypath}/table"
+        held_table_path = f"{home_ypath}/held_table"
+        yt_client.create("table", table_path, attributes={"primary_medium": self.DEFAULT_MEDIUM})
+        held_table_id = yt_client.create(
+            "table", held_table_path, attributes={"primary_medium": self.TEST_MEDIUM}
+        )
+        yt_client.write_table(table_path, [{"value": "kept"}])
+        yt_client.write_table(held_table_path, [{"value": "held"}] * 5)
+        table_disk_space = yt_client.get(f"{table_path}/@resource_usage/disk_space")
+        held_table_disk_space = yt_client.get(f"{held_table_path}/@resource_usage/disk_space")
+
+        with yt_client.Transaction():
+            yt_client.lock(held_table_path, mode="snapshot")
+            with yt_client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                yt_client.remove(held_table_path)
+                wait(lambda: yt_client.get(f"#{held_table_id}/@path") == f"#{held_table_id}")
+
+                snapshot_timestamp = self.snapshot_runner.build_and_export_master_snapshot(yt_client)
+                snapshot_export = "//sys/admin/snapshots/snapshot_exports/latest"
+                held_rows = [
+                    row for row in yt_client.read_table(snapshot_export)
+                    if row["id"] == held_table_id
+                ]
+                assert any(
+                    row["path"] == f"#{held_table_id}" and row.get("orphaned")
+                    for row in held_rows
+                ), held_rows
+
+                node_id_dict = f"{home_ypath}/missing_node_id_dict"
+                assert not yt_client.exists(node_id_dict)
+                self.run_preprocessing(extra_args=["--node-id-dict", node_id_dict])
+
+                snapshot_id = yt_client.get(f"{snapshot_export}/@key")[:-len("_unified_export")]
+                output_table = (
+                    "//sys/admin/yt-microservices/resource_usage/"
+                    f"{snapshot_timestamp}:{snapshot_id}.resource_usage"
+                )
+                wait(
+                    lambda: yt_client.get(f"{output_table}/@tablet_state") == "mounted",
+                    timeout=60,
+                    error_message=lambda: (
+                        f"Expected {output_table} to be mounted; "
+                        f"tablet_state={yt_client.get(f'{output_table}/@tablet_state')}; "
+                        f"API process returncode={self._resource_usage_json_api_go_process.poll()}"
+                    ),
+                )
+                response = self._run_request(
+                    "get-resource-usage",
+                    {
+                        "cluster": "local",
+                        "account": "test_account",
+                        "timestamp": snapshot_timestamp,
+                        "timestamp_rounding_policy": "closest",
+                        "row_filter": {"exclude_map_nodes": False},
+                    },
+                )
+                assert "items" in response, response
+                items = {(item["path"], item["type"]): item for item in response["items"]}
+                unknown_path = f"//$unknown_nodes/{held_table_id}"
+                for path, node_type, disk_space, medium in [
+                    (table_path, "table", table_disk_space, self.DEFAULT_MEDIUM),
+                    (home_ypath, "map_node", table_disk_space, self.DEFAULT_MEDIUM),
+                    (unknown_path, "table", held_table_disk_space, self.TEST_MEDIUM),
+                    ("//$unknown_nodes", "map_node", held_table_disk_space, self.TEST_MEDIUM),
+                ]:
+                    item = items[(path, node_type)]
+                    assert item["disk_space"] == disk_space, response
+                    assert item[f"medium:{medium}"] == disk_space, response
+                assert items[(unknown_path, "table")]["path_patched"], response
+                assert not items[(table_path, "table")]["path_patched"], response
+                root = items[("/", "map_node")]
+                assert root["disk_space"] == table_disk_space + held_table_disk_space, response
+                assert root[f"medium:{self.DEFAULT_MEDIUM}"] == table_disk_space, response
+                assert root[f"medium:{self.TEST_MEDIUM}"] == held_table_disk_space, response
+
+    @authors("ilyaibraev")
     def test_table_held_by_zero_usage_transaction(self, yt_client: YtClient, home_ypath: str):
         tx_title = 'Scheduler "input" transaction for operation 47b86be5-1e18c55f-42e03e8-ab61cbeb'
         disk_space = 35340978063705
@@ -1075,7 +1152,9 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
                 YtClient(self.Env.get_http_proxy_address()),
                 append_to_snapshot=rows,
             )
-            self.run_preprocessing()
+            self.run_preprocessing(extra_args=[
+                "--node-id-dict-cluster", self.Env.get_http_proxy_address(),
+            ])
 
             versioned_response = self._run_request(
                 "get-versioned-resource-usage",

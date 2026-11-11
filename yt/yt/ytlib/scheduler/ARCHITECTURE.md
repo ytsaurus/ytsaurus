@@ -35,7 +35,7 @@ Namespace: `NYT::NScheduler` (with `NYT::NScheduler::NProto` for proto messages 
 - **Allocation brief info:** `TAllocationBriefInfo` (`AllocationId`, `OperationId`, ACL/ACO, controller-agent descriptor, node descriptor) and the companion `TAllocationInfoToRequest` (field selector). Used by `GetAllocationBriefInfo` RPC.
 - **Job shell:** `TJobShellInfo` wraps a `TJobShell` config + runtime parameters; `ApplyJobShellOptionsUpdate` merges an update map into the existing map.
 - **Transaction error builders:** `GetSchedulerTransactionsAbortedError`, `GetUserTransactionAbortedError`.
-- **Proto conversions:** `ToProto` / `FromProto` for the round-trip types `TAllocationBriefInfo`, `TAllocationInfoToRequest`, `TGracefulShutdownSpec`, `TSidecarJobSpec`, `TVolumeMount`. The write-only builders of the execution spec the controller agent ships to exec node live in `yt/yt/server/controller_agent/helpers.h`, their only user.
+- **Proto conversions:** `ToProto` / `FromProto` for the round-trip types `TAllocationBriefInfo`, `TAllocationInfoToRequest`, `TGracefulShutdownSpec`, `TSidecarJobSpec`, `TVolumeMount`. The write-only builders of the execution spec the controller agent ships to exec node (`BuildVolumeSpec`, `BuildTmpfsVolumeSpec`, the disk-request hierarchy, `IsDiskRequestTmpfs`) live in `yt/yt/server/controller_agent/helpers.h`, their only user.
 
 **`scheduler_channel.h`** — `CreateSchedulerChannel(config, channelFactory, masterChannel, networks)` returns an `IChannelPtr` that discovers the active scheduler via the master and wraps the discovered channel in retry logic per `TSchedulerConnectionConfig`. Consumers: the native client and the scheduler CLI.
 
@@ -68,7 +68,7 @@ Namespace: `NYT::NScheduler` (with `NYT::NScheduler::NProto` for proto messages 
 
 **`proto/`** — The wire schemas:
 - `scheduler_service.proto` — operation service RPCs (start/abort/suspend/resume/complete/update-parameters/patch-spec/allocation-brief-info).
-- `resources.proto` — `TJobResources`, `TDiskQuota`, `TDiskLocationQuota`, disk-request messages (`TDiskRequest`, `TLocalDiskRequest`, `TNbdDiskRequest`, `TTmpfsStorageRequest`, `TDeprecatedDiskRequest`, `TStorageRequestCommonParameters`), `TJobResourcesWithQuota`, `TAllocationAttributes`, `TChunkNbdDisk`.
+- `resources.proto` — `TJobResources`, `TDiskQuota`, `TDiskLocationQuota`, disk-request messages (`TDiskRequest`, `TLocalDiskRequest`, `TNbdDiskRequest`, `TTmpfsStorageRequest`, `TDeprecatedDiskRequest`, `TStorageRequestCommonParameters`), `TJobResourcesWithQuota`, `TAllocationAttributes`, `TChunkNbdDisk`, `TJournalNbdDisk`.
 - `allocation.proto` / `input_query.proto` / `rich_transaction_id.proto` / `pool_ypath.proto` — narrower message groups.
 
 **`records/`** — YAML record schemas (in `NYT::NScheduler::NRecords` namespace) for the operations archive tables the scheduler writes and clients read:

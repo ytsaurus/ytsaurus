@@ -29,6 +29,8 @@
 
 #include <util/charset/wide.h>
 
+#include <set>
+
 namespace NYT::NFlow {
 
 using namespace NLogging;
@@ -286,13 +288,20 @@ std::vector<TRichYPath> ReadRichYPaths(const INodePtr& node)
 
 } // namespace
 
-std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(const NYTree::TYsonStructPtr& parameters) const
+std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(
+    const NYTree::TYsonStructPtr& parameters,
+    const std::optional<std::string>& pipelineCluster) const
 {
     auto parametersNode = ConvertToNode(parameters);
 
     std::vector<TYTPathClaim> claims;
     parameters->GetMeta()->Traverse([&] (const TYsonStructTraverseContext& context) {
         auto ownership = context.Parameter->FindOption<EYTPathOwnership>();
+        if (!ownership) {
+            if (auto resolver = context.Parameter->FindOption<TYTPathOwnershipResolver>()) {
+                ownership = resolver->Resolve(*parameters);
+            }
+        }
         if (!ownership) {
             return;
         }
@@ -307,12 +316,26 @@ std::vector<TYTPathClaim> TRegistry::CollectYTPathClaims(const NYTree::TYsonStru
             if (normalized.GetPath().empty()) {
                 continue;
             }
-            claims.push_back(TYTPathClaim{
-                .Cluster = normalized.GetCluster().value_or(""),
-                .Path = normalized.GetPath(),
-                .Ownership = *ownership,
-                .ParameterKey = TString(context.Key),
-            });
+            // A path is claimed on the union of its `cluster` and `clusters` attributes, else on the pipeline cluster;
+            // a cluster listed in both is claimed once so that the owner does not conflict with itself.
+            std::set<std::string> clusters;
+            if (auto cluster = normalized.GetCluster()) {
+                clusters.insert(std::move(*cluster));
+            }
+            if (auto pathClusters = normalized.GetClusters()) {
+                clusters.insert(pathClusters->begin(), pathClusters->end());
+            }
+            if (clusters.empty()) {
+                clusters.insert(pipelineCluster.value_or(""));
+            }
+            for (const auto& cluster : clusters) {
+                claims.push_back(TYTPathClaim{
+                    .Cluster = cluster,
+                    .Path = normalized.GetPath(),
+                    .Ownership = *ownership,
+                    .ParameterKey = TString(context.Key),
+                });
+            }
         }
     });
     return claims;
@@ -504,7 +527,8 @@ std::vector<std::string> TRegistry::GetYsonMessageTypeNames() const
 
 namespace {
 
-void ValidateParameters(
+//! Returns the parsed parameters, null on error.
+NYTree::TYsonStructPtr ValidateParameters(
     TStringBuf specType,
     TYPath path,
     auto factory,
@@ -522,8 +546,11 @@ void ValidateParameters(
         if (!parametersUnrecognized->GetKeys().empty()) {
             SetNodeByYPath(unrecognizedOutput, path, parametersUnrecognized, /*force*/ true);
         }
+
+        return parameters;
     } catch (const std::exception& exception) {
         errors->push_back(TError(exception));
+        return nullptr;
     }
 }
 
@@ -632,7 +659,9 @@ NYTree::TYsonStructPtr TRegistry::ParseDynamicProcessFunctionParameters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IMapNodePtr& specNode) const
+std::vector<TError> TRegistry::ValidatePipelineSpecParseability(
+    const NYTree::IMapNodePtr& specNode,
+    TParsedPipelineParameters* parsedParameters) const
 {
     std::vector<TError> errors;
 
@@ -659,22 +688,28 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
                 &errors,
                 unrecognized);
             for (const auto& [streamId, sourceSpec] : computationSpec->SourceStreams) {
-                ValidateParameters(
+                auto parameters = ValidateParameters(
                     "static_pipeline_spec",
                     Format("/computations/%v/source_streams/%v/parameters", computationName, streamId),
                     GetSourceDescriptor(sourceSpec->SourceClassName).ParametersFactory,
                     sourceSpec->Parameters,
                     &errors,
                     unrecognized);
+                if (parsedParameters && parameters) {
+                    parsedParameters->Sources.emplace(std::pair(computationName, streamId), std::move(parameters));
+                }
             }
             for (const auto& [sinkId, sinkSpec] : computationSpec->Sinks) {
-                ValidateParameters(
+                auto parameters = ValidateParameters(
                     "static_pipeline_spec",
                     Format("/computations/%v/sinks/%v/parameters", computationName, sinkId),
                     GetSinkDescriptor(sinkSpec->SinkClassName).ParametersFactory,
                     sinkSpec->Parameters,
                     &errors,
                     unrecognized);
+                if (parsedParameters && parameters) {
+                    parsedParameters->Sinks.emplace(std::pair(computationName, sinkId), std::move(parameters));
+                }
             }
             if (GetComputationDescriptor(computationSpec->ComputationClassName).RequiresProcessingFunction &&
                 !computationSpec->ProcessingFunction)

@@ -28,6 +28,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <deque>
+#include <set>
 
 namespace NYT::NFlow {
 namespace {
@@ -222,6 +223,31 @@ TEST_F(TStaticTableKeyVisitorJoinerTest, ListPopulatesListed)
 
     EXPECT_EQ(std::ssize(result.Keys), 2);
     EXPECT_EQ(joiner->ListedSize(), 2);
+}
+
+// Swept as a weak source, the joiner lists keys that get no visit and would never be consumed.
+TEST_F(TStaticTableKeyVisitorJoinerTest, RetainListedDropsUnvisitedRowsOfTheRange)
+{
+    auto joiner = MakeJoiner();
+
+    auto visited = MakeRowKey(1, "a");
+    auto unvisited = MakeRowKey(1, "b");
+    auto outside = MakeRowKey(5, "c");
+    joiner->ScriptListResult(MakeListedStates({{visited, 10, "x"}, {unvisited, 20, "y"}, {outside, 30, "z"}}));
+    WaitFor(joiner->List({}, 100, std::nullopt))
+        .ValueOrThrow();
+    ASSERT_EQ(joiner->ListedSize(), 3);
+
+    joiner->RetainListed(
+        TKeyRange{.Lower = MakeRowKey(1, ""), .Upper = MakeRowKey(2, "")},
+        std::set<TKey>{visited});
+    EXPECT_EQ(joiner->ListedSize(), 2) << "the unvisited row of the range is dropped, the row past it is kept";
+
+    WaitFor(joiner->PreloadKeyStates({visited, outside}))
+        .ThrowOnError();
+    EXPECT_EQ(AsSimpleState(joiner->GetState(visited)).GetColumnValue<i64>("a"), 10);
+    EXPECT_EQ(AsSimpleState(joiner->GetState(outside)).GetColumnValue<i64>("a"), 30);
+    EXPECT_EQ(joiner->ListedSize(), 0);
 }
 
 TEST_F(TStaticTableKeyVisitorJoinerTest, PreloadPromotesPresentKey)

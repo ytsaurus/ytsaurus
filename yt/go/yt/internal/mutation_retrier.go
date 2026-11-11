@@ -9,8 +9,8 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type MutationRetrier struct {
@@ -22,21 +22,33 @@ type MutatingParams interface {
 }
 
 func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	params, ok := call.Params.(MutatingParams)
 	if !ok || call.DisableRetries {
 		return invoke(ctx, call)
 	}
 
 	mut := params.MutatingOptions()
-	if *mut == nil {
+	generated := *mut == nil
+	if generated {
 		*mut = &yt.MutatingOptions{MutationID: yt.MutationID(guid.New())}
 	} else {
 		*mut = &yt.MutatingOptions{MutationID: (*mut).MutationID, Retry: (*mut).Retry}
 	}
 
-	for i := 0; ; i++ {
+	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
 		res, err = invoke(ctx, call)
-		if err == nil || !r.shouldRetry(err) {
+		if err == nil {
+			return
+		}
+
+		if !r.shouldRetry(call.RequestedProxy != "", err) {
 			return
 		}
 
@@ -46,11 +58,15 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		default:
 		}
 
-		(*mut).Retry = true
-
 		b := call.Backoff.NextBackOff()
 		if b == backoff.Stop {
 			return
+		}
+
+		if generated && !retry.IsMutationResultUnknown(err) {
+			*mut = &yt.MutatingOptions{MutationID: yt.MutationID(guid.New())}
+		} else {
+			(*mut).Retry = true
 		}
 
 		if r.Log != nil {
@@ -68,14 +84,10 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 	}
 }
 
-func (r *MutationRetrier) shouldRetry(err error) bool {
-	if isNetError(err) {
-		return true
+func (r *MutationRetrier) shouldRetry(hasStickyProxy bool, err error) bool {
+	if retry.IsProxyBannedError(err) {
+		return !hasStickyProxy
 	}
 
-	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
-		return true
-	}
-
-	return false
+	return retry.IsRetriableError(err)
 }

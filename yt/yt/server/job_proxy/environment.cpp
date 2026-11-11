@@ -43,6 +43,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -617,6 +618,7 @@ public:
         IPortoExecutorPtr portoExecutor,
         std::string jobProxyContainerPath)
         : TSidecarEnvironmentBase(std::move(name), std::move(spec), std::move(jobProxy), std::move(failedSidecarCallback))
+        , Invoker_(GetCurrentInvoker())
         , CurrentWorkDirectory_(jobProxyContainerPath + "/" + GetSandboxRelPath(ESandboxKind::User))
         , Launcher_(CreatePortoInstanceLauncher(Name_, std::move(portoExecutor)))
     {
@@ -631,18 +633,22 @@ public:
         return Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {})
             .Apply(
                 BIND([this, this_ = MakeStrong(this)] (IInstancePtr instance) {
+                    auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&InstanceLock_))
+                        .ValueOrThrow();
                     Instance_ = std::move(instance);
+                    if (ShutdownStarted_) {
+                        Instance_->Destroy();
+                        Instance_.Reset();
+                        return;
+                    }
                     OnSidecarStarted();
                 })
-                .AsyncVia(GetCurrentInvoker())
+                .AsyncVia(Invoker_)
             );
     }
 
     TFuture<void> ShutdownSidecar() final
     {
-        YT_VERIFY(Instance_);
-
-        SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
         return BIND(&TPortoSidecarEnvironment::DoShutdownSidecar, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -650,23 +656,29 @@ public:
 
     void RestartSidecar() final
     {
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&InstanceLock_))
+            .ValueOrThrow();
+        if (ShutdownStarted_) {
+            return;
+        }
+
         YT_VERIFY(Instance_);
 
         try {
             Instance_->Respawn();
             OnSidecarStarted();
         } catch (const std::exception& ex) {
+            guard.Reset();
             FailedSidecarCallback_(TError("Failed to restart Porto sidecar %Qv", Name_)
                 .With(ex));
         }
     }
 
-    bool IsAlive() final
-    {
-        return Instance_ && !Instance_->Wait().IsSet();
-    }
-
 private:
+    const IInvokerPtr Invoker_;
+
+    TAsyncReaderWriterLock InstanceLock_;
+    bool ShutdownStarted_ = false;
     IInstancePtr Instance_;
     std::string CurrentWorkDirectory_;
     IInstanceLauncherPtr Launcher_;
@@ -675,6 +687,19 @@ private:
 
     void DoShutdownSidecar()
     {
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&InstanceLock_))
+            .ValueOrThrow();
+        if (std::exchange(ShutdownStarted_, true)) {
+            return;
+        }
+
+        if (SidecarFinished_) {
+            SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
+        }
+        if (!Instance_) {
+            return;
+        }
+
         if (Spec_->GracefulShutdown) {
             auto signal = FindSignalIdBySignalName(Spec_->GracefulShutdown->Signal);
 
@@ -712,7 +737,7 @@ private:
         FutureSidecarFinishedCallbackCookie_ = SidecarFinished_.Subscribe(BIND_NO_PROPAGATE(
             &TPortoSidecarEnvironment::OnSidecarFinished,
             MakeStrong(this)
-        ));
+        ).Via(Invoker_));
     }
 };
 
@@ -835,8 +860,11 @@ public:
         }
 
         try {
-            WaitFor(AllSet(std::move(futures)))
-                .ThrowOnError();
+            auto results = WaitFor(AllSet(std::move(futures)))
+                .ValueOrCrash();
+            for (const auto& result : results) {
+                result.ThrowOnError();
+            }
         } catch (const std::exception& ex) {
             ShutdownSidecars();
             throw;
@@ -848,12 +876,16 @@ public:
         std::vector<TFuture<void>> futures;
         futures.reserve(RunningSidecars_.size());
         for (const auto& sidecar : RunningSidecars_) {
-            if (sidecar->IsAlive()) {
-                futures.push_back(sidecar->ShutdownSidecar());
-            }
+            futures.push_back(sidecar->ShutdownSidecar());
         }
 
-        WaitFor(AllSet(std::move(futures))).ThrowOnError();
+        auto results = WaitFor(AllSet(std::move(futures)))
+            .ValueOrCrash();
+        for (const auto& result : results) {
+            YT_TLOG_ERROR_UNLESS(result.IsOK(), "Failed to shut down sidecar")
+                .With(result);
+        }
+
         RunningSidecars_.clear();
     }
 
@@ -1373,6 +1405,7 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.AnonWithSwapCached,
@@ -1380,10 +1413,14 @@ public:
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
@@ -1391,19 +1428,27 @@ public:
             .IOReadOps = statistics.IOReadOps,
             .IOWriteOps = statistics.IOWriteOps,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
+#ifdef _linux_
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
         };
+#else
+        return std::nullopt;
+#endif
     }
 
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
+#ifdef _linux_
         try {
             return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
@@ -1411,6 +1456,9 @@ public:
                 .With(ex);
             return std::nullopt;
         }
+#else
+        return std::nullopt;
+#endif
     }
 
     bool UseExecFromLayer() const override
@@ -1672,6 +1720,8 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
 {
+    Y_UNUSED(jobProxyPreparationPath);
+
     switch (config->JobEnvironment.GetType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:

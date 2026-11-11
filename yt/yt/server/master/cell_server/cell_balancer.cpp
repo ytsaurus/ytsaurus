@@ -54,10 +54,10 @@ bool TCellMoveDescriptor::operator==(const TCellMoveDescriptor& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeHolder::TNodeHolder(const TNode* node, int totalSlots, const TCellSet& slots)
+TNodeHolder::TNodeHolder(const TNode* node, int totalSlots, TCellSet slots)
     : Node_(node)
     , TotalSlots_(totalSlots)
-    , Slots_(slots)
+    , Slots_(std::move(slots))
 {
     UpdateCellCounts();
 }

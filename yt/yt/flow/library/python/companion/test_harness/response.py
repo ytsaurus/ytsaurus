@@ -1,11 +1,22 @@
 """Response wrappers for test assertions."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from ..computation import TransformResult
-from ..context import ResponseContext
+from ..context import ProtoExternalStateAccessor, ResponseContext
 from ..row import Message, NewTimer, Payload
-from ..state import ExternalState, State, StatesHolder
+from ..state import ExternalState, ProtoExternalState, State, StateFormat, StatesHolder
+
+
+def _row_external_state(holder: Optional[StatesHolder], key: Payload) -> Optional[Payload]:
+    if holder is None:
+        return None
+    if holder.state_format != StateFormat.SIMPLE_ROW:
+        raise ValueError(f"External state {holder.name} is not in the row format")
+    raw = holder.get(key.row)
+    if raw is None or raw.reset or raw.state is None:
+        return None
+    return raw.state
 
 
 class ProcessResponse:
@@ -82,13 +93,17 @@ class ProcessResponse:
 
     def external_state(self, name: str, key: Payload) -> Optional[Payload]:
         """Get external state as a Payload."""
-        raw = self.external_state_raw(name, key)
-        if raw is None or raw.reset or raw.state is None:
-            return None
-        return raw.state
+        return _row_external_state(self._ctx.external_states.get(name), key)
 
-    def external_state_raw(self, name: str, key: Payload) -> Optional[ExternalState]:
-        """Get the raw ExternalState object (for carrying to next processing step)."""
+    def external_state_proto(self, name: str, key: Payload, proto_class):
+        """Get an independent protobuf snapshot of the resulting external state."""
+        holder = self._ctx.external_states.get(name)
+        if holder is None:
+            return None
+        return ProtoExternalStateAccessor(holder, key, proto_class).get()
+
+    def external_state_raw(self, name: str, key: Payload) -> Optional[Union[ExternalState, ProtoExternalState]]:
+        """Get the raw ExternalState or ProtoExternalState (for carrying to next processing step)."""
         holder = self._ctx.external_states.get(name)
         if holder is None:
             return None
@@ -117,12 +132,16 @@ class ProcessResponse:
 
     def joined_external_state(self, name: str, key: Payload) -> Optional[Payload]:
         """Get joined external state as a Payload."""
-        raw = self.joined_external_state_raw(name, key)
-        if raw is None or raw.reset or raw.state is None:
-            return None
-        return raw.state
+        return _row_external_state(self._joined_external_states.get(name), key)
 
-    def joined_external_state_raw(self, name: str, key: Payload) -> Optional[ExternalState]:
+    def joined_external_state_proto(self, name: str, key: Payload, proto_class):
+        """Get an independent snapshot of the joined protobuf state."""
+        holder = self._joined_external_states.get(name)
+        if holder is None:
+            return None
+        return ProtoExternalStateAccessor(holder, key, proto_class, read_only=True).get()
+
+    def joined_external_state_raw(self, name: str, key: Payload) -> Optional[Union[ExternalState, ProtoExternalState]]:
         holder = self._joined_external_states.get(name)
         if holder is None:
             return None

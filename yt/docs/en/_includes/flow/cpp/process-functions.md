@@ -203,7 +203,7 @@ In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParame
 
 When several process functions handle data in sequence or split a stream, you can run them in one `Computation` as a graph. Each node of the graph is a separately registered process function; messages between nodes stay inside the worker instead of passing through intermediate pipeline streams.
 
-Describe the graph in the static spec, in the `process_function_graph` field of a computation with `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform) or `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map). A node has the same fields as a computation that hosts one process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams`, and `streams_dependency`. Nodes are connected by stream IDs, the same way computations are connected in a pipeline:
+Describe the graph in the static spec, in the `process_function_graph` field of a computation with `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform), `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map), or `"NYT::NFlow::TProcessFunctionSourceComputation"` (source). A node has the same fields as a computation that hosts one process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams`, and `streams_dependency`. Nodes are connected by stream IDs, the same way computations are connected in a pipeline:
 
 - The `input_stream_ids` and `output_stream_ids` of the computation are the boundary of the graph.
 - A node reads the streams listed in its `input_stream_ids`: inputs of the computation or outputs of other nodes. Several nodes can read one stream, and one node can read several streams.
@@ -213,7 +213,7 @@ In the pipeline spec of the integration test, the `graph` computation counts mes
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/pipeline.yson' lang='yson' %}
 
-Register every stream the nodes use, including internal ones, like any other pipeline stream. The same test does it in `PrepareSpec`:
+Register every stream the nodes use, including internal ones, like any other pipeline stream. The exception is the streams in `source_streams` of a source computation: they are not registered. The same test registers its streams in `PrepareSpec`:
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/main.cpp' lang='cpp' lines='[BEGIN register_streams]-[END register_streams]' %}
 
@@ -253,11 +253,28 @@ Each node has its own parameters, typed as described in [Parameters](#parameters
 - A node sees the watermarks of all pipeline streams. For an internal stream or a local timer ID, the event watermark is the minimum over the computation inputs and timers it derives from, and `GetInputEventWatermark()` covers the inputs of the node. A timer emits messages with the current system timestamp, so the system watermark of an internal stream covers only the computation inputs it derives from. As a result, an `event_time` timer that watches an internal stream waits for the pending timers of the upstream nodes, while a `system_time` timer does not.
 - Nodes share the computation and partition IDs. Transform nodes also share the epoch commit and sequence number. Swift does not publish an epoch sequence number, so `GetEpochUniqueSeqNo()` is unavailable in its nodes. A function that derives external identifiers from shared context values must add a node-specific part, such as `IRuntimeInitContext::GetPrefix()`.
 
+A node can read external state through `TJoinedStateKeyClient` when the joiner is declared in the computation's `external_state_joiners` with `auto_preload = %false`. For a node named `enrich` calling `InitExternalStateClient(client, "/reference")`, declare the joiner as `/functions/enrich/reference`: a leading `/` in the client name is also appended to the node prefix.
+
+```yson
+external_state_joiners = {
+    "/functions/enrich/reference" = {
+        external_state_joiner_class_name = "NYT::NFlow::TSimpleExternalStateJoiner";
+        auto_preload = %false;
+        join_on = {
+            key_schema_override = [{name = "offer_id"; type = "string"; required = %true;}];
+        };
+        parameters = {path = "//home/project/reference";};
+    };
+};
+```
+
+When keys become known after parsing, the batch function collects them in a `THashSet<TKey>`, waits for `client.PreloadKeyStates(keys)`, and then reads `client.GetState(key)`. Supply keys in the joiner's schema; they may differ from the graph message keys. One preload call can load all unique keys of the node for the epoch. The computation resets loaded states at the epoch boundary; caching across epochs follows the joiner's settings. The external table can change on replay, so source and Swift nodes must still preserve the required output keys, identities, and parent lineage.
+
 ### Execution {#function-graph-execution}
 
 Nodes run once per epoch in topological order; independent nodes run in the order of their IDs. A node that reads several streams receives the input messages of the computation first and then the outputs of other nodes in that order. As between computations, do not rely on the relative order of messages from different streams. Messages between nodes stay in memory until the end of the epoch and have no separate limit: if nodes multiply messages, reduce the input batch of the computation with `max_rows_per_batch` and `max_bytes_per_batch`.
 
-Source connectors, key visitors, companions, external state managers, joined state clients, nested graphs, and functions implementing `ISyncProcessFunction` are not supported inside a graph; keep them in separate computations. Node state and timers are persisted by the hosting computation without a user `Sync` hook.
+Source connectors, key visitors, companions, external state managers, internal-state joined clients, nested graphs, and functions implementing `ISyncProcessFunction` are not supported inside a graph; keep them in separate computations. Node state and timers are persisted by the hosting computation without a user `Sync` hook.
 
 ### Message IDs and retries {#function-graph-message-ids}
 

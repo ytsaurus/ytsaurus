@@ -97,7 +97,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
             "default": {"resource_limits": {"user_slots": 100}}},
         })
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 2)
         op.wait_for_fresh_snapshot()
 
@@ -214,7 +214,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
             spec={"testing": {"testing_speculative_launch_mode": "always"}},
             track=False,
         )
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
@@ -229,7 +229,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         spec = spec if spec else {}
         spec["testing"] = {"testing_speculative_launch_mode": mode}
         op = run_test_vanilla(with_breakpoint(command), spec=spec, job_count=1, **kwargs)
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 2)
         return op
 
@@ -314,7 +314,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
                 "job_count": 3,
             },
         )
-        wait_breakpoint(job_count=6)
+        wait_breakpoint(op, job_count=6)
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 6)
         assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
 
@@ -336,7 +336,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
                 "max_speculative_job_count_per_task": 1,
             },
         )
-        wait_breakpoint(job_count=4)
+        wait_breakpoint(op, job_count=4)
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 4)
         assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
 
@@ -357,7 +357,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             command=with_breakpoint(command),
             spec=spec,
         )
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         return op
@@ -463,7 +463,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
             },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
-        wait_breakpoint(job_count=4)
+        wait_breakpoint(op, job_count=4)
         assert_list_jobs(op.id, "archive")
         assert_list_jobs(op.id, "runtime")
 
@@ -489,7 +489,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
             },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
-        some_job_id = wait_breakpoint(job_count=4)[0]
+        some_job_id = wait_breakpoint(op, job_count=4)[0]
         assert_get_and_list_jobs(op.id, some_job_id)
 
         release_breakpoint()
@@ -524,7 +524,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         assert_list_jobs(op.id, "runtime")
 
         release_breakpoint()
@@ -539,7 +539,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         }
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         jobs = get_sorted_jobs(op)
         release_breakpoint(job_id=jobs[0]["id"])
@@ -587,7 +587,7 @@ class TestSpeculativeJobsOther(YTEnvSetup):
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
         assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
 
@@ -611,7 +611,7 @@ class TestSpeculativeJobsOther(YTEnvSetup):
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         original, speculative = get_sorted_jobs(op)
 
         abort_job(original["id"])

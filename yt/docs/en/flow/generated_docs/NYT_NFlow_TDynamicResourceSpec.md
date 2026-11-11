@@ -8,7 +8,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Default value**: `{}`
 Dynamic parameters of the user resource class. ||
-|| `file_providers` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileProviderIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileProviderSpec](./all_yson_structs#NYT_NFlow_TDynamicFileProviderSpec)`>>`
+|| `file_providers` | **Type**: `THashMap<`[NYT::NFlow::TFileProviderId](./all_yson_structs#NYT_NFlow_TFileProviderId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileProviderSpec](./all_yson_structs#NYT_NFlow_TDynamicFileProviderSpec)`>>`
 **Default value**: `{}`
 Dynamic parameters of the resource's named file providers. Changing the parameters immediately schedules discovery of the corresponding provider. ||
 || `file_provider_discover_period` | **Type**: [TDuration](./all_yson_structs#TDuration)

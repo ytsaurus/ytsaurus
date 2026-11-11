@@ -520,6 +520,9 @@ struct TStrategyTreeConfig
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
+    int MaxAccumulatedUsageLogPoolBatchSize;
+    int MaxAccumulatedUsageLogOperationBatchSize;
+
     TDuration AccumulatedResourceDistributionUpdatePeriod;
 
     bool AllowAggressivePreemptionForGangOperations;
@@ -575,6 +578,9 @@ struct TStrategyTreeConfig
     bool EnableDetailedLogsForStarvingOperations;
 
     bool EnableDetailedLogsForSingleAllocationVanillaOperations;
+
+    //! Log operation_scheduling_started/finished events to the scheduler structured log.
+    bool EnableSchedulingStatusLogging;
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
@@ -747,6 +753,9 @@ struct TTestingOptions
 
     // Testing option that enables sleeping after creation of operation node, but before creation of secure vault node.
     TDelayConfigPtr SecureVaultCreationDelay;
+
+    // Testing option that delays fetching finished operation attributes by the operations cleaner.
+    TDelayConfigPtr OperationsCleanerFetchDelay;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 

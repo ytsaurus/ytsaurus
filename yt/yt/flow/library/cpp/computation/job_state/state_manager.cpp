@@ -263,6 +263,16 @@ void TJobStateManager::Sync(IRetryableTransactionPtr transaction)
     }
 }
 
+void TJobStateManager::ErasePartitionState(
+    IRetryableTransactionPtr transaction,
+    const std::string& name)
+{
+    YT_VERIFY(transaction);
+    Context_->PartitionStates->Erase(
+        transaction,
+        std::vector<NTables::IPartitionStates::TTableKey>{{Context_->PartitionId, name}});
+}
+
 IJobInitContextPtr TJobStateManager::CreateContext(std::string prefix)
 {
     if (!prefix.empty()) {
@@ -318,6 +328,7 @@ TExternalStateManagerContextPtr TJobStateManager::CreateExternalStateManagerCont
     auto result = New<TExternalStateManagerContext>();
     result->ExternalStateManagerSpec = spec;
     result->StateCache = context->StateCache ? context->StateCache->WithName(name) : nullptr;
+    result->EpochUniqueSeqNoProvider = context->EpochUniqueSeqNoProvider;
     result->KeySchema = context->KeySchema;
     result->ClientsCache = context->ClientsCache;
     result->StaticResources = context->StaticResources;

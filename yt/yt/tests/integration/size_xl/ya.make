@@ -1,5 +1,7 @@
 PY3TEST()
 
+SET(YT_SIZE_TESTS_BUNDLE yes)
+
 IF (SANITIZER_TYPE)
     SET(YT_SPLIT_FACTOR 75)
 ELSE()
@@ -15,6 +17,8 @@ ENDIF()
 ENV(YT_TEST_FILTER=XLARGE)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
+
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(

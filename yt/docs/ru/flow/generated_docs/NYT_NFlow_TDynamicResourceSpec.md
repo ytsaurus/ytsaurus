@@ -8,7 +8,7 @@
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Значение по умолчанию**: `{}`
 Динамические параметры пользовательского класса ресурса. ||
-|| `file_providers` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileProviderIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileProviderSpec](./all_yson_structs#NYT_NFlow_TDynamicFileProviderSpec)`>>`
+|| `file_providers` | **Тип**: `THashMap<`[NYT::NFlow::TFileProviderId](./all_yson_structs#NYT_NFlow_TFileProviderId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileProviderSpec](./all_yson_structs#NYT_NFlow_TDynamicFileProviderSpec)`>>`
 **Значение по умолчанию**: `{}`
 Динамические параметры именованных файловых провайдеров ресурса. Изменение параметров немедленно запускает discovery соответствующего провайдера. ||
 || `file_provider_discover_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)

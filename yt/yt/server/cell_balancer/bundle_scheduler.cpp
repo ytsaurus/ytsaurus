@@ -41,11 +41,11 @@ std::string GenerateShortNameForBundle(
         return shortName;
     }
 
-    shortName.resize(maxLength - 1);
+    shortName = shortName.substr(0, maxLength - 1);
 
     for (int index = 1; index < 100; ++index) {
         if (index == 10) {
-            shortName.resize(maxLength - 2);
+            shortName = shortName.substr(0, maxLength - 2);
         }
 
         auto proposed = Format("%v%v", shortName, index);
@@ -828,6 +828,7 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         bundleConfig->CpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
         bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
         bundleConfig->MediumThroughputLimits = NYTree::CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
+        bundleConfig->FairSharePoolWeights = bundleInfo->TargetConfig->FairSharePoolWeights;
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 

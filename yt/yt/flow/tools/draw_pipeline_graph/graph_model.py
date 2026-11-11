@@ -46,13 +46,19 @@ class ComputationSystemWatermarks:
 @dataclasses.dataclass
 class Computation:
     computation_id: str
-    spec: dict
+    class_name: str = ""
+    group_by: str = ""
+    state_path: str = ""
+    processing_mode: str = "exactly_once"
+    read_delays: dict = dataclasses.field(default_factory=dict)  # blocker stream -> delay, for labels
     output_streams: set[str] = dataclasses.field(default_factory=set)  # output + timer
     input_streams: set[str] = dataclasses.field(default_factory=set)  # source + input + timer
+    # output stream -> input streams it depends on (unrolled graph).
+    streams_dependency: dict[str, set[str]] = dataclasses.field(default_factory=dict)
 
     total_partition_count: int = 0
-    total_job_count: int = 0
-    unstable_job_count: int = 0  # recovering/warming
+    # Partitions without a job or with a job younger than 5 minutes.
+    unstable_partition_count: int = 0
     retryable_errors_partition_count: int = 0
 
     retryable_errors: dict = dataclasses.field(default_factory=dict)
@@ -70,8 +76,11 @@ class EntityLimitStatus:
     used: float = 0
     limit: float = 0
     pending: Optional[float] = None
+    # The partition with the largest fill ratio.
     partition_id: str = ""
     blocked_time_share: float = 0
+    # The partition with the largest blocked-time share, if it differs from |partition_id|.
+    blocked_partition_id: Optional[str] = None
 
     def get_fill_rate(self):
         return self.used / max(1, self.limit)
@@ -106,6 +115,26 @@ class EdgeLimitInfo:
 
 
 @dataclasses.dataclass
+class Endpoint:
+    """A source or a sink, keyed by its describe graph entity id (`src-…`, `snk-…`)."""
+
+    entity_id: str
+    name: str
+    class_name: str
+    # Streams of this graph: the stream a source feeds, or the streams a sink reads.
+    stream_ids: list[str] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class DataChannelEdge:
+    """A sink writes and a source reads the same data channel (describe `edges` of kind `data_channel`)."""
+
+    sink_id: str
+    source_id: str
+    label: str
+
+
+@dataclasses.dataclass
 class Graph:
     streams: dict[str, Stream]
     computations: dict[str, Computation]
@@ -117,6 +146,14 @@ class Graph:
     monitoring_attributes: Optional[dict] = None
     cluster_name: Optional[str] = None
     pipeline_path: Optional[str] = None
+
+    # (blocker_stream_id, delayed_stream_id, delay)
+    read_delay_edges: list[tuple[str, str, object]] = dataclasses.field(default_factory=list)
+
+    # Describe graph entity id -> source or sink.
+    sources: dict[str, Endpoint] = dataclasses.field(default_factory=dict)
+    sinks: dict[str, Endpoint] = dataclasses.field(default_factory=dict)
+    data_channel_edges: list[DataChannelEdge] = dataclasses.field(default_factory=list)
 
 
 def make_unique_stream_ids(spec):
@@ -170,10 +207,77 @@ def make_unique_stream_ids(spec):
     return spec, raw_to_full
 
 
-def _update_edge_limit_info(
-    edge_limit_info: EdgeLimitInfo, limit_type: str, stream_id: str, raw_status: dict, partition_id: str
-):
-    """Update EdgeLimitInfo for a given limit_type/stream_id with data from one partition.
+def make_global_stream_id(computation_id, raw_stream_id, computation_spec):
+    """The describe id of a stream: internal streams are prefixed as "{computation_id}/{stream_id}"
+    (MakeGlobalStreamId in common/spec.cpp). The flow-view build keeps its own "{computation_id}.{stream_id}" ids."""
+    external_stream_ids = computation_spec.get("input_stream_ids", []) + computation_spec.get("output_stream_ids", [])
+    return raw_stream_id if raw_stream_id in external_stream_ids else f"{computation_id}/{raw_stream_id}"
+
+
+def make_endpoints(spec, raw_to_full_stream_id):
+    """Sources and sinks of the spec with their describe graph entity ids (MakeSourceGraphId and MakeSinkGraphId)."""
+    sources = {}
+    sinks = {}
+    for computation_id, computation_spec in spec["computations"].items():
+        mapping = raw_to_full_stream_id.get(computation_id, {})
+        for raw_stream_id, source_spec in computation_spec["source_streams"].items():
+            full_stream_id = mapping.get(raw_stream_id, raw_stream_id)
+            global_stream_id = make_global_stream_id(computation_id, raw_stream_id, computation_spec)
+            entity_id = f"src-{global_stream_id}"
+            sources[entity_id] = Endpoint(
+                entity_id=entity_id,
+                name=global_stream_id,
+                class_name=source_spec.get("source_class_name", ""),
+                stream_ids=[full_stream_id],
+            )
+        for sink_id, sink_spec in computation_spec["sinks"].items():
+            if not sink_spec["input_stream_ids"]:
+                continue
+            name = f"{computation_id}/{sink_id}"
+            entity_id = f"snk-{name}"
+            sinks[entity_id] = Endpoint(
+                entity_id=entity_id,
+                name=name,
+                class_name=sink_spec.get("sink_class_name", ""),
+                stream_ids=sorted(mapping.get(stream_id, stream_id) for stream_id in sink_spec["input_stream_ids"]),
+            )
+    return sources, sinks
+
+
+def attach_data_channel_edges(graph, describe):
+    """Merge the data-channel `edges` of a describe-pipeline output into the graph; edges of other kinds and edges
+    between entities absent from the graph are skipped."""
+    for edge in describe.get("edges", []):
+        if edge.get("kind") != "data_channel":
+            continue
+        if edge["from"] not in graph.sinks or edge["to"] not in graph.sources:
+            continue
+        graph.data_channel_edges.append(
+            DataChannelEdge(sink_id=edge["from"], source_id=edge["to"], label=str(edge.get("label", "")))
+        )
+
+
+def fetch_describe(yt_client, pipeline_path):
+    """Return the controller's describe-pipeline output, or None with a warning when it is unavailable."""
+    try:
+        describe = yt_client.flow_execute(pipeline_path, flow_command="describe-pipeline")
+    except Exception as ex:
+        logging.warning(
+            "Failed to describe the pipeline; the graph is built from the flow view, data-channel edges are not shown: %s",
+            ex,
+        )
+        return None
+    if "edges" not in describe:
+        logging.warning(
+            "The controller is too old to report graph edges; the graph is built from the flow view, "
+            "data-channel edges are not shown"
+        )
+        return None
+    return describe
+
+
+def _update_edge_limit_info(edge_limit_info: EdgeLimitInfo, limit_type: str, raw_status: dict, partition_id: str):
+    """Update EdgeLimitInfo for a given limit_type with data from one partition.
 
     Keeps the partition with the highest fill rate.
     """
@@ -192,37 +296,238 @@ def _update_edge_limit_info(
         edge_limit_info.by_type[limit_type] = new_status
 
 
-def get_graph(args):
-    if hasattr(args, "pipeline_path"):
-        config = yt.default_config.get_config_from_env()
-        config["backend"] = "rpc"
-        yt_client = yt.YtClient(proxy=args.cluster_name, config=config)
-        # Raise the per-request timeout; the default RPC timeout is too low for heavy pipelines.
-        timeout_s = getattr(args, "timeout", None)
-        if timeout_s is not None:
-            yt.config.set_command_param("timeout", int(timeout_s * 1000), yt_client)
-        monitoring_attributes = yt_client.get(
-            args.pipeline_path, attributes=["monitoring_project", "monitoring_cluster"]
-        ).attributes
-        flow_view = get_flow_view(yt_client, args.pipeline_path, cache=True)
-    else:
-        monitoring_attributes = None
-        with open(args.local_path, "rb") as f:
-            flow_view = yson.load(f)
+def _get_group_by_columns(computation_spec):
+    schema = computation_spec.get("group_by_schema") or []
+    if isinstance(schema, dict):
+        schema = schema["$value"]
+    return [c.get("expression", c["name"]) for c in schema]
 
-    logging.info("Loaded flow view")
+
+def _fill_stream_specs(streams, computation_specs, to_stream_id):
+    """Source and sink specs that dot prints on the stream nodes; describe has only their parameters."""
+    for computation_id, computation_spec in computation_specs.items():
+        for raw_stream_id, source_spec in computation_spec["source_streams"].items():
+            stream = streams.get(to_stream_id(computation_id, raw_stream_id))
+            if stream is not None:
+                stream.source_stream_spec = source_spec
+        for sink_spec in computation_spec["sinks"].values():
+            for raw_stream_id in sink_spec["input_stream_ids"]:
+                stream = streams.get(to_stream_id(computation_id, raw_stream_id))
+                if stream is not None:
+                    spec_copy = dict(sink_spec)
+                    spec_copy.pop("input_stream_ids")
+                    stream.sink_stream_specs.append(spec_copy)
+
+
+def _apply_job_statuses(flow_view, computations, raw_specs, to_stream_id, collect_limits):
+    """Enrich computations with the per-job data that describe lacks; return (is_full, job_counts, input_edges,
+    output_edges). The limits are collected only for the flow-view build."""
     is_full = True
+    partitions = flow_view["state"]["execution_spec"]["layout"]["partitions"]
+    now = time.time()
+    now_iso8601 = datetime.datetime.fromtimestamp(now, datetime.UTC).isoformat()
 
+    job_counts = defaultdict(lambda: [0, 0])  # computation_id -> [total_job_count, unstable_job_count]
+    input_edges = {}
+    output_edges = {}
+
+    for partition_id, partition_job_status in flow_view["feedback"].get("partition_job_statuses", {}).items():
+        current_job_status = partition_job_status.get("current_job_status")
+        if current_job_status is None:
+            if is_full:
+                logging.warning("Graph is not full because partition %s has no current_job_status field", partition_id)
+            is_full = False
+            continue
+
+        computation_id = partitions[partition_id]["computation_id"]
+        computation = computations.get(computation_id)
+        if computation is None:
+            continue
+        raw_spec = raw_specs[computation_id]
+
+        performance_metrics = current_job_status["performance_metrics"]
+        cpu_usage_30s = performance_metrics.get("cpu_usage_30s", 0)
+        inited_time = datetime.datetime.fromisoformat(current_job_status.get("inited_time", now_iso8601)).timestamp()
+        retryable_errors = current_job_status.get("retryable_errors", {})
+
+        job_counts[computation_id][0] += 1
+        job_counts[computation_id][1] += now - inited_time < 5 * 60  # 5 min.
+        computation.retryable_errors_partition_count += len(retryable_errors) > 0
+        computation.max_cpu_usage = max(computation.max_cpu_usage, (cpu_usage_30s, partition_id))
+        computation.retryable_errors.update(retryable_errors)
+
+        for stream_id, stream_traverse in partition_job_status["last_traverse_data"]["node"]["streams"].items():
+            if stream_id in raw_spec["output_stream_ids"] or stream_id in raw_spec["timer_streams"]:
+                computation.system_watermarks.update(stream_traverse["system_watermark"], partition_id)
+
+        # Epoch part times.
+        epoch_part_times = current_job_status.get("epoch_part_times", {})
+        if epoch_part_times:
+            total_time = sum(epoch_part_times.values())
+            if total_time > 0:
+                job_aggr_times = defaultdict(float)
+                for part_name, part_wall_time in epoch_part_times.items():
+                    job_aggr_times[part_name.split(".")[0]] += part_wall_time / total_time
+
+                wall_times = computation.epoch_parts_wall_time
+                for part_name, part_wall_time in job_aggr_times.items():
+                    wall_times.max_time[part_name] = max(wall_times.max_time[part_name], part_wall_time)
+                    wall_times.total_time[part_name] += part_wall_time
+
+        if not collect_limits:
+            continue
+        # Input limits (input_buffer_bytes, max_read_window_seconds, etc.) and
+        # output limits (output_buffer_bytes, controller, etc.).
+        for limits_key, edges in (("input_limits", input_edges), ("output_limits", output_edges)):
+            for limit_type, streams_statuses in current_job_status.get(limits_key, {}).items():
+                for raw_stream_id, raw_status in streams_statuses.items():
+                    stream_id = to_stream_id(computation_id, raw_stream_id)
+                    edge = edges.setdefault((computation_id, stream_id), EdgeLimitInfo())
+                    _update_edge_limit_info(edge, limit_type, raw_status, partition_id)
+
+    return is_full, job_counts, input_edges, output_edges
+
+
+def _build_from_describe(describe, flow_view):
+    """The model from describe-pipeline, enriched from the flow view where describe lacks the data: source and sink
+    specs for dot, the processing mode, and the per-job CPU usage, retryable errors, epoch part times and watermarks."""
+    raw_specs = flow_view["current_spec"]["value"]["computations"]
+
+    # Describe stream graph entity id -> stream id of the model (the describe global stream id).
+    stream_ids = {}
+    streams = {}
+    for global_stream_id, stream in describe.get("streams", {}).items():
+        stream_id = str(stream.get("global_name") or global_stream_id)
+        stream_ids[stream["id"]] = stream_id
+        streams[stream_id] = Stream(stream_id=stream_id)
+
+    def to_stream_ids(graph_ids):
+        return {stream_ids[graph_id] for graph_id in graph_ids if graph_id in stream_ids}
+
+    def to_stream_id(computation_id, raw_stream_id):
+        return make_global_stream_id(computation_id, raw_stream_id, raw_specs.get(computation_id, {}))
+
+    def to_edge_limit_info(limit_stats):
+        info = EdgeLimitInfo()
+        for limit_type, stats in limit_stats.items():
+            max_status = stats.get("max", {})
+            info.by_type[limit_type] = EntityLimitStatus(
+                used=max_status.get("used", 0),
+                limit=max_status.get("limit", 0),
+                pending=max_status.get("pending"),
+                partition_id=str(stats.get("max_partition_id", "")),
+                blocked_time_share=stats.get("max_blocked_time_share", 0),
+                blocked_partition_id=str(stats.get("max_blocked_partition_id", "")),
+            )
+        return info
+
+    computations = {}
+    input_edges = {}
+    output_edges = {}
+    for computation_id, description in describe.get("computations", {}).items():
+        computation_id = str(computation_id)
+        raw_spec = raw_specs.get(computation_id, {})
+        computation = Computation(
+            computation_id=computation_id,
+            class_name=str(description.get("class_name", "")),
+            group_by=str(description.get("group_by_schema_str", "")),
+            state_path=str(description.get("state_path", "")),
+            processing_mode=raw_spec.get("parameters", {}).get("processing_mode", "exactly_once"),
+            read_delays={str(k): v for k, v in description.get("read_delays", {}).items()},
+            input_streams=to_stream_ids(
+                list(description.get("input_streams", []))
+                + list(description.get("source_streams", []))
+                + list(description.get("timer_streams", []))
+            ),
+            output_streams=to_stream_ids(
+                list(description.get("output_streams", [])) + list(description.get("timer_streams", []))
+            ),
+            streams_dependency={
+                stream_ids[output_id]: to_stream_ids(input_ids)
+                for output_id, input_ids in description.get("streams_dependency", {}).items()
+                if output_id in stream_ids
+            },
+            total_partition_count=description.get("total_partition_count", 0),
+            unstable_partition_count=description.get("unstable_partition_count", 0),
+        )
+        computations[computation_id] = computation
+        for stream_id in computation.input_streams:
+            streams[stream_id].reading_computations.add(computation_id)
+        for limits_key, edges in (("input_limit_stats", input_edges), ("output_limit_stats", output_edges)):
+            for graph_id, limit_stats in description.get(limits_key, {}).items():
+                if graph_id in stream_ids:
+                    edges[(computation_id, stream_ids[graph_id])] = to_edge_limit_info(limit_stats)
+
+    _fill_stream_specs(streams, {k: v for k, v in raw_specs.items() if k in computations}, to_stream_id)
+    is_full, _, _, _ = _apply_job_statuses(flow_view, computations, raw_specs, to_stream_id, collect_limits=False)
+
+    sources = {}
+    for name, source in describe.get("sources", {}).items():
+        sources[source["id"]] = Endpoint(
+            entity_id=source["id"],
+            name=str(name),
+            class_name=str(source.get("description", "")),
+            stream_ids=sorted(to_stream_ids([source.get("stream_id")])),
+        )
+    sinks = {}
+    for name, sink in describe.get("sinks", {}).items():
+        sinks[sink["id"]] = Endpoint(
+            entity_id=sink["id"],
+            name=str(name),
+            class_name=str(sink.get("description", "")),
+            stream_ids=sorted(to_stream_ids(sink.get("stream_ids") or [sink.get("stream_id")])),
+        )
+
+    graph = Graph(
+        streams=streams,
+        computations=computations,
+        input_edges=input_edges,
+        output_edges=output_edges,
+        read_delay_edges=[
+            (
+                stream_ids[edge["blocker_stream_graph_entity_id"]],
+                stream_ids[edge["delayed_stream_graph_entity_id"]],
+                edge.get("delay"),
+            )
+            for edge in describe.get("read_delay_edges", [])
+            if edge.get("blocker_stream_graph_entity_id") in stream_ids
+            and edge.get("delayed_stream_graph_entity_id") in stream_ids
+        ],
+        sources=sources,
+        sinks=sinks,
+    )
+    attach_data_channel_edges(graph, describe)
+    return graph, is_full
+
+
+def _build_from_flow_view(flow_view):
+    """The model from the flow view alone, for controllers without describe-pipeline edges."""
+    raw_specs = flow_view["current_spec"]["value"]["computations"]
     transformed_spec, raw_to_full_stream_id = make_unique_stream_ids(flow_view["current_spec"]["value"])
     computation_specs = transformed_spec["computations"]
-    layout = flow_view["state"]["execution_spec"]["layout"]
-    partitions = layout["partitions"]
+    partitions = flow_view["state"]["execution_spec"]["layout"]["partitions"]
+
+    def to_stream_id(computation_id, raw_stream_id):
+        return raw_to_full_stream_id.get(computation_id, {}).get(raw_stream_id, raw_stream_id)
 
     streams = {}
     computations = {}
-
     for computation_id, computation_spec in computation_specs.items():
-        computations[computation_id] = Computation(computation_id=computation_id, spec=computation_spec)
+        parameters = computation_spec["parameters"]
+        group_by_columns = _get_group_by_columns(computation_spec)
+        watermark_alignment = computation_spec.get("watermark_strategy", {}).get("watermark_alignment", {})
+        computation = Computation(
+            computation_id=computation_id,
+            class_name=computation_spec["computation_class_name"],
+            group_by=repr(group_by_columns) if group_by_columns else "",
+            state_path=parameters.get("state", {}).get("path", ""),
+            processing_mode=parameters.get("processing_mode", "exactly_once"),
+            read_delays=dict(watermark_alignment.get("read_delays", {})),
+            streams_dependency={
+                output_id: set(input_ids) for output_id, input_ids in computation_spec["streams_dependency"].items()
+            },
+        )
+        computations[computation_id] = computation
         for stream_id in (
             computation_spec["input_stream_ids"]
             + computation_spec["output_stream_ids"]
@@ -242,90 +547,70 @@ def get_graph(args):
             streams[stream_id].reading_computations.add(computation_id)
         for stream_id in computation_spec["output_stream_ids"] + list(computation_spec["timer_streams"].keys()):
             computation.output_streams.add(stream_id)
-        for stream_id, source_spec in computation_spec["source_streams"].items():
-            streams[stream_id].source_stream_spec = source_spec
-        for sink_id, sink_spec in computation_spec["sinks"].items():
-            for stream_id in sink_spec["input_stream_ids"]:
-                spec_copy = dict(sink_spec)
-                spec_copy.pop("input_stream_ids")
-                streams[stream_id].sink_stream_specs.append(spec_copy)
 
-    for partition_id, partition in partitions.items():
+    _fill_stream_specs(streams, raw_specs, to_stream_id)
+
+    for partition in partitions.values():
         if partition["state"] == "interrupted" or partition["state"] == "completed":
             continue
         computations[partition["computation_id"]].total_partition_count += 1
 
-    now = time.time()
-    now_iso8601 = datetime.datetime.fromtimestamp(now, datetime.UTC).isoformat()
-
-    input_edges = {}
-    output_edges = {}
-
-    for partition_id, partition_job_status in flow_view["feedback"].get("partition_job_statuses", {}).items():
-        current_job_status = partition_job_status.get("current_job_status")
-        if current_job_status is None:
-            if is_full:
-                logging.warning("Graph is not full because partition %s has no current_job_status field", partition_id)
-            is_full = False
-            continue
-
-        performance_metrics = current_job_status["performance_metrics"]
-        cpu_usage_30s = performance_metrics.get("cpu_usage_30s", 0)
-        inited_time = datetime.datetime.fromisoformat(current_job_status.get("inited_time", now_iso8601)).timestamp()
-        retryable_errors = current_job_status.get("retryable_errors", {})
-
-        computation_id = partitions[partition_id]["computation_id"]
-        computation = computations[computation_id]
-        computation.total_job_count += 1
-        computation.unstable_job_count += now - inited_time < 5 * 60  # 5 min.
-        computation.retryable_errors_partition_count += len(retryable_errors) > 0
-        computation.max_cpu_usage = max(computation.max_cpu_usage, (cpu_usage_30s, partition_id))
-        computation.retryable_errors.update(retryable_errors)
-
-        for stream_id, stream_traverse in partition_job_status["last_traverse_data"]["node"]["streams"].items():
-            if stream_id in computation.spec["output_stream_ids"] or stream_id in computation.spec["timer_streams"]:
-                computation.system_watermarks.update(stream_traverse["system_watermark"], partition_id)
-
-        # Epoch part times.
-        epoch_part_times = current_job_status.get("epoch_part_times", {})
-        if epoch_part_times:
-            total_time = sum(epoch_part_times.values())
-            if total_time > 0:
-                job_aggr_times = defaultdict(float)
-                for part_name, part_wall_time in epoch_part_times.items():
-                    job_aggr_times[part_name.split(".")[0]] += part_wall_time / total_time
-
-                wall_times = computation.epoch_parts_wall_time
-                for part_name, part_wall_time in job_aggr_times.items():
-                    wall_times.max_time[part_name] = max(wall_times.max_time[part_name], part_wall_time)
-                    wall_times.total_time[part_name] += part_wall_time
-
-        stream_id_map = raw_to_full_stream_id.get(computation_id, {})
-
-        # Input limits (input_buffer_bytes, max_read_window_seconds, etc.).
-        for limit_type, streams_statuses in current_job_status.get("input_limits", {}).items():
-            for raw_stream_id, raw_status in streams_statuses.items():
-                full_stream_id = stream_id_map.get(raw_stream_id, raw_stream_id)
-                edge = input_edges.setdefault((computation_id, full_stream_id), EdgeLimitInfo())
-                _update_edge_limit_info(edge, limit_type, full_stream_id, raw_status, partition_id)
-
-        # Output limits (output_buffer_bytes, output_store_bytes, output_store_count,
-        # controller, etc.).
-        for limit_type, streams_statuses in current_job_status.get("output_limits", {}).items():
-            for raw_stream_id, raw_status in streams_statuses.items():
-                full_stream_id = stream_id_map.get(raw_stream_id, raw_stream_id)
-                edge = output_edges.setdefault((computation_id, full_stream_id), EdgeLimitInfo())
-                _update_edge_limit_info(edge, limit_type, full_stream_id, raw_status, partition_id)
-
-    return (
-        Graph(
-            streams=streams,
-            computations=computations,
-            input_edges=input_edges,
-            output_edges=output_edges,
-            monitoring_attributes=monitoring_attributes,
-            cluster_name=getattr(args, "cluster_name", None),
-            pipeline_path=getattr(args, "pipeline_path", None),
-        ),
-        is_full,
+    is_full, job_counts, input_edges, output_edges = _apply_job_statuses(
+        flow_view, computations, raw_specs, to_stream_id, collect_limits=True
     )
+    for computation in computations.values():
+        total_job_count, unstable_job_count = job_counts[computation.computation_id]
+        computation.unstable_partition_count = unstable_job_count + (
+            computation.total_partition_count - total_job_count
+        )
+
+    read_delay_edges = []
+    for computation_id, computation in computations.items():
+        if not computation.read_delays:
+            continue
+        for delayed_stream_id in computation_specs[computation_id]["source_streams"].keys():
+            for blocker_stream_id, delay_duration in computation.read_delays.items():
+                read_delay_edges.append((blocker_stream_id, delayed_stream_id, delay_duration))
+
+    graph = Graph(
+        streams=streams,
+        computations=computations,
+        input_edges=input_edges,
+        output_edges=output_edges,
+        read_delay_edges=read_delay_edges,
+    )
+    graph.sources, graph.sinks = make_endpoints(flow_view["current_spec"]["value"], raw_to_full_stream_id)
+    return graph, is_full
+
+
+def get_graph(args):
+    """Build the graph model primarily from describe-pipeline; without it, from the flow view alone."""
+    if hasattr(args, "pipeline_path"):
+        config = yt.default_config.get_config_from_env()
+        config["backend"] = "rpc"
+        yt_client = yt.YtClient(proxy=args.cluster_name, config=config)
+        # Raise the per-request timeout; the default RPC timeout is too low for heavy pipelines.
+        timeout_s = getattr(args, "timeout", None)
+        if timeout_s is not None:
+            yt.config.set_command_param("timeout", int(timeout_s * 1000), yt_client)
+        monitoring_attributes = yt_client.get(
+            args.pipeline_path, attributes=["monitoring_project", "monitoring_cluster"]
+        ).attributes
+        flow_view = get_flow_view(yt_client, args.pipeline_path, cache=True)
+        describe = fetch_describe(yt_client, args.pipeline_path)
+    else:
+        monitoring_attributes = None
+        describe = None
+        with open(args.local_path, "rb") as f:
+            flow_view = yson.load(f)
+
+    logging.info("Loaded flow view")
+
+    if describe is not None:
+        graph, is_full = _build_from_describe(describe, flow_view)
+    else:
+        graph, is_full = _build_from_flow_view(flow_view)
+    graph.monitoring_attributes = monitoring_attributes
+    graph.cluster_name = getattr(args, "cluster_name", None)
+    graph.pipeline_path = getattr(args, "pipeline_path", None)
+    return graph, is_full

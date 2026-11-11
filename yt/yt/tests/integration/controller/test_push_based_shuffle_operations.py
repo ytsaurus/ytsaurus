@@ -456,7 +456,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
         rows = self._make_rows()
         op = self._start_map_reduce(rows, "cat; BREAKPOINT")
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         self._wait_for_intermediate_sort_job(op)
 
         release_breakpoint()
@@ -476,7 +476,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
             map_job_count=1,
             mapper_format="dsv")
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def first_batch_sorted():
             job_counter = self._get_intermediate_sort_job_counter(op)
@@ -491,7 +491,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
         first_batch_job_count = self._get_intermediate_sort_job_counter(op)["completed"]["total"]
 
         release_breakpoint()
-        wait_breakpoint(breakpoint_name="second_batch")
+        wait_breakpoint(op, breakpoint_name="second_batch")
         wait(
             lambda: self._get_intermediate_sort_job_counter(op)["completed"]["total"] > first_batch_job_count,
             timeout=30)
@@ -506,7 +506,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
         rows = self._make_rows()
         op = self._start_map_reduce(rows, "cat; BREAKPOINT")
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         self._wait_for_intermediate_sort_job(op)
 
         abort_job(job_ids[0])
@@ -529,7 +529,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
         input_dir = create_tmpdir("mapper_input")
         op = self._start_map_reduce(rows, "tee {}/$YT_JOB_ID; BREAKPOINT".format(input_dir))
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         self._wait_for_intermediate_sort_job(op)
 
         abandon_job(job_ids[0])
@@ -600,7 +600,7 @@ class TestPushBasedShuffleSessionFailures(TestPushBasedShuffleKeyValueBase):
         self._create_tables()
         op = self._run_map_reduce(with_intermediate_sort=True)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         release_breakpoint(job_id=job_ids[0])
 
         journal_chunk_nodes = self._get_journal_chunk_nodes()
@@ -622,7 +622,7 @@ class TestPushBasedShuffleSessionFailures(TestPushBasedShuffleKeyValueBase):
         self._create_tables()
         op = self._run_map_reduce(with_intermediate_sort)
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -679,7 +679,7 @@ class TestPushBasedShuffleRevival(TestPushBasedShuffleBase):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -747,7 +747,7 @@ class TestPushBasedShuffleIntermediateAccountAndMedium(TestPushBasedShuffleBase)
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         wait(lambda: len(self._get_journal_chunk_requisitions()) >= 2)
 
         for requisition in self._get_journal_chunk_requisitions():

@@ -17,6 +17,9 @@ Warm-up period when the controller starts. ||
 || `scheduler_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `5s`
 Scheduler invocation period. ||
+|| `no_spec_iteration_backoff` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `1s`
+ ||
 || `cache_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1s`
  ||

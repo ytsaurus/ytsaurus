@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 import javax.persistence.Entity;
 
@@ -128,7 +129,12 @@ class FlowLauncherTest {
     }
 
     private YTreeMapNode worker() {
-        return config.mapNode().getOrThrow("vanilla").mapNode().getOrThrow("worker").mapNode();
+        return worker(config);
+    }
+
+    private static YTreeMapNode worker(YTreeNode config) {
+        var vanilla = config.mapNode().getOrThrow("vanilla").mapNode();
+        return vanilla.getOrThrow("worker").mapNode();
     }
 
     private YTreeMapNode controller() {
@@ -144,14 +150,21 @@ class FlowLauncherTest {
     }
 
     private YTreeMapNode companionResource() {
-        return config.mapNode()
-                .getOrThrow("spec").mapNode()
-                .getOrThrow("resources").mapNode()
-                .getOrThrow("CompanionManager").mapNode();
+        return companionResource(config);
+    }
+
+    private static YTreeMapNode companionResource(YTreeNode config) {
+        var spec = config.mapNode().getOrThrow("spec").mapNode();
+        var resources = spec.getOrThrow("resources").mapNode();
+        return resources.getOrThrow("CompanionManager").mapNode();
     }
 
     private YTreeMapNode companionParameters() {
-        return companionResource().getOrThrow("parameters").mapNode();
+        return companionParameters(config);
+    }
+
+    private static YTreeMapNode companionParameters(YTreeNode config) {
+        return companionResource(config).getOrThrow("parameters").mapNode();
     }
 
     @Test
@@ -762,8 +775,7 @@ class FlowLauncherTest {
         byte[] binary = {(byte) 0xff, 0, (byte) 0x80};
         byte[] original = Files.readAllBytes(Path.of(pipelinePath));
         assertEquals(0, launcher.launch(pipelinePath, script.toString(), enriched -> {
-            assertTrue(enriched.mapNode().getOrThrow("vanilla").mapNode().getOrThrow("worker")
-                    .mapNode().containsKey("local_files"));
+            assertTrue(worker(enriched).containsKey("local_files"));
             var result = YTree.deepCopy(enriched);
             result.mapNode().put("derived", YTree.bytesNode(binary));
             return result;
@@ -773,6 +785,60 @@ class FlowLauncherTest {
         assertArrayEquals(original, Files.readAllBytes(Path.of(pipelinePath)));
         Path temporary = Path.of(Files.readString(Path.of(script + ".config-path")));
         assertFalse(Files.exists(temporary.getParent()));
+    }
+
+    @Test
+    void testPreviewAndLaunchShareEnrichmentValidationAndBinarySerialization() throws Exception {
+        Path script = recordingFlowServer();
+        env.setVar(FlowLauncher.ENV_VAR_YT_FLOW_BIN, script.toString());
+        byte[] original = Files.readAllBytes(Path.of(pipelinePath));
+        byte[] binary = {(byte) 0xff, 0, (byte) 0x80};
+        UnaryOperator<YTreeNode> transform = enriched -> {
+            assertTrue(worker(enriched).containsKey("local_files"));
+            var result = YTree.deepCopy(enriched);
+            result.mapNode().put("binary", YTree.bytesNode(binary));
+            result.getAttributes().put("keep", YTree.booleanNode(true));
+            return result;
+        };
+        Path preview = tempDir.resolve("preview.yson");
+
+        launcher.writeConfig(pipelinePath, preview, transform);
+
+        assertFalse(Files.exists(Path.of(script + ".config")));
+        var prepared = loadConfig(preview.toString());
+        assertArrayEquals(binary, prepared.mapNode().getOrThrow("binary").bytesValue());
+        assertEquals(YTree.booleanNode(true), prepared.getAttributes().get("keep"));
+        assertEquals(0, launcher.launch(pipelinePath, script.toString(), transform));
+        assertArrayEquals(Files.readAllBytes(preview), Files.readAllBytes(Path.of(script + ".config")));
+        assertArrayEquals(original, Files.readAllBytes(Path.of(pipelinePath)));
+    }
+
+    @Test
+    void testRejectedPreviewDoesNotOverwriteAnExistingOutput() throws IOException {
+        Path preview = tempDir.resolve("preview.yson");
+        Files.writeString(preview, "keep this output");
+        var original = Files.readAllBytes(preview);
+
+        assertThrows(IllegalStateException.class, () -> launcher.writeConfig(pipelinePath, preview, config -> {
+            companionParameters(config).remove("main_class");
+            return config;
+        }));
+
+        assertArrayEquals(original, Files.readAllBytes(preview));
+    }
+
+    @Test
+    void testPreviewCannotOverwriteItsSourceEvenThroughAnAlias() throws IOException {
+        Path input = writeConfig(config);
+        byte[] original = Files.readAllBytes(input);
+        Path alias = tempDir.resolve("input-alias.yson");
+        Files.createSymbolicLink(alias, input);
+        for (Path output : List.of(input, alias)) {
+            var error = assertThrows(IllegalArgumentException.class,
+                    () -> launcher.writeConfig(input.toString(), output, UnaryOperator.identity()));
+            assertTrue(error.getMessage().contains("must differ"), error.getMessage());
+            assertArrayEquals(original, Files.readAllBytes(input));
+        }
     }
 
     @Test
@@ -788,8 +854,7 @@ class FlowLauncherTest {
     void testFinalValidationChecksTheTransformedConfig() throws Exception {
         Path script = recordingFlowServer();
         assertThrows(IllegalStateException.class, () -> launcher.launch(pipelinePath, script.toString(), config -> {
-            config.mapNode().getOrThrow("spec").mapNode().getOrThrow("resources").mapNode()
-                    .getOrThrow("CompanionManager").mapNode().getOrThrow("parameters").mapNode().remove("main_class");
+            companionParameters(config).remove("main_class");
             return config;
         }));
         assertFalse(Files.exists(Path.of(script + ".config")));

@@ -8,13 +8,13 @@
 || `target_state` | **Тип**: [NYT::NFlow::EPipelineState](./all_yson_structs#NYT_NFlow_EPipelineState)
 **Значение по умолчанию**: `unknown`
 Целевое состояние системы. Для изменения используйте команды `start-pipeline`, `stop-pipeline`, `pause-pipeline`. ||
-|| `computations` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicComputationSpec](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec)`>>`
+|| `computations` | **Тип**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicComputationSpec](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec)`>>`
 **Значение по умолчанию**: `{}`
 Именованное перечисление всех узлов пайплайна. ||
-|| `resources` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicResourceSpec](./all_yson_structs#NYT_NFlow_TDynamicResourceSpec)`>>`
+|| `resources` | **Тип**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicResourceSpec](./all_yson_structs#NYT_NFlow_TDynamicResourceSpec)`>>`
 **Значение по умолчанию**: `{}`
  ||
-|| `throttlers` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
+|| `throttlers` | **Тип**: `THashMap<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
 **Значение по умолчанию**: `{}`
 Набор именованных распределённых троттлеров, общих для всех `Computation` пайплайна. Ключи являются id троттлеров и должны соответствовать `[0-9A-Za-z_-]+`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `job_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
@@ -35,6 +35,9 @@
 || `enable_mermaid_graph_describe` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||
+|| `enable_united_stream_metrics` | **Тип**: `bool`
+**Значение по умолчанию**: `true`
+Включает экспорт метрик агрегированных стримов в Мониторинг (`true` по умолчанию). Значение `false` отключает этот экспорт, поэтому зависимые алерты, дашборды и отчёты перестают получать данные. Параметр влияет только на экспорт метрик; метрики отдельных стримов продолжают экспортироваться. ||
 || `flow_view_cache_codec` | **Тип**: [NYT::NCompression::ECodec](./all_yson_structs#NYT_NCompression_ECodec)
 **Значение по умолчанию**: `zstd_2`
  ||

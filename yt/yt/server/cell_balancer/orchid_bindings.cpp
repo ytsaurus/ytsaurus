@@ -1,6 +1,7 @@
 #include "orchid_bindings.h"
 
 #include "config.h"
+#include "helpers.h"
 #include "input_state.h"
 #include "mutations.h"
 #include "pod_id_helpers.h"
@@ -188,7 +189,7 @@ void PopulateAllocatingInstances(
         instanceInfo = New<TInstanceInfo>();
         orchidInfo->HulkRequestState = request->Status->State;
         instanceInfo->PodId = request->Status->PodId;
-        instanceInfo->YPCluster = request->Spec->YPCluster;
+        instanceInfo->YPCluster = GetAllocationYPCluster(request);
         ConvertToInstanceResources(*instanceInfo->Resource, *request->Spec->ResourceRequest);
     }
 }

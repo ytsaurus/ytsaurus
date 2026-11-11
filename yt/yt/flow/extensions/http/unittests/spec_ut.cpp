@@ -82,7 +82,6 @@ TEST(TAsyncHttpSinkParametersTest, RejectsInvalidStaticParameters)
             R"({url="https://example.test";payload_column="payload";idempotency_header="Content-Length"})",
             R"({url="https://example.test";payload_column="payload";max_redirect_count=-1})",
             R"({url="https://example.test";payload_column="payload";max_idle_connections=-1})",
-            R"({url="https://example.test";payload_column="payload";at_most_once_strategy={enabled=%true}})",
          }) {
         EXPECT_THROW(ParseStatic(yson), std::exception) << yson;
     }
@@ -108,17 +107,6 @@ TEST(TAsyncHttpSinkParametersTest, RejectsInvalidDynamicParameters)
          }) {
         EXPECT_THROW(ParseDynamic(yson), std::exception) << yson;
     }
-}
-
-TEST(TAsyncHttpSinkParametersTest, RejectsAtMostOnceDynamicConfiguration)
-{
-    auto disabled = ParseDynamic(R"({at_most_once_strategy={enabled=%false}})");
-    ASSERT_TRUE(disabled->AtMostOnceStrategy->GetLocalUnrecognized());
-    EXPECT_TRUE(disabled->AtMostOnceStrategy->GetLocalUnrecognized()->FindChild("enabled"));
-
-    EXPECT_THROW_WITH_SUBSTRING(
-        ParseDynamic(R"({at_most_once_strategy={enabled=%true}})"),
-        "Async HTTP sink does not support at_most_once_strategy");
 }
 
 } // namespace

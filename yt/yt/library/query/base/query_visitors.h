@@ -913,8 +913,8 @@ struct TAbstractExpressionPrinter
             clauses.push_back(std::string("OFFSET ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Offset)));
         }
 
-        if (!Options.OmitOffsetAndLimit && subqueryExpr->Limit < UnorderedReadHint) {
-            clauses.push_back(std::string("LIMIT ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Limit)));
+        if (!Options.OmitOffsetAndLimit && subqueryExpr->Limit) {
+            clauses.push_back(std::string("LIMIT ") + (Options.OmitValues ? "?" : ToString(*subqueryExpr->Limit)));
         }
 
         Builder->AppendChar('(');

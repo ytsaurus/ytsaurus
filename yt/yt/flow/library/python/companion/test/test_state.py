@@ -47,6 +47,8 @@ class _FakeState:
     def __init__(self):
         self.name = None
         self.schema = None
+        self.format = 0
+        self.proto_type = ""
         self.stateItems = []
 
 

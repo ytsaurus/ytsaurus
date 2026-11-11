@@ -18,8 +18,10 @@ SRCS(
     lineage_aggregator.cpp
     persisted_state_manager.cpp
     private.cpp
+    resource_instances.cpp
     state_access.cpp
     state_manager.cpp
+    stream_metrics.cpp
     throttler_host.cpp
     worker_coef_estimator.cpp
     worker_tracker_service.cpp

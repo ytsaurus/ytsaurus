@@ -187,7 +187,31 @@ void TStreamTraverseData::Register(TRegistrar registrar)
         .Default(ZeroSystemTimestamp);
     registrar.Parameter("inflight_metrics", &TThis::InflightMetrics)
         .DefaultNew();
+    registrar.Parameter("min_trigger_timestamp", &TThis::MinTriggerTimestamp)
+        .Default();
+    registrar.Parameter("ready_watermark", &TThis::ReadyWatermark)
+        .Default();
+    registrar.Parameter("ready_watermark_unknown", &TThis::ReadyWatermarkUnknown)
+        .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void MergeMin(std::optional<T>* current, const std::optional<T>& other)
+{
+    if (other) {
+        *current = *current ? std::min(**current, *other) : *other;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,9 +253,25 @@ TStreamTraverseDataPtr MergeStreamTraverseData(
         mergedStream->SystemWatermark = std::min(mergedStream->SystemWatermark, stream->SystemWatermark);
         mergedStream->EventWatermark = std::min(mergedStream->EventWatermark, stream->EventWatermark);
         mergedStream->State = std::min(mergedStream->State, stream->State);
+        MergeMin(&mergedStream->MinTriggerTimestamp, stream->MinTriggerTimestamp);
 
         InPlaceMergeInflightMetrics(mergedStream->InflightMetrics, stream->InflightMetrics, inflightMerge, allowPartial);
     }
+
+    // The minimum is undetermined if any input is unknown; inputs without a resolved value contribute their system watermark.
+    bool readyWatermarkUnknown = false;
+    bool hasReadyWatermark = false;
+    auto readyWatermark = InfinitySystemTimestamp;
+    for (const auto& stream : streams) {
+        readyWatermarkUnknown |= stream->ReadyWatermarkUnknown;
+        hasReadyWatermark |= stream->ReadyWatermark.has_value();
+        readyWatermark = std::min(readyWatermark, stream->ReadyWatermark.value_or(stream->SystemWatermark));
+    }
+
+    mergedStream->ReadyWatermarkUnknown = readyWatermarkUnknown;
+    mergedStream->ReadyWatermark = hasReadyWatermark && !readyWatermarkUnknown
+        ? std::optional(readyWatermark)
+        : std::nullopt;
 
     return mergedStream;
 }
@@ -287,6 +327,8 @@ void TInflightStreamTraverseData::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("min_event_timestamp", &TThis::MinEventTimestamp)
         .Default();
+    registrar.Parameter("min_trigger_timestamp", &TThis::MinTriggerTimestamp)
+        .Default();
     registrar.Parameter("inflight_metrics", &TThis::InflightMetrics)
         .DefaultNew();
 }
@@ -313,6 +355,10 @@ TStreamTraverseDataPtr ApplyInflightTraverseData(
     if (inflight->MinEventTimestamp) {
         consumingStream->EventWatermark = std::min(consumingStream->EventWatermark, *inflight->MinEventTimestamp);
     }
+
+    consumingStream->MinTriggerTimestamp = inflight->MinTriggerTimestamp;
+    consumingStream->ReadyWatermark.reset();
+    consumingStream->ReadyWatermarkUnknown = false;
 
     InPlaceMergeInflightMetrics(consumingStream->InflightMetrics, inflight->InflightMetrics, EInflightMerge::Sum, /*allowPartial*/ true);
     return consumingStream;

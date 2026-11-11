@@ -213,6 +213,13 @@ def eliminate_qualify(expression: exp.Expr) -> exp.Expr:
     corresponding expression to avoid creating invalid column references.
     """
     if isinstance(expression, exp.Select) and expression.args.get("qualify"):
+        parent = expression.parent
+        if isinstance(parent, exp.Insert) and isinstance(parent.parent, exp.MultitableInserts):
+            # A FROM-first multi-table INSERT branch shares its parent's FROM, so it can't be wrapped
+            raise UnsupportedError(
+                "QUALIFY is not supported in a FROM-first multi-table INSERT branch"
+            )
+
         taken = set(expression.named_selects)
         for select in expression.selects:
             if not select.alias_or_name:
@@ -252,7 +259,12 @@ def eliminate_qualify(expression: exp.Expr) -> exp.Expr:
                     qualify_filters = column
                 else:
                     select_candidate.replace(column)
-            elif select_candidate.name not in expression.named_selects:
+            elif select_candidate.name not in expression.named_selects and not (
+                select_candidate.find_ancestor(exp.Window)
+            ):
+                # A column that is only read by a window function is computed by the window
+                # itself, so projecting it in the subquery is redundant and can even produce
+                # invalid SQL, e.g. when the query is grouped
                 expression.select(select_candidate.copy(), copy=False)
 
         return outer_selects.from_(expression.subquery(alias="_t", copy=False), copy=False).where(
@@ -401,6 +413,7 @@ def unnest_to_explode(
 
 def explode_projection_to_unnest(
     index_offset: int = 0,
+    unnest_map: bool = False,
 ) -> t.Callable[[exp.Expr], exp.Expr]:
     """Convert explode/posexplode projections into unnests."""
 
@@ -431,6 +444,46 @@ def explode_projection_to_unnest(
                 explode = select.find(exp.Explode)
 
                 if explode:
+                    if (
+                        unnest_map
+                        and type(explode) is exp.Explode
+                        and explode.this.is_type(exp.DType.MAP)
+                        and (select is explode or isinstance(select, exp.Aliases))
+                    ):
+                        map_key_alias: t.Any
+                        map_value_alias: t.Any
+                        if isinstance(select, exp.Aliases):
+                            map_key_alias, map_value_alias = select.aliases
+                        else:
+                            map_key_alias = new_name(taken_select_names, "key")
+                            map_value_alias = new_name(taken_select_names, "value")
+                        map_unnest_source = new_name(taken_source_names, "_u")
+
+                        map_key_select = select.replace(
+                            exp.column(map_key_alias, table=map_unnest_source).as_(map_key_alias)
+                        )
+
+                        expressions = expression.expressions
+                        expressions.insert(
+                            expressions.index(map_key_select) + 1,
+                            exp.column(map_value_alias, table=map_unnest_source).as_(
+                                map_value_alias
+                            ),
+                        )
+                        expression.set("expressions", expressions)
+
+                        unnest = exp.alias_(
+                            exp.Unnest(expressions=[explode.this.copy()]),
+                            map_unnest_source,
+                            table=[map_key_alias, map_value_alias],
+                        )
+                        if expression.args.get("from_"):
+                            expression.join(unnest, copy=False, join_type="CROSS")
+                        else:
+                            expression.from_(unnest, copy=False)
+
+                        continue
+
                     pos_alias: t.Any = ""
                     explode_alias: t.Any = ""
 
@@ -644,7 +697,6 @@ def eliminate_full_outer_join(expression: exp.Expr) -> exp.Expr:
 
         if len(full_outer_joins) == 1:
             expression_copy = expression.copy()
-            expression.set("limit", None)
             index, full_outer_join = full_outer_joins[0]
 
             tables = (expression.args["from_"].alias_or_name, full_outer_join.alias_or_name)
@@ -661,10 +713,15 @@ def eliminate_full_outer_join(expression: exp.Expr) -> exp.Expr:
             )
             expression_copy.args["joins"][index].set("side", "right")
             expression_copy = expression_copy.where(exp.Exists(this=anti_join_clause).not_())
-            expression_copy.set("with_", None)  # remove CTEs from RIGHT side
-            expression.set("order", None)  # remove order by from LEFT side
 
-            return exp.union(expression, expression_copy, copy=False, distinct=False)
+            union = exp.union(expression, expression_copy, copy=False, distinct=False)
+            for arg in ("with_", "order", "limit", "offset"):
+                value = expression.args.get(arg)
+                if value:
+                    expression.set(arg, None)
+                    expression_copy.set(arg, None)
+                    union.set(arg, value)
+            return union
 
     return expression
 
@@ -758,8 +815,8 @@ def unqualify_pivot_fields(expression: exp.Expr) -> exp.Expr:
 def remove_unique_constraints(expression: exp.Expr) -> exp.Expr:
     assert isinstance(expression, exp.Create)
     for constraint in expression.find_all(exp.UniqueColumnConstraint):
-        if constraint.parent:
-            constraint.parent.pop()
+        parent = constraint.parent
+        (parent if isinstance(parent, (exp.ColumnConstraint, exp.Constraint)) else constraint).pop()
 
     return expression
 

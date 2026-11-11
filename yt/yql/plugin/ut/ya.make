@@ -8,6 +8,7 @@ SRCS(
 
 PEERDIR(
     yt/yql/plugin
+    yt/yql/providers/dq/config
     yt/yt/core/test_framework
 )
 

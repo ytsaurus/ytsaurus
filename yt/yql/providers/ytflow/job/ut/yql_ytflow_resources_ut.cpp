@@ -1,5 +1,6 @@
 #include "yql_ytflow_runtime_node_test_utils.h"
 
+#include <yt/yql/providers/ytflow/job/yql_ytflow_common_parameters.h>
 #include <yt/yql/providers/ytflow/job/yql_ytflow_computation_graph_with_codecs_base.h>
 #include <yt/yql/providers/ytflow/job/yql_ytflow_computation_pattern_resource.h>
 #include <yt/yql/providers/ytflow/job/yql_ytflow_function_registry_resource.h>
@@ -261,13 +262,14 @@ NYT::NFlow::IResourceManagerPtr MakeResourceManager(
 NYT::NFlow::TResourceSpecPtr MakeComputationPatternResourceSpec(
     TString lambdaFile,
     int recipeVersion = ComputationPatternResourceRecipeVersion,
-    TString runtimeSettings = {})
+    TString runtimeSettings = {},
+    TString optLLVM = "OFF")
 {
     auto parameters = NYT::New<TComputationPatternResourceParameters>();
     parameters->RecipeVersion = recipeVersion;
     parameters->LambdaFile = std::move(lambdaFile);
     parameters->LangVersion = UnknownLangVersion;
-    parameters->OptLLVM = "OFF";
+    parameters->OptLLVM = std::move(optLLVM);
     parameters->RuntimeSettings = std::move(runtimeSettings);
 
     auto dependency = NYT::New<NYT::NFlow::TResourceDescription>();
@@ -805,7 +807,17 @@ TEST(TComputationPatternResourceTest, RejectsUnknownRecipeVersion)
         "Unsupported computation pattern recipe version 2; expected 1");
 }
 
-TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
+class TComputationPatternResourceOptLLVMTest
+    : public ::testing::TestWithParam<TString>
+{
+protected:
+    const TString& GetOptLLVM() const
+    {
+        return GetParam();
+    }
+};
+
+TEST_P(TComputationPatternResourceOptLLVMTest, MaterializationAndCloneResourceMetrics)
 {
     NTesting::TScopedEnvironment cpuToVCpuFactor("YT_CPU_TO_VCPU_FACTOR", "1");
     auto registry = MakeSolomonRegistry();
@@ -814,7 +826,11 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
     TTempFileHandle lambdaFile;
     NTest::WriteConditionalStringLambda(lambdaFile, PatternResult);
     auto manager = MakeComputationPatternResourceManager(
-        MakeComputationPatternResourceSpec(lambdaFile.GetName()),
+        MakeComputationPatternResourceSpec(
+            lambdaFile.GetName(),
+            ComputationPatternResourceRecipeVersion,
+            /*runtimeSettings*/ {},
+            GetOptLLVM()),
         /*isController*/ false,
         resourceProfiler);
 
@@ -825,6 +841,7 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
 
     auto resource = manager->Get(ComputationPatternResourceId)
         ->As<TComputationPatternResource>();
+    ASSERT_EQ(GetOptLLVM(), resource->GetParameters()->OptLLVM);
     const auto& result = resource->GetResult();
     ASSERT_TRUE(result.IsSuitable());
 
@@ -839,7 +856,7 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
         {},
         {},
         UnknownLangVersion,
-        "OFF",
+        GetOptLLVM(),
         MakeRuntimeSettings(),
         TComputationGraphResources{
             result.GetPatternHolder(),
@@ -851,7 +868,7 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
         {},
         {},
         UnknownLangVersion,
-        "OFF",
+        GetOptLLVM(),
         MakeRuntimeSettings(),
         TComputationGraphResources{
             result.GetPatternHolder(),
@@ -864,7 +881,7 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
         lambdaFile.GetName(),
         {},
         UnknownLangVersion,
-        "OFF",
+        GetOptLLVM(),
         MakeRuntimeSettings(),
         TComputationGraphResources{
             {},
@@ -942,6 +959,38 @@ TEST(TComputationPatternResourceTest, MaterializationAndCloneResourceMetrics)
 
         const auto cpuTime = ReadTimeCounter(dump, cpuTimePath);
         ASSERT_EQ(cpuTime, ReadTimeCounter(dump, vcpuTimePath));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    OptLLVM,
+    TComputationPatternResourceOptLLVMTest,
+    ::testing::Values(TString("OFF"), TString()));
+
+TEST(TCommonOperationParametersTest, MissingOptLLVMDefaultsToOff)
+{
+    auto parameters = NYT::New<TCommonOperationParameters>();
+    parameters->LangVersion = UnknownLangVersion;
+    auto node = NYT::NYTree::ConvertToNode(parameters)->AsMap();
+    ASSERT_TRUE(node->RemoveChild("opt_llvm"));
+
+    const auto restored = NYT::NYTree::ConvertTo<
+        NYT::TIntrusivePtr<TCommonOperationParameters>
+    >(NYT::NYson::ConvertToYsonString(node));
+    ASSERT_EQ("OFF", restored->OptLLVM);
+}
+
+TEST(TCommonOperationParametersTest, RoundTripPreservesExplicitOptLLVM)
+{
+    for (const auto& optLLVM : {TString(), TString("OFF"), TString("--disable-opt --dump-stats")}) {
+        SCOPED_TRACE(optLLVM);
+        auto parameters = NYT::New<TCommonOperationParameters>();
+        parameters->LangVersion = UnknownLangVersion;
+        parameters->OptLLVM = optLLVM;
+        const auto restored = NYT::NYTree::ConvertTo<
+            NYT::TIntrusivePtr<TCommonOperationParameters>
+        >(NYT::NYson::ConvertToYsonString(parameters));
+        ASSERT_EQ(optLLVM, restored->OptLLVM);
     }
 }
 

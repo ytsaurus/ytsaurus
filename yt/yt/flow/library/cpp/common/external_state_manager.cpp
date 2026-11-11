@@ -46,6 +46,9 @@ TFuture<IExternalStateJoiner::TListResult> IExternalStateJoiner::List(TFilter /*
             .With("type", TypeName(*this)));
 }
 
+void IExternalStateJoiner::RetainListed(const TKeyRange& /*range*/, const std::set<TKey>& /*visitKeys*/)
+{ }
+
 ICompanionStateAdapterPtr IExternalStateJoiner::CreateCompanionAdapter(std::string /*stateName*/)
 {
     return nullptr;

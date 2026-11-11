@@ -67,6 +67,11 @@ i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /*nodeId*/) co
     return 0;
 }
 
+void TChunkPoolOutputBase::AttachJobSizeAdjuster(const IJobSizeAdjusterPtr& /*jobSizeAdjuster*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPoolOutputWithCountersBase::TChunkPoolOutputWithCountersBase()

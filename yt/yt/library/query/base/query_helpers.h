@@ -77,8 +77,7 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
 bool ShouldPrefetchJoinSource(
     const TConstQueryPtr& query,
     const TJoinClause& joinClause,
-    size_t minKeyWidth,
-    bool ordered);
+    size_t minKeyWidth);
 
 ////////////////////////////////////////////////////////////////////////////////
 

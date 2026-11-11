@@ -16,6 +16,7 @@ RECURSE(
     queues
     rng
     rpc
+    row_io
     sendfile
     skiff
     versioned_block_format
@@ -27,5 +28,6 @@ RECURSE(
 IF (NOT OPENSOURCE AND OS_LINUX)
     RECURSE(
         bus
+        tablet_transactions
     )
 ENDIF()

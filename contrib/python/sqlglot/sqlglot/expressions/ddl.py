@@ -176,6 +176,7 @@ class Set(Expression):
 
 class Heredoc(Expression):
     arg_types = {"this": True, "tag": False}
+    _hash_raw_args = True
 
 
 class SetItem(Expression):
@@ -250,6 +251,7 @@ class AlterColumn(Expression):
         "allow_null": False,
         "visible": False,
         "rename_to": False,
+        "exists": False,
     }
 
 
@@ -344,8 +346,8 @@ class MergeTreeTTL(Expression):
 
 class Drop(Expression):
     arg_types = {
-        "this": False,
         "kind": False,
+        "tables": False,
         "expressions": False,
         "exists": False,
         "temporary": False,
@@ -381,6 +383,7 @@ class Undrop(Expression):
 
 class Command(Expression):
     arg_types = {"this": True, "expression": False}
+    _hash_raw_args = True
 
 
 class Transaction(Expression):
@@ -399,7 +402,7 @@ class Alter(Expression):
     arg_types = {
         "this": False,
         "kind": True,
-        "actions": True,
+        "actions": False,
         "exists": False,
         "only": False,
         "options": False,

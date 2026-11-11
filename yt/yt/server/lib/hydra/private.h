@@ -45,23 +45,6 @@ DECLARE_REFCOUNTED_STRUCT(TPendingMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigWrapper
-    : public TRefCounted
-{
-public:
-    explicit TConfigWrapper(TDistributedHydraManagerConfigPtr config);
-
-    void Set(TDistributedHydraManagerConfigPtr config);
-    TDistributedHydraManagerConfigPtr Get() const;
-
-private:
-    TAtomicIntrusivePtr<TDistributedHydraManagerConfig> Config_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TConfigWrapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsSystemMutationType(const std::string& mutationType);
 
 ////////////////////////////////////////////////////////////////////////////////

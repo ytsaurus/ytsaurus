@@ -196,5 +196,51 @@ TEST_F(TChangelogTestNoAutoFlush, ReadFromDiskAndMemory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTimedFlushChangelogTest
+    : public TChangelogTest
+{
+protected:
+    static constexpr auto FlushPeriod = TDuration::MilliSeconds(200);
+
+    void InitConfig(const TFileChangelogStoreConfigPtr& config) override
+    {
+        TChangelogTest::InitConfig(config);
+        config->FlushPeriod = FlushPeriod;
+    }
+};
+
+TEST_F(TTimedFlushChangelogTest, AppendWithinFlushPeriodIsFlushedByDeadline)
+{
+    WaitFor(Changelog_->Append({MakeData(0)}))
+        .ThrowOnError();
+
+    // The first flush has just happened, so this record waits for the flush period to expire.
+    auto startTime = TInstant::Now();
+    WaitFor(Changelog_->Append({MakeData(1)}).WithTimeout(TDuration::Seconds(10)))
+        .ThrowOnError();
+    auto elapsed = TInstant::Now() - startTime;
+
+    EXPECT_GE(elapsed, FlushPeriod / 2);
+    EXPECT_LE(elapsed, TDuration::Seconds(5));
+}
+
+TEST_F(TTimedFlushChangelogTest, SequentialAppendsAreAllFlushed)
+{
+    constexpr int RecordCount = 10;
+
+    for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
+        WaitFor(Changelog_->Append({MakeData(recordIndex)}).WithTimeout(TDuration::Seconds(10)))
+            .ThrowOnError();
+    }
+
+    auto records = WaitFor(Changelog_->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max()))
+        .ValueOrThrow();
+
+    EXPECT_EQ(RecordCount, std::ssize(records));
+    CheckRecords(records, 0, RecordCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NHydra

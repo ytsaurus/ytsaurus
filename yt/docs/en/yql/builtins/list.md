@@ -1,6 +1,6 @@
 # Functions for lists
 
-## ListCreate {#list-create}
+## ListCreate {#list-create} {#listcreate}
 
 Construct an empty list. The only argument specifies a string describing the data type of the list cell, or the type itself obtained using [relevant functions](types.md). YQL doesn't support lists with an unknown cell type.
 
@@ -395,7 +395,7 @@ ListIndexOf(List<T>, T)->Uint64?
 ListIndexOf(List<T>?, T)->Uint64?
 ```
 
-## ListMap, ListFlatMap and ListFilter {#listmap}
+## ListMap, ListFlatMap and ListFilter {#listmap} {#listfilter}
 
 Apply the function specified as the second argument to each list element. The functions differ in their returned result:
 

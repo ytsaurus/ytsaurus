@@ -1,6 +1,7 @@
 #include <library/cpp/testing/unittest/registar.h>
 #include <contrib/ydb/library/actors/core/events.h>
 #include <contrib/ydb/library/actors/core/event_pb.h>
+#include <contrib/ydb/library/actors/interconnect/event_destructor.h>
 #include <contrib/ydb/library/actors/interconnect/v2_event_serializer.h>
 #include <contrib/ydb/library/actors/protos/unittests.pb.h>
 
@@ -10,8 +11,36 @@
 #include <util/string/cast.h>
 #include <array>
 #include <cstring>
+#include <initializer_list>
 
 using namespace NActors;
+
+namespace {
+
+    // Keeps completed objects alive so tests can verify when ownership is transferred.
+    class TCollectingEventDestructor final : public IEventDestructor {
+    public:
+        ui64 GetAndResetDestroyEventsCycles() override {
+            return 0;
+        }
+
+        void DestroyEvent(
+                std::unique_ptr<IEventBase> event,
+                TIntrusivePtr<TEventSerializedData> buffer) override {
+            UNIT_ASSERT(event || buffer);
+            if (event) {
+                Events.push_back(std::move(event));
+            }
+            if (buffer) {
+                Buffers.push_back(std::move(buffer));
+            }
+        }
+
+        std::vector<std::unique_ptr<IEventBase>> Events;
+        std::vector<TIntrusivePtr<TEventSerializedData>> Buffers;
+    };
+
+}
 
 struct TEvPrivate {
     enum {
@@ -133,6 +162,38 @@ void CheckSerializeThenDeserialize(bool withPayload, bool buffer, ui32 metaLengt
 }
 
 Y_UNIT_TEST_SUITE(EventSerializerV2) {
+
+    Y_UNIT_TEST(CommitReportsCompletedObjectBytes) {
+        for (bool preserialize : {false, true}) {
+            TEventSerializer serializer(false);
+            auto event = MakeIndexedEvent(1, 0, 128, false);
+            if (preserialize) {
+                event->Preserialize(false);
+            }
+            const size_t expectedBytes = event->HasBuffer()
+                ? event->GetChainBuffer()->GetSize()
+                : event->GetBase()->CalculateSerializedSizeCached();
+            serializer.Push(std::move(event));
+
+            TRcBuf buffer = TRcBuf::Uninitialized(65536);
+            std::vector<TContiguousSpan> spans;
+            const size_t produced = serializer.ProduceOutputStream(buffer, &spans);
+            UNIT_ASSERT_GT(produced, 1u);
+            UNIT_ASSERT(!serializer.IsTrafficPending());
+
+            TCollectingEventDestructor eventDestructor;
+            UNIT_ASSERT_VALUES_EQUAL(
+                serializer.CommitProducedBytes(produced - 1, 0, nullptr, &eventDestructor), 0u);
+            UNIT_ASSERT(eventDestructor.Events.empty());
+            UNIT_ASSERT(eventDestructor.Buffers.empty());
+            UNIT_ASSERT_VALUES_EQUAL(
+                serializer.CommitProducedBytes(1, 0, nullptr, &eventDestructor), expectedBytes);
+            UNIT_ASSERT_VALUES_EQUAL(eventDestructor.Events.size() + eventDestructor.Buffers.size(), 1u);
+            UNIT_ASSERT_VALUES_EQUAL(
+                serializer.CommitProducedBytes(0, 0, nullptr, &eventDestructor), 0u);
+            UNIT_ASSERT_VALUES_EQUAL(eventDestructor.Events.size() + eventDestructor.Buffers.size(), 1u);
+        }
+    }
 
     Y_UNIT_TEST(UnusedNonAlignedScratchIsNotTrimmed) {
         TEventSerializer ser(false);
@@ -1199,13 +1260,99 @@ Y_UNIT_TEST_SUITE(EventSerializerV2) {
         UNIT_ASSERT_GT(producedXdc, 0u);
 
         // Main drained, XDC still entirely in flight.
-        std::vector<std::unique_ptr<IEventBase>> events;
-        std::vector<TIntrusivePtr<TEventSerializedData>> buffers;
-        ser.CommitProducedBytes(producedMain, 0, nullptr, &events, &buffers);
-        UNIT_ASSERT_VALUES_EQUAL_C(events.size(), 1u,
+        TCollectingEventDestructor eventDestructor;
+        ser.CommitProducedBytes(producedMain, 0, nullptr, &eventDestructor);
+        UNIT_ASSERT_VALUES_EQUAL_C(eventDestructor.Events.size(), 1u,
             "the main-only event should be released as soon as the main stream is committed");
 
-        ser.CommitProducedBytes(0, producedXdc, nullptr, &events, &buffers);
-        UNIT_ASSERT_VALUES_EQUAL(events.size(), 2u);
+        ser.CommitProducedBytes(0, producedXdc, nullptr, &eventDestructor);
+        UNIT_ASSERT_VALUES_EQUAL(eventDestructor.Events.size(), 2u);
+        UNIT_ASSERT_VALUES_EQUAL(ser.CommitProducedBytes(0, 0, nullptr, &eventDestructor), 0u);
+        UNIT_ASSERT_VALUES_EQUAL(eventDestructor.Events.size(), 2u);
+    }
+
+    Y_UNIT_TEST(XdcSectionGeometryHelper) {
+        UNIT_ASSERT(IsXdcSectionGeometryInRange(0, 0, 0, 0));
+        UNIT_ASSERT(IsXdcSectionGeometryInRange(EventMaxByteSize, EventMaxByteSize, EventMaxByteSize, 1));
+        UNIT_ASSERT(IsXdcSectionGeometryInRange(1, 0, 0, 4096));
+        UNIT_ASSERT(!IsXdcSectionGeometryInRange(EventMaxByteSize + 1, 0, 0, 0));
+        UNIT_ASSERT(!IsXdcSectionGeometryInRange(0, EventMaxByteSize + 1, 0, 0));
+        UNIT_ASSERT(!IsXdcSectionGeometryInRange(0, 0, EventMaxByteSize + 1, 0));
+        UNIT_ASSERT(!IsXdcSectionGeometryInRange(0, 0, 0, EventMaxByteSize + 1));
+        UNIT_ASSERT(!IsXdcSectionGeometryInRange(1, 0, 0, 3));
+
+        TEventSerializationInfo info;
+        info.Sections.push_back(TEventSectionInfo{0, 100, 0, 0, false, false});
+        UNIT_ASSERT(IsXdcDeclareWithinLimit(info, 100, EventMaxByteSize));
+        UNIT_ASSERT(!IsXdcDeclareWithinLimit(info, 100, 50));
+        UNIT_ASSERT(FitsXdcDeclaredLimit(100, 0, EventMaxByteSize));
+        UNIT_ASSERT(!FitsXdcDeclaredLimit(100, EventMaxByteSize - 50, EventMaxByteSize));
+        UNIT_ASSERT(CanAddXdcSection(100, 0, 0, 0, 0, EventMaxByteSize));
+        UNIT_ASSERT(!CanAddXdcSection(100, 0, 0, 0, EventMaxByteSize - 50, EventMaxByteSize));
+        info.Sections[0].Size = EventMaxByteSize + 1;
+        UNIT_ASSERT(!IsXdcDeclareWithinLimit(info, 8, EventMaxByteSize));
+    }
+
+    TRcBuf MakeXdcDeclareChunk(std::initializer_list<TEventSerializer::TXdcSection> recs, ui16 channel = 1) {
+        using TChunkHeader = TEventSerializer::TChunkHeader;
+        using TXdcSection = TEventSerializer::TXdcSection;
+        const size_t n = recs.size() * sizeof(TXdcSection);
+        TString bytes = TString::Uninitialized(sizeof(TChunkHeader) + n);
+        char* p = bytes.Detach();
+        TChunkHeader hdr{
+            .Length = static_cast<ui16>(n),
+            .TypeChannel = static_cast<ui16>(channel | TChunkHeader::kXdcDeclare),
+        };
+        memcpy(p, &hdr, sizeof(hdr));
+        p += sizeof(hdr);
+        for (const auto& rec : recs) {
+            memcpy(p, &rec, sizeof(rec));
+            p += sizeof(rec);
+        }
+        return TRcBuf::Copy(TContiguousSpan(bytes));
+    }
+
+    void AssertXdcDeclareRejected(std::initializer_list<TEventSerializer::TXdcSection> recs) {
+        TEventDeserializer deser(TScopeId{});
+        TEventProcessor processor;
+        UNIT_ASSERT_EXCEPTION(deser.Push(MakeXdcDeclareChunk(recs), &processor, {}), TExEventFormatError);
+        UNIT_ASSERT(processor.Events.empty());
+    }
+
+    Y_UNIT_TEST(XdcDeclareRejectsOutOfRangeGeometry) {
+        AssertXdcDeclareRejected({TEventSerializer::TXdcSection{
+            .Size = static_cast<ui32>(EventMaxByteSize + 1),
+        }});
+        AssertXdcDeclareRejected({TEventSerializer::TXdcSection{
+            .Headroom = static_cast<ui32>(EventMaxByteSize + 1),
+            .Size = 8,
+        }});
+        AssertXdcDeclareRejected({
+            TEventSerializer::TXdcSection{.Size = static_cast<ui32>(EventMaxByteSize - 1)},
+            TEventSerializer::TXdcSection{.Size = 2},
+        });
+    }
+
+    struct TEvHugeXdcSection : public TEventPB<TEvHugeXdcSection, TMessageWithPayload, TEvPrivate::EvTest> {
+        TEventSerializationInfo CreateSerializationInfo(bool allowExternalDataChannel) const override {
+            if (!allowExternalDataChannel) {
+                return {};
+            }
+            TEventSerializationInfo info;
+            info.IsExtendedFormat = true;
+            info.Sections.push_back(TEventSectionInfo{0, EventMaxByteSize + 1, 0, 0, false, false});
+            return info;
+        }
+    };
+
+    Y_UNIT_TEST(XdcDeclareNotEmittedForOversizedSectionTable) {
+        auto ev = std::make_unique<TEvHugeXdcSection>();
+        auto h = std::make_unique<IEventHandle>(TActorId(2, 3, 4, 5), TActorId(1, 2, 3, 4), ev.release(), 0, 1);
+        TEventSerializer ser(true, /*useExternalDataChannel=*/true);
+        ser.Push(std::move(h));
+
+        std::vector<TRcBuf> mainBufs;
+        std::vector<TRcBuf> xdcBufs;
+        UNIT_ASSERT_EXCEPTION(SerializeXdc(ser, mainBufs, xdcBufs), TExEventTooLarge);
     }
 }

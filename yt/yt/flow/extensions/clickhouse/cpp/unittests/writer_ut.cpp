@@ -253,14 +253,14 @@ TEST(TClickHouseWriterTest, ReconfigureAffectsOnlyNextRequest)
 
     owner.Reset();
     (void)writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TClickHouseWriterTest, ConfigurationFailureDoesNotReconnectOrAcknowledgeAtMostOnce)
+TEST(TClickHouseWriterTest, ConfigurationFailureRetriesBeforeInsert)
 {
     auto parameters = New<TCommonClickHouseSinkParameters>();
 
@@ -298,7 +298,7 @@ TEST(TClickHouseWriterTest, ConfigurationFailureDoesNotReconnectOrAcknowledgeAtM
         NLogging::TLogger("Test"),
         std::move(testHooks));
     auto writeFuture = writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
 
     auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
@@ -314,7 +314,7 @@ TEST(TClickHouseWriterTest, ConfigurationFailureDoesNotReconnectOrAcknowledgeAtM
 
     owner.Reset();
     (void)writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
@@ -365,10 +365,10 @@ TEST(TClickHouseWriterTest, FailedResetStaysPendingUntilSuccess)
         NLogging::TLogger("Test"),
         std::move(testHooks));
     auto firstWrite = writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
     auto secondWrite = writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
 
     auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
@@ -381,35 +381,35 @@ TEST(TClickHouseWriterTest, FailedResetStaysPendingUntilSuccess)
     EXPECT_TRUE(firstResult.IsOK());
     EXPECT_TRUE(secondResult.IsOK());
     EXPECT_EQ(configurationAttempts, 2);
-    EXPECT_EQ(resetAttempts, 1);
-    EXPECT_EQ(insertAttempts, 1);
-    // The reconnect runs after the reconfigure, so recreating the client cannot rewind the
-    // shard's endpoint cursor back onto the endpoint the reconnect was meant to leave.
-    EXPECT_EQ(events, std::vector<std::string>({"apply", "insert", "apply", "reset"}));
+    EXPECT_EQ(resetAttempts, 2);
+    EXPECT_EQ(insertAttempts, 3);
+    EXPECT_EQ(events, std::vector<std::string>({"apply", "insert", "reset", "reset", "insert", "apply", "insert"}));
 
     auto thirdWrite = writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
     auto thirdResult = WaitFor(thirdWrite.WithTimeout(TDuration::Seconds(5)));
     EXPECT_TRUE(thirdResult.IsOK());
     EXPECT_EQ(configurationAttempts, 3);
     EXPECT_EQ(resetAttempts, 2);
-    EXPECT_EQ(insertAttempts, 2);
+    EXPECT_EQ(insertAttempts, 4);
     EXPECT_EQ(
         events,
         std::vector<std::string>({
             "apply",
             "insert",
-            "apply",
             "reset",
-            "apply",
             "reset",
+            "insert",
+            "apply",
+            "insert",
+            "apply",
             "insert",
         }));
 
     owner.Reset();
     (void)writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{}});
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
@@ -673,51 +673,7 @@ TEST(TClickHouseWriterShardTest, ShardsInsertSequentiallyAndRetryOnlyTheFailingS
     EXPECT_EQ(resetShards, (std::vector<int>{1, 1}));
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
-}
-
-TEST(TClickHouseWriterShardTest, AtMostOnceAcknowledgesPerShard)
-{
-    auto parameters = MakeThreeShardParameters();
-    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
-
-    std::vector<int> insertedShards;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [&] (int shardIndex, bool /*asyncInsert*/) {
-            insertedShards.push_back(shardIndex);
-            if (shardIndex == 1) {
-                throw std::runtime_error("shard is down");
-            }
-        },
-    };
-
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-
-    auto writeFuture = writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    EXPECT_TRUE(WaitFor(writeFuture.WithTimeout(TDuration::Seconds(5))).IsOK());
-    EXPECT_EQ(insertedShards, (std::vector<int>{0, 1, 2}));
-
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -754,15 +710,21 @@ TEST(TClickHouseWriterShardTest, HealthTracksEachFailingShardUntilItsRecovery)
         .AsyncVia(actionQueue->GetInvoker())
         .Run();
 
-    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites())
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
+    for (int shardIndex : {0, 1}) {
+        EXPECT_FALSE(WaitFor(writer->Write(
+            EWriteGuarantee::AtLeastOnce,
+            {TClickHouseShardWrite{.ShardIndex = shardIndex}})
+                .WithTimeout(TDuration::Seconds(5)))
+                .IsOK());
+    }
     auto errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
     EXPECT_NE(errorText.find("failure-b"), std::string::npos);
 
     phase = 1;
-    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites())
+    EXPECT_TRUE(WaitFor(writer->Write(
+        EWriteGuarantee::AtLeastOnce,
+        {TClickHouseShardWrite{.ShardIndex = 1}})
             .WithTimeout(TDuration::Seconds(5)))
             .IsOK());
     errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
@@ -770,13 +732,15 @@ TEST(TClickHouseWriterShardTest, HealthTracksEachFailingShardUntilItsRecovery)
     EXPECT_EQ(errorText.find("failure-b"), std::string::npos);
 
     phase = 2;
-    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites())
+    EXPECT_TRUE(WaitFor(writer->Write(
+        EWriteGuarantee::AtLeastOnce,
+        {TClickHouseShardWrite{.ShardIndex = 0}})
             .WithTimeout(TDuration::Seconds(5)))
             .IsOK());
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -833,8 +797,8 @@ TEST(TClickHouseWriterShardTest, ConfigurationRecoveryPreservesWritingError)
         .AsyncVia(actionQueue->GetInvoker())
         .Run();
 
-    EXPECT_TRUE(WaitFor(writer->Write(
-        EWriteGuarantee::AtMostOnce,
+    EXPECT_FALSE(WaitFor(writer->Write(
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{.ShardIndex = 0}})
             .WithTimeout(TDuration::Seconds(5)))
             .IsOK());
@@ -848,7 +812,7 @@ TEST(TClickHouseWriterShardTest, ConfigurationRecoveryPreservesWritingError)
     const auto shard1AttemptsBeforeFailure = shard1ConfigurationAttempts.load();
     const auto shard2AttemptsBeforeFailure = shard2ConfigurationAttempts.load();
     auto blockedWrite = writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{.ShardIndex = 2}});
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     EXPECT_FALSE(blockedWrite.IsSet());
@@ -878,14 +842,14 @@ TEST(TClickHouseWriterShardTest, ConfigurationRecoveryPreservesWritingError)
 
     failWriting = false;
     EXPECT_TRUE(WaitFor(writer->Write(
-        EWriteGuarantee::AtMostOnce,
+        EWriteGuarantee::AtLeastOnce,
         {TClickHouseShardWrite{.ShardIndex = 0}})
             .WithTimeout(TDuration::Seconds(5)))
             .IsOK());
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -938,7 +902,7 @@ TEST(TClickHouseWriterShardTest, ExactlyOnceGiveUpStopsRemainingShards)
     EXPECT_EQ(insertedShards, (std::vector<int>{0, 1, 1}));
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -979,7 +943,7 @@ TEST(TClickHouseWriterShardTest, AppliesConnectionParametersOncePerRequest)
     EXPECT_EQ(configuredShards, (std::vector<int>{0, 1, 2}));
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -1011,14 +975,14 @@ TEST(TClickHouseWriterShardTest, HealthyRequestsDoNotRepublishUnchangedErrorStat
         .AsyncVia(actionQueue->GetInvoker())
         .Run();
 
-    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites())
+    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites())
             .WithTimeout(TDuration::Seconds(5)))
             .IsOK());
     EXPECT_EQ(errorState->SetErrorCount.load(), 0);
     EXPECT_EQ(errorState->ClearErrorCount.load(), 0);
 
     owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtMostOnce, MakeThreeShardWrites());
+    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 

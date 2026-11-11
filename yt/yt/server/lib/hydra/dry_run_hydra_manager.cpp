@@ -4,6 +4,7 @@
 #include "private.h"
 #include "changelog.h"
 #include "config.h"
+#include "config_wrapper.h"
 #include "private.h"
 #include "snapshot.h"
 #include "state_hash_checker.h"
@@ -309,11 +310,8 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
-    {
-        // Just do nothing.
-        return OKFuture;
-    }
+    void Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
+    { }
 
     ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
     {

@@ -11,6 +11,7 @@ SRCS(
 GO_TEST_SRCS(
     auth_test.go
     crypto_test.go
+    http_test.go
 )
 
 IF (OPENSOURCE)

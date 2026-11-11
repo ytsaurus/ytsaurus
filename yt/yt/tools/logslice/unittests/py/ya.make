@@ -1,6 +1,7 @@
 PY3TEST()
 
 TEST_SRCS(
+    test_iotracker_py.py
     test_logslice_py.py
 )
 
@@ -8,6 +9,7 @@ TEST_SRCS(
 # yatest.common.source_path; DATA ships it into the test environment.
 DATA(
     arcadia/yt/yt/tools/logslice/logslice.py
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/yt_30088/component-routing.json
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/README.md
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/debug.log
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/error.log
@@ -19,6 +21,8 @@ DATA(
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/access-zero-match.json
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-access-log-family-rejected.txt
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-nearest-archive-boundary.txt
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62021/component-routing.json
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62112/evidence.json
 )
 
 SIZE(SMALL)

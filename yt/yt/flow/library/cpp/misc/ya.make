@@ -13,6 +13,7 @@ SRCS(
     identifier.cpp
     cow_tree.cpp
     crash_recorder.cpp
+    cpu_accounting.cpp
     GLOBAL error_backtrace_enricher.cpp
     indexed_yson_string.cpp
     lexicographically_serialize.cpp
@@ -34,6 +35,7 @@ SRCS(
 PEERDIR(
     contrib/libs/eigen
     contrib/libs/openssl
+    contrib/libs/pdqsort
     library/cpp/build_info
     library/cpp/yt/error
     library/cpp/yt/memory

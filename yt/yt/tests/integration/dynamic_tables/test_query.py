@@ -1,5 +1,5 @@
 from collections import defaultdict
-from .test_lookup import TestLookupCache
+from . import test_lookup
 
 from yt_env_setup import find_ut_file, skip_if_rpc_driver_backend
 
@@ -1234,8 +1234,7 @@ class TestQuery(DynamicTablesBase):
 
     @authors("lukyan")
     def test_udf_custom_path(self):
-        registry_path = "//home/udfs"
-        create("map_node", "//home")
+        registry_path = "//tmp/custom_udfs"
         create("map_node", registry_path)
 
         abs_path = os.path.join(registry_path, "abs_udf")
@@ -2071,6 +2070,68 @@ class TestQuery(DynamicTablesBase):
             select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
             [{"a": 1}])
 
+    @authors("sabdenovch")
+    def test_union_all(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t1",
+            [
+                {"name": "o", "type": "int64", "sort_order": "ascending"},
+                {"name": "x", "type": "string"},
+                {"name": "y", "type": "int64"},
+            ],
+            [
+                {"o": 1, "x": "alpha", "y": 100},
+                {"o": 2, "x": "beta",  "y": 200},
+                {"o": 3, "x": "gamma", "y": 300},
+            ])
+
+        self._create_table(
+            "//tmp/t2",
+            [
+                {"name": "r", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+                {"name": "a", "type": "int64"},
+            ],
+            [
+                {"r": 1, "b": "delta",   "a": 400},
+                {"r": 2, "b": "epsilon", "a": 500},
+            ])
+
+        # Both subqueries project to (name string, value int64) — schemas match.
+        expected = [
+            {"name": "alpha", "value": 100},
+            {"name": "beta",  "value": 200},
+            {"name": "gamma", "value": 300},
+            {"name": "delta",   "value": 400},
+            {"name": "epsilon", "value": 500},
+        ]
+        actual = select_rows(
+            "name, value from ("
+            "  select x as name, y as value from [//tmp/t1] order by o desc limit 100"
+            "  union all"
+            "  select b as name, a as value from [//tmp/t2]"
+            ")")
+        assert_items_equal(actual, expected)
+
+        with raises_yt_error("UNION ALL subqueries name column"):
+            select_rows(
+                "v from ("
+                "  select x as v from [//tmp/t1]"
+                "  union all"
+                "  select a as w from [//tmp/t2]"
+                ")")
+
+        with raises_yt_error("UNION ALL subqueries have incompatible types"):
+            select_rows(
+                "v from ("
+                "  select x as v from [//tmp/t1]"
+                "  union all"
+                "  select a as v from [//tmp/t2]"
+                ")",
+            )
+
     @authors("lukyan")
     def test_read_without_merge_agg(self):
         sync_create_cells(1)
@@ -2099,6 +2160,8 @@ class TestQuery(DynamicTablesBase):
                 "single_column_group_by_default": False,
             })
 
+        set("//tmp/t/@mount_config/row_merger_type", "new")
+
         sync_mount_table("//tmp/t")
 
         insert_rows(
@@ -2109,6 +2172,8 @@ class TestQuery(DynamicTablesBase):
             ],
             update=True,
         )
+
+        sync_flush_table("//tmp/t")
 
         insert_rows(
             "//tmp/t",
@@ -2121,29 +2186,35 @@ class TestQuery(DynamicTablesBase):
         )
 
         def test_query(query):
-            res1 = select_rows(query, merge_versioned_rows=False)
-            res2 = select_rows(query, merge_versioned_rows=True)
+            res1 = select_rows(query, merge_versioned_rows=False, expression_builder_version=2)
+            res2 = select_rows(query, merge_versioned_rows=True, expression_builder_version=2)
             assert_items_equal(res1, res2)
 
-        test_query(
-            "k1, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k1, nk1_")
+        is_first_nested = "nk1_ = try_get_int64(nk1, \"/0\") and nk2_ = try_get_int64(nk2, \"/0\")"
 
-        test_query(
-            "k2, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k2, nk1_")
+        def make_query(gk, ngk):
+            base_query = (
+                "SELECT {}, {}_, "
+                "sum(if({}, v1, 0)) as sv1, "
+                "sum(if({}, v2, 0)) as sv2, "
+                "sum(nv1_) as snv1, sum(nv2_) as snv2 "
+                "FROM [//tmp/t] ARRAY JOIN nk1 as nk1_, nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+                "GROUP BY {}, {}_").format(gk, ngk, is_first_nested, is_first_nested, gk, ngk)
 
-        test_query(
-            "k1, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k1, nk2_")
+            inner_query = (
+                "SELECT {}, sum(snv1__) as snv1_, sum(snv2__) as snv2_ "
+                "FROM (array_agg({}_, true) as {}, array_agg(snv1, true) as snv1__, array_agg(snv2, true) as snv2__) "
+                "GROUP BY {}").format(ngk, ngk, ngk, ngk)
 
-        test_query(
-            "k2, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
-            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
-            "group by k2, nk2_")
+            return (
+                "{}, sum(sv1) as sv1_, sum(sv2) as sv2_, ({}) as x "
+                "FROM ({}) "
+                "GROUP BY {}").format(gk, inner_query, base_query, gk)
+
+        test_query(make_query("k1", "nk1"))
+        test_query(make_query("k2", "nk1"))
+        test_query(make_query("k1", "nk2"))
+        test_query(make_query("k2", "nk2"))
 
     @authors("sabdenovch")
     def test_array_join(self):
@@ -3213,7 +3284,8 @@ class TestQuery(DynamicTablesBase):
         assert expected == actual
 
     @authors("dgolear")
-    def test_hierarchical_join_orm_repeated_view(self):
+    @pytest.mark.parametrize("with_parent_table", [False, True])
+    def test_hierarchical_join_orm_repeated_view(self, with_parent_table):
         sync_create_cells(1)
 
         self._create_table(
@@ -3244,26 +3316,40 @@ class TestQuery(DynamicTablesBase):
         self._create_table(
             "//tmp/books",
             [
+                {
+                    "name": "hash",
+                    "type": "uint64",
+                    "expression": "farm_hash([meta.publisher_id])",
+                    "sort_order": "ascending",
+                },
+                {"name": "meta.publisher_id", "type": "int64", "sort_order": "ascending"},
                 {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
                 {"name": "spec.author_ids", "type": "any"},
                 {"name": "status.related_books_ids", "type": "any"},
                 {"name": "status.related_books_id2s", "type": "any"},
             ],
             [
                 {
+                    "meta.publisher_id": 100,
                     "meta.id": 1,
+                    "meta.id2": 10,
                     "spec.author_ids": ["c", "a", "c", "missing"],
                     "status.related_books_ids": [2, 1, 1],
                     "status.related_books_id2s": [20, 10, 12],
                 },
                 {
-                    "meta.id": 2,
+                    "meta.publisher_id": 100,
+                    "meta.id": 1,
+                    "meta.id2": 20,
                     "spec.author_ids": [],
                     "status.related_books_ids": [],
                     "status.related_books_id2s": [],
                 },
                 {
+                    "meta.publisher_id": 200,
                     "meta.id": 3,
+                    "meta.id2": 10,
                     "spec.author_ids": ["b"],
                     "status.related_books_ids": [1],
                     "status.related_books_id2s": [11],
@@ -3271,9 +3357,39 @@ class TestQuery(DynamicTablesBase):
             ],
         )
 
-        actual = select_rows(
+        book_source = "`//tmp/books` as b"
+        if with_parent_table:
+            self._create_table(
+                "//tmp/books_to_publishers",
+                [
+                    {
+                        "name": "hash",
+                        "type": "uint64",
+                        "expression": "farm_hash([meta.id], [meta.id2])",
+                        "sort_order": "ascending",
+                    },
+                    {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                    {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "meta.publisher_id", "type": "int64"},
+                ],
+                [
+                    {"meta.id": 1, "meta.id2": 10, "meta.publisher_id": 100},
+                    {"meta.id": 1, "meta.id2": 20, "meta.publisher_id": 100},
+                    {"meta.id": 3, "meta.id2": 10, "meta.publisher_id": 200},
+                ],
+            )
+            book_source = """
+                `//tmp/books_to_publishers` as p
+                join `//tmp/books` as b
+                    on (p.`meta.publisher_id`, p.`meta.id`, p.`meta.id2`) =
+                        (b.`meta.publisher_id`, b.`meta.id`, b.`meta.id2`)
             """
+
+        actual = select_rows(
+            f"""
             b.`meta.id` as id,
+            b.`meta.id2` as id2,
+            b.`meta.publisher_id` as publisher_id,
             (select a.`spec.name` as author_name
                 from (cast(b.`spec.author_ids` as `List<String>`) as author_id)
                 join `//tmp/authors` as a on author_id = a.`meta.id`
@@ -3288,8 +3404,8 @@ class TestQuery(DynamicTablesBase):
                     cast(b.`status.related_books_id2s` as `List<Int64>`) as related_id2)
                 join `//tmp/editions` as e on (related_id, related_id2) = (e.`meta.id`, e.`meta.id2`)
             ) as related_books
-            from `//tmp/books` as b
-            order by id
+            from {book_source}
+            order by id, id2
             limit 100
             """,
             expression_builder_version=2,
@@ -3299,6 +3415,8 @@ class TestQuery(DynamicTablesBase):
         assert actual == [
             {
                 "id": 1,
+                "id2": 10,
+                "publisher_id": 100,
                 "authors": [{"author_name": "Carol"}, {"author_name": "Alice"}, {"author_name": "Carol"}],
                 "authors_with_missing": [
                     {"left_author_id": "c", "left_author_name": "Carol"},
@@ -3309,13 +3427,17 @@ class TestQuery(DynamicTablesBase):
                 "related_books": [{"edition_name": "E2"}, {"edition_name": "E1"}],
             },
             {
-                "id": 2,
+                "id": 1,
+                "id2": 20,
+                "publisher_id": 100,
                 "authors": [],
                 "authors_with_missing": [],
                 "related_books": [],
             },
             {
                 "id": 3,
+                "id2": 10,
+                "publisher_id": 200,
                 "authors": [{"author_name": "Bob"}],
                 "authors_with_missing": [{"left_author_id": "b", "left_author_name": "Bob"}],
                 "related_books": [{"edition_name": "E1b"}],
@@ -4382,7 +4504,7 @@ class TestQueryRpcProxy(TestQuery):
         ]
 
 
-class TestSelectWithRowCache(TestLookupCache):
+class TestSelectWithRowCache(test_lookup.TestLookupCache):
     ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"
 

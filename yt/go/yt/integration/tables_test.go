@@ -2,6 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal/httpclient"
 	"go.ytsaurus.tech/yt/go/yttest"
@@ -135,6 +139,41 @@ func TestTables(t *testing.T) {
 			{"bar", 2},
 			{"foo", 1},
 		}, result)
+	})
+
+	t.Run("ReadTableRaw", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
+		name := tmpPath()
+		require.NoError(t, env.UploadSlice(name, []exampleRow{
+			{"foo", 1},
+			{"bar", 2},
+		}))
+
+		r, err := yt.ReadTableRaw(ctx, env.YT, name.Rich().SetColumns([]string{"a"}), &yt.ReadTableOptions{Format: "json"})
+		require.NoError(t, err)
+		defer func() { _ = r.Close() }()
+
+		data, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, "{\"a\":\"foo\"}\n{\"a\":\"bar\"}\n", string(data))
+	})
+
+	t.Run("ReadTableRawSnapshot", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
+		name := tmpPath()
+		require.NoError(t, env.UploadSlice(name, []exampleRow{{"foo", 1}}))
+
+		r, err := yt.ReadTableRaw(ctx, env.YT, name, &yt.ReadTableOptions{Format: "json"})
+		require.NoError(t, err)
+		defer func() { _ = r.Close() }()
+
+		require.NoError(t, env.UploadSlice(name, []exampleRow{{"bar", 2}}))
+
+		data, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, "{\"a\":\"foo\",\"b\":1}\n", string(data))
 	})
 
 	t.Run("Rollback", func(t *testing.T) {
@@ -620,4 +659,90 @@ func TestReadEarlyErrorRetry(t *testing.T) {
 
 	require.False(t, r.Next())
 	require.NoError(t, r.Err())
+}
+
+func TestReadTableRawResume(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t, yttest.WithConfig(yt.Config{CompressionCodec: yt.ClientCodecNone}))
+
+	type keyRow struct {
+		Key   int64  `yson:"key,key"`
+		Value string `yson:"value"`
+	}
+	var rows []keyRow
+	for i := 0; i < 30; i++ {
+		rows = append(rows, keyRow{Key: int64(i / 3), Value: fmt.Sprintf("value-%02d", i)})
+	}
+	path := env.TmpPath()
+	require.NoError(t, env.UploadSlice(path, rows))
+
+	formats := map[string]any{
+		"json":          "json",
+		"dsv":           "dsv",
+		"schemaful_dsv": yson.ValueWithAttrs{Value: "schemaful_dsv", Attrs: map[string]any{"columns": []string{"key", "value"}}},
+	}
+	ranges := []struct {
+		name     string
+		ranges   []ypath.Range
+		firstRow int64
+	}{
+		{name: "Table"},
+		{name: "RowIndexRange", ranges: []ypath.Range{ypath.Interval(ypath.RowIndex(4), ypath.RowIndex(20))}, firstRow: 4},
+		{name: "KeyRange", ranges: []ypath.Range{ypath.Interval(ypath.Key(int64(2)), ypath.Key(int64(7)))}, firstRow: 6},
+		{name: "ExactKey", ranges: []ypath.Range{ypath.Exact(ypath.Key(int64(4)))}, firstRow: 12},
+	}
+
+	for formatName, format := range formats {
+		for _, tc := range ranges {
+			t.Run(formatName+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(env.Ctx, time.Minute)
+				defer cancel()
+
+				richPath := &ypath.Rich{Path: path, Ranges: tc.ranges}
+				options := &yt.ReadTableOptions{Format: format}
+				expected := readAllTableRaw(ctx, t, env.YT, richPath, options)
+
+				rowSize := strings.IndexByte(expected, '\n') + 1
+				rt := &firstReadTruncatingRoundTripper{n: rowSize + rowSize/2}
+				data := readAllTableRaw(httpclient.WithRoundTripper(ctx, rt), t, env.YT, richPath, options)
+
+				require.Equal(t, expected, data)
+				require.Len(t, rt.readParams, 2)
+				require.Equal(t, tc.firstRow+1, lowerRowIndex(t, rt.readParams[1]))
+			})
+		}
+	}
+}
+
+func readAllTableRaw(ctx context.Context, t *testing.T, yc yt.Client, path ypath.YPath, options *yt.ReadTableOptions) string {
+	t.Helper()
+
+	r, err := yt.ReadTableRaw(ctx, yc, path, options)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+
+	data, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(data)
+}
+
+func lowerRowIndex(t *testing.T, readParams string) any {
+	t.Helper()
+
+	var params struct {
+		Path yson.ValueWithAttrs `yson:"path"`
+	}
+	require.NoError(t, yson.Unmarshal([]byte(readParams), &params))
+
+	ranges, ok := params.Path.Attrs["ranges"].([]any)
+	require.True(t, ok, "path %v has no ranges", params.Path)
+	require.Len(t, ranges, 1)
+	rng, ok := ranges[0].(map[string]any)
+	require.True(t, ok, "range %v is not a map", ranges[0])
+	lower, ok := rng["lower_limit"].(map[string]any)
+	require.True(t, ok, "range %v has no lower limit", rng)
+	return lower["row_index"]
 }

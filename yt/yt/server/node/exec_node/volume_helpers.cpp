@@ -22,6 +22,20 @@ void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeS
         volumeSpec.MultiplexingParallelism);
 }
 
+void FormatValue(TStringBuilderBase* builder, const TJournalNbdVolumeSpec& volumeSpec, TStringBuf /*spec*/)
+{
+    Format(
+        builder,
+        "{Kind: Journal, DeviceSize: %v, BlockSize: %v, MediumName: %v, Account: %v, "
+        "TransactionId: %v, ChunkListId: %v}",
+        volumeSpec.DeviceSize,
+        volumeSpec.BlockSize,
+        volumeSpec.MediumName,
+        volumeSpec.Account,
+        volumeSpec.TransactionId,
+        volumeSpec.ChunkListId);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeSpec& volumeSpec, TStringBuf /*spec*/)
 {
     Format(

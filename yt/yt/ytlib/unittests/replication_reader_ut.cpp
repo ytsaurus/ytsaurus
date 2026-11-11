@@ -408,6 +408,8 @@ private:
         for (const auto& block : blocks) {
             statistics->DataBytesReadFromDisk += block.Size();
         }
+        statistics->WastedDataBytesReadFromDisk = statistics->DataBytesReadFromDisk.load() / 2;
+        statistics->MetaBytesReadFromDisk = 17;
         return statistics;
     }
 };
@@ -654,13 +656,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_GE(statistics->DataBytesReadFromDisk, minBytesToRead);
     EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
 
-    // The job I/O meter accounts disk-read bytes in the same place chunk reader
-    // statistics are handled; since the mock reports only data_bytes_read_from_disk,
-    // the enabled meter must match DataBytesReadFromDisk exactly.
+    // Wasted bytes are already included in the total disk reads.
     auto expectedIoConsumed = testCase.EnableJobIoStatistics
-        ? statistics->DataBytesReadFromDisk.load()
+        ? statistics->DataBytesReadFromDisk.load() + statistics->MetaBytesReadFromDisk.load()
         : 0;
-    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedIoConsumed);
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedIoConsumed);
 
     // Every node that served a read request must have observed the expected
     // io_fair_share_weight, or none when job I/O statistics are disabled.

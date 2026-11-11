@@ -5,9 +5,6 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
-|| `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyDynamicParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyDynamicParameters)`>`
-**Default value**: `{}`
-Dynamic parameters for `at_most_once_strategy`. Connector support varies; check the connector documentation before configuring them. ||
 || `request_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
 Total deadline for one message, including all HTTP attempts and retry delays. Exhausting it terminally stops the sink for the current job. ||

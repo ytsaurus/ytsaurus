@@ -1,6 +1,6 @@
 from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 
-from yt_env_setup import parametrize_external
+from yt_env_setup import parametrize_external, with_portals_dir
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
@@ -1603,7 +1603,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         address = get_tablet_leader_address(tablet_id)
 
-        assert _has_backing_store(address, tablet_id)
+        wait(lambda: _has_backing_store(address, tablet_id))
         wait(lambda: not _has_backing_store(address, tablet_id))
 
         set("//tmp/t/@backing_store_retention_time", 1000000000)
@@ -1611,7 +1611,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i} for i in range(5)])
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 2)
 
-        assert _has_backing_store(address, tablet_id)
+        wait(lambda: _has_backing_store(address, tablet_id))
         set("//sys/tablet_cell_bundles/default/@dynamic_options/max_backing_store_memory_ratio", 0.00000001)
         wait(lambda: not _has_backing_store(address, tablet_id))
 
@@ -2095,12 +2095,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("recreation_way", ["copy", "move"])
     @pytest.mark.parametrize("unmount_way", ["unmount", "freeze"])
+    @with_portals_dir
     def test_conflict_horizon_timestamp_persistence_on_recreation(self, recreation_way, unmount_way):
         if recreation_way == "move" and unmount_way == "freeze":
             pytest.skip("unmount is required for move")
 
         from_path = "//tmp/t"
-        to_path = "//t"
+        to_path = "//portals/t"
 
         sync_create_cells(1)
         self._create_simple_table(from_path)
@@ -2132,9 +2133,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             assert False
 
         assert _get_horizon_timestamp(to_path) == expected_timestamp
-
-        # NB: There is no cleanup for /.
-        remove("//t")
 
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):

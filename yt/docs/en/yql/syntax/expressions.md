@@ -15,7 +15,7 @@ SELECT "fo" || "o";
 ```
 
 
-## Matching a string by pattern {#check-match}
+## Matching a string by pattern {#check-match} {#like} {#regexp} {#escape}
 
 `REGEXP` and `RLIKE` are aliases and offer a short way to record for a [Re2::Grep](../udf/list/re2.md#match) call. `MATCH` — similar to [Re2::Match](../udf/list/re2.md#match).
 
@@ -436,7 +436,7 @@ Semantics of a table expression depends on the context where it is used. In YQL,
 
     In this case, table expressions work as expected: for example, `$input = SELECT a, b, c FROM T; SELECT * FROM $input` returns a table with three columns.
 
-    The table context also appears after [UNION [ALL]](select/operators.md#union), [INTERSECT [ALL]](select/operators.md#intersect), [EXCEPT [ALL]](select/operators.md#except), [JOIN](join.md#join), [PROCESS](process.md#process), and [REDUCE](reduce.md#reduce).
+    The table context also appears after [UNION [ALL]](select/operators.md#union), [INTERSECT [ALL]](select/operators.md#intersect), [EXCEPT [ALL]](select/operators.md#except), [JOIN](join.md), [PROCESS](process.md), and [REDUCE](reduce.md).
 
 * Vector context: after [IN](#in). In this context, the table expression must contain exactly one column (the name of this column doesn't affect the expression result in any way).
 
@@ -446,7 +446,7 @@ Semantics of a table expression depends on the context where it is used. In YQL,
 
 The order of rows in a table context, the order of elements in a vector context, and the rule for selecting a value from a scalar context (if multiple values are returned), aren't defined. This order also cannot be affected by `ORDER BY`: `ORDER BY` without `LIMIT` is ignored in table expressions with a warning, and `ORDER BY` with `LIMIT` defines a set of elements rather than the order within that set.
 
-There is an exception to this rule. A named expression containing [PROCESS](process.md#process), when used in scalar context, behaves as if it existed in table context:
+There is an exception to this rule. A named expression containing [PROCESS](process.md), when used in scalar context, behaves as if it existed in table context:
 
 ```yql
 $input = SELECT 1 AS key, 2 AS value;

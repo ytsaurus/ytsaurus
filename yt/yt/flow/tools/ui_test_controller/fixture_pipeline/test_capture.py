@@ -262,6 +262,7 @@ class TestFlowUiPipeline(FlowTestBase):
         self.consumer = f"{self.work_yt_path}/consumer"
         self.output_queue = f"{self.work_yt_path}/output_queue"
         self.audit_queue = f"{self.work_yt_path}/audit_queue"
+        self.audit_consumer = f"{self.work_yt_path}/audit_consumer"
         self.output_producer = f"{self.work_yt_path}/output_producer"
         self.audit_producer = f"{self.work_yt_path}/audit_producer"
         self.fixture_dir = pathlib.Path(yatest.common.output_path("flow_ui_fixtures"))
@@ -284,6 +285,7 @@ class TestFlowUiPipeline(FlowTestBase):
                 {"name": "audit_queue", "schema": QUEUE_SCHEMA, "tablet_count": TABLET_COUNT},
             ],
             producer_names=["output_producer", "audit_producer"],
+            extra_consumers={"audit_consumer": ["audit_queue"]},
         )
 
     def _prepare_pipeline_config(self):
@@ -293,6 +295,15 @@ class TestFlowUiPipeline(FlowTestBase):
             {
                 "queue_path": f"<cluster={self.primary_cluster_name}>{self.input_queue}",
                 "consumer_path": f"<cluster={self.primary_cluster_name}>{self.consumer}",
+                "finite": False,
+            }
+        )
+
+        audit_source = config["spec"]["computations"]["audit_reader"]["source_streams"]["queue_source"]
+        audit_source["parameters"].update(
+            {
+                "queue_path": f"<cluster={self.primary_cluster_name}>{self.audit_queue}",
+                "consumer_path": f"<cluster={self.primary_cluster_name}>{self.audit_consumer}",
                 "finite": False,
             }
         )
@@ -368,6 +379,25 @@ class TestFlowUiPipeline(FlowTestBase):
                 "allow_spec_update_on_pause": True,
             },
         )
+
+    def _assert_audit_data_channel_edge(self, timeout=60):
+        expected = [
+            (
+                "snk-queue_writer/audit_sink",
+                "src-audit_reader/queue_source",
+                "data_channel",
+                f"yt:{self.primary_cluster_name}:{self.audit_queue}",
+            )
+        ]
+        # The controller describes the flow view, which picks up the installed spec asynchronously.
+        deadline = time.monotonic() + timeout
+        while True:
+            description = self.client.flow_execute(self.pipeline_path, flow_command="describe-pipeline")
+            edges = [(edge["from"], edge["to"], edge["kind"], edge["label"]) for edge in description["edges"]]
+            if edges or time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+        assert edges == expected
 
     def _write_input(self, prefix):
         rows = [
@@ -496,6 +526,7 @@ class TestFlowUiPipeline(FlowTestBase):
             problems=False,
         ):
             self._install_specs(config)
+            self._assert_audit_data_channel_edge()
             self.client.stop_pipeline(self.pipeline_path)
             stopped_clean = self._wait_for_view(
                 lambda view: self._pipeline_state(view) == "stopped"
@@ -559,7 +590,8 @@ class TestFlowUiPipeline(FlowTestBase):
 
             self._release_gate()
             spec = self.client.get_pipeline_spec(self.pipeline_path)["spec"]
-            spec["computations"]["source_reader"]["source_streams"]["queue_source"]["parameters"]["finite"] = True
+            for computation_id in ("source_reader", "audit_reader"):
+                spec["computations"][computation_id]["source_streams"]["queue_source"]["parameters"]["finite"] = True
             self.client.set_pipeline_spec(self.pipeline_path, spec)
             self.client.start_pipeline(self.pipeline_path)
             self.wait_pipeline_state("completed")

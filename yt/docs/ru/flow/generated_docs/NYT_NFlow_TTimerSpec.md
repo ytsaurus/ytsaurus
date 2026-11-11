@@ -8,9 +8,9 @@
 || `time_type` | **Тип**: [NYT::NFlow::ETimeType](./all_yson_structs#NYT_NFlow_ETimeType)
 **Значение по умолчанию**: `event_time`
 Используемый таймером тип времени: `event_time`, `system_time`, `real_time` ||
-|| `streams` | **Тип**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams` | **Тип**: `std::optional<THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 Перечисление потоков, за которыми таймер следит. ||
-|| `streams_with_delays` | **Тип**: `std::optional<THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[TDuration](./all_yson_structs#TDuration)`>>`
+|| `streams_with_delays` | **Тип**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`
 Перечисление потоков, за которыми таймер следит с указанием индивидуальной задержки ||
 || `deduplicate_equal_timestamps` | **Тип**: `bool`
 **Значение по умолчанию**: `true`

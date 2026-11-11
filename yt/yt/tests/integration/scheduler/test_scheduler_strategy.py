@@ -19,7 +19,7 @@ from yt_commands import (
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
     create_test_tables, PrepareTables, raises_yt_error,
-    update_pool_tree_config_option, update_scheduler_config)
+    update_pool_tree_config_option, update_scheduler_config, update_controller_agent_config)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -172,7 +172,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             out="//tmp/t_out",
             spec={"pool": "big_pool"},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         # Wait for fair share update.
         time.sleep(1)
@@ -591,7 +591,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 4, "pool": "high_cpu_pool"},
         )
 
-        wait_breakpoint()
+        wait_breakpoint([op1, op2])
 
         for resource in ["cpu", "user_slots"]:
             wait(lambda: are_almost_equal(get_pool_fair_share("subpool_1", resource), 1.0 / 3.0))
@@ -638,7 +638,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             out="//tmp/t_out",
             spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         def get_resource_usage(op):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_usage")
@@ -670,7 +670,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
                 "pool": "source_pool",
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         move("//sys/pools/source_pool", "//sys/pools/destination_pool/source_pool")
 
@@ -902,7 +902,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
         # Occupy the cluster
         op0 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=5, pool="pool_with_guarantees")
-        wait_breakpoint(job_count=5)
+        wait_breakpoint(op0, job_count=5)
 
         # Run operations
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=10, pool="pool")
@@ -1182,7 +1182,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             spec={"pool": "test_pool_2"},
         )
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint([op1, op3], job_count=2)
 
         # We sleep some time to make sure that op2 will not start.
         time.sleep(1)
@@ -1275,7 +1275,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         op2 = map(track=False, command=command, in_=["//tmp/in"], out="//tmp/out2")
         op3 = map(track=False, command=command, in_=["//tmp/in"], out="//tmp/out3")
 
-        wait_breakpoint()
+        wait_breakpoint(op1)
 
         # Sleep some time to make sure that op2 and op3 will not start.
         time.sleep(1)
@@ -1309,7 +1309,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/out1",
             spec={"pool": "test_pool_1"},
         )
-        wait_breakpoint()
+        wait_breakpoint(op1)
 
         remove("//sys/pools/test_pool_1")
         create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=True)
@@ -1544,7 +1544,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; sleep 0.5"), job_count=10, pool="test_pool")
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         rename_test_pool(check_usage=True)
         restore_test_pool(check_usage=True)
@@ -1768,6 +1768,57 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         move("//sys/pool_trees/default/root/lightweight_pool", "//sys/pool_trees/default/root/pool/lightweight_pool")
 
         self._check_operation_counts(5, 2, 3, 3, 0, 3, check_root=False)
+
+    @authors("yaishenka")
+    @pytest.mark.parametrize("finish_action", ["abort", "complete"])
+    @pytest.mark.parametrize("default_parent", ["<Root>", "research"])
+    def test_remove_pool_with_running_lightweight_operation(self, finish_action, default_parent):
+        def check_counts(pool_name, total, running, lightweight):
+            def check():
+                info = get(scheduler_orchid_pool_path(pool_name))
+                assert (
+                    info["operation_count"],
+                    info["running_operation_count"],
+                    info["lightweight_running_operation_count"],
+                ) == (total, running, lightweight)
+
+            wait_no_assert(check)
+
+        self._create_pools()
+        if default_parent != "<Root>":
+            create_pool(default_parent, attributes={"max_running_operation_count": 0})
+        update_pool_tree_config("default", {"default_parent_pool": default_parent})
+
+        connection_time_path = scheduler_orchid_path() + "/scheduler/service/last_connection_time"
+        connection_time = get(connection_time_path)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), pool="lightweight_pool")
+        self._wait_for_operation(op)
+        wait_breakpoint(op)
+        self._check_operation_counts(0, 0, 0, 1, 0, 1)
+        check_counts("<Root>", 1, 0, 1)
+
+        remove("//sys/pool_trees/default/root/lightweight_pool")
+
+        pool_path = scheduler_orchid_pool_path("lightweight_pool")
+        wait(lambda: get(pool_path + "/is_ephemeral"))
+        wait(lambda: not get(pool_path + "/effective_lightweight_operations_enabled"))
+        wait(lambda: get(pool_path + "/parent") == default_parent)
+        check_counts("lightweight_pool", 1, 1, 0)
+        check_counts("root", 0, 0, 0)
+        check_counts(default_parent, 1, 1, 0)
+        check_counts("<Root>", 1, 1, 0)
+
+        if finish_action == "abort":
+            op.abort()
+        else:
+            release_breakpoint()
+            op.track()
+
+        wait(lambda: not exists(pool_path))
+        for pool_name in ("root", default_parent, "<Root>"):
+            check_counts(pool_name, 0, 0, 0)
+        assert get(connection_time_path) == connection_time
 
     @authors("eshcherbin")
     def test_pending_operation_becomes_lightweight(self):
@@ -2162,6 +2213,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
     @authors("eshcherbin")
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
         update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
+        update_controller_agent_config("fail_operations_in_empty_trees", False)
 
         set("//sys/pool_trees/default/@config/node_tag_filter", "!custom")
         create_pool_tree("custom_tree", config={"node_tag_filter": "custom"})
@@ -2182,7 +2234,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
             spec={"pool": "subpool", "pool_trees": ["custom_tree"]},
             task_patch={"cpu_limit": 2.0},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         # Ensure that the controller has seen the available node and will not fail the operation.
         time.sleep(3.0)
@@ -2238,7 +2290,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
             track=False
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         time.sleep(2.0)
 
@@ -2296,7 +2348,7 @@ class TestEphemeralPools(YTEnvSetup):
         op2 = run_test_vanilla(command, spec={"pool": "my_pool"})
 
         # Each operation has one job.
-        wait_breakpoint(job_count=2)
+        wait_breakpoint([op1, op2], job_count=2)
 
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
         pool = get(pools_path + "/root")
@@ -2442,7 +2494,7 @@ class TestEphemeralPools(YTEnvSetup):
             })
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "custom_pool"})
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         remove("//sys/pools/custom_pool")
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool"))
@@ -2608,7 +2660,7 @@ class TestEphemeralPools(YTEnvSetup):
                     spec={"pool": "pool" + str(i)},
                 )
             )
-            wait_breakpoint(breakpoint_name)
+            wait_breakpoint(ops[-1], breakpoint_name)
 
         scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         assert builtins.set(["pool" + str(i) for i in range(1, 4)]) == builtins.set(
@@ -2684,7 +2736,7 @@ class TestEphemeralPools(YTEnvSetup):
         create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "ephemeral_hub"})
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         set("//sys/pools/ephemeral_hub/@create_ephemeral_subpools", False)
 
@@ -3034,7 +3086,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         create_pool("parent", attributes={"max_running_operation_count": 1})
         create_pool("child", parent_name="parent", attributes={"max_running_operation_count": 2})
         running_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
-        wait_breakpoint()
+        wait_breakpoint(running_op)
         waiting_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
         waiting_op.wait_for_state("pending")
         set("//sys/pools/parent/child/@max_running_operation_count", 0)
@@ -4192,7 +4244,7 @@ class TestSatisfactionRatio(YTEnvSetup):
             job_count=3,
             task_patch={"cpu_limit": 4.0},
         )
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op1, job_count=2)
 
         op2 = run_sleeping_vanilla(spec={"pool": "pool"}, task_patch={"cpu_limit": 4.0})
 

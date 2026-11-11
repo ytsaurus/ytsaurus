@@ -393,7 +393,11 @@ private:
         return SmallWaitList.size() + LargeWaitList.size();
     }
 
-    void Process(size_t total, size_t count, const TProcessor& processor, const TInstant& now) final {
+    void Process(
+        const TProcessLimits& limits,
+        const TProcessor& processor,
+        const TInstant& now) final
+    {
         const auto from = now - HistoryKeepingTime;
         EraseNodesIf(AllocationsHistory, [from] (auto& item) {
             auto& userInfo = item.second;
@@ -408,7 +412,7 @@ private:
         SmallWaitList.sort(sort);
         LargeWaitList.sort(sort);
 
-        const auto processWaitList = [&processor, &now, &total, this] (
+        const auto processWaitList = [&processor, &now, &limits, this] (
             size_t& quota,
             std::list<TFullWaitInfo>& list)
         {
@@ -424,7 +428,7 @@ private:
                     return false;
                 }
 
-                if (EnableLimiter && (info.UserInfo->GetAllocated() + count) > LimiterNumerator * total / LimiterDenumerator) {
+                if (EnableLimiter && (info.UserInfo->GetAllocated() + count) > LimiterNumerator * limits.TotalSlots / LimiterDenumerator) {
                     if (Counters) {
                         *Counters->UserLimited += 1;
                     }
@@ -444,29 +448,33 @@ private:
             return needsReserve;
         };
 
-        const auto full = count;
+        const size_t full = limits.FreeSlots;
         const auto half = full >> 1U;
+        const size_t largeSlotsBudget = std::min(limits.LargeSlotsBudget, full);
+        const size_t smallTarget = std::max(full - largeSlotsBudget, full - half);
+        size_t smallQuota = smallTarget;
+        const bool smallNeedsReserve = smallQuota
+            ? processWaitList(smallQuota, SmallWaitList)
+            : false;
+        const size_t freeAfterSmall = full - (smallTarget - smallQuota);
 
-        bool smallNeedsReserve = false;
-        if (count -= half) {
-            smallNeedsReserve = processWaitList(count, SmallWaitList);
-        }
-
+        size_t softLargeQuota;
         if (KeepReserveForLiteralRequests) {
-            count = !smallNeedsReserve && count + half >= total >> 2U
-                ? std::min(count + half, full - (half >> 1U))
-                : half;
+            softLargeQuota = !smallNeedsReserve && freeAfterSmall >= limits.TotalSlots >> 2U
+                ? std::min(freeAfterSmall, full - (half >> 1U))
+                : std::min(freeAfterSmall, half);
         } else {
-            count += half;
+            softLargeQuota = freeAfterSmall;
         }
 
+        size_t largeQuota = std::min(softLargeQuota, largeSlotsBudget);
         bool largeNeedsReserve = false;
-        if (count) {
-            largeNeedsReserve = processWaitList(count, LargeWaitList);
+        if (largeQuota) {
+            largeNeedsReserve = processWaitList(largeQuota, LargeWaitList);
         }
 
-        if (count && !largeNeedsReserve) {
-            processWaitList(count, SmallWaitList);
+        if (largeQuota && !largeNeedsReserve) {
+            processWaitList(largeQuota, SmallWaitList);
         }
     }
 

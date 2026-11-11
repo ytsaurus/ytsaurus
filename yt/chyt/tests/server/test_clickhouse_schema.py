@@ -10,6 +10,8 @@ import pytest
 
 
 class TestClickHouseSchema(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("evgenstf")
     def test_int_types(self):
         with Clique(1) as clique:

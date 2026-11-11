@@ -15,7 +15,7 @@ struct TThroughputPartitioningObservation
 {
     i64 PartitionCount = 0;
     i64 MinPartitionCount = 1;
-    i64 MaxPartitionCount = TPartitioningSpec::DefaultMaxPartitionCount;
+    i64 MaxPartitionCount = TDynamicPartitioningSpec::DefaultMaxPartitionCount;
     double Capacity = 0;
     double Processed = 0;
     std::optional<double> ProcessedCredit;
@@ -37,10 +37,10 @@ public:
     TThroughputFeedbackPolicy(
         TThroughputFeedbackState state,
         TThroughputSpecPtr config,
-        TPartitioningSpecPtr partitioningSpec,
+        TDynamicPartitioningSpecPtr partitioningSpec,
         NLogging::TLogger logger);
 
-    void Reconfigure(TThroughputSpecPtr config, TPartitioningSpecPtr partitioningSpec);
+    void Reconfigure(TThroughputSpecPtr config, TDynamicPartitioningSpecPtr partitioningSpec);
     const TThroughputFeedbackState& GetState() const;
     i64 ComputeExplorationPartitionCountLimit() const;
     bool ApplyResetGeneration();
@@ -55,7 +55,7 @@ public:
 private:
     TThroughputFeedbackState State_;
     TThroughputSpecPtr Config_;
-    TPartitioningSpecPtr PartitioningSpec_;
+    TDynamicPartitioningSpecPtr PartitioningSpec_;
     NLogging::TLogger Logger_;
 
     void FinishSearch();

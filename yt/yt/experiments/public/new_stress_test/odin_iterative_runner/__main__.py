@@ -32,6 +32,8 @@ def main():
     if args.spec_patch:
         raw_spec = lib.spec.merge_specs(raw_spec, args.spec_patch)
 
+    raw_spec["seed"] = lib.runner.set_seed(raw_spec["seed"])
+
     spec = None
     for _ in range(100):
         specs = lib.spec.variate_modes(raw_spec)

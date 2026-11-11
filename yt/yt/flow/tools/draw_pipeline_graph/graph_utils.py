@@ -13,22 +13,11 @@ MIN_VISIBLE_BLOCKED_TIME_SHARE = 0.01
 CONTROLLER_LIMIT_TYPE = "controller"
 
 
-def get_group_by_columns(computation):
-    """Return list of group-by column expressions for a computation."""
-    schema = computation.spec["group_by_schema"]
-    if isinstance(schema, dict):
-        schema = schema["$value"]
-    return [c.get("expression", c["name"]) for c in schema]
-
-
 def is_computation_warning(computation):
     """Return True if the computation has any diagnostic warning."""
     if computation.max_cpu_usage[0] >= 0.5:
         return True
-    unstable_partition_count = computation.unstable_job_count + (
-        computation.total_partition_count - computation.total_job_count
-    )
-    if unstable_partition_count > 0:
+    if computation.unstable_partition_count > 0:
         return True
     if computation.retryable_errors_partition_count > 0:
         return True
@@ -57,13 +46,30 @@ def format_count_short(count):
         value /= 1000
 
 
+def format_seconds_short(seconds):
+    """A whole number of hours, minutes or seconds: 3600 is 1h, 120 is 2m, 45 is 45s (mirrors fill_graph_limits.cpp)."""
+    seconds = int(seconds)
+    if seconds != 0 and seconds % 3600 == 0:
+        return f"{seconds // 3600}h"
+    if seconds != 0 and seconds % 60 == 0:
+        return f"{seconds // 60}m"
+    return f"{seconds}s"
+
+
+def _get_limit_value_formatter(limit_type):
+    if limit_type.endswith("_count"):
+        return format_count_short
+    if limit_type.endswith("_seconds"):
+        return format_seconds_short
+    return format_bytes_short
+
+
 def format_limit_entry(limit_type, status):
     """kind{blocked_share=, limit=, used=%, pending=%, backpressured_partition=} — mirrors the describe format."""
     parts = []
     if status.blocked_time_share >= MIN_VISIBLE_BLOCKED_TIME_SHARE:
         parts.append(f"blocked_share={status.blocked_time_share:.2f}")
-    # Count limits (e.g. output_store_count) are counts, not bytes.
-    format_value = format_count_short if limit_type.endswith("_count") else format_bytes_short
+    format_value = _get_limit_value_formatter(limit_type)
 
     def of_limit(value):
         # Percentages of a zero limit are meaningless: fall back to absolute values.
@@ -75,11 +81,15 @@ def format_limit_entry(limit_type, status):
         parts.append(f"used={of_limit(status.used)}")
         if status.pending is not None:
             parts.append(f"pending={of_limit(status.pending)}")
-    if (
-        status.get_fill_rate() >= _EDGE_WARNING_FILL_RATE_THRESHOLD
-        or status.blocked_time_share >= BLOCKED_TIME_SHARE_THRESHOLD
-    ):
-        parts.append(f"backpressured_partition={status.partition_id}")
+    fill_score = status.get_fill_rate() / _EDGE_WARNING_FILL_RATE_THRESHOLD
+    blocked_score = status.blocked_time_share / BLOCKED_TIME_SHARE_THRESHOLD
+    if fill_score >= 1 or blocked_score >= 1:
+        # Like the describe format: the blocked-time attribution names the most blocked partition.
+        blocked_partition_id = status.blocked_partition_id or status.partition_id
+        if limit_type == CONTROLLER_LIMIT_TYPE or blocked_score >= fill_score:
+            parts.append(f"backpressured_partition={blocked_partition_id}")
+        else:
+            parts.append(f"backpressured_partition={status.partition_id}")
     return f"{limit_type}{{{', '.join(parts)}}}"
 
 
@@ -99,13 +109,17 @@ def make_computation_url(computation, graph):
     return None
 
 
+def iter_data_channel_stream_edges(graph):
+    """Yield (sink_stream_id, source_stream_id, label): data-channel edges between the streams of the endpoints."""
+    for edge in graph.data_channel_edges:
+        for source_stream_id in graph.sources[edge.source_id].stream_ids:
+            for sink_stream_id in graph.sinks[edge.sink_id].stream_ids:
+                if source_stream_id in graph.streams and sink_stream_id in graph.streams:
+                    yield sink_stream_id, source_stream_id, edge.label
+
+
 def iter_read_delay_edges(graph):
-    """Yield (blocker_stream_id, delayed_stream_id, delay_duration) for all read-delay pairs."""
-    for computation in graph.computations.values():
-        watermark_alignment = computation.spec.get("watermark_strategy", {}).get("watermark_alignment", {})
-        read_delays = watermark_alignment.get("read_delays")
-        if not read_delays:
-            continue
-        for delayed_stream_id in computation.spec.get("source_streams", {}).keys():
-            for blocker_stream_id, delay_duration in read_delays.items():
-                yield blocker_stream_id, delayed_stream_id, delay_duration
+    """Yield (blocker_stream_id, delayed_stream_id, delay_duration) for all read-delay pairs between known streams."""
+    for blocker_stream_id, delayed_stream_id, delay_duration in graph.read_delay_edges:
+        if blocker_stream_id in graph.streams and delayed_stream_id in graph.streams:
+            yield blocker_stream_id, delayed_stream_id, delay_duration

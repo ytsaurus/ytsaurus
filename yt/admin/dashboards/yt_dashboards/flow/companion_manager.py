@@ -5,6 +5,8 @@
 # [E128] continuation line under-indented for visual indent
 # [E131] continuation line unaligned for hanging indent
 
+from functools import partial
+
 from ..common.sensors import FlowWorker
 
 from .common import create_dashboard
@@ -96,8 +98,7 @@ def build_companion_requests():
             "Process batch request size, max",
             companion_max(
                 "yt.flow.companion.request.size",
-                lambda expr: expr
-                .value("request_type", "process_batch")
+                lambda expr: expr.value("request_type", "process_batch")
                 .all("computation_id")
                 .alias("{{computation_id}} - {{host}}"),
             ).unit("UNIT_BYTES_SI"),
@@ -107,8 +108,7 @@ def build_companion_requests():
             "Process batch duration, max",
             companion_max(
                 "yt.flow.companion.request.duration",
-                lambda expr: expr
-                .value("request_type", "process_batch")
+                lambda expr: expr.value("request_type", "process_batch")
                 .all("computation_id")
                 .alias("{{computation_id}} - {{host}}"),
                 java_transformation=JAVA_MILLIS_TO_SECONDS,
@@ -125,6 +125,22 @@ def build_companion_requests():
             description="Rate of attempts to recreate jobs from JobInfo after the companion forgot their definitions.",
         )
     ).owner
+
+
+def build_companion_request_item_counts():
+    row = Rowset().stack(False).all("host").row()
+    for item in ("message", "timer", "visit"):
+        row.cell(
+            f"Process batch {item} count, max",
+            companion_max(
+                f"yt.flow.companion.request.{item}_count",
+                lambda expr: expr.value("request_type", "process_batch")
+                .all("computation_id")
+                .alias("{{computation_id}} - {{host}}"),
+            ).unit("UNIT_COUNT"),
+            description=f"Largest number of input {item}s in a single ProcessBatch request during the aggregation interval. Includes retried requests; empty inputs count as zero.",
+        )
+    return row.cell("", EmptyCell()).owner
 
 
 def build_companion_internals():
@@ -171,69 +187,88 @@ def build_companion_internals():
     ).owner
 
 
-def build_companion_state_sizes():
-    return (
-        Rowset()
-        .stack(False)
-        .all("host")
-        .row()
-        .cell(
-            "Internal state request size, max",
-            companion_max(
-                "yt.flow.companion.state.size",
-                lambda expr: expr
-                .value("request_type", "process_batch")
-                .value("direction", "request")
-                .value("state_type", "internal")
-                .all("computation_id")
-                .all("state_name")
-                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
-            ).unit("UNIT_BYTES_SI"),
-            description="Largest serialized internal state sent to the companion per request.",
-        )
-        .cell(
-            "External state request size, max",
-            companion_max(
-                "yt.flow.companion.state.size",
-                lambda expr: expr
-                .value("request_type", "process_batch")
-                .value("direction", "request")
-                .value("state_type", "external")
-                .all("computation_id")
-                .all("state_name")
-                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
-            ).unit("UNIT_BYTES_SI"),
-            description="Largest serialized external state sent to the companion per request.",
-        )
-        .cell(
-            "Joined state request size, max",
-            companion_max(
-                "yt.flow.companion.state.size",
-                lambda expr: expr
-                .value("request_type", "process_batch")
-                .value("direction", "request")
-                .value("state_type", "joined_external")
-                .all("computation_id")
-                .all("state_name")
-                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
-            ).unit("UNIT_BYTES_SI"),
-            description="Largest serialized joined external state sent to the companion per request.",
-        )
-        .cell(
-            "Modified state response size, max",
-            companion_max(
-                "yt.flow.companion.state.size",
-                lambda expr: expr
-                .value("request_type", "process_batch")
-                .value("direction", "response")
-                .all("computation_id")
+def build_companion_state_metrics(*, count_items):
+    metric = "item_count" if count_items else "size"
+    title_suffix = "item count" if count_items else "size"
+    unit = "UNIT_COUNT" if count_items else "UNIT_BYTES_SI"
+    request_item_count_description = (
+        "Largest number of entries in a transmitted {state_type} state, per state name. "
+        "Includes reset entries; an empty state counts as zero, an absent state is not sampled."
+    )
+    panels = (
+        (
+            "Internal state request",
+            "request",
+            "internal",
+            {
+                "size": "Largest serialized internal state sent to the companion per request.",
+                "item_count": request_item_count_description.format(state_type="internal"),
+            },
+        ),
+        (
+            "External state request",
+            "request",
+            "external",
+            {
+                "size": "Largest serialized external state sent to the companion per request.",
+                "item_count": request_item_count_description.format(state_type="external"),
+            },
+        ),
+        (
+            "Joined state request",
+            "request",
+            "joined_external",
+            {
+                "size": "Largest serialized joined external state sent to the companion per request.",
+                "item_count": request_item_count_description.format(state_type="joined external"),
+            },
+        ),
+        (
+            "Modified state response",
+            "response",
+            None,
+            {
+                "size": "Largest serialized modified state returned by the companion per request.",
+                "item_count": "Largest number of modified entries in a returned state, per state type and name. Includes resets and deletions; an empty state counts as zero, an absent state is not sampled.",
+            },
+        ),
+    )
+
+    def configure(expr, direction, state_type):
+        expr = expr.value("request_type", "process_batch").value("direction", direction)
+        if state_type is None:
+            return (
+                expr.all("computation_id")
                 .all("state_type")
                 .all("state_name")
-                .alias("{{computation_id}} / {{state_type}} / {{state_name}} - {{host}}"),
-            ).unit("UNIT_BYTES_SI"),
-            description="Largest serialized modified state returned by the companion per request.",
+                .alias("{{computation_id}} / {{state_type}} / {{state_name}} - {{host}}")
+            )
+        return (
+            expr.value("state_type", state_type)
+            .all("computation_id")
+            .all("state_name")
+            .alias("{{computation_id}} / {{state_name}} - {{host}}")
         )
-    ).owner
+
+    row = Rowset().stack(False).all("host").row()
+    for title, direction, state_type, descriptions in panels:
+        row.cell(
+            f"{title} {title_suffix}, max",
+            companion_max(
+                f"yt.flow.companion.state.{metric}",
+                partial(configure, direction=direction, state_type=state_type),
+            ).unit(unit),
+            description=descriptions[metric],
+        )
+    return row.owner
+
+
+def build_companion_state_sizes():
+    return build_companion_state_metrics(count_items=False)
+
+
+def build_companion_state_item_counts():
+    return build_companion_state_metrics(count_items=True)
 
 
 def build_companion_jvm_memory():
@@ -391,8 +426,10 @@ def build_flow_companion_manager(backend="monitoring"):
     def fill(d):
         d.add(build_companion_manager(backend))
         d.add(build_companion_requests())
+        d.add(build_companion_request_item_counts())
         d.add(build_companion_internals())
         d.add(build_companion_state_sizes())
+        d.add(build_companion_state_item_counts())
         d.add(build_companion_jvm_memory())
         d.add(build_companion_jvm_gc())
         d.add(build_companion_jvm_threads_classes())

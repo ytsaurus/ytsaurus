@@ -17,15 +17,47 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArtifactDownloadOptions
+DEFINE_ENUM(ECacheEventType,
+    (Miss)
+    (Hit)
+    (AsyncHit)
+);
+
+//! Mutable outcome of an artifact download; finalized by the artifact cache
+//! before the returned future is set.
+struct TCacheEventState final
+{
+    ECacheEventType CacheEventType = ECacheEventType::Miss;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TArtifactDownloadContext
 {
     NChunkClient::TTrafficMeterPtr TrafficMeter;
     std::vector<std::string> WorkloadDescriptorAnnotations;
 
-    //! Called after a layer artifact is downloaded (and imported, for Porto layers).
-    //! Parameters: downloadCpuDuration (network fetch), importCpuDuration (Porto import; zero for SquashFS),
-    //!             importSize (compressed archive size of the imported layer; zero for SquashFS).
-    TCallback<void(TCpuDuration downloadCpuDuration, TCpuDuration importCpuDuration, i64 importSize)> OnLayerDownloaded;
+    //! Called when a layer is served from the layer volume cache (tmpfs, SLRU or SquashFS volume cache)
+    //! instead of being fetched over the network.
+    TCallback<void(i64 compressedDataSize)> OnLayerCacheHit;
+
+    //! Called when a layer is served from the local chunk cache instead of being fetched over the network.
+    TCallback<void(i64 compressedDataSize)> OnChunkCacheHit;
+
+    //! Called when a layer was awaited while another job was inserting it into the layer volume cache;
+    //! asyncHitCpuDuration is the time the concurrent insertion was awaited.
+    TCallback<void(TCpuDuration asyncHitCpuDuration, i64 compressedDataSize)> OnLayerCacheAsyncHit;
+
+    //! Called when a layer was awaited while another job was fetching it into the chunk cache;
+    //! asyncHitCpuDuration is the time the concurrent fetch was awaited.
+    TCallback<void(TCpuDuration asyncHitCpuDuration, i64 compressedDataSize)> OnChunkCacheAsyncHit;
+
+    //! Called after a layer artifact is fetched over the network; skipped when it is served locally.
+    //! downloadCpuDuration is the time spent downloading; downloadedSize is the compressed artifact size.
+    TCallback<void(TCpuDuration downloadCpuDuration, i64 downloadedSize)> OnLayerDownloaded;
+
+    //! Called after a layer artifact is successfully imported into Porto.
+    TCallback<void(TCpuDuration importCpuDuration, i64 importedSize)> OnLayerImported;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

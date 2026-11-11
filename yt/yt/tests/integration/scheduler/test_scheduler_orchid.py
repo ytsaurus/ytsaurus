@@ -33,6 +33,14 @@ class TestSchedulerPoolTreeOrchid(YTEnvSetup):
         },
     }
 
+    @authors("bystrovserg")
+    def test_allocations_attributes_unsupported(self):
+        for attribute_path in ("@", "@count"):
+            with raises_yt_error("Getting allocation count is not supported"):
+                get(f"//sys/scheduler/orchid/scheduler/allocations/{attribute_path}")
+
+        assert get("//sys/scheduler/orchid/scheduler/service/connected")
+
     @authors("pogorelov")
     def test_exists(self):
         create_pool_tree("pool_tree", config={"node_tag_filter": "tag"})

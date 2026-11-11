@@ -201,7 +201,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 
 Если несколько process function обрабатывают данные последовательно или разветвляют стрим, их можно запустить в одном `Computation` как граф. Каждый узел графа — отдельно зарегистрированная process function; сообщения между узлами передаются внутри воркера, а не через промежуточные стримы пайплайна.
 
-Граф описывается в статической спеке, в поле `process_function_graph` компьютейшена с `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform) или `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map). У узла те же поля, что у компьютейшена с одной process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams` и `streams_dependency`. Узлы соединяются через идентификаторы стримов — так же, как компьютейшены в пайплайне:
+Граф описывается в статической спеке, в поле `process_function_graph` компьютейшена с `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform), `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map) или `"NYT::NFlow::TProcessFunctionSourceComputation"` (source). У узла те же поля, что у компьютейшена с одной process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams` и `streams_dependency`. Узлы соединяются через идентификаторы стримов — так же, как компьютейшены в пайплайне:
 
 - `input_stream_ids` и `output_stream_ids` компьютейшена задают границу графа.
 - Узел читает стримы из своего `input_stream_ids`: входы компьютейшена или выходы других узлов. Один стрим могут читать несколько узлов, а один узел может читать несколько стримов.
@@ -211,7 +211,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/pipeline.yson' lang='yson' %}
 
-Все стримы, которые используют узлы, включая внутренние, регистрируются как обычные стримы пайплайна. В том же тесте это делается в `PrepareSpec`:
+Все стримы, которые используют узлы, включая внутренние, регистрируются как обычные стримы пайплайна. Исключение — стримы из `source_streams` source-компьютейшена: они не регистрируются. В том же тесте стримы регистрируются в `PrepareSpec`:
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/main.cpp' lang='cpp' lines='[BEGIN register_streams]-[END register_streams]' %}
 
@@ -251,11 +251,28 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 - Узел видит вотермарки всех стримов пайплайна. Для внутреннего стрима или локального идентификатора таймера event-вотермарка равна минимуму по входам и таймерам компьютейшена, от которых он зависит, а `GetInputEventWatermark()` учитывает входы узла. Таймер пишет сообщения с текущим system timestamp, поэтому system-вотермарка внутреннего стрима учитывает только входы компьютейшена, от которых он зависит. В результате таймер `event_time`, который следит за внутренним стримом, ждёт отложенных таймеров вышестоящих узлов, а таймер `system_time` — нет.
 - У узлов общие идентификаторы компьютейшена и партиции. У Transform-узлов также общие коммит и порядковый номер эпохи. Swift не публикует порядковый номер эпохи, поэтому `GetEpochUniqueSeqNo()` в его узлах недоступен. Если функция строит внешние идентификаторы из общих значений контекста, добавьте к ним часть, уникальную для узла, например `IRuntimeInitContext::GetPrefix()`.
 
+Узел может читать внешнее состояние через `TJoinedStateKeyClient`, если joiner объявлен в `external_state_joiners` компьютейшена с `auto_preload = %false`. Для узла `enrich`, который вызывает `InitExternalStateClient(client, "/reference")`, имя объявления — `/functions/enrich/reference`: начальный `/` в имени клиента тоже добавляется к префиксу узла.
+
+```yson
+external_state_joiners = {
+    "/functions/enrich/reference" = {
+        external_state_joiner_class_name = "NYT::NFlow::TSimpleExternalStateJoiner";
+        auto_preload = %false;
+        join_on = {
+            key_schema_override = [{name = "offer_id"; type = "string"; required = %true;}];
+        };
+        parameters = {path = "//home/project/reference";};
+    };
+};
+```
+
+Если ключи становятся известны после разбора, batch-функция собирает их в `THashSet<TKey>`, дожидается `client.PreloadKeyStates(keys)` и затем читает `client.GetState(key)`. Передавайте ключи в схеме, заданной для joiner; они могут отличаться от ключей сообщений графа. Один вызов preload позволяет загрузить все уникальные ключи узла за эпоху. Компьютейшен сбрасывает загруженные состояния на границе эпохи; межэпоховый кеш работает по настройкам joiner. Внешняя таблица может измениться при повторной обработке, поэтому для source и Swift сохраняются требования к воспроизводимости ключей, идентификаторов и родителей выходных сообщений.
+
 ### Выполнение {#function-graph-execution}
 
 Узлы выполняются один раз за эпоху в топологическом порядке; независимые узлы — в порядке их идентификаторов. Узел, который читает несколько стримов, получает сначала входные сообщения компьютейшена, а затем выходы других узлов в этом порядке. Как и между компьютейшенами, не полагайтесь на взаимный порядок сообщений разных стримов. Сообщения между узлами хранятся в памяти до конца эпохи, и отдельного лимита на них нет: если узлы размножают сообщения, уменьшите входной батч компьютейшена через `max_rows_per_batch` и `max_bytes_per_batch`.
 
-Коннекторы источников, key visitors, компаньоны, менеджеры внешнего стейта, joined-клиенты стейта, вложенные графы и функции с `ISyncProcessFunction` внутри графа не поддерживаются; оставьте их в отдельных компьютейшенах. Стейт и таймеры узлов сохраняет компьютейшен без пользовательского хука `Sync`.
+Коннекторы источников, key visitors, компаньоны, менеджеры внешнего стейта, joined-клиенты внутреннего стейта, вложенные графы и функции с `ISyncProcessFunction` внутри графа не поддерживаются; оставьте их в отдельных компьютейшенах. Стейт и таймеры узлов сохраняет компьютейшен без пользовательского хука `Sync`.
 
 ### Идентификаторы сообщений и повторы обработки {#function-graph-message-ids}
 

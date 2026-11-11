@@ -1,4 +1,5 @@
 #include "private.h"
+#include "resource_instances.h"
 
 #include "job_balancer.h"
 #include "job_balancer_common.h"
@@ -13,6 +14,7 @@
 #include <yt/yt/flow/library/cpp/common/resource_controller.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
+#include <yt/yt/flow/library/cpp/common/trigger_condition.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 #include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
@@ -493,6 +495,41 @@ public:
             }
         }
         flowView->State->ExecutionSpec->WatermarkState->TrySetValue(watermarkState, Context_->VersionProvider);
+        UpdateWatermarkHistory(flowView, watermarkState);
+    }
+
+    //! Records the published watermarks of the streams that event-time and system-time timers wait for.
+    void UpdateWatermarkHistory(const TFlowViewPtr& flowView, const TWatermarkStatePtr& watermarkState)
+    {
+        THashSet<TStreamId> eventTimeStreams;
+        THashSet<TStreamId> systemTimeStreams;
+        for (const auto& [_, computationSpec] : Spec_->Computations) {
+            for (const auto& [timerId, condition] : BuildTimerTriggerConditions(computationSpec->TimerStreams, computationSpec->StreamsDependency)) {
+                if (condition.TimeType == ETimeType::CurrentTime) {
+                    continue;
+                }
+
+                auto& streams = condition.TimeType == ETimeType::EventTime ? eventTimeStreams : systemTimeStreams;
+                for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
+                    streams.insert(streamId);
+                }
+            }
+        }
+
+        const auto& watermarkHistory = flowView->State->WatermarkHistory;
+        // A changed factor needs no migration: existing elements are never split, so after an increase
+        // the bound tightens gradually as new samples arrive.
+        auto thinningFactor = DynamicSpec_->JobManager->WatermarkHistoryThinningFactor;
+        for (auto timeType : {ETimeType::EventTime, ETimeType::SystemTime}) {
+            auto& histories = watermarkHistory->Get(timeType);
+            const auto& streams = timeType == ETimeType::EventTime ? eventTimeStreams : systemTimeStreams;
+            DropMissingKeys(histories, streams);
+
+            for (const auto& streamId : streams) {
+                // The same lookup as the worker's trigger pass, so a missing stream is recorded as zero.
+                histories[streamId].Append(flowView->State->CurrentTimestamp, watermarkState->GetWatermark(streamId, timeType), thinningFactor);
+            }
+        }
     }
 
     void UpdateResourceControllers(const TFlowViewPtr& flowView) override
@@ -550,6 +587,7 @@ public:
 
     void CheckCompletedPartitions(const TFlowViewPtr& flowView) override
     {
+        EnsureResourceInstances(flowView);
         YT_TLOG_INFO("Looking for new completed partitions")
             .With("PartitionCount", flowView->Feedback->PartitionJobStatuses.size());
         ui64 foundOk = 0;
@@ -653,6 +691,9 @@ public:
         for (const auto& [partitionId, partitionJobStatus] : flowView->Feedback->PartitionJobStatuses) {
             auto& currentJobStatus = partitionJobStatus->CurrentJobStatus;
             if (!currentJobStatus || !currentJobStatus->IsFinished || !layout->Jobs.contains(currentJobStatus->JobId)) {
+                continue;
+            }
+            if (currentJobStatus->Error.FindMatching(EErrorCode::PartitionKeyLimitExceeded)) {
                 continue;
             }
             if (!currentJobStatus->Error.IsOK()) {
@@ -880,6 +921,7 @@ public:
 
     void DistributeJobs(const TFlowViewPtr& flowView) override
     {
+        EnsureResourceInstances(flowView);
         const auto& layout = flowView->State->ExecutionSpec->Layout;
         ui64 executing = 0;
         ui64 completing = 0;
@@ -946,8 +988,36 @@ public:
             return StopAllJobs(flowView);
         }
 
+        THashMap<TComputationId, i64> keyCountCaps;
+        THashMap<TComputationId, i64> keyCountOwners;
+        THashSet<TComputationId> drainingKeyCountComputations;
+        for (const auto& [id, controller] : ComputationControllers_) {
+            const auto staticParameters = DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase());
+            if (staticParameters && staticParameters->KeyCountPartitioning->Enable) {
+                const auto parameters = DynamicPointerCast<TDynamicPartitioningSpec>(controller->GetDynamicParametersBase());
+                keyCountCaps[id] = parameters->GetPartitionCountBounds().second;
+                keyCountOwners[id] = 0;
+            }
+        }
+        for (const auto& [_, partition] : layout->Partitions) {
+            if (partition->State == EPartitionState::Interrupting && keyCountCaps.contains(partition->ComputationId)) {
+                drainingKeyCountComputations.insert(partition->ComputationId);
+            }
+        }
+
+        auto updateKeyCountOwners = [&] (const auto& partition, TJobId jobId, i64 delta) {
+            if (auto* count = keyCountOwners.FindPtr(partition->ComputationId)) {
+                const auto* feedback = flowView->Feedback->PartitionJobStatuses.FindPtr(partition->PartitionId);
+                const auto status = feedback ? (*feedback)->CurrentJobStatus : nullptr;
+                if (!status || status->JobId != jobId || !status->IsFinished) {
+                    *count += delta;
+                }
+            }
+        };
+
         ssize_t stopCount = 0;
         auto stopJob = [&] (const auto& partition) {
+            updateKeyCountOwners(partition, *partition->CurrentJobId, -1);
             stopCount++;
             NBalancer::RemoveJobKeepingMetrics(flowView, partition->CurrentJobId.value(), EJobFinishReason::Rebalanced);
 
@@ -971,6 +1041,19 @@ public:
         };
         ssize_t createCount = 0;
         auto createJob = [&] (const auto& partitionId, const auto& worker) {
+            if (flowView->EphemeralState->KeyCountPartitioningBlockedComputations.contains(
+                GetOrCrash(layout->Partitions, partitionId)->ComputationId))
+            {
+                return;
+            }
+            const auto& partition = GetOrCrash(layout->Partitions, partitionId);
+            if (const auto* cap = keyCountCaps.FindPtr(partition->ComputationId)) {
+                if (GetOrCrash(keyCountOwners, partition->ComputationId) >= *cap ||
+                    (partition->State != EPartitionState::Interrupting && drainingKeyCountComputations.contains(partition->ComputationId)))
+                {
+                    return;
+                }
+            }
             createCount++;
             // A partition without a dynamic partition spec never reaches the worker: the heartbeat
             // response omits its job, which then dies by the status timeout with a misleading
@@ -988,6 +1071,7 @@ public:
             job->WorkerIncarnationId = worker->IncarnationId;
             job->PartitionId = partitionId;
             layout->CreateJob(job);
+            updateKeyCountOwners(partition, job->JobId, +1);
         };
 
         for (const auto& [jobId, job] : layout->Jobs) {
@@ -1008,6 +1092,7 @@ public:
                     .With("worker_incarnation_id", job->WorkerIncarnationId)
                     .With("actual_worker_incarnation_id", worker->IncarnationId);
             }
+            updateKeyCountOwners(partition, jobId, +1);
         }
 
         const auto jobManagerSpec = DynamicSpec_->JobManager;
@@ -1086,6 +1171,8 @@ public:
                 layout->WorkerSpecs.insert_or_assign(preloadAction.WorkerAddress, std::move(workerSpec));
             }
         }
+
+        EnsureResourceInstances(flowView);
 
         YT_TLOG_INFO("Finished job distributions")
             .With("Mutations", createCount + stopCount + gracefulStopCount)

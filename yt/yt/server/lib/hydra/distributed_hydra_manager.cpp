@@ -5,6 +5,7 @@
 #include "changelog_discovery.h"
 #include "changelog_store_helpers.h"
 #include "config.h"
+#include "config_wrapper.h"
 #include "decorated_automaton.h"
 #include "epoch.h"
 #include "helpers.h"
@@ -30,6 +31,7 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -206,6 +208,8 @@ public:
         YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
+        Config_->SubscribeChanged(BIND_NO_PROPAGATE(&TDistributedHydraManager::OnConfigChanged, MakeWeak(this)));
+
         Profiler_.AddFuncGauge("/leading", MakeStrong(this), [this] {
             return IsLeader();
         });
@@ -360,16 +364,11 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->Term.load() : InvalidTerm;
     }
 
-    TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
+    void Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (auto epochContext = AtomicEpochContext_.Acquire()) {
-            return BIND(&TDistributedHydraManager::ReconfigureControl, MakeStrong(this), std::move(dynamicConfig))
-                .AsyncVia(epochContext->EpochControlInvoker)
-                .Run();
-        }
-        return OKFuture;
+        Config_->Set(StaticConfig_->ApplyDynamic(dynamicConfig));
     }
 
     ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
@@ -2108,16 +2107,20 @@ private:
 
         switch (GetAutomatonState()) {
             case EPeerState::Leading:
-            case EPeerState::LeaderRecovery:
+            case EPeerState::LeaderRecovery: {
+                TForbidContextSwitchGuard contextSwitchGuard;
                 DecoratedAutomaton_->OnStopLeading();
                 StopLeading_.Fire();
                 break;
+            }
 
             case EPeerState::Following:
-            case EPeerState::FollowerRecovery:
+            case EPeerState::FollowerRecovery: {
+                TForbidContextSwitchGuard contextSwitchGuard;
                 DecoratedAutomaton_->OnStopFollowing();
                 StopFollowing_.Fire();
                 break;
+            }
 
             default:
                 break;
@@ -2130,27 +2133,15 @@ private:
         YT_TLOG_INFO("Hydra instance finalized");
     }
 
-    void ReconfigureControl(TDynamicDistributedHydraManagerConfigPtr dynamicConfig)
+    void OnConfigChanged(const TDistributedHydraManagerConfigPtr& config)
     {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto newConfig = StaticConfig_->ApplyDynamic(dynamicConfig);
-        Config_->Set(newConfig);
+        StateHashChecker_->ReconfigureLimit(config->MaxStateHashCheckerEntryCount);
+        SerializeMutationsExecutor_->SetPeriod(config->MutationSerializationPeriod);
 
-        StateHashChecker_->ReconfigureLimit(newConfig->MaxStateHashCheckerEntryCount);
-
-        SerializeMutationsExecutor_->SetPeriod(newConfig->MutationSerializationPeriod);
-
-        if (!ControlEpochContext_) {
-            return;
-        }
-
-        if (ControlEpochContext_->LeaderCommitter) {
-            ControlEpochContext_->LeaderCommitter->Reconfigure();
-        }
-
-        if (ControlEpochContext_->HeartbeatMutationCommitExecutor) {
-            ControlEpochContext_->HeartbeatMutationCommitExecutor->SetPeriod(Config_->Get()->HeartbeatMutationPeriod);
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            epochContext->HeartbeatMutationCommitExecutor->SetPeriod(config->HeartbeatMutationPeriod);
         }
     }
 
@@ -2264,9 +2255,11 @@ private:
         YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
 
-        DecoratedAutomaton_->OnStartLeading(epochContext);
-
-        StartLeading_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnStartLeading(epochContext);
+            StartLeading_.Fire();
+        }
     }
 
     void RecoverLeader()
@@ -2392,7 +2385,10 @@ private:
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            ControlLeaderRecoveryComplete_.Fire();
+            {
+                TForbidContextSwitchGuard contextSwitchGuard;
+                ControlLeaderRecoveryComplete_.Fire();
+            }
 
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -2448,9 +2444,11 @@ private:
 
         YT_TLOG_INFO("Leader recovery completed");
 
-        DecoratedAutomaton_->OnLeaderRecoveryComplete();
-
-        AutomatonLeaderRecoveryComplete_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnLeaderRecoveryComplete();
+            AutomatonLeaderRecoveryComplete_.Fire();
+        }
     }
 
     void OnLeaderActiveAutomaton()
@@ -2463,7 +2461,10 @@ private:
 
         SystemLockGuard_.Release();
 
-        LeaderActive_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            LeaderActive_.Fire();
+        }
     }
 
     bool TryAbandonExistingLease(const TEpochContextPtr& epochContext)
@@ -2576,9 +2577,12 @@ private:
         if (AutomatonEpochContext_) {
             AutomatonEpochContext_.Reset();
         }
-        DecoratedAutomaton_->OnStopLeading();
 
-        StopLeading_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnStopLeading();
+            StopLeading_.Fire();
+        }
     }
 
     void OnElectionStartFollowing(const NElection::TEpochContextPtr& electionEpochContext)
@@ -2620,9 +2624,11 @@ private:
         YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
 
-        DecoratedAutomaton_->OnStartFollowing(epochContext);
-
-        StartFollowing_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnStartFollowing(epochContext);
+            StartFollowing_.Fire();
+        }
     }
 
     void RecoverFollower()
@@ -2653,7 +2659,10 @@ private:
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
 
-            ControlFollowerRecoveryComplete_.Fire();
+            {
+                TForbidContextSwitchGuard contextSwitchGuard;
+                ControlFollowerRecoveryComplete_.Fire();
+            }
 
             YT_TLOG_INFO("Follower recovery completed");
 
@@ -2681,8 +2690,11 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        DecoratedAutomaton_->OnFollowerRecoveryComplete();
-        AutomatonFollowerRecoveryComplete_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnFollowerRecoveryComplete();
+            AutomatonFollowerRecoveryComplete_.Fire();
+        }
     }
 
     void OnElectionStopFollowing(const TError& error)
@@ -2722,9 +2734,12 @@ private:
         if (AutomatonEpochContext_) {
             AutomatonEpochContext_.Reset();
         }
-        DecoratedAutomaton_->OnStopFollowing();
 
-        StopFollowing_.Fire();
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            DecoratedAutomaton_->OnStopFollowing();
+            StopFollowing_.Fire();
+        }
     }
 
     void OnElectionStopVoting(const TError& error)
@@ -2880,6 +2895,9 @@ private:
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
         AtomicEpochContext_.Store(epochContext);
+
+        // Catch up with config changes that raced with epoch publication.
+        OnConfigChanged(Config_->Get());
 
         SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
 

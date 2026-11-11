@@ -5,7 +5,7 @@ from yt_commands import (
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
-    get_operation, get_singular_chunk_id, get_chunk_replication_factor,
+    get_operation, get_singular_chunk_id, get_chunk_replication_factor, set_nodes_banned,
     create_dynamic_table, get_driver, alter_table, get_table_columnar_statistics, raises_yt_error)
 
 from yt_type_helpers import (
@@ -2825,6 +2825,47 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         ]
 
         assert read_table("//tmp/t_out") == expected
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
+    def test_skip_unavailable_chunk(self, mode):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
+        create("table", "//tmp/lost", attributes={"replication_factor": 1})
+        write_table("//tmp/lost", [{"key": 0}], sorted_by="key")
+        create("table", "//tmp/available")
+        write_table("//tmp/available", [{"key": 1}], sorted_by="key")
+        create("table", "//tmp/out")
+
+        chunk_id = get_singular_chunk_id("//tmp/lost")
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        assert len(replicas) == 1
+
+        try:
+            op = merge(
+                mode=mode,
+                in_=["//tmp/lost", "//tmp/available"],
+                out="//tmp/out",
+                track=False,
+                spec={
+                    "suspend_operation_after_materialization": True,
+                    "merge_by": ["key"] if mode == "sorted" else [],
+                    "force_transform": True,
+                    "unavailable_chunk_strategy": "skip",
+                    "unavailable_chunk_tactics": "skip",
+                    "job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                },
+            )
+            wait(lambda: get(op.get_path() + "/@suspended"))
+
+            set_nodes_banned(replicas, True)
+            wait(lambda: not get(f"#{chunk_id}/@available"))
+
+            op.resume()
+            op.track()
+            assert read_table("//tmp/out") == [{"key": 1}]
+        finally:
+            set_nodes_banned(replicas, False)
 
 
 ##################################################################

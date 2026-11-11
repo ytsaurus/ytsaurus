@@ -73,6 +73,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   backtrace-symbolizers-dwarf
   cpp-containers-absl
   library-erasure-impl
+  yt-library-nbd
   yt-library-containers
   yt-library-discovery_client
   yt-library-disk_manager
@@ -1924,6 +1925,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   backtrace-symbolizers-dwarf
   cpp-containers-absl
   library-erasure-impl
+  yt-library-nbd
   yt-library-containers
   yt-library-discovery_client
   yt-library-disk_manager

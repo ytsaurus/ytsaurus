@@ -54,6 +54,7 @@ The default values, if set, are provided in parentheses:
 - `job_node_account` (tmp_jobs) — account under which chunks of files with the error log (stderr) and input context are stored.
 - `suspend_operation_if_account_limit_exceeded` (false) — suspends (pauses) the operation in case of the "Account limit exceeded" error in a job.
 - `enable_job_splitting` (true) — determines if the scheduler is allowed to adaptively split user jobs that take a long time.
+- `enable_job_interrupts` (true) — determines whether operation jobs may be gracefully interrupted. Disabling this option also disables adaptive job splitting.
 - `fail_on_job_restart` (false) — force-interrupts the operation if a started job terminates in any state other than success (such as abort or fail). Useful for operations that do not tolerate job restarts.
 - `suspend_on_job_failure` (false) — suspends (pauses) the operation if any job fails. When enabled, instead of failing the operation after reaching `max_failed_job_count`, the operation is suspended for investigation. The operation can be resumed after addressing the issue.
 - `title` — operation title. The passed-in text is shown in the web interface.

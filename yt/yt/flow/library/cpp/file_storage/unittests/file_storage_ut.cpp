@@ -372,7 +372,7 @@ TEST(TFileStorageTest, EvictsLeastRecentlyUsedUnpinnedObject)
     EXPECT_EQ(ReadPayload(refilled), "1");
 }
 
-TEST(TFileStorageTest, PublishesPermissionPreservingReadOnlyPayload)
+TEST(TFileStorageTest, PreservesPayloadPermissions)
 {
     TStorageFixture fixture;
     auto storage = fixture.MakeStorage();
@@ -392,10 +392,12 @@ TEST(TFileStorageTest, PublishesPermissionPreservingReadOnlyPayload)
         .ValueOrThrow();
 
     TFileStat stat(TFsPath(object->GetPath()) / "data", /*nofollow*/ true);
-    EXPECT_EQ(stat.Mode & 0777, 0440);
+    EXPECT_EQ(stat.Mode & 0777, 0640);
+    TFileStat directoryStat(TFsPath(object->GetPath()), /*nofollow*/ true);
+    EXPECT_NE(directoryStat.Mode & S_IWUSR, 0);
 }
 
-TEST(TFileStorageTest, WritableCorruptionIsDeletedAndRefilled)
+TEST(TFileStorageTest, SizeCorruptionIsDeletedAndRefilled)
 {
     TStorageFixture fixture;
     int fillCount = 0;
@@ -406,11 +408,10 @@ TEST(TFileStorageTest, WritableCorruptionIsDeletedAndRefilled)
     object.Reset();
     storage.Reset();
 
-    TFileStat stat(file, /*nofollow*/ true);
-    THROW_ERROR_EXCEPTION_UNLESS(
-        Chmod(file.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
-        "Failed to corrupt test file permissions")
-        .With(TError::FromSystem());
+    {
+        TOFStream output(file.GetPath());
+        output << "corrupt";
+    }
     storage = fixture.MakeStorage();
     auto repaired = WaitFor(storage->GetOrCreate(id, MakeFiller("new", &fillCount))).ValueOrThrow();
     EXPECT_EQ(fillCount, 2);

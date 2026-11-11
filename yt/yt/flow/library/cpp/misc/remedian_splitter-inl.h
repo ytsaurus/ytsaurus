@@ -210,6 +210,12 @@ void TRemedianSplitter<T, TCompare>::PushInner(TRef&& value, ssize_t level, ssiz
             Temp_ = inner.Data;
             Result_[quantile] = chooseValue(Temp_, inner.WritePos);
             Temp_.clear();
+
+            if (quantile == SplitterCount_ - 1) {
+                // Independent quantile estimates can cross.
+                pdqsort(Result_.begin(), Result_.end(), Compare_);
+            }
+
             ResultVersion_++;
         }
     }

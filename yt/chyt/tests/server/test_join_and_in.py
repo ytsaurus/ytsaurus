@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
 
 from yt_commands import (create, write_table, authors, raises_yt_error, print_debug, get, create_dynamic_table,
                          insert_rows, sync_mount_table)
@@ -9,7 +9,7 @@ import pytest
 
 
 class TestJoinAndIn(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     @authors("max42")
     def test_global_join(self):
@@ -391,6 +391,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"key1": 2, "key2": 2, "key3": 1},
             ]
 
+    @with_tablet_cell
     @authors("max42")
     def test_join_dynamic_tables_with_dynamic_stores(self):
         # CHYT-547.

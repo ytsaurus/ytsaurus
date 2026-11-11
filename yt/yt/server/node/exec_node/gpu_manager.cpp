@@ -151,11 +151,6 @@ void TGpuManager::Start()
     }
 
     if (StaticConfig_->GpuFlavor != EGpuFlavor::Nvidia) {
-        if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto) {
-            YT_TLOG_FATAL("Non-Nvidia GPU flavor does not support Porto job environment")
-                .With("GpuFlavor", StaticConfig_->GpuFlavor);
-        }
-
         if (!ShouldDiscoverNewGpuDevices()) {
             YT_TLOG_FATAL("Non-Nvidia GPU flavor does not support disabled 'use_gpu_info_provider_for_device_discovery'")
                 .With("GpuFlavor", StaticConfig_->GpuFlavor)

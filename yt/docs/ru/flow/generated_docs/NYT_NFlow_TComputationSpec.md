@@ -11,7 +11,7 @@
 
 Для новой пользовательской логики на C++ выберите один из встроенных адаптеров `TProcessFunction*Computation`. Саму функцию зарегистрируйте через `YT_FLOW_DEFINE_PROCESS_FUNCTION` и укажите в `processing_function`. Пользовательские классы Computation создавать не следует. ||
 || `process_function_graph` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TProcessFunctionGraphSpec](./all_yson_structs#NYT_NFlow_TProcessFunctionGraphSpec)`>`
-Несколько process function, связанных идентификаторами стримов и выполняемых в одном `TProcessFunctionComputation` или `TProcessFunctionSwiftMapComputation`. Можно объединять batch и per-message функции. ID внутренних сообщений выводятся из исходных родителей на границе графа, выходного стрима и suffix; timestamps и внешние ID назначаются по правилам host computation. Swift требует детерминированного replay; batch функции задают родителей каждого результата через `SetParents`. Объединение разных входных сообщений требует `parameters/allow_batching_with_relaxed_guarantees = %true` и даёт гарантию at-least-once. Раннер заменяет граф полями `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency` и `allow_timer_self_dependency`, поэтому не задавайте эти поля вместе с графом. ||
+Несколько process function, связанных идентификаторами стримов и выполняемых в одном `TProcessFunctionComputation`, `TProcessFunctionSwiftMapComputation` или `TProcessFunctionSourceComputation`. Можно объединять batch и per-message функции. ID внутренних сообщений выводятся из исходных родителей на границе графа, выходного стрима и suffix; timestamps и внешние ID назначаются по правилам host computation. Swift требует детерминированного replay; batch функции задают родителей каждого результата через `SetParents`. Объединение разных входных сообщений требует `parameters/allow_batching_with_relaxed_guarantees = %true` и даёт гарантию at-least-once. В `TProcessFunctionSourceComputation` узлы читают `source_streams`, внутренние сообщения сохраняют ключ сообщения источника, из которого они получены, таймеры у узлов не поддерживаются, а каждый выход должен происходить из одного сообщения источника. Сообщение, добавленное с `distribute = %false`, продвигает watermark, если записано в выходной стрим computation; узлы, читающие его стрим, его не получают. Раннер заменяет граф полями `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency` и `allow_timer_self_dependency`, поэтому не задавайте эти поля вместе с графом. ||
 || `processing_function` | **Тип**: `std::optional<std::string>`
 Полное имя process function, зарегистрированной через `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Обязательно для адаптеров `TProcessFunction*Computation`, если не задан `process_function_graph`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
@@ -26,15 +26,15 @@
 * Для остальных `Computation` первая колонка должна иметь тип `uint64`. Рекомендуется, чтобы эта колонка была вычислимым хешем от остальных колонок (например, `farm_hash`). Нужно иметь ввиду, что использование операции взятия остатка при целочисленном делении `%` и `bigb_hash` в `expression` запрещено. ||
 || `experimental_enable_non_uint_key` | **Тип**: `std::optional<bool>`
  ||
-|| `input_stream_ids` | **Тип**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Тип**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Значение по умолчанию**: `[]`
 Входные потоки.
 
 Схемы всех потоков должны быть приводимы к `group_by_schema`. ||
-|| `output_stream_ids` | **Тип**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `output_stream_ids` | **Тип**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Значение по умолчанию**: `[]`
 Выходные потоки Computation'а. В частности, могут использоваться как входы у других Computation'ов. ||
-|| `streams_dependency` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams_dependency` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 **Значение по умолчанию**: `{}`
 Описание зависимостей между потоками, включая внутренние `source` и `timer` потоки.
 
@@ -49,7 +49,7 @@
 Настройки, связанные с `EventWatermark`.
 
 Необязательный параметр. Должен быть указан в рамках `SourceComputation`. ||
-|| `required_resource_ids` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
+|| `required_resource_ids` | **Тип**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Значение по умолчанию**: `{}`
 Список необходимых ресурсов для работы `Computation`.
 
@@ -57,16 +57,16 @@
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Значение по умолчанию**: `{}`
 Произвольные параметры для `Computation` и `ComputationController` ||
-|| `timer_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
+|| `timer_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `timer` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
-|| `key_visitor_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
+|| `key_visitor_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `key_visitor` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
-|| `source_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
+|| `source_streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `source` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
-|| `sinks` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
+|| `sinks` | **Тип**: `THashMap<`[NYT::NFlow::TSinkId](./all_yson_structs#NYT_NFlow_TSinkId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `sink`. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
@@ -90,7 +90,7 @@
 || `distribution_ordering` | **Тип**: [NYT::NFlow::EDistributionOrdering](./all_yson_structs#NYT_NFlow_EDistributionOrdering)
 **Значение по умолчанию**: `strict`
 Настройки порядка распределения выходных сообщений. Управляет тем, может ли быть гонка между останавливающимися и работающими партициями с точки зрения порядка распределения выходных сообщений порожденных из входящих сообщений с одним и тем же ключом. ||
-|| `worker_group` | **Тип**: `NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>`
+|| `worker_group` | **Тип**: [NYT::NFlow::TWorkerGroupId](./all_yson_structs#NYT_NFlow_TWorkerGroupId)
 **Значение по умолчанию**: `TString("")`
  ||
 || `allow_timer_self_dependency` | **Тип**: `bool`
@@ -100,5 +100,13 @@
 Использовать компактную таблицу `compact_input_messages` для [дедупликации входных сообщений](../concepts/guarantees.md) вместо `input_messages`. Компактный ключ дедупликации хранит только хеш `key[0]` и `CityHash128(message_id)`, что снижает размер строки (~200 байт → ~71 байт).
 
 Необязательный параметр. Если значение не задано, таблица выбирается автоматически: компактная используется всегда, кроме случая, когда включён `experimental_enable_non_uint_key` (тогда первая колонка ключа может быть не `uint64`, и для дедупликации нужен полный ключ). Явно заданное значение имеет приоритет над автоматическим выбором. Включать `use_compact_input_messages` вместе с `experimental_enable_non_uint_key` запрещено. ||
+|| `timer_store_backend` | **Тип**: [NYT::NFlow::ETimerStoreBackend](./all_yson_structs#NYT_NFlow_ETimerStoreBackend)
+**Значение по умолчанию**: `in_memory`
+Хранилище таймеров этого `Computation`: `in_memory` (все таймеры партиции резидентны в памяти воркера, персистятся в таблице `timers`) или `paged` (таймеры лежат страницами в динамической таблице, в памяти только страницы, нужные для срабатывания).
+
+Статический: смена значения означает остановку и конвертацию таймеров при следующем старте. Хранилище `paged` пока не поддерживает `watermark_percentile` меньше 100 у `Computation` с таймерными потоками. ||
+|| `timer_page_size` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
+**Значение по умолчанию**: `4Ki`
+Размер страницы таймеров (число таймеров) для хранилища `paged`. Минимум 16. Страницы постепенно режутся и сливаются под бюджетом обслуживания. Строки таймеров остаются в своём семействе. ||
 |#
 

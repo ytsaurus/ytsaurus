@@ -14,6 +14,7 @@ DATA_FILES(
     devtools/gdb/libcxx_xmethods.py
     devtools/gdb/libpython_printers.py
     devtools/gdb/libstdcpp_printers.py
+    devtools/gdb/tcont_printer.py
     devtools/gdb/yabs_printers.py
 )
 

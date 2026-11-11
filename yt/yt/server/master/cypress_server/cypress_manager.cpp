@@ -2047,6 +2047,12 @@ public:
             }
         }
 
+        // Local unbranching may release the last reference and post foreign object removal.
+        // Post the foreign unlock first so that the foreign snapshot reference is released before removal.
+        if (trunkNode->IsExternal()) {
+            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
+        }
+
         // Again, the order is crucial: first unbranch (or update) nodes, then destroy locks.
 
         if (strongestLockModeBefore != strongestLockModeAfter) {
@@ -2054,10 +2060,6 @@ public:
         }
 
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
-
-        if (trunkNode->IsExternal()) {
-            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
-        }
 
         YT_TLOG_DEBUG("Node explicitly unlocked")
             .With("NodeId", trunkNode->GetId())

@@ -167,6 +167,15 @@ std::vector<std::string> ExtractFunctionNames(
         },
         [&] (const NAst::TExpressionList& expressions) {
             ExtractFunctionNames(expressions, &functions);
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            for (const auto* subquery : unionAll.Subqueries) {
+                auto extracted = ExtractFunctionNames(subquery->Ast, subquery->AliasMap);
+                functions.insert(
+                    functions.end(),
+                    std::make_move_iterator(extracted.begin()),
+                    std::make_move_iterator(extracted.end()));
+            }
         });
 
 
@@ -232,17 +241,20 @@ void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
         query->GroupClause &&
         std::ssize(query->GroupClause->GroupItems) == 1 &&
         query->GroupClause->GroupItems[0].Expression->As<TLiteralExpression>() &&
-        query->Limit != UnorderedReadHint &&
-        query->Limit != 0)
+        query->Limit &&
+        query->Offset == 0 &&
+        *query->Limit != 0)
     {
-        query->Limit = UnorderedReadHint;
+        query->Limit = std::nullopt;
+        query->ScanOrder = EScanOrder::Unordered;
     }
 }
 
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
-    TExpressionBuilder* builder)
+    TExpressionBuilder* builder,
+    bool mergeVersionedRows = true)
 {
     if (ast.WherePredicate) {
         auto wherePredicate = BuildPredicate(*ast.WherePredicate, builder, "WHERE-clause");
@@ -296,6 +308,10 @@ void PrepareQuery(
             }
         }
 
+        if (!mergeVersionedRows) {
+            keyPrefix = 0;
+        }
+
         touchedKeyColumns.resize(keyPrefix);
         for (int index : touchedKeyColumns) {
             if (index >= 0) {
@@ -345,6 +361,7 @@ void PrepareQuery(
         bool canOmitOrderBy = CanOmitOrderBy(0, orderClause->OrderItems, query->GetKeyColumns());
         if (!canOmitOrderBy) {
             query->OrderClause = std::move(orderClause);
+            query->ScanOrder = EScanOrder::Unordered;
         }
 
         bool canReverseScanForOrderBy = false;
@@ -359,8 +376,13 @@ void PrepareQuery(
         }
 
         if (canReverseScanForOrderBy) {
-            query->IsReverseScan = true;
+            query->ScanOrder = EScanOrder::Reversed;
         }
+    } else if (!ast.Limit) {
+        // COMPAT(sabdenovch): For queries with LIMIT the scan order is resolved
+        // in PreparePlanFragmentImpl, after the group clause (including aggregate
+        // items), the limit clause and the group-by push-down are final.
+        query->ScanOrder = EScanOrder::Unordered;
     }
 
     if (ast.SelectExprs) {
@@ -376,8 +398,6 @@ void PrepareQuery(
         // Select all columns.
         builder->PopulateAllColumns();
     }
-
-    DropLimitClauseWhenGroupByOne(query);
 
     builder->Finish();
 }
@@ -1114,6 +1134,16 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
             hyperLogLogPrecision);
     }
 
+    if (auto* unionAll = std::get_if<NAst::TUnionAllClause>(&ast->FromClause); unionAll) {
+        for (auto* subquery : unionAll->Subqueries) {
+            RewriteCardinalityIntoHyperLogLogWithPrecision(
+                &subquery->Ast,
+                &subquery->AliasMap,
+                holder,
+                hyperLogLogPrecision);
+        }
+    }
+
     if (auto* expressions = std::get_if<NAst::TExpressionList>(&ast->FromClause); expressions) {
         for (auto& item : *expressions) {
             item = rewriter.Visit(item);
@@ -1310,6 +1340,11 @@ public:
             },
             [&] (const NAst::TExpressionList& expressions) {
                 Visit(expressions);
+            },
+            [&] (const NAst::TUnionAllClause& unionAllClause) {
+                for (const auto& subquery : unionAllClause.Subqueries) {
+                    Rewrite(&subquery->Ast, &subquery->AliasMap);
+                }
             });
 
         for (const auto& [name, expression] : *aliasMap) {
@@ -1514,22 +1549,21 @@ void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst)
     }
 
     i64 offset = queryAst.Offset.value_or(0);
-    i64 limit = queryAst.Limit.value_or(UnorderedReadHint);
     if (offset < 0) {
         THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
             .With("offset", offset);
     }
 
-    if (limit < 0) {
+    if (queryAst.Limit && *queryAst.Limit < 0) {
         THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
-            .With("limit", limit);
+            .With("limit", *queryAst.Limit);
     }
 
     THROW_ERROR_EXCEPTION_IF(
-        offset > std::numeric_limits<i64>::max() - limit,
+        queryAst.Limit && offset > std::numeric_limits<i64>::max() - *queryAst.Limit,
         "Sum of offset %v and limit %v overflows i64",
         offset,
-        limit);
+        *queryAst.Limit);
 }
 
 void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy)
@@ -1590,6 +1624,57 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         [&] (const NAst::TTableDescriptor&) { },
         [&] (const NAst::TExpressionList&) {
             THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            auto unionAllQuery = New<TUnionAllQuery>();
+            // TODO(sabdenovch): Consider type extension to largest accommodating type per column.
+            TTableSchemaPtr commonSchema;
+
+            for (const auto* subqueryHead : unionAll.Subqueries) {
+                auto subFragment = PreparePlanFragmentImpl(
+                    callbacks,
+                    source,
+                    subqueryHead->Ast,
+                    subqueryHead->AliasMap,
+                    options,
+                    memoryTracker,
+                    depth + 1);
+
+                auto subSchema = subFragment->Query->GetTableSchema();
+
+                if (!commonSchema) {
+                    commonSchema = subSchema;
+                } else {
+                    if (subSchema->GetColumnCount() != commonSchema->GetColumnCount()) {
+                        THROW_ERROR_EXCEPTION(
+                            "UNION ALL subqueries have different column counts %v and %v",
+                            commonSchema->GetColumnCount(),
+                            subSchema->GetColumnCount());
+                    }
+                    for (int i = 0; i < subSchema->GetColumnCount(); ++i) {
+                        const auto& expected = commonSchema->Columns()[i];
+                        const auto& actual = subSchema->Columns()[i];
+                        if (actual.Name() != expected.Name()) {
+                            THROW_ERROR_EXCEPTION(
+                                "UNION ALL subqueries name column %v differently: %Qv and %Qv",
+                                i,
+                                expected.Name(),
+                                actual.Name());
+                        }
+                        if (*actual.LogicalType() != *expected.LogicalType()) {
+                            THROW_ERROR_EXCEPTION(
+                                "UNION ALL subqueries have incompatible types for column %Qv, %v and %v",
+                                expected.Name(),
+                                *expected.LogicalType(),
+                                *actual.LogicalType());
+                        }
+                    }
+                }
+                unionAllQuery->SubqueryFragments.push_back(std::move(subFragment));
+            }
+
+            unionAllQuery->Schema = std::move(commonSchema);
+            fragment->UnionAllQuery = std::move(unionAllQuery);
         });
 
     auto functions = New<TTypeInferrerMap>();
@@ -1603,6 +1688,8 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         const auto& dataSplit = GetDataSplitOrThrow(dataSplits, table->Path);
         fragment->DataSource.ObjectId = dataSplit.ObjectId;
         query->Schema.Original = dataSplit.TableSchema;
+    } else if (fragment->UnionAllQuery) {
+        query->Schema.Original = fragment->UnionAllQuery->Schema;
     } else {
         query->Schema.Original = fragment->SubqueryFragment->Query->GetTableSchema();
     }
@@ -1616,6 +1703,9 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         },
         [&] (const NAst::TExpressionList&) -> std::optional<std::string> {
             return std::nullopt;
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            return unionAll.Alias;
         });
 
     TPreparePlanFragmentContext context{Logger, dataSplits, options};
@@ -1634,7 +1724,9 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     });
 
     std::vector<TJoinClausePtr> joinClauses;
-    size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
+    size_t commonKeyPrefix = options.MergeVersionedRows
+        ? std::numeric_limits<size_t>::max()
+        : 0;
     for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
@@ -1646,7 +1738,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     functions,
                     &commonKeyPrefix,
                     query->Schema.Original,
-                    table->Alias,
+                    table ? table->Alias : std::nullopt,
                     builder.get(),
                     context));
             },
@@ -1661,7 +1753,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             });
     }
 
-    PrepareQuery(query, queryAst, builder.get());
+    PrepareQuery(query, queryAst, builder.get(), options.MergeVersionedRows);
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
@@ -1683,19 +1775,38 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     ValidateHaving(queryAst, /*hasOrderBy*/ query->OrderClause != nullptr);
 
     if (queryAst.Limit) {
-        query->Limit = *queryAst.Limit;
+        query->Limit = queryAst.Limit;
     }
 
     if (queryAst.Offset) {
         query->Offset = *queryAst.Offset;
     }
 
+    DropLimitClauseWhenGroupByOne(query);
+
     TryPushDownGroupBy(query, queryAst, Logger);
+
+    // COMPAT(sabdenovch): Group by with limit may be processed in unordered fashion
+    // only if the group clause cannot be processed in order. Resolve it here, where
+    // the group clause (including aggregate items), the limit clause and the
+    // group-by push-down are final.
+    if (!query->OrderClause && query->Limit &&
+        options.AllowUnorderedGroupByWithLimit &&
+        query->GroupClause &&
+        !query->GroupClause->AllAggregatesAreFirst() &&
+        query->GroupClause->CommonPrefixWithPrimaryKey == 0)
+    {
+        query->ScanOrder = EScanOrder::Unordered;
+    }
 
     auto readSchema = query->GetReadSchema();
 
     if (fragment->SubqueryFragment) {
         EliminateRedundantProjections(fragment->SubqueryFragment->Query, *readSchema);
+    } else if (fragment->UnionAllQuery) {
+        for (const auto& subqueryFragment : fragment->UnionAllQuery->SubqueryFragments) {
+            EliminateRedundantProjections(subqueryFragment->Query, *readSchema);
+        }
     }
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});

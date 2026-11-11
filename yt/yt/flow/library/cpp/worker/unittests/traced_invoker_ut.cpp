@@ -236,41 +236,6 @@ TEST_F(TTracedInvokerTest, AccountantCountsCpuWork)
     EXPECT_GT(cpuTime, TDuration::Zero());
 }
 
-TEST_F(TTracedInvokerTest, AccountantExcludesThreadSleep)
-{
-    // Sleep blocks the OS thread (off-CPU) — a proxy for preemption. Unlike the trace context's
-    // wall-based elapsed time (see ThreadSleepCountsAsUtilization), the accountant measures real
-    // thread CPU time, so almost nothing is charged.
-    auto sleepCpuTime = MeasureCallbackCpuTime(
-        BIND_NO_PROPAGATE([] {
-            Sleep(TDuration::Seconds(1));
-        }),
-        Queue->GetInvoker());
-    EXPECT_LT(sleepCpuTime, TDuration::MilliSeconds(100));
-}
-
-TEST_F(TTracedInvokerTest, AccountantExcludesIdleWait)
-{
-    // A fiber suspend (WaitForDuration) is not CPU time either.
-    auto idleCpuTime = MeasureCallbackCpuTime(MakeIdleCallback(TDuration::Seconds(1)), Queue->GetInvoker());
-    EXPECT_LT(idleCpuTime, TDuration::MilliSeconds(100));
-
-    auto cpuTime = MeasureCallbackCpuTime(MakeCpuIntensiveCallback(), Queue->GetInvoker());
-    EXPECT_GT(cpuTime, idleCpuTime);
-}
-
-TEST_F(TTracedInvokerTest, AccountantCountsCpuAfterContextSwitch)
-{
-    // CPU work performed after a fiber yield must still be charged.
-    auto callback = BIND_NO_PROPAGATE([] {
-        Yield();
-        MakeCpuIntensiveCallback().Run();
-    });
-    auto yieldCpuTime = MeasureCallbackCpuTime(callback, Queue->GetInvoker());
-    auto idleCpuTime = MeasureCallbackCpuTime(MakeIdleCallback(), Queue->GetInvoker());
-    EXPECT_GT(yieldCpuTime, idleCpuTime);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

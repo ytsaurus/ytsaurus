@@ -11,7 +11,7 @@ The built-in Computation or process-function adapter class name.
 
 For new C++ user logic, select one of the built-in `TProcessFunction*Computation` adapters. Register the function with `YT_FLOW_DEFINE_PROCESS_FUNCTION` and name it in `processing_function`. Don’t create custom Computation classes. ||
 || `process_function_graph` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TProcessFunctionGraphSpec](./all_yson_structs#NYT_NFlow_TProcessFunctionGraphSpec)`>`
-Several process functions connected by stream IDs and run in one `TProcessFunctionComputation` or `TProcessFunctionSwiftMapComputation`. Batch and per-message functions can be combined. Internal message IDs are derived from their boundary parents, output stream, and suffix; timestamps and external IDs follow the host computation's policy. Swift requires deterministic replay; batch functions set each result's parents with `SetParents`. Merging different input messages requires `parameters/allow_batching_with_relaxed_guarantees = %true` and provides at-least-once delivery. The runner replaces the graph with `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency`, and `allow_timer_self_dependency`, so do not set these fields together with the graph. ||
+Several process functions connected by stream IDs and run in one `TProcessFunctionComputation`, `TProcessFunctionSwiftMapComputation`, or `TProcessFunctionSourceComputation`. Batch and per-message functions can be combined. Internal message IDs are derived from their boundary parents, output stream, and suffix; timestamps and external IDs follow the host computation's policy. Swift requires deterministic replay; batch functions set each result's parents with `SetParents`. Merging different input messages requires `parameters/allow_batching_with_relaxed_guarantees = %true` and provides at-least-once delivery. In `TProcessFunctionSourceComputation`, nodes read `source_streams`, internal messages keep the key of the source message they derive from, nodes cannot have timers, and each output must derive from one source message. A message added with `distribute = %false` still advances the watermark if it is written to an output of the computation; nodes reading its stream do not receive it. The runner replaces the graph with `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency`, and `allow_timer_self_dependency`, so do not set these fields together with the graph. ||
 || `processing_function` | **Type**: `std::optional<std::string>`
 The fully qualified process-function name registered with `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Required by `TProcessFunction*Computation` adapters unless `process_function_graph` is set. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
@@ -26,15 +26,15 @@ A schema for grouping all input streams. It is a dynamic table schema. Schema pr
 * For other `Computation` instances, the first column must be of type `uint64`. It is recommended that this column be a computed hash of the other columns (for example, `farm_hash`). Note that using the modulo operator `%` and `bigb_hash` in `expression` is prohibited. ||
 || `experimental_enable_non_uint_key` | **Type**: `std::optional<bool>`
  ||
-|| `input_stream_ids` | **Type**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `input_stream_ids` | **Type**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Default value**: `[]`
 Input streams.
 
 The schemas of all streams must be castable to `group_by_schema`. ||
-|| `output_stream_ids` | **Type**: `THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>`
+|| `output_stream_ids` | **Type**: `THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>`
 **Default value**: `[]`
 Output streams of the Computation. They can be used as inputs for other Computations. ||
-|| `streams_dependency` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+|| `streams_dependency` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 **Default value**: `{}`
 A description of dependencies between streams, including internal `source` and `timer` streams.
 
@@ -49,7 +49,7 @@ Specified only for `timer` and `output` streams. If no description is provided f
 Settings related to `EventWatermark`.
 
 An optional parameter. Must be specified within `SourceComputation`. ||
-|| `required_resource_ids` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
+|| `required_resource_ids` | **Type**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Default value**: `{}`
 A list of resources required for the `Computation` to work.
 
@@ -57,16 +57,16 @@ Has an `alias` parameter for locally renaming a resource (for example, `Computat
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Default value**: `{}`
 Custom parameters for `Computation` and `ComputationController`. ||
-|| `timer_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
+|| `timer_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Default value**: `{}`
 Settings for all `timer` streams. Keys must match `[0-9A-Za-z_-]+`. ||
-|| `key_visitor_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
+|| `key_visitor_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
 **Default value**: `{}`
 Settings for all `key_visitor` streams. Keys must match `[0-9A-Za-z_-]+`. ||
-|| `source_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
+|| `source_streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Default value**: `{}`
 Settings for all `source` streams. Keys must match `[0-9A-Za-z_-]+`. ||
-|| `sinks` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
+|| `sinks` | **Type**: `THashMap<`[NYT::NFlow::TSinkId](./all_yson_structs#NYT_NFlow_TSinkId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Default value**: `{}`
 Settings for all sinks. Keys must match `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
@@ -90,7 +90,7 @@ Settings for the processing order of input streams. ||
 || `distribution_ordering` | **Type**: [NYT::NFlow::EDistributionOrdering](./all_yson_structs#NYT_NFlow_EDistributionOrdering)
 **Default value**: `strict`
 Settings for the distribution order of output messages. Controls whether a race condition is possible between stopping and running partitions from the perspective of the order of output messages generated from input messages with the same key. ||
-|| `worker_group` | **Type**: `NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>`
+|| `worker_group` | **Type**: [NYT::NFlow::TWorkerGroupId](./all_yson_structs#NYT_NFlow_TWorkerGroupId)
 **Default value**: `TString("")`
  ||
 || `allow_timer_self_dependency` | **Type**: `bool`
@@ -100,5 +100,13 @@ Settings for the distribution order of output messages. Controls whether a race 
 Use the `compact_input_messages` table for [input message deduplication](../concepts/guarantees.md) instead of `input_messages`. The compact deduplication key stores only the hash of `key[0]` and `CityHash128(message_id)`, which reduces the row size (~200 bytes → ~71 bytes).
 
 An optional parameter. If not set, the table is chosen automatically: the compact table is always used except when `experimental_enable_non_uint_key` is enabled (in that case, the first key column may not be `uint64`, and deduplication requires the full key). An explicitly set value takes priority over automatic selection. Enabling `use_compact_input_messages` together with `experimental_enable_non_uint_key` is prohibited. ||
+|| `timer_store_backend` | **Type**: [NYT::NFlow::ETimerStoreBackend](./all_yson_structs#NYT_NFlow_ETimerStoreBackend)
+**Default value**: `in_memory`
+Timer store of this `Computation`: `in_memory` (all timers of a partition are resident in worker memory and persisted in the `timers` table) or `paged` (timers live in pages of a dynamic table, only the pages needed for firing are resident).
+
+Static: a change means a stop and a conversion of the timers at the next start. The `paged` store does not support a `watermark_percentile` below 100 on a `Computation` with timer streams yet. ||
+|| `timer_page_size` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
+**Default value**: `4Ki`
+Timer page size (number of timers) for the `paged` store. At least 16. Pages are split and merged gradually under the maintenance budget. Timer rows stay in their family. ||
 |#
 

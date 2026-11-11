@@ -59,7 +59,12 @@ struct TChunkNbdVolumeOptions
     NChunkClient::TSessionId SessionId;
 };
 
-using TRWNbdVolumeBackendOptions = std::variant<TChunkNbdVolumeOptions>;
+struct TJournalNbdVolumeOptions
+{
+    TJournalNbdVolumeSpec Spec;
+};
+
+using TRWNbdVolumeBackendOptions = std::variant<TChunkNbdVolumeOptions, TJournalNbdVolumeOptions>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,34 +80,6 @@ struct TPrepareRWNbdVolumeOptions
     NNbd::EFilesystemType FilesystemType = NNbd::EFilesystemType::Unknown;
 
     TRWNbdVolumeBackendOptions BackendOptions;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareLayerOptions
-{
-    TJobId JobId;
-    TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareSquashFSVolumeOptions
-{
-    TJobId JobId;
-    TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareRootOverlayVolumeOptions
-{
-    TJobId JobId;
-    TUserSandboxOptions UserSandboxOptions;
-    std::vector<TOverlayData> OverlayDataArray;
-    TBaseVolumeParamsPtr RootVolumeParams;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

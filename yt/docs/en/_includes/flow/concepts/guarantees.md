@@ -38,7 +38,7 @@ Lease is a commit-time ownership barrier. By itself, it does not perform [input 
 The way output messages are delivered depends on the [sink](../../../flow/concepts/glossary.md#sink) type:
 
 - **Synchronous sinks** (for example, `TSyncQueueSink`) write data to the target system in the same epoch transaction. The write and acknowledgment are atomic.
-- **Asynchronous sinks** (for example, `TAsyncQueueSink`{% if audience == "internal" %}, `TLogbrokerSink`{% endif %}) synchronously store messages in {{product-name}} in the `output_messages` table, then send messages to the target system after the epoch is committed, using the `(producer_id, seqNo)` pair for deduplication on the receiver side (Queue API{% if audience == "internal" %}, Logbroker{% endif %}). If sending fails, messages from `output_messages` are sent again with the same `seqNo`. This essentially implements the [transactional outbox](https://en.wikipedia.org/wiki/Inbox_and_outbox_pattern#The_outbox_pattern) pattern with deduplication in the target system, if it supports it.
+- **Asynchronous sinks** (for example, `TAsyncQueueSink`{% if audience == "internal" %}, `TLogbrokerSink`{% endif %}) synchronously store messages in {{product-name}} in the `output_messages` table, then deliver them after the epoch is committed, using durable progress in the target system for deduplication. `TAsyncQueueSink` skips replayed message IDs up to `last_message_id` in the producer session’s `user_meta`; IDs must strictly increase, and session sequence numbers are physical.{% if audience == "internal" %} `TLogbrokerSink` uses `(producer_id, seqNo)` and resends with the same `seqNo`.{% endif %} This implements the [transactional outbox](https://en.wikipedia.org/wiki/Inbox_and_outbox_pattern#The_outbox_pattern) pattern with deduplication in the target system, if it supports it.
 
 ### What the developer must do {#developer-responsibilities}
 
@@ -141,22 +141,7 @@ These sinks inherit from `TSyncSinkBase` and write to Logbroker directly during 
 
 At-most-once guarantees that each message is processed **no more than once**, but allows message loss.
 
-You achieve this semantics by configuring `at_most_once_strategy` on asynchronous sinks that support it.
-
-```
-"sinks" = {
-    "my_sink" = {
-        "at_most_once_strategy" = {
-            "enabled" = %true;
-            "total_queue_bytes_limit" = 104857600;  // 100 MB
-            "suspend_destruction_duration" = 60000;   // ms
-        };
-        ...
-    };
-};
-```
-
-**How it works**: messages are placed in an internal queue. If the queue is full (`total_queue_bytes_limit`), new messages **are dropped without an error**. Deduplication and delivery guarantees are absent.
+The asynchronous [YT Queue sink](../../../flow/connectors/queue.md) supports this mode. Enable it with the static parameter `at_most_once_strategy.enabled`. The dynamic `at_most_once_strategy` parameters control the queue byte limit (`total_queue_bytes_limit`) and the shutdown grace period (`suspend_destruction_duration`). Messages are acknowledged before delivery and may be dropped when the local queue is full or a write outcome is uncertain.
 
 **When to use it**: for telemetry, metrics, best-effort notifications — scenarios where losing some messages is acceptable and throughput is more important than reliability.
 
@@ -174,7 +159,7 @@ Each [connector](../../../flow/connectors/about.md) has its own set of guarantee
 
 - **Source**: exactly-once — consumer offsets advance only after epoch commit.
 - **Synchronous sink** (`TSyncQueueSink`): exactly-once — writing to the queue happens in the main epoch transaction. Works only on the main processing cluster.
-- **Asynchronous sink** (`TAsyncQueueSink`): exactly-once — messages are stored in `output_messages`, then delivered with `producer_id` + `seqNo`. Queue API deduplicates repeats. Works cross-cluster.
+- **Asynchronous sink** (`TAsyncQueueSink`): exactly-once — messages are stored in `output_messages`, then delivered through a Queue API producer session. Its `user_meta.last_message_id` stores the last written message ID, so replayed messages with IDs up to it are skipped. IDs must strictly increase; session sequence numbers are physical. Works cross-cluster.
 
 For more details, see [Queue](../../../flow/connectors/queue.md).
 
@@ -188,7 +173,7 @@ For more details, see [Static Table](../../../flow/connectors/static-table.md).
 ### HTTP {#http-guarantees}
 
 - **Source**: none.
-- **Asynchronous sink** (`TAsyncHttpSink`): at-least-once — POST requests run outside the epoch transaction, so the receiver must make the operation idempotent or deduplicate the stable message ID sent in `Idempotency-Key` by default. Enabling `at_most_once_strategy` makes spec loading fail.
+- **Asynchronous sink** (`TAsyncHttpSink`): at-least-once — POST requests run outside the epoch transaction, so the receiver must make the operation idempotent or deduplicate the stable message ID sent in `Idempotency-Key` by default.
 
 For more details, see [HTTP extension](../../../flow/extensions/http.md).
 
@@ -222,11 +207,10 @@ For more details, see [Logbroker](../../../yandex-specific/flow/extensions/logbr
 
 ### ClickHouse {#clickhouse-guarantees}
 
-The ClickHouse extension provides three guarantee levels across four sink classes; your choice directly affects message processing guarantees:
+The ClickHouse extension provides two guarantee levels across three sink classes; your choice directly affects message processing guarantees:
 
 - **Exactly-once sinks** (`TClickHouseBatchingSink`, recommended by default, and `TShardedClickHouseBatchingSink`): messages are stored in `output_messages` and deterministically grouped into batches by the same `MessageId` boundaries. In an unsharded sink, `insert_deduplication_token` equals the batch’s maximum `MessageId`. With `shard_hosts`, each shard receives that batch token with a `:<shard name>` suffix. A byte-identical replay carries the **same** deduplication token even after `group_by` repartitioning, so exactly-once survives repartitioning. ClickHouse deduplicates the repeat by the token.
 - **At-least-once sink** (`TAtLeastOnceClickHouseSink`): the epoch batch is written synchronously during processing without intermediate storage and without a deduplication token. Lower latency and load on {{product-name}}. A failed write prevents the epoch from committing, so messages are not lost. Known transient errors are retried without a limit; unclassified errors are attempted at most `max_insert_attempts` times in total (10 by default), and permanent errors fail immediately. On failure after a successful write but before epoch commit, the same batch is written again, so duplicates are possible.
-- **At-most-once sink** (`TAtMostOnceClickHouseSink`): the guarantee applies in both strategy modes. With the default static setting `at_most_once_strategy.enabled = false`, pending messages stay in `output_messages` and use ordered delivery, so a connection or session failure before `INSERT` starts may be retried. Set the option to `true` to send each message independently through a bounded in-memory queue without waiting for delivery. Its dynamic limit is `at_most_once_strategy.total_queue_bytes_limit`; the sink logs a warning when it drops messages on overflow. In either mode, once `INSERT` has started, a failed insert is acknowledged instead of retried. Each message generates a separate `INSERT`, so to avoid creating many small parts in ClickHouse, aggregate the stream with batching upstream in the pipeline.
 
 Exactly-once requires one of the ClickHouse table engines that deduplicate inserted blocks (see [Data Replication](https://clickhouse.com/docs/engines/table-engines/mergetree-family/replication) and [SharedMergeTree](https://clickhouse.com/docs/cloud/reference/shared-merge-tree) in the ClickHouse documentation):
 
@@ -241,12 +225,12 @@ Each sink instance creates its writer session lazily on the first write and keep
 Summary table of guarantees by sink class:
 
 #|
-|| | **Exactly-once sink** | **At-least-once sink** | **At-most-once sink** ||
-|| Intermediate storage in {{product-name}} | Yes (`output_messages`) | No | Yes with `at_most_once_strategy.enabled = false`; no with `true` ||
-|| Deduplication in ClickHouse | `insert_deduplication_token` (max `MessageId`; with `shard_hosts`, plus `:<shard name>`) | No | No ||
-|| Latency | Higher (extra write) | Lower | Lower ||
-|| Loss on failure | No | No | Possible after `INSERT` starts; with `enabled = true`, also on queue overflow ||
-|| Duplicates on failure | No | Possible | No ||
+|| | **Exactly-once sink** | **At-least-once sink** ||
+|| Intermediate storage in {{product-name}} | Yes (`output_messages`) | No ||
+|| Deduplication in ClickHouse | `insert_deduplication_token` (max `MessageId`; with `shard_hosts`, plus `:<shard name>`) | No ||
+|| Latency | Higher (extra write) | Lower ||
+|| Loss on failure | No | No ||
+|| Duplicates on failure | No | Possible ||
 |#
 
 For more details, see [ClickHouse extension](../../../flow/extensions/clickhouse.md).

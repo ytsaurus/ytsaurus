@@ -33,6 +33,7 @@ constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
 YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
         // NB(pogorelov): In some cases (for example, when using mac os and docker with colima),
         // there may be strange threads at the application start, which we can not send signals to.
@@ -54,6 +55,11 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
         }
         DeliveryFencedWriteEnabled = ok;
     });
+#else
+YT_STATIC_INITIALIZER({
+    DeliveryFencedWriteEnabled = false;
+});
+#endif
 
 class TJobProxyProgram
     : public virtual TProgram

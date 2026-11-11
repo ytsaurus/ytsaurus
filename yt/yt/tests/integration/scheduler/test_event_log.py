@@ -19,6 +19,7 @@ from collections import defaultdict
 import time
 import builtins
 import math
+import pytest
 
 
 ##################################################################
@@ -195,33 +196,51 @@ class TestEventLog(YTEnvSetup):
             assert flag
 
     @authors("eshcherbin")
-    def test_split_fair_share_info_events(self):
-        def read_fair_share_info_events():
+    @pytest.mark.parametrize("event_type", ["fair_share_info", "accumulated_usage_info"])
+    def test_split_resource_info_events(self, event_type):
+        event_id_key = "tree_snapshot_id" if event_type == "fair_share_info" else "accumulated_usage_info_event_id"
+        batch_size_prefix = "max_event_log" if event_type == "fair_share_info" else "max_accumulated_usage_log"
+        other_batch_size_prefix = "max_accumulated_usage_log" if event_type == "fair_share_info" else "max_event_log"
+
+        def is_complete_split_event(events):
+            if not events:
+                return False
+            for field in ("pools", "operations"):
+                count = events[0][field + "_batch_count"]
+                assert all(event[field + "_batch_count"] == count for event in events)
+                indices = [event[field + "_batch_index"] for event in events if field in event]
+                if sorted(indices) != list(range(count)):
+                    return False
+            return True
+
+        def read_resource_info_events():
             event_log = read_table("//sys/scheduler/event_log", verbose=False)
             events_by_timestamp = defaultdict(list)
-            events_by_snapshot_id = defaultdict(list)
+            events_by_id = defaultdict(list)
             for event in event_log:
-                if event["event_type"] == "fair_share_info" and event["tree_id"] == "default":
-                    TestEventLog._check_keys(event, included_keys=["tree_id", "tree_snapshot_id"])
+                if event["event_type"] == event_type and event["tree_id"] == "default":
+                    TestEventLog._check_keys(event, included_keys=["tree_id", "tree_snapshot_id", event_id_key])
                     events_by_timestamp[event["timestamp"]].append(event)
-                    events_by_snapshot_id[event["tree_snapshot_id"]].append(event)
+                    events_by_id[event[event_id_key]].append(event)
 
-            return events_by_timestamp, events_by_snapshot_id
+            return events_by_timestamp, events_by_id
 
-        def read_latest_fair_share_info():
-            events_by_timestamp, events_by_snapshot_id = read_fair_share_info_events()
+        def read_latest_resource_info():
+            events_by_timestamp, events_by_id = read_resource_info_events()
             if not events_by_timestamp:
                 return None
 
             for events in events_by_timestamp.values():
-                assert len(frozenset(e["tree_snapshot_id"] for e in events)) == 1
-            for events in events_by_snapshot_id.values():
+                assert len(frozenset(e[event_id_key] for e in events)) == 1
+            for events in events_by_id.values():
                 assert len(frozenset(e["timestamp"] for e in events)) == 1
+                assert len(frozenset(e["tree_snapshot_id"] for e in events)) == 1
 
-            return events_by_timestamp[max(events_by_timestamp)]
+            latest_event_id = events_by_timestamp[max(events_by_timestamp)][0][event_id_key]
+            return events_by_id[latest_event_id]
 
         def check_events(expected_pools_batch_sizes, expected_operations_batch_sizes):
-            events = read_latest_fair_share_info()
+            events = read_latest_resource_info()
             if events is None:
                 return False
 
@@ -229,21 +248,59 @@ class TestEventLog(YTEnvSetup):
             pools_info_event_keys = ["pools", "pools_batch_index"]
             operations_info_event_keys = ["operations", "operations_batch_index"]
 
+            expect_combined_event = event_type == "accumulated_usage_info" and \
+                len(expected_pools_batch_sizes) <= 1 and len(expected_operations_batch_sizes) <= 1
+            is_combined_event = len(events) == 1 and "pools" in events[0] and "operations" in events[0]
+            if expect_combined_event != is_combined_event:
+                return False
+            if is_combined_event:
+                event = events[0]
+                TestEventLog._check_keys(event, excluded_keys=base_event_keys + [
+                    "pools_batch_index", "operations_batch_index", "pools_batch_count", "operations_batch_count",
+                ])
+                return len(event["pools"]) == sum(expected_pools_batch_sizes) and \
+                    len(event["operations"]) == sum(expected_operations_batch_sizes)
+
+            if event_type == "accumulated_usage_info":
+                for event in events:
+                    TestEventLog._check_keys(event, included_keys=["pools_batch_count", "operations_batch_count"])
+                if not is_complete_split_event(events):
+                    return False
+                if events[0]["pools_batch_count"] != len(expected_pools_batch_sizes) or \
+                        events[0]["operations_batch_count"] != len(expected_operations_batch_sizes):
+                    return False
+                # Losing any batch, including the last one, must be detectable.
+                for index in range(len(events)):
+                    assert not is_complete_split_event(events[:index] + events[index + 1:])
+                # An input boundary can split a pass; only the combined input is complete.
+                for boundary in range(1, len(events)):
+                    assert not is_complete_split_event(events[:boundary])
+                    assert not is_complete_split_event(events[boundary:])
+                assert is_complete_split_event(list(reversed(events)))
+
             base_event_count = 0
             actual_pool_batch_sizes = {}
             actual_operation_batch_sizes = {}
+            pool_ids = builtins.set()
+            operation_ids = builtins.set()
             for event in events:
                 if "pools" in event:
                     TestEventLog._check_keys(event, included_keys=pools_info_event_keys, excluded_keys=base_event_keys + operations_info_event_keys)
+                    assert event["pools_batch_index"] not in actual_pool_batch_sizes
+                    assert pool_ids.isdisjoint(event["pools"])
+                    pool_ids.update(event["pools"])
                     actual_pool_batch_sizes[event["pools_batch_index"]] = len(event["pools"])
                 elif "operations" in event:
                     TestEventLog._check_keys(event, included_keys=operations_info_event_keys, excluded_keys=base_event_keys + pools_info_event_keys)
+                    assert event["operations_batch_index"] not in actual_operation_batch_sizes
+                    assert operation_ids.isdisjoint(event["operations"])
+                    operation_ids.update(event["operations"])
                     actual_operation_batch_sizes[event["operations_batch_index"]] = len(event["operations"])
                 else:
                     TestEventLog._check_keys(event, included_keys=base_event_keys, excluded_keys=pools_info_event_keys + operations_info_event_keys)
                     base_event_count += 1
 
-            assert base_event_count == 1
+            assert base_event_count == (1 if event_type == "fair_share_info" else 0)
 
             assert sorted(actual_pool_batch_sizes) == list(range(len(actual_pool_batch_sizes)))
             actual_pool_batch_sizes = [actual_pool_batch_sizes[batch_index]
@@ -258,22 +315,50 @@ class TestEventLog(YTEnvSetup):
 
         wait(lambda: check_events([1], []))
 
+        # Force pool-only split events to advertise zero operation batches.
+        create_pool("empty_pool")
+        update_pool_tree_config("default", {f"{batch_size_prefix}_pool_batch_size": 1})
+        wait(lambda: check_events([1, 1], []))
+
         update_pool_tree_config("default", {
-            "max_event_log_pool_batch_size": 2,
-            "max_event_log_operation_batch_size": 4,
+            f"{batch_size_prefix}_pool_batch_size": 2,
+            f"{batch_size_prefix}_operation_batch_size": 4,
+            f"{other_batch_size_prefix}_pool_batch_size": 1,
+            f"{other_batch_size_prefix}_operation_batch_size": 1,
         })
 
         for _ in range(4):
             run_sleeping_vanilla()
 
-        wait(lambda: check_events([2], [4]))
+        wait(lambda: check_events([2, 1], [4]))
+
+        update_pool_tree_config("default", {f"{batch_size_prefix}_pool_batch_size": 3})
+        wait(lambda: check_events([3], [4]))
 
         update_pool_tree_config("default", {
-            "max_event_log_pool_batch_size": 1,
-            "max_event_log_operation_batch_size": 3,
+            f"{batch_size_prefix}_operation_batch_size": 3,
         })
 
-        wait(lambda: check_events([1, 1], [3, 1]))
+        wait(lambda: check_events([3], [3, 1]))
+
+        update_pool_tree_config("default", {
+            f"{batch_size_prefix}_pool_batch_size": 1,
+        })
+
+        wait(lambda: check_events([1, 1, 1], [3, 1]))
+
+        update_pool_tree_config("default", {
+            f"{batch_size_prefix}_operation_batch_size": 4,
+        })
+
+        wait(lambda: check_events([1, 1, 1], [4]))
+
+        update_pool_tree_config("default", {
+            f"{batch_size_prefix}_pool_batch_size": 1_000_000,
+            f"{batch_size_prefix}_operation_batch_size": 1_000_000,
+        })
+
+        wait(lambda: check_events([3], [4]))
 
     @authors("omgronny")
     def test_nodes_info(self):
@@ -317,7 +402,8 @@ class TestEventLog(YTEnvSetup):
         @wait_no_assert
         def check_nodes_info():
             nodes_info = read_latest_nodes_info_events()
-            assert len(nodes_info) >= 2
+            assert "treeA" in nodes_info
+            assert "treeB" in nodes_info
 
             for node_info in nodes_info["treeA"]["nodes"].values():
                 assert "tagA" in node_info["tags"]

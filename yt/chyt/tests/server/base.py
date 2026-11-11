@@ -2,6 +2,8 @@ from yt_commands import (create, create_access_control_object, create_access_con
                          write_file, ls, start_op, get, exists, create_user, sync_create_cells, print_debug,
                          get_driver, remove, make_ace, set as yt_set, select_rows, patch_op_spec)
 
+from helpers import get_disabled_cache_config
+
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
 
@@ -19,6 +21,8 @@ from yt.test_helpers.profiler import Profiler
 import yt.packages.requests as requests
 
 import yt.yson as yson
+
+import pytest
 
 if is_tsan_build():
     import yatest.common
@@ -175,6 +179,8 @@ class Clique(object):
                     "election_manager": {
                         "lock_path": self.election_lock_path,
                         "lock_acquisition_period": 300,
+                        "transaction_timeout": 5,
+                        "transaction_ping_period": 1,
                     },
                 },
             }
@@ -198,7 +204,8 @@ class Clique(object):
 
         self.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(self.alias)
         ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
-        create("map_node", self.sql_udf_path, recursive=True, attributes={
+        # A prior test may have died before __exit__ and left this node behind.
+        create("map_node", self.sql_udf_path, recursive=True, force=True, attributes={
             "acl": [ace],
         })
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
@@ -288,7 +295,7 @@ class Clique(object):
             core_dump_destination=core_dump_destination,
             trampoline_log_file=os.path.join(self.log_root, "trampoline-$YT_JOB_INDEX.debug.log"),
             stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
-            ytserver_readiness_timeout=15,
+            ytserver_readiness_timeout=40,
             tvm_secret=Clique.tvm_secret,
             client=self.yt_client,
             **kwargs
@@ -453,24 +460,8 @@ class Clique(object):
         print_debug("Waiting for all instances to know about each other")
 
         def check_all_instance_pairs():
-            clique_size_per_instance = []
-            for instance in self.get_active_instances():
-                try:
-                    clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0][
-                        "count()"
-                    ]
-                except YtError as err:
-                    if not err.contains_code(InstanceUnavailableCode):
-                        raise
-                    # The discovery group is shared between incarnations of a clique with
-                    # the same alias, so it may contain a stale member of a dead instance
-                    # until its lease expires.
-                    return False
-                clique_size_per_instance.append(clique_size)
-            # print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
-            if not clique_size_per_instance:
-                return False
-            return min(clique_size_per_instance) == self.instance_count
+            instances = self.get_active_instances()
+            return len(instances) == self.instance_count and self._check_discovery_sync(instances)
 
         wait(check_all_instance_pairs)
 
@@ -478,7 +469,6 @@ class Clique(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         print_debug("Exiting clique", self.op.id)
-        time.sleep(2)
         try:
             self.op.complete()
 
@@ -804,23 +794,38 @@ class Clique(object):
     def get_clique_id(self):
         return self.op.id
 
+    def _check_discovery_sync(self, instances):
+        if not instances:
+            return False
+        job_ids = {str(instance) for instance in instances}
+        for instance in instances:
+            try:
+                response = requests.get(
+                    "http://{}:{}/orchid/clique_discovery".format(
+                        instance.attributes["host"], instance.attributes["monitoring_port"]
+                    ),
+                    timeout=5,
+                )
+                response.raise_for_status()
+                members = response.json()
+            except (requests.ConnectionError, requests.Timeout):
+                return False
+            if set(members) != job_ids:
+                return False
+        return True
+
     def wait_instance_count(self, instance_count, unwanted_jobs=[], wait_discovery_sync=False):
         unwanted_jobs = [str(job) for job in unwanted_jobs]
 
         def check():
             instances = sorted(self.get_active_instances())
-            job_ids = [str(instance) for instance in instances]
             if len(instances) != instance_count:
                 return False
             for instance in instances:
                 if str(instance) in unwanted_jobs:
                     return False
             if wait_discovery_sync:
-                for instance in instances:
-                    result = self.make_direct_query(instance, "select job_id from system.clique order by job_id")
-                    result = [instance["job_id"] for instance in result]
-                    if result != job_ids:
-                        return False
+                return self._check_discovery_sync(instances)
             return True
 
         wait(check)
@@ -870,6 +875,11 @@ class Clique(object):
         for inst in instances:
             if inst.attributes['job_cookie'] == instance_cookie:
                 attach_gdb(inst.attributes['pid'], ex, autoresume=autoresume)
+
+
+def with_tablet_cell(test):
+    test.requires_tablet_cell = True
+    return test
 
 
 class ClickHouseTestBase(YTEnvSetup):
@@ -944,7 +954,7 @@ class ClickHouseTestBase(YTEnvSetup):
         result = {}
         for base in cls.__mro__[::-1]:
             patch = base.__dict__.get("DELTA_CHYT_CONFIG", {})
-            update_inplace(result, patch)
+            update_inplace(result, copy.deepcopy(patch))
         return result
 
     @classmethod
@@ -1029,8 +1039,35 @@ class ClickHouseTestBase(YTEnvSetup):
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
 
-        sync_create_cells(1)
+        if getattr(method, "requires_tablet_cell", False) or getattr(type(self), "requires_tablet_cell", False):
+            sync_create_cells(1)
         create_access_control_object_namespace(name="chyt")
+
+
+class ClickHouseTestBaseWithSharedClique(ClickHouseTestBase):
+    @pytest.fixture(scope="class", autouse=True)
+    def _shared_clique_environment(self):
+        super().setup_method(None)
+        try:
+            yield
+        finally:
+            super().teardown_method(None)
+
+    @pytest.fixture(scope="class")
+    def clique(self, _shared_clique_environment):
+        """Keep the default Clique alive until class-scoped environment cleanup."""
+        # Per-test Cypress writes bypass CHYT cache invalidation.
+        with Clique(1, config_patch=get_disabled_cache_config()) as clique:
+            yield clique
+
+    def setup_method(self, method):
+        # The class-scoped fixture initializes the environment once.
+        pass
+
+    def teardown_method(self, method):
+        # Base teardown would abort the shared Clique operation.
+        # Full cleanup runs after the Clique fixture exits.
+        remove("//tmp/*", recursive=True, force=True)
 
 
 def enable_sequoia(test_class):

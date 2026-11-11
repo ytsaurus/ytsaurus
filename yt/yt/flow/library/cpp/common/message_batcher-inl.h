@@ -15,7 +15,8 @@ void MergingExtractBatch(
     std::vector<std::pair<TSet*, std::function<TPriority()>>> inputQueues,
     TMessageAccessor&& messageAccessor,
     TMessageBatchLimiter& batchLimiter,
-    TOutputCallback&& outputCallback)
+    TOutputCallback&& outputCallback,
+    const std::function<bool(const std::type_identity_t<TPriority>&)>& canExtract)
 {
     using TInputQueue = std::pair<TSet*, std::function<TPriority()>>;
 
@@ -35,6 +36,9 @@ void MergingExtractBatch(
 
     while (!heap.empty()) {
         auto [queue, priorityGetter] = heap.top();
+        if (canExtract && !canExtract(priorityGetter())) {
+            break;
+        }
         heap.pop();
 
         if constexpr (requires { queue->extract_front(); }) {

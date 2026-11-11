@@ -27,6 +27,39 @@ from .monitoring_stack import MonitoringStack, MONITORING_STACK_ENABLED
 log = logging.getLogger("flow_process")
 
 
+def _load_local_yt_clusters(environ):
+    proxy = environ.get("YT_PROXY")
+    if proxy is not None and not proxy:
+        raise ValueError("YT_PROXY must not be empty")
+    aliases = yson.loads(environ.get("YT_PROXY_URL_ALIASING_CONFIG", "{}").encode("utf-8"))
+    if not isinstance(aliases, dict) or any(
+        not isinstance(address, str) or not address for address in aliases.values()
+    ):
+        raise ValueError("YT_PROXY_URL_ALIASING_CONFIG must map cluster names to nonempty addresses")
+    proxy_address = aliases.get(proxy, proxy)
+    try:
+        clusters = {cluster.yt_id: cluster.get_proxy_address() for cluster in get_yt_clusters()}
+    except FileNotFoundError:
+        if not proxy:
+            raise ValueError("Without yt_cluster_info.json, set YT_PROXY")
+        names = [proxy] if proxy in aliases else [name for name, address in aliases.items() if address == proxy]
+        if len(names) != 1:
+            raise ValueError(
+                "Cannot derive a unique cluster identity: use an unambiguous YT_PROXY alias or yt_cluster_info.json"
+            )
+        clusters = {names[0]: proxy_address}
+    if not clusters:
+        raise ValueError("yt_cluster_info.json must contain at least one cluster")
+
+    primary = next(iter(clusters))
+    if proxy is not None and proxy_address != clusters[primary]:
+        raise ValueError("YT_PROXY conflicts with the primary cluster address in yt_cluster_info.json")
+    for name, address in clusters.items():
+        if name in aliases and aliases[name] != address:
+            raise ValueError(f"YT_PROXY_URL_ALIASING_CONFIG conflicts with the address of cluster {name!r}")
+    return clusters
+
+
 ##################################################################
 
 
@@ -240,12 +273,16 @@ class FlowTestBase:
         cls.external_yt_config = _load_external_yt_config()
 
         if cls.external_yt_config is None:
-            clusters = get_yt_clusters()
-
-            cls.primary_cluster_name = clusters.primary_cluster.yt_id
-            cls.remote_cluster_names = [c.yt_id for c in clusters.replica_clusters]
-            cls.cluster_name_to_client = {c.yt_id: c.get_yt_client() for c in clusters}
-            cls.cluster_name_to_url = {c.yt_id: c.get_proxy_address() for c in clusters}
+            # Hide the credentials of the user launching local tests before creating clients.
+            os.environ["YT_USER"] = "root"
+            # Tokens from env are replaced in output logs, so use some random string.
+            os.environ["YT_TOKEN"] = "test986104827492"
+            cls.cluster_name_to_url = _load_local_yt_clusters(os.environ)
+            cls.primary_cluster_name, *cls.remote_cluster_names = cls.cluster_name_to_url
+            cls.cluster_name_to_client = {
+                name: yt_wrapper.YtClient(proxy=proxy, token=os.environ["YT_TOKEN"])
+                for name, proxy in cls.cluster_name_to_url.items()
+            }
             cls.base_work_yt_path = "//tmp/test"
             cls.tablet_cell_bundle = "default"
             cls.primary_medium = "default"
@@ -297,12 +334,7 @@ class FlowTestBase:
 
         # Standard environ variables with current local yt setup.
 
-        if cls.external_yt_config is None:
-            # Hide the environ variables of the user launching tests.
-            os.environ["YT_USER"] = "root"
-            # Tokens from env are replaced in output logs, so use some random string.
-            os.environ["YT_TOKEN"] = "test986104827492"
-        else:
+        if cls.external_yt_config is not None:
             # The local YT recipe stubs YT_TOKEN/YT_USER for its own cluster; clear them so
             # yt-wrapper falls back to the developer's credentials (~/.yt/token).
             os.environ.pop("YT_USER", None)

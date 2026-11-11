@@ -84,7 +84,14 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:
 
 
 class PostgresParser(parser.Parser):
+    ALTER_DROP_REQUIRES_COLUMN = False
+    ALTER_TABLE_MIXED_ACTIONS = True
+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True
     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True
+
+    # The one-byte "char" type is distinct from CHAR, and it can only be referenced by
+    # quoting it: https://www.postgresql.org/docs/current/datatype-character.html
+    QUOTED_TYPES_TO_PRESERVE: t.ClassVar = {"char"}
 
     PROPERTY_PARSERS = {
         **{k: v for k, v in parser.Parser.PROPERTY_PARSERS.items() if k != "INPUT"},
@@ -105,6 +112,7 @@ class PostgresParser(parser.Parser):
         "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
         "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
         "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
+        "BTRIM": exp.Trim.from_arg_list,
         "VERSION": exp.CurrentVersion.from_arg_list,
         "DATE_TRUNC": build_timestamp_trunc,
         "DIV": lambda args: exp.cast(binary_from_function(exp.IntDiv)(args), exp.DType.DECIMAL),
@@ -158,6 +166,7 @@ class PostgresParser(parser.Parser):
             exp.JSONArrayAgg(this=self._parse_lambda(), order=self._parse_order())
         ),
         "JSONB_EXISTS": lambda self: self._parse_jsonb_exists(),
+        "JSON_VALUE": lambda self: self._parse_json_value(json_path=False),
     }
 
     BITWISE = {
@@ -191,7 +200,19 @@ class PostgresParser(parser.Parser):
     JSON_ARROWS_REQUIRE_JSON_TYPE = True
 
     COLUMN_OPERATORS = {
-        **parser.Parser.COLUMN_OPERATORS,
+        k: v
+        for k, v in parser.Parser.COLUMN_OPERATORS.items()
+        if k
+        not in (
+            TokenType.ARROW,
+            TokenType.DARROW,
+            TokenType.HASH_ARROW,
+            TokenType.DHASH_ARROW,
+            TokenType.PLACEHOLDER,
+        )
+    }
+
+    JSON_OPERATORS = {
         TokenType.ARROW: lambda self, this, path: self.validate_expression(
             build_json_extract_path(
                 exp.JSONExtract, arrow_req_json_type=self.JSON_ARROWS_REQUIRE_JSON_TYPE
@@ -202,6 +223,9 @@ class PostgresParser(parser.Parser):
                 exp.JSONExtractScalar, arrow_req_json_type=self.JSON_ARROWS_REQUIRE_JSON_TYPE
             )([this, path])
         ),
+        TokenType.HASH_ARROW: parser.build_jsonb_extract,
+        TokenType.DHASH_ARROW: parser.build_jsonb_extract_scalar,
+        TokenType.PLACEHOLDER: parser.build_jsonb_contains_top_key,
     }
 
     ARG_MODE_TOKENS: t.ClassVar = {TokenType.IN, TokenType.OUT, TokenType.INOUT, TokenType.VARIADIC}
@@ -306,7 +330,7 @@ class PostgresParser(parser.Parser):
         value = self._parse_bitwise()
 
         if part and isinstance(part, (exp.Column, exp.Literal)):
-            part = exp.var(part.name)
+            part = exp.var(part.name.upper())
 
         return self.expression(exp.Extract(this=part, expression=value))
 

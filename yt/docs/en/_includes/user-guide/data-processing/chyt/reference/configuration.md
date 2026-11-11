@@ -54,7 +54,7 @@ The {{product-name}} part of the instance configuration resides in the `yt_confi
   — `period` [60000]: The test triggering period in milliseconds.
   — `timeout` [`0.9 * period / len(queries)`]: The triggering timeout for each of the configured queries. If the query does not fit into the timeout, it is considered `failed`.
 
-- `subquery`: The configuration of the main system part which coordinates the execution of ClickHouse queries on top of {{product-name}} tables. Before configuring this part, read the article about [query execution within a clique](../../../../../user-guide/data-processing/chyt/queries/anatomy.md#query-execution).
+- `subquery`: The configuration of the main system part which coordinates the execution of ClickHouse queries on top of {{product-name}} tables. Before configuring this part, read the article about [query execution within a clique](../../../../../user-guide/data-processing/chyt/queries/anatomy.md#query_execution).
 
   — `min_data_weight_per_thread` [64 MiB]: (in bytes) When splitting the input into subqueries, the coordinator will try to give no less than the given amount to each core of each instance.
   — `max_data_weight_per_subquery` [50 GiB]: (in bytes) The maximum allowable amount of data to be processed on one core of one instance. This restriction is protective and protects clique users from accidentally running a huge query that processes petabytes. The constant of 50 GiB is selected, because such amount is processed on a single core in about dozens of minutes.

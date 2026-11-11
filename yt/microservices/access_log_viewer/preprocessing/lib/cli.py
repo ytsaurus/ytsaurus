@@ -67,6 +67,11 @@ def main():
     default=DEFAULT_NODE_ID_DICT_PATH,
 )
 @click.option(
+    "--node-id-dict-cluster",
+    default=None,
+    help="Cluster with the node ID dictionary. Defaults to --cluster.",
+)
+@click.option(
     "--users-to-ignore",
     type=str,
     multiple=True,
@@ -83,10 +88,22 @@ def main():
     default=False,
     help="Recompute outputs when source table @modification_time changed since last run.",
 )
+@click.option(
+    "--keep-1d",
+    is_flag=True,
+    default=False,
+    help="Keep 1d output tables whose source table no longer exists.",
+)
 def import_access_log_tables(
-    cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale
+    cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for,
+    network_project, node_id_dict_path, node_id_dict_cluster, users_to_ignore, token_env_variable,
+    recompute_stale, keep_1d,
 ):
-    bulk(cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale)
+    bulk(
+        cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for,
+        network_project, node_id_dict_cluster, node_id_dict_path, users_to_ignore,
+        token_env_variable, recompute_stale, keep_1d,
+    )
 
 
 @main.command("import")
@@ -130,6 +147,11 @@ def import_access_log_tables(
     default=DEFAULT_NODE_ID_DICT_PATH,
 )
 @click.option(
+    "--node-id-dict-cluster",
+    default=None,
+    help="Cluster with the node ID dictionary. Defaults to --cluster.",
+)
+@click.option(
     "--users-to-ignore",
     type=str,
     multiple=True,
@@ -146,8 +168,8 @@ def import_access_log_tables(
     default=False,
     help="Recompute outputs when source table @modification_time changed since last run.",
 )
-def import_single_table(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale):
-    import_single(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale)
+def import_single_table(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, node_id_dict_cluster, users_to_ignore, token_env_variable, recompute_stale):
+    import_single(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_cluster, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale)
 
 
 @main.command("clear")

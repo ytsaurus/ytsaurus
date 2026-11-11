@@ -46,6 +46,9 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(8, JobSizeAdjusterConfig,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+
+    PHOENIX_REGISTER_FIELD(9, AllowMultipleRangesInJob,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -73,6 +76,7 @@ public:
         , Sampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
+        , AllowMultipleRangesInJob_(options.AllowMultipleRangesInJob)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
     {
         Logger = options.Logger;
@@ -82,9 +86,13 @@ public:
         }
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
-            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+            auto jobSizeAdjuster = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                std::move(jobSizeAdjuster),
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig->DataWeightFactor);
         }
 
         if (JobSizeConstraints_->GetBatchRowCount()) {
@@ -105,7 +113,9 @@ public:
             .With("BatchRowCount", JobSizeConstraints_->GetBatchRowCount())
             .With("SamplingRate", JobSizeConstraints_->GetSamplingRate())
             .With("SingleJob", SingleJob_)
-            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_));
+            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_))
+            .With("ShouldSliceByRowIndices", ShouldSliceByRowIndices_)
+            .With("AllowMultipleRangesInJob", AllowMultipleRangesInJob_);
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -136,6 +146,7 @@ public:
         SetupSuspendedStripes();
 
         BuildJobsAndFindTeleportChunks();
+        ConsiderAdjustingJobSize();
         CheckCompleted();
     }
 
@@ -153,6 +164,7 @@ public:
         Stripes_[cookie].Resume();
         if (Finished) {
             JobManager_->Resume(cookie);
+            ConsiderAdjustingJobSize();
         }
     }
 
@@ -182,20 +194,8 @@ public:
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 
         if (JobSizeAdjuster_) {
-            // No point in enlarging jobs if we cannot at least double them.
-            auto action = EJobAdjustmentAction::None;
-            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
-                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
-            }
-
-            if (action == EJobAdjustmentAction::RebuildJobs) {
-                YT_TLOG_INFO("Job completion triggered enlargement")
-                    .With("JobCookie", cookie);
-                JobManager_->Enlarge(
-                    JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeConstraints_);
-            }
+            JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            ConsiderAdjustingJobSize();
         }
 
         CheckCompleted();
@@ -270,6 +270,8 @@ private:
     i64 MaxTotalSliceCount_ = 0;
 
     bool ShouldSliceByRowIndices_ = false;
+    bool AllowMultipleRangesInJob_ = true;
+    std::optional<int> LastInputStreamIndex_;
 
     bool EnablePeriodicYielder_;
 
@@ -285,6 +287,23 @@ private:
     bool SingleJob_ = false;
 
     bool IsCompleted_ = false;
+
+    void ConsiderAdjustingJobSize()
+    {
+        // Avoid expensive enlargement when few adjacent pending jobs are likely to remain.
+        if (!Finished || !JobSizeAdjuster_ ||
+            JobManager_->JobCounter()->GetPending() <= JobManager_->JobCounter()->GetRunning())
+        {
+            return;
+        }
+
+        if (auto dataWeightPerJob = JobSizeAdjuster_->TryGetNewDataWeightPerJob()) {
+            JobManager_->Enlarge(
+                *dataWeightPerJob,
+                *dataWeightPerJob,
+                JobSizeConstraints_);
+        }
+    }
 
     void SetupSuspendedStripes()
     {
@@ -372,6 +391,14 @@ private:
                     continue;
                 }
 
+                if (!AllowMultipleRangesInJob_ &&
+                    dataSlice->GetInputStreamIndex() != LastInputStreamIndex_ &&
+                    CurrentJob()->GetSliceCount() > 0)
+                {
+                    EndJob();
+                }
+                LastInputStreamIndex_ = dataSlice->GetInputStreamIndex();
+
                 if (IsDataSliceSplittable(dataSlice)) {
                     AddSplittablePrimaryDataSlice(dataSlice, inputCookie);
                 } else {
@@ -391,6 +418,10 @@ private:
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
                 JobSizeConstraints_);
+        }
+
+        if (JobSizeAdjuster_) {
+            JobSizeAdjuster_->Reset(JobSizeConstraints_->GetDataWeightPerJob());
         }
 
         // TODO(apollo1321): Why do we need to update input data weight here?
@@ -726,7 +757,8 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_DELETED_FIELD(15, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldOrderedChunkPoolSlicing);
     PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
-
+    PHOENIX_REGISTER_FIELD(17, AllowMultipleRangesInJob_,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPool);

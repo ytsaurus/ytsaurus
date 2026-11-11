@@ -85,7 +85,8 @@ public:
         NApi::NNative::IClientPtr stateClient,
         IComponentStateCheckerPtr ComponentStateChecker,
         TYPath stateRoot,
-        int minRequiredStateVersion)
+        int minRequiredStateVersion,
+        std::optional<std::string> adminsGroup)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
         , AlertCollector_(std::move(alertCollector))
@@ -100,11 +101,15 @@ public:
             ControlInvoker_,
             BIND(&TQueryTracker::OnHealthCheck, MakeWeak(this)),
             config->HealthCheckPeriod))
-        , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_))
+        , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_, adminsGroup))
     {
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Yql] = CreateYqlEngine(
+            StateClient_,
+            StateRoot_,
+            std::move(adminsGroup));
+
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
@@ -226,16 +231,6 @@ private:
         auto traceContext = TTraceContext::NewRoot("QuerySelect");
         auto guard = TCurrentTraceContextGuard(traceContext);
 
-        if (!LeaseTransaction_) {
-            YT_TLOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
-            return;
-        }
-
-        if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_TLOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
-            return;
-        }
-
         YT_TLOG_DEBUG("Selecting active queries for potential acquisition");
 
         std::vector<TActiveQuery> queryRecords;
@@ -258,21 +253,6 @@ private:
         YT_TLOG_DEBUG("Active queries selected")
             .With("ActiveQueryCount", queryRecords.size());
 
-        THashSet<TTransactionId> leaseTransactionIds;
-        for (const auto& record : queryRecords) {
-            leaseTransactionIds.insert(record.LeaseTransactionId);
-        }
-
-        THashSet<TTransactionId> activeLeaseTransactionIds;
-        try {
-            activeLeaseTransactionIds = WaitFor(GetAliveTransactions(leaseTransactionIds))
-                .ValueOrThrow();
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error while getting alive lease transactions for active queries")
-                .With(ex);
-            return;
-        }
-
         // Save profile counters.
         THashMap<TProfilingTags, int> activeQueryCounts;
 
@@ -288,6 +268,31 @@ private:
                 QueryTrackerProfilerGlobal,
                 tags)->ActiveQueries;
             activeQueriesCounter.Update(count);
+        }
+
+        if (ComponentStateChecker_->IsComponentBanned()) {
+            YT_TLOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
+            return;
+        }
+
+        if (!LeaseTransaction_) {
+            YT_TLOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
+            return;
+        }
+
+        THashSet<TTransactionId> leaseTransactionIds;
+        for (const auto& record : queryRecords) {
+            leaseTransactionIds.insert(record.LeaseTransactionId);
+        }
+
+        THashSet<TTransactionId> activeLeaseTransactionIds;
+        try {
+            activeLeaseTransactionIds = WaitFor(GetAliveTransactions(leaseTransactionIds))
+                .ValueOrThrow();
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Error while getting alive lease transactions for active queries")
+                .With(ex);
+            return;
         }
 
         std::vector<TActiveQuery> orphanedQueries;
@@ -389,7 +394,7 @@ private:
         // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
         auto newState = optionalRecord->State == EQueryState::Running ? EQueryState::Pending : optionalRecord->State;
         std::optional<TError> acquisitionError;
-        auto engine = Engines_[queryRecord.Engine];
+        const auto& engine = GetOrCrash(Engines_, queryRecord.Engine);
 
         bool hasPreviousNonFinishingRun =
             queryRecord.LeaseTransactionId != NullTransactionId &&
@@ -942,7 +947,8 @@ IQueryTrackerPtr CreateQueryTracker(
     NApi::NNative::IClientPtr stateClient,
     IComponentStateCheckerPtr ComponentStateChecker,
     TYPath stateRoot,
-    int minRequiredStateVersion)
+    int minRequiredStateVersion,
+    std::optional<std::string> adminsGroup)
 {
     return New<TQueryTracker>(
         std::move(config),
@@ -952,7 +958,8 @@ IQueryTrackerPtr CreateQueryTracker(
         std::move(stateClient),
         std::move(ComponentStateChecker),
         std::move(stateRoot),
-        minRequiredStateVersion);
+        minRequiredStateVersion,
+        std::move(adminsGroup));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

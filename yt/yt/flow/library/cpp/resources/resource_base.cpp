@@ -124,6 +124,9 @@ const TMaterializedFileProviderPtr& TMaterializedFileProviderSnapshot::GetOnlyFi
 
 TResourceBase::TResourceBase(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
     : Context_(context)
+    , BackgroundInvoker_(context->Invoker
+            ? GetCancelableContext()->CreateInvoker(context->Invoker)
+            : nullptr)
     , DynamicContext_(dynamicContext)
     , Parameters_(TRegistry::Get()->ParseResourceParameters(context->ResourceSpec))
     , DynamicParameters_(TRegistry::Get()->ParseResourceDynamicParameters(context->ResourceSpec, dynamicContext->DynamicResourceSpec))
@@ -334,13 +337,23 @@ NYTree::TYsonStructPtr TResourceBase::GetParametersBase() const
     return Parameters_;
 }
 
+const IInvokerPtr& TResourceBase::GetBackgroundInvoker() const
+{
+    return BackgroundInvoker_;
+}
+
 TFuture<void> TResourceBase::Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/)
 {
-    return OKFuture;
+    return GetCancelableContext()->IsCanceled()
+        ? MakeFuture<void>(GetCancelableContext()->GetCancelationError())
+        : OKFuture;
 }
 
 void TResourceBase::Reconfigure(const TDynamicResourceContextPtr& dynamicContext)
 {
+    if (GetCancelableContext()->IsCanceled()) {
+        return;
+    }
     TReconfigurable<TDynamicResourceContext>::Reconfigure(dynamicContext);
 }
 
@@ -370,7 +383,7 @@ void TResourceBase::FeedStatus(i64 morePushedToQueue, i64 moreFetchedFromQueue)
         YT_TLOG_WARNING("Resource manager is not available, skipping FeedStatus");
         return;
     }
-    resourceManager->FeedStatus(Context_->ResourceId, morePushedToQueue, moreFetchedFromQueue);
+    resourceManager->FeedStatus(Context_->ResourceInstanceId, morePushedToQueue, moreFetchedFromQueue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

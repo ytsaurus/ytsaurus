@@ -94,7 +94,7 @@
 - [атрибуты транзакций](../../../user-guide/storage/transactions.md#attributes);
 - [атрибуты ссылок](../../../user-guide/storage/links.md#attributes);
 - [атрибуты аккаунтов](../../../user-guide/storage/accounts.md#account_attributes);
-- [атрибуты медиумов](../../../user-guide/storage/media.md#atributy).
+- [атрибуты медиумов](../../../user-guide/storage/media.md#attributes).
 
 ## Пользовательские атрибуты { #user_attr }
 

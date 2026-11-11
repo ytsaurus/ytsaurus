@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include "job_environment.h"
+
 #include "artifact_cache.h"
 #include "controller_agent_connector.h"
 #include "exec_node_admin_service.h"
@@ -336,9 +338,9 @@ public:
         return ArtifactCache_;
     }
 
-    bool IsSimpleEnvironment() const override
+    TJobEnvironmentCapabilities GetJobEnvironmentCapabilities() const override
     {
-        return GetJobEnvironmentType() == EJobEnvironmentType::Simple;
+        return SlotManager_->GetJobEnvironmentCapabilities();
     }
 
     const IJobControllerPtr& GetJobController() const override
@@ -624,9 +626,7 @@ private:
         GpuManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->GpuManager,
             newConfig->ExecNode->GpuManager);
-        JobReporter_->OnDynamicConfigChanged(
-            oldConfig->ExecNode->JobReporter,
-            newConfig->ExecNode->JobReporter);
+        JobReporter_->Reconfigure(newConfig->ExecNode->JobReporter);
         if (newConfig->ExecNode->SignatureComponents || oldConfig->ExecNode->SignatureComponents) {
             YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(
                 newConfig->ExecNode->SignatureComponents

@@ -1,5 +1,6 @@
 import pytest
 import collections
+from pathlib import Path
 
 import yatest.common
 
@@ -67,7 +68,6 @@ class TestQueueConnector(FlowTestBase):
         self.producer = self.work_yt_path + "/producer"
 
     def prepare_environment(self):
-
         run_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
 
         batching_write_rows(INPUT_DATA, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
@@ -199,6 +199,56 @@ class TestQueueConnector(FlowTestBase):
                     assert len(tablets) == 1, (key, tablets)
                 assert len(tablets_used) > 1
 
+    @pytest.mark.authors(["pechatnov"])
+    def test_heartbeat_weak_ordering_warning(self):
+        pipeline_config_path = self.prepare_swift_pipeline_config(
+            True,
+            extra_dynamic_sink_params={"flow_queue_meta_heartbeat_period": "100ms"},
+        )
+        self.prepare_environment()
+        self.client.unmount_table(self.output_queue, sync=True)
+        self.client.set(self.output_queue + "/@commit_ordering", "weak")
+        self.client.mount_table(self.output_queue, sync=True)
+
+        def has_ordering_warning():
+            description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-pipeline",
+                flow_argument={"status_only": True},
+            )
+            return any("weak commit ordering" in str(message) for message in description["messages"])
+
+        def heartbeat_count():
+            return sum(
+                bool(row.get("flow_queue_meta", {}).get("pure_heartbeat", False))
+                for row in self.client.select_rows(f"flow_queue_meta from [{self.output_queue}]")
+            )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_pipeline_state("working")
+            wait(has_ordering_warning, timeout=60)
+            initial_count = heartbeat_count()
+            wait(lambda: heartbeat_count() > initial_count, timeout=60)
+            assert has_ordering_warning()
+
+            self.client.unmount_table(self.output_queue, sync=True)
+            self.client.set(self.output_queue + "/@commit_ordering", "strong")
+            self.client.mount_table(self.output_queue, sync=True)
+            initial_count = heartbeat_count()
+            wait(lambda: heartbeat_count() > initial_count, timeout=60)
+            wait(lambda: not has_ordering_warning(), timeout=60)
+
+    @pytest.mark.authors(["alexbobkov"])
+    def test_source_schema_reuse(self):
+        pipeline_config_path = self.prepare_swift_pipeline_config(True)
+        self.check(pipeline_config_path, workers_count=1, controllers_count=1, problems=False)
+        errors = (Path(self.path_to_flow_logs) / "Worker_0_AllError.log").read_text()
+        assert "Queue source recreated an unchanged payload schema" not in errors
+
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize(
         ("workers_count", "controllers_count", "problems"),
@@ -222,6 +272,28 @@ class TestQueueConnector(FlowTestBase):
     def test_swift_write_async(self, workers_count, controllers_count, problems):
         pipeline_config_path = self.prepare_swift_pipeline_config(False)
         self.check(pipeline_config_path, workers_count, controllers_count, problems)
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_async_at_most_once_mode(self):
+        pipeline_config_path = self.prepare_swift_pipeline_config(
+            False,
+            extra_sink_params={"at_most_once_strategy": {"enabled": True}},
+        )
+        self.prepare_environment()
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_pipeline_state("working")
+
+            def get_output():
+                rows = self.client.select_rows(f"data, flow_queue_meta from [{self.output_queue}]")
+                return collections.Counter(
+                    row["data"] for row in rows if not row.get("flow_queue_meta", {}).get("pure_heartbeat", False)
+                )
+
+            wait(lambda: get_output() == EXPECTED_DATA, timeout=90)
 
     @pytest.mark.authors(["pechatnov"])
     def test_async_sink_live_reconfigure(self):

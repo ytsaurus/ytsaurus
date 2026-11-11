@@ -69,6 +69,7 @@ public:
         TInputStreamDirectory directory)
         : JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
+        , AdjustedDataWeightPerJob_(JobSizeConstraints_->GetDataWeightPerJob())
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
@@ -154,6 +155,7 @@ public:
         TChunkPoolInputBase::Finish();
 
         UpdateFreeJobCounter();
+        ConsiderAdjustingJobSize();
 
         // Option allows building only single job to allow job size adjuster adjust the size of future jobs.
         if (BuildFirstJobOnFinishedInput_ && AddJobToJobManager()) {
@@ -318,13 +320,13 @@ public:
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
 
-        //! If we don't have enough pending jobs - don't adjust data size per job.
-        if (JobSizeAdjuster_ && JobCounter_->GetPending() > JobCounter_->GetRunning()) {
+        JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+
+        if (JobSizeAdjuster_) {
             JobSizeAdjuster_->UpdateStatistics(jobSummary);
-            UpdateFreeJobCounter();
         }
 
-        JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+        ConsiderAdjustingJobSize();
         CheckCompleted();
     }
 
@@ -402,7 +404,9 @@ private:
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for stripe sampling and teleport chunk sampling.
     TBernoulliSampler Sampler_;
-    std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster_;
+
+    IJobSizeAdjusterPtr JobSizeAdjuster_;
+    i64 AdjustedDataWeightPerJob_ = 0;
 
     //! Indexes in #Stripes.
     THashSet<int> FreeStripes_;
@@ -446,6 +450,21 @@ private:
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
 
     bool BuildFirstJobOnFinishedInput_ = false;
+
+    void ConsiderAdjustingJobSize()
+    {
+        if (!JobSizeAdjuster_ ||
+            JobCounter_->GetPending() <= JobCounter_->GetRunning())
+        {
+            return;
+        }
+
+        AdjustedDataWeightPerJob_ = std::clamp<i64>(
+            JobSizeAdjuster_->GetDataWeightPerJob(),
+            1,
+            JobSizeConstraints_->GetMaxDataWeightPerJob());
+        UpdateFreeJobCounter();
+    }
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TDataSlicePtr& dataSlice)
@@ -684,7 +703,7 @@ private:
     i64 GetAdjustedDataWeightPerJob() const
     {
         return std::clamp<i64>(
-            JobSizeAdjuster_ ? JobSizeAdjuster_->GetDataWeightPerJob() : JobSizeConstraints_->GetDataWeightPerJob(),
+            AdjustedDataWeightPerJob_,
             1,
             JobSizeConstraints_->GetMaxDataWeightPerJob());
     }
@@ -1017,6 +1036,7 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_);
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
     PHOENIX_REGISTER_FIELD(25, BuildFirstJobOnFinishedInput_);
+    PHOENIX_REGISTER_FIELD(26, AdjustedDataWeightPerJob_);
 
 }
 

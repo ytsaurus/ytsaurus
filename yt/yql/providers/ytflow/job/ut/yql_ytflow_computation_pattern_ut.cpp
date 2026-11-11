@@ -15,7 +15,9 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yql/essentials/minikql/mkql_node_builder.h>
 #include <yql/essentials/minikql/mkql_program_builder.h>
+#include <yql/essentials/minikql/mkql_stats_registry.h>
 
+#include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/common/scope.h>
 #include <library/cpp/testing/gtest/gtest.h>
 
@@ -26,10 +28,75 @@
 
 #include <util/system/tempfile.h>
 
+#include <atomic>
+#include <barrier>
+#include <future>
 #include <optional>
 
 namespace NYql::NYtflow {
+namespace NTest {
+
+class TComputationPatternTestAccess
+{
+public:
+    static TIntrusivePtr<TComputationPatternHolder> BuildPattern(
+        TString lambdaFile,
+        TString optLLVM,
+        NKikimr::NMiniKQL::IStatsRegistry* stats)
+    {
+        return new TComputationPatternHolder(
+            std::move(lambdaFile),
+            CreateFunctionRegistryHolder({}),
+            UnknownLangVersion,
+            std::move(optLLVM),
+            MakeRuntimeSettings(),
+            stats);
+    }
+
+    static NKikimr::NMiniKQL::IComputationPattern& GetPattern(
+        TComputationPatternHolder* holder)
+    {
+        return *holder->Pattern_;
+    }
+};
+
+} // namespace NTest
+
 namespace {
+
+class TCompilationStatsRegistry
+    : public NKikimr::NMiniKQL::IStatsRegistry
+{
+public:
+    int GetCompilationCount() const
+    {
+        return CompilationCount_.load();
+    }
+
+    i64 GetStat(const NKikimr::NMiniKQL::TStatKey& /*key*/) const override
+    {
+        return 0;
+    }
+
+    void SetStat(const NKikimr::NMiniKQL::TStatKey& /*key*/, i64 /*value*/) override
+    { }
+
+    void SetMaxStat(const NKikimr::NMiniKQL::TStatKey& /*key*/, i64 /*value*/) override
+    { }
+
+    void SetMinStat(const NKikimr::NMiniKQL::TStatKey& /*key*/, i64 /*value*/) override
+    { }
+
+    void AddStat(const NKikimr::NMiniKQL::TStatKey& key, i64 /*value*/) override
+    {
+        if (key.GetName() == "CodeGen_FinalizeTime") {
+            ++CompilationCount_;
+        }
+    }
+
+private:
+    std::atomic<int> CompilationCount_ = 0;
+};
 
 constexpr TStringBuf TestResult =
     "YtFlow computation pattern shared literal that requires reference locking";
@@ -147,6 +214,23 @@ void WriteYtflowInputCallable(
             callableName,
             stream ? programBuilder.NewStreamType(itemType) : itemType);
         return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
+    });
+}
+
+void WriteIncrementStreamLambda(TTempFileHandle& file)
+{
+    using namespace NKikimr::NMiniKQL;
+
+    NTest::WriteRuntimeNode(file, [] (TProgramBuilder& programBuilder) {
+        TCallableBuilder inputBuilder(
+            programBuilder.GetTypeEnvironment(),
+            "YtflowInputStream",
+            programBuilder.NewStreamType(
+                programBuilder.NewDataType(NUdf::EDataSlot::Uint64)));
+        const auto input = TRuntimeNode(inputBuilder.Build(), /*isImmediate*/ false);
+        return programBuilder.Map(input, [&] (TRuntimeNode item) {
+            return programBuilder.Add(item, programBuilder.NewDataLiteral<ui64>(1));
+        });
     });
 }
 
@@ -285,8 +369,9 @@ TMessageHolder MakeMapMessage(
 
 class TMapComputationPatternTestBuilder {
 public:
-    TMapComputationPatternTestBuilder()
-        : Schema(MakeMapSchema())
+    explicit TMapComputationPatternTestBuilder(TString optLLVM)
+        : OptLLVM_(std::move(optLLVM))
+        , Schema(MakeMapSchema())
     {
         WriteMapLambda(LambdaFile);
     }
@@ -298,7 +383,7 @@ public:
             LambdaFile.GetName(),
             std::move(registryHolder),
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings());
     }
 
@@ -318,7 +403,7 @@ public:
             /*udfPaths*/ {},
             inputMode,
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings(),
             /*injectInputMessageId*/ false,
             /*profiler*/ {},
@@ -376,14 +461,16 @@ public:
     }
 
 private:
+    const TString OptLLVM_;
     TTempFileHandle LambdaFile;
     NYT::NTableClient::TTableSchemaPtr Schema;
 };
 
 class THoppingComputationPatternTestBuilder {
 public:
-    THoppingComputationPatternTestBuilder()
-        : Schema(MakeMapSchema())
+    explicit THoppingComputationPatternTestBuilder(TString optLLVM)
+        : OptLLVM_(std::move(optLLVM))
+        , Schema(MakeMapSchema())
     {
         WriteUpdateStateLambda(UpdateStateLambdaFile);
         WritePostprocessLambda(PostprocessLambdaFile);
@@ -396,7 +483,7 @@ public:
             UpdateStateLambdaFile.GetName(),
             std::move(registryHolder),
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings());
     }
 
@@ -407,7 +494,7 @@ public:
             PostprocessLambdaFile.GetName(),
             std::move(registryHolder),
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings());
     }
 
@@ -422,7 +509,7 @@ public:
                 : TString(UpdateStateLambdaFile.GetName()),
             std::move(udfPaths),
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings(),
             Schema,
             /*profiler*/ {},
@@ -447,7 +534,7 @@ public:
             },
             std::move(udfPaths),
             UnknownLangVersion,
-            "OFF",
+            OptLLVM_,
             MakeRuntimeSettings(),
             /*profiler*/ {},
             /*converterCache*/ nullptr,
@@ -478,6 +565,7 @@ public:
     }
 
 private:
+    const TString OptLLVM_;
     TTempFileHandle UpdateStateLambdaFile;
     TTempFileHandle PostprocessLambdaFile;
     NYT::NTableClient::TTableSchemaPtr Schema;
@@ -845,6 +933,119 @@ void CheckScalarExternalNodeIsGraphLocal(TStringBuf callableName)
     ASSERT_EQ(41, first.GetUi64Result());
     ASSERT_EQ(29, second.GetUi64Result());
 }
+
+class TOptLLVMTest
+    : public ::testing::TestWithParam<TString>
+{
+protected:
+    const TString& GetOptLLVM() const
+    {
+        return GetParam();
+    }
+};
+
+using TComputationPatternLLVMTest = TOptLLVMTest;
+
+TEST_P(TComputationPatternLLVMTest, SharedClonesRetainCompilation)
+{
+    using NKikimr::NMiniKQL::ECompileStatus;
+
+    const bool enableLLVM = GetOptLLVM().empty();
+#if defined(__aarch64__) || defined(_win_) || defined(_darwin_)
+    if (enableLLVM) {
+        GTEST_SKIP() << "MiniKQL does not enable JIT on this platform";
+    }
+#endif
+    NTesting::TScopedEnvironment forceUseLLVM("MKQL_FORCE_USE_LLVM", "");
+    TCompilationStatsRegistry stats;
+    TTempFileHandle lambdaFile;
+    WriteIncrementStreamLambda(lambdaFile);
+    auto holder = NTest::TComputationPatternTestAccess::BuildPattern(
+        lambdaFile.GetName(),
+        GetOptLLVM(),
+        &stats);
+    ASSERT_TRUE(holder->GetSuitableForCache());
+    auto& pattern = NTest::TComputationPatternTestAccess::GetPattern(holder.Get());
+    const auto expectedStatus = enableLLVM
+        ? ECompileStatus::Compiled
+        : ECompileStatus::NoCompilationStarted;
+    const int expectedCompilationCount = enableLLVM ? 1 : 0;
+    ASSERT_EQ(expectedStatus, pattern.GetCompileStatus());
+    ASSERT_EQ(expectedCompilationCount, stats.GetCompilationCount());
+    const size_t codeSize = pattern.CompiledCodeSize();
+    if (enableLLVM) {
+        ASSERT_GT(codeSize, 0);
+        pattern.Compile(/*optLLVM*/ "", &stats);
+        ASSERT_EQ(1, stats.GetCompilationCount());
+    } else {
+        ASSERT_EQ(0, codeSize);
+    }
+
+    const auto inputNodeIt = holder->GetYtflowInputNodes().find("YtflowInputStream");
+    ASSERT_NE(holder->GetYtflowInputNodes().end(), inputNodeIt);
+    const auto* inputNode = inputNodeIt->second;
+    auto executeClone = [holder, inputNode, enableLLVM] (
+        ui64 first,
+        ui64 second,
+        std::barrier<>* inputsReady = nullptr)
+    {
+        TCloneState clone(holder);
+        EXPECT_EQ(enableLLVM, clone.GetContext().ExecuteLLVM);
+        clone.SetExternalStream(*inputNode, first, second);
+        if (inputsReady) {
+            inputsReady->arrive_and_wait();
+        }
+        TVector<ui64> values;
+        for (;;) {
+            ui64 value = 0;
+            const auto status = clone.FetchOutput(&value);
+            if (status == NUdf::EFetchStatus::Finish) {
+                break;
+            }
+            if (status == NUdf::EFetchStatus::Ok) {
+                values.push_back(value);
+            }
+        }
+        return values;
+    };
+    ASSERT_EQ((TVector<ui64>{12, 13}), executeClone(/*first*/ 11, /*second*/ 12));
+    ASSERT_EQ((TVector<ui64>{22, 23}), executeClone(/*first*/ 21, /*second*/ 22));
+    ASSERT_EQ(expectedCompilationCount, stats.GetCompilationCount());
+
+    std::barrier inputsReady(/*expected*/ 2);
+    auto executeConcurrentClone = [
+        &inputsReady,
+        &pattern,
+        &stats,
+        enableLLVM,
+        executeClone
+    ] (ui64 first, ui64 second) {
+        if (enableLLVM) {
+            pattern.Compile(/*optLLVM*/ "", &stats);
+        }
+        return executeClone(first, second, &inputsReady);
+    };
+    auto first = std::async(
+        std::launch::async,
+        executeConcurrentClone,
+        /*first*/ 31,
+        /*second*/ 32);
+    auto second = std::async(
+        std::launch::async,
+        executeConcurrentClone,
+        /*first*/ 41,
+        /*second*/ 42);
+    EXPECT_EQ((TVector<ui64>{32, 33}), first.get());
+    EXPECT_EQ((TVector<ui64>{42, 43}), second.get());
+    ASSERT_EQ(expectedCompilationCount, stats.GetCompilationCount());
+    ASSERT_EQ(expectedStatus, pattern.GetCompileStatus());
+    ASSERT_EQ(codeSize, pattern.CompiledCodeSize());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    OptLLVM,
+    TComputationPatternLLVMTest,
+    ::testing::Values(TString("OFF"), TString()));
 
 TEST(TComputationPatternLifetimeTest, TwoClonesHaveIndependentExecutionStateAndMatchLegacyFacade)
 {
@@ -1271,9 +1472,11 @@ TVector<ui64> ExpectedValues(
         : TVector<ui64>{first, second};
 }
 
-TEST(TMapComputationPatternTest, SuitableMapComputationPatternIsSharedByIndependentGraphs)
+using TMapComputationPatternTest = TOptLLVMTest;
+
+TEST_P(TMapComputationPatternTest, SuitableMapComputationPatternIsSharedByIndependentGraphs)
 {
-    TMapComputationPatternTestBuilder builder;
+    TMapComputationPatternTestBuilder builder(GetOptLLVM());
 
     for (const auto& operation : OperationCases) {
         auto registryHolder = CreateFunctionRegistryHolder({});
@@ -1310,9 +1513,9 @@ TEST(TMapComputationPatternTest, SuitableMapComputationPatternIsSharedByIndepend
     }
 }
 
-TEST(TMapComputationPatternTest, SharedRegistryBuildsIndependentPrivateGraphs)
+TEST_P(TMapComputationPatternTest, SharedRegistryBuildsIndependentPrivateGraphs)
 {
-    TMapComputationPatternTestBuilder builder;
+    TMapComputationPatternTestBuilder builder(GetOptLLVM());
 
     for (const auto& operation : OperationCases) {
         auto registryHolder = CreateFunctionRegistryHolder({});
@@ -1336,9 +1539,9 @@ TEST(TMapComputationPatternTest, SharedRegistryBuildsIndependentPrivateGraphs)
     }
 }
 
-TEST(TMapComputationPatternTest, NoMapComputationPatternResourceKeepsLegacyExecution)
+TEST_P(TMapComputationPatternTest, NoMapComputationPatternResourceKeepsLegacyExecution)
 {
-    TMapComputationPatternTestBuilder builder;
+    TMapComputationPatternTestBuilder builder(GetOptLLVM());
     for (const auto& operation : OperationCases) {
         auto graph = builder.BuildGraph(operation.InputMode);
         ASSERT_EQ(
@@ -1347,9 +1550,16 @@ TEST(TMapComputationPatternTest, NoMapComputationPatternResourceKeepsLegacyExecu
     }
 }
 
-TEST(THoppingComputationPatternTest, SuitablePatternsShareRegistryAndRetainTheirHolders)
+INSTANTIATE_TEST_SUITE_P(
+    OptLLVM,
+    TMapComputationPatternTest,
+    ::testing::Values(TString("OFF"), TString()));
+
+using THoppingComputationPatternTest = TOptLLVMTest;
+
+TEST_P(THoppingComputationPatternTest, SuitablePatternsShareRegistryAndRetainTheirHolders)
 {
-    THoppingComputationPatternTestBuilder builder;
+    THoppingComputationPatternTestBuilder builder(GetOptLLVM());
     auto registryHolder = CreateFunctionRegistryHolder({});
     auto updateStatePattern = builder.BuildUpdateStatePattern(registryHolder);
     auto postprocessPattern = builder.BuildPostprocessPattern(registryHolder);
@@ -1386,9 +1596,9 @@ TEST(THoppingComputationPatternTest, SuitablePatternsShareRegistryAndRetainTheir
     builder.Execute(*updateStateGraph, *postprocessGraph);
 }
 
-TEST(THoppingComputationPatternTest, MixedSuitableAndUnsuitablePatternsUseIndependentPaths)
+TEST_P(THoppingComputationPatternTest, MixedSuitableAndUnsuitablePatternsUseIndependentPaths)
 {
-    THoppingComputationPatternTestBuilder builder;
+    THoppingComputationPatternTestBuilder builder(GetOptLLVM());
     auto registryHolder = CreateFunctionRegistryHolder({});
     auto postprocessPattern = builder.BuildPostprocessPattern(registryHolder);
     ASSERT_TRUE(postprocessPattern->GetSuitableForCache());
@@ -1417,14 +1627,19 @@ TEST(THoppingComputationPatternTest, MixedSuitableAndUnsuitablePatternsUseIndepe
     builder.Execute(*updateStateGraph, *postprocessGraph);
 }
 
-TEST(THoppingComputationPatternTest, NoPatternResourcesKeepLegacyExecution)
+TEST_P(THoppingComputationPatternTest, NoPatternResourcesKeepLegacyExecution)
 {
-    THoppingComputationPatternTestBuilder builder;
+    THoppingComputationPatternTestBuilder builder(GetOptLLVM());
     auto updateStateGraph = builder.BuildUpdateStateGraph();
     auto postprocessGraph = builder.BuildPostprocessGraph();
 
     builder.Execute(*updateStateGraph, *postprocessGraph);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    OptLLVM,
+    THoppingComputationPatternTest,
+    ::testing::Values(TString("OFF"), TString()));
 
 TEST(TPatternSuitabilityDefaultDenyTest, MiniKqlUnsuitablePatternKeepsItsSpecificReason)
 {

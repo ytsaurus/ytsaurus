@@ -144,11 +144,11 @@ PHOENIX_DEFINE_TYPE(TJobSizeAdjuster::TStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
+IJobSizeAdjusterPtr CreateJobSizeAdjuster(
     i64 dataWeightPerJob,
     const TJobSizeAdjusterConfigPtr& config)
 {
-    return std::make_unique<TJobSizeAdjuster>(
+    return New<TJobSizeAdjuster>(
         dataWeightPerJob,
         config);
 }
@@ -163,33 +163,44 @@ public:
     TDiscreteJobSizeAdjuster() = default;
 
     TDiscreteJobSizeAdjuster(
+        IJobSizeAdjusterPtr underlying,
         i64 dataWeightPerJob,
-        const TJobSizeAdjusterConfigPtr& config)
-        : Underlying_(CreateJobSizeAdjuster(dataWeightPerJob, config))
-        , DataWeightFactor_(config->DataWeightFactor)
-        , LastEffectiveDataWeightPerJob_(Underlying_->GetDataWeightPerJob())
-    { }
+        double dataWeightFactor)
+        : Underlying_(std::move(underlying))
+        , DataWeightFactor_(dataWeightFactor)
+        , LastEffectiveDataWeightPerJob_(dataWeightPerJob)
+    {
+        YT_VERIFY(Underlying_);
+    }
 
-    EJobAdjustmentAction UpdateStatistics(const TCompletedJobSummary& jobSummary) override
+    void UpdateStatistics(const TCompletedJobSummary& jobSummary) override
     {
         Underlying_->UpdateStatistics(jobSummary);
+    }
 
+    i64 GetUnderlyingDataWeightPerJob() const override
+    {
+        return Underlying_->GetDataWeightPerJob();
+    }
+
+    std::optional<i64> TryGetNewDataWeightPerJob() override
+    {
         i64 suggestedDataWeight = Underlying_->GetDataWeightPerJob();
         if (LastEffectiveDataWeightPerJob_ * DataWeightFactor_ <= suggestedDataWeight) {
             LastEffectiveDataWeightPerJob_ = suggestedDataWeight;
-            return EJobAdjustmentAction::RebuildJobs;
+            return suggestedDataWeight;
         }
 
-        return EJobAdjustmentAction::None;
+        return std::nullopt;
     }
 
-    i64 GetDataWeightPerJob() const override
+    void Reset(i64 dataWeightPerJob) override
     {
-        return LastEffectiveDataWeightPerJob_;
+        LastEffectiveDataWeightPerJob_ = dataWeightPerJob;
     }
 
 private:
-    std::unique_ptr<IJobSizeAdjuster> Underlying_;
+    IJobSizeAdjusterPtr Underlying_;
     double DataWeightFactor_ = 0;
     i64 LastEffectiveDataWeightPerJob_ = 0;
 
@@ -208,12 +219,14 @@ PHOENIX_DEFINE_TYPE(TDiscreteJobSizeAdjuster);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IDiscreteJobSizeAdjuster> CreateDiscreteJobSizeAdjuster(
+    IJobSizeAdjusterPtr underlying,
     i64 dataWeightPerJob,
-    const TJobSizeAdjusterConfigPtr& config)
+    double dataWeightFactor)
 {
     return std::make_unique<TDiscreteJobSizeAdjuster>(
+        std::move(underlying),
         dataWeightPerJob,
-        config);
+        dataWeightFactor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

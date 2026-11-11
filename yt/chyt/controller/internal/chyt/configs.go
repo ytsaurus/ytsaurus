@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
-	"reflect"
 	"strings"
 
-	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -33,37 +32,60 @@ func asMapNode(ysonNode any) (asMap map[string]any, err error) {
 	return
 }
 
-type configNodeWithAliases struct {
-	aliases []string
-	node    map[string]*configNodeWithAliases
+type configAliases map[string]configAlias
+
+type configAlias struct {
+	aliases  []string
+	children configAliases
 }
 
-func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWithAliases *configNodeWithAliases) bool {
+func aliases(names ...string) configAlias {
+	return configAlias{aliases: names}
+}
+
+func normalizeConfigAliases(configMapNode map[string]any, configWithAliases configAliases) (map[string]any, error) {
+	config, err := cloneNode(configMapNode)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		config = make(map[string]any)
+	}
+	configMapNode, err = asMapNode(config)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, fieldAliases := range configWithAliases {
+		for _, alias := range fieldAliases.aliases {
+			value, ok := configMapNode[alias]
+			if !ok {
+				continue
+			}
+			if _, ok := configMapNode[key]; ok {
+				return nil, fmt.Errorf("config field %q is specified more than once (alias %q)", key, alias)
+			}
+			configMapNode[key] = value
+			delete(configMapNode, alias)
+		}
+		if child, ok := configMapNode[key].(map[string]any); ok && len(fieldAliases.children) > 0 {
+			child, err = normalizeConfigAliases(child, fieldAliases.children)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", key, err)
+			}
+			configMapNode[key] = child
+		}
+	}
+	return configMapNode, nil
+}
+
+func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any) bool {
 	if len(exclusionMapNode) == 0 {
 		return true
 	}
 
 	for key, val := range exclusionMapNode {
-		aliases := []string{key}
-
-		// NB: Strawberry does not know the exact structure of the CHYT yson config, which may contain aliases.
-		// When patching the speclet config with controller's defaults, we can create an incorrect config that ignores the existing aliases.
-		// This code tries to account for the presence of aliases.
-		var nodeWithAliases *configNodeWithAliases
-		if configWithAliases != nil {
-			nodeWithAliases = configWithAliases.node[key]
-		}
-		if nodeWithAliases != nil {
-			aliases = append(aliases, nodeWithAliases.aliases...)
-		}
-
-		var configVal any
-		var ok bool
-		for _, keyAlias := range aliases {
-			if configVal, ok = configMapNode[keyAlias]; ok {
-				break
-			}
-		}
+		configVal, ok := configMapNode[key]
 		if !ok {
 			continue
 		}
@@ -71,7 +93,7 @@ func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWi
 		// It's fine if the cast doesn't succeed; the recursive calls will handle it.
 		exclusionValMap, _ := val.(map[string]any)
 		configValMap, _ := configVal.(map[string]any)
-		if pruneSpecletConfig(configValMap, exclusionValMap, configWithAliases) {
+		if pruneSpecletConfig(configValMap, exclusionValMap) {
 			delete(configMapNode, key)
 		}
 	}
@@ -80,28 +102,9 @@ func pruneSpecletConfig(configMapNode, exclusionMapNode map[string]any, configWi
 }
 
 // Add missing keys from defaultsMapNode to configMapNode.
-func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWithAliases *configNodeWithAliases) {
+func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any) {
 	for key, defaultVal := range defaultsMapNode {
-		aliases := []string{key}
-
-		// NB: Strawberry does not know the exact structure of the CHYT yson config, which may contain aliases.
-		// When patching the speclet config with controller's defaults, we can create an incorrect config that ignores the existing aliases.
-		// This code tries to account for the presence of aliases.
-		var nodeWithAliases *configNodeWithAliases
-		if configWithAliases != nil {
-			nodeWithAliases = configWithAliases.node[key]
-		}
-		if nodeWithAliases != nil {
-			aliases = append(aliases, nodeWithAliases.aliases...)
-		}
-
-		var configVal any
-		var ok bool
-		for _, keyAlias := range aliases {
-			if configVal, ok = configMapNode[keyAlias]; ok {
-				break
-			}
-		}
+		configVal, ok := configMapNode[key]
 		if !ok {
 			configMapNode[key] = defaultVal
 			continue
@@ -110,7 +113,7 @@ func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWi
 		configValMap, configValIsMap := configVal.(map[string]any)
 		defaultValMap, defaultValIsMap := defaultVal.(map[string]any)
 		if configValIsMap && defaultValIsMap {
-			applyConfigDefaults(configValMap, defaultValMap, nodeWithAliases)
+			applyConfigDefaults(configValMap, defaultValMap)
 		}
 	}
 }
@@ -131,11 +134,11 @@ func (c *Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet
 	if len(c.config.SpecletConfigExclusionTree) > 0 {
 		ytCfgExclusionVal := c.config.SpecletConfigExclusionTree["clickhouse"]
 		ytCfgExclusionMapNode, _ := ytCfgExclusionVal.(map[string]any)
-		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode, nil)
+		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode)
 	}
 
 	if c.config.DefaultSpeclet != nil {
-		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.ClickHouseConfig, nil)
+		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.ClickHouseConfig)
 	}
 
 	if _, ok := configAsMap["path_to_regions_names_files"]; !ok {
@@ -195,36 +198,34 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
-	config, err = cloneNode(speclet.YTConfig)
-	if err != nil {
-		return
-	}
-	if config == nil {
-		config = make(map[string]any)
-	}
-	configAsMap, err := asMapNode(config)
-	if err != nil {
-		return
-	}
+// COMPAT(buyval01): migrate speclet configs and remove alias
+var ytConfigAliases = configAliases{
+	"query_settings": aliases("settings"),
+}
 
-	// TODO(buyval01): migrate speclet configs and remove alias
-	configWithAlises := &configNodeWithAliases{
-		node: map[string]*configNodeWithAliases{
-			"query_settings": &configNodeWithAliases{
-				aliases: []string{"settings"},
-			},
-		},
+func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+	configAsMap, err := normalizeConfigAliases(speclet.YTConfig, ytConfigAliases)
+	if err != nil {
+		return nil, err
 	}
+	config = configAsMap
 
 	if len(c.config.SpecletConfigExclusionTree) > 0 {
 		ytCfgExclusionVal := c.config.SpecletConfigExclusionTree["yt"]
 		ytCfgExclusionMapNode, _ := ytCfgExclusionVal.(map[string]any)
-		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode, configWithAlises)
+		ytCfgExclusionMapNode, err = normalizeConfigAliases(ytCfgExclusionMapNode, ytConfigAliases)
+		if err != nil {
+			return nil, err
+		}
+		pruneSpecletConfig(configAsMap, ytCfgExclusionMapNode)
 	}
 
 	if c.config.DefaultSpeclet != nil {
-		applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.YTConfig, configWithAlises)
+		defaults, err := normalizeConfigAliases(c.config.DefaultSpeclet.YTConfig, ytConfigAliases)
+		if err != nil {
+			return nil, err
+		}
+		applyConfigDefaults(configAsMap, defaults)
 	}
 
 	if _, ok := configAsMap["clique_alias"]; !ok {
@@ -386,20 +387,160 @@ func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error
 	if err != nil {
 		return nil, err
 	}
-	config, ok := configNode.(map[string]any)
-	if !ok && configNode != nil {
-		return nil, yterrors.Err("builtin_log_rotation_policy config has unexpected type",
-			log.String("type", reflect.TypeOf(configNode).String()))
+	config, err := asMapNode(configNode)
+	if err != nil {
+		return nil, err
 	}
+
 	if config == nil {
 		config = map[string]any{}
 	}
-	if _, ok := config["max_segment_count_to_keep"]; !ok {
-		config["max_segment_count_to_keep"] = 10
+
+	defaultConfig := map[string]any{
+		"max_segment_count_to_keep": 10,
+		"rotation_period":           900000,
 	}
-	if _, ok := config["rotation_period"]; !ok {
-		config["rotation_period"] = 900000
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
 	}
+
+	return config, nil
+}
+
+func (c *Controller) getLoggingConfig(configNode any, speclet *Speclet) (map[string]any, error) {
+	if configNode == nil {
+		configNode = map[string]any{}
+	}
+	configNodeClone, err := cloneNode(configNode)
+	if err != nil {
+		return nil, err
+	}
+	config, err := asMapNode(configNodeClone)
+	if err != nil {
+		return nil, err
+	}
+
+	var logRotationPolicy map[string]any
+	if c.config.LogRotationModeOrDefault() == LogRotationModeBuiltin {
+		var err error
+		logRotationPolicy, err = getPatchedBuiltinLogRotationPolicy(speclet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	errorLogFile := defaultErrorLogFile
+	debugLogFile := defaultDebugLogFile
+	infoLogFile := defaultInfoLogFile
+	if speclet.logsDir != nil {
+		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
+		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
+		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
+	}
+
+	defaultConfig := map[string]any{
+		"rotation_check_period": 60000,
+		"writers": map[string]any{
+			"error": map[string]any{
+				"file_name":       errorLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+			"stderr": map[string]any{
+				"type": "stderr",
+			},
+			"debug": map[string]any{
+				"file_name":       debugLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+			"info": map[string]any{
+				"file_name":       infoLogFile,
+				"type":            "file",
+				"rotation_policy": logRotationPolicy,
+			},
+		},
+		"suppressed_messages": []string{
+			"Reinstall peer",
+			"Pass started",
+		},
+		"rules": [](map[string]any){
+			{
+				"min_level": "trace",
+				"writers": []string{
+					"debug",
+				},
+				"exclude_categories": []string{
+					"Concurrency",
+					"Bus",
+					"ReaderMemoryManager",
+					"RpcClient",
+					"ChunkClient",
+				},
+			},
+			{
+				"min_level": "info",
+				"writers": []string{
+					"info",
+				},
+				"exclude_categories": []string{
+					"ChunkClient",
+				},
+			},
+			{
+				"min_level": "error",
+				"writers": []string{
+					"stderr",
+					"error",
+				},
+				"exclude_categories": []string{
+					"ChunkClient",
+				},
+			},
+		},
+	}
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
+	}
+
+	return config, nil
+}
+
+func (c *Controller) getSolomonExporterConfig(configNode any, opletAlias string) (map[string]any, error) {
+	if configNode == nil {
+		configNode = map[string]any{}
+	}
+	configNodeCopy, err := cloneNode(configNode)
+	if err != nil {
+		return nil, err
+	}
+	config, err := asMapNode(configNodeCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultConfig := map[string]any{
+		// NOTE(dakovalkov): override host, otherwise metric count will bloat.
+		"host": "",
+		"instance_tags": map[string]any{
+			"operation_alias": opletAlias,
+			"cookie":          "$YT_JOB_COOKIE",
+		},
+		"window_size": 72,
+	}
+
+	for key, value := range defaultConfig {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
+	}
+
 	return config, nil
 }
 
@@ -459,144 +600,82 @@ const (
 	defaultInfoLogFile  = "./clickhouse.log"
 )
 
-func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
-	r := speclet.Resources
-
+func (c *Controller) getServerConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (map[string]any, error) {
 	clickhouseConfig, err := c.getPatchedClickHouseConfig(oplet, speclet)
 	if err != nil {
-		return fmt.Errorf("invalid clickhouse config: %v", err)
+		return nil, fmt.Errorf("invalid clickhouse config: %v", err)
 	}
 	ytConfig, err := c.getPatchedYtConfig(ctx, oplet, speclet)
 	if err != nil {
-		return fmt.Errorf("invalid yt config: %v", err)
+		return nil, fmt.Errorf("invalid yt config: %v", err)
 	}
 
-	var nativeAuthenticatorConfig map[string]any
-	if tvmID, ok := c.getTvmID(); ok {
-		if c.tvmSecret != "" {
-			nativeAuthenticatorConfig = map[string]any{
-				"tvm_service": map[string]any{
-					"enable_mock":                           false,
-					"enable_ticket_parse_cache":             true,
-					"client_self_id":                        tvmID,
-					"client_enable_service_ticket_fetching": true,
-					"client_enable_service_ticket_checking": true,
-				},
-				"enable_validation": true,
+	serverConfig := maps.Clone(c.config.ServerConfig)
+	if serverConfig == nil {
+		serverConfig = make(map[string]any)
+	}
+
+	serverConfig["clickhouse"] = clickhouseConfig
+	serverConfig["yt"] = ytConfig
+	serverConfig["cpu_limit"] = speclet.Resources.InstanceCPU
+	serverConfig["memory"] = speclet.Resources.InstanceMemory.memoryConfig()
+	serverConfig["cluster_connection"] = c.cachedClusterConnection
+
+	serverConfig["logging"], err = c.getLoggingConfig(serverConfig["logging"], speclet)
+	if err != nil {
+		return nil, err
+	}
+
+	serverConfig["solomon_exporter"], err = c.getSolomonExporterConfig(serverConfig["solomon_exporter"], oplet.Alias())
+	if err != nil {
+		return nil, err
+	}
+
+	{
+		var nativeAuthenticatorConfig map[string]any
+		if tvmID, ok := c.getTvmID(); ok {
+			if c.tvmSecret != "" {
+				nativeAuthenticatorConfig = map[string]any{
+					"tvm_service": map[string]any{
+						"enable_mock":                           false,
+						"enable_ticket_parse_cache":             true,
+						"client_self_id":                        tvmID,
+						"client_enable_service_ticket_fetching": true,
+						"client_enable_service_ticket_checking": true,
+					},
+					"enable_validation": true,
+				}
+			} else {
+				c.l.Warn("tvm id specified, but no tvm secret provided in env")
 			}
-		} else {
-			c.l.Warn("tvm id specified, but no tvm secret provided in env")
 		}
-	}
 
-	var logRotationPolicy map[string]any
-	if c.config.LogRotationModeOrDefault() == LogRotationModeBuiltin {
-		logRotationPolicy, err = getPatchedBuiltinLogRotationPolicy(speclet)
-		if err != nil {
-			return err
+		if nativeAuthenticatorConfig != nil {
+			serverConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 		}
-	}
-
-	errorLogFile := defaultErrorLogFile
-	debugLogFile := defaultDebugLogFile
-	infoLogFile := defaultInfoLogFile
-	if speclet.logsDir != nil {
-		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
-		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
-		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
-	}
-
-	ytServerClickHouseConfig := map[string]any{
-		"clickhouse":         clickhouseConfig,
-		"yt":                 ytConfig,
-		"cpu_limit":          r.InstanceCPU,
-		"memory":             r.InstanceMemory.memoryConfig(),
-		"cluster_connection": c.cachedClusterConnection,
-		"solomon_exporter": map[string]any{
-			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
-			"host": "",
-			"instance_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-			"window_size": 72,
-		},
-		"logging": map[string]any{
-			"rotation_check_period": 60000,
-			"writers": map[string]any{
-				"error": map[string]any{
-					"file_name":       errorLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-				"stderr": map[string]any{
-					"type": "stderr",
-				},
-				"debug": map[string]any{
-					"file_name":       debugLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-				"info": map[string]any{
-					"file_name":       infoLogFile,
-					"type":            "file",
-					"rotation_policy": logRotationPolicy,
-				},
-			},
-			"suppressed_messages": []string{
-				"Reinstall peer",
-				"Pass started",
-			},
-			"rules": [](map[string]any){
-				{
-					"min_level": "trace",
-					"writers": []string{
-						"debug",
-					},
-					"exclude_categories": []string{
-						"Concurrency",
-						"Bus",
-						"ReaderMemoryManager",
-						"RpcClient",
-						"ChunkClient",
-					},
-				},
-				{
-					"min_level": "info",
-					"writers": []string{
-						"info",
-					},
-					"exclude_categories": []string{
-						"ChunkClient",
-					},
-				},
-				{
-					"min_level": "error",
-					"writers": []string{
-						"stderr",
-						"error",
-					},
-					"exclude_categories": []string{
-						"ChunkClient",
-					},
-				},
-			},
-		},
-	}
-	if nativeAuthenticatorConfig != nil {
-		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
 	// Do not override the default value.
 	if mode := speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault()); mode != ClusterConnectionFromStaticConfig {
-		ytServerClickHouseConfig["cluster_connection_dynamic_config_mode"] = mode
+		serverConfig["cluster_connection_dynamic_config_mode"] = mode
+	} else {
+		delete(serverConfig, "cluster_connection_dynamic_config_mode")
 	}
 	if c.config.AddressResolver != nil {
-		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
+		serverConfig["address_resolver"] = c.config.AddressResolver
 	}
 	if c.config.BusServer != nil {
-		ytServerClickHouseConfig["bus_server"] = c.config.BusServer
+		serverConfig["bus_server"] = c.config.BusServer
 	}
-	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
+
+	return serverConfig, nil
+}
+
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
+	serverConfig, err := c.getServerConfig(ctx, oplet, speclet)
+	if err != nil {
+		return err
+	}
+	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", serverConfig)
 	if err != nil {
 		return err
 	}

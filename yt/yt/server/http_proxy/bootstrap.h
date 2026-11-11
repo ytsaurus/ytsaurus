@@ -104,6 +104,8 @@ private:
     const NConcurrency::IPollerPtr Poller_;
     const NConcurrency::IPollerPtr Acceptor_;
 
+    const NConcurrency::IThreadPoolPtr HeavyCommandThreadPool_;
+
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;
     NHttp::IServerPtr MonitoringHttpsServer_;

@@ -129,13 +129,12 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             },
         },
         "tablet_node": {
-            "replicator_data_weight_throttling_granularity": 1
+            "hint_manager": {
+                "replicator_hint_config_fetcher": {
+                    "update_period": 100,
+                },
+            },
         },
-        "tablet_node_hint_manager": {
-            "replicator_hint_config_fetcher": {
-                "update_period": 100
-            }
-        }
     }
 
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
@@ -2254,6 +2253,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         )
         self._create_replica_table("//tmp/r", replica_id, schema)
 
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        wait(lambda: get(f"#{tablet_id}/@last_write_timestamp") > 0)
+        assert get(f"#{replica_id}/@tablets/0/current_replication_timestamp") == 0
+        wait(lambda: get(f"#{replica_id}/@replication_lag_time") == 0)
+        assert get(f"#{replica_id}/@tablets/0/replication_lag_time") == 0
+
         sync_enable_table_replica(replica_id)
 
         if with_data:
@@ -2306,6 +2311,57 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 )
                 == rows[i:]
             )
+
+    @authors("akozhikhov")
+    def test_start_replication_row_indexes_zero_lag(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED)
+
+        rows = [{"key": i, "value1": str(i)} for i in range(3)]
+        insert_rows("//tmp/t", rows[:2], require_sync_replica=False)
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", rows[2:], require_sync_replica=False)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        wait(lambda: get(f"#{tablet_id}/@last_write_timestamp") > 0)
+
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"start_replication_row_indexes": [len(rows)]},
+        )
+        self._create_replica_table("//tmp/r", replica_id, SIMPLE_SCHEMA_SORTED)
+
+        assert get(f"#{replica_id}/@tablets/0/current_replication_timestamp") == 0
+        wait(lambda: get(f"#{replica_id}/@replication_lag_time") == 0)
+
+        insert_rows("//tmp/t", [{"key": 3, "value1": "3"}], require_sync_replica=False)
+        wait(lambda: get(f"#{replica_id}/@replication_lag_time") > 0)
+        assert get(f"#{replica_id}/@tablets/0/current_replication_timestamp") == 0
+
+        new_replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/new_r",
+            attributes={"start_replication_row_indexes": [len(rows) + 1]},
+        )
+        self._create_replica_table("//tmp/new_r", new_replica_id, SIMPLE_SCHEMA_SORTED)
+        wait(lambda: get(f"#{new_replica_id}/@replication_lag_time") == 0)
+
+        sync_enable_table_replica(new_replica_id)
+        set("//tmp/t/@replicated_table_options/enable_replicated_table_tracker", True)
+        wait(lambda: get(f"#{new_replica_id}/@mode") == "sync")
+
+        wait(lambda: any(
+            replica["replica_id"] == new_replica_id and replica["mode"] == "sync"
+            for replica in get_tablet_infos("//tmp/t", [0])["tablets"][0]["replica_infos"]
+        ))
+        assert get(f"#{new_replica_id}/@tablets/0/current_replication_timestamp") == 0
+
+        row = {"key": 4, "value1": "4"}
+        insert_rows("//tmp/t", [row])
+        assert select_rows("key, value1 from [//tmp/new_r]", driver=self.replica_driver) == [row]
 
     @authors("akozhikhov")
     def test_start_cumulative_data_weight(self):
@@ -3381,6 +3437,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("akozhikhov")
     def test_collocated_replicated_tables(self):
         set("//sys/@config/tablet_manager/replicate_table_collocations", False)
+        set("//sys/@config/tablet_manager/replicated_table_tracker/preferred_sync_replica_switch_cooldown", 0)
 
         self._create_cells()
 

@@ -911,7 +911,11 @@ public:
                     if (pool->IsEmpty()) {
                         UnregisterPool(pool);
                     } else {
+                        bool lightweightOperationsEnabledBefore = pool->GetEffectiveLightweightOperationsEnabled();
                         pool->SetDefaultConfig();
+                        if (lightweightOperationsEnabledBefore != pool->GetEffectiveLightweightOperationsEnabled()) {
+                            ReaccountLightweightRunningOperationsInPool(pool);
+                        }
 
                         auto defaultParent = GetDefaultParentPoolForUser(updatePoolAction.Name);
                         if (pool->GetId() == defaultParent->GetId()) {  // Someone is deleting default pool.
@@ -3173,14 +3177,65 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        StrategyHost_->LogAccumulatedUsageEventFluently(TInstant::Now())
-            .Item(EventLogPoolTreeKey).Value(TreeId_)
-            .Item("pools").BeginMap()
-                .Do(BIND(&TPoolTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)))
-            .EndMap()
-            .Item("operations").BeginMap()
-                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedResourceDistribution, Unretained(this), ConstRef(treeSnapshot)))
-            .EndMap();
+        auto accumulatedUsageInfoEventId = TGuid::Create();
+        auto now = TInstant::Now();
+
+        std::vector<TYsonString> splitPoolsInfo;
+        TYsonMapFragmentBatcher poolsConsumer(&splitPoolsInfo, treeSnapshot->TreeConfig()->MaxAccumulatedUsageLogPoolBatchSize);
+        BuildYsonMapFragmentFluently(&poolsConsumer)
+            .Do(BIND(&TPoolTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)));
+        poolsConsumer.Flush();
+
+        std::vector<TYsonString> splitOperationsInfo;
+        TYsonMapFragmentBatcher operationsConsumer(&splitOperationsInfo, treeSnapshot->TreeConfig()->MaxAccumulatedUsageLogOperationBatchSize);
+        BuildYsonMapFragmentFluently(&operationsConsumer)
+            .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedResourceDistribution, Unretained(this), ConstRef(treeSnapshot)));
+        operationsConsumer.Flush();
+
+        bool splitEvent = splitPoolsInfo.size() > 1 || splitOperationsInfo.size() > 1;
+        auto logAccumulatedUsageEventFluently = [&] {
+            return StrategyHost_->LogAccumulatedUsageEventFluently(now)
+                .Item(EventLogPoolTreeKey).Value(TreeId_)
+                .Item("accumulated_usage_info_event_id").Value(accumulatedUsageInfoEventId)
+                .Item("tree_snapshot_id").Value(treeSnapshot->GetId())
+                .DoIf(splitEvent, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("pools_batch_count").Value(std::ssize(splitPoolsInfo))
+                        .Item("operations_batch_count").Value(std::ssize(splitOperationsInfo));
+                });
+        };
+
+        // Preserve the combined event for existing clients until batching is needed.
+        if (!splitEvent) {
+            logAccumulatedUsageEventFluently()
+                .Item("pools").BeginMap()
+                    .DoFor(splitPoolsInfo, [] (TFluentMap fluent, const TYsonString& batch) {
+                        fluent.Items(batch);
+                    })
+                .EndMap()
+                .Item("operations").BeginMap()
+                    .DoFor(splitOperationsInfo, [] (TFluentMap fluent, const TYsonString& batch) {
+                        fluent.Items(batch);
+                    })
+                .EndMap();
+            return;
+        }
+
+        for (int batchIndex = 0; batchIndex < std::ssize(splitPoolsInfo); ++batchIndex) {
+            logAccumulatedUsageEventFluently()
+                .Item("pools_batch_index").Value(batchIndex)
+                .Item("pools").BeginMap()
+                    .Items(splitPoolsInfo[batchIndex])
+                .EndMap();
+        }
+
+        for (int batchIndex = 0; batchIndex < std::ssize(splitOperationsInfo); ++batchIndex) {
+            logAccumulatedUsageEventFluently()
+                .Item("operations_batch_index").Value(batchIndex)
+                .Item("operations").BeginMap()
+                    .Items(splitOperationsInfo[batchIndex])
+                .EndMap();
+        }
     }
 
     void EssentialLogFairShareAt(TInstant now) const override

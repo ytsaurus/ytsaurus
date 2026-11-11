@@ -73,13 +73,6 @@ void ValidateYsonStringFields(const Message& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ConvertToYsonStringFieldValue(const INodePtr& value)
-{
-    return ConvertToYsonString(value).ToString();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TSelf, class TValueType>
 class TSetVisitorBase
     : public TProtoVisitor<Message*, TSelf>
@@ -151,7 +144,7 @@ protected:
             reflection->SetString(
                 message,
                 fieldDescriptor,
-                ConvertToYsonStringFieldValue(CurrentValue_));
+                ConvertToYsonString(CurrentValue_).ToString());
             return;
         }
 
@@ -169,7 +162,7 @@ protected:
                 message,
                 fieldDescriptor,
                 index,
-                ConvertToYsonStringFieldValue(CurrentValue_));
+                ConvertToYsonString(CurrentValue_).ToString());
             return;
         }
 

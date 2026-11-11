@@ -12,7 +12,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/bus"
-	"go.ytsaurus.tech/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 )
 
 type Retrier struct {
@@ -25,6 +25,11 @@ type ReadRetryRequest interface {
 	ReadRetryOptions()
 }
 
+func hasMutationID(req Request) bool {
+	mutating, ok := req.(MutatingRequest)
+	return ok && mutating.HasMutatingOptions()
+}
+
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	var cancel func()
 	if timeout := r.RequestTimeout; timeout != 0 {
@@ -33,13 +38,20 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker,
 	}
 
 	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
 		err = invoke(ctx, call, rsp, opts...)
 		if err == nil || call.DisableRetries {
 			return
 		}
 
+		if hasMutationID(call.Req) {
+			return
+		}
+
 		_, isRead := call.Req.(ReadRetryRequest)
-		if !r.shouldRetry(isRead, err) {
+		if !r.shouldRetry(isRead, call.RequestedProxy != "" || call.FixedProxy, err) {
 			return
 		}
 
@@ -71,12 +83,15 @@ func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvo
 	}
 
 	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
 		err = invoke(ctx, call, rsp, opts...)
 		if err == nil || call.DisableRetries {
 			return
 		}
 
-		if !r.shouldRetry(true, err) {
+		if !r.shouldRetry(true, call.RequestedProxy != "" || call.FixedProxy, err) {
 			return
 		}
 
@@ -100,7 +115,11 @@ func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvo
 	}
 }
 
-func (r *Retrier) shouldRetry(isRead bool, err error) bool {
+func (r *Retrier) shouldRetry(isRead bool, hasFixedProxy bool, err error) bool {
+	if retry.IsProxyBannedError(err) {
+		return !hasFixedProxy
+	}
+
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" {
 		var lookupErr *net.DNSError
@@ -115,26 +134,9 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
-	if isRead && isNetError(err) {
+	if isRead && retry.IsRetriableError(err) {
 		return true
 	}
 
-	if yterrors.ContainsErrorCode(err, yterrors.CodeRetriableArchiveError) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
-		return true
-	}
-
-	if yterrors.ContainsErrorCode(err, yterrors.CodeRequestQueueSizeLimitExceeded) ||
-		yterrors.ContainsErrorCode(err, yterrors.CodeRPCRequestQueueSizeLimitExceeded) {
-		return true
-	}
-
-	if isProxyBannedError(err) {
-		return true
-	}
-
-	return false
+	return retry.IsRetriableRPCError(err)
 }

@@ -1003,13 +1003,17 @@ std::vector<TCGValue> UnpackValues(TCGBaseContext& builder, TCGValue span, const
             case EValueType::String: {
                 Value* length = builder->CreateLoad(builder->getInt32Ty(), iterator);
                 iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(4));
+                // COMPAT(sabdenovch): Expression builder v1 does not mesh well with EValueType::Composite and all its nuances.
+                // Make sure type resolves correctly in v2.
                 inplaceData.push_back(
                     TCGValue::Create(
                         builder,
                         builder->getFalse(),
                         length,
                         iterator,
-                        argTypes[index]));
+                        argTypes[index] == EValueType::Composite
+                            ? EValueType::Any
+                            : argTypes[index]));
                 iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, length);
                 break;
             }
@@ -1280,6 +1284,10 @@ public:
     {
         if (id) {
             id->AddString(ToStringRef(Function_ + "_aggregate"));
+            id->AddInteger(std::ssize(logicalArgumentTypes));
+            for (const auto& logicalType : logicalArgumentTypes) {
+                id->AddInteger(static_cast<ui8>(GetWireType(logicalType)));
+            }
         }
 
         std::vector<EValueType> argumentTypes;

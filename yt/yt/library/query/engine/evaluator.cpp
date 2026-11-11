@@ -159,7 +159,6 @@ private:
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
                 options.OptimizationLevel,
-                options.AllowUnorderedGroupByWithLimit,
                 options.MaxJoinBatchSize);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
@@ -179,8 +178,8 @@ private:
                 .WriteRowsetSize = options.WriteRowsetSize,
                 .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
-                .Limit = query->Limit,
-                .ScanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
+                .Limit = query->Limit.value_or(std::numeric_limits<i64>::max()),
+                .ScanOrder = query->ScanOrder,
                 .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
                 .MemoryChunkProvider = memoryChunkProvider,
                 .RequestFeatureFlags = &requestFeatureFlags,
@@ -215,7 +214,6 @@ private:
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
         NCodegen::EOptimizationLevel optimizationLevel,
-        bool allowUnorderedGroupByWithLimit,
         i64 maxJoinBatchSize)
     {
         llvm::FoldingSetNodeID id;
@@ -224,7 +222,6 @@ private:
             .UseCanonicalNullRelations = useCanonicalNullRelations,
             .ExecutionBackend = executionBackend,
             .OptimizationLevel = optimizationLevel,
-            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
             .MaxJoinBatchSize = maxJoinBatchSize,
         };
 
@@ -241,7 +238,7 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) != EScanOrder::Unordered) && !query->GroupClause;
+        bool considerLimit = (query->ScanOrder != EScanOrder::Unordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,
@@ -270,16 +267,16 @@ private:
                 .With("offset", query->Offset);
         }
 
-        if (query->Limit < 0) {
+        if (query->Limit && *query->Limit < 0) {
             THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
-                .With("limit", query->Limit);
+                .With("limit", *query->Limit);
         }
 
         THROW_ERROR_EXCEPTION_IF(
-            query->Offset > std::numeric_limits<i64>::max() - query->Limit,
+            query->Limit && query->Offset > std::numeric_limits<i64>::max() - *query->Limit,
             "Sum of offset %v and limit %v overflows i64",
             query->Offset,
-            query->Limit);
+            *query->Limit);
     }
 };
 

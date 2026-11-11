@@ -25,6 +25,9 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/containers/absl/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_set.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NChaosNode {
@@ -172,7 +175,7 @@ private:
         TCellId CellId;
         TReplicationEra Era;
         EShortcutState State;
-        THashSet<TTransactionId> AliveTransactions;
+        absl::flat_hash_set<TTransactionId> AliveTransactions;
         TTimestamp EraStartTimestamp = NullTimestamp;
         TTimestamp LastTransactionCommitTimestamp = NullTimestamp;
 
@@ -202,7 +205,7 @@ private:
     const TCoordinatorManagerConfigPtr Config_;
     const IShortcutSnapshotStorePtr SnapshotStore_;
 
-    using TShortcutMap = THashMap<NChaosClient::TChaosObjectId, TShortcut>;
+    using TShortcutMap = absl::flat_hash_map<NChaosClient::TChaosObjectId, TShortcut>;
     TShortcutMap Shortcuts_;
     bool Suspended_ = false;
 
@@ -468,38 +471,45 @@ private:
     {
         YT_VERIFY(options.Persistent);
 
-        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        TReplicationEra era = request->replication_era();
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+        TReplicationEra chaosObjectEra = request->chaos_object_era();
+        auto chaosObjectType = TypeFromId(chaosObjectId);
+        auto chaosObjectName = IsChaosLeaseType(chaosObjectType)
+            ? "chaos lease"
+            : "replication card";
 
-        auto it = Shortcuts_.find(replicationCardId);
+        auto it = Shortcuts_.find(chaosObjectId);
         if (it == Shortcuts_.end()) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutNotFound,
-                "Shortcut for replication card is not found")
-                .With("chaos_object_type", TypeFromId(replicationCardId))
-                .With("chaos_object_id", replicationCardId);
+                "Shortcut for %v is not found",
+                chaosObjectName)
+                .With("chaos_object_type", chaosObjectType)
+                .With("chaos_object_id", chaosObjectId);
         }
         if (it->second.State != EShortcutState::Granted) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutRevoked,
-                "Shortcut for replication card has been revoked")
-                .With("chaos_object_type", TypeFromId(replicationCardId))
-                .With("chaos_object_id", replicationCardId)
+                "Shortcut for %v has been revoked",
+                chaosObjectName)
+                .With("chaos_object_type", chaosObjectType)
+                .With("chaos_object_id", chaosObjectId)
                 .With("shortcut_state", it->second.State);
         }
-        if (it->second.Era != era) {
+        if (it->second.Era != chaosObjectEra) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutHasDifferentEra,
-                "Shortcut for replication card has different era")
-                .With("chaos_object_type", TypeFromId(replicationCardId))
-                .With("chaos_object_id", replicationCardId)
+                "Shortcut for %v has different era",
+                chaosObjectName)
+                .With("chaos_object_type", chaosObjectType)
+                .With("chaos_object_id", chaosObjectId)
                 .With("shortcut_era", it->second.Era)
-                .With("replication_card_era", era);
+                .With("chaos_object_era", chaosObjectEra);
         }
 
         auto transactionId = transaction->GetId();
 
-        // TODO(osidorkin): Make chaos lease a usual transaction participant so we can drop this field.
+        // COMPAT(shamteev): Legacy clients pass chaos leases as prerequisites of a replication card.
         auto chaosLeaseIds = FromProto<std::vector<TChaosLeaseId>>(request->prerequisite_ids());
         SortUnique(chaosLeaseIds);
 
@@ -537,8 +547,9 @@ private:
             InsertOrCrash(leaseIt->second.AliveTransactions, transactionId);
         }
 
-        YT_TLOG_DEBUG("Replication batch prepared")
-            .With("ReplicationCardId", replicationCardId)
+        YT_TLOG_DEBUG("Chaos object transaction prepared")
+            .With("ChaosObjectId", chaosObjectId)
+            .With("ChaosObjectType", chaosObjectType)
             .With("TransactionId", transactionId)
             .With("ChaosLeaseIds", chaosLeaseIds);
     }
@@ -548,15 +559,16 @@ private:
         NChaosClient::NProto::TReqReplicatedCommit* request,
         const TTransactionCommitOptions& options)
     {
-        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), options.CommitTimestamp, false);
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+        DiscardAliveTransaction(chaosObjectId, transaction->GetId(), options.CommitTimestamp, false);
         for (const auto& protoPrerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoPrerequisiteId);
             DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), options.CommitTimestamp, false);
         }
 
-        YT_TLOG_DEBUG("Replication batch committed")
-            .With("ReplicationCardId", replicationCardId)
+        YT_TLOG_DEBUG("Chaos object transaction committed")
+            .With("ChaosObjectId", chaosObjectId)
+            .With("ChaosObjectType", TypeFromId(chaosObjectId))
             .With("TransactionId", transaction->GetId());
     }
 
@@ -565,15 +577,16 @@ private:
         NChaosClient::NProto::TReqReplicatedCommit* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), NullTimestamp, true);
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+        DiscardAliveTransaction(chaosObjectId, transaction->GetId(), NullTimestamp, true);
         for (const auto& prerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(prerequisiteId);
             DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), NullTimestamp, true);
         }
 
-        YT_TLOG_DEBUG("Replication batch aborted")
-            .With("ReplicationCardId", replicationCardId)
+        YT_TLOG_DEBUG("Chaos object transaction aborted")
+            .With("ChaosObjectId", chaosObjectId)
+            .With("ChaosObjectType", TypeFromId(chaosObjectId))
             .With("TransactionId", transaction->GetId());
     }
 

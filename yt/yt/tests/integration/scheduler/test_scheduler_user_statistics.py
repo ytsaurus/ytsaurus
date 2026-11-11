@@ -195,7 +195,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             spec={"max_failed_job_count": 1, "job_count": 2},
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         release_breakpoint(job_id=jobs[0])
 
         def get_counter():
@@ -212,7 +212,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     @authors("ignat")
     def test_running_job_statistics(self):
         op = run_test_vanilla(with_breakpoint('echo "{my_stat=10};" >&5; BREAKPOINT'), job_count=2)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         @wait_no_assert
         def check():

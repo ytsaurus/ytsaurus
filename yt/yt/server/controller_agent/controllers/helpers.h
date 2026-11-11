@@ -97,7 +97,26 @@ struct TDockerImageSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
+struct TDockerImageConfig
+{
+    std::vector<std::string> Env;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDockerImageHint
+{
+    std::vector<NYPath::TRichYPath> Layers;
+    TDockerImageConfig Config;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reads an internal docker image's _tags document and returns the hint
+// published by the docker registry: the base layers and, when published
+// as node attributes, the image config (ENV).
+// Throws on any failure.
+TDockerImageHint GetDockerImageHint(
     const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage);
 
@@ -115,6 +134,12 @@ bool IsStaticTableWithHunks(TInputTablePtr table);
 bool HasJobUniquenessRequirements(
     const NScheduler::TOperationSpecBasePtr& operationSpec,
     const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasNbdDiskRequest(const NScheduler::TUserJobSpecPtr& userJobSpec);
+
+bool HasNbdDiskRequests(const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

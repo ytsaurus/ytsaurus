@@ -122,6 +122,33 @@ TEST(TMessageBatcherTest, MergingExtractBatch)
     EXPECT_THAT(messageIds, testing::ElementsAre("5", "6", "7.1", "7.2", "7.3", "7.4", "8", "10", "11"));
 }
 
+TEST(TMessageBatcherTest, PriorityBoundaryPreservesQueuedMessages)
+{
+    TMessage message;
+    message.MessageId = TMessageId("timer");
+    TQueue first{{TSystemTimestamp(1), message}, {TSystemTimestamp(3), message}};
+    TQueue second{{TSystemTimestamp(2), message}, {TSystemTimestamp(4), message}};
+    TMessageBatchLimiter limiter(100, 1_MB);
+    std::vector<TSystemTimestamp> extracted;
+    MergingExtractBatch(
+        MakeQueuePairs({&first, &second}),
+        [] (const TOrderedMessage& value) -> const TMessage& {
+            return value.second;
+        },
+        limiter,
+        [&] (const TOrderedMessage& value) {
+            extracted.push_back(value.first);
+        },
+        [] (const TQueuePriority& priority) {
+            return priority.first < TSystemTimestamp(3);
+        });
+    EXPECT_EQ(extracted, (std::vector<TSystemTimestamp>{TSystemTimestamp(1), TSystemTimestamp(2)}));
+    ASSERT_EQ(first.size(), 1u);
+    ASSERT_EQ(second.size(), 1u);
+    EXPECT_EQ(first.begin()->first, TSystemTimestamp(3));
+    EXPECT_EQ(second.begin()->first, TSystemTimestamp(4));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

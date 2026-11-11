@@ -30,6 +30,8 @@ void TJobTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("delay_after_run_job_proxy", &TThis::DelayAfterRunJobProxy)
         .Default();
+    registrar.Parameter("delay_before_report_result", &TThis::DelayBeforeReportResult)
+        .Default();
     registrar.Parameter("delay_before_spawning_job_proxy", &TThis::DelayBeforeSpawningJobProxy)
         .Default();
     registrar.Parameter("fail_before_job_start", &TThis::FailBeforeJobStart)

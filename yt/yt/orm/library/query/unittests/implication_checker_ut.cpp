@@ -175,6 +175,12 @@ TEST(TImplicationCheckerTest, TrivialPredicates)
     EXPECT_IMPLICATION("not is_null([/x])", "not is_null([/x]) OR [/y] > 4");
 }
 
+TEST(TImplicationCheckerTest, TupleLogicalOperand)
+{
+    EXPECT_NO_IMPLICATION("[/x] = 1", "([/x] = 1, [/y] = 2) AND [/x] = 1");
+    EXPECT_NO_IMPLICATION("([/x] = 1, [/y] = 2) OR [/z] = 3", "[/x] = 1 OR [/z] = 3");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery::NTests

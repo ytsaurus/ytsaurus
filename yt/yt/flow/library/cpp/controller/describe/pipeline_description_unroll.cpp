@@ -59,6 +59,7 @@ TPipelineDescription UnrollPipelineDescription(const TPipelineDescription& origi
     result.Sources = original.Sources;
     result.Sinks = original.Sinks;
     result.ReadDelayEdges = original.ReadDelayEdges;
+    result.Edges = original.Edges;
 
     for (const auto& [computationId, computation] : original.Computations) {
         if (computation.StreamsDependency.empty()) {

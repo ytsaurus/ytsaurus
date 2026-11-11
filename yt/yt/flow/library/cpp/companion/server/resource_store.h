@@ -41,6 +41,8 @@ public:
         THashSet<std::string> resourceClassNames,
         IInvokerPtr invoker);
 
+    ~TResourceStore() override;
+
     //! Dispatches one ResourceExecute command. The returned future carries
     //! user-code failures in-band and only fails on companion bugs.
     TFuture<TResourceCommandOutcome> Execute(

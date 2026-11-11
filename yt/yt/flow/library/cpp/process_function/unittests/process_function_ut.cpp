@@ -316,10 +316,12 @@ public:
         const IOutputCollectorPtr& /*output*/,
         const IRuntimeContextPtr& context) override
     {
+        RuntimeStaticThreshold = context->GetParameters<TThresholdParameters>()->Threshold;
         DynamicThreshold = context->GetDynamicParameters<TThresholdParameters>()->Threshold;
     }
 
     i64 StaticThreshold = -1;
+    i64 RuntimeStaticThreshold = -1;
     i64 DynamicThreshold = -1;
 };
 
@@ -768,7 +770,7 @@ TEST(TProcessFunctionTest, ConstructorReceivesRuntimeDependencies)
         statusProfiler,
         logger);
     auto clientsCache = New<TMockClientsCache>();
-    auto invoker = GetSyncInvoker();
+    const auto& invoker = GetSyncInvoker();
 
     environment.SetLogger(logger);
     environment.SetStatusProfiler(statusProfiler);
@@ -891,6 +893,126 @@ TEST(TProcessFunctionTest, ExternalStateJoiner)
 
     ASSERT_EQ(std::ssize(output->GetMessages()), 1);
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[0].Message, "word"), "100");
+}
+
+TEST(TProcessFunctionTest, ExternalJoinerRemainsLoadedDuringSync)
+{
+    class TResettableJoiner
+        : public TInMemorySimpleExternalStateJoiner
+    {
+    public:
+        std::vector<std::string> Events;
+
+        explicit TResettableJoiner(TTableSchemaPtr stateSchema)
+            : TInMemorySimpleExternalStateJoiner(std::move(stateSchema), DefaultTestKeySchema())
+        { }
+
+        TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override
+        {
+            Events.push_back("preload");
+            LoadedKeys_ = keys;
+            return OKFuture;
+        }
+
+        IStateHolderPtr GetState(const TKey& key) override
+        {
+            THROW_ERROR_EXCEPTION_UNLESS(LoadedKeys_.contains(key), "Key was not preloaded");
+
+            Events.push_back("read");
+            return TInMemorySimpleExternalStateJoiner::GetState(key);
+        }
+
+        void Reset() override
+        {
+            Events.push_back("reset");
+            LoadedKeys_.clear();
+        }
+
+    private:
+        THashSet<TKey> LoadedKeys_;
+    };
+
+    class TSyncJoinerFunction
+        : public IBatchProcessFunction
+        , public ISyncProcessFunction
+    {
+    public:
+        std::vector<i64> ReadValues;
+        bool FailSync = false;
+
+        void Init(const IRuntimeInitContextPtr& context) override
+        {
+            context->InitExternalStateClient(Joiner_, "/reference");
+        }
+
+        void Process(
+            const IInputContextPtr& input,
+            const IOutputCollectorPtr& /*output*/,
+            const IRuntimeContextPtr& /*context*/) override
+        {
+            Keys_ = ExtractKeys(input);
+            NConcurrency::WaitFor(Joiner_.PreloadKeyStates(Keys_))
+                .ThrowOnError();
+        }
+
+        void Sync(const IRetryableTransactionPtr& transaction, const IRuntimeContextPtr& /*context*/) override
+        {
+            EXPECT_TRUE(transaction);
+
+            for (const auto& key : Keys_) {
+                ReadValues.push_back(Joiner_.GetState(key)->GetColumnValue<i64>("limit"));
+            }
+
+            THROW_ERROR_EXCEPTION_IF(FailSync, "Injected sync failure");
+        }
+
+    private:
+        TJoinedStateKeyClient<TSimpleExternalState> Joiner_;
+        THashSet<TKey> Keys_;
+    };
+
+    for (int storeCount : {0, 2}) {
+        SCOPED_TRACE(storeCount);
+        TTestStateEnvironment environment;
+        auto stateSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf("[{name=limit;type=int64;}]"));
+        auto joiner = New<TResettableJoiner>(stateSchema);
+        environment.RegisterExternalStateJoiner("/reference", joiner);
+        auto key = MakeKey<ui64>(42);
+        TPayloadBuilder builder(stateSchema);
+        builder.Set(i64{100}, "limit");
+        joiner->GetMutableState(key)->Get().Payload = builder.Finish();
+
+        int commitCount = 0;
+        for (int index = 0; index < storeCount; ++index) {
+            environment.RegisterEpochCommit([&] (const IRetryableTransactionPtr& transaction) {
+                EXPECT_TRUE(transaction);
+                joiner->Events.push_back("commit");
+                ++commitCount;
+            });
+        }
+
+        auto function = New<TSyncJoinerFunction>();
+        TProcessFunctionTestHarness harness(environment, function);
+        auto message = MakeTestMessage("input", key, New<TTableSchema>());
+        std::vector<std::string> expectedEvents = {"preload", "read", "reset"};
+        expectedEvents.insert(expectedEvents.end(), storeCount, "commit");
+        for (int epoch = 0; epoch < 2; ++epoch) {
+            SCOPED_TRACE(epoch);
+            joiner->Events.clear();
+            harness.RunEpoch({message});
+            EXPECT_EQ(joiner->Events, expectedEvents);
+            EXPECT_EQ(function->ReadValues, std::vector<i64>(epoch + 1, 100));
+            EXPECT_EQ(commitCount, (epoch + 1) * storeCount);
+            EXPECT_THROW_WITH_SUBSTRING(joiner->GetState(key), "Key was not preloaded");
+        }
+
+        // A failed user hook must not reset the joiner or commit a store.
+        function->FailSync = true;
+        joiner->Events.clear();
+        EXPECT_THROW_WITH_SUBSTRING(harness.RunEpoch({message}), "Injected sync failure");
+        EXPECT_EQ(joiner->Events, (std::vector<std::string>{"preload", "read"}));
+        EXPECT_EQ(commitCount, 2 * storeCount);
+    }
 }
 
 TEST(TProcessFunctionTest, WholeBatchFunctionSeesAllKeys)
@@ -1353,16 +1475,21 @@ TEST(TProcessFunctionTest, FunctionParameters)
     function->Init(stateEnv.GetInitContext());
     EXPECT_EQ(function->StaticThreshold, 5);
 
-    // Dynamic parameters: read from the runtime context per message.
+    auto spec = New<TComputationSpec>();
+    spec->ProcessingFunctionParameters = NYTree::ConvertTo<NYTree::IMapNodePtr>(staticParameters);
+
+    // Static and dynamic parameters are available per message.
     auto dynamicParameters = New<TThresholdParameters>();
     dynamicParameters->Threshold = 9;
     auto context = TTestRuntimeContextBuilder()
         .SetProcessingFunction<TParameterReadingFunction>()
         .SetDynamicParameters(dynamicParameters)
+        .SetSpec(spec)
         .Build();
     auto output = New<TRecordingOutputCollector>();
     auto message = MakeTestMessage("input", MakeKey<ui64>(1), New<TTableSchema>());
     function->ProcessMessage(message, output, context);
+    EXPECT_EQ(function->RuntimeStaticThreshold, 5);
     EXPECT_EQ(function->DynamicThreshold, 9);
 }
 
@@ -1378,6 +1505,7 @@ TEST(TProcessFunctionTest, FunctionParametersDefaultWhenAbsent)
     auto output = New<TRecordingOutputCollector>();
     auto message = MakeTestMessage("input", MakeKey<ui64>(1), New<TTableSchema>());
     function->ProcessMessage(message, output, context);
+    EXPECT_EQ(function->RuntimeStaticThreshold, 0);
     EXPECT_EQ(function->DynamicThreshold, 0);
 }
 
@@ -1395,6 +1523,9 @@ TEST(TProcessFunctionTest, FunctionParametersTypeMismatchThrows)
         .SetProcessingFunction<TParameterReadingFunction>()
         .SetDynamicParameters(New<TThresholdParameters>())
         .Build();
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->GetParameters<TUnrelatedParameters>()),
+        "Static function parameters type mismatch");
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(context->GetDynamicParameters<TUnrelatedParameters>()),
         "Dynamic function parameters type mismatch");
@@ -1544,7 +1675,7 @@ TEST(TProcessFunctionSpecValidationTest, RejectsUnknownDynamicField)
 
 //! Minimal resource for testing the init-context accessor.
 class TTaggedTestResource
-    : public IResource
+    : public TResourceLifecycleBase
 {
 public:
     explicit TTaggedTestResource(int tag)

@@ -5,6 +5,7 @@ items:
     href: style-guide.md
   - name: Authentication internals
     href: internal-authentication.md
+    when: audience == "internal"
   - name: Pipeline testing framework
     href: testing-framework.md
   - name: YSON struct documentation generator

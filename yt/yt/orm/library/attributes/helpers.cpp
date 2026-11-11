@@ -256,27 +256,12 @@ NYTree::INodePtr DoConvertProtobufElementToNode(
     bool ysonString,
     const TProtobufParserOptions& options)
 {
-    auto parseMessage = [&] (const TProtobufMessageType* type) -> NYTree::INodePtr {
-        THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
-            EErrorCode::Unimplemented,
-            "Cannot convert message of type %Qv represented by non-continuous wire string",
-            UnreflectProtobufMessageType(type)->full_name());
-        auto wireStringPart = wireStringPayload.LastOrEmptyPart();
-        google::protobuf::io::ArrayInputStream protobufInputStream(
-            wireStringPart.AsStringView().data(),
-            wireStringPart.AsStringView().size());
-        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
-        builder->BeginTree();
-        ParseProtobuf(&*builder, &protobufInputStream, type, options);
-        return builder->EndTree();
-    };
-
     return VisitProtobufElement(element,
         [&] (const TProtobufMessageElement& messageElement) -> NYTree::INodePtr {
-            return parseMessage(messageElement.Type);
+            return ConvertProtobufToNode(messageElement.Type, {}, wireStringPayload, options);
         },
         [&] (const TProtobufAttributeDictionaryElement& attrElement) -> NYTree::INodePtr {
-            return parseMessage(attrElement.Type);
+            return ConvertProtobufToNode(attrElement.Type, {}, wireStringPayload, options);
         },
         [&] (const TProtobufScalarElement& scalarElement) -> NYTree::INodePtr {
             auto wireStringPart = wireStringPayload.LastOrEmptyPart();
@@ -353,7 +338,6 @@ NYTree::INodePtr DoConvertProtobufElementToNode(
                 "Conversion of map protobuf element to node is not supported");
         },
         [&] (const TProtobufAnyElement&) -> NYTree::INodePtr {
-            // The caller identifies yson_string by the typed attribute or protobuf field descriptor.
             if (!ysonString) {
                 THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
                     "Conversion of any protobuf element to node is not supported");

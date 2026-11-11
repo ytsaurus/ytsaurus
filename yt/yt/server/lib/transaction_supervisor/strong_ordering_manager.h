@@ -68,6 +68,16 @@ public:
         TTransactionId transactionId,
         bool isCoordinator);
 
+    // If you feel like you need this, please think again. This is a hack, made
+    // for one specific scenario.
+    // Tags can be generated from the transaction itself. On the coordinator
+    // that is ok, the commit can be patched with the new tags easily. On the
+    // participant, however, it leads to a disconnect between what the
+    // coordinator sees and the reality. In cases where the commit has no tags
+    // on the participant from the coordinator's point of view, but in reality
+    // some additional tags were generated, an extra check is needed.
+    bool IsTransactionPresent(TTransactionId transactionId) const;
+
     // This is extra validation measure. Can be removed down the line.
     void PromoteLastCommitTimestamp(
         TTransactionId transactionId,

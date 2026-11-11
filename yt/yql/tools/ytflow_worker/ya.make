@@ -21,11 +21,12 @@ PEERDIR(
 
     yt/yt/flow/library/cpp/pipeline_helpers
     yt/yt/flow/library/cpp/resources
-    yt/yt/flow/library/cpp/runner
+    yt/yt/flow/library/cpp/runner/no_engine
     yt/yt/flow/library/cpp/connectors/queue
     yt/yt/flow/library/cpp/connectors/sorted_dynamic_table
 
     yt/yt/library/program
+    yt/yt/library/query/portable_engine
 )
 
 SRCS(

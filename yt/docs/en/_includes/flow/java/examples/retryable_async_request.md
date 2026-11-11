@@ -120,4 +120,3 @@ This single entry point starts the pipeline or serves as its companion, dependin
 | `RequestProcessorFunction` | Stateless, responds immediately | Has internal state and timers |
 | Failure handling | Not provided | Retry with a 5-second delay |
 | Request state | Absent | `RequestState` in YSON |
-

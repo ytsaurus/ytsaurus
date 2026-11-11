@@ -7,9 +7,9 @@ PEERDIR(
     library/cpp/time_provider
 
     yql/essentials/minikql
-    yql/essentials/minikql/comp_nodes/no_llvm
-    yql/essentials/minikql/computation/no_llvm
-    yql/essentials/minikql/invoke_builtins/no_llvm
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/minikql/computation/llvm16
+    yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/public/udf
     yql/essentials/sql/pg_dummy
     yql/essentials/utils

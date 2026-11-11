@@ -404,6 +404,36 @@ struct TRowAfterMap
         WriteAcl);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TAclRowExtractor
+    : public IDoFn<TInputMessage, TRowAfterMap>
+{
+public:
+    void Do(const TInputMessage& row, TOutput<TRowAfterMap>& output)
+    {
+        TNode aclNode = NodeFromYsonString(row.GetAcl());
+        if (!row.GetInheritAcl() || (aclNode.IsList() && !aclNode.AsList().empty())) {
+            TRowAfterMap result;
+            result.Group = "root";
+            result.InheritAcl = row.GetInheritAcl();
+            result.Path = row.GetPath();
+
+            auto acls = MapAcl(aclNode);
+            result.ReadAcl = DumpAclToDict(std::move(acls[EAclPermission::Read]));
+            result.WriteAcl = DumpAclToDict(std::move(acls[EAclPermission::Write]));
+            output.Add(result);
+        }
+    }
+
+    TFnAttributes GetDefaultAttributes() const override
+    {
+        TFnAttributes attributes;
+        attributes.SetIsPure();
+        return attributes;
+    }
+};
+
 std::vector<TRowAfterMap> GetSortedRows(const TInputPtr<TRowAfterMap>& rowIterator)
 {
     std::vector<TRowAfterMap> rows;
@@ -465,20 +495,7 @@ void MakeAclTreePipeline(
 {
     pipeline
     | YtRead<TInputMessage>(input)
-    | "BulkAclCheckerParDo" >> ParDo([](const TInputMessage& row, TOutput<TRowAfterMap>& output) {
-        TNode aclNode = NodeFromYsonString(row.GetAcl());
-        if (!row.GetInheritAcl() || (aclNode.IsList() && !aclNode.AsList().empty())) {
-            TRowAfterMap result;
-            result.Group = "root";
-            result.InheritAcl = row.GetInheritAcl();
-            result.Path = row.GetPath();
-
-            auto acls = MapAcl(aclNode);
-            result.ReadAcl = DumpAclToDict(std::move(acls[EAclPermission::Read]));
-            result.WriteAcl = DumpAclToDict(std::move(acls[EAclPermission::Write]));
-            output.Add(result);
-        }
-    })
+    | "BulkAclCheckerParDo" >> MakeParDo<TAclRowExtractor>()
     | ParDo([](const TRowAfterMap& row) -> TKV<TString, TRowAfterMap> {
         TKV<TString, TRowAfterMap> kv;
         kv.Key() = row.Group;

@@ -2,8 +2,6 @@ package rpcclient
 
 import (
 	"context"
-	"errors"
-	"net"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -13,8 +11,8 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type MutationRetrier struct {
@@ -28,12 +26,17 @@ type MutatingRequest interface {
 }
 
 func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+
 	req, ok := call.Req.(MutatingRequest)
 	if !ok || call.DisableRetries {
 		return invoke(ctx, call, rsp, opts...)
 	}
 
-	if !req.HasMutatingOptions() {
+	generated := !req.HasMutatingOptions()
+	if generated {
 		req.SetMutatingOptions(
 			&yt.MutatingOptions{
 				MutationID: yt.MutationID(guid.New()),
@@ -42,9 +45,16 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		)
 	}
 
-	for i := 0; ; i++ {
+	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
 		err = invoke(ctx, call, rsp, opts...)
-		if err == nil || !r.shouldRetry(err) {
+		if err == nil {
+			return
+		}
+
+		if !r.shouldRetry(call.RequestedProxy != "" || call.FixedProxy, err) {
 			return
 		}
 
@@ -54,11 +64,15 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		default:
 		}
 
-		req.SetRetry(true)
-
 		b := call.Backoff.NextBackOff()
 		if b == backoff.Stop {
 			return
+		}
+
+		if generated && !retry.IsMutationResultUnknown(err) {
+			req.SetMutatingOptions(&yt.MutatingOptions{MutationID: yt.MutationID(guid.New())})
+		} else {
+			req.SetRetry(true)
 		}
 
 		if r.Log != nil {
@@ -76,19 +90,10 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 	}
 }
 
-func (r *MutationRetrier) shouldRetry(err error) bool {
-	if isNetError(err) {
-		return true
+func (r *MutationRetrier) shouldRetry(hasFixedProxy bool, err error) bool {
+	if retry.IsProxyBannedError(err) {
+		return !hasFixedProxy
 	}
 
-	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
-		return true
-	}
-
-	return false
-}
-
-func isNetError(err error) bool {
-	var netErr net.Error
-	return errors.As(err, &netErr)
+	return retry.IsRetriableError(err) || retry.IsRetriableRPCError(err)
 }

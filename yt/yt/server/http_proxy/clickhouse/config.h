@@ -88,6 +88,8 @@ struct TDynamicClickHouseConfig
     //! If authorization is disabled in proxy config, this flag will be set to true automatically.
     bool IgnoreMissingCredentials;
 
+    bool EnableServiceTicketSubmission;
+
     //! How many times the proxy will retry sending the request to the randomly chosen instance
     //! when the chosen instance does not respond or respond with MovedPermanently status code.
     int DeadInstanceRetryCount;

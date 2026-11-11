@@ -30,14 +30,6 @@ void TFileChangelogConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFileChangelogDispatcherConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("flush_quantum", &TThis::FlushQuantum)
-        .Default(TDuration::MilliSeconds(10));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TFileChangelogStoreConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);

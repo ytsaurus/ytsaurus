@@ -9,6 +9,7 @@ SRCS(
     key_states.cpp
     key_visitor_states.cpp
     partition_states.cpp
+    timer_pages.cpp
     timers.cpp
 )
 

@@ -277,6 +277,9 @@ public:
     TFuture<T> WithDeadline(
         TInstant deadline,
         TFutureTimeoutOptions options = {}) const;
+    TFuture<T> WithDeadline(
+        std::optional<TInstant> deadline,
+        TFutureTimeoutOptions options = {}) const;
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
@@ -381,6 +384,8 @@ public:
     //! Chains the asynchronous computation with another one.
     template <class R>
     TFuture<R> Apply(TCallback<R()> callback) const;
+    template <class R>
+    TFuture<R> Apply(TCallback<TErrorOr<R>()> callback) const;
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>()> callback) const;
     template <class R>
@@ -489,6 +494,8 @@ public:
     //! Same as #TFuture::Apply but assumes that this chaining will be the only subscriber.
     template <class R>
     TFuture<R> Apply(TCallback<R()> callback) const;
+    template <class R>
+    TFuture<R> Apply(TCallback<TErrorOr<R>()> callback) const;
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>()> callback) const;
     template <class R>

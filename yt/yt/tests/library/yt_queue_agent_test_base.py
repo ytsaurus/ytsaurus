@@ -4,7 +4,7 @@ from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (execute_batch, get, get_batch_output, get_connection_orchid_value, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table,
                          sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table,
-                         create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error)
+                         create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error, unregister_queue_consumer)
 
 from yt_helpers import parse_yt_time, calculate_object_diff, wait_success
 
@@ -1076,14 +1076,40 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
                 # NB(apachee): This kind of reassignment is fine.
                 cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = applied_config
 
-    @staticmethod
-    def _list_all_registrations(driver=None):
+    @classmethod
+    def _get_registration_manager_effective_config(cls, driver=None):
         if not driver:
             driver = get_driver()
-        cluster_name = get("//sys/@cluster_name", driver=driver)
-        config = get(f"//sys/clusters/{cluster_name}/queue_agent/queue_consumer_registration_manager", driver=driver)
+
+        if cls.DRIVER_BACKEND == "native":
+            return get_connection_orchid_value(
+                "/queue_consumer_registration_manager/effective_config",
+                driver=driver,
+            )
+
+        assert cls.DRIVER_BACKEND == "rpc"
+        proxies = ls("//sys/rpc_proxies", driver=driver)
+        assert proxies, "No RPC proxies available to read registration manager effective config"
+
+        return get(
+            f"//sys/rpc_proxies/{proxies[0]}/orchid/cluster_connection/queue_consumer_registration_manager/effective_config",
+            driver=driver,
+        )
+
+    @classmethod
+    def _list_all_registrations(cls, driver=None):
+        if not driver:
+            driver = get_driver()
+
+        config = cls._get_registration_manager_effective_config(driver=driver)
         registration_table_path = config["state_read_path"]
-        return [QueueConsumerRegistration.from_select(r) for r in select_rows(f"* FROM [{registration_table_path}]")]
+        if not exists(registration_table_path, driver=driver):
+            return []
+
+        return [
+            QueueConsumerRegistration.from_select(r)
+            for r in select_rows(f"* FROM [{registration_table_path}]", driver=driver)
+        ]
 
 
 assert QueueConsumerRegistrationManagerBase._get_registration_manager_config()["implementation"] == "async_expiring_cache"
@@ -1168,6 +1194,8 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     INSTANCES = None
 
     DO_PREPARE_TABLES_ON_SETUP = True
+    # Reuse bundle options, queue-agent tables and their cells across test methods.
+    PREPARE_QUEUE_AGENT_STATE_ONCE = False
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = False
 
     @classmethod
@@ -1217,24 +1245,67 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         cls.INSTANCES = cls._wait_for_instances()
         cls._wait_for_elections()
 
+        if cls.PREPARE_QUEUE_AGENT_STATE_ONCE:
+            assert cls.DO_PREPARE_TABLES_ON_SETUP
+            for cluster_index, env in enumerate(cls.combined_envs):
+                if env is not None:
+                    super(TestQueueAgentBase, cls)._restore_default_bundle_options(cluster_index)
+
+            cls._set_clock_cluster_tag()
+            cell_ids = cls._prepare_tables()
+            cls.add_cleanup_ignore_object_ids(*cell_ids)
+
     def setup_method(self, method):
         super(TestQueueAgentBase, self).setup_method(method)
 
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for cluster_name in self.get_cluster_names():
-            driver = get_driver(cluster=cluster_name)
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+        if not self.PREPARE_QUEUE_AGENT_STATE_ONCE:
+            self._set_clock_cluster_tag()
 
-        if self.DO_PREPARE_TABLES_ON_SETUP:
-            self._prepare_tables()
+            if self.DO_PREPARE_TABLES_ON_SETUP:
+                self._prepare_tables()
 
         if self.QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP:
             self._wait_for_global_sync()
 
+    @classmethod
+    def _set_clock_cluster_tag(cls):
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for cluster_name in cls.get_cluster_names():
+            driver = get_driver(cluster=cluster_name)
+            set(
+                "//sys/tablet_cell_bundles/default/@options/clock_cluster_tag",
+                primary_cell_tag,
+                driver=driver,
+            )
+
+    @classmethod
+    def _restore_default_bundle_options(cls, cluster_index):
+        if not cls.PREPARE_QUEUE_AGENT_STATE_ONCE:
+            super(TestQueueAgentBase, cls)._restore_default_bundle_options(cluster_index)
+
     def teardown_method(self, method):
-        self._drop_tables()
+        if self.PREPARE_QUEUE_AGENT_STATE_ONCE:
+            self._unregister_all_queue_consumers()
+        else:
+            self._drop_tables()
 
         super(TestQueueAgentBase, self).teardown_method(method)
+
+    def _unregister_all_queue_consumers(self):
+        registrations = builtins.set()
+        for cluster in self.get_cluster_names():
+            driver = get_driver(cluster=cluster)
+            registrations.update(
+                registration.key
+                for registration in self._list_all_registrations(driver=driver)
+            )
+
+        for queue_cluster, queue_path, consumer_cluster, consumer_path, consumer_name in registrations:
+            unregister_queue_consumer(
+                GenericObjectPath(queue_path, queue_cluster),
+                GenericObjectPath(consumer_path, consumer_cluster, consumer_name),
+                driver=get_driver(cluster=queue_cluster),
+            )
 
     @classmethod
     def _apply_dynamic_config_patch(cls, patch):
@@ -1263,20 +1334,26 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
         wait(config_updated_on_all_instances, ignore_exceptions=True)
 
-    def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None, **kwargs):
+    @classmethod
+    def _prepare_tables(cls, queue_table_schema=None, consumer_table_schema=None, **kwargs):
         print_debug(f"Preparing queue agent dynamic state tables with kwargs: {kwargs}")
 
         assert queue_table_schema is None and consumer_table_schema is None, \
             "Current implementation of init_queue_agent_state does not support custom schemas"
-        sync_create_cells(1)
-        for remote_cluster_index in range(self.NUM_REMOTE_CLUSTERS):
-            sync_create_cells(1, driver=get_driver(cluster=f"remote_{remote_cluster_index}"))
-        self.client = self.Env.create_native_client()
+        cell_ids = sync_create_cells(1)
+        for remote_cluster_index in range(cls.NUM_REMOTE_CLUSTERS):
+            cell_ids.extend(
+                sync_create_cells(1, driver=get_driver(cluster=f"remote_{remote_cluster_index}"))
+            )
+
+        cls.client = cls.Env.create_native_client()
         init_queue_agent_state.create_tables_latest_version(
-            self.client,
+            cls.client,
             **kwargs)
 
         print_debug("Prepared queue agent dynamic state tables")
+
+        return cell_ids
 
     def _drop_tables(self):
         init_queue_agent_state.delete_all_tables(self.client)
@@ -1341,8 +1418,10 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         return make_batch_request("create", type="table", path=path, attributes=attributes)
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
-        if mount:
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, hash_expression=None, without_hash_column=False, **kwargs):
+        assert (hash_expression is None and not without_hash_column) or multi_consumer
+        assert hash_expression is None or not without_hash_column
+        if mount and hash_expression is None and not without_hash_column:
             if multi_consumer:
                 assert not without_meta
                 create("queue_multi_consumer", path, driver=driver, attributes=kwargs)
@@ -1354,6 +1433,10 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
         if multi_consumer:
             schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+            if hash_expression is not None:
+                schema = [{**schema[0], "expression": hash_expression}] + schema[1:]
+            elif without_hash_column:
+                schema = schema[1:]
         elif without_meta:
             schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
         else:

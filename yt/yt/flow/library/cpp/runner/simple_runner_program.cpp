@@ -13,6 +13,8 @@
 #include <yt/yt/flow/library/cpp/pipeline_helpers/flow_execute/flow_execute.h>
 #include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/options.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -147,17 +149,6 @@ void TSimpleRunnerProgram::DoRun()
         }
     }
 
-    // Validate the full spec before any side effects (vanilla operation submission, prior-op
-    // shutdown, pipeline spec update) so an invalid spec fails fast with nothing changed.
-    ValidatePipelineSpec(config->Spec);
-    ValidateDynamicPipelineSpec(config->DynamicSpec);
-    ValidateProcessFunctionGraphDynamicSpec(config->Spec, config->DynamicSpec);
-
-    if (ValidateOnly_) {
-        YT_TLOG_INFO("Pipeline spec is valid; exiting without side effects because run with --validate-only");
-        return;
-    }
-
     NYPath::TRichYPath pipelinePath(config->Path);
     pipelinePath.SetCluster(config->ClusterUrl);
 
@@ -173,6 +164,18 @@ void TSimpleRunnerProgram::DoRun()
     THROW_ERROR_EXCEPTION_UNLESS(client,
         "Root clients cache returned no client for cluster %Qv",
         config->ClusterUrl);
+
+    // Validate the full spec before any side effects (vanilla operation submission, prior-op
+    // shutdown, pipeline spec update) so an invalid spec fails fast with nothing changed.
+    // The pipeline cluster is the one #RunPipeline() validates with: the client's cluster name.
+    ValidatePipelineSpec(config->Spec, client->GetConnection()->GetClusterName());
+    ValidateDynamicPipelineSpec(config->DynamicSpec);
+    ValidateProcessFunctionGraphDynamicSpec(config->Spec, config->DynamicSpec);
+
+    if (ValidateOnly_) {
+        YT_TLOG_INFO("Pipeline spec is valid; exiting without side effects because run with --validate-only");
+        return;
+    }
 
     TFlowExecuteTarget target(client, config->DirectControllerCommands);
     if (target.IsDirect()) {

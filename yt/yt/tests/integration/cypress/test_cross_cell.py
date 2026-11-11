@@ -4,7 +4,7 @@ from yt_commands import (
     authors, raises_yt_error, wait, create, ls, get, set, copy, move, remove, link, exists, create_account,
     create_user, make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
     read_file, write_file, read_table, write_table, sync_create_cells, create_dynamic_table, insert_rows,
-    lookup_rows, sync_mount_table, sync_unmount_table, sync_freeze_table, abort_all_transactions, gc_collect)
+    lookup_rows, sync_mount_table, sync_unmount_table, sync_freeze_table, abort_all_user_transactions, gc_collect)
 
 import yt_error_codes
 
@@ -135,7 +135,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("recursive_resource_usage")
 
     def teardown_method(self, method):
-        abort_all_transactions()
+        abort_all_user_transactions()
         # XXX(babenko): cleanup is weird
         remove(self.DST)
         super(TestCrossCellCopy, self).teardown_method(method)

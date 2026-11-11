@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "resource_instances.h"
 
 #include "private.h"
 
@@ -7,6 +8,7 @@
 #include "lease_manager.h"
 #include "lineage_aggregator.h"
 #include "persisted_state_manager.h"
+#include "stream_metrics.h"
 #include "throttler_host.h"
 #include "worker.h"
 #include "worker_tracker.h"
@@ -71,42 +73,6 @@ static constexpr auto LeadershipWarmupExtraTime = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// FuncGauge-based lag gauge: computes lag as (Now() - LastWatermark) at read time.
-// Unlike TGauge, continues growing even if Update() stops being called (e.g. controller is stuck).
-// Returns -1 if no watermark has been set yet.
-class TLagGauge
-    : public TRefCounted
-{
-public:
-    static TIntrusivePtr<TLagGauge> Create(
-        const TProfiler& profiler,
-        const std::string& name)
-    {
-        auto gauge = New<TLagGauge>();
-        profiler.AddFuncGauge(name, gauge, [gauge = gauge.Get()] () -> double {
-            auto watermark = TSystemTimestamp(gauge->Watermark_.load(std::memory_order::relaxed));
-            if (watermark == ZeroSystemTimestamp) {
-                return -1.0;
-            }
-            auto now = static_cast<i64>(TInstant::Now().Seconds());
-            return static_cast<double>(std::max<i64>(0, now - static_cast<i64>(watermark.Underlying())));
-        });
-        return gauge;
-    }
-
-    void Update(TSystemTimestamp watermark)
-    {
-        Watermark_.store(watermark.Underlying(), std::memory_order::relaxed);
-    }
-
-private:
-    std::atomic<ui64> Watermark_{ZeroSystemTimestamp.Underlying()};
-};
-
-using TLagGaugePtr = TIntrusivePtr<TLagGauge>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFlowEphemeralStatePtr ComputeInitialEphemeralState(
     const TFlowStatePtr& state,
     const TVersionedDynamicPipelineSpecPtr& dynamicPipelineSpec,
@@ -148,50 +114,6 @@ class TControllerLeader
     : public TRefCounted
 {
 public:
-    class TStreamMetrics
-    {
-    public:
-        TStreamMetrics(const TStreamId& streamId, const TProfiler& profiler)
-            : Profiler_(profiler
-                    .WithPrefix("/streams")
-                    .WithRequiredTag("stream_id", streamId.Underlying()))
-            , TimeLagGauge_(TLagGauge::Create(Profiler_, "/time_lag"))
-            , EventTimeLagGauge_(TLagGauge::Create(Profiler_, "/event_time_lag"))
-            , LagGauge_(Profiler_.Gauge("/count_lag"))
-            , ByteSizeLagGauge_()
-        { }
-
-        void Apply(const TSystemTimestamp /*now*/, const TStreamTraverseDataPtr& stream)
-        {
-            TimeLagGauge_->Update(stream->SystemWatermark);
-            EventTimeLagGauge_->Update(stream->EventWatermark);
-
-            const auto& metrics = stream->InflightMetrics;
-            LagGauge_.Update(metrics->Count);
-
-            auto update = [&] (auto& gauge, const std::string& name, auto value) {
-                if (value) {
-                    if (!gauge) {
-                        gauge = Profiler_.Gauge(name);
-                    }
-                    gauge->Update(*value);
-                } else {
-                    gauge = {};
-                }
-            };
-
-            update(ByteSizeLagGauge_, "/byte_size_lag", metrics->ByteSize);
-        }
-
-    private:
-        TProfiler Profiler_;
-
-        TLagGaugePtr TimeLagGauge_;
-        TLagGaugePtr EventTimeLagGauge_;
-        TGauge LagGauge_;
-        std::optional<TGauge> ByteSizeLagGauge_;
-    };
-
     struct TAggregatedStreamTraverseData
     {
         int Count = 0;
@@ -457,6 +379,7 @@ public:
         , SpecVersion_(Profiler_.Gauge("/spec_version"))
         , DynamicSpecVersion_(Profiler_.Gauge("/dynamic_spec_version"))
         , StatusProfiler_(std::move(statusProfiler))
+        , SpecValidationErrorState_(StatusProfiler_->ErrorState("/spec_validation"))
     { }
 
     const IVersionProviderPtr& GetVersionProvider() const
@@ -530,6 +453,8 @@ public:
         SpecVersion_.Update(spec->GetVersion().Underlying());
         DynamicSpecVersion_.Update(dynamicSpec->GetVersion().Underlying());
 
+        ValidateSpecsOnChange(flowView);
+
         // TODO(mikari): revise order
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
@@ -585,14 +510,20 @@ public:
                 FlowCoreTargetMatched_ = flowCoreTargetMatched;
             }
 
-            if (flowCoreTargetMatched) {
+            if (flowCoreTargetMatched && SpecValidationError_.IsOK()) {
                 CheckTargetState(flowView);
             } else {
                 auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
                 if (state == EPipelineState::Working || state == EPipelineState::Draining) {
-                    YT_TLOG_WARNING("FlowCoreTarget mismatch, pausing pipeline")
-                        .With("Target", flowView->State->ExecutionSpec->FlowCoreTarget->GetValue())
-                        .With("Actual", NodeInfo_->FlowCoreVersion);
+                    if (!flowCoreTargetMatched) {
+                        YT_TLOG_WARNING("FlowCoreTarget mismatch, pausing pipeline")
+                            .With("Target", flowView->State->ExecutionSpec->FlowCoreTarget->GetValue())
+                            .With("Actual", NodeInfo_->FlowCoreVersion);
+                    } else {
+                        YT_TLOG_WARNING("Pipeline spec is invalid, pausing pipeline")
+                            .With(SpecValidationError_);
+                    }
+
                     flowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                 }
             }
@@ -657,36 +588,13 @@ public:
             auto now = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ false))
                 .ValueOrThrow();
 
-            auto registerStream = [&] (const auto& streamId, const auto& stream) {
-                auto& metrics = StreamMetrics_
-                    .emplace(streamId, TStreamMetrics(streamId, Profiler_))
-                    .first->second;
-                metrics.Apply(now, stream);
-            };
-
-            for (const auto& [streamId, stream] : traverseData->Streams) {
-                registerStream(streamId, stream);
-            }
-            static const TStreamId unitedStreamId = TStreamId("__united__");
-            registerStream(unitedStreamId, traverseData->UnitedStream);
-            static const TStreamId unitedSourceStreamId = TStreamId("__united_source__");
-            registerStream(unitedSourceStreamId, traverseData->UnitedSourceStream);
-            static const TStreamId unitedTimerStreamId = TStreamId("__united_timer__");
-            registerStream(unitedTimerStreamId, traverseData->UnitedTimerStream);
-            static const TStreamId unitedKeyVisitorStreamId = TStreamId("__united_key_visitor__");
-            registerStream(unitedKeyVisitorStreamId, traverseData->UnitedKeyVisitorStream);
-            static const TStreamId unitedOutputStreamId = TStreamId("__united_output__");
-            registerStream(unitedOutputStreamId, traverseData->UnitedOutputStream);
-
-            auto streamIds = ConcatVectors(
-                GetKeys(traverseData->Streams),
-                std::vector<TStreamId>{
-                    unitedStreamId,
-                    unitedSourceStreamId,
-                    unitedTimerStreamId,
-                    unitedKeyVisitorStreamId,
-                    unitedOutputStreamId});
-            DropMissingKeys(StreamMetrics_, THashSet<TStreamId>(streamIds.begin(), streamIds.end()));
+            UpdateStreamMetrics(
+                StreamMetrics_,
+                now,
+                traverseData,
+                CollectTimerStreamIds(pipelineSpec),
+                executionSpec->DynamicPipelineSpec->GetValue()->EnableUnitedStreamMetrics,
+                Profiler_);
         }
 
         const auto minJobStatusUpdateTime = TInstant::Now() -
@@ -701,12 +609,16 @@ public:
             } else {
                 metrics.ResetPerformanceMetrics();
             }
-            if (auto* computationInputMetrics = inputMetrics.FindPtr(computationId)) {
+
+            // Traverse data and input metrics may lag behind a replaced spec until a successful leader iteration syncs them.
+            auto* computationInputMetrics = inputMetrics.FindPtr(computationId);
+            auto* computationSpec = pipelineSpec->Computations.FindPtr(computationId);
+            if (computationInputMetrics && computationSpec) {
                 metrics.Apply(
                     *computationInputMetrics,
                     streamTraverseDatas[computationId],
                     flowView->EphemeralState->StreamTraverseDataMetrics[computationId],
-                    GetOrCrash(pipelineSpec->Computations, computationId));
+                    *computationSpec);
             } else {
                 metrics.ResetInputMetrics();
             }
@@ -775,8 +687,59 @@ private:
     TPipelineStateMetrics PipelineStateMetrics_;
 
     const IStatusProfilerPtr StatusProfiler_;
+    const IStatusErrorStatePtr SpecValidationErrorState_;
 
     bool FlowCoreTargetMatched_ = true;
+
+    //! Versions of the canonical specs that #SpecValidationError_ belongs to.
+    std::optional<std::pair<TVersion, TVersion>> ValidatedSpecVersions_;
+    TError SpecValidationError_;
+
+    //! Validates the canonical specs when their versions change; scheduling stays paused while they are invalid.
+    void ValidateSpecsOnChange(const TFlowViewPtr& flowView)
+    {
+        const auto& spec = flowView->CurrentSpec;
+        const auto& dynamicSpec = flowView->CurrentDynamicSpec;
+        auto versions = std::pair(spec->GetVersion(), dynamicSpec->GetVersion());
+        if (ValidatedSpecVersions_ == versions) {
+            return;
+        }
+
+        ValidatedSpecVersions_ = versions;
+
+        TError error;
+        try {
+            if (spec->GetVersion() != TVersion(0)) {
+                ValidatePipelineSpec(spec->GetValue());
+            }
+
+            if (dynamicSpec->GetVersion() != TVersion(0)) {
+                ValidateDynamicPipelineSpec(dynamicSpec->GetValue());
+            }
+        } catch (const std::exception& ex) {
+            error = TError("Pipeline spec is invalid; the pipeline cannot run until the spec is fixed")
+                .With("spec_version", spec->GetVersion())
+                .With("dynamic_spec_version", dynamicSpec->GetVersion())
+                .With(TError(ex));
+        }
+
+        if (!error.IsOK()) {
+            if (SpecValidationError_.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Pipeline spec validation failed, pausing pipeline")
+                    .With(error);
+            }
+
+            SpecValidationErrorState_->SetError(error);
+        } else {
+            if (!SpecValidationError_.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Pipeline spec validation passed");
+            }
+
+            SpecValidationErrorState_->ClearError();
+        }
+
+        SpecValidationError_ = std::move(error);
+    }
 
     bool UpdateSpecs(const TFlowViewPtr& flowView, const TVersionedPipelineSpecPtr& spec, const TVersionedDynamicPipelineSpecPtr& dynamicSpec)
     {
@@ -966,14 +929,24 @@ private:
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
         };
-        auto stopJobsAndResetState = [&] (EPipelineState newState) {
-            // StopAllJobs empties the layout, which makes every lease stray, so the same call
-            // that revokes them everywhere else revokes them here. It has to happen before the
-            // new state becomes observable: a delayed worker that still holds a valid lease
-            // would commit state and output into a pipeline already seen as paused, stopped or
-            // completed.
+        auto finishPipeline = [&] (EPipelineState newState) {
             JobManager_->StopAllJobs(flowView);
             LeaseManager_->TerminateStrayLeases(flowView);
+            const auto& layout = flowView->State->ExecutionSpec->Layout;
+            std::vector<TResourceInstanceId> instanceIds;
+            for (const auto& [instanceId, _] : layout->ResourceInstances) {
+                instanceIds.push_back(instanceId);
+            }
+            for (auto instanceId : instanceIds) {
+                layout->ResourceInstances.erase(instanceId);
+            }
+            std::vector<std::string> addresses;
+            for (const auto& [address, _] : layout->WorkerSpecs) {
+                addresses.push_back(address);
+            }
+            for (const auto& address : addresses) {
+                layout->WorkerSpecs.erase(address);
+            }
             flowView->State->ExecutionSpec->PipelineState->TrySetValue(newState, VersionProvider_);
         };
         auto manageJobs = [&] {
@@ -1015,11 +988,11 @@ private:
         // never weakened, only liveness is.
         LeaseManager_->TerminateStrayLeases(flowView);
         if (state == EPipelineState::Working && JobManager_->CheckPipelineCompleted(flowView)) {
-            stopJobsAndResetState(EPipelineState::Completed);
+            finishPipeline(EPipelineState::Completed);
         } else if (state == EPipelineState::Draining && JobManager_->CheckPipelineStopped(flowView)) {
-            stopJobsAndResetState(EPipelineState::Stopped);
+            finishPipeline(EPipelineState::Stopped);
         } else if (state == EPipelineState::Pausing) {
-            stopJobsAndResetState(EPipelineState::Paused);
+            finishPipeline(EPipelineState::Paused);
         }
     }
 
@@ -1396,8 +1369,9 @@ public:
     void RegisterJobStatus(const TJobId& jobId, TJobStatusPtr jobStatus) override
     {
         EnsureIsLeader();
+
         auto guard = Guard(FreshStatusesLock_);
-        FreshJobStatuses_[jobId] = jobStatus;
+        FreshJobStatuses_[jobId] = std::move(jobStatus);
     }
 
     void RegisterWorkerStatus(TStringBuf workerAddress, TWorkerStatusPtr status) override
@@ -1650,7 +1624,7 @@ private:
                                 .With(error);
                         }
                         TDelayedExecutor::WaitForDuration(pipelineState == EPipelineState::Unknown
-                                ? std::max(Config_->SchedulerPeriod, NoSpecIterationBackoff)
+                                ? std::max(Config_->SchedulerPeriod, Config_->NoSpecIterationBackoff)
                                 : Config_->SchedulerPeriod);
                         schedulerActivityContext.TotalIterations.Increment();
                     }
@@ -1881,6 +1855,9 @@ private:
             workerStatus = newWorkerStatus;
         }
 
+        auto feedbackView = flowView->CopyPtr();
+        feedbackView->Feedback = feedback;
+        ProjectResourceInstanceStatuses(feedbackView);
         return feedback;
     }
 };
@@ -1933,7 +1910,6 @@ TDuration GetLeadershipWarmupTimeout(const TDynamicPipelineSpecPtr& dynamicSpec)
 
 TDuration GetLeadershipWarmupLeft(const TFlowViewPtr& flowView, TInstant publishTime, TInstant now)
 {
-    // A layout with no jobs has nothing to protect, so a starting pipeline is never delayed.
     if (flowView->State->ExecutionSpec->Layout->Jobs.size() == 0) {
         return TDuration::Zero();
     }

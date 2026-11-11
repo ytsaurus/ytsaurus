@@ -56,7 +56,7 @@ Logging settings. ||
  ||
 || `cluster_url` | **Type**: `std::string`
 **Required parameter**
-Name of the cluster where the pipeline is located. The tail after the last `/` is treated as a proxy role and takes precedence over `proxy_role` &mdash; e.g. `hahn/flow` means cluster `hahn` with role `flow`. ||
+Name of the cluster where the pipeline is located. The tail after the last `/` is treated as a proxy role and takes precedence over `proxy_role` &mdash; e.g. `example-cluster/flow` means cluster `example-cluster` with role `flow`. ||
 || `proxy_role` | **Type**: `std::optional<std::string>`
 **Required parameter**
 The [proxy role](../../user-guide/proxy/about#rpc_proxy) to use for performing operations on the pipeline. ||

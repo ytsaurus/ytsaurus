@@ -10,6 +10,7 @@ IF (NOT OPENSOURCE)
         check_chaos_hive
         check_tablet_cell_snapshot_convergence
         compare_chaos_data_replicas
+        drop_allocations
         i_want_to_dryrun_tamed_cell
         gradual_remount
         migrate_dynamic_tables

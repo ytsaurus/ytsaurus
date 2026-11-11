@@ -19,7 +19,7 @@ class ClickHouse(Dialect):
     SUPPORTS_USER_DEFINED_TYPES = False
     LOG_BASE_FIRST: bool | None = None
     FORCE_EARLY_ALIAS_REF_EXPANSION = True
-    PRESERVE_ORIGINAL_NAMES = True
+    ORIGINAL_NAME_META_KEY = "clickhouse_name"
     NUMBERS_CAN_BE_UNDERSCORE_SEPARATED = True
     IDENTIFIERS_CAN_START_WITH_DIGIT = True
     HEX_STRING_IS_INTEGER_TYPE = True
@@ -31,6 +31,13 @@ class ClickHouse(Dialect):
 
     UNESCAPED_SEQUENCES = {
         "\\0": "\0",
+        "\\e": "\x1b",
+        "\\N": "",
+        "\\/": "/",
+        '\\"': '"',
+        "\\=": "=",
+        "\\`": "`",
+        **{"\\" + chr(i): chr(i) for i in range(1, 32)},
     }
 
     CREATABLE_KIND_MAPPING = {"DATABASE": "SCHEMA"}
@@ -68,7 +75,10 @@ class ClickHouse(Dialect):
         return column_aliases
 
     class Tokenizer(tokens.Tokenizer):
+        NUMERIC_ESCAPES = {"x": (16, 2, 2, 0xFF)}
+        NUMERIC_ESCAPES_ARE_BYTES = True
         COMMENTS = ["--", "#", "#!", ("/*", "*/")]
+        COMMENTS_TERMINATE_AT_NEWLINE_ONLY = True
         IDENTIFIERS = ['"', "`"]
         IDENTIFIER_ESCAPES = ["\\"]
         STRING_ESCAPES = ["'", "\\"]

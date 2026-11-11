@@ -45,6 +45,8 @@ target_link_libraries(yt-library-codegen PUBLIC
   llvm18-lib-Passes
   cpp-yt-libcpp_assertion_handlers
   yt-yt-core
+  lib-Target-AArch64
+  Target-AArch64-AsmParser
 )
 
 target_sources(yt-library-codegen PRIVATE

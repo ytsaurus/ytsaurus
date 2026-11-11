@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 type eventMessage struct {
 	flow.YSONMessage
 	Key  uint64 `yson:"key"`

@@ -7,6 +7,7 @@ from sqlglot.dialects.dialect import (
     DATE_ADD_OR_SUB,
     JSON_EXTRACT_TYPE,
     any_value_to_max_sql,
+    arrow_json_extract_sql,
     array_append_sql,
     array_concat_sql,
     bool_xor_sql,
@@ -39,7 +40,7 @@ from sqlglot.dialects.dialect import (
     ts_or_ds_add_cast,
 )
 from sqlglot.generator import unsupported_args
-from sqlglot.helper import seq_get
+from sqlglot.helper import ensure_list, seq_get
 
 
 DATE_DIFF_FACTOR = {
@@ -184,6 +185,17 @@ def _json_extract_sql(
     name: str, op: str
 ) -> t.Callable[[PostgresGenerator, JSON_EXTRACT_TYPE], str]:
     def _generate(self: PostgresGenerator, expression: JSON_EXTRACT_TYPE) -> str:
+        path = expression.expression
+        # Single non-literal segment: render as infix, not JSON_EXTRACT_PATH[_TEXT] (jsonb-unsafe).
+        if not isinstance(path, (exp.JSONPath, exp.Variadic)) and not ensure_list(
+            expression.args.get("expressions")
+        ):
+            return arrow_json_extract_sql(self, expression, op=op)
+
+        # JSON_EXTRACT_PATH requires a key, so use an empty variadic array for the root path
+        if len(path.expressions) == 1 and isinstance(path.expressions[0], exp.JSONPathRoot):
+            expression.set("expression", exp.Variadic(this=exp.Literal.string("{}")))
+
         if expression.args.get("only_json_types"):
             return json_extract_segments(name, quoted_index=False, op=op)(self, expression)
         return json_extract_segments(name)(self, expression)
@@ -340,9 +352,8 @@ class PostgresGenerator(generator.Generator):
         ),
         exp.JSONExtract: _json_extract_sql("JSON_EXTRACT_PATH", "->"),
         exp.JSONExtractScalar: _json_extract_sql("JSON_EXTRACT_PATH_TEXT", "->>"),
-        exp.JSONBExtract: lambda self, e: self.binary(e, "#>"),
-        exp.JSONBExtractScalar: lambda self, e: self.binary(e, "#>>"),
-        exp.JSONBContains: lambda self, e: self.binary(e, "?"),
+        exp.JSONBExtract: lambda self, e: arrow_json_extract_sql(self, e, op="#>"),
+        exp.JSONBExtractScalar: lambda self, e: arrow_json_extract_sql(self, e, op="#>>"),
         exp.ParseJSON: lambda self, e: self.sql(exp.cast(e.this, exp.DType.JSON)),
         exp.JSONPathKey: json_path_key_only_name,
         exp.JSONPathRoot: lambda *_: "",
@@ -418,6 +429,16 @@ class PostgresGenerator(generator.Generator):
         exp.TransientProperty: exp.Properties.Location.UNSUPPORTED,
         exp.VolatileProperty: exp.Properties.Location.UNSUPPORTED,
     }
+
+    def bytestring_sql(self, expression: exp.ByteString) -> str:
+        if not expression.args.get("is_bytes"):
+            return super().bytestring_sql(expression)
+
+        return self.func(
+            "DECODE",
+            exp.Literal.string(expression.this.encode("latin-1").hex()),
+            exp.Literal.string("hex"),
+        )
 
     def schemacommentproperty_sql(self, expression: exp.SchemaCommentProperty) -> str:
         self.unsupported("Table comments are not supported in the CREATE statement")
@@ -515,7 +536,11 @@ class PostgresGenerator(generator.Generator):
         this = expression.this
 
         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous
-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():
+        if (
+            isinstance(this, exp.IntDiv)
+            and exp.IntDiv in self.TRANSFORMS
+            and expression.to == exp.DType.DECIMAL.into_expr()
+        ):
             return self.sql(this)
 
         return super().cast_sql(expression, safe_prefix=safe_prefix)

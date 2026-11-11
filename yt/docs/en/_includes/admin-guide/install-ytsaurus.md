@@ -294,7 +294,7 @@ Events:
 
 Another possible reason is that pods cannot be scheduled due to an insufficient number of k8s nodes. If your k8s cluster has fewer nodes than the number of {{product-name}} master servers, they will not be able to start because of antiaffinity constraints. To disable this restriction, set the option `ephemeralCluster: true`.
 
-## Installing {{product-name}} UI helm chart
+## Installing {{product-name}} UI helm chart {#ui}
 
 ### Using with [ytop-chart](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart)
 

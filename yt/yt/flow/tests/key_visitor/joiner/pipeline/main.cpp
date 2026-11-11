@@ -62,6 +62,14 @@ public:
         initContext->InitExternalStateClient(SourceState_, "/source");
     }
 
+    //! A message seeds the mirror for its key; the sweep then overwrites the seed from the source.
+    void DoProcessMessage(
+        const TInputMessageConstPtr& message,
+        IOutputCollectorPtr /*output*/) override
+    {
+        MirroredState_.GetState(message->Key)->Payload = "seed";
+    }
+
     void DoProcessVisit(
         const TVisit& visit,
         IOutputCollectorPtr /*output*/) override

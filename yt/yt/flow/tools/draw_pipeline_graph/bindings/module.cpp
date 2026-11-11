@@ -26,6 +26,7 @@ using namespace NDescribe;
 //! \param orientation    "vertical" (TD) or "horizontal" (LR).
 //! \param clusterName    YT cluster name for clickable computation URLs (empty = no links).
 //! \param pipelinePath   Pipeline path in YT for clickable computation URLs.
+//! \param edgesYson      YSON list of the controller's describe `edges` (empty = no edges); unknown kinds are skipped.
 // Helper: deserialize flow_view YSON and run DescribePipeline once.
 // Returns (pipeline, options) ready for graph building.
 static std::pair<TPipelineDescription, TDrawPipelineGraphOptions>
@@ -33,7 +34,8 @@ PrepareGraphInput(
     const TString& flowViewYson,
     const TString& orientation,
     const TString& clusterName,
-    const TString& pipelinePath)
+    const TString& pipelinePath,
+    const TString& edgesYson)
 {
     auto node = ConvertToNode(TYsonStringBuf(flowViewYson));
     // Deserialize the flow view and rebuild its queryable layout, attaching a control backed by a null
@@ -48,6 +50,17 @@ PrepareGraphInput(
     // DescribePipeline internally calls FillGraphLimits to populate
     // InputLimitStats/OutputLimitStats and ReadDelayEdges.
     auto pipeline = DescribePipeline(args);
+    // Graph edges come only from the controller's describe: the tool knows no connectors.
+    pipeline.Edges.clear();
+    if (!edgesYson.empty()) {
+        for (const auto& edgeNode : ConvertTo<IListNodePtr>(TYsonStringBuf(edgesYson))->GetChildren()) {
+            // Edges of kinds that this build does not know fail to parse and are skipped.
+            try {
+                pipeline.Edges.push_back(ConvertTo<TGraphEdge>(edgeNode));
+            } catch (const std::exception&) {
+            }
+        }
+    }
 
     TDrawPipelineGraphOptions options;
     options.Orientation = orientation == "horizontal"
@@ -63,9 +76,10 @@ TString FlowViewYsonToMermaidComputationsGraph(
     const TString& flowViewYson,
     const TString& orientation,
     const TString& clusterName,
-    const TString& pipelinePath)
+    const TString& pipelinePath,
+    const TString& edgesYson)
 {
-    auto [pipeline, options] = PrepareGraphInput(flowViewYson, orientation, clusterName, pipelinePath);
+    auto [pipeline, options] = PrepareGraphInput(flowViewYson, orientation, clusterName, pipelinePath, edgesYson);
     return TString(BuildMermaidComputationsGraph(pipeline, options));
 }
 
@@ -73,9 +87,10 @@ TString FlowViewYsonToMermaidUnrolledGraph(
     const TString& flowViewYson,
     const TString& orientation,
     const TString& clusterName,
-    const TString& pipelinePath)
+    const TString& pipelinePath,
+    const TString& edgesYson)
 {
-    auto [pipeline, options] = PrepareGraphInput(flowViewYson, orientation, clusterName, pipelinePath);
+    auto [pipeline, options] = PrepareGraphInput(flowViewYson, orientation, clusterName, pipelinePath, edgesYson);
     return TString(BuildMermaidUnrolledGraph(pipeline, options));
 }
 

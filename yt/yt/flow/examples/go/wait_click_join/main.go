@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 type actionMessage struct {
 	flow.YSONMessage
 	HitID      string `yson:"hit_id"`

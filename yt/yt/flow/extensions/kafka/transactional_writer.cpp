@@ -16,6 +16,8 @@
 
 #include <librdkafka/rdkafka.h>
 
+#include <util/string/hex.h>
+
 #include <array>
 #include <chrono>
 
@@ -39,6 +41,20 @@ int ToTimeoutMs(std::chrono::milliseconds timeout)
     return static_cast<int>(timeout.count());
 }
 
+TError CheckProgressId(std::string_view messageId)
+{
+    if (std::ssize(messageId) > (KafkaProgressMarkerMaxMetadataSize - std::ssize(KafkaProgressMarkerMetadataPrefix)) / 2) {
+        auto encodedMarkerLength = 2 * std::ssize(messageId) + std::ssize(KafkaProgressMarkerMetadataPrefix);
+        return TError("Kafka MessageId exceeds the supported offset.metadata.max.bytes limit: expected at most %v bytes, actual %v bytes",
+            KafkaProgressMarkerMaxMetadataSize,
+            encodedMarkerLength)
+            .With("raw_message_id_length", std::ssize(messageId))
+            .With("encoded_marker_length", encodedMarkerLength)
+            .With("supported_metadata_limit", KafkaProgressMarkerMaxMetadataSize);
+    }
+    return {};
+}
+
 //! Produce errors that repeating the same record cannot fix.
 bool IsPermanentProduceError(rd_kafka_resp_err_t error)
 {
@@ -57,38 +73,69 @@ bool IsPermanentProduceError(rd_kafka_resp_err_t error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorOr<std::optional<i64>> ResolveKafkaProgressMarker(
+TErrorOr<std::optional<TMessageId>> ResolveKafkaProgressMarker(
     const std::optional<TKafkaCommittedOffset>& committed,
     const TKafkaTransactionalRecovery& recovery)
 {
-    auto maxPersistedSeqNo = recovery.MaxPersistedSeqNo;
-    auto maxDistributedSeqNo = std::max(recovery.MaxDistributedSeqNo, maxPersistedSeqNo);
+    const auto& maxPersistedId = recovery.MaxPersistedMessageId;
+    auto maxDistributedId = std::max(recovery.MaxDistributedMessageId.value_or(TMessageId()), maxPersistedId);
 
     TError distrust;
-    if (!committed) {
+    if (!recovery.MaxDistributedMessageId) {
+        distrust = TError("Legacy Kafka sink state has no MessageId bound")
+            .With("max_persisted_seq_no", recovery.MaxPersistedSeqNo)
+            .With("max_distributed_seq_no", recovery.MaxDistributedSeqNo);
+        if (recovery.MaxDistributedSeqNo <= recovery.MaxPersistedSeqNo) {
+            return std::optional<TMessageId>();
+        }
+    } else if (!committed) {
         distrust = TError("The consumer group has no committed offset");
-    } else if (committed->Metadata != KafkaProgressMarkerMetadata) {
-        distrust = TError("The committed offset metadata is not written by the sink, e.g. the offset was reset")
-            .With("metadata", committed->Metadata);
-    } else if (committed->Offset < maxPersistedSeqNo || committed->Offset > maxDistributedSeqNo) {
-        distrust = TError("The committed offset is outside the seqNos the persisted state allows")
-            .With("offset", committed->Offset);
+    } else if (committed->Offset != 0) {
+        distrust = TError("The committed marker carrier offset must be zero: expected 0, actual %v", committed->Offset);
+    } else if (!TStringBuf(committed->Metadata).StartsWith(KafkaProgressMarkerMetadataPrefix)) {
+        distrust = TError("The committed offset metadata is not written by the sink, e.g. the offset was reset: expected prefix %Qv, actual %Qv",
+            KafkaProgressMarkerMetadataPrefix,
+            committed->Metadata);
     } else {
-        return std::optional(committed->Offset);
+        try {
+            THROW_ERROR_EXCEPTION_IF(std::ssize(committed->Metadata) > KafkaProgressMarkerMaxMetadataSize, "The committed marker exceeds the supported metadata limit: expected at most %v bytes, actual %v bytes", KafkaProgressMarkerMaxMetadataSize, std::ssize(committed->Metadata));
+
+            auto encodedId = std::string_view(committed->Metadata).substr(KafkaProgressMarkerMetadataPrefix.size());
+            std::string decodedMessageId(encodedId.size() / 2, '\0');
+            HexDecode(encodedId.data(), encodedId.size(), decodedMessageId.data());
+            auto markerId = TMessageId(decodedMessageId);
+            if (markerId >= maxPersistedId && markerId <= maxDistributedId) {
+                return std::optional(std::move(markerId));
+            }
+            distrust = TError("The committed marker is outside the MessageIds the persisted state allows: expected between %v and %v, actual %v",
+                maxPersistedId,
+                maxDistributedId,
+                markerId)
+                .With("marker_message_id", markerId);
+        } catch (const std::exception& ex) {
+            distrust = TError("Malformed Kafka sink progress marker").With(ex);
+        }
     }
 
-    // Without a marker, the earlier sessions' commits are known only to stop at the last message a persisted
-    // epoch registered; if all of those are acknowledged, nothing is ambiguous.
-    if (maxDistributedSeqNo <= maxPersistedSeqNo) {
-        return std::optional<i64>();
+    if (recovery.MaxDistributedMessageId && maxDistributedId <= maxPersistedId) {
+        return std::optional<TMessageId>();
     }
+
+    if (committed) {
+        distrust = std::move(distrust)
+            .With("offset", committed->Offset)
+            .With("metadata", committed->Metadata)
+            .With("metadata_size", std::ssize(committed->Metadata))
+            .With("supported_metadata_limit", KafkaProgressMarkerMaxMetadataSize);
+    }
+
     return TError(
         "Kafka sink progress marker cannot be trusted, but messages the persisted state does not acknowledge may be "
         "committed to Kafka already; writing them again may duplicate them. The consumer group offset holding "
         "the marker expires after the broker's \"offsets.retention.minutes\" without commits. Set "
         "\"allow_missing_progress_marker\" in the dynamic sink parameters to write them anyway")
-        .With("max_persisted_seq_no", maxPersistedSeqNo)
-        .With("max_distributed_seq_no", maxDistributedSeqNo)
+        .With("max_persisted_message_id", maxPersistedId)
+        .With("max_distributed_message_id", maxDistributedId)
         .With(distrust);
 }
 
@@ -176,9 +223,9 @@ TFuture<void> TTransactionalKafkaWriter::GetStarted() const
     return StartedFuture_;
 }
 
-TFuture<void> TTransactionalKafkaWriter::Write(TKafkaMessageToWrite&& message)
+void TTransactionalKafkaWriter::WriteMany(std::vector<TKafkaMessageToWrite> records, TKafkaWriteQueue::TOnWritten onWritten)
 {
-    return Queue_.Enqueue(std::move(message));
+    Queue_.Enqueue(std::move(records), std::move(onWritten));
 }
 
 TError TTransactionalKafkaWriter::GetFatalError() const
@@ -225,7 +272,7 @@ void TTransactionalKafkaWriter::Run()
         }
         return;
     }
-    const auto marker = markerOrError.Value();
+    const auto& marker = markerOrError.Value();
     StartedPromise_.Set();
 
     // The records taken from the queue; those before |nextIndex| are committed.
@@ -239,9 +286,9 @@ void TTransactionalKafkaWriter::Run()
             nextIndex = 0;
             i64 skippedCount = 0;
             for (auto& record : Queue_.TakePending(Options_.MaxTransactionRecordCount, Options_.MaxTransactionByteSize)) {
-                // The replay numbers messages from the persisted frontier as the earlier sessions did, so the
-                // records the marker covers are committed already.
-                if (record.SeqNo <= marker) {
+                if (record.MessageId && !record.MessageId->empty() &&
+                    std::string_view(*record.MessageId) <= marker.Underlying())
+                {
                     Queue_.Complete(record.SeqNo, TError());
                     ++skippedCount;
                 } else {
@@ -251,7 +298,7 @@ void TTransactionalKafkaWriter::Run()
             if (skippedCount > 0) {
                 YT_TLOG_INFO("Skipping replayed messages already committed to Kafka")
                     .With("Count", skippedCount)
-                    .With("MarkerSeqNo", marker);
+                    .With("MarkerMessageId", marker);
             }
             if (backlog.empty()) {
                 // Waits for more records.
@@ -264,7 +311,7 @@ void TTransactionalKafkaWriter::Run()
             nextIndex,
             std::min<size_t>(batchLimit, backlog.size() - nextIndex));
         auto startTime = TInstant::Now();
-        auto result = TryCommitTransaction(*producer, groupMetadata.get(), batch, batch.back().SeqNo);
+        auto result = TryCommitTransaction(*producer, groupMetadata.get(), batch, batch.back().MessageId ? std::string_view(*batch.back().MessageId) : std::string_view());
         if (Terminated_.load()) {
             break;
         }
@@ -272,7 +319,7 @@ void TTransactionalKafkaWriter::Run()
         if (result.Kind == ETransactionErrorKind::None) {
             YT_TLOG_DEBUG("Kafka transaction committed")
                 .With("RecordCount", batch.size())
-                .With("MarkerSeqNo", batch.back().SeqNo)
+                .With("MarkerMessageId", *batch.back().MessageId)
                 .With("Duration", TInstant::Now() - startTime);
             for (const auto& record : batch) {
                 Queue_.Complete(record.SeqNo, TError());
@@ -309,7 +356,7 @@ void TTransactionalKafkaWriter::Run()
     Queue_.Fail(TError("Kafka writer terminated before the message was committed"));
 }
 
-TErrorOr<i64> TTransactionalKafkaWriter::Initialize(
+TErrorOr<TMessageId> TTransactionalKafkaWriter::Initialize(
     cppkafka::Producer& producer,
     const rd_kafka_consumer_group_metadata_t* groupMetadata)
 {
@@ -342,7 +389,7 @@ TErrorOr<i64> TTransactionalKafkaWriter::Initialize(
         SleepUnlessTerminated(Terminated_, Options_.RetryBackoff);
     }
 
-    std::optional<i64> marker;
+    std::optional<TMessageId> marker;
     auto markerOrError = ResolveKafkaProgressMarker(committed, Recovery_);
     if (markerOrError.IsOK()) {
         marker = markerOrError.Value();
@@ -359,13 +406,14 @@ TErrorOr<i64> TTransactionalKafkaWriter::Initialize(
         if (auto error = CommitInitialMarker(producer, groupMetadata); !error.IsOK()) {
             return error;
         }
-        marker = Recovery_.MaxPersistedSeqNo;
+        marker = Recovery_.MaxPersistedMessageId;
     }
 
     YT_TLOG_INFO("Kafka transactional writer initialized")
-        .With("MarkerSeqNo", *marker)
-        .With("MaxPersistedSeqNo", Recovery_.MaxPersistedSeqNo)
-        .With("MaxDistributedSeqNo", Recovery_.MaxDistributedSeqNo);
+        .With("MarkerMessageId", *marker)
+        .With("MaxPersistedMessageId", Recovery_.MaxPersistedMessageId)
+        .With("MaxDistributedMessageId", Recovery_.MaxDistributedMessageId)
+        .With("MarkerFormat", "v2");
     ErrorState_->ClearError();
     return *marker;
 }
@@ -379,11 +427,11 @@ TError TTransactionalKafkaWriter::CommitInitialMarker(
         // while the broker creates it.
         TCallResult result{.Error = ResolveTopic(producer), .Kind = ETransactionErrorKind::Abortable};
         if (result.Error.IsOK()) {
-            result = TryCommitTransaction(producer, groupMetadata, /*records*/ {}, Recovery_.MaxPersistedSeqNo);
+            result = TryCommitTransaction(producer, groupMetadata, /*records*/ {}, Recovery_.MaxPersistedMessageId.Underlying());
         }
         if (result.Kind == ETransactionErrorKind::None) {
             YT_TLOG_INFO("Committed the initial Kafka sink progress marker")
-                .With("MarkerSeqNo", Recovery_.MaxPersistedSeqNo);
+                .With("MarkerMessageId", Recovery_.MaxPersistedMessageId);
             return {};
         }
         if (result.Kind == ETransactionErrorKind::Fatal ||
@@ -489,8 +537,23 @@ TTransactionalKafkaWriter::TCallResult TTransactionalKafkaWriter::TryCommitTrans
     cppkafka::Producer& producer,
     const rd_kafka_consumer_group_metadata_s* groupMetadata,
     std::span<const TKafkaMessageToWrite> records,
-    i64 markerSeqNo)
+    std::string_view markerId)
 {
+    for (const auto& record : records) {
+        if (!record.MessageId || record.MessageId->empty()) {
+            return {.Error = TError("Transactional Kafka record requires a nonempty MessageId"), .Kind = ETransactionErrorKind::Fatal};
+        }
+        if (auto error = CheckProgressId(*record.MessageId); !error.IsOK()) {
+            return {.Error = std::move(error), .Kind = ETransactionErrorKind::Fatal};
+        }
+    }
+    if (auto error = CheckProgressId(markerId); !error.IsOK()) {
+        return {.Error = std::move(error), .Kind = ETransactionErrorKind::Fatal};
+    }
+    std::string metadata(KafkaProgressMarkerMetadataPrefix);
+    metadata.resize(metadata.size() + 2 * markerId.size());
+    HexEncode(markerId.data(), markerId.size(), metadata.data() + KafkaProgressMarkerMetadataPrefix.size());
+
     auto* handle = producer.get_handle();
     auto timeoutMs = ToTimeoutMs(TransactionRequestTimeout);
 
@@ -544,10 +607,9 @@ TTransactionalKafkaWriter::TCallResult TTransactionalKafkaWriter::TryCommitTrans
     }
 
     // The marker commits with the records, so it covers exactly what is committed.
-    std::string metadata(KafkaProgressMarkerMetadata);
     auto* offsets = rd_kafka_topic_partition_list_new(/*size*/ 1);
     auto* marker = rd_kafka_topic_partition_list_add(offsets, Options_.Topic.c_str(), ProgressMarkerPartition);
-    marker->offset = markerSeqNo;
+    marker->offset = 0;
     // Borrowed from |metadata|; detached before the list frees its elements.
     marker->metadata = metadata.data();
     marker->metadata_size = metadata.size();

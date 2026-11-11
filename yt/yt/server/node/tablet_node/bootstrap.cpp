@@ -165,15 +165,17 @@ public:
 
         TableDynamicConfigManager_ = New<TTableDynamicConfigManager>(this);
 
+        QueryPoolWeightProvider_ = CreateCachingCypressPoolWeightProvider(
+            GetConfig()->QueryAgent->PoolWeightCache,
+            GetClient(),
+            GetControlInvoker(),
+            Logger());
+
         QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
             {
-                .PoolWeightProvider=CreateCachingCypressPoolWeightProvider(
-                    GetConfig()->QueryAgent->PoolWeightCache,
-                    GetClient(),
-                    GetControlInvoker(),
-                    Logger())
+                .PoolWeightProvider=QueryPoolWeightProvider_
             });
 
         PullRowsThreadPool_ = CreateFairShareThreadPool(
@@ -659,6 +661,7 @@ private:
 
     TActionQueuePtr TabletStatisticsActionQueue_;
 
+    NApi::NNative::ICypressPoolWeightProviderPtr QueryPoolWeightProvider_;
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     IFairShareThreadPoolPtr PullRowsThreadPool_;
 
@@ -743,6 +746,16 @@ private:
 
         NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
 
+        NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
+            tabletNodeConfig->UseQueryPoolForBusXfer
+                ? QueryThreadPool_
+                : nullptr);
+
+        NRpc::TDispatcher::Get()->SetWorkerPool(
+            tabletNodeConfig->UseQueryPoolForRpc
+                ? QueryThreadPool_
+                : nullptr);
+
         TabletNodeConfigChanged_.Fire(
             oldConfig->TabletNode,
             newConfig->TabletNode);
@@ -784,6 +797,10 @@ private:
                 GetConfig()->QueryAgent->PullRowsThreadPoolSize);
             PullRowsThreadPool_->SetThreadCount(
                 bundleConfig->CpuLimits->PullRowsThreadPoolSize.value_or(fallbackPullRowsThreadCount));
+        }
+
+        {
+            QueryPoolWeightProvider_->SetOverrides(bundleConfig->FairSharePoolWeights);
         }
     }
 

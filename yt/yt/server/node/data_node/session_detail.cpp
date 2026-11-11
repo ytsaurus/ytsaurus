@@ -133,6 +133,38 @@ void TProbePutBlocksRequestSupplier::ReleaseResourcesForPutBlocks(i64 memory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWriteSessionStartCounters::TWriteSessionStartCounters(NProfiling::TProfiler profiler)
+    : StartCount_(profiler.Counter("/write_session_start_count"))
+    , Profiler_(std::move(profiler))
+{ }
+
+void TWriteSessionStartCounters::Update(const TError& error)
+{
+    if (error.IsOK()) {
+        IncrementStart();
+    } else {
+        IncrementFailure(error);
+    }
+}
+
+void TWriteSessionStartCounters::IncrementStart()
+{
+    StartCount_.Increment();
+}
+
+void TWriteSessionStartCounters::IncrementFailure(const TError& error)
+{
+    auto errorCode = error.GetCode();
+    auto* counter = FailureCounters_.FindOrInsert(errorCode, [&] {
+        return Profiler_
+            .WithTag("error_code", ToString(errorCode))
+            .Counter("/write_session_start_failure_count");
+    }).first;
+    counter->Increment();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -150,7 +182,8 @@ TSessionBase::TSessionBase(
     TStoreLocationPtr location,
     TLease lease,
     TLockedChunkGuard lockedChunkGuard,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    TWriteSessionStartCountersPtr startCounters)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SessionId_(sessionId)
@@ -165,6 +198,7 @@ TSessionBase::TSessionBase(
         .WithTag("LocationIndex", Location_->GetIndex())
         .WithTag("ChunkId", SessionId_))
     , StartTime_(TInstant::Now())
+    , StartCounters_(std::move(startCounters))
     , LockedChunkGuard_(std::move(lockedChunkGuard))
     , WriteBlocksOptions_(std::move(writeBlocksOptions))
     , ProbePutBlocksRequestSupplier_(New<TProbePutBlocksRequestSupplier>(SessionId_))
@@ -267,6 +301,10 @@ TFuture<void> TSessionBase::Start()
                     Cancel(PendingCancelationError_);
                 }
             }).AsyncVia(SessionInvoker_))
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+                StartCounters_->Update(error);
+                return error;
+            }))
             // TODO(babenko): session start cancelation is not properly supported
             .ToUncancelable();
 }

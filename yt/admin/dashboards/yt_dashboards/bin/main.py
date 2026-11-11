@@ -16,6 +16,7 @@ from yt_dashboards.scheduler_operation import build_scheduler_operation
 from yt_dashboards.jobs_monitor import build_jobs_monitor
 from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
+from yt_dashboards.chaos_bundle import build_chaos_bundle_overview, build_chaos_bundle_runtime
 from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 from yt_dashboards.exe_nodes import build_exe_nodes
@@ -51,6 +52,14 @@ logger = logging.getLogger(__name__)
 
 
 dashboards = {
+    "chaos-bundle-overview": {
+        "func": build_chaos_bundle_overview,
+        "monitoring": {},
+    },
+    "chaos-bundle-runtime": {
+        "func": build_chaos_bundle_runtime,
+        "monitoring": {},
+    },
     "cache": {
         "func": build_cache_with_ghosts,
         "monitoring": {},

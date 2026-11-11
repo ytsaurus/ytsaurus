@@ -74,11 +74,6 @@ public:
         const ICompanionClientPtr& client,
         std::optional<i64> companionProcessId = std::nullopt) const;
 
-    //! Resolves the currently managed object for this resource id. A stale
-    //! object may remain referenced by a long-lived computation after preload
-    //! recreation, so graph traversal must not use it directly.
-    TCompanionResourcePtr GetCurrentResource() const;
-
     //! Returns the exact resource reference, optionally exposed under |alias|.
     TCompanionResourceInstanceReference GetReference(std::optional<TResourceId> alias = std::nullopt) const;
 
@@ -120,8 +115,7 @@ private:
     {
         TResourceId ResourceId;
         TResourceId Alias;
-        //! Fallback only for tests and standalone contexts without a resource manager.
-        TWeakPtr<TCompanionResource> InitialResource;
+        TCompanionResourcePtr Resource;
     };
 
     struct TPublicationState
@@ -132,8 +126,6 @@ private:
     };
 
     void DoLoad(const THashMap<TResourceId, IResourcePtr>& dependencies);
-    TCompanionResourcePtr GetCurrentDependencyResource(
-        const TCompanionDependency& dependency) const;
     //! Initializes this resource and its dependency graph in topological order.
     //! |publicationState|, when given, applies to this resource only;
     //! dependencies always init with their applied state.

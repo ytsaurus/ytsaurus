@@ -8,20 +8,24 @@ PY_SRCS(
 
 TEST_SRCS(
     conftest.py
+    test_qtworker.py
     test_simple.py
     test_udfs.py
     test_ytflow.py
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
+YT_SPEC(yt/yql/tests/agent/spec_non_root.yson)
 
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
     yt/yql/tests/agent/throwing_udf
     yt/yql/tools/mrjob/impl
+    yt/yql/tools/qtworker
     yt/yql/tools/ytflow_worker
-
+    yql/essentials/tools/udf_resolver/impl
+    yql/essentials/tools/udf_dep_stub
     yql/essentials/udfs/common/datetime2
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
@@ -33,12 +37,17 @@ DEPENDS(
 )
 
 PEERDIR(
+    contrib/python/dirty-equals
     library/python/port_manager
     yql/library/langver/python
     yql/essentials/providers/common/proto
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
     yt/yql/tests/common/test_framework
+)
+
+DATA(
+    arcadia/yt/yql/cfg/tests/gateways.conf
 )
 
 IF (NOT OPENSOURCE)
@@ -49,17 +58,12 @@ IF (SANITIZER_TYPE)
     DEPENDS(
         contrib/libs/llvm18/tools/llvm-symbolizer
     )
-
-    REQUIREMENTS(
-        ram:60
-    )
+    REQUIREMENTS(ram:60)
 ELSE()
-    REQUIREMENTS(
-        ram:32
-    )
+    REQUIREMENTS(ram:32)
 ENDIF()
 
-FORK_TESTS()
+FORK_TESTS(MODULO)
 SPLIT_FACTOR(16)
 
 ENV(YT_LOCAL=1)
@@ -69,8 +73,6 @@ ENV(YT_LOCAL=1)
 # An empty value reads as falsy in yt_env_setup, unlike "false".
 ENV(YT_DISABLE_MULTIDAEMON=)
 
-TAG(
-    ya:huge_logs
-)
+TAG(ya:huge_logs)
 
 END()

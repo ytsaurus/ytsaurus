@@ -627,7 +627,7 @@ std::optional<i64> TAsyncHttpSinkController::GetReceiverChannelCount()
 TAsyncHttpSink::TAsyncHttpSink(
     TSinkContextPtr context,
     TDynamicSinkContextPtr dynamicContext)
-    : TDelegatingAsyncSinkBase(std::move(context), std::move(dynamicContext))
+    : TOrderedAsyncSinkBase(std::move(context), std::move(dynamicContext))
     , PayloadColumn_(GetParameters()->PayloadColumn)
 {
     if (GetSpec()->InputStreamIds.size() != 1) {
@@ -684,14 +684,14 @@ void TAsyncHttpSink::DoInit(const std::string& producerId)
     Y_UNUSED(producerId);
 }
 
-std::pair<TFuture<void>, ui64> TAsyncHttpSink::DoDistribute(
+TFuture<void> TAsyncHttpSink::DoDistribute(
     const TOutputMessageConstPtr& message,
     i64 seqNo)
 {
     Y_UNUSED(seqNo);
 
     if (auto terminalError = OrderedDeliveryQueue_->GetTerminalError()) {
-        return {MakeFuture<void>(std::move(*terminalError)), static_cast<ui64>(message->ByteSize)};
+        return MakeFuture<void>(std::move(*terminalError));
     }
 
     auto value = GetColumn(*message, PayloadColumn_);
@@ -707,7 +707,7 @@ std::pair<TFuture<void>, ui64> TAsyncHttpSink::DoDistribute(
         deliveryFuture = MakeFuture<void>(
             TError("Async HTTP payload column must contain a String or null value"));
     }
-    return {OrderedDeliveryQueue_->Enqueue(std::move(deliveryFuture)), static_cast<ui64>(message->ByteSize)};
+    return OrderedDeliveryQueue_->Enqueue(std::move(deliveryFuture));
 }
 
 } // namespace NYT::NFlow

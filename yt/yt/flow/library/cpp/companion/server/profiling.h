@@ -16,6 +16,15 @@ namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Measurements of one named state carried by a request or response.
+struct TStateMetrics
+{
+    NProfiling::TSummary Size;
+    NProfiling::TSummary ItemCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Per-computation companion metrics shared by all hosted jobs.
 class TComputationCounters
     : public TRefCounted
@@ -23,9 +32,12 @@ class TComputationCounters
 public:
     explicit TComputationCounters(NProfiling::TProfiler profiler);
 
-    //! ProcessBatch count, size, wall time, and CPU time.
+    //! ProcessBatch count, byte size, input counts, wall time, and CPU time.
     NProfiling::TCounter RequestCount;
     NProfiling::TSummary RequestSize;
+    NProfiling::TSummary RequestMessageCount;
+    NProfiling::TSummary RequestTimerCount;
+    NProfiling::TSummary RequestVisitCount;
     NProfiling::TEventTimer RequestDuration;
     NProfiling::TTimeCounter RequestCpuTime;
 
@@ -35,8 +47,8 @@ public:
     //! Records ProcessBatch outcomes by |status|, including RPC errors.
     void ProfileResponse(NProto::NCompanion::EResponseStatus status);
 
-    //! Returns the serialized-size summary for one state dimension.
-    NProfiling::TSummary GetStateSizeSummary(
+    //! Returns byte-size and item-count summaries for one state dimension.
+    TStateMetrics GetStateMetrics(
         TStringBuf direction,
         TStringBuf stateType,
         const std::string& stateName);
@@ -44,9 +56,9 @@ public:
 private:
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(TSpinLock, StateSizesLock_);
-    //! State-size summaries keyed by direction, type, and name.
-    THashMap<std::string, NProfiling::TSummary> StateSizes_;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateMetricsLock_);
+    //! State summaries keyed by direction, type, and name.
+    THashMap<std::string, TStateMetrics> StateMetrics_;
 
     static constexpr int ResponseStatusCount = NProto::NCompanion::RS_RESOURCE_NOT_INITIALIZED + 1;
     std::array<NProfiling::TCounter, ResponseStatusCount> ResponseCounts_;

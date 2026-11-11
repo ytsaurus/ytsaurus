@@ -27,7 +27,8 @@ public:
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
         NNode::TLockedChunkGuard lockedChunkGuard,
-        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+        TWriteSessionStartCountersPtr startCounters);
 
     TChunkId GetChunkId() const& override;
     TSessionId GetId() const& override;
@@ -96,6 +97,8 @@ protected:
 
     const NLogging::TLogger Logger;
     const TInstant StartTime_;
+
+    const TWriteSessionStartCountersPtr StartCounters_;
 
     NNode::TLockedChunkGuard LockedChunkGuard_;
     const NChunkClient::IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;

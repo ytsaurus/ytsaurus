@@ -39,6 +39,9 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_accounts_profiling", &TThis::EnableAccountsProfiling)
         .Default(true);
+    registrar.Parameter("enable_detailed_master_memory_profiling", &TThis::EnableDetailedMasterMemoryProfiling)
+        .Default(true)
+        .DontSerializeDefault();
     registrar.Parameter("enable_delayed_membership_closure_recomputation", &TThis::EnableDelayedMembershipClosureRecomputation)
         .Default(true);
     registrar.Parameter("membership_closure_recomputation_period", &TThis::MembershipClosureRecomputePeriod)

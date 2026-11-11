@@ -41,8 +41,6 @@ target_link_libraries(cpp-connectors-common PUBLIC
 )
 
 target_sources(cpp-connectors-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/async_at_most_once_sink_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/flow_queue_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/ordered_async_sink_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.cpp

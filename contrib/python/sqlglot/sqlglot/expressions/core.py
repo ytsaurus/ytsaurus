@@ -14,7 +14,7 @@ from builtins import type as Type
 from collections import deque
 from collections.abc import Collection, Iterator, Mapping, MutableMapping, Sequence
 from copy import deepcopy
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from functools import reduce
 
 from sqlglot._typing import E, GeneratorNoDialectArgs, ParserNoDialectArgs, T
@@ -85,6 +85,7 @@ class Expr:
     arg_types: t.ClassVar[dict[str, bool]] = {"this": True}
     required_args: t.ClassVar[set[str]] = {"this"}
     is_var_len_args: t.ClassVar[bool] = False
+    var_len_arg_key: t.ClassVar[str] = "expressions"
     _hash_raw_args: t.ClassVar[bool] = False
     is_subquery: t.ClassVar[bool] = False
     is_cast: t.ClassVar[bool] = False
@@ -866,7 +867,7 @@ class Expression(Expr):
                     for k in sorted(node.args):
                         v = node.args[k]
                         if v:
-                            hash_ = hash((hash_, k, v))
+                            hash_ = hash((hash_, k, tuple(v) if type(v) is list else v))
                 else:
                     for k in sorted(node.args):
                         v = node.args[k]
@@ -1577,7 +1578,7 @@ class Condition(Expr):
 
 @trait
 class Predicate(Condition):
-    """Relationships like x = y, x > 1, x >= y."""
+    """Any condition that evaluates to a boolean, e.g. x = y, x LIKE 'a%', a @> b."""
 
 
 class Cache(Expression):
@@ -1594,7 +1595,14 @@ class Uncache(Expression):
 
 
 class Refresh(Expression):
-    arg_types = {"this": True, "kind": True}
+    arg_types = {
+        "this": True,
+        "kind": True,
+        "partition_start": False,
+        "partition_end": False,
+        "force": False,
+        "mode": False,
+    }
 
 
 class LockingStatement(Expression):
@@ -1643,8 +1651,11 @@ class Func(Condition):
     The base class for all function expressions.
 
     Attributes:
-        is_var_len_args (bool): if set to True the last argument defined in arg_types will be
+        is_var_len_args (bool): if set to True the argument identified by var_len_arg_key will be
             treated as a variable length argument and the argument's value will be stored as a list.
+        var_len_arg_key (str): the arg_types key that collects the variable length arguments.
+            Arguments preceding it in arg_types are filled positionally; those following it (e.g.
+            dialect flags) are never populated by from_arg_list.
         _sql_names (list): the SQL name (1st item in the list) and aliases (subsequent items) for this
             function expression. These values are used to map this node to a name during parsing as
             well as to provide the function's name during SQL string generation. By default the SQL
@@ -1652,18 +1663,17 @@ class Func(Condition):
     """
 
     is_var_len_args: t.ClassVar[bool] = False
+    var_len_arg_key: t.ClassVar[str] = "expressions"
     _sql_names: t.ClassVar[list[str]] = []
 
     @classmethod
     def from_arg_list(cls, args: Sequence[object]) -> Self:
         if cls.is_var_len_args:
             all_arg_keys = tuple(cls.arg_types)
-            # If this function supports variable length argument treat the last argument as such.
-            non_var_len_arg_keys = all_arg_keys[:-1] if cls.is_var_len_args else all_arg_keys
-            num_non_var = len(non_var_len_arg_keys)
+            var_len_index = all_arg_keys.index(cls.var_len_arg_key)
 
-            args_dict = {arg_key: arg for arg, arg_key in zip(args, non_var_len_arg_keys)}
-            args_dict[all_arg_keys[-1]] = args[num_non_var:]
+            args_dict = {arg_key: arg for arg, arg_key in zip(args, all_arg_keys[:var_len_index])}
+            args_dict[cls.var_len_arg_key] = args[var_len_index:]
         else:
             args_dict = {arg_key: arg for arg, arg_key in zip(args, cls.arg_types)}
 
@@ -1696,7 +1706,16 @@ class AggFunc(Func):
 
 
 class Column(Expression, Condition):
-    arg_types = {"this": True, "table": False, "db": False, "catalog": False, "join_mark": False}
+    # "shadow" marks a column whose qualifier is shadowed by a projection alias, so it must be
+    # rendered unqualified in dialects where PROJECTION_ALIASES_SHADOW_SOURCE_NAMES is set
+    arg_types = {
+        "this": True,
+        "table": False,
+        "db": False,
+        "catalog": False,
+        "join_mark": False,
+        "shadow": False,
+    }
 
     @property
     def table(self) -> str:
@@ -1764,7 +1783,10 @@ class Literal(Expression, Condition):
             try:
                 return int(self.this)
             except ValueError:
-                return Decimal(self.this)
+                try:
+                    return Decimal(self.this)
+                except InvalidOperation as e:
+                    raise ValueError(f"Invalid numeric literal: {self.this!r}") from e
         return self.this
 
 
@@ -1813,6 +1835,10 @@ class Identifier(Expression):
 class DynamicIdentifier(Expression, Func):
     arg_types = {"this": True, "expressions": False}
 
+    @property
+    def name(self) -> str:
+        return self.this.name if self.this else ""
+
 
 class Opclass(Expression):
     arg_types = {"this": True, "expression": True}
@@ -1840,6 +1866,7 @@ class SessionParameter(Expression, Condition):
 
 class Placeholder(Expression, Condition):
     arg_types = {"this": False, "kind": False, "widget": False, "jdbc": False}
+    _hash_raw_args = True
 
     @property
     def name(self) -> str:
@@ -1975,6 +2002,7 @@ class Typeof(Expression, Func):
 
 class ParameterizedAgg(Expression, AggFunc):
     arg_types = {"this": True, "expressions": True, "params": True}
+    _hash_raw_args = True
 
 
 class Anonymous(Expression, Func):
@@ -1989,6 +2017,7 @@ class Anonymous(Expression, Func):
 class AnonymousAggFunc(Expression, AggFunc):
     arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
+    _hash_raw_args = True
 
 
 class CombinedAggFunc(AnonymousAggFunc):
@@ -2119,15 +2148,15 @@ class Div(Expression, Binary):
     arg_types = {"this": True, "expression": True, "typed": False, "safe": False}
 
 
-class Overlaps(Expression, Binary):
+class Overlaps(Expression, Binary, Predicate):
     pass
 
 
-class ExtendsLeft(Expression, Binary):
+class ExtendsLeft(Expression, Binary, Predicate):
     pass
 
 
-class ExtendsRight(Expression, Binary):
+class ExtendsRight(Expression, Binary, Predicate):
     pass
 
 
@@ -2192,7 +2221,7 @@ class Like(Expression, Binary, Predicate):
 
 
 class Match(Expression, Binary, Predicate):
-    pass
+    arg_types = {"this": True, "expression": True, "kind": False, "analyzer": False}
 
 
 class LT(Expression, Binary, Predicate):
@@ -2231,7 +2260,7 @@ class Sub(Expression, Binary):
     pass
 
 
-class Adjacent(Expression, Binary):
+class Adjacent(Expression, Binary, Predicate):
     pass
 
 
@@ -2317,7 +2346,7 @@ class Pow(Expression, Binary, Func):
     _sql_names = ["POWER", "POW"]
 
 
-class RegexpLike(Expression, Binary, Func):
+class RegexpLike(Expression, Binary, Predicate, Func):
     arg_types = {"this": True, "expression": True, "flag": False, "full_match": False}
 
 

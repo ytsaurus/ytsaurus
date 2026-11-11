@@ -10,7 +10,7 @@
 || `total` | **Тип**: `long`
 **Значение по умолчанию**: `0`
 Суммарное число совпавших строк в этой категории. ||
-|| `details` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, THashMap<std::string, long>>`
+|| `details` | **Тип**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, THashMap<std::string, long>>`
 **Значение по умолчанию**: `{}`
 Разбивка `computation_id → имя_стейта → число строк`. ||
 |#

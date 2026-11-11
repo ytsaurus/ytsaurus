@@ -166,6 +166,11 @@ private:
             return true;
         }
 
+        // A limited list request may omit some child subtrees.
+        if (RequestedNodeStack_.empty()) {
+            return false;
+        }
+
         const auto& node = GetOrCrash(*FetchedAttributes_, descriptor.Id);
         return !std::holds_alternative<TMissingNodeTag>(node);
     }
@@ -177,6 +182,7 @@ private:
             return;
         }
 
+        YT_VERIFY(!RequestedNodeStack_.empty());
         auto& resourceUsage = RequestedNodeStack_.back();
         if (!resourceUsage) {
             resourceUsage.emplace();
@@ -196,6 +202,7 @@ private:
             return;
         }
 
+        YT_VERIFY(!RequestedNodeStack_.empty());
         if (auto& resourceUsage = RequestedNodeStack_.back()) {
             EmplaceOrCrash(*FrontierNodesResourceUsage_, descriptor.Id, std::move(*resourceUsage));
         }

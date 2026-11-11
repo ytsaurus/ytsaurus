@@ -201,7 +201,7 @@ void AddComputationPatternResourceForLambda(
         NYT::NYTree::ConvertToNode(ctx.RunOptions.Types()->LangVer));
     computationPatternSpec->Parameters->AddChild(
         "opt_llvm",
-        NYT::NYTree::ConvertToNode(TString("OFF")));
+        NYT::NYTree::ConvertToNode(ctx.OptLLVM));
     computationPatternSpec->Parameters->AddChild(
         "runtime_settings",
         NYT::NYTree::ConvertToNode(SerializeRuntimeSettingsToString(
@@ -392,6 +392,11 @@ void ProcessSource(
 
     if (settings.Is<NProto::TYtQueueSourceMessage>()) {
         sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
+        if (auto updateInfoPeriod = config->_YtQueueSourceUpdateInfoPeriod.Get()) {
+            parameters->AddChild(
+                "update_info_period",
+                NYT::NYTree::ConvertToNode(*updateInfoPeriod));
+        }
 
         auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
         YQL_ENSURE(
@@ -428,7 +433,8 @@ void ProcessSource(
 
         auto consumerRichPath = MakeYtConsumerRichPath(
             *config,
-            configClusters);
+            configClusters,
+            ytQueueSourceSettings.GetConsumerPath());
 
         parameters->AddChild(
             "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
@@ -437,6 +443,11 @@ void ProcessSource(
             "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
     } else if (settings.Is<NProto::TPQSourceMessage>()) {
         sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
+        if (auto updateInfoPeriod = config->_LogbrokerSourceUpdateInfoPeriod.Get()) {
+            parameters->AddChild(
+                "update_info_period",
+                NYT::NYTree::ConvertToNode(*updateInfoPeriod));
+        }
 
         auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
         resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
@@ -520,7 +531,6 @@ void ProcessSink(
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
     THashMap<TString, TString>& outputIndicesByOutputStreamId,
     TRequestedCredentials& requestedCredentials,
-    std::optional<TString>& asyncQueueCluster,
     TBuildPipelineSpecContext& ctx)
 {
     const auto& streamName = GetStreamName(sink.Ref(), ctx);
@@ -563,6 +573,7 @@ void ProcessSink(
 
         TString clusterAlias;
         TString path;
+        TString producerPath;
 
         if (isSortedTable) {
             NProto::TYtSortedTableSinkMessage sortedSettings;
@@ -576,6 +587,7 @@ void ProcessSink(
 
             clusterAlias = queueSettings.GetCluster();
             path = queueSettings.GetPath();
+            producerPath = queueSettings.GetProducerPath();
         }
 
         YQL_ENSURE(
@@ -604,25 +616,8 @@ void ProcessSink(
                 "table_path", NYT::NYTree::ConvertToNode(tableRichPath));
         } else {
             if (isRemoteTable) {
-                YQL_ENSURE(
-                    !asyncQueueCluster || *asyncQueueCluster == cluster,
-                    "Writing into several remote YT queues "
-                    "on separate clusters is not supported yet");
-
-                asyncQueueCluster = cluster;
-
-                auto producerRichPath = CanonizeYtRichPath(
-                    config->GetYtProducerPath(), *config);
-
-                if (auto producerCluster = producerRichPath.GetCluster()) {
-                    producerRichPath.SetCluster(
-                        configClusters.GetRealName(TString(*producerCluster)));
-                } else {
-                    producerRichPath.SetCluster(cluster);
-                }
-
-                YQL_ENSURE(producerRichPath.GetCluster() == cluster,
-                    "YT queue producer and YT queue must be on the same cluster: " << cluster);
+                auto producerRichPath = MakeYtProducerRichPath(
+                    std::move(producerPath), cluster, *config);
 
                 sinkSpec->SinkClassName = "NYT::NFlow::TAsyncQueueSink";
 
@@ -893,7 +888,7 @@ void ProcessOpBase(
 
     parameters->AddChild(
         "opt_llvm",
-        NYT::NYTree::ConvertToNode(TString("OFF")));
+        NYT::NYTree::ConvertToNode(ctx.OptLLVM));
 
     parameters->AddChild(
         "runtime_settings",
@@ -1269,6 +1264,7 @@ TBuildPipelineSpecContext::TBuildPipelineSpecContext(
     , SecureParams(secureParams)
     , EnableComputationPatternResources(
         prepareCtx.RunOptions.Config()->GetEnableComputationPatternResources())
+    , OptLLVM(prepareCtx.RunOptions.Types()->OptLLVM.GetOrElse(TString()))
 { }
 
 TBuildPipelineSpecResult BuildPipelineSpec(
@@ -1301,7 +1297,6 @@ TBuildPipelineSpecResult BuildPipelineSpec(
     pipelineSpec->Resources[NYT::NFlow::YTClientFactoryDefaultResourceId] = std::move(resourceSpec);
 
     TRequestedCredentials requestedCredentials;
-    std::optional<TString> asyncQueueCluster;
 
     for (const auto& operation : operations) {
         TVector<TYtflowPersistentSource> persistentSources;
@@ -1353,7 +1348,6 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 pipelineSpec,
                 outputIndicesByOutputStreamId,
                 requestedCredentials,
-                asyncQueueCluster,
                 ctx);
         }
 

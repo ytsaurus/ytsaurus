@@ -60,7 +60,7 @@ TEST(TYtConsumerRichPath, UsesCanonicalPipelinePathAndRealCluster)
     ASSERT_EQ("primary-cluster", *consumerPath.GetCluster());
 }
 
-TEST(TYtConsumerRichPath, ResolvesExplicitConsumerCluster)
+TEST(TYtConsumerRichPath, PreservesExplicitRealConsumerCluster)
 {
     auto config = MakeIntrusive<TYtflowConfiguration>();
     ASSERT_TRUE(DispatchSetting(*config, "Cluster", "primary"));
@@ -71,7 +71,7 @@ TEST(TYtConsumerRichPath, ResolvesExplicitConsumerCluster)
     ASSERT_TRUE(DispatchSetting(
         *config,
         "YtConsumerPath",
-        "<cluster=\"remote\";>//home/test/custom-consumer"));
+        "//home/test/pragma-consumer"));
 
     TYtflowGatewayConfig gatewayConfig;
     auto* pipelineClusterMapping = gatewayConfig.AddClusterMapping();
@@ -84,11 +84,81 @@ TEST(TYtConsumerRichPath, ResolvesExplicitConsumerCluster)
     consumerClusterMapping->SetProxyUrl("remote-cluster.example.com");
     const TConfigClusters configClusters(gatewayConfig);
 
-    const auto consumerPath = MakeYtConsumerRichPath(*config, configClusters);
+    const auto consumerPath = MakeYtConsumerRichPath(
+        *config, configClusters, "<cluster=\"remote-cluster\";>//home/test/custom-consumer");
 
     ASSERT_EQ("//home/test/custom-consumer", consumerPath.GetPath());
     ASSERT_TRUE(consumerPath.GetCluster());
     ASSERT_EQ("remote-cluster", *consumerPath.GetCluster());
+    EXPECT_EQ("remote", configClusters.GetAlias(TString(*consumerPath.GetCluster())));
+
+    const auto unmappedPath = MakeYtConsumerRichPath(
+        *config, configClusters, "<cluster=\"remote\";>//home/test/custom-consumer");
+    ASSERT_TRUE(unmappedPath.GetCluster());
+    EXPECT_EQ("remote", *unmappedPath.GetCluster());
+    EXPECT_THROW(configClusters.GetAlias("unknown-cluster"), std::exception);
+}
+
+TEST(TYtConsumerRichPath, RejectsConsumerClusterInPragma)
+{
+    TYtflowConfiguration config;
+    ASSERT_TRUE(DispatchSetting(config, "Cluster", "primary"));
+    ASSERT_TRUE(DispatchSetting(
+        config,
+        "YtConsumerPath",
+        "<cluster=\"remote\";>//tmp/consumer"));
+
+    TConfigClusters configClusters{TYtflowGatewayConfig{}};
+    EXPECT_THROW(MakeYtConsumerRichPath(config, configClusters), std::exception);
+}
+
+TEST(TYtConsumerRichPath, HintOverridesPragmaAndInheritsPipelineCluster)
+{
+    TYtflowConfiguration config;
+    ASSERT_TRUE(DispatchSetting(config, "Cluster", "primary"));
+    ASSERT_TRUE(DispatchSetting(config, "PathPrefix", "//home/test/"));
+    ASSERT_TRUE(DispatchSetting(config, "YtConsumerPath", "//tmp/pragma-consumer"));
+
+    TYtflowGatewayConfig gatewayConfig;
+
+    auto* mapping = gatewayConfig.AddClusterMapping();
+    mapping->SetName("primary");
+    mapping->SetRealName("primary-cluster");
+    mapping->SetProxyUrl("primary.example.com");
+
+    TConfigClusters configClusters(gatewayConfig);
+
+    auto fallback = MakeYtConsumerRichPath(config, configClusters);
+    EXPECT_EQ("//tmp/pragma-consumer", fallback.GetPath());
+    EXPECT_EQ("primary-cluster", *fallback.GetCluster());
+
+    auto hint = MakeYtConsumerRichPath(config, configClusters, "hint-consumer");
+    EXPECT_EQ("//home/test/hint-consumer", hint.GetPath());
+    EXPECT_EQ("primary-cluster", *hint.GetCluster());
+}
+
+class TYtProducerRichPath : public testing::Test {
+protected:
+    TYtflowConfiguration Config_;
+
+    void SetUp() override
+    {
+        ASSERT_TRUE(DispatchSetting(Config_, "PathPrefix", "//home/test/"));
+    }
+};
+
+TEST_F(TYtProducerRichPath, UsesQueueClusterAndCanonicalPath)
+{
+    auto path = MakeYtProducerRichPath("producer", "remote-cluster", Config_);
+
+    EXPECT_EQ("//home/test/producer", path.GetPath());
+    ASSERT_TRUE(path.GetCluster());
+    EXPECT_EQ("remote-cluster", *path.GetCluster());
+}
+
+TEST_F(TYtProducerRichPath, RequiresExplicitProducer)
+{
+    EXPECT_THROW(MakeYtProducerRichPath("", "remote-cluster", Config_), std::exception);
 }
 
 } // namespace

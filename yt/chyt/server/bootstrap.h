@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -28,7 +30,9 @@ public:
 private:
     TClickHouseServerBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    NApi::NNative::IConnectionPtr Connection_;
     THostPtr Host_;
+    TDynamicConfigManagerPtr DynamicConfigManager_;
     IClickHouseServerPtr ClickHouseServer_;
 
     NConcurrency::TActionQueuePtr ControlQueue_;
@@ -43,6 +47,11 @@ private:
     std::atomic<int> SigintCounter_ = {0};
 
     void DoRun();
+    void InitializeConnection();
+
+    void OnDynamicConfigChanged(
+        const TClickHouseServerDynamicConfigPtr& oldConfig,
+        const TClickHouseServerDynamicConfigPtr& newConfig);
 
     void HandleSigint();
     void HandleCrashSignal();

@@ -13,6 +13,7 @@
 # changes in this file.
 
 add_subdirectory(ut)
+add_subdirectory(ut_core_http)
 
 add_library(cpp-mapreduce-http)
 
@@ -32,8 +33,6 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
   yutil
   cpp-http-io
   cpp-string_utils-base64
-  cpp-string_utils-quote
-  cpp-threading-cron
   cpp-mapreduce-common
   cpp-mapreduce-interface
   mapreduce-interface-logging
@@ -44,6 +43,7 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
 target_sources(cpp-mapreduce-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/abortable_http_response.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/framing.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/host_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/http.cpp

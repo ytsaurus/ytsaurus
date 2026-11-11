@@ -121,6 +121,7 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/java/async_request/async_request/src/main/java/tech/ytsaurus/flow/examples/asyncrequest/PipelineMain.java
     yt/yt/flow/examples/java/async_request/async_request/src/main/java/tech/ytsaurus/flow/examples/asyncrequest/RequestProcessorFunction.java
     yt/yt/flow/examples/java/async_request/async_request/src/main/java/tech/ytsaurus/flow/examples/asyncrequest/StateKeeperFunction.java
+    yt/yt/flow/examples/java/external_state_join/external_state_join/src/main/java/tech/ytsaurus/flow/examples/externalstatejoin/LookupJoinFunction.java
     yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/PipelineMain.java
     yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/RequestProcessorFunction.java
     yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/StateKeeperFunction.java
@@ -128,6 +129,8 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/EventMapper.java
     yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/EventReducer.java
     yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/PipelineMain.java
+    yt/yt/flow/examples/java/static_table_join/static_table_join/src/main/java/tech/ytsaurus/flow/examples/statictablejoin/EnricherFunction.java
+    yt/yt/flow/examples/java/static_table_join/static_table_join/src/main/java/tech/ytsaurus/flow/examples/statictablejoin/ReferenceLoaderFunction.java
     yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/PipelineMain.java
     yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/UrlDownloadFunction.java
     yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.java
@@ -145,6 +148,7 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/kotlin/async_request/async_request/src/main/kotlin/tech/ytsaurus/flow/examples/asyncrequest/PipelineMain.kt
     yt/yt/flow/examples/kotlin/async_request/async_request/src/main/kotlin/tech/ytsaurus/flow/examples/asyncrequest/RequestProcessorFunction.kt
     yt/yt/flow/examples/kotlin/async_request/async_request/src/main/kotlin/tech/ytsaurus/flow/examples/asyncrequest/StateKeeperFunction.kt
+    yt/yt/flow/examples/kotlin/external_state_join/external_state_join/src/main/kotlin/tech/ytsaurus/flow/examples/externalstatejoin/LookupJoin.kt
     yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/PipelineMain.kt
     yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/RequestProcessorFunction.kt
     yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/StateKeeperFunction.kt
@@ -152,6 +156,8 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/EventMapper.kt
     yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/EventReducer.kt
     yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/PipelineMain.kt
+    yt/yt/flow/examples/kotlin/static_table_join/static_table_join/src/main/kotlin/tech/ytsaurus/flow/examples/statictablejoin/Enricher.kt
+    yt/yt/flow/examples/kotlin/static_table_join/static_table_join/src/main/kotlin/tech/ytsaurus/flow/examples/statictablejoin/ReferenceLoader.kt
     yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/PipelineMain.kt
     yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/UrlDownloadFunction.kt
     yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.kt
@@ -166,15 +172,18 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountApplication.kt
     yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountMapper.kt
     yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/model/Word.kt
+    yt/yt/flow/examples/kotlin/word_count/wordcount/ya.make
     yt/yt/flow/examples/python/async_request/__main__.py
     yt/yt/flow/examples/python/async_request/request_processor_function.py
     yt/yt/flow/examples/python/async_request/state_keeper_function.py
+    yt/yt/flow/examples/python/external_state_join/__main__.py
     yt/yt/flow/examples/python/retryable_async_request/__main__.py
     yt/yt/flow/examples/python/retryable_async_request/request_processor_function.py
     yt/yt/flow/examples/python/retryable_async_request/state_keeper_function.py
     yt/yt/flow/examples/python/shuffle/__main__.py
     yt/yt/flow/examples/python/shuffle/event_mapper.py
     yt/yt/flow/examples/python/shuffle/event_reducer.py
+    yt/yt/flow/examples/python/static_table_join/__main__.py
     yt/yt/flow/examples/python/url_downloader/__main__.py
     yt/yt/flow/examples/python/url_downloader/url_download_function.py
     yt/yt/flow/examples/python/wait_click_join/__main__.py
@@ -189,6 +198,9 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/tests/process_function_graph/unittests/graph_ut.cpp
 
     # Spark examples
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
 )
 
 END()

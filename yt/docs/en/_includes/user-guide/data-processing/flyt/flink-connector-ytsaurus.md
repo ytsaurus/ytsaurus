@@ -429,7 +429,7 @@ The connector supports automatic table resharding at table creation time. Reshar
 
 The connector supports both synchronous and asynchronous Lookup operations with caching.
 
-Lookup operations enrich a stream with data from an external table by key. In SQL terms, this corresponds to the `Lookup Join` scenario. For more information about lookup joins, see [{#T}](../../../../user-guide/dynamic-tables/dyn-query-language.md#lookup-joins).
+Lookup operations enrich a stream with data from an external table by key. In SQL terms, this corresponds to the `Lookup Join` scenario. For more information about lookup joins, see [{#T}](../../../../user-guide/dynamic-tables/dyn-query-language.md#joins).
 
 This section covers stream enrichment with data from {{product-name}}. If you only need the basic write scenario, the steps in [Quick Start](#quick-start-guide) are sufficient.
 

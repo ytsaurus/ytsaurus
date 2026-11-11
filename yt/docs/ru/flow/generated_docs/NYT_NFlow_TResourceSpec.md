@@ -13,10 +13,10 @@
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Значение по умолчанию**: `{}`
 Произвольные параметры для соответствующего класса. ||
-|| `file_providers` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileProviderIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TFileProviderSpec](./all_yson_structs#NYT_NFlow_TFileProviderSpec)`>>`
+|| `file_providers` | **Тип**: `THashMap<`[NYT::NFlow::TFileProviderId](./all_yson_structs#NYT_NFlow_TFileProviderId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TFileProviderSpec](./all_yson_structs#NYT_NFlow_TFileProviderSpec)`>>`
 **Значение по умолчанию**: `{}`
 Именованные файловые провайдеры ресурса. Контроллер добавляет файловый снимок в целевую ревизию только после обнаружения всех имён; собственная часть целевой спецификации контроллера может публиковаться независимо. Воркеры материализуют точные ревизии из полученной цели. Такие ресурсы поддерживаются только на воркерах и должны иметь `controller = %false` во всех путях `required_resource_ids`, которые могут до них дойти. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
-|| `dependencies` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
+|| `dependencies` | **Тип**: `THashMap<`[NYT::NFlow::TResourceId](./all_yson_structs#NYT_NFlow_TResourceId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Значение по умолчанию**: `{}`
 Ресурсы, от которых зависит данный ресурс. Повторяет структуру `required_resource_ids` из `Computation`. ||
 || `required_capabilities` | **Тип**: `THashMap<std::string, long>`
@@ -27,6 +27,6 @@
  ||
 || `always_on` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
-Если `true`, ресурс загружается заранее при старте юнита и держится в памяти всё время жизни юнита (не выгружается), а не лениво при первом обращении. Загружается только на тех юнитах, где ресурс требует хотя бы одна computation (см. `worker` / `controller` в `required_resource_ids`): ресурс, нужный только на worker'е, не грузится на controller'е, а ресурс, который не требует ни одна computation, не грузится вовсе. Взаимоисключающе с `preload_required`. ||
+Если `true`, ресурс загружается сразу после назначения юниту, где он нужен computation (см. `worker` / `controller` в `required_resource_ids`). На воркере экземпляр остаётся в памяти, пока назначен этому воркеру, в том числе между запусками джобов. Пауза или остановка пайплайна освобождает экземпляры после завершения всех джобов. Ресурсы, которые не нужны ни одной computation на этом юните, не загружаются. Несовместимо с `preload_required`. ||
 |#
 

@@ -150,30 +150,42 @@ void ValidateNodeFunction(
         "sync process functions are not supported inside a graph",
         nodeId,
         node->ProcessingFunction);
-    if (computation.ComputationClassName == "NYT::NFlow::TProcessFunctionSwiftMapComputation") {
-        for (const auto& streamId : GetSortedIds(node->OutputStreamIds)) {
-            for (const auto& dependency : GetSortedIds(GetProcessFunctionGraphNodeDependencies(node, streamId))) {
-                THROW_ERROR_EXCEPTION_IF(node->TimerStreams.contains(dependency),
-                    "Output stream %Qv of Swift process function graph node %Qv must not depend on timer stream %Qv",
-                    streamId,
-                    nodeId,
-                    dependency);
+    switch (GetProcessFunctionGraphHost(computation)) {
+        case EProcessFunctionGraphHost::Transform:
+            break;
+
+        case EProcessFunctionGraphHost::SwiftMap:
+            for (const auto& streamId : GetSortedIds(node->OutputStreamIds)) {
+                for (const auto& dependency : GetSortedIds(GetProcessFunctionGraphNodeDependencies(node, streamId))) {
+                    THROW_ERROR_EXCEPTION_IF(node->TimerStreams.contains(dependency),
+                        "Output stream %Qv of Swift process function graph node %Qv must not depend on timer stream %Qv",
+                        streamId,
+                        nodeId,
+                        dependency);
+                }
             }
-        }
+            break;
+
+        case EProcessFunctionGraphHost::SwiftSource:
+            THROW_ERROR_EXCEPTION_UNLESS(node->TimerStreams.empty(),
+                "Process function graph node %Qv of a source computation cannot have timer streams",
+                nodeId);
+            break;
     }
+}
+
+//! A source keys its messages by partition rather than by payload, so the graph does not group its streams.
+bool IsSourceHost(const TComputationSpec& computation)
+{
+    return GetProcessFunctionGraphHost(computation) == EProcessFunctionGraphHost::SwiftSource;
 }
 
 void ValidateProcessFunctionGraphHost(const TComputationSpec& computation)
 {
-    THROW_ERROR_EXCEPTION_UNLESS(
-        computation.ComputationClassName == "NYT::NFlow::TProcessFunctionComputation" ||
-            computation.ComputationClassName == "NYT::NFlow::TProcessFunctionSwiftMapComputation",
-        "Process function graph requires computation class \"NYT::NFlow::TProcessFunctionComputation\" "
-        "or \"NYT::NFlow::TProcessFunctionSwiftMapComputation\"");
-    THROW_ERROR_EXCEPTION_UNLESS(computation.GroupBySchema && !computation.GroupBySchema->Columns().empty(),
-        "Process function graph requires \"group_by_schema\"");
+    bool source = IsSourceHost(computation);
+    THROW_ERROR_EXCEPTION_UNLESS(source || (computation.GroupBySchema && !computation.GroupBySchema->Columns().empty()), "Process function graph requires \"group_by_schema\"");
     std::vector<TStringBuf> unsupportedFields;
-    if (!computation.SourceStreams.empty()) {
+    if (!source && !computation.SourceStreams.empty()) {
         unsupportedFields.push_back("source_streams");
     }
     if (!computation.KeyVisitorStreams.empty()) {
@@ -182,15 +194,27 @@ void ValidateProcessFunctionGraphHost(const TComputationSpec& computation)
     if (!computation.ExternalStateManagers.empty()) {
         unsupportedFields.push_back("external_state_managers");
     }
-    if (!computation.ExternalStateJoiners.empty()) {
-        unsupportedFields.push_back("external_state_joiners");
-    }
     if (!computation.StateJoiners.empty()) {
         unsupportedFields.push_back("state_joiners");
     }
     THROW_ERROR_EXCEPTION_UNLESS(unsupportedFields.empty(),
         "Process function graph computation cannot set %v",
         unsupportedFields);
+
+    for (const auto& name : GetSortedIds(computation.ExternalStateJoiners)) {
+        const auto& joiner = GetOrCrash(computation.ExternalStateJoiners, name);
+
+        // clang-format off: Preserve the YT error-macro layout.
+        THROW_ERROR_EXCEPTION_UNLESS(joiner, "External state joiner %Qv has no spec",
+            name);
+
+        THROW_ERROR_EXCEPTION_IF(joiner->AutoPreload, "External state joiner %Qv in a process function graph "
+            "requires \"auto_preload\" = false; "
+            "preload its keys explicitly in the node after parsing its inputs",
+            name);
+        // clang-format on
+    }
+
     // Internal messages inherit event timestamps from their parents, so an assigner would apply only to exported copies.
     THROW_ERROR_EXCEPTION_IF(
         computation.WatermarkStrategy &&
@@ -208,6 +232,9 @@ void ValidateProcessFunctionGraphHost(const TComputationSpec& computation)
 
 void ValidateGraphInputGroupable(const TStreamId& streamId, const TStreamSpecPtr& streamSpec, const TComputationSpec& computation)
 {
+    if (IsSourceHost(computation)) {
+        return;
+    }
     try {
         ValidateIsGroupable(*streamSpec->Schema, *computation.GroupBySchema);
     } catch (const std::exception& ex) {
@@ -263,7 +290,8 @@ TGeneratedComputationFields BuildGeneratedComputationFields(
                 physicalSpec->Streams = std::move(watched);
             }
             THROW_ERROR_EXCEPTION_IF(
-                (!physicalSpec->Streams || physicalSpec->Streams->empty()) &&
+                timerSpec->TimeType != ETimeType::CurrentTime &&
+                    (!physicalSpec->Streams || physicalSpec->Streams->empty()) &&
                     (!physicalSpec->StreamsWithDelays || physicalSpec->StreamsWithDelays->empty()),
                 "Timer stream %Qv of process function graph node %Qv watches no streams",
                 timerId,
@@ -284,6 +312,30 @@ TGeneratedComputationFields BuildGeneratedComputationFields(
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+EProcessFunctionGraphHost GetProcessFunctionGraphHost(const TComputationSpec& computation)
+{
+    const auto& className = computation.ComputationClassName;
+    if (className == "NYT::NFlow::TProcessFunctionComputation") {
+        return EProcessFunctionGraphHost::Transform;
+    }
+    if (className == "NYT::NFlow::TProcessFunctionSwiftMapComputation") {
+        return EProcessFunctionGraphHost::SwiftMap;
+    }
+    if (className == "NYT::NFlow::TProcessFunctionSourceComputation") {
+        return EProcessFunctionGraphHost::SwiftSource;
+    }
+    THROW_ERROR_EXCEPTION("Process function graph requires computation class \"NYT::NFlow::TProcessFunctionComputation\", \"NYT::NFlow::TProcessFunctionSwiftMapComputation\" or \"NYT::NFlow::TProcessFunctionSourceComputation\"");
+}
+
+THashSet<TStreamId> GetProcessFunctionGraphInputStreamIds(const TComputationSpec& computation)
+{
+    auto result = computation.InputStreamIds;
+    for (const auto& [streamId, _] : computation.SourceStreams) {
+        result.insert(streamId);
+    }
+    return result;
+}
 
 TStreamId MakeProcessFunctionGraphTimerId(TStringBuf nodeId, const TStreamId& timerId)
 {
@@ -485,7 +537,7 @@ void ResolveProcessFunctionGraphs(const TPipelineSpecPtr& spec)
             parameters->Graph = CloneYsonStruct(computation->ProcessFunctionGraph);
             auto topology = BuildProcessFunctionGraphTopology(
                 parameters->Graph,
-                computation->InputStreamIds,
+                GetProcessFunctionGraphInputStreamIds(*computation),
                 computation->OutputStreamIds);
 
             for (const auto& nodeId : topology.Order) {
@@ -506,6 +558,10 @@ void ResolveProcessFunctionGraphs(const TPipelineSpecPtr& spec)
                         return parameters->Streams.emplace(streamId, CloneKeepingUnrecognized(it->second)).first->second;
                     };
                     for (const auto& streamId : GetSortedIds(node->InputStreamIds)) {
+                        // The source defines the schema of its stream, which has no pipeline spec.
+                        if (computation->SourceStreams.contains(streamId)) {
+                            continue;
+                        }
                         ValidateGraphInputGroupable(streamId, addStream(streamId), *computation);
                     }
                     for (const auto& streamId : GetSortedIds(node->OutputStreamIds)) {
@@ -566,7 +622,7 @@ void ValidateProcessFunctionGraphComputation(
         THROW_ERROR_EXCEPTION_UNLESS(parameters->Graph, "Process function graph parameters have no graph");
         auto topology = BuildProcessFunctionGraphTopology(
             parameters->Graph,
-            computation->InputStreamIds,
+            GetProcessFunctionGraphInputStreamIds(*computation),
             computation->OutputStreamIds);
 
         // Internal streams are not in pipeline streams, so they are validated here like any other stream.
@@ -603,6 +659,9 @@ void ValidateProcessFunctionGraphComputation(
                 return it->second;
             };
             for (const auto& streamId : GetSortedIds(node->InputStreamIds)) {
+                if (computation->SourceStreams.contains(streamId)) {
+                    continue;
+                }
                 ValidateGraphInputGroupable(streamId, validateStream(streamId), *computation);
             }
             for (const auto& streamId : GetSortedIds(node->OutputStreamIds)) {

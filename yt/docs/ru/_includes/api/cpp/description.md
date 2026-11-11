@@ -690,7 +690,7 @@ Join-Reduce:
       const TOperationOptions& options = TOperationOptions())
   ```
 
-В качестве `mapper` можно указать нулевой указатель, тогда операция запустится без стадии Map, вторая версия функции дополнительно запустит стадию [reduce_combiner](../../../user-guide/data-processing/operations/reduce.md#reduce_combiner).
+В качестве `mapper` можно указать нулевой указатель, тогда операция запустится без стадии Map, вторая версия функции дополнительно запустит стадию [reduce_combiner](../../../user-guide/data-processing/operations/mapreduce.md#reduce_combiner).
 
 В параметры вызова запуска операции обычно входят:
 
@@ -832,7 +832,7 @@ TOperationAttributes GetOperation(
 
 ### ListOperations
 
-Получить список операций, [удовлетворяющих фильтрам](../../../api/commands.md#list_operation).
+Получить список операций, [удовлетворяющих фильтрам](../../../api/commands.md#list_operations).
 
 ```c++
 TListOperationsResult ListOperations(

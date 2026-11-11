@@ -21,7 +21,7 @@ from yt.environment.helpers import write_config
 
 from yt_helpers import calculate_object_diff, profiler_factory
 
-from yt.common import YtError, update, update_inplace
+from yt.common import YtError, date_string_to_timestamp, update, update_inplace
 
 import builtins
 import copy
@@ -4325,13 +4325,18 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table(queue_path)
 
         self._sleep_until_next_export_instant(period=3)
-        time.sleep(12)
+        time.sleep(5)
+
+        export_period_seconds = 1
+        # NB(apachee): TTL is large enough for exported tables to never expire during the test, so instead of waiting
+        # for removal we validate expiration_time attribute directly.
+        export_ttl_seconds = 24 * 60 * 60
 
         set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 1 * 1000,
-                "export_ttl":  12 * 1000,
+                "export_period": export_period_seconds * 1000,
+                "export_ttl": export_ttl_seconds * 1000,
             }
         })
 
@@ -4342,10 +4347,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         progress_path = f"{export_dir}/@queue_static_export_progress"
         wait(lambda: exists(progress_path) and get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk", None) == chunk_id)
 
-        # Removal by TTL is not instantaneous
-        wait(lambda: len(ls(export_dir)) == 1, timeout=8)
+        self._check_export(export_dir, [["foo"] * 3, ["bar"] * 2])
 
-        self._check_export(export_dir, [["bar"] * 2], expected_removed_rows=3)
+        old_table_name, new_table_name = sorted(ls(export_dir))
+        for table_name in (old_table_name, new_table_name):
+            # Table name is the lower bound of the export interval, while expiration time is calculated from its upper bound.
+            export_unix_ts = int(table_name.split("-")[0]) + export_period_seconds
+            assert date_string_to_timestamp(get(f"{export_dir}/{table_name}/@expiration_time")) == export_unix_ts + export_ttl_seconds
 
         self.remove_export_destination(export_dir)
 
@@ -4384,23 +4392,17 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
         assert last_export_task_instant == last_successful_export_task_instant
 
-        previous_exported_task_instant = last_export_task_instant
-        previous_successful_exported_task_instant = last_export_task_instant
+        previous_successful_export_task_instant = last_successful_export_task_instant
 
-        time.sleep(10)
+        # No new data was written, so the instant can only advance due to export tasks with nothing to export.
+        wait(lambda: datetime.datetime.fromisoformat(
+            get(f"{export_dir}/@queue_static_export_progress")["last_successful_export_task_instant"]) > previous_successful_export_task_instant)
 
         export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
-
-        assert last_export_task_instant > previous_exported_task_instant
-        assert last_successful_export_task_instant > previous_successful_exported_task_instant
         assert last_export_task_instant == last_successful_export_task_instant
-
-        # 2-second exports, comparing to 3 to account for edge-cases.
-        # time.sleep(10) above should be enough to check the required behavior.
-        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_task_instant).seconds <= 3
 
         self.remove_export_destination(export_dir)
 
@@ -5743,7 +5745,7 @@ class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueu
 
 
 class TestQueueStaticExportSequoia(QueueStaticExportCrossCellBase):
-    NUM_TEST_PARTITIONS = 5
+    NUM_TEST_PARTITIONS = 8
 
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

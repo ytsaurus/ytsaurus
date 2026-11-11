@@ -646,6 +646,49 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["error"], None, None, allow_broad=False)
 
 
+class ReadOnlyCliBoundaryTest(unittest.TestCase):
+    def test_validated_request_reaches_access_preflight_before_building(self):
+        argv = [
+            'pod-tab.example',
+            '--type',
+            'error',
+            '-t',
+            '2026-11-10 12:00:00',
+            '-e',
+            '2026-11-10 12:00:10',
+            '--',
+            '-F',
+            'needle',
+        ]
+        with (
+            mock.patch('sys.argv', ['logslice.py', *argv]),
+            mock.patch.object(logslice.Ssh, '__init__', return_value=None) as ssh,
+            mock.patch.object(logslice, 'ssh_access_preflight', return_value='ssh_authentication') as access,
+            mock.patch.object(logslice, 'resolve_logslice') as build,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(logslice.main(), logslice.OPERATIONAL_FAILURE_EXIT)
+        self.assertEqual(ssh.call_args.args[0], 'pod-tab.example')
+        access.assert_called_once()
+        build.assert_not_called()
+
+    def test_invalid_requests_do_not_reach_ssh(self):
+        for arguments in (
+            ['pod-tab.example'],
+            ['pod-tab.example', '--type', 'unknown'],
+            ['pod-tab.example', '--type', 'error', '-x', 'rm /tmp/forbidden'],
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                mock.patch('sys.argv', ['logslice.py', *arguments]),
+                mock.patch.object(logslice.Ssh, '__init__') as ssh,
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                logslice.main()
+            ssh.assert_not_called()
+
+
 class StructuredLogContractTest(unittest.TestCase):
     HOST = "m003-hahn.sas.yp-c.yandex.net"
     COMPONENT = "master-sas5-4416"
@@ -653,12 +696,8 @@ class StructuredLogContractTest(unittest.TestCase):
     END = "2026-08-21 17:35:00,000"
 
     def _run(
-            self,
-            pipeline_result,
-            file_count=1,
-            log_types="access",
-            access_pipeline=None,
-            legacy_selection_result=False):
+        self, pipeline_result, file_count=1, log_types="access", access_pipeline=None, legacy_selection_result=False
+    ):
         log_type = logslice.parse_log_types(log_types)[0]
         is_yson = log_type in logslice.YSON_LOG_TYPES
         component = "scheduler-test" if is_yson else self.COMPONENT
@@ -846,6 +885,16 @@ class StructuredLogContractTest(unittest.TestCase):
                 self.assertIn(
                     "{} pipeline output line 1 has no valid timestamp".format(log_type), stderr)
                 self.assertIn("file_status type={} status=failed".format(log_type), stderr)
+
+    def test_yson_system_instants_merge_with_scheduler_utc_timestamps(self):
+        event = '{"timestamp"="2026-08-21T14:23:11.123Z";"event_type"="snapshot";};\n'
+        started = '{"message"="Logging started";"instant"="2026-08-21 17:23:10,123";};\n'
+        for log_type in logslice.YSON_LOG_TYPES:
+            with self.subTest(log_type=log_type):
+                results = [logslice.PipelineResult(0, 0, text, "")
+                           for text in (event, started)]
+                code, stdout, stderr, _ = self._run(results, file_count=2, log_types=log_type)
+                self.assertEqual((code, stdout), (0, started + event), stderr)
 
     def test_access_pipeline_is_rejected_without_access_type(self):
         argv = [
@@ -1871,6 +1920,79 @@ class ArchiveParsingTest(unittest.TestCase):
 
 
 class ComponentRoutingTest(unittest.TestCase):
+    def test_generic_node_retained_routing_fixture(self):
+        relative_path = (
+            "yt/yt/tools/logslice/unittests/py/fixtures/yt_30088/"
+            "component-routing.json")
+        try:
+            import yatest.common
+            path = yatest.common.source_path(relative_path)
+        except ImportError:
+            path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "fixtures", "yt_30088", "component-routing.json")
+        with open(path) as stream:
+            fixture = json.load(stream)
+        for override in (None, fixture["working_override"]):
+            with self.subTest(override=override):
+                route = logslice.resolve_component_route(
+                    fixture["host"], override, fixture["candidates"])
+                self.assertEqual(route["base"], fixture["expected_base"])
+
+    def test_generic_node_selects_exact_location(self):
+        for location, suffix in (("ext0-0004", "ext"), ("klg1-0042", "klg")):
+            with self.subTest(location=location):
+                route = logslice.resolve_component_route(
+                    location + "-node-poincare-beta." + suffix + ".yp-c.yandex.net",
+                    None,
+                    ["push-client", "node-ext0-0000", "node", "node-" + location],
+                )
+                self.assertEqual(route["role"], "node")
+                self.assertEqual(route["component"], "node-" + location)
+                self.assertEqual(route["base"], "node-" + location)
+                self.assertEqual(route["source"], "hostname")
+
+    def test_generic_node_requires_exact_discovered_base(self):
+        for candidates in (
+            ["node-ext0-0000", "push-client"],
+            ["node"],
+            ["node-ext0-0004-sidecar"],
+            [],
+        ):
+            with self.subTest(candidates=candidates):
+                with self.assertRaisesRegex(ValueError, "that base was not found"):
+                    logslice.resolve_component_route(
+                        "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+                        None, candidates)
+
+    def test_generic_node_keeps_specific_role_precedence(self):
+        for marker, role in (
+            ("tab", "tablet-node"), ("dat", "data-node"), ("exec", "exec-node"),
+        ):
+            with self.subTest(marker=marker):
+                self.assertEqual(
+                    logslice.infer_host_component(
+                        "ext0-0004-node-" + marker + "-node-poincare-beta"),
+                    (role, "node"))
+
+    def test_generic_node_explicit_override_takes_precedence(self):
+        route = logslice.resolve_component_route(
+            "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+            "push-client", ["node-ext0-0004", "push-client"])
+        self.assertEqual(route["base"], "push-client")
+        self.assertEqual(route["source"], "--component")
+
+    def test_generic_node_rejects_unknown_location_or_role(self):
+        for host in (
+            "poincare-beta.ext.yp-c.yandex.net",
+            "ext0-0004-poincare-beta.ext.yp-c.yandex.net",
+            "prefix-ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+            "ext-0004-node-poincare-beta.ext.yp-c.yandex.net",
+        ):
+            with self.subTest(host=host):
+                with self.assertRaisesRegex(ValueError, "cannot infer"):
+                    logslice.resolve_component_route(host, None, ["node-ext0-0004"])
+
     def test_legacy_tablet_node_hostname_maps_to_node_base(self):
         self.assertEqual(
             logslice.infer_host_component(
@@ -1894,6 +2016,80 @@ class ComponentRoutingTest(unittest.TestCase):
             ),
             ("tablet-node", "node"),
         )
+
+    def test_tablet_balancer_retained_routing_fixture(self):
+        relative_path = (
+            "yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62021/"
+            "component-routing.json")
+        try:
+            import yatest.common
+            path = yatest.common.source_path(relative_path)
+        except ImportError:
+            path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "fixtures", "ytadminreq_62021", "component-routing.json")
+        with open(path) as stream:
+            fixture = json.load(stream)
+        self.assertEqual(
+            logslice.infer_host_component(fixture["host"]),
+            tuple(fixture["expected"]))
+
+        names = [
+            "node.error.log", "tablet-balancer-klg0-0000.error.log",
+            "tablet-balancer-klg0-0941.error.log",
+            "tablet-balancer-klg0-0941.error.log.1.zst",
+        ]
+        candidates = logslice._candidate_bases(names, "error")
+        route = logslice.resolve_component_route(fixture["host"], None, candidates)
+        self.assertEqual(route, {
+            "role": "tablet-balancer",
+            "component": "tablet-balancer-klg0-0941",
+            "base": "tablet-balancer-klg0-0941",
+            "source": "hostname",
+            "confidence": "high",
+        })
+        base, files = logslice.order_series(
+            [logslice.parse_log_name(name) for name in names], "error", route["base"])
+        self.assertEqual(base, "tablet-balancer-klg0-0941")
+        self.assertEqual([item.name for item in files], [
+            "tablet-balancer-klg0-0941.error.log.1.zst",
+            "tablet-balancer-klg0-0941.error.log",
+        ])
+
+    def test_tablet_balancer_hostname_normalization(self):
+        for host in (
+            "sas5-5383-tab-balancer-ada",
+            "nobody@SAS5-5383-TAB-BALANCER-ADA.sas.yp-c.yandex.net",
+        ):
+            with self.subTest(host=host):
+                route = logslice.resolve_component_route(
+                    host, None, ["tablet-balancer-sas5-5383"])
+                self.assertEqual(route["role"], "tablet-balancer")
+                self.assertEqual(route["base"], "tablet-balancer-sas5-5383")
+
+    def test_tablet_balancer_requires_exact_discovered_base(self):
+        for candidates in (
+            [],
+            ["node", "push-client", "tablet-balancer"],
+            ["tablet-balancer-klg0-0000", "tablet-balancer-klg0-0942"],
+            ["tablet-balancer-klg0-0941-sidecar"],
+        ):
+            with self.subTest(candidates=candidates):
+                with self.assertRaisesRegex(ValueError, "that base was not found"):
+                    logslice.resolve_component_route(
+                        "klg0-0941-tab-balancer-seneca-klg.klg.yp-c.yandex.net",
+                        None, candidates)
+
+    def test_tablet_balancer_requires_location_in_hostname(self):
+        for host in (
+            "tab-balancer-seneca-klg.klg.yp-c.yandex.net",
+            "klg-0941-tab-balancer-seneca-klg",
+            "prefix-klg0-0941-tab-balancer-seneca-klg",
+        ):
+            with self.subTest(host=host):
+                with self.assertRaisesRegex(ValueError, "cannot infer"):
+                    logslice.resolve_component_route(
+                        host, None, ["tablet-balancer-klg0-0941", "node"])
 
     def test_node_hostname_resolves_location_suffixed_base(self):
         route = logslice.resolve_component_route(

@@ -1,4 +1,5 @@
 #include "describe_pipeline.h"
+#include "data_channels.h"
 #include "draw_pipeline_graph.h"
 #include "fill_graph_limits.h"
 
@@ -24,13 +25,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-TSinkId MakeGlobalSinkId(const TComputationId& computationId, const TSinkId& localSinkId)
-{
-    return TSinkId(Format("%v/%v", computationId, localSinkId));
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 constexpr auto& VcsCommitUrlPrefix = NInternalUrls::VcsCommitUrlPrefix;
 constexpr auto& VcsRevisionUrlPrefix = NInternalUrls::VcsRevisionUrlPrefix;
@@ -289,6 +283,18 @@ void TReadDelayEdge::Register(TRegistrar registrar)
         .Default();
 }
 
+void TGraphEdge::Register(TRegistrar registrar)
+{
+    registrar.Parameter("from", &TThis::From)
+        .Default();
+    registrar.Parameter("to", &TThis::To)
+        .Default();
+    registrar.Parameter("kind", &TThis::Kind)
+        .Default(EGraphEdgeKind::DataChannel);
+    registrar.Parameter("label", &TThis::Label)
+        .Default();
+}
+
 void TStreamEdge::Register(TRegistrar registrar)
 {
     registrar.Parameter("stream_graph_entity_id", &TThis::StreamGraphEntityId)
@@ -369,6 +375,8 @@ void TSink::Register(TRegistrar registrar)
     // YSON key kept as "stream_id" for UI backward compatibility (value is a graph entity id).
     registrar.Parameter("stream_id", &TThis::StreamGraphEntityId)
         .Default();
+    registrar.Parameter("stream_ids", &TThis::StreamGraphEntityIds)
+        .Default();
 }
 
 void TPipelineDescription::Register(TRegistrar registrar)
@@ -393,6 +401,8 @@ void TPipelineDescription::Register(TRegistrar registrar)
     registrar.Parameter("computations", &TThis::Computations)
         .Default();
     registrar.Parameter("read_delay_edges", &TThis::ReadDelayEdges)
+        .Default();
+    registrar.Parameter("edges", &TThis::Edges)
         .Default();
 }
 
@@ -427,6 +437,9 @@ void RegisterStreams(const TPipelineSpecPtr& pipelineSpec, const TComputationId&
             sinkDescription.Name = globalSinkId;
             sinkDescription.Description = spec->SinkClassName;
             sinkDescription.StreamGraphEntityId = MakeStreamGraphId(streamId);
+            auto& sinkInputStreams = sinkDescription.StreamGraphEntityIds;
+            auto streamGraphId = MakeStreamGraphId(streamId);
+            sinkInputStreams.insert(std::lower_bound(sinkInputStreams.begin(), sinkInputStreams.end(), streamGraphId), streamGraphId);
             auto& message = sinkDescription.Messages.emplace_back();
             message.Text = "Sink parameters";
             message.Yson = ConvertToYsonString(MakeSinkLinks(ConvertTo<IMapNodePtr>(spec->Parameters), spec->SinkClassName, describeTraitsContext));
@@ -489,11 +502,18 @@ void FillStreamTraverseData(const TFlowViewPtr& flowView, const TPipelineSpecPtr
         auto& streamDescription = pipeline.Streams[globalStreamId];
         streamDescription.Id = MakeStreamGraphId(globalStreamId);
         streamDescription.Name = localStreamId;
+        streamDescription.GlobalName = globalStreamId;
         return streamDescription;
     };
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             if (computationSpec->InputStreamIds.contains(streamId)) {
                 // Use stream from corresponding output stream.
@@ -568,7 +588,13 @@ void FillStreamStateMessage(
     int drainedStreams = 0;
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
 
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             // Skip input streams.
@@ -673,7 +699,8 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
     const auto& pipelineSpec = executionSpec->PipelineSpec->GetValue();
     const auto& pipelineDynamicSpec = executionSpec->DynamicPipelineSpec->GetValue();
 
-    ValidateSpecs(pipelineSpec, pipelineDynamicSpec, pipeline.Messages);
+    TParsedPipelineParameters parsedParameters;
+    ValidateSpecs(pipelineSpec, pipelineDynamicSpec, pipeline.Messages, &parsedParameters);
 
     {
         auto& message = pipeline.Messages.emplace_back();
@@ -745,6 +772,20 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         arguments.ControllerFlowCoreVersion,
         *arguments.ControllerBuildInfo,
         pipeline.Messages);
+
+    const auto& buildInfo = *arguments.ControllerBuildInfo;
+    int revision = buildInfo.BaseSvnRevision;
+    if (revision > 0) {
+        auto& message = pipeline.Messages.emplace_back();
+        message.Text = "FlowCore library revision";
+        auto url = VcsRevisionUrlPrefix.empty()
+            ? TString{}
+            : Format("%v%v", VcsRevisionUrlPrefix, revision);
+        TStringBuilder markdownText;
+        markdownText.AppendString(FormatMaybeLink(Format("r%v", revision), url));
+        markdownText.AppendString(" -- the base trunk revision of the FlowCore library, excluding commits from the user's branch.");
+        message.MarkdownText = markdownText.Flush();
+    }
 
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     auto computationBaseDescriptions = MakeComputationDescriptions(
@@ -874,6 +915,18 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
 
     FillGraphLimits(flowView, intermediateDescriptions, pipeline);
     FillReadDelayEdges(flowView, pipeline);
+
+    // The edges are dropped by the StatusOnly filter, but the mermaid graph below renders them.
+    if (!arguments.StatusOnly || pipelineDynamicSpec->EnableMermaidGraphDescribe) {
+        FillDataChannelEdges(
+            pipelineSpec,
+            parsedParameters,
+            flowView->State->JobManagerState,
+            TDescribeTraitsContext{.PipelinePath = flowView->EphemeralState->PipelinePath},
+            arguments.Logger,
+            pipeline);
+    }
+
     // Extended-streams output goes into per-computation fields, which are dropped
     // by the StatusOnly filter, so skip it in that mode.
     if (!arguments.StatusOnly) {

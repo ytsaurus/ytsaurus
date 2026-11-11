@@ -23,6 +23,11 @@ struct TGlobalWorkerManagerActorIdOptions {
     bool UseGlobalActorId = false;
 };
 
+enum class EGwmHostAddress {
+    Hostname,
+    Ip,
+};
+
 class ICoordinationHelper: public TThrRefBase {
 public:
     using TPtr = TIntrusivePtr<ICoordinationHelper>;
@@ -37,8 +42,12 @@ public:
         ui32 maxNodeId,
         const THashMap<TString, TString>& attributes) = 0;
 
-    virtual TString GetHostname() = 0;
-    virtual TString GetIp() = 0;
+    virtual TString GetHostname() const = 0;
+    virtual TString GetIp() const = 0;
+
+    // Use the RegisterNode IP, adding brackets for IPv6 gRPC authorities.
+    // Upload-only helpers have no IP and keep the hostname for lock metadata.
+    TString GetGrpcHost() const;
 
     virtual NActors::IActor* CreateLockOnCluster(NActors::TActorId ytWrapper, const TString& prefix, const TString& lockName, bool temporary = true) = 0;
 
@@ -67,7 +76,7 @@ public:
 
     virtual NActors::TActorId GetWrapper() = 0;
 
-    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) = 0;
+    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token, const TString& jobProxySocketPath = {}) = 0;
 
     virtual TWorkerRuntimeData* GetRuntimeData() = 0;
 
@@ -83,7 +92,8 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     ui16 interconnectPort,
     const TString& host,
     const TString& ip,
-    TGlobalWorkerManagerActorIdOptions actorIdOptions = {});
+    TGlobalWorkerManagerActorIdOptions actorIdOptions = {},
+    EGwmHostAddress gwmHostAddress = EGwmHostAddress::Hostname);
 
 // YT clients and upload locks only. No YtCoordinator config or worker node ID
 // is required; each request supplies the selected backend's credentials/prefix.

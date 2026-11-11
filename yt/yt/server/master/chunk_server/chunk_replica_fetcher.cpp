@@ -252,7 +252,7 @@ public:
         auto isErasure = chunk->IsErasure();
 
         const auto& config = GetDynamicConfig();
-        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, GetDynamicConfig());
+        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, config);
         std::vector<TNodeId> replicas;
         if (config->AlwaysShowMasterLastSeenReplicas || !chunkSequoiaConfig.StoreInSequoia || chunkSequoiaConfig.StoreSequoiaReplicasOnMaster) {
             auto masterReplicas = chunk->LastSeenReplicas();

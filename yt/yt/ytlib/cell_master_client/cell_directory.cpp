@@ -35,6 +35,9 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
 #include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NCellMasterClient {
@@ -358,6 +361,11 @@ public:
         }
     }
 
+    IYPathServicePtr GetOrchidService() override
+    {
+        return IYPathService::FromProducer(BIND(&TCellDirectory::BuildOrchid, MakeStrong(this)));
+    }
+
     void UpdateDefault() override
     {
         {
@@ -406,6 +414,20 @@ private:
     TCellTagSet SecondaryMasterCellTags_;
     THashSet<NObjectClient::TCellId> SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer)
+    {
+        TEnumIndexedArray<EMasterCellRole, TCellTagList> roleToCellTags;
+        {
+            auto guard = ReaderGuard(SpinLock_);
+            roleToCellTags = RoleToCellTags_;
+        }
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("role_to_cell_tags").Value(roleToCellTags)
+            .EndMap();
+    }
 
     static void ValidateSelectorRole(EMasterCellRole role) {
         THROW_ERROR_EXCEPTION_IF(role == EMasterCellRole::Unknown,

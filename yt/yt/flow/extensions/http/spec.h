@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/sink_base.h>
 
 #include <util/generic/hash.h>
 
 namespace NYT::NFlow {
 
 struct TAsyncHttpSinkParameters
-    : public TDelegatingAsyncSinkBase::TParameters
+    : public TSinkBase::TParameters
 {
     std::string Url;
     std::string PayloadColumn;
@@ -27,7 +27,7 @@ struct TAsyncHttpSinkParameters
 DEFINE_REFCOUNTED_TYPE(TAsyncHttpSinkParameters);
 
 struct TDynamicAsyncHttpSinkParameters
-    : public TDelegatingAsyncSinkBase::TDynamicParameters
+    : public TSinkBase::TDynamicParameters
 {
     TDuration RequestTimeout;
     TDuration AttemptTimeout;

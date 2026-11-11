@@ -52,6 +52,16 @@ struct TResourceInstanceState
 struct IResourceManager
     : public TRefCounted
 {
+    virtual IResourcePtr Get(TResourceInstanceId instanceId) = 0;
+    virtual TFuture<void> Load(const THashSet<TResourceInstanceId>& instanceIds) = 0;
+    virtual void FeedStatus(TResourceInstanceId instanceId, i64 morePushedToQueue, i64 moreFetchedFromQueue) = 0;
+    virtual THashMap<TResourceInstanceId, TWorkerResourceStatusPtr> CollectResourceInstanceStatuses() = 0;
+
+    virtual void ReconfigureInstances(
+        const THashMap<TResourceId, TResourceSpecPtr>& resourceSpecs,
+        const THashMap<TResourceInstanceId, TResourceInstancePtr>& instances,
+        const THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr>& dynamicSpecs) = 0;
+
     //! Returns the resource object. For resources with PreloadRequired=true, throws if the
     //! resource is not yet in the Preloaded state. Non-preloadable resources are returned
     //! unconditionally regardless of whether Load has been called.
@@ -109,6 +119,8 @@ struct IResourceManager
 DEFINE_REFCOUNTED_TYPE(IResourceManager);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+IResourceManagerPtr CreateResourceManager(TResourceManagerContextPtr managerContext);
 
 IResourceManagerPtr CreateResourceManager(
     TResourceManagerContextPtr managerContext,

@@ -4,7 +4,7 @@ Management of Yson UDF default behavior. To learn more, see the [documentation](
 
 The Yson pragma affects all subsequent expressions up to the end of the module in which it occurs.
 
-## yson.AutoConvert
+## yson.AutoConvert {#ysonautoconvert} {#autoconvert}
 
 | Value type | By default |
 | --- | --- |
@@ -12,7 +12,7 @@ The Yson pragma affects all subsequent expressions up to the end of the module i
 
 Automatic conversion of values to the required data type in all Yson UDF calls, including implicit calls.
 
-## yson.Strict
+## yson.Strict {#ysonstrict} {#strict}
 
 | Value type | By default |
 | --- | --- |

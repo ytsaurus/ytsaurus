@@ -2,6 +2,7 @@ RECURSE(
     fmrrun
     mrjob
     mrjob/impl
+    qtworker
     ytflowrun
     ytflow_worker
     ytrun
@@ -12,8 +13,11 @@ IF (NOT OPENSOURCE)
         dq
         dqrun
         dqrun_light
+        experimental
+        qt_ban
         qt_release_helper
         qt_stress
+        qt_e2e
         query_replay
         query_replay_admin
         s3_backup
@@ -21,7 +25,6 @@ IF (NOT OPENSOURCE)
         ytfilerun
         ytfilerun/impl
         ytflowrun/full
-        qtworker
         qtworker/full
     )
 ENDIF()

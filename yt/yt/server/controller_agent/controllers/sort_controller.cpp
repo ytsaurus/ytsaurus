@@ -1522,7 +1522,7 @@ protected:
             bool enableKeyGuarantee)
             : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
-            , MultiChunkPool_(CreateMultiChunkPool({}))
+            , MultiChunkPool_(controller->CreateSortedMergeMultiChunkPool())
         {
             ChunkPoolInput_ = CreateTaskUpdatingAdapter(MultiChunkPool_, this);
 
@@ -2584,7 +2584,12 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
 
-            if (IsRowCountPreserved() && !(SimpleSortTask_ && isNontrivialInput) && !IsSamplingEnabled() && !InputHasDynamicStores()) {
+            if (IsRowCountPreserved() &&
+                !(SimpleSortTask_ && isNontrivialInput) &&
+                !IsSamplingEnabled() &&
+                !InputHasDynamicStores() &&
+                !InputManager_->HasSkippedInputChunks())
+            {
                 // We don't check row count for simple sort if nontrivial read limits are specified,
                 // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;
@@ -2997,6 +3002,26 @@ protected:
         streamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
 
         return streamDescriptor;
+    }
+
+    IMultiChunkPoolPtr CreateSortedMergeMultiChunkPool()
+    {
+        TMultiChunkPoolOptions options;
+        if (Spec_->EnableSharedJobSizeAdjuster && Options_->EnableSortedMergeInSortJobSizeAdjustment) {
+            auto jobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
+                Spec_,
+                Options_,
+                GetOutputTablePaths().size(),
+                ExpectedPartitionCount_);
+            if (jobSizeConstraints->CanAdjustDataWeightPerJob()) {
+                options.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
+                options.InitialDataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
+            }
+        }
+
+        return CreateMultiChunkPool(
+            /*underlyingPools*/ {},
+            options);
     }
 
     IPersistentChunkPoolPtr CreateSortedMergeChunkPool(std::string name)
@@ -5342,10 +5367,10 @@ IOperationControllerPtr CreateMapReduceController(
 
     ValidateAndEnrichVolumeSpec(config, spec, host, spec->Reducer.Get(), providedSpec->Reducer.Get());
     if (spec->Mapper) {
-        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Reducer.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Mapper.Get());
     }
     if (spec->ReduceCombiner) {
-        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(),  providedSpec->Reducer.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(), providedSpec->ReduceCombiner.Get());
     }
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);

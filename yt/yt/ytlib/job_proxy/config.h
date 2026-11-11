@@ -41,6 +41,7 @@ struct TJobTestingOptions
     std::optional<TDuration> DelayBeforeRunJobProxy;
     std::optional<TDuration> DelayBeforeSpawningJobProxy;
     std::optional<TDuration> DelayAfterRunJobProxy;
+    std::optional<TDuration> DelayBeforeReportResult;
     std::optional<TDuration> FakePrepareDuration;
     bool FailBeforeJobStart;
     bool ThrowInShallowMerge;

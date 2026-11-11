@@ -122,6 +122,8 @@ class TPersistedStateTransactionBase
 protected:
     template <class TKey, class TValue>
     friend class TPersistedState;
+    template <class TDBKey, class TDBValue, class TDefaultSerializer>
+    friend class TPersistedStateControl;
 
     EPersistedStateTransactionState State_ = EPersistedStateTransactionState::Active;
     //! Read only status that was specified upon transaction creation.
@@ -131,6 +133,8 @@ protected:
     bool HasNoWrites_ = true;
 
 public:
+    DEFINE_BYVAL_RO_PROPERTY(TSequenceId, ReadSequenceId, FakeSequenceId);
+
     //! Active -> Prepared -> Committed/Reverted.
     virtual void Commit(TPersistedStateCommitContext* context = nullptr) = 0;
     //! Active -> Aborted.

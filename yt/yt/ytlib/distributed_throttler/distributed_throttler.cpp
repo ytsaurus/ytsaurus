@@ -1839,6 +1839,10 @@ private:
 
         auto* attributes = MemberClient_->GetAttributes();
         attributes->SetYson(LocalThrottlersAttributeKey, yson);
+        guard.Release();
+
+        YT_TLOG_DEBUG("Member attribute updated")
+            .With("Attribute", LocalThrottlersAttributeKey);
     }
 
     void UpdateGlobalThrottlersAttribute()

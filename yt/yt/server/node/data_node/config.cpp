@@ -111,6 +111,9 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
         UpdateYsonStructField(FairShareWorkloadCategoryWeights[category], dynamicConfig.FairShareWorkloadCategoryWeights[category]);
     }
 
+    UpdateYsonStructField(FairShareSystemWeight, dynamicConfig.FairShareSystemWeight);
+    UpdateYsonStructField(FairShareUserWeight, dynamicConfig.FairShareUserWeight);
+
     UpdateYsonStructField(WeightedRequestWeight, dynamicConfig.WeightedRequestWeight);
     UpdateYsonStructField(UnweightedRequestWeight, dynamicConfig.UnweightedRequestWeight);
 
@@ -130,6 +133,13 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
+
+    registrar.Parameter("fair_share_system_weight", &TThis::FairShareSystemWeight)
+        .GreaterThan(0.0)
+        .Optional();
+    registrar.Parameter("fair_share_user_weight", &TThis::FairShareUserWeight)
+        .GreaterThan(0.0)
+        .Optional();
 
     registrar.Parameter("weighted_request_weight", &TThis::WeightedRequestWeight)
         .GreaterThanOrEqual(0.0)
@@ -186,6 +196,13 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
+
+    registrar.Parameter("fair_share_system_weight", &TThis::FairShareSystemWeight)
+        .GreaterThan(0.0)
+        .Optional();
+    registrar.Parameter("fair_share_user_weight", &TThis::FairShareUserWeight)
+        .GreaterThan(0.0)
+        .Optional();
 
     registrar.Parameter("weighted_request_weight", &TThis::WeightedRequestWeight)
         .GreaterThanOrEqual(0.0)
@@ -397,6 +414,11 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("resides_on_tmpfs", &TThis::ResidesOnTmpfs)
         .Default(false);
+
+    registrar.Parameter("layer_import_location_concurrency", &TThis::LayerImportLocationConcurrency)
+        .Default(1)
+        .GreaterThan(0)
+        .LessThanOrEqual(16);
 
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
@@ -832,7 +854,6 @@ void TJournalManagerConfig::Register(TRegistrar registrar)
             // Assumes journal placement on a fast medium (SSD, NVME), consider changing
             // these settings if you use HDD.
             auto multiplexedChangelog = New<TMultiplexedChangelogConfig>();
-            multiplexedChangelog->FlushQuantum = TDuration::MilliSeconds(1);
             multiplexedChangelog->FlushPeriod = TDuration::MilliSeconds(1);
 
             return multiplexedChangelog;

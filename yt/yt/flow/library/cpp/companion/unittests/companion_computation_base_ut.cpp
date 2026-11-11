@@ -2,6 +2,10 @@
 
 #include <yt/yt/flow/library/cpp/companion/companion_computation_base.h>
 
+#include <yt/yt/flow/library/cpp/companion/client/state_codec.h>
+
+#include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
+
 #include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
@@ -20,6 +24,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NFlow::NCompanion {
 namespace {
@@ -301,15 +307,16 @@ class TFakeJoinedStateAdapter
     : public ICompanionStateAdapter
 {
 public:
-    explicit TFakeJoinedStateAdapter(TIntrusivePtr<TFakeJoinedStateKeyProvider> provider)
+    TFakeJoinedStateAdapter(
+        TIntrusivePtr<TFakeJoinedStateKeyProvider> provider,
+        TCompanionStateDescriptor descriptor)
         : Provider_(std::move(provider))
+        , Descriptor_(std::move(descriptor))
     { }
 
     TCompanionStateDescriptor Describe() const final
     {
-        return TCompanionStateDescriptor{
-            .StateName = "/j",
-        };
+        return Descriptor_;
     }
 
     TSharedRef EncodeState(const TKey& key) final
@@ -336,6 +343,7 @@ public:
 
 private:
     const TIntrusivePtr<TFakeJoinedStateKeyProvider> Provider_;
+    const TCompanionStateDescriptor Descriptor_;
 };
 
 const auto PayloadSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(
@@ -387,13 +395,131 @@ TEST(TAddJoinedExternalStatesTest, UsesExtractDerivedKeys)
 
     auto request = New<TCompanionProcessRequest>();
     THashMap<std::string, ICompanionStateAdapterPtr> joiners;
-    joiners.emplace("/j", New<TFakeJoinedStateAdapter>(provider));
+    joiners.emplace("/j", New<TFakeJoinedStateAdapter>(provider, TCompanionStateDescriptor{.StateName = "/j"}));
 
     AddJoinedExternalStates(request, joiners, input);
 
     const auto& holder = GetOrCrash(request->JoinedExternalStates, "/j");
     ASSERT_EQ(std::ssize(holder.StateItems), 1);
     EXPECT_EQ(holder.StateItems[0].Key, overrideKey);
+}
+
+TEST(TAddJoinedExternalStatesTest, OmitsRowDescriptorUntilSchemaIsKnown)
+{
+    auto provider = New<TFakeJoinedStateKeyProvider>(
+        PayloadSchema,
+        /*hasKeySchemaOverride*/ false,
+        /*keyProviderStreams*/ THashSet<TStreamId>{TStreamId("in")});
+    auto input = New<TInputContext>(
+        std::vector<TInputMessageConstPtr>{MakeMessage("other", "abc", MakeKey("abc"))},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+
+    // A fresh row joiner has no schema until it preloads its first selected key.
+    for (bool schemaKnown : {false, true}) {
+        auto descriptor = TCompanionStateDescriptor{
+            .StateName = "/j",
+            .Format = EStateFormat::SimpleRow,
+            .Schema = schemaKnown ? PayloadSchema : nullptr,
+        };
+        auto adapter = New<TFakeJoinedStateAdapter>(provider, std::move(descriptor));
+        ASSERT_TRUE(adapter->ExtractKeys(input).empty());
+
+        auto request = New<TCompanionProcessRequest>();
+        AddJoinedExternalStates(request, {{"/j", adapter}}, input);
+
+        if (!schemaKnown) {
+            EXPECT_TRUE(request->JoinedExternalStates.empty());
+            continue;
+        }
+        ASSERT_EQ(std::ssize(request->JoinedExternalStates), 1);
+        const auto& holder = GetOrCrash(request->JoinedExternalStates, "/j");
+        EXPECT_EQ(holder.Schema, PayloadSchema);
+        EXPECT_TRUE(holder.StateItems.empty());
+
+        NProto::NCompanion::TReqProcessBatch protoRequest;
+        SerializeStateHolder(protoRequest.add_joined_external_states(), holder, EStateDirection::Request);
+        const auto& protoState = protoRequest.joined_external_states(0);
+        EXPECT_TRUE(protoState.has_schema());
+        EXPECT_FALSE(protoState.schema().empty());
+        EXPECT_EQ(protoState.format(), static_cast<int>(EStateFormat::SimpleRow));
+        EXPECT_EQ(protoState.stateitems_size(), 0);
+    }
+}
+
+TEST(TAddJoinedExternalStatesTest, KeepsProtoDescriptorForFilteredBatch)
+{
+    auto provider = New<TFakeJoinedStateKeyProvider>(
+        PayloadSchema,
+        /*hasKeySchemaOverride*/ false,
+        /*keyProviderStreams*/ THashSet<TStreamId>{TStreamId("in")});
+    auto input = New<TInputContext>(
+        std::vector<TInputMessageConstPtr>{MakeMessage("other", "abc", MakeKey("abc"))},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+    auto descriptor = TCompanionStateDescriptor{
+        .StateName = "/j",
+        .Format = EStateFormat::Proto,
+        .ProtoType = "test.TProfile",
+    };
+    auto adapter = New<TFakeJoinedStateAdapter>(provider, std::move(descriptor));
+    ASSERT_TRUE(adapter->ExtractKeys(input).empty());
+
+    auto request = New<TCompanionProcessRequest>();
+    AddJoinedExternalStates(request, {{"/j", adapter}}, input);
+
+    ASSERT_EQ(std::ssize(request->JoinedExternalStates), 1);
+    const auto& holder = GetOrCrash(request->JoinedExternalStates, "/j");
+    EXPECT_TRUE(holder.StateItems.empty());
+
+    NProto::NCompanion::TReqProcessBatch protoRequest;
+    SerializeStateHolder(protoRequest.add_joined_external_states(), holder, EStateDirection::Request);
+    const auto& protoState = protoRequest.joined_external_states(0);
+    EXPECT_EQ(protoState.name(), "/j");
+    EXPECT_EQ(protoState.format(), static_cast<int>(EStateFormat::Proto));
+    EXPECT_EQ(protoState.proto_type(), "test.TProfile");
+    EXPECT_EQ(protoState.stateitems_size(), 0);
+}
+
+TEST(TAddJoinedExternalStatesTest, KeepsProtoDescriptorWhenAllProfilesAreAbsent)
+{
+    auto provider = New<TFakeJoinedStateKeyProvider>(
+        PayloadSchema,
+        /*hasKeySchemaOverride*/ false,
+        /*keyProviderStreams*/ std::nullopt);
+    auto input = New<TInputContext>(
+        std::vector<TInputMessageConstPtr>{
+            MakeMessage("in", "abc", MakeKey("abc")),
+            MakeMessage("in", "def", MakeKey("def")),
+        },
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+    auto descriptor = TCompanionStateDescriptor{
+        .StateName = "/j",
+        .Format = EStateFormat::Proto,
+        .ProtoType = "test.TProfile",
+    };
+    auto adapter = New<TFakeJoinedStateAdapter>(provider, std::move(descriptor));
+    ASSERT_EQ(std::ssize(adapter->ExtractKeys(input)), 2);
+
+    auto request = New<TCompanionProcessRequest>();
+    AddJoinedExternalStates(request, {{"/j", adapter}}, input);
+
+    ASSERT_EQ(std::ssize(request->JoinedExternalStates), 1);
+    const auto& holder = GetOrCrash(request->JoinedExternalStates, "/j");
+    EXPECT_EQ(holder.StateName, "/j");
+    EXPECT_EQ(holder.Format, EStateFormat::Proto);
+    EXPECT_EQ(holder.ProtoType, "test.TProfile");
+    EXPECT_TRUE(holder.StateItems.empty());
+
+    NProto::NCompanion::TReqProcessBatch protoRequest;
+    SerializeStateHolder(protoRequest.add_joined_external_states(), holder, EStateDirection::Request);
+    ASSERT_EQ(protoRequest.joined_external_states_size(), 1);
+    const auto& protoState = protoRequest.joined_external_states(0);
+    EXPECT_EQ(protoState.name(), "/j");
+    EXPECT_EQ(protoState.format(), static_cast<int>(EStateFormat::Proto));
+    EXPECT_EQ(protoState.proto_type(), "test.TProfile");
+    EXPECT_EQ(protoState.stateitems_size(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

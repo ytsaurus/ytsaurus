@@ -22,6 +22,10 @@ In {{product-name}}, a *pipeline* is a special Cypress object of type `pipeline`
 | `partition_states` | States stored by partition. |
 | `timers` | [Timers](../../../flow/concepts/glossary.md#timer) of the user code. |
 | `controller_logs` | Event logs of the [Controller](../../../flow/concepts/glossary.md#controller) in the PublicFlowController category. |
+| `logs/` | Controller log directory. |
+| `logs/sources_meta` | Log source metadata. |
+| `logs/logs_meta` | Log file metadata. |
+| `logs/logs` | Log lines. |
 | `flow_state` | Current Flow state. |
 | `flow_state_obsolete` | Flow KV storage for named objects (spec, dynamic_spec, etc.). |
 | `flow_control` | Published controller address; also the leader lease with the Dyntable election backend. |
@@ -30,7 +34,7 @@ In {{product-name}}, a *pipeline* is a special Cypress object of type `pipeline`
 | `leases` | Dyntable election backend: partition lease owners and the pipeline-wide lease deadline that fences stale workers. |
 | `leader_election_lock` | Controller election lock for the Chaos backend. |
 
-After you create a pipeline, these tables appear under the path `<pipeline_path>/<table_name>` and are automatically mounted.
+After you create a pipeline, the internal tables appear under the path `<pipeline_path>/<table_name>` and are automatically mounted.
 
 The table set, schemas, and base attributes for `create pipeline` are defined in [`definitions.yson`]({{source-root}}/yt/yt/flow/library/pipeline_tables/definitions.yson).
 

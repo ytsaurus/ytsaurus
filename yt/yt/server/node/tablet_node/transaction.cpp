@@ -58,8 +58,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, PersistentGeneration_);
     Save(context, PendingCommitApprovalCount_);
     Save(context, CommitOptions_);
-    Save(context, AuthenticationIdentity_.User);
-    Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, AuthenticationIdentity_);
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
     Save(context, PersistentLeaseIds_);
@@ -119,8 +118,7 @@ void TTransaction::Load(TLoadContext& context)
 
     Load(context, CommitOptions_);
 
-    Load(context, AuthenticationIdentity_.User);
-    Load(context, AuthenticationIdentity_.UserTag);
+    Load(context, AuthenticationIdentity_);
     Load(context, CommitTimestampClusterTag_);
     Load(context, TabletsToUpdateReplicationProgress_);
 

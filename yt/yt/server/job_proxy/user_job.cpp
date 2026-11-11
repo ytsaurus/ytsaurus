@@ -1195,6 +1195,12 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
+#ifndef _linux_
+        if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
+            THROW_ERROR_EXCEPTION("Delivery-fenced pipe writes are not supported on this platform");
+        }
+#endif
+
         EDeliveryFencedMode deliveryFencedMode = EDeliveryFencedMode::None;
         if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
             deliveryFencedMode = Config_->UseNewDeliveryFencedConnection
@@ -1440,6 +1446,12 @@ private:
 
         SetEnvironmentVariable("YT_JOB_PROXY_GRPC_SOCKET_PATH", ToString(Host_->GetJobProxyGrpcUnixDomainSocketPath()));
         SetEnvironmentVariable("YT_JOB_PROXY_HTTP_SOCKET_PATH", ToString(Host_->GetJobProxyHttpUnixDomainSocketPath()));
+
+        // Image environment values are applied verbatim, without $(...)-pattern
+        // substitution, so that values like "$(...)" survive as literals.
+        for (const auto& pair : UserJobSpec_.docker_image_environment()) {
+            SetEnvironmentVariable(pair);
+        }
 
         for (const auto& pair : UserJobSpec_.environment()) {
             SetEnvironmentVariable(formatter.Format(pair));

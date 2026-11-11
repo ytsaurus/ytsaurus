@@ -6,6 +6,7 @@ SRCS(
     buffer_warmup_ut.cpp
     client_credentials_authenticator_ut.cpp
     distributing_tracker_ut.cpp
+    dynamic_spec_ut.cpp
     dyntable_lease_ut.cpp
     flow_core_build_info_ut.cpp
     flow_core_version_ut.cpp
@@ -24,6 +25,7 @@ SRCS(
     payload_ut.cpp
     persisted_state_ut.cpp
     registry_ut.cpp
+    resource_instance_manager_ut.cpp
     resource_manager_ut.cpp
     resource_status_ut.cpp
     schema_ut.cpp
@@ -34,8 +36,10 @@ SRCS(
     stream_inflight_limits_ut.cpp
     stream_spec_storage_ut.cpp
     time_provider_ut.cpp
+    timer_page_ut.cpp
     traverse_ut.cpp
     visit_ut.cpp
+    watermark_history_ut.cpp
     yson_message_ut.cpp
     yt_connector_ut.cpp
 )

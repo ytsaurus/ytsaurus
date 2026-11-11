@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_STRUCT(TAccessCheckerConfig)
 DECLARE_REFCOUNTED_STRUCT(TAccessCheckerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryLimitRatiosConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TCommandMemoryReservationConfig)
+DECLARE_REFCOUNTED_STRUCT(THeavyRequestMemoryReservationConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IDynamicConfigManager)
 

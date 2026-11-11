@@ -6,6 +6,7 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/skiff/skiff_schema.h>
@@ -16,6 +17,7 @@ namespace {
 using namespace NSkiff;
 using namespace NSkiffExt;
 using namespace NTableClient;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,24 @@ TEST(TSkiffSchemaParseTest, TestAllowedTypes)
                         .BeginMap()
                             .Item("wire_type")
                             .Value("string32")
+                        .EndMap()
+                    .EndList()
+                .EndMap()));
+
+    EXPECT_EQ(
+        "{string_fixed(16),}",
+
+        ConvertToSkiffSchemaShortDebugString(
+            BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("table_skiff_schemas")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("wire_type")
+                            .Value("string_fixed")
+                            .Item("size")
+                            .Value(16)
                         .EndMap()
                     .EndList()
                 .EndMap()));
@@ -147,6 +167,30 @@ TEST(TSkiffSchemaParseTest, TestRecursiveTypesAreDisallowed)
     }
 }
 
+TEST(TSkiffSchemaParseTest, StringFixedWithoutSizeIsDisallowed)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToSkiffSchemaShortDebugString(ConvertToNode(TYsonStringBuf(
+            "{table_skiff_schemas=[{wire_type=string_fixed}]}"))),
+        "Wire type \"string_fixed\" must have a \"size\" key");
+}
+
+TEST(TSkiffSchemaParseTest, StringFixedWithSizeOutOfRangeIsDisallowed)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToSkiffSchemaShortDebugString(ConvertToNode(TYsonStringBuf(
+            "{table_skiff_schemas=[{wire_type=string_fixed; size=-1}]}"))),
+        "\"string_fixed\" size -1 is out of range");
+}
+
+TEST(TSkiffSchemaParseTest, ComplexWireTypeWithoutChildrenIsDisallowed)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToSkiffSchemaShortDebugString(ConvertToNode(TYsonStringBuf(
+            "{table_skiff_schemas=[{wire_type=tuple}]}"))),
+        "Complex wire type \"tuple\" must have a \"children\" key");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffSchemaDescriptionTest, TestDescriptionDerivation)
@@ -185,11 +229,17 @@ TEST(TSkiffSchemaDescriptionTest, StripOptional)
     expectNotOptional(CreateVariant8Schema({uint64Schema, nothingSchema}));
     expectNotOptional(CreateVariant8Schema({nothingSchema, uint64Schema, uint64Schema}));
     expectNotOptional(CreateVariant16Schema({nothingSchema, uint64Schema}));
+    expectNotOptional(CreateVariantVarSchema({nothingSchema, uint64Schema, uint64Schema}));
 
     {
         auto [strippedSchema, optionalKind] = StripOptional(CreateVariant8Schema({nothingSchema, uint64Schema}));
         EXPECT_EQ(strippedSchema, uint64Schema);
         EXPECT_EQ(optionalKind, EOptionalKind::Variant8);
+    }
+    {
+        auto [strippedSchema, optionalKind] = StripOptional(CreateVariantVarSchema({nothingSchema, uint64Schema}));
+        EXPECT_EQ(strippedSchema, uint64Schema);
+        EXPECT_EQ(optionalKind, EOptionalKind::VariantVar);
     }
 }
 
@@ -199,6 +249,7 @@ TEST(TSkiffSchemaDescriptionTest, MatchesOptionalSingular)
     auto uint64Schema = CreateSimpleTypeSchema(EWireType::Uint64);
 
     EXPECT_TRUE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, nothingSchema})));
+    EXPECT_TRUE(MatchesOptionalSingular(CreateVariantVarSchema({nothingSchema, nothingSchema})));
     EXPECT_FALSE(MatchesOptionalSingular(nothingSchema));
     EXPECT_FALSE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, uint64Schema})));
 }

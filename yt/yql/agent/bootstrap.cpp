@@ -305,22 +305,22 @@ void TBootstrap::GuardedUpdateCypressNode()
     {
         TCreateNodeOptions options;
         options.Recursive = true;
-        options.Force = true;
-        options.Attributes = ConvertToAttributes(
-            BuildYsonStringFluently().BeginMap()
-                .Item("annotations").Value(Config_->CypressAnnotations)
-            .EndMap());
+        options.IgnoreExisting = true;
 
-        YT_TLOG_INFO("Creating instance node")
+        YT_TLOG_INFO("Registering instance node")
             .With("Path", instancePath);
 
         WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
             .ThrowOnError();
 
-        YT_TLOG_INFO("Instance node created");
+        WaitFor(NativeClient_->SetNode(instancePath + "/@annotations", ConvertToYsonString(Config_->CypressAnnotations)))
+            .ThrowOnError();
+
+        YT_TLOG_INFO("Instance node registered");
     }
     {
         TCreateNodeOptions options;
+        options.IgnoreExisting = true;
         options.Attributes = ConvertToAttributes(
             BuildYsonStringFluently().BeginMap()
                 .Item("remote_addresses").BeginMap()
@@ -330,13 +330,13 @@ void TBootstrap::GuardedUpdateCypressNode()
 
         auto orchidPath = instancePath + "/orchid";
 
-        YT_TLOG_INFO("Creating orchid node")
+        YT_TLOG_INFO("Registering orchid node")
             .With("Path", orchidPath);
 
         WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
             .ThrowOnError();
 
-        YT_TLOG_INFO("Orchid node created");
+        YT_TLOG_INFO("Orchid node registered");
     }
 }
 

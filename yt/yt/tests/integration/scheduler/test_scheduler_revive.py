@@ -231,7 +231,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
         assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
@@ -279,7 +279,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -310,7 +310,7 @@ class TestSchedulerRestart(YTEnvSetup):
             spec={"annotations": {"abc": "def"}, "description": {"foo": "bar"}},
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         op.wait_for_fresh_snapshot()
 
@@ -367,7 +367,7 @@ class TestSchedulerRestart(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         bad_acl = [
@@ -641,7 +641,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -750,7 +750,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
                 "resource_limits": {"user_slots": 1},
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -782,6 +782,9 @@ class OperationReviveBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "testing_options": {
+                "enable_cypress_sleep_state": True,
+            },
             "snapshot_period": 500,
             "operation_time_limit_check_period": 100,
             "operation_build_progress_period": 100,
@@ -1499,7 +1502,7 @@ class TestJobRevival(TestJobRevivalBase):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=15)
+        job_ids = wait_breakpoint(op, job_count=15)
 
         assert len(job_ids) == 15
 

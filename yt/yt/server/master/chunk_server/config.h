@@ -82,6 +82,14 @@ struct TDomesticMediumConfig
     //! Same as #MaxReplicasPerRack but only applies to erasure journal chunks.
     int MaxErasureJournalReplicasPerRack;
 
+    //! Storage data centers for this medium. An empty set uses the common chunk manager config.
+    //! New media copy the common set at creation time.
+    THashSet<std::string> StorageDataCenters;
+
+    //! Additional storage data centers on which replica placement is forbidden for this medium.
+    //! New media copy the common set at creation time. Global bans still apply.
+    THashSet<std::string> BannedStorageDataCenters;
+
     //! Default behavior for dynamic tables, living on this medium.
     bool PreferLocalHostForDynamicTables;
 
@@ -700,6 +708,23 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicChunkProlongatorConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    i64 MaxQueueSize;
+    TDuration QueueTtl;
+    TDuration QueueTrimPeriod;
+
+    REGISTER_YSON_STRUCT(TDynamicChunkProlongatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkProlongatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicChunkManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -931,6 +956,8 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
+    int MaxLostChunksToReportInDetailedReplicationStatistics;
+
     bool AlwaysFetchNonOnlineReplicas;
 
     // COMPAT(grphil)
@@ -955,6 +982,8 @@ struct TDynamicChunkManagerConfig
     // Reset HNV on requisition update once the chunk requires durability again.
     bool RecomputeHistoricallyNonVitalOnRequisitionUpdate;
 
+    TDynamicChunkProlongatorConfigPtr ChunkProlongator;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -974,6 +1003,12 @@ struct TDynamicChunkServiceConfig
 
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottler;
+
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
+
+    // COMPAT(aleksandra-zh)
+    bool AlertOnChunkServiceExecuteBatch;
 
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 

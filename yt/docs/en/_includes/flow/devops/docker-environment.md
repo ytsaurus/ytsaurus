@@ -103,7 +103,9 @@ The program arguments per language are in the next section.
   };
   ```
 
-  The launcher ships the jars on its classpath into the worker job. So put the pipeline jar and its runtime dependencies on the launcher's classpath as separate jar files — the launcher does not ship class directories — and keep them inside the pipeline directory. For example, collect them into `lib/` with a Gradle task:
+  The launcher takes the worker's `java` from the JVM it runs on — the image's own, the same as in the jobs. Neither `jdk_bin_path` in the resource parameters nor `YT_FLOW_JDK_BIN_PATH` is needed; if set, either overrides this default, with `jdk_bin_path` taking precedence over the environment variable.
+
+  The launcher ships the jars on its classpath into the worker job. So put the pipeline jar and its runtime dependencies on the launcher's classpath as separate jar files — the launcher does not ship class directories — and keep them inside the pipeline directory. If the jars are already in the job image, set `classpath` in the resource parameters, e.g. `/app/pipeline/lib/*`, and the launcher ships no jars for that resource. Otherwise, collect them into `lib/` with a Gradle task:
 
   ```kotlin
   tasks.register<Sync>("installLib") {
@@ -122,7 +124,20 @@ The program arguments per language are in the next section.
       -cp 'lib/*' com.example.pipeline.PipelineMain --config pipeline.yson
   ```
 
-  The launcher takes the worker's `java` from the JVM it runs on — the image's own, the same as in the jobs. Neither `jdk_bin_path` in the resource parameters nor `YT_FLOW_JDK_BIN_PATH` is needed; either one, if set, overrides that path. If the jars are already in the job image, set `classpath` in the resource parameters, e.g. `/app/pipeline/lib/*`, and the launcher ships no jars for that resource.
+- Kotlin
+
+  A Kotlin pipeline uses the same JVM companion configuration, build procedure, and `flow-java` launch command as Java. In both the resource parameters and the launch command, use the Kotlin class whose static `main` is declared in an `object` or a `companion object` with `@JvmStatic`:
+
+  ```yson
+  "resources" = {
+      "CompanionManager" = {
+          "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+          "parameters" = {
+              "main_class" = "com.example.pipeline.PipelineMain";
+          };
+      };
+  };
+  ```
 
 - Python
 
@@ -297,7 +312,7 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
 || **Symptom** | **Cause and fix** ||
 || Components inside the jobs cannot connect to the cluster or to each other | The cluster name does not resolve from inside the jobs — set `proxy_url_aliasing_rules`; the DNS serves A records only — disable IPv6 in `node_config.address_resolver` (see [Cluster name resolution](#cluster-name)) ||
 || The launcher fails with `flow_server is not given` | The launcher runs outside the released images — launch it in the image (see [Launching from an image](#launch)) or pass `--flow-bin` ||
-|| Java: the job fails with `JDK binary file does not exist` | The tasks do not use the `flow-java` image, or the runner runs outside it — use `flow-java` for both the tasks and the runner ||
+|| Java / Kotlin: the job fails with `JDK binary file does not exist` | The tasks do not use the `flow-java` image, or the runner runs outside it — use `flow-java` for both the tasks and the runner. If `jdk_bin_path` or `YT_FLOW_JDK_BIN_PATH` is set, make sure it points to `java` in that image; otherwise, leave it unset so the launcher uses its own JVM path ||
 || `abort-op` fails with `Operation alias cannot be resolved without using runtime information` | It was given the operation alias — pass the operation id (see [Stopping](#stop)) ||
 || The runner's release fails with `Cannot connect to pipeline controller leader` | The cluster's RPC proxy cannot connect to the controller — enable the direct mode (see [Direct controller commands](#direct-controller-commands)) ||
 || Uploading the binary on deploy takes minutes | The binary is not stripped — use `strip` (see [Building flow_server](#flow-server)) ||

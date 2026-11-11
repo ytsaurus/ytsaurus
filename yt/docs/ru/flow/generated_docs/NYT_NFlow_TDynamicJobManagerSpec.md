@@ -96,14 +96,17 @@
 || `faulty_address_attempts` | **Тип**: `unsigned long`
 **Значение по умолчанию**: `5`
 Смотрите описание параметра `faulty_address_window`. ||
-|| `partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningSpec)`>`
+|| `partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningCoordinatorSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningCoordinatorSpec)`>`
 **Значение по умолчанию**: `{}`
 Настройки партиционирования пайплайна. ||
-|| `worker_group_override` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
+|| `worker_group_override` | **Тип**: `THashMap<`[NYT::NFlow::TWorkerGroupId](./all_yson_structs#NYT_NFlow_TWorkerGroupId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Значение по умолчанию**: `{}`
  ||
 || `partition_history_limit` | **Тип**: `long`
 **Значение по умолчанию**: `4096`
 Сколько историй партиций балансер хранит между перезапусками джоб, см. `balancer_metrics_source`. Истории лежат в одном персистентном документе с ограничением на размер, поэтому при достижении предела самая лёгкая история уступает место более тяжёлой, а более лёгкие не сохраняются. При остановке пайплайна истории не сохраняются вовсе. ||
+|| `watermark_history_thinning_factor` | **Тип**: `int`
+**Значение по умолчанию**: `4`
+Коэффициент прореживания K истории вотермарков, которую контроллер хранит для расчёта `ready_time_lag` таймеров с `event_time` и `system_time`. Элемент истории охватывает не более 1/K своего возраста, поэтому лаг может быть завышен не более чем на 1/K своего значения и никогда не занижается; при большем K история хранит больше элементов. Изменение применяется только к новым отсчётам: существующие элементы не разделяются. ||
 |#
 

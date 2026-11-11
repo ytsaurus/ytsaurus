@@ -88,6 +88,14 @@ TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator*=(const double& value
 }
 
 template <typename U, int P>
+TFixedPointNumber<U, P> TFixedPointNumber<U, P>::FromDoubleWithFloor(double value)
+{
+    TFixedPointNumber result;
+    result.Value_ = static_cast<U>(std::floor(value * ScalingFactor));
+    return result;
+}
+
+template <typename U, int P>
 NYT::TFixedPointNumber<U, P> round(const NYT::TFixedPointNumber<U, P>& number)
 {
     return number;

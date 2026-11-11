@@ -8,7 +8,7 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia,
-                  grant_system_permissions_to_clickhouse_user, DEFAULT_ORCHID_ROOT)
+                  grant_system_permissions_to_clickhouse_user, DEFAULT_ORCHID_ROOT, with_tablet_cell)
 
 from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
 
@@ -189,6 +189,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert get("//tmp/test_table/@chunk_count") == 2
             assert clique.make_query('select distinct value from "//tmp/test_table" where value = 1') == [{"value": 1}]
 
+    @with_tablet_cell
     @authors("a-dyu")
     @pytest.mark.timeout(150)
     def test_simple_distinct_optimization(self):
@@ -458,6 +459,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with Clique(1, config_patch={"yt": {"user": "test_user"}}):
                 pass
 
+    @with_tablet_cell
     @authors("a-dyu")
     def test_min_max_optimization(self):
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
@@ -3015,6 +3017,73 @@ class TestCustomSettings(ClickHouseTestBase):
                             clique.make_query("select * from `//tmp/t`", settings=settings)
                     else:
                         assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+
+    @authors("buyval01")
+    def test_dynamic_defaults(self):
+        dynamic_config_path = "//tmp/chyt_dynamic_config"
+        create("document", dynamic_config_path, attributes={"value": {
+            "yt": {
+                "query_settings": {
+                    "testing": {
+                        "throw_exception_in_distributor": True,
+                        "throw_exception_in_subquery": True,
+                    },
+                },
+            },
+        }})
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+
+        config_patch = {
+            "yt": {
+                "query_settings": {
+                    "testing": {
+                        "throw_exception_in_subquery": False,
+                    },
+                },
+            },
+            "dynamic_config_path": dynamic_config_path,
+            "dynamic_config_manager": {
+                "update_period": 100,
+            },
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            instance = clique.get_active_instances()[0]
+
+            def get_testing_config():
+                dynamic_config = clique.get_orchid(
+                    instance,
+                    "/dynamic_config",
+                    verbose=False,
+                )
+                yt_config = dynamic_config.get("effective_config", {}).get("yt", {})
+                query_settings = yt_config.get("query_settings", {})
+                return query_settings.get("testing", {})
+
+            wait(lambda: get_testing_config().get("throw_exception_in_distributor"))
+            assert not get_testing_config()["throw_exception_in_subquery"]
+
+            with raises_yt_error("Testing exception in distributor"):
+                clique.make_query("select * from `//tmp/t`")
+
+            assert clique.make_query(
+                "select * from `//tmp/t`",
+                settings={"chyt.testing.throw_exception_in_distributor": 0},
+            ) == [{"a": 1}]
+
+            set(dynamic_config_path, {
+                "yt": {
+                    "query_settings": {
+                        "testing": {
+                            "throw_exception_in_distributor": False,
+                            "throw_exception_in_subquery": True,
+                        },
+                    },
+                },
+            })
+            wait(lambda: not get_testing_config()["throw_exception_in_distributor"])
+            assert not get_testing_config()["throw_exception_in_subquery"]
+            assert clique.make_query("select * from `//tmp/t`") == [{"a": 1}]
 
     @authors("max42")
     def test_boolean(self):

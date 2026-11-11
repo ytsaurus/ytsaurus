@@ -180,6 +180,9 @@ void TBundleDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
         .Default();
+
+    registrar.Parameter("fair_share_pool_weights", &TThis::FairSharePoolWeights)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

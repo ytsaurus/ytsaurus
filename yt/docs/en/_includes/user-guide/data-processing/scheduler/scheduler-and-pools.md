@@ -23,7 +23,7 @@ For example: there is an operation that requires 1,000 `cpus` and 2 TiB of `memo
 
 ## Scheduler operation description { #scheduler }
 
-### Pools and pool trees
+### Pools and pool trees { #pools-and-pool-trees }
 
 The {{product-name}} scheduler stores multiple pool trees in memory. Each tree consists of operations and compute pools. Compute pools are tree nodes and operations are leaves. Each operation can belong to one or more trees.
 

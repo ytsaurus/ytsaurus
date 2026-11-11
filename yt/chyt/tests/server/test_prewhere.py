@@ -2,7 +2,7 @@ from yt_commands import (authors, create, write_table, insert_rows, get, print_d
                          sync_unmount_table, raises_yt_error)
 from yt.wrapper import yson
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
 
 import pytest
 import itertools
@@ -141,6 +141,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 {"i": 7},
             ]
 
+    @with_tablet_cell
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_several_chunks(self, optimize_for):
@@ -209,6 +210,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert len(result) == 1
             assert result[0]["light"] == 42
 
+    @with_tablet_cell
     @authors("max42")
     def test_prewhere_optimizer_dynamic(self):
         # TODO(max42): CHYT-462.
@@ -246,6 +248,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert len(result) == 1
             assert result[0]["light"] == 42
 
+    @with_tablet_cell
     @authors("dakovalkov")
     def test_prefilter_data_slices(self):
         create("table", "//tmp/t", attributes={
@@ -265,6 +268,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 0, "block_rows") == 3
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 1
 
+    @with_tablet_cell
     @authors("dakovalkov")
     def test_filter_heavy_columns(self):
         create("table", "//tmp/t", attributes={

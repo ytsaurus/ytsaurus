@@ -6,7 +6,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
-ALLOCATOR(TCMALLOC)
+INCLUDE(${ARCADIA_ROOT}/yt/ya_allocator.inc)
 
 SRCS(
     yt/yt/server/all/main.cpp

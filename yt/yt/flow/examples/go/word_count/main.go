@@ -8,7 +8,6 @@ import (
 )
 
 // [BEGIN main]
-
 type wordMessage struct {
 	flow.YSONMessage
 	Word string `yson:"word"`

@@ -567,6 +567,7 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 		ServiceToken:                           a.token,
 		Family:                                 a.family,
 		OperationNamespace:                     a.OperationNamespace(),
+		BaseACL:                                a.config.BaseACL,
 		RobotUsername:                          a.config.RobotUsername,
 		DefaultNetworkProject:                  a.config.DefaultNetworkProject,
 		ClusterURL:                             strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),

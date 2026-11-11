@@ -439,7 +439,11 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	corsConfig := newCORSConfigFromCmd(cmd)
 
-	addr := fmt.Sprintf(":%v", port)
+	host := ""
+	if authorizerConfig.debugLogin != "" {
+		host = "127.0.0.1"
+	}
+	addr := fmt.Sprintf("%s:%v", host, port)
 	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, corsConfig)
 
 	ytmsvc.Must0(http.ListenAndServe(addr, router))

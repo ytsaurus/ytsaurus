@@ -39,6 +39,7 @@ DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 const TYPath StateRoot = "//sys/query_tracker";
 const TQueryTrackerDynamicConfigPtr Config = New<TQueryTrackerDynamicConfig>();
+const std::string AdminsGroup = "qt_admins";
 
 const TYsonString EmptyMap = TYsonString(TStringBuf("{}"));
 const TYsonString EmptyList = TYsonString(TStringBuf("[]"));
@@ -120,7 +121,13 @@ public:
         MockClient = New<TStrictMockClient>();
         MockTransaction = New<TStrictMockTransaction>();
 
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, EmptyEngineProviders, 0);
+        Proxy = CreateQueryTrackerProxy(
+            MockClient,
+            StateRoot,
+            Config,
+            EmptyEngineProviders,
+            /*expectedTablesVersion*/ 0,
+            /*adminsGroup*/ std::nullopt);
 
         EXPECT_CALL(*MockClient, StartTransaction(_, _))
             .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
@@ -139,6 +146,71 @@ public:
     TIntrusivePtr<TStrictMockTransaction> MockTransaction;
     TQueryTrackerProxyPtr Proxy;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TQueryTrackerAdminsConfigTest, OptionalGroup)
+{
+    auto config = New<TQueryTrackerBootstrapConfig>();
+
+    EXPECT_FALSE(config->AdminsGroup);
+    EXPECT_TRUE(HasQueryTrackerAdminAccess(
+        {NSecurityClient::SuperusersGroupName},
+        config->AdminsGroup));
+
+    EXPECT_FALSE(HasQueryTrackerAdminAccess({AdminsGroup}, config->AdminsGroup));
+
+    config->AdminsGroup = AdminsGroup;
+    EXPECT_TRUE(HasQueryTrackerAdminAccess(
+        {NSecurityClient::SuperusersGroupName},
+        config->AdminsGroup));
+
+    EXPECT_TRUE(HasQueryTrackerAdminAccess({AdminsGroup}, config->AdminsGroup));
+    EXPECT_FALSE(HasQueryTrackerAdminAccess({"users", "everyone"}, config->AdminsGroup));
+}
+
+TEST(TQueryTrackerAdminsConfigTest, UnconfiguredGroupDoesNotBypassAccessControl)
+{
+    auto client = New<TStrictMockClient>();
+    EXPECT_CALL(*client, GetNode(TYPath("//sys/users/user/@member_of_closure"), _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(
+            std::vector<std::string>{AdminsGroup}))));
+
+    EXPECT_EQ(
+        CheckAccessControl("user", EmptyList, client, EPermission::Use, std::nullopt),
+        NSecurityClient::ESecurityAction::Deny);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryTrackerAdminBypassesAccessControlTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::string>
+{ };
+
+TEST_P(TQueryTrackerAdminBypassesAccessControlTest, BypassesAccessControl)
+{
+    auto client = New<TStrictMockClient>();
+    EXPECT_CALL(*client, GetNode(TYPath("//sys/users/user/@member_of_closure"), _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(
+            std::vector<std::string>{GetParam()}))));
+
+    EXPECT_EQ(
+        CheckAccessControl(
+            "user",
+            ConvertToYsonString(std::vector<std::string>{"nobody"}),
+            client,
+            EPermission::Use,
+            AdminsGroup),
+        NSecurityClient::ESecurityAction::Allow);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PrivilegedGroups,
+    TQueryTrackerAdminBypassesAccessControlTest,
+    ::testing::Values(
+        NSecurityClient::SuperusersGroupName,
+        AdminsGroup));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -371,14 +443,22 @@ public:
     {
         MockClient = New<TStrictMockClient>();
         MockClient->SetTimestampProvider(CreateNoopTimestampProvider());
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, EmptyEngineProviders, 0);
+        Proxy = CreateQueryTrackerProxy(
+            MockClient,
+            StateRoot,
+            Config,
+            EmptyEngineProviders,
+            /*expectedTablesVersion*/ 0,
+            /*adminsGroup*/ std::nullopt);
         ActionQueue = New<TActionQueue>("ListQueriesThread");
         Invoker = ActionQueue->GetInvoker();
     }
 
-    void ExpectListQueriesGetAcoCalls(bool everyoneAcoExists, bool isSuperuser = false)
+    void ExpectListQueriesGetAcoCalls(
+        bool everyoneAcoExists,
+        const std::string& adminGroup = {})
     {
-        if (!isSuperuser) {
+        if (adminGroup.empty()) {
             auto existAcos = TYsonString(TStringBuf("[]"));
             if (everyoneAcoExists) {
                 existAcos = BuildYsonStringFluently()
@@ -403,8 +483,8 @@ public:
         }
 
         std::vector<std::string> memberOfClosure({"users", "everyone"});
-        if (isSuperuser) {
-            memberOfClosure.push_back(NSecurityClient::SuperusersGroupName);
+        if (!adminGroup.empty()) {
+            memberOfClosure.push_back(adminGroup);
         }
         EXPECT_CALL(*MockClient, GetNode(TYPath("//sys/users/user/@member_of_closure"), _))
             .WillOnce(Return(MakeFuture(ConvertToYsonString(memberOfClosure))));
@@ -540,9 +620,23 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesOnOnlyActive)
     ASSERT_FALSE(result.Incomplete);
 }
 
-TEST_F(TListQueryTrackerProxyTest, ListQueriesForSuperuser)
+class TListQueriesForAdminTest
+    : public TListQueryTrackerProxyTest
+    , public ::testing::WithParamInterface<std::string>
+{ };
+
+TEST_P(TListQueriesForAdminTest, ListQueries)
 {
-    ExpectListQueriesGetAcoCalls(/*everyoneAcoExists*/ false, /*isSuperuser*/ true);
+    Proxy = CreateQueryTrackerProxy(
+        MockClient,
+        StateRoot,
+        Config,
+        EmptyEngineProviders,
+        /*expectedTablesVersion*/ 0,
+        AdminsGroup);
+    ExpectListQueriesGetAcoCalls(
+        /*everyoneAcoExists*/ false,
+        GetParam());
 
     auto startTime = 1;
     auto queryId = TQueryId::Create();
@@ -573,6 +667,13 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesForSuperuser)
     ASSERT_EQ(result.Queries.size(), 1ul);
     ASSERT_FALSE(result.Incomplete);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    PrivilegedGroups,
+    TListQueriesForAdminTest,
+    ::testing::Values(
+        NSecurityClient::SuperusersGroupName,
+        AdminsGroup));
 
 ////////////////////////////////////////////////////////////////////////////////
 

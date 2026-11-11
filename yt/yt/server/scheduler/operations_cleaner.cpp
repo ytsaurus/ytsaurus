@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -615,10 +616,11 @@ public:
     DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsRemovedFromCypress);
 
     TImpl(
-        TOperationsCleanerConfigPtr config,
+        TSchedulerConfigPtr config,
         IOperationsCleanerHost* host,
         TBootstrap* bootstrap)
-        : Config_(std::move(config))
+        : Config_(config->OperationsCleaner)
+        , TestingOptions_(config->TestingOptions)
         , Bootstrap_(bootstrap)
         , Host_(host)
         , RemoveBatcher_(New<TNonblockingBatcher<TRemoveOperationRequest>>(
@@ -647,7 +649,7 @@ public:
         GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoStop, MakeStrong(this)));
     }
 
-    void UpdateConfig(const TOperationsCleanerConfigPtr& config)
+    void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -861,6 +863,7 @@ public:
 
 private:
     TOperationsCleanerConfigPtr Config_;
+    TTestingOptionsPtr TestingOptions_;
     TBootstrap* const Bootstrap_;
     IOperationsCleanerHost* const Host_;
 
@@ -1088,6 +1091,7 @@ private:
         RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
+        StuckInRemovalOperations_.clear();
         OperationAlertEventQueue_.clear();
         LockedOperationQueue_.clear();
         ArchivePending_ = 0;
@@ -1096,17 +1100,20 @@ private:
         Submitted_ = 0;
         EnqueuedAlertEvents_ = 0;
 
+        SetSchedulerAlert(ESchedulerAlertType::OperationStuckInRemoval, TError());
+
         YT_TLOG_INFO("Operations cleaner stopped");
     }
 
-    void DoUpdateConfig(TOperationsCleanerConfigPtr config)
+    void DoUpdateConfig(TSchedulerConfigPtr config)
     {
         YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         bool oldEnable = Config_->Enable;
         bool oldEnableOperationArchivation = Config_->EnableOperationArchivation;
         bool oldEnableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
-        Config_ = std::move(config);
+        Config_ = config->OperationsCleaner;
+        TestingOptions_ = config->TestingOptions;
 
         if (oldEnable != Config_->Enable) {
             if (Config_->Enable) {
@@ -1993,14 +2000,11 @@ private:
         }
 
         auto rspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(rspOrError);
-        if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error requesting operations attributes for archivation")
-                .With(error);
-        } else {
-            YT_TLOG_INFO("Fetched operations attributes for cleaner")
-                .With("OperationCount", operationIds.size());
-        }
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting operations attributes for archivation");
+
+        YT_TLOG_INFO("Fetched operations attributes for cleaner")
+            .With("OperationCount", operationIds.size());
 
         auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
         YT_VERIFY(operationIds.size() == rsps.size());
@@ -2051,7 +2055,19 @@ private:
                 operationDataToParseBatch.reserve(parseOperationAttributesBatchSize);
 
                 for (int index = startIndex; index < std::min(operationCount, startIndex + parseOperationAttributesBatchSize); ++index) {
-                    operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
+                    const auto& rspOrError = rsps[index];
+                    if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        YT_TLOG_DEBUG("Operation node is missing in Cypress, skipping archivation")
+                            .With("OperationId", operationIds[index]);
+                        continue;
+                    }
+
+                    auto rsp = rspOrError.ValueOrThrow();
+                    operationDataToParseBatch.push_back({TYsonString(rsp->value()), operationIds[index]});
+                }
+
+                if (operationDataToParseBatch.empty()) {
+                    continue;
                 }
 
                 futures.push_back(processBatch
@@ -2086,11 +2102,10 @@ private:
     {
         YT_TLOG_INFO("Started fetching finished operations from Cypress")
             .With("OperationCount", operationIds.size());
-        auto operations = FetchOperationsFromCypressForCleaner(operationIds);
 
-        // Controller agent reports progress only to
-        // the archive, so we fetch them here for operations recovered from Cypress.
-        FetchHeavyFieldsFromArchive(operations);
+        MaybeDelay(TestingOptions_->OperationsCleanerFetchDelay, &Logger());
+
+        auto operations = FetchOperationsFromCypressForCleaner(operationIds);
 
         // NB: Needed for us to store the latest operation for each alias in operation_aliases archive table.
         std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {
@@ -2216,7 +2231,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationsCleaner::TOperationsCleaner(
-    TOperationsCleanerConfigPtr config,
+    TSchedulerConfigPtr config,
     IOperationsCleanerHost* host,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), host, bootstrap))
@@ -2250,7 +2265,7 @@ void TOperationsCleaner::SubmitForRemoval(std::vector<TRemoveOperationRequest> r
     Impl_->SubmitForRemoval(std::move(requests));
 }
 
-void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)
+void TOperationsCleaner::UpdateConfig(const TSchedulerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }

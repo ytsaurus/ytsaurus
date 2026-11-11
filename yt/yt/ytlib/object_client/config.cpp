@@ -106,6 +106,10 @@ void TReqExecuteBatchRetriesConfig::Register(TRegistrar registrar)
     registrar.BaseClassParameter("backoff_multiplier", &TThis::BackoffMultiplier)
         .GreaterThanOrEqual(1)
         .Default(2);
+    registrar.BaseClassParameter("backoff_jitter", &TThis::BackoffJitter)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Default(0.0);
     registrar.BaseClassParameter("retry_count", &TThis::RetryCount)
         .GreaterThanOrEqual(0)
         .Default(5);

@@ -2,6 +2,7 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "chunk_prolongator.h"
 #include "config.h"
 #include "error_manager.h"
 #include "global_stores_update_throttler.h"
@@ -116,6 +117,7 @@ using NYT::ToProto;
 
 static const i64 MaxRowsPerRead = 8 * 1024;
 static const i64 MaxRowsPerWrite = 8 * 1024;
+static const int MaxExpiredChunksPerBatch = 128;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -998,15 +1000,6 @@ public:
 
     void OnBeginSlotScan() override
     {
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
-
-        // Save some scheduling resources by skipping unnecessary work.
-        ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
-        ScanForCompactions_ = CompactionSemaphore_->IsReady();
-        PartitioningCandidates_.clear(); // Though must be clear already.
-        CompactionCandidates_.clear(); // Though must be clear already.
-
         CompactionOrchid_->OnProfiling();
         PartitioningOrchid_->OnProfiling();
     }
@@ -1031,14 +1024,26 @@ public:
 
     void DoProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch)
     {
+        auto finallyGuard = Finally([&] {
+            IsProcessingActionBatch_ = false;
+        });
+
         TEventTimerGuard timerGuard(ScanTimer_);
 
         const auto& Logger = TabletNodeLogger;
         auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
 
-        auto finallyGuard = Finally([&] {
-            IsProcessingActionBatch_ = false;
-        });
+        // Save some scheduling resources by skipping unnecessary work.
+        auto scanForPartitioning = PartitioningSemaphore_->IsReady();
+        auto scanForCompactions = CompactionSemaphore_->IsReady();
+
+        {
+            // NB: Strictly speaking, redundant.
+            auto guard = Guard(ScanSpinLock_);
+
+            PartitioningCandidates_.clear(); // Though must be clear already.
+            CompactionCandidates_.clear(); // Though must be clear already.
+        }
 
         YT_TLOG_DEBUG("Store compactor started processing action batch");
 
@@ -1161,7 +1166,7 @@ public:
             orchid->AddPendingTasks(std::move(pendingTaskInfos));
         };
 
-        if (ScanForCompactions_) {
+        if (scanForCompactions) {
             scanForCandidates(
                 batch.Compactions,
                 "Compaction",
@@ -1171,7 +1176,7 @@ public:
                 CompactionOrchid_);
         }
 
-        if (ScanForPartitioning_) {
+        if (scanForPartitioning) {
             scanForCandidates(
                 batch.Partitionings,
                 "Partitioning",
@@ -1183,15 +1188,9 @@ public:
 
         YT_TLOG_DEBUG("Store compactor finished processing action batch");
 
-        bool scanForPartitioning;
-        bool scanForCompactions;
-
         {
             // NB: Strictly speaking, redundant.
             auto guard = Guard(ScanSpinLock_);
-
-            scanForPartitioning = ScanForPartitioning_;
-            scanForCompactions = ScanForCompactions_;
 
             if (scanForPartitioning) {
                 PickMorePartitionings(guard);
@@ -1255,8 +1254,6 @@ private:
 
     // Variables below contain per-iteration state for slot scan.
     YT_DECLARE_SPIN_LOCK(TSpinLock, ScanSpinLock_);
-    bool ScanForPartitioning_;
-    bool ScanForCompactions_;
     std::vector<std::unique_ptr<TCompactionTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TCompactionTask>> CompactionCandidates_;
 
@@ -1278,6 +1275,7 @@ private:
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PoolNamesLock_);
     std::optional<std::string> CompactionFairSharePool_;
     std::optional<std::string> PartitioningFairSharePool_;
+    bool UseQueryPool_ = false;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -1309,6 +1307,7 @@ private:
             auto guard = WriterGuard(PoolNamesLock_);
             CompactionFairSharePool_ = config->CompactionFairSharePool;
             PartitioningFairSharePool_ = config->PartitioningFairSharePool;
+            UseQueryPool_ = config->UseQueryPool;
         }
     }
 
@@ -1845,7 +1844,7 @@ private:
                 AddStoresToAdd(&actionRequest, writer);
             }
             AddStoresToAdd(&actionRequest, partitioningResult.HunkWriter);
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& [writer, partitionIndex] : partitionWriters) {
@@ -1986,7 +1985,7 @@ private:
             actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             YT_TLOG_INFO("Partition stores discarded by TTL")
                 .With("UnmergedRowCount", partition->GetUnmergedRowCount())
@@ -2273,7 +2272,7 @@ private:
             actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
@@ -2416,14 +2415,16 @@ private:
     {
         auto guard = ReaderGuard(PoolNamesLock_);
 
-        if (partition && PartitioningFairSharePool_.has_value()) {
+        static constexpr TStringBuf StoreCompactorPoolName = "$store_compact";
+
+        if (partition && (UseQueryPool_ || PartitioningFairSharePool_.has_value())) {
             return Bootstrap_->GetQueryPoolInvoker(
-                *PartitioningFairSharePool_,
+                PartitioningFairSharePool_.value_or(std::string(StoreCompactorPoolName)),
                 ToString(readSessionId));
         }
-        if (!partition && CompactionFairSharePool_.has_value()) {
+        if (!partition && (UseQueryPool_ || CompactionFairSharePool_.has_value())) {
             return Bootstrap_->GetQueryPoolInvoker(
-                *CompactionFairSharePool_,
+                CompactionFairSharePool_.value_or(std::string(StoreCompactorPoolName)),
                 ToString(readSessionId));
         }
 
@@ -2507,12 +2508,32 @@ private:
 
     static void AddStoresToRemove(
         NTabletServer::NProto::TReqUpdateTabletStores* actionRequest,
-        const std::vector<TSortedChunkStorePtr>& stores)
+        const std::vector<TSortedChunkStorePtr>& stores,
+        const IChunkProlongatorPtr& chunkProlongator)
     {
+        // NB(sabdenovch): Technically a race that triggers alerts on master and tablet node is possible.
+        // If two compactions on two different partitions initialized at the same time, each
+        // containing a chunk view referencing some chunk C, manage to order their respective transactions -
+        // PrepareA, CommitA, PrepareB, CommitB - both compactions will HAVE to include chunk C in
+        // their prolongation lists and both will reach commit, triggering double prolongation.
+        // It's harmless, since both tablet node and mastet ignore the second prolongation, but unusual.
+        THashSet<TChunkId> uniqueChunkIds;
+        uniqueChunkIds.reserve(stores.size());
+
         for (const auto& store : stores) {
-            auto storeId = store->GetId();
             auto* descriptor = actionRequest->add_stores_to_remove();
-            ToProto(descriptor->mutable_store_id(), storeId);
+            ToProto(descriptor->mutable_store_id(), store->GetId());
+
+            auto chunkId = store->GetChunkId();
+            if (chunkProlongator->IsChunkProlongationRequired(chunkId) && uniqueChunkIds.insert(chunkId).second) {
+                ToProto(actionRequest->add_prolonged_chunks_to_add(), chunkId);
+            }
+        }
+
+        auto expiredChunkIds = chunkProlongator->GetNotReferencedProlongedChunkIds(
+            MaxExpiredChunksPerBatch);
+        for (auto chunkId : expiredChunkIds) {
+            ToProto(actionRequest->add_prolonged_chunks_to_remove(), chunkId);
         }
     }
 

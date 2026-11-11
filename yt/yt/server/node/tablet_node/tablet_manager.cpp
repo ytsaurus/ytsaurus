@@ -4,6 +4,7 @@
 #include "automaton.h"
 #include "backup_manager.h"
 #include "bootstrap.h"
+#include "chunk_prolongator.h"
 #include "config.h"
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
@@ -2330,6 +2331,10 @@ private:
                     }
                 }
 
+                for (auto chunkId : tablet->ChunkProlongator()->ProlongedChunks()) {
+                    ToProto(response.add_prolonged_chunks_to_remove(), chunkId);
+                }
+
                 // NB: Do not unregister master avenue since it still has pending messages.
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
@@ -3029,6 +3034,11 @@ private:
             tablet->UpdateDanglingHunkChunks(hunkChunk);
         }
 
+        for (const auto& protoChunkId : request->prolonged_chunks_to_remove()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            tablet->ChunkProlongator()->InsertChunkIntoDeprolongationQueue(chunkId);
+        }
+
         CheckIfTabletFullyFlushed(tablet);
         Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
 
@@ -3379,6 +3389,20 @@ private:
                         /*expectedMountRevision*/ std::nullopt);
                 }
             }
+        }
+
+        for (const auto& protoChunkId : request->prolonged_chunks_to_remove()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            tablet->ChunkProlongator()->ProlongedChunks().erase(chunkId);
+        }
+
+        for (const auto& protoChunkId : request->prolonged_chunks_to_add()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto [_, inserted] = tablet->ChunkProlongator()->ProlongedChunks().insert(chunkId);
+
+            YT_TLOG_DEBUG_UNLESS(inserted,
+                "Same chunk has been prolonged more than once")
+                .With("ChunkId", chunkId);
         }
 
         auto retainedTimestamp = std::max(

@@ -136,6 +136,9 @@ struct IPortoExecutor
         bool async) = 0;
     virtual TFuture<std::vector<std::string>> ListLayers(const std::string& place) = 0;
 
+    //! Difference between the numbers of imported and removed layers observed by this executor.
+    virtual i64 GetLayerSurplus() const = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed);
 };
 
@@ -143,10 +146,13 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a Porto executor serving API calls on a thread pool of |apiThreadCount| threads;
+//! the handle pool is one bigger, the extra handle serving the poll thread.
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorDynamicConfigPtr config,
     std::string threadNameSuffix,
-    const NProfiling::TProfiler& profiler = {});
+    const NProfiling::TProfiler& profiler = {},
+    int apiThreadCount = 1);
 
 ////////////////////////////////////////////////////////////////////////////////
 

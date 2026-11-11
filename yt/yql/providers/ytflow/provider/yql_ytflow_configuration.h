@@ -40,8 +40,20 @@ public:
 
     // YSON map patched into the controller job's "controller" config section.
     NCommon::TConfSetting<TString, Static> _ControllerConfig;
+    // YSON map used for the initial and dynamic controller connector settings.
+    NCommon::TConfSetting<TString, Static> _ControllerConnectorConfig;
+    // Optional node-level Porto resource tracking override.
+    NCommon::TConfSetting<bool, Static> _EnablePortoResourceTracker;
+    // YSON map for the Flow node's metrics exporter.
+    NCommon::TConfSetting<TString, Static> _SolomonExporterConfig;
     // YSON map merged into the dynamic pipeline spec's "job_manager" section.
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
+    // YSON map applied to every dynamic computation spec.
+    NCommon::TConfSetting<TString, Static> _ComputationConfig;
+    // Optional queue partition-info refresh period.
+    NCommon::TConfSetting<TDuration, Static> _YtQueueSourceUpdateInfoPeriod;
+    // Optional Logbroker partition-info refresh period.
+    NCommon::TConfSetting<TDuration, Static> _LogbrokerSourceUpdateInfoPeriod;
 
     NCommon::TConfSetting<bool, Static> _FiniteStreams;
     NCommon::TConfSetting<bool, Static> _YtUseSourceWatermark;
@@ -153,7 +165,6 @@ public:
     TString GetPipelinePath() const;
     TString GetYtConsumerPath() const;
     bool GetYtConsumerVital() const;
-    TString GetYtProducerPath() const;
     bool GetEnableComputationPatternResources() const;
 
 protected:
@@ -167,10 +178,6 @@ protected:
     NCommon::TConfSetting<TString, Static> YtConsumerName;
     NCommon::TConfSetting<TString, Static> YtConsumerPath;
     NCommon::TConfSetting<bool, Static> YtConsumerVital;
-
-    NCommon::TConfSetting<TString, Static> YtProducerDirectory;
-    NCommon::TConfSetting<TString, Static> YtProducerName;
-    NCommon::TConfSetting<TString, Static> YtProducerPath;
 };
 
 struct TYtflowConfiguration

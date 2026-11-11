@@ -661,6 +661,14 @@ void TExecutionProfilingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYtDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("query_settings", &TThis::QuerySettings)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -689,6 +697,10 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_http_header_log", &TThis::EnableHttpHeaderLog)
         .Default(false);
     registrar.Parameter("http_header_blacklist", &TThis::HttpHeaderBlacklist)
+        .Default();
+    registrar.Parameter("enable_http_tvm_authentication", &TThis::EnableHttpTvmAuthentication)
+        .Default(false);
+    registrar.Parameter("http_allowed_service_tvm_ids", &TThis::HttpAllowedServiceTvmIds)
         .Default();
     registrar.Parameter("user_name_blacklist", &TThis::UserNameBlacklist)
         .Default();
@@ -864,6 +876,11 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("yt", &TThis::Yt)
         .DefaultNew();
 
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default();
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+
     registrar.Parameter("graceful_interruption_delay", &TThis::GracefulInterruptionDelay)
         .Default(TDuration::Seconds(2))
         // COMPAT(dakovalkov)
@@ -887,13 +904,6 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("rpc_query_service_thread_count", &TThis::RpcQueryServiceThreadCount)
         .Default(100);
-
-    registrar.Preprocessor([] (TThis* config) {
-        auto jaegerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
-        jaegerConfig->ServiceName = "clickhouse_server";
-        jaegerConfig->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
-        jaegerConfig->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
-    });
 
     registrar.Postprocessor([] (TThis* config) {
         config->SolomonExporter->SplitRateHistogramIntoGauges = true;
@@ -961,6 +971,14 @@ TPorts TClickHouseServerBootstrapConfig::GetPorts() const
         .Http = ClickHouse->HttpPort,
         .Tcp = ClickHouse->TcpPort
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClickHouseServerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("yt", &TThis::Yt)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

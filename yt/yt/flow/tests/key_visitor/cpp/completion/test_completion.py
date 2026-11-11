@@ -5,9 +5,12 @@ import logging
 
 import pytest
 
+import yt.yson as yson
+
 from yt.common import wait, WaitFailed
 
 from yt.yt.flow.tests.key_visitor.cpp.common.base import KeyVisitorTestBase, pipeline_binary
+from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 
 
 class Test(KeyVisitorTestBase):
@@ -49,6 +52,60 @@ class Test(KeyVisitorTestBase):
             missing = expected_keys - visited_keys()
             assert not missing, f"key-visitor-only pipeline never visited {len(missing)} keys: {sorted(missing)[:10]}"
             logging.info("cpp key_visitor-only passed (keys=%d)", len(expected_keys))
+
+    @pytest.mark.authors(["mikari"])
+    def test_visit_only_key_count_partitioning_reports_and_replays_overflow(self):
+        self.run_yt_sync(with_external_state=True)
+        entries = [(f"key_{index}", f"value_{index}") for index in range(7)]
+        config = get_yson_config(
+            self.prepare_pipeline_keyvisitor_only_config(period_ms=1000, desired_partition_count=1, finite=False)
+        )
+        computation = config["spec"]["computations"]["reviser_like"]
+        assert not computation["input_stream_ids"]
+        computation["use_compact_input_messages"] = False
+        computation["experimental_enable_non_uint_key"] = True
+        dynamic = config["dynamic_spec"]["computations"]["reviser_like"]
+        computation.setdefault("parameters", {})["key_count_partitioning"] = {
+            "enable": True,
+            "max_keys_per_partition": 6,
+        }
+        dynamic["parameters"].update({"min_partition_count": 1, "max_partition_count": 8})
+        path = self.dump_config_to_log_dir(config, "key_count_partitioning.yson")
+        with self.start_flow_process_federation(
+            binary_path=pipeline_binary("pipeline_keyvisitor_only"),
+            pipeline_binary_args={"--config": path},
+        ):
+            self.wait_pipeline_state("working", timeout=120)
+            self.seed_user_state(entries)
+
+            def partitioning():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                observed = view["ephemeral_state"]["key_count_partitioning"]["reviser_like"]["observed_keys"]
+                owners = [
+                    partition
+                    for partition in view["state"]["execution_spec"]["layout"]["partitions"].values()
+                    if partition["computation_id"] == "reviser_like" and partition["state"] == "executing"
+                ]
+                return observed, owners
+
+            def split_is_running():
+                observed, owners = partitioning()
+                return len(observed) == 7 and len(owners) == 2 and all(owner.get("current_job_id") for owner in owners)
+
+            wait(split_is_running, timeout=180, ignore_exceptions=True)
+            observed, owners = partitioning()
+            keys = sorted(yson.loads(yson.get_bytes(key)) for key in observed)
+            assert len(keys) == 7
+            left = next(owner for owner in owners if owner["upper_key"] == keys[4])
+            right = next(owner for owner in owners if owner["lower_key"] == keys[4])
+            assert left["current_job_id"] != right["current_job_id"]
+            assert sum(key < left["upper_key"] for key in keys) == 4
+            assert sum(key >= right["lower_key"] for key in keys) == 3
+            wait(
+                lambda: {row["key"] for row in self.get_output()} >= {key for key, _ in entries},
+                timeout=120,
+                ignore_exceptions=True,
+            )
 
     # finite = %false makes the visitor a standalone periodic scanner: it never arms
     # a final pass, so it keeps sweeping and its partitions stay Executing indefinitely. The

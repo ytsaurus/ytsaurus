@@ -1,0 +1,51 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["events"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//path/to/input_queue";
+                            "consumer_path" = "<cluster=primary>//path/to/consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "scheduler" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NStreamLagsTest::TSchedulerFunction";
+                "group_by_schema" = [
+                    {name = "hash"; expression = "farm_hash(id)"; type = "uint64"; required = %true;};
+                    {name = "id"; type = "uint64";};
+                ];
+                "input_stream_ids" = ["events"];
+                "output_stream_ids" = ["fired"];
+                "timer_streams" = {
+                    "far_timer" = {"time_type" = "current_time";};
+                    "near_timer" = {"time_type" = "current_time";};
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["fired"];
+                        "parameters" = {
+                            "queue_path" = "//path/to/output_queue";
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {"parameters" = {};};
+            "scheduler" = {"parameters" = {};};
+        };
+    };
+}

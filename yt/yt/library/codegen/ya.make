@@ -30,4 +30,11 @@ PEERDIR(
     yt/yt/core
 )
 
+IF(OS_DARWIN AND ARCH_ARM64)
+    PEERDIR(
+        contrib/libs/llvm18/lib/Target/AArch64
+        contrib/libs/llvm18/lib/Target/AArch64/AsmParser
+    )
+ENDIF()
+
 END()

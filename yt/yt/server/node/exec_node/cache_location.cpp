@@ -1,6 +1,7 @@
 #include "cache_location.h"
 
 #include "artifact_cache.h"
+#include "pending_downloads_tracker.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
@@ -114,6 +115,16 @@ TCacheLocation::TCacheLocation(
         Logger,
         Profiler_.WithPrefix("/cache")))
     , ArtifactCache_(std::move(artifactCache))
+    , PendingDownloadsTracker_(New<TPendingDownloadsTracker>(
+        /*getRemainingSpace*/ [weakThis = MakeWeak(this)] {
+            if (auto this_ = weakThis.Lock()) {
+                return BIND(&TCacheLocation::GetAvailableSpaceForDownloads, this_)
+                    .AsyncVia(this_->GetAuxPoolInvoker())
+                    .Run();
+            } else {
+                return MakeFuture<i64>(0);
+            }
+        }))
     , MediumName_(config->MediumName)
     , Bootstrap_(bootstrap)
     , EnospcRate_(Profiler_.Counter("/enospc_events"))
@@ -122,6 +133,16 @@ TCacheLocation::TCacheLocation(
 
     Bootstrap_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TCacheLocation::PopulateAlerts, MakeWeak(this)));
+}
+
+void TCacheLocation::InitializePendingDownloadsTracker()
+{
+    try {
+        PendingDownloadsTracker_->InitializeStats(GetAvailableSpaceForDownloads());
+    } catch (const std::exception& ex) {
+        Crash(TError("Failed to initialize pending downloads tracker")
+            .With(ex));
+    }
 }
 
 const NDataNode::TCacheLocationConfigPtr& TCacheLocation::GetStaticConfig() const
@@ -317,6 +338,64 @@ TBriefChunkLocationConfig TCacheLocation::GetBriefConfig() const
     return {
         .AbortOnLocationDisabled = Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->AbortOnLocationDisabled,
     };
+}
+
+TPendingDownloadsTrackerPtr TCacheLocation::GetPendingDownloadsTracker() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->ChunkCache->EnablePendingDownloadsTracker ? PendingDownloadsTracker_ : nullptr;
+}
+
+i64 TCacheLocation::GetAvailableSpaceForDownloads() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+
+    auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
+
+    auto availableSpace = statistics.AvailableSpace;
+    availableSpace -= statistics.TotalSpace * config->ExecNode->ChunkCache->DiskSpaceGapRatio;
+
+    if (config->ExecNode->ChunkCache->EnforceCacheQuota) {
+        availableSpace = std::min(availableSpace, GetQuota() - GetUsedSpace());
+    }
+
+    return availableSpace;
+}
+
+void TCacheLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    RemoveChunkFilesTracked(
+        PrepareTrackedChunkRemoval(),
+        chunkId,
+        force);
+}
+
+TCacheLocation::TTrackedChunkRemovalCookie TCacheLocation::PrepareTrackedChunkRemoval()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return Finally(BIND([this, this_ = MakeStrong(this), cookie = TrackedChunkRemovalBarrier_.Insert()] {
+        TrackedChunkRemovalBarrier_.Remove(cookie);
+    }));
+}
+
+void TCacheLocation::RemoveChunkFilesTracked(const TTrackedChunkRemovalCookie& /*cookie*/, TChunkId chunkId, bool force)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TChunkLocationBase::RemoveChunkFiles(chunkId, force);
+}
+
+TFuture<void> TCacheLocation::GetTrackedChunkRemovalBarrierFuture()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TrackedChunkRemovalBarrier_.GetBarrierFuture();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

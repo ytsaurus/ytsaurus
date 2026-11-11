@@ -21,6 +21,11 @@
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/computation/stores/timer_page_catalogue.h>
+
+#include <yt/yt/flow/library/cpp/tables/context.h>
+#include <yt/yt/flow/library/cpp/tables/timer_pages.h>
+
 #include <yt/yt/flow/library/cpp/misc/ema.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -266,11 +271,7 @@ public:
                 .Counter("/job_start"))
         , HungStoppingJobs_(WorkerProfiler().Gauge("/hung_stopping_jobs"))
     {
-        ResourceManager_ = CreateResourceManagerForPipelineSpec(
-            ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
-            ExecutionSpec_->PipelineSpec->GetValue()->Computations,
-            ExecutionSpec_->ResourceTargetRevisions->GetValue());
+        ResourceManager_ = CreateWorkerResourceManager();
 
         PerformanceCountersUpdater_->Start();
     }
@@ -325,18 +326,11 @@ public:
         return AllSucceeded(futures);
     }
 
-    THashMap<TResourceId, TWorkerResourceStatusPtr> GetResourceStatuses() override
+    void FillRuntimeStatus(const TWorkerStatusPtr& status) override
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
-
-        return ResourceManager_->CollectResourceStatuses();
-    }
-
-    THashMap<TResourceId, EPreloadedResourceState> GetPreloadedStates() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(Control);
-
-        return ResourceManager_->GetPreloadedStates();
+        TForbidContextSwitchGuard contextSwitchGuard;
+        status->ResourceInstanceStatuses = ResourceManager_->CollectResourceInstanceStatuses();
     }
 
     TLineageRatios GetLineageRatios(TInstant now) override
@@ -346,7 +340,8 @@ public:
 
     void Reconfigure(
         TExecutionSpecPtr newExecutionSpec,
-        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs) override
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs,
+        const THashMap<TResourceInstanceId, TResourceInstanceDynamicSpecPtr>& resourceDynamicSpecs) override
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
@@ -374,14 +369,7 @@ public:
 
         // Drop too old jobs.
         if (oldExecutionSpec->PipelineSpec->GetVersion() != ExecutionSpec_->PipelineSpec->GetVersion()) {
-            auto predecessorInstanceStates = ResourceManager_->GetResourceInstanceStates();
             DropAllJobs();
-            ResourceManager_ = CreateResourceManagerForPipelineSpec(
-                ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->PipelineSpec->GetValue()->Computations,
-                ExecutionSpec_->ResourceTargetRevisions->GetValue(),
-                predecessorInstanceStates);
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
                 if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
@@ -390,26 +378,15 @@ public:
             }
         }
 
-        // A no-op right after a manager rebuild: the new manager is constructed with the
-        // current state embedded.
-        if (dynamicPipelineSpecChanged ||
-            oldExecutionSpec->ResourceTargetRevisions->GetVersion() != ExecutionSpec_->ResourceTargetRevisions->GetVersion())
-        {
-            ResourceManager_->Reconfigure(
-                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->ResourceTargetRevisions->GetValue());
+        THashMap<TResourceInstanceId, TResourceInstancePtr> instances;
+        for (const auto& [instanceId, instance] : ExecutionSpec_->Layout->ResourceInstances) {
+            if (instance->WorkerAddress == Context_->WorkerNodeInfo->RpcAddress &&
+                instance->WorkerIncarnationId == Context_->WorkerNodeInfo->IncarnationId)
+            {
+                instances.emplace(instanceId, instance);
+            }
         }
-
-        // Update preloaded resources based on WorkerSpecs. Skip a spec of a previous incarnation of
-        // this address: the controller will replace it.
-        auto workerSpecIt = ExecutionSpec_->Layout->WorkerSpecs.find(Context_->WorkerNodeInfo->RpcAddress);
-        if (workerSpecIt == ExecutionSpec_->Layout->WorkerSpecs.end()) {
-            ResourceManager_->UpdatePreloadedResources({});
-        } else if (const auto& incarnationId = workerSpecIt->second->WorkerIncarnationId;
-            !incarnationId || *incarnationId == Context_->WorkerNodeInfo->IncarnationId)
-        {
-            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
-        }
+        ResourceManager_->ReconfigureInstances(GetPipelineSpec()->Resources, instances, resourceDynamicSpecs);
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
             if (auto newSpecIt = DynamicJobSpecs_.find(jobId); newSpecIt != DynamicJobSpecs_.end()) {
@@ -542,6 +519,7 @@ private:
     const TStateCachePtr StateCache_;
 
     IResourceManagerPtr ResourceManager_;
+    TTimerPageCataloguePtr TimerPageCatalogue_;
 
     TMessageTransferingInfoPtr MessageTransferingInfo_;
 
@@ -627,12 +605,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(Control);
 
-    IResourceManagerPtr CreateResourceManagerForPipelineSpec(
-        const THashMap<TResourceId, TResourceSpecPtr>& resources,
-        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
-        const THashMap<TComputationId, TComputationSpecPtr>& computations,
-        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions,
-        const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates = {})
+    IResourceManagerPtr CreateWorkerResourceManager()
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
@@ -644,13 +617,26 @@ private:
         context->Profiler = WorkerProfiler();
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
         context->IsController = false;
-        context->Computations = computations;
-        return CreateResourceManager(
-            std::move(context),
-            resources,
-            dynamicResourceSpecs,
-            targetRevisions,
-            predecessorInstanceStates);
+        return CreateResourceManager(std::move(context));
+    }
+
+    TTimerPageCataloguePtr CreateTimerPageCatalogue()
+    {
+        auto client = Context_->GetClient();
+        auto tablesContext = New<NTables::TContext>();
+        tablesContext->Client = client;
+        tablesContext->PipelinePath = Context_->PipelinePath;
+        tablesContext->LoadThroughputThrottler = LoadThroughputThrottler_;
+        tablesContext->Logger = Logger();
+        tablesContext->Profiler = WorkerProfiler().WithPrefix("/tables");
+        return New<TTimerPageCatalogue>(
+            New<NTables::TTimerPages>(tablesContext, New<TDynamicTableRequestSpec>()),
+            [client] {
+                return client->StartTransaction(NTransactionClient::ETransactionType::Tablet);
+            },
+            JobControlThreadPool_->GetInvoker("TimerPages"),
+            Logger(),
+            WorkerProfiler());
     }
 
     void UpdatePerformanceCounters()
@@ -739,6 +725,10 @@ private:
             jobId,
             streamLimitUsageStates.Output);
         jobContext->LoadThroughputThrottler = LoadThroughputThrottler_;
+        if (!TimerPageCatalogue_) {
+            TimerPageCatalogue_ = CreateTimerPageCatalogue();
+        }
+        jobContext->TimerPageCatalogue = TimerPageCatalogue_;
         jobContext->JobStateCache = StateCache_->WithJob(
             jobId,
             WorkerProfiler()
@@ -762,6 +752,11 @@ private:
 
         auto preparedJob = [&] () -> IJobPtr {
             try {
+                for (const auto& [instanceId, instance] : ExecutionSpec_->Layout->ResourceInstances) {
+                    if (instance->WorkerAddress == job->WorkerAddress && instance->WorkerIncarnationId == job->WorkerIncarnationId) {
+                        EmplaceOrCrash(jobContext->ResourceInstanceIds, instance->ResourceId, instanceId);
+                    }
+                }
                 return CreateJob(
                     jobContext,
                     streamLimitUsageStates,

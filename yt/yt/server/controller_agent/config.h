@@ -35,6 +35,8 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/nbd/journal/config.h>
+
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -79,6 +81,7 @@ struct TTestingOptions
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
 
     bool EnableEventsOnFs;
+    bool EnableCypressSleepState;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 
@@ -325,11 +328,30 @@ DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJournalNbdOptions
+    : public NNbd::NJournal::TJournalBlockDeviceConfig
+{
+    //! RW NBD disks use the journal backend instead of the chunk backend.
+    bool Enable;
+
+    std::optional<i64> BlockSize;
+
+    REGISTER_YSON_STRUCT(TJournalNbdOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalNbdOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
     //! Thread limit for the user job container as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
     TArithmeticFormula ThreadLimitFormula;
+
+    TJournalNbdOptionsPtr JournalNbd;
 
     REGISTER_YSON_STRUCT(TUserJobOptions);
 
@@ -917,6 +939,8 @@ struct TControllerAgentConfig
     //! Desired number of chunks to release in one batch.
     int DesiredChunkListsPerRelease;
 
+    bool EnableUnstageChunkTreesBatching;
+
     //! Number of the master cells to use for intermediate data storage.
     int IntermediateOutputMasterCellCount;
 
@@ -1397,6 +1421,9 @@ struct TControllerAgentConfig
 
     //! If |true|, operations on tables whose primary medium is S3 (offshore) are forbidden.
     bool ForbidOperationsOnOffshoreMedia;
+
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

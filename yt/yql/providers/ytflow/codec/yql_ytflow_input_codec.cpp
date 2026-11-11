@@ -862,11 +862,11 @@ private:
             value = NYT::NDecimal::TDecimal::ParseBinary32(precision, binaryValue);
             break;
 
-        case 16:
+        case 8:
             value = NYT::NDecimal::TDecimal::ParseBinary64(precision, binaryValue);
             break;
 
-        case 32: {
+        case 16: {
             NYT::NDecimal::TDecimal::TValue128 ytValue =
                 NYT::NDecimal::TDecimal::ParseBinary128(precision, binaryValue);
 

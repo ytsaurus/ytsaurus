@@ -806,7 +806,7 @@ class TestSchedulingSegments(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False}
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
 
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)

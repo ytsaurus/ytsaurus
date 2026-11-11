@@ -50,6 +50,10 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
         castName = "uint64";
     } else if (type == EValueType::Double) {
         castName = "double";
+    } else if (type == EValueType::Boolean) {
+        castName = "boolean";
+    } else if (type == EValueType::String) {
+        castName = "string";
     } else if (type == EValueType::Any) {
         castName = "to_any";
     } else {
@@ -1145,6 +1149,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
         }
     }
 
+    if (typedDefaultExpression &&
+        resultType != TypingCtx_.GetTypeId(typedDefaultExpression->GetWireType()))
+    {
+        typedDefaultExpression = CreateCoercion(TypingCtx_.GetWireType(resultType), typedDefaultExpression);
+    }
+
     return New<TCaseExpression>(
         TypingCtx_.GetWireType(resultType),
         std::move(typedOptionalOperand),
@@ -1266,6 +1276,9 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         },
         [&] (const NAst::TExpressionList& expressions) {
             fromExpressions = expressions;
+        },
+        [&] (const NAst::TUnionAllClause& /*unionAll*/) {
+            THROW_ERROR_EXCEPTION("UNION ALL in scalar subquery expression is not supported");
         });
 
     if (queryExpr->Query.WithIndex) {
@@ -1402,7 +1415,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
     result->ProjectClause = projectClause;
     result->OrderClause = orderClause;
     result->Offset = queryExpr->Query.Offset.value_or(0);
-    result->Limit = queryExpr->Query.Limit.value_or(UnorderedReadHint);
+    result->Limit = queryExpr->Query.Limit;
 
     return result;
 }

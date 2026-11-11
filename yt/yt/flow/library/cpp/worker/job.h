@@ -37,11 +37,13 @@ struct TJobContext
     IPayloadConverterCachePtr ConverterCache;
     IMessageDistributorPtr MessageDistributor;
     IResourceManagerPtr ResourceManager;
+    THashMap<TResourceId, TResourceInstanceId> ResourceInstanceIds;
     IInvokerPtr ControlSerializedInvoker;
     IInvokerPtr SerializedInvoker;
     IInvokerPtr PoolInvoker;
     NObjectClient::TCellTag ClockClusterTag;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
+    ITimerPageCataloguePtr TimerPageCatalogue;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
     TJobStateCachePtr JobStateCache;
     TLineageTrackerPtr LineageTracker;

@@ -55,6 +55,9 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     .DoIf(task.SetContainerCpuLimit, [&] (auto fluent) {
                         fluent.Item("set_container_cpu_limit").Value(true);
                     })
+                    .DoIf(task.EnableRpcProxyInJobProxy, [&] (auto fluent) {
+                        fluent.Item("enable_rpc_proxy_in_job_proxy").Value(true);
+                    })
                     .DoIf(task.PortCount > 0, [&] (auto fluent) {
                         fluent.Item("port_count").Value(task.PortCount);
                     })

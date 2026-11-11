@@ -269,7 +269,7 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit = std::numeric_limits<i64>::max();
 
-    EScanOrder ScanOrder = EScanOrder::Unordered;
+    EScanOrder ScanOrder = EScanOrder::Ordered;
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;

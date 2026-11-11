@@ -1,0 +1,86 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reader_output"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+            };
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["reader_output"];
+                "output_stream_ids" = ["writer_output"];
+                "sinks" = {
+                    "channel_sink" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["writer_output"];
+                        "parameters" = {};
+                    };
+                    "channel-sink" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["writer_output"];
+                        "parameters" = {};
+                    };
+                };
+            };
+            "channel_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["channel_records"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "reader_output" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+            "writer_output" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+            "channel_records" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "source_streams" = {
+                    "queue" = {
+                        "parameters" = {};
+                    };
+                };
+            };
+            "writer" = {};
+            "channel_reader" = {
+                "source_streams" = {
+                    "queue" = {
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+    };
+}

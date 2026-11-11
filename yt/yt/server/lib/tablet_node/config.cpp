@@ -544,6 +544,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(true)
         .DontSerializeDefault();
 
+    registrar.Parameter("force_zero_major_timestamp", &TThis::ForceZeroMajorTimestamp)
+        .Default(false);
+
     registrar.Parameter("partition_reader_prefetch_key_limit", &TThis::PartitionReaderPrefetchKeyLimit)
         .Default()
         .DontSerializeDefault();
@@ -573,6 +576,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(5);
 
+    registrar.Parameter("enable_chunk_prolongation", &TThis::EnableChunkProlongation)
+        .Default(false);
+
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -594,6 +600,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         }
         if (config->MaxHunkCompactionChunkCount < config->MinHunkCompactionChunkCount) {
             THROW_ERROR_EXCEPTION("\"max_hunk_compaction_chunk_count\" must be greater than or equal to \"min_hunk_compaction_chunk_count\"");
+        }
+        if (config->ForceZeroMajorTimestamp && config->IgnoreMajorTimestamp) {
+            THROW_ERROR_EXCEPTION("Parameters \"force_zero_major_timestamp\" and \"ignore_major_timestamp\" are incompatible");
         }
     });
 }

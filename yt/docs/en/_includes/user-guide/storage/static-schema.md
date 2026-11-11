@@ -271,7 +271,7 @@ System operations such as Sort, Erase, Merge, and Remote copy can independently 
 | `from_output` | The output table schema is saved, the key columns are changed according to the `sort_by` specification parameter. All key columns must be present in the schema. |
 | `auto` | If the output table has a strong schema, its compatibility by types with the schema of all highly schematized input tables is checked. The key columns change according to the specification. If the output table has a weak schema, the schema is derived from the input table schemas (similarly to the `from_input` option). |
 
-## Changing a schema
+## Changing a schema {#changing-a-schema}
 
 Changing a schema is an easy operation with metainformation that does not require reading data. To change a schema, use the `alter_table` command.
 The schema of an empty table can be changed in a random manner. For non-empty tables, there are several allowed schema change scenarios:

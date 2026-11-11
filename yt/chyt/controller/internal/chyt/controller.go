@@ -48,6 +48,7 @@ type Config struct {
 	LogRotationMode                           *LogRotationModeType                `yson:"log_rotation_mode"`
 	AddressResolver                           map[string]any                      `yson:"address_resolver"`
 	BusServer                                 map[string]any                      `yson:"bus_server"`
+	ServerConfig                              map[string]any                      `yson:"server_config"`
 	EnableYandexSpecificLinks                 *bool                               `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables                     *bool                               `yson:"export_system_log_tables"`
 	EnableGeodata                             *bool                               `yson:"enable_geodata"`
@@ -448,8 +449,12 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	// Prepare runtime stuff if need: stderr/core-table, etc.
 	if speclet.EnableRuntimeDataOrDefault(c.config.EnableRuntimeDataOrDefault()) {
+		runtimeSpec := speclet.RuntimeDataSpecOrDefault(c.root.Child(alias))
+		if speclet.RuntimeDataPath != nil {
+			runtimeSpec.RuntimeDataPath = speclet.RuntimeDataPath.Child(alias)
+		}
 		var runtimePaths runtimePaths
-		runtimePaths, err = c.prepareRuntime(ctx, speclet.RuntimeDataSpecOrDefault(), alias, oplet.NextIncarnationIndex())
+		runtimePaths, err = c.prepareRuntime(ctx, runtimeSpec, oplet.NextIncarnationIndex())
 		if err != nil {
 			return
 		}

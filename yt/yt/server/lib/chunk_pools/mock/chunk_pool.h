@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/yt/server/lib/chunk_pools/job_size_adjuster.h>
 
 namespace NYT::NChunkPools {
 
@@ -70,6 +71,7 @@ public:
     MOCK_METHOD(void, Failed, (TCookie), (override));
     MOCK_METHOD(void, Aborted, (TCookie, NScheduler::EAbortReason), (override));
     MOCK_METHOD(void, Lost, (TCookie), (override));
+    MOCK_METHOD(void, AttachJobSizeAdjuster, (const IJobSizeAdjusterPtr&), (override));
 
     const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
     const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;

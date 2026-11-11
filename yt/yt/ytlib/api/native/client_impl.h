@@ -1373,14 +1373,20 @@ private:
         const TPullQueueOptions& options,
         bool checkPermissions);
 
-    IUnversionedRowsetPtr DoPullQueueViaSelectRows(
+    struct TPullQueueRowsetResult
+    {
+        IUnversionedRowsetPtr Rowset;
+        std::optional<bool> ResponseSizeLimitReached;
+    };
+
+    TPullQueueRowsetResult DoPullQueueViaSelectRows(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options);
 
-    IUnversionedRowsetPtr DoPullQueueViaTabletNodeApi(
+    TPullQueueRowsetResult DoPullQueueViaTabletNodeApi(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

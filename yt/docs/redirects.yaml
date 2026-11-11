@@ -28,6 +28,10 @@ common:
       to: /api/python/start.md
       type: redirect
 
+    - from: /flow/kotlin/index.md
+      to: /flow/kotlin/getting-started.md
+      type: redirect
+
     - from: /user-guide/data-processing/index.md
       to: /user-guide/data-processing/overview.md
       type: redirect

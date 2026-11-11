@@ -25,6 +25,7 @@ RECURSE(
     flow
     # genproto
     guid
+    internal
     mapreduce
     migrate
     proto

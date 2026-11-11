@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <functional>
+#include <optional>
 #include <string>
 
 namespace NYT::NFlow {
@@ -28,6 +30,7 @@ struct TJobStateManagerContext
     TComputationId ComputationId;
     TPartitionId PartitionId;
     TJobStateCachePtr StateCache; // nullable = cache disabled
+    std::function<std::optional<TUniqueSeqNo>()> EpochUniqueSeqNoProvider;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
@@ -80,6 +83,7 @@ public:
     bool HasPreloadCallbacks() const;
     TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext);
     void Sync(IRetryableTransactionPtr transaction);
+    void ErasePartitionState(IRetryableTransactionPtr transaction, const std::string& name);
 
     //! Unregisters state providers and releases external managers and joiners without flushing them.
     void Clear();

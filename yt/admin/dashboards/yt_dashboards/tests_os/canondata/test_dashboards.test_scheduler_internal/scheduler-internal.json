@@ -23,8 +23,20 @@
                 {
                     "datasource": null,
                     "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_memory_generic_bytes_in_use_by_app\"}",
-                    "legendFormat": "{{pod}}",
+                    "legendFormat": "{{pod}} usage",
                     "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_memory_cgroup_memory_limit\"}",
+                    "legendFormat": "{{pod}} limit",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "sum by(container) ({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_memory_cgroup_rss|yt_memory_cgroup_mapped_file\"})",
+                    "legendFormat": "{{pod}} cgroup usage",
+                    "refId": "C"
                 }
             ],
             "title": "Scheduler Memory",
@@ -145,6 +157,12 @@
                     "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_resource_tracker_user_cpu\", thread=~\"Control\"}",
                     "legendFormat": "{{pod}}",
                     "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "100",
+                    "legendFormat": "\"limit\"",
+                    "refId": "B"
                 }
             ],
             "title": "Scheduler Control CPU",
@@ -425,7 +443,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_running_operation_count|yt_scheduler_pools_total_operation_count\", pool=~\"<Root>\", tree=~\"default\"}",
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_pools_running_operation_count|yt_scheduler_pools_total_operation_count|yt_scheduler_pools_max_running_operation_count|yt_scheduler_pools_max_operation_count\", pool=~\"<Root>\", tree=~\"default\"}",
                     "legendFormat": "{{__name__}}",
                     "refId": "A"
                 }

@@ -13,9 +13,12 @@ ENDIF()
 SRCS(
     duplex_ipc_channel_ut.cpp
     expiration_tracker_ut.cpp
-    test.proto
     multiprocessing_ut.cpp
     socket_transfer_ut.cpp
+)
+
+PEERDIR(
+    yql/tools/yqlworker/misc/test_support
 )
 
 REQUIREMENTS(ram:9)

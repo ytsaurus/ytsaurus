@@ -219,7 +219,7 @@ In exactly-once mode, the sink writes records in Kafka transactions:
 
 1. Each sink partition gets a transactional ID: `transactional_id_prefix` followed by the partition's producer ID, which is persisted in the sink state and survives restarts.
 2. When a sink partition starts, it fences the writers of its earlier sessions and aborts the transaction they left open. A stale job that tries to write afterwards fails.
-3. Every transaction writes a batch of records together with a progress marker: the offset of the consumer group named after the transactional ID, on partition 0 of the topic. The offset is the sequence number of the last message the transaction wrote; the sink numbers the messages of a partition consecutively.
+3. Every transaction writes a batch of records together with a progress marker: the offset of the consumer group named after the transactional ID, on partition 0 of the topic. The offset is always `0`; its metadata is `ytflow/v2/` followed by the hexadecimal encoding of the full Flow MessageId of the last committed message.
 4. Flow learns that messages are delivered only after their transaction commits. After a restart, the sink reads the marker and skips the replayed messages that are already committed.
 
 Requirements:
@@ -236,7 +236,9 @@ Requirements:
   |#
 
 - Do not delete or reset the offsets of the marker groups.
-- After a restart, Flow must hand the sink the same messages in the same order, because the marker identifies messages by their sequence numbers. Flow does so when the upstream computations meet the [determinism requirements](../../../flow/concepts/guarantees.md#determinism).
+- After a restart, messages must keep stable IDs, payloads and order. The sink skips IDs up to the committed frontier, independently of replay grouping and local sequence numbers. Upstream computations must meet the [determinism requirements](../../../flow/concepts/guarantees.md#determinism).
+
+The encoded marker supports at most 4096 bytes, including its 10-byte prefix: the full MessageId may contain at most 2043 bytes. A larger ID fails clearly before any record in its transaction is written. Raising the broker's `offset.metadata.max.bytes` does not raise this supported limit; a broker configured below 4096 bytes may reject a smaller marker.
 
 A transaction writes at most `max_transaction_record_count` records and `max_transaction_byte_size` bytes. The exception is a record that is larger than `max_transaction_byte_size` by itself: the sink writes it in a transaction of its own.
 
@@ -250,11 +252,15 @@ The restarted job recovers from the marker. A record the producer or the broker 
 
 Change `delivery_guarantee` and `transactional_id_prefix` only while the pipeline is stopped. When a sink switches from `at_least_once` to `exactly_once`, the messages that were in flight at the switch may be written twice.
 
+Upgrade from a release with sequence-number markers, and roll back to it, only after a successfully completed pipeline drain and stopped jobs. The sink keeps its acknowledged MessageId frontier and replaces the old marker automatically. A pause or restart does not establish this boundary; ambiguous legacy state fails before any output unless the explicit recovery override below is enabled. IDs must remain strictly increasing across the release boundary.
+
+For the internal framing sink, delivery remains at-least-once. Replay may regroup messages using the current row and byte limits; pending record boundaries are no longer persisted.
+
 ### Lost progress marker {#lost-marker}
 
 The marker is lost when the offset of its consumer group expires, which happens after the broker's `offsets.retention.minutes` (7 days by default) without commits, or when the group is deleted or its offset reset. The sink then cannot tell which of the messages the pipeline has not acknowledged are already in Kafka.
 
-If such messages may exist, the sink partition refuses to start with the error `Kafka sink progress marker cannot be trusted`, and its job keeps restarting without writing anything. This happens only when both conditions hold: the sink partition stopped with unacknowledged messages, for example after a crash, and its marker was lost before it started again. A graceful stop of the pipeline leaves no unacknowledged messages, and a sink partition without them starts normally even without a marker.
+If such messages may exist, the sink partition refuses to start with the error `Kafka sink progress marker cannot be trusted`, and its job keeps restarting without writing anything. This happens only when both conditions hold: the sink partition stopped with unacknowledged messages, for example after a crash, and its marker was lost before it started again. A successfully completed pipeline drain leaves no unacknowledged messages, and a sink partition without them starts normally even without a marker.
 
 To continue, accept that those messages are written again and may be duplicated: set the dynamic parameter `allow_missing_progress_marker` to `%true` in `DynamicSpec` at `computations/<computation>/sinks/<sink>/parameters`. The parameter is read when a sink partition starts, and the failing partitions restart on their own. Once the pipeline has recovered, set it back to `%false`.
 

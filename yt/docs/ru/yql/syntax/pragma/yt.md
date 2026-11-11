@@ -121,7 +121,7 @@ PRAGMA yt.Annotations = '{
 
 `yt.PublishedAutoMerge` действует только для merge внутри YtPublish узла (если он там запускается). `yt.AutoMerge` задаёт значение этой настройки одновременно для всех {{product-name}} операций запроса.
 
-## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency}
+## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency} {#ytbatchlistfolderconcurrency}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -169,7 +169,7 @@ PRAGMA yt.Annotations = '{
 
 Задаёт размер буфера памяти для выполнения CombineCore узла.
 
-## yt.CommonJoinCoreLimit {#common-join-core-limit}
+## yt.CommonJoinCoreLimit {#common-join-core-limit} {#ytcommonjoincorelimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -358,7 +358,7 @@ SELECT 1 + 2;
 
 Отключает заданные оптимизаторы.
 
-## yt.DockerImage {#docker-image}
+## yt.DockerImage {#docker-image} {#ytdockerimage}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -376,6 +376,75 @@ SELECT 1 + 2;
 
 Принудительная трансформация применяется для входных таблиц, если они используются для записи в выходные таблицы только через операцию YtMerge.
 
+## yt.EarlyPartitionPruning {#early-partition-pruning}
+
+| **Возможные значения** | **Значение по умолчанию** | **Вид** |
+| --- | --- | --- |
+| Флаг | false | Статическая |
+
+Включает раннее отсечение партиций: YQL заранее исключает таблицы, которые заведомо не подходят под условие `WHERE`. Партиции — это таблицы, выбранные функциями `PARTITIONS` и `PARTITION_LIST` (и их `_STRICT`-вариантами). Отсечение происходит до чтения данных: для исключённых партиций запрос не загружает схемы и метаданные, необходимые для чтения. Прагма полезна, если запрос обращается ко многим партициям, а условие `WHERE` отбирает только часть из них, например ежедневные таблицы за последний месяц.
+
+{% note warning %}
+
+Отсечение выполняется до объединения схем таблиц, поэтому схема результата определяется только по оставшимся партициям. Набор колонок и их типы могут измениться. Например, если в исключённой таблице колонка `userId` имеет тип `Optional<Uint64>`, а в оставшихся — `Uint64`, то тип колонки в результате изменится с `Optional<Uint64>` на `Uint64`. Учитывайте это, если обрабатываете результат программно. Из-за этого прагма по умолчанию выключена.
+
+{% endnote %}
+
+#### Как включить {#early-partition-pruning-enable}
+
+Добавьте в запрос перед `SELECT`:
+
+```yql
+PRAGMA yt.EarlyPartitionPruning;
+```
+
+#### Как работает {#early-partition-pruning-how-it-works}
+
+Каждая таблица-партиция описывается дополнительными колонками, например датой или названием компании. Откуда берутся их значения, зависит от функции:
+
+* `PARTITIONS` — значения извлекаются из пути по шаблону. Прагма не отменяет первоначальный поиск таблиц по каталогам, который выполняет `PARTITIONS`.
+* `PARTITION_LIST` — значения задаются полями структур входного списка.
+
+Партиция исключается, только если известные значения её дополнительных колонок доказывают, что всё условие `WHERE` не может быть истинным. Если условие нельзя проверить заранее, партиция остаётся в запросе.
+
+В таблице ниже показано, какие партиции можно исключить при разных условиях `WHERE`. В примерах `company` — дополнительная колонка партиции, а `event_id` — колонка, которая хранится в таблице:
+
+| **Условие `WHERE`** | **Что можно исключить** |
+| --- | --- |
+| `company = "A" AND event_id > 5` | Партиции других компаний: для них условие `company = "A"` ложно, значит, ложно и всё условие. Остальные партиции читаются, условие `event_id > 5` применяется к их данным как обычно. |
+| `company = "A" OR event_id > 5` | Ничего: в таблице любой компании могут быть события с подходящим `event_id`, поэтому условие нельзя признать ложным ни для одной партиции. |
+
+#### Ограничения {#early-partition-pruning-limitations}
+
+Отсечение выполняется, только если выполнены все условия:
+
+* условие `WHERE` применяется непосредственно к результату функций работы с партициями;
+* у партиций есть дополнительные колонки, кроме `TablePath` и `TableView`;
+* условие содержит часть, которая зависит только от дополнительных колонок.
+
+Для отсечения не используются:
+
+* условия по обычным колонкам таблицы: их значения становятся известны только при чтении данных;
+* недетерминированные выражения от дополнительных колонок, например `Random` от значения такой колонки. Другие части условия могут позволить исключить партиции.
+
+Если условию не соответствует ни одна партиция, одна партиция всё равно остаётся в запросе: по ней определяется схема результата.
+
+Подробнее о функциях работы с партициями читайте в разделе [Обращение к нескольким таблицам в одном запросе](../select/concat.md#early-partition-pruning).
+
+#### Пример {#early-partition-pruning-example}
+
+```yql
+-- Предположим, что директория //home/daily_logs имеет следующую структуру: //home/daily_logs/<дата в формате YYYY-MM-DD>/<название компании>/event_log
+USE some_cluster;
+
+PRAGMA yt.EarlyPartitionPruning;
+
+SELECT company, event_id
+FROM PARTITIONS(`//home/daily_logs`, "${event_date:Date}/${company}/event_log")
+-- YQL исключит все таблицы, у которых дата в пути раньше 2025-10-01, для любых компаний.
+WHERE event_date >= Date("2025-10-01");
+```
+
 ## yt.ErasureCodecCpu {#erasure-codec-cpu}
 
 | Возможные значения | Значение по умолчанию | Вид |
@@ -384,7 +453,7 @@ SELECT 1 + 2;
 
 Множитель для оценки потребления процессора для обработки таблиц, пожатых erasure кодеком. Влияет на разбиение MapReduce-операций на джобы.
 
-## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit}
+## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit} {#ytevaluationtablesizelimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -490,7 +559,7 @@ PRAGMA yt.ExternalTx = 'a3d149bd-674dfa1-fa68f314-2c22562';   -- ID транза
 
 Включает гибридное исполнение запросов через DQ
 
-## yt.IgnoreTypeV3 {#ignore-type-v}
+## yt.IgnoreTypeV3 {#ignore-type-v} {#ignoretypev3}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -516,7 +585,7 @@ PRAGMA yt.ExternalTx = 'a3d149bd-674dfa1-fa68f314-2c22562';   -- ID транза
 
 Игнорировать `_format=yamred_dsv`, если он указан в метаданных входной таблицы.
 
-## yt.InferSchema / yt.ForceInferSchema {#infer-schema}
+## yt.InferSchema / yt.ForceInferSchema {#infer-schema} {#inferschema}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -662,7 +731,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Управляет режимом запроса поколоночных статистик для точной оценки входов JOIN-ов от {{product-name}}. Режим from_nodes обеспечивает точную оценку, но может не укладываться в таймауты для больших таблиц. Режим from_master работает очень быстро, но дает огрубленную статистику. Режим fallback работает как комбинация предыдущих двух.
 
-## yt.JoinMergeForce {#join-merge-force}
+## yt.JoinMergeForce {#join-merge-force} {#ytjoinmergeforce}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -678,7 +747,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Максимально допустимый размер Reduce джобы при выборе маленькой таблицы в качестве primary при Ordered JOIN стратегии. Если получившийся размер превышает указанное значение, то операция Reduce повторяется с большей таблицей в качестве primary.
 
-## yt.JoinMergeTablesLimit {#join-merge-tables-limit}
+## yt.JoinMergeTablesLimit {#join-merge-tables-limit} {#ytjoinmergetableslimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -688,7 +757,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Указав в значении 0 можно совсем отключить данную стратегию.
 
-## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor}
+## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor} {#ytjoinmergeunsortedfactor}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -696,7 +765,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Минимальное соотношение размера несортированной стороны JOIN к сортированной для её дополнительной сортировки и выбора Ordered стратегии JOIN.
 
-## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary}
+## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary} {#ytjoinmergeusesmallasprimary}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -704,7 +773,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Явное управление выбором primary таблицы в операции Reduce при Ordered JOIN стратегии. Если установлен в true, то в качестве primary таблички всегда будет выбираться меньшая сторона. Если значение флага равно false, то будет выбираться большая сторона за исключением случая уникальных ключей на большей стороне. Выбор большей таблицы в качестве primary безопасен даже при наличии в ней ключей-монстров, но работает медленнее. Если данная прагма не установлена, то выбор primary происходит автоматически исходя из максимального размера получающихся джобов (см. yt.JoinMergeReduceJobMaxSize).
 
-## yt.LayerPaths {#layer-paths}
+## yt.LayerPaths {#layer-paths} {#ytlayerpaths}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -728,7 +797,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Задаёт размер памяти на каждый узел графа вычислений, необходимый при компиляции LLVM-кода в джобах
 
-## yt.LookupJoinLimit {#lookup-join-limit}
+## yt.LookupJoinLimit {#lookup-join-limit} {#ytlookupjoinlimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -736,7 +805,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Таблица может быть использована в качестве словаря в Lookup JOIN стратегии, если её размер не превышает минимума из `yt.LookupJoinLimit` и `yt.EvaluationTableSizeLimit`.
 
-## yt.LookupJoinMaxRows {#lookup-join-max-rows}
+## yt.LookupJoinMaxRows {#lookup-join-max-rows} {#ytlookupjoinmaxrows}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -744,7 +813,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Максимальное число строк в таблице, при котором она может выступать в качестве словаря в Lookup JOIN стратегии.
 
-## yt.MapJoinLimit {#map-join-limit}
+## yt.MapJoinLimit {#map-join-limit} {#ytmapjoinlimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -754,7 +823,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Указав в значении 0 можно совсем отключить данную стратегию.
 
-## yt.MapJoinShardCount {#map-join-shard-count}
+## yt.MapJoinShardCount {#map-join-shard-count} {#ytmapjoinshardcount}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -762,7 +831,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Map-side стратегия JOIN может выполняться в шардированном варианте: меньшая сторона разбивается на N шардов (где N — меньше или равно значению данной PRAGMA), каждый из которых независимо и параллельно объединяется с большей стороной, а затем результатом JOIN считается конкатенация JOIN с шардами.
 
-## yt.MapJoinShardMinRows {#map-join-shard-min-rows}
+## yt.MapJoinShardMinRows {#map-join-shard-min-rows} {#ytmapjoinshardminrows}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -1061,7 +1130,7 @@ PRAGMA yt.Owners = 'ivanov petrov';    -- логины пользователе�
 
 Задаёт максимальное число одновременно запускаемых {{product-name}}-операций в пределах запроса.
 
-## yt.Pool {#pool}
+## yt.Pool {#pool} {#ytpool}
 
 Используется для переопределения вычислительного пула, который по умолчанию является логином текущего пользователя или был задан прагмой `yt.StaticPool`.
 
@@ -1210,7 +1279,7 @@ PRAGMA yt.QueryCacheIgnoreTableRevision = 'true';
 
 {% endnote %}
 
-## yt.QueryCacheMode {#query-cache-mode}
+## yt.QueryCacheMode {#query-cache-mode} {#yt.querycachemode} {#querycachemode}
 
 Прагма управляет кешированием результатов MapReduce-операций в {{product-name}}.
 
@@ -1621,7 +1690,7 @@ PRAGMA yt.StaticPool = '<pool_1>';
 
 Имеет эффект только при наличии прагмы `yt.TentativePoolTrees`. Задаёт количество джобов в семпле.{% if audience == "internal" %} Подробнее в [документации]({{yql.pages.syntax.pragma.pooltrees}}).{% endif %}
 
-## yt.TmpFolder {#tmp-folder}
+## yt.TmpFolder {#tmp-folder} {#yt.tmpfolder} {#tmpfolder}
 
 Используется для указания директории хранения временных таблиц и файлов. Подробнее читайте в разделе [Временные данные](../../faq/temp.md).
 
@@ -1681,7 +1750,7 @@ PRAGMA yt.TmpFolder = '//tmp/yql/ivanov/folder';
 
 Задаёт значение опции `use_default_tentative_pool_trees` в спецификации операции.
 
-## yt.UseNativeYtTypes {#use-native-yt-types}
+## yt.UseNativeYtTypes {#use-native-yt-types} {#yt-usenativeyttypes}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |

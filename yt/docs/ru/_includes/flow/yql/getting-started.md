@@ -24,19 +24,7 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 
 ## Прагмы {#pragmas}
 
-Запрос YQL over Flow управляется через набор прагм:
-
-| Прагма | Описание |
-|---|---|
-| `PRAGMA Engine = "ytflow";` | Выбор движка Flow для выполнения запроса |
-| `PRAGMA Ytflow.Cluster = "...";` | Кластер для внутренних таблиц пайплайна и выходных упорядоченных очередей |
-| `PRAGMA Ytflow.RuntimeCluster = "...";` | Кластер для запуска ванилла операции.{% if audience == "internal" %} Рекомендуется Vanga как cross-DC кластер с высокой доступностью{% endif %} |
-| `PRAGMA Ytflow.PipelineDirectory = "...";` | Путь к директории с пайплайнами в {{product-name}} |
-| `PRAGMA Ytflow.PipelineName = "...";` | Имя пайплайна. Полный путь: `{pipeline_directory}/{pipeline_name}` |
-| `PRAGMA Ytflow.WorkerCount = "...";` | Количество воркер-джобов ванилла операции |
-| `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Включает переиспользование шаблонов вычислений между графами одного воркера. По умолчанию `false` |
-{% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
-{% endif %}
+Запрос YQL over Flow управляется через набор прагм, полный список см. в разделе [Справочник прагм](../../../flow/yql/pragma-reference.md).
 
 ## Первый запрос {#first-query}
 
@@ -51,7 +39,7 @@ PRAGMA Ytflow.Cluster = "{{flow-data-cluster}}";
 -- кластер для ванилла операции
 PRAGMA Ytflow.RuntimeCluster = "{{flow-runtime-cluster}}";
 -- директория с пайплайнами
-PRAGMA Ytflow.PipelineDirectory = "//home/my-project/pipelines";
+PRAGMA Ytflow.PipelineDirectory = "//home/my-project";
 -- имя пайплайна
 PRAGMA Ytflow.PipelineName = "my-pipeline";
 -- число воркеров
@@ -59,19 +47,19 @@ PRAGMA Ytflow.WorkerCount = "1";
 
 -- читать из входной очереди, трансформировать, писать в выходную
 INSERT INTO
-    {{flow-data-cluster}}.`//home/my-project/output_queues/sink_queue`
+    {{flow-data-cluster}}.`//home/my-project/sink_queue`
 SELECT
     string_field || "_processed" AS string_field,
     int64_field,
     EndsWith(string_field, "bar") AS predicate
 FROM
-    {{flow-data-cluster}}.`//home/my-project/input_queues/source_queue`
+    {{flow-data-cluster}}.`//home/my-project/source_queue`
 WHERE int64_field > 1;
 ```
 
 Запрос запускает пайплайн, который непрерывно обрабатывает сообщения из входной очереди и пишет результаты в выходную. Схемы выходных таблиц выводятся автоматически из запроса.
 
-Описание всех поддержанных конструкций YQL см. в разделе [Поддержанные конструкции](../../../flow/yql/features.md).
+Описание возможностей YQL см. в разделе [Возможности](../../../flow/yql/features.md).
 
 
 
@@ -117,12 +105,12 @@ client.run_query(
 - **Дашборд** — вкладка **Flow → Monitoring**.
 - **Логи контроллера** (состояние воркеров, возможные проблемы):
   ```bash
-  {{yt-cli}} --proxy <кластер-пайплайна> flow show-logs //home/my-project/pipelines/my-pipeline
+   {{yt-cli}} --proxy <кластер-пайплайна> flow show-logs //home/my-project/my-pipeline
   ```
 - **Логи джобов** — через ванилла операцию, доступную по ссылке из кубика `flowPublish` в графе пайплайна.
 
 ## См. также
 
-- [Поддержанные конструкции](../../../flow/yql/features.md)
+- [Возможности](../../../flow/yql/features.md)
 - [Основные понятия](../../../flow/concepts/glossary.md)
 - [Коннекторы](../../../flow/connectors/about.md)

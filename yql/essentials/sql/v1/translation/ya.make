@@ -11,6 +11,7 @@ PEERDIR(
     yql/essentials/core/issue
     yql/essentials/core/langver
     yql/essentials/public/issue/protos
+    yql/essentials/core/spark_meta
     yql/essentials/core/sql_types
     yql/essentials/parser/lexer_common
     yql/essentials/parser/proto_ast/collect_issues
@@ -25,6 +26,7 @@ PEERDIR(
 SRCS(
     aggregation.cpp
     builtin.cpp
+    checksum.cpp
     context.cpp
     ddl_backup.cpp
     ddl_identity.cpp
@@ -49,6 +51,7 @@ SRCS(
     source.cpp
     sql.cpp
     sql_call_expr.cpp
+    sql_checksum.cpp
     sql_ddl_backup.cpp
     sql_ddl_identity.cpp
     sql_ddl_resource_pool.cpp
@@ -58,6 +61,7 @@ SRCS(
     sql_ddl_topic.cpp
     sql_ddl_transfer.cpp
     sql_expression.cpp
+    sql_flatten.cpp
     sql_group_by.cpp
     sql_match_recognize.cpp
     sql_into_tables.cpp

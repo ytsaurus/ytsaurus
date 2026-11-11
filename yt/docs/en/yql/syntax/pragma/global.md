@@ -226,7 +226,7 @@ Has no effect on floating point or `Decimal` numbers.
 
 `CheckedOps` is a [scoped](#pragmascope) setting.
 
-## UnicodeLiterals
+## UnicodeLiterals {#unicodeliterals} {#UnicodeLiterals}
 
 `UnicodeLiterals`/`DisableUnicodeLiterals`
 

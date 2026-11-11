@@ -677,10 +677,8 @@ func (e *Encoder) WriteTableRaw(
 	body *bytes.Buffer,
 ) (err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
-	call.YSONValue = body.Bytes()
 	call.DisableRetries = true
-	err = e.do(ctx, call, noopResultDecoder)
-	return
+	return e.writeRaw(ctx, call, body)
 }
 
 func (e *Encoder) WriteFileRaw(
@@ -690,10 +688,20 @@ func (e *Encoder) WriteFileRaw(
 	body *bytes.Buffer,
 ) (err error) {
 	call := e.newCall(NewWriteFileParams(path, options))
-	call.YSONValue = body.Bytes()
 	call.DisableRetries = true
-	err = e.do(ctx, call, noopResultDecoder)
-	return
+	return e.writeRaw(ctx, call, body)
+}
+
+func (e *Encoder) writeRaw(ctx context.Context, call *Call, body *bytes.Buffer) error {
+	w, err := e.InvokeWrite(ctx, call)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(body.Bytes())
+	if closeErr := w.Close(); err == nil {
+		err = closeErr
+	}
+	return err
 }
 
 func (e *Encoder) WriteTable(
@@ -894,6 +902,37 @@ func (e *Encoder) ReadTable(
 	call.Format = format
 	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) ReadTableRaw(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.ReadTableOptions,
+) (r io.ReadCloser, err error) {
+	call := e.newCall(NewReadTableParams(path, options))
+	rr := &readTableResponse{}
+	call.OnRspParams = func(params []byte) error {
+		return yson.Unmarshal(params, &rr.params)
+	}
+	rr.ReadCloser, err = e.InvokeRead(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return rr, nil
+}
+
+type readTableResponse struct {
+	io.ReadCloser
+	params struct {
+		StartRowIndex *int64 `yson:"start_row_index"`
+	}
+}
+
+func (r *readTableResponse) StartRowIndex() (int64, bool) {
+	if r.params.StartRowIndex == nil {
+		return 0, false
+	}
+	return *r.params.StartRowIndex, true
 }
 
 func (e *Encoder) PartitionTables(

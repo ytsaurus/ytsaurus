@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -53,6 +54,17 @@ func WithCreateOptions(opts ...CreateTableOption) WriteTableOption {
 func WithWriteTableFormat(format any) WriteTableOption {
 	return func(w *tableWriter) {
 		w.format = format
+	}
+}
+
+// WithRawRows makes Write accept rows already encoded in format: each value must be []byte holding whole rows,
+// since batches are cut between values.
+//
+// Bytes are sent as is. A table created on the first Write has no schema.
+func WithRawRows(format any) WriteTableOption {
+	return func(w *tableWriter) {
+		w.format = format
+		w.rawRows = true
 	}
 }
 
@@ -130,6 +142,7 @@ type (
 		retryCount              uint64
 		lazyCreate, eagerCreate bool
 		format                  any
+		rawRows                 bool
 		tableWriterConfig       map[string]any
 		createTransaction       bool
 
@@ -145,7 +158,9 @@ func (w *tableWriter) Write(value any) error {
 	}
 
 	if w.lazyCreate {
-		w.createOptions = append(w.createOptions, WithInferredSchema(value))
+		if !w.rawRows {
+			w.createOptions = append(w.createOptions, WithInferredSchema(value))
+		}
 		w.err = w.createTable()
 		if w.err != nil {
 			return w.err
@@ -313,7 +328,9 @@ func (w *tableWriter) initBuffer(reuse bool) (err error) {
 		w.buffer = new(bytes.Buffer)
 	}
 	w.encoder = newYSONEncoder(w.buffer)
-	if w.format != nil {
+	if w.rawRows {
+		w.encoder = &rawEncoder{w: w.buffer}
+	} else if w.format != nil {
 		if skiffFormat, ok := w.format.(skiff.Format); ok {
 			w.encoder, err = newSkiffEncoder(w.buffer, skiffFormat)
 		} else {
@@ -342,6 +359,23 @@ func (e *ysonEncoder) finish() error {
 	return e.w.Finish()
 }
 
+type rawEncoder struct {
+	w io.Writer
+}
+
+func (e *rawEncoder) encode(value any) error {
+	row, ok := value.([]byte)
+	if !ok {
+		return xerrors.Errorf("yt: raw row must be []byte, got %T", value)
+	}
+	_, err := e.w.Write(row)
+	return err
+}
+
+func (e *rawEncoder) finish() error {
+	return nil
+}
+
 type skiffEncoder struct {
 	encoder *skiff.Encoder
 }
@@ -366,72 +400,32 @@ func (e *skiffEncoder) finish() error {
 	return e.encoder.Flush()
 }
 
-// Error is retriable chunk error only if it doesn't contains non-retriable chunk errors
-// and contains at least one chunk error in error tree.
-func isRetriableChunkError(errorCodes map[yterrors.ErrorCode]struct{}) bool {
-	for _, code := range []yterrors.ErrorCode{
-		yterrors.CodeSessionAlreadyExists,
-		yterrors.CodeChunkAlreadyExists,
-		yterrors.CodeWindowError,
-		yterrors.CodeBlockContentMismatch,
-		yterrors.CodeInvalidBlockChecksum,
-		yterrors.CodeMalformedReadRequest,
-		yterrors.CodeMissingExtension,
-		yterrors.CodeNoSuchBlock,
-		yterrors.CodeNoSuchChunk,
-		yterrors.CodeNoSuchChunkList,
-		yterrors.CodeNoSuchChunkTree,
-		yterrors.CodeNoSuchChunkView,
-		yterrors.CodeNoSuchMedium,
-	} {
-		if _, ok := errorCodes[code]; ok {
-			return false
-		}
-	}
-
-	for code := range errorCodes {
-		if code/100 == 7 {
-			return true
-		}
-	}
-
-	return false
-}
-
 func tryGetBackoffDuration(err error) *time.Duration {
+	var httpErr *yterrors.HTTPError
+	if errors.As(err, &httpErr) {
+		switch httpErr.StatusCode {
+		case http.StatusTooManyRequests:
+			return ptr.T(rateLimitRetryBackoff)
+		case http.StatusInternalServerError, http.StatusServiceUnavailable:
+			return ptr.T(defaultRetryBackoff)
+		}
+	}
+
 	errorCodes := yterrors.GetErrorCodes(err)
 
 	if _, ok := errorCodes[yterrors.CodeRequestQueueSizeLimitExceeded]; ok {
 		return ptr.T(rateLimitRetryBackoff)
 	}
-
-	if _, ok := errorCodes[yterrors.CodeTooManyOperations]; ok {
+	if _, ok := errorCodes[yterrors.CodeRPCRequestQueueSizeLimitExceeded]; ok {
 		return ptr.T(rateLimitRetryBackoff)
 	}
 
-	if isRetriableChunkError(errorCodes) {
+	if retry.IsRetriableChunkError(err) {
 		return ptr.T(chunkErrorRetryBackoff)
 	}
 
-	for _, code := range []yterrors.ErrorCode{
-		yterrors.CodeTransportError,
-		yterrors.CodeUnavailable,
-		yterrors.CodeRetriableArchiveError,
-		yterrors.CodeTransientFailure,
-		yterrors.CodeCanceled,
-		yterrors.CodeTimeout,
-	} {
-		if _, ok := errorCodes[code]; ok {
-			return ptr.T(defaultRetryBackoff)
-		}
-	}
-
-	var httpErr *yterrors.HTTPError
-	if errors.As(err, &httpErr) {
-		switch httpErr.StatusCode {
-		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return ptr.T(defaultRetryBackoff)
-		}
+	if retry.IsRetriableHTTPResponseError(err) {
+		return ptr.T(defaultRetryBackoff)
 	}
 
 	var opErr *net.OpError

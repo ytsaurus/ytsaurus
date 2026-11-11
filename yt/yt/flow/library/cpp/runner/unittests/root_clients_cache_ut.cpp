@@ -2,6 +2,13 @@
 
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 
+#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
+
+#include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
+
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/options.h>
 
 #include <yt/yt/client/api/rpc_proxy/config.h>
@@ -81,6 +88,46 @@ TEST(TRootClientsCacheTest, BuiltInFactory)
     EXPECT_TRUE(cache->GetClient("localhost:1"));
 }
 
+TEST(TRootClientsCacheTest, PipelineClusterOfFullUrlMatchesShortName)
+{
+    auto client = CreateRootClientsCache(MakeOptions())->GetClient("hahn.yt.yandex.net");
+    ASSERT_TRUE(client);
+    const auto& clusterName = client->GetConnection()->GetClusterName();
+    EXPECT_EQ(clusterName, "hahn");
+
+    // The runner preflight and #RunPipeline() validate with this name, so both see the conflict.
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R""""({
+        computations = {
+            c = {
+                computation_class_name = "NYT::NFlow::TPassthroughComputation";
+                group_by_schema = [
+                    { name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending; };
+                    { name = key; type = string; sort_order = ascending; };
+                ];
+                key_visitor_streams = { visit = {}; };
+                output_stream_ids = [t];
+                external_state_managers = {
+                    "/m1" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = "//tmp/state"; };
+                    };
+                    "/m2" = {
+                        external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
+                        parameters = { path = "<cluster=hahn>//tmp/state"; };
+                    };
+                };
+            };
+        };
+        streams = {
+            t = { schema = [ { name = key; type = string; } ]; };
+        };
+    })""""));
+    ValidatePipelineSpec(spec);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(spec, clusterName),
+        "claimed for writing");
+}
+
 TEST(TRootClientsCacheTest, FactoryParametersWithoutFactory)
 {
     auto options = MakeOptions();
@@ -132,6 +179,51 @@ TEST(TRootClientsCacheTest, CustomFactory)
     EXPECT_EQ("test-user", fakeCache->Options.ClientOptions.GetAuthenticatedUser());
     EXPECT_EQ(options.PipelinePath.GetPath(), fakeCache->Options.PipelinePath.GetPath());
     EXPECT_EQ(parameters, fakeCache->Options.Parameters);
+}
+
+TEST(TRootClientsCacheTest, RoutesAllLocalClientsThroughJobProxy)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto options = MakeOptions();
+    options.ProxyRole = "flow";
+    auto rootCache = CreateRootClientsCache(options);
+    auto original = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(
+        rootCache->GetClient("localhost")->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(original->ProxyUnixDomainSocket);
+    auto cache = CreateJobProxyClientsCache(std::move(rootCache));
+    for (auto cluster : {"localhost", "localhost/explicit"}) {
+        auto client = cache->GetClient(cluster);
+        auto config = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(client->GetConnection()->GetConfigYson());
+        EXPECT_EQ(config->ProxyUnixDomainSocket, "/tmp/job.sock");
+        EXPECT_FALSE(config->EnableProxyDiscovery);
+        EXPECT_EQ(client, cache->GetClient(cluster));
+        EXPECT_EQ(client->GetOptions().GetAuthenticatedUser(), "test-user");
+    }
+    auto remote = cache->GetClient("other/explicit");
+    auto config = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(remote->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(config->ProxyUnixDomainSocket);
+    EXPECT_EQ(config->ProxyRole, "explicit");
+}
+
+TEST(TRootClientsCacheTest, RequiresJobProxySocket)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH");
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateJobProxyClientsCache(CreateRootClientsCache(MakeOptions())),
+        "YT_JOB_PROXY_SOCKET_PATH is absent");
+}
+
+TEST(TRootClientsCacheTest, RejectsCustomFactoryWithJobProxy)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    TFactoryGuard guard([] (const TRootClientsCacheOptions&) -> IClientsCachePtr {
+        ADD_FAILURE() << "Custom factory must not be called";
+        return nullptr;
+    });
+    EXPECT_THROW_WITH_SUBSTRING(CreateRootClientsCache(MakeOptions()), "not supported with a custom root clients cache factory");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

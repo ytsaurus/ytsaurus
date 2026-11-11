@@ -32,6 +32,13 @@ TKeyVisitorStreamSpecPtr MakeStream(std::optional<THashSet<std::string>> externa
     return spec;
 }
 
+TKeyVisitorStreamSpecPtr MakeWeakStream(THashSet<std::string> weakExternalNames)
+{
+    auto spec = New<TKeyVisitorStreamSpec>();
+    spec->WeakExternalNames = std::move(weakExternalNames);
+    return spec;
+}
+
 TExternalStateJoinerSpecPtr MakeJoiner(TStringBuf className)
 {
     auto spec = New<TExternalStateJoinerSpec>();
@@ -126,6 +133,26 @@ TEST(TKeyVisitorJoinerBindingsTest, IgnoresScanAllStreams)
         },
         {{"joiner", MakeJoiner(VisitorDrivenClass)}});
     EXPECT_NO_THROW(ValidateKeyVisitorJoinerBindings(*spec));
+}
+
+TEST(TKeyVisitorJoinerBindingsTest, AcceptsWeakJoinerInSingleStream)
+{
+    auto spec = MakeSpec(
+        {{TStreamId("s1"), MakeWeakStream({"joiner"})}},
+        {{"joiner", MakeJoiner(VisitorDrivenClass)}});
+    EXPECT_NO_THROW(ValidateKeyVisitorJoinerBindings(*spec));
+}
+
+// A weak binding holds the joiner's single sweep cursor just like a key-contributing one.
+TEST(TKeyVisitorJoinerBindingsTest, RejectsWeakAndStrongBindingsOfOneJoinerInTwoStreams)
+{
+    auto spec = MakeSpec(
+        {
+            {TStreamId("s1"), MakeStream(THashSet<std::string>{"joiner"})},
+            {TStreamId("s2"), MakeWeakStream({"joiner"})},
+        },
+        {{"joiner", MakeJoiner(VisitorDrivenClass)}});
+    EXPECT_THROW(ValidateKeyVisitorJoinerBindings(*spec), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,21 +333,19 @@ TEST_F(TBlockedTimeShareTest, ChargesAreKeptApartByLimitTypeAndStream)
     const auto window = static_cast<int>(Window.Seconds());
     for (int epoch = 0; epoch < 2 * window; ++epoch) {
         Now_ += Epoch;
-        // The whole time blocked on the output store of the other stream, and
-        // only half of it on the output buffer of ours.
         std::vector<TBlockedTimeAccountant::TBlockedLimit> blocked{
-            {OutputStoreBytesLimitType, otherStreamId}};
+            {ControllerLimitType, otherStreamId},
+        };
         if (epoch % 2 == 0) {
             blocked.push_back({OutputBufferBytesLimitType, StreamId_});
         }
         Accountant_.Account(Now_, Window, blocked);
     }
 
-    EXPECT_NEAR(Share(OutputStoreBytesLimitType, otherStreamId), 1.0, 0.01);
+    EXPECT_NEAR(Share(ControllerLimitType, otherStreamId), 1.0, 0.01);
     EXPECT_NEAR(Share(OutputBufferBytesLimitType, StreamId_), 0.5, 0.05);
     // A charge must not leak into the other limit type or the other stream.
     EXPECT_FALSE(HasShare(OutputBufferBytesLimitType, otherStreamId));
-    EXPECT_FALSE(HasShare(OutputStoreBytesLimitType, StreamId_));
     EXPECT_FALSE(HasShare(ControllerLimitType, StreamId_));
 }
 

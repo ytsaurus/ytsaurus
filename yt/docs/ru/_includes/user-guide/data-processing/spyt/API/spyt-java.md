@@ -34,25 +34,7 @@ class MySparkApplication {
 
 ## Чтение данных из {{product-name}} { #read-data }
 
-```java
-package tech.ytsaurus.spyt.example;
-
-import org.apache.spark.sql.SparkSession;
-
-import tech.ytsaurus.client.CompoundClient;
-import tech.ytsaurus.spyt.SparkAppJava;
-
-public class SmokeTest extends SparkAppJava {
-    @Override
-    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
-        spark.read().format("yt").load("//home/spark/examples/tables/test_data").show();
-    }
-
-    public static void main(String[] args) {
-        new SmokeTest().run(args);
-    }
-}
-```
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
 
 <!--  Just in case: См. [примеры](https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example).-->
 
@@ -60,7 +42,7 @@ public class SmokeTest extends SparkAppJava {
 
 2. `SparkSession` — точка входа, через которую происходит взаимодействие с фреймворком. Самый часто используемый метод — `read`, позволяющий читать данные из {{product-name}}.
 
-3. `spark.read().format("yt").load("/sys/spark/examples/test_data")` — чтение данных в формате `yt` по пути `//sys/spark/examples/test_data`.
+3. `spark.read().format("yt").load("//home/spark/examples/tables/test_data")` — чтение данных в формате `yt` по пути `//home/spark/examples/tables/test_data`.
 
 Результатом чтения является объект `Dataset`, в Scala для него существует алиас `DataFrame`. Датафреймы — это внутреннее представление схематизированных таблиц в Spark. Их можно фильтровать, джойнить между собой, добавлять новые колонки. После применения таких операций к датафрейму получается новый датафрейм и его можно использовать в дальнейшей работе. Датафрейм состоит из нескольких партиций, каждая из которых может обрабатываться отдельно. У датафрейма, который прочитан из {{product-name}}, столько же партиций, сколько [чанков](../../../../../user-guide/storage/chunks.md) было у таблицы в {{product-name}}.
 
@@ -90,44 +72,17 @@ spark-submit-yt \
   --proxy <cluster-name> \
   --discovery-path //my/discovery/path \
   --deploy-mode cluster \
-  --class tech.ytsaurus.spark.example.SmokeTest \
+  --class tech.ytsaurus.spyt.example.SmokeTest \
   yt:///sys/spark/examples/spark-over-yt-examples-jar-with-dependencies.jar
 ```
 
 
 ## Использование UDF { #use-udf }
 
-```java
-package tech.ytsaurus.spyt.example;
-
-import org.apache.spark.sql.*;
-import org.apache.spark.sql.expressions.UserDefinedFunction;
-import org.apache.spark.sql.types.DataTypes;
-
-import tech.ytsaurus.client.CompoundClient;
-import tech.ytsaurus.spyt.SparkAppJava;
-
-public class UdfExample extends SparkAppJava {
-    @Override
-    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
-        Dataset<Row> df = spark.read().format("yt").load("//home/spark/examples/tables/example_1");
-        UserDefinedFunction splitUdf = functions.udf((String s) -> s.split("-")[1], DataTypes.StringType);
-
-        df
-          .filter(df.col("id").gt(5))
-          .select(splitUdf.apply(df.col("uuid")).as("value"))
-          .write().mode(SaveMode.Overwrite).format("yt")
-          .save("//home/spark/examples/tables/example_1_map");
-    }
-
-    public static void main(String[] args) {
-        new UdfExample().run(args);
-    }
-}
-```
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
 
 1. Класс джоба унаследован от `SparkAppJava`,  как в предыдущем примере.
-2. Чтение датафрейма из `//sys/spark/examples/example_1`.
+2. Чтение датафрейма из `//home/spark/examples/tables/example_1`.
 
 3. Для парсинга `uuid` и получения подстроки, необходимо написать UDF:
 
@@ -139,7 +94,7 @@ public class UdfExample extends SparkAppJava {
 5. Применение `udf` к колонке `uuid`, новая колонка называется `value`.
 6. Сохранение результата в {{product-name}}. По умолчанию Spark не перезаписывает существующие таблицы, а выкидывает исключение. Для перезаписи данных используйте `.mode(SaveMode.Overwrite)`.
 
-Результат: `//sys/spark/examples/example_1_map`.
+Результат: `//home/spark/examples/tables/example_1_map`.
 
 Запуск осуществляется командой `spark-submit-yt`:
 
@@ -148,56 +103,24 @@ spark-submit-yt \
   --proxy <cluster-name> \
   --discovery-path //my/discovery/path \
   --deploy-mode cluster \
-  --class tech.ytsaurus.spark.example.UdfExample \
+  --class tech.ytsaurus.spyt.example.UdfExample \
   yt:///sys/spark/examples/spark-over-yt-examples-jar-with-dependencies.jar
 ```
 
 
 ## Агрегации { #agg }
 
-```java
-package tech.ytsaurus.spyt.example;
-
-import org.apache.spark.SparkConf;
-import org.apache.spark.sql.*;
-
-import tech.ytsaurus.spyt.SparkAppJava;
-import tech.ytsaurus.client.CompoundClient;
-
-public class GroupingExample extends SparkAppJava {
-    @Override
-    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
-        Dataset<Row> df = spark.read().format("yt").load("//home/spark/examples/tables/example_1");
-        Dataset<Row> dictDf = spark.read().format("yt").load("//home/spark/examples/tables/example_dict");
-
-        df
-          .join(dictDf, df.col("uuid").equalTo(dictDf.col("uuid")), "left_outer")
-          .groupBy("count")
-          .agg(functions.max("id").as("max_id"))
-          .repartition(1)
-          .write().mode(SaveMode.Overwrite).format("yt").save("//home/spark/examples/tables/example_1_agg");
-    }
-
-    public static void main(String[] args) {
-        new GroupingExample().run(args);
-    }
-
-    @Override
-    protected SparkConf getSparkConf() {
-        return super.getSparkConf().setAppName("Custom name");
-    }
-}
-```
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
 
 1. Класс джоба унаследован от `SparkAppJava`, как в предыдущем примере.
-2. Чтение датафрейма из `//sys/spark/examples/example_1`.
-3. Чтение датафрейма из `//sys/spark/examples/example_dict`.
+2. Чтение датафрейма из `//home/spark/examples/tables/example_1`.
+3. Чтение датафрейма из `//home/spark/examples/tables/example_dict`.
 4. Джойн по колонке `uuid`. В данном примере Spark оценит размер правого датафрейма и решит, что можно сделать `map-side join`. В терминологии Spark такая ситуация называется `broadcast`.
 5. Группировка результата по `count`, найден максимальный `id` для каждого `count`. Для группировки Spark сделает перетасовку (shuffle) датафрейма, чтобы записи с одинаковыми ключами оказались в одной партиции. Количество партиций после перетасовки определяется параметром `spark.sql.shuffle.partitions`. По умолчанию число партиций равно `200`, значение можно изменить при запуске джоба.
 
 6. Сохранение результата в {{product-name}}. Количество чанков в сохраненной таблице будет равно количеству партиций у записываемого датафрейма. Партиций образовалось много (200), так как была сделана группировка. Для того чтобы при записи не порождать много мелких чанков, перед записью они собираются в одну партицию с помощью `repartition(1)`
 
-Результат: `//sys/spark/examples/example_1_agg`.
+Результат: `//home/spark/examples/tables/example_1_agg`.
 
 Запуск осуществляется командой `spark-submit-yt`. Дополнительно указывается `spark.sql.shuffle.partitions`:
 
@@ -207,7 +130,7 @@ spark-submit-yt \
   --discovery-path //my/discovery/path \
   --conf spark.sql.shuffle.partitions=8 \
   --deploy-mode cluster \
-  --class tech.ytsaurus.spark.example.GroupingExample \
+  --class tech.ytsaurus.spyt.example.GroupingExample \
   yt:///sys/spark/examples/spark-over-yt-examples-jar-with-dependencies.jar
 ```
 

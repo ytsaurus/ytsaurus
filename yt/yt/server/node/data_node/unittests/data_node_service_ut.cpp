@@ -405,6 +405,8 @@ struct TCellDirectoryMock
 
     MOCK_METHOD(TCellTagList, GetMasterCellTagsWithRole, (EMasterCellRole), (override));
 
+    MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
+
     MOCK_METHOD(TCellId, GetRandomMasterCellWithRoleOrThrow, (EMasterCellRole), (override));
 
     MOCK_METHOD(bool, IsClientSideCacheEnabled, (), (const, override));
@@ -554,6 +556,8 @@ public:
         double UnweightedRequestWeight = 1.0;
         TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
         bool EnableMediumAwareBlockCache = false;
+        THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+        THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
     };
 
     TDataNodeTest() = default;
@@ -649,6 +653,9 @@ public:
                 bootstrapConfig->DataNode->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
             }
         }
+
+        bootstrapConfig->InThrottlers = TestParams_.InThrottlers;
+        bootstrapConfig->OutThrottlers = TestParams_.OutThrottlers;
 
         for (const auto& [ioWeight, sessionCountLimit] : Zip(TestParams_.IOWeights, TestParams_.SessionCountLimits)) {
             bootstrapConfig->DataNode->StoreLocations.push_back(GenerateStoreLocationConfig(ioWeight, sessionCountLimit));
@@ -2498,6 +2505,77 @@ TEST_F(TDataNodeTest, ProbePutBlocksIgnoresNetInThrottlerQueueSizeWhenFlagDisabl
 
     inThrottler->Release(2_GB);
     Y_UNUSED(throttleFuture);
+}
+
+TEST_F(TDataNodeTest, UserWorkloadsShareDefaultNetThrottlersWhenNotConfigured)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+
+    // |Idle| never has a dedicated bucket, so these are the default throttlers.
+    auto defaultInThrottler = bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::Idle));
+    auto defaultOutThrottler = bootstrap->GetOutThrottler(TWorkloadDescriptor(EWorkloadCategory::Idle));
+
+    for (auto category : {
+        EWorkloadCategory::UserBatch,
+        EWorkloadCategory::UserInteractive,
+        EWorkloadCategory::UserRealtime,
+        EWorkloadCategory::UserDynamicStoreRead,
+    }) {
+        EXPECT_EQ(bootstrap->GetInThrottler(TWorkloadDescriptor(category)), defaultInThrottler);
+        EXPECT_EQ(bootstrap->GetOutThrottler(TWorkloadDescriptor(category)), defaultOutThrottler);
+    }
+
+    EXPECT_EQ(
+        bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::SystemReplication)),
+        bootstrap->GetThrottler(EDataNodeThrottlerKind::ReplicationIn));
+    EXPECT_EQ(
+        bootstrap->GetOutThrottler(TWorkloadDescriptor(EWorkloadCategory::SystemRepair)),
+        bootstrap->GetThrottler(EDataNodeThrottlerKind::RepairOut));
+}
+
+class TConfiguredUserWorkloadThrottlersTest
+    : public TDataNodeTest
+{
+public:
+    TConfiguredUserWorkloadThrottlersTest()
+        : TDataNodeTest(TDataNodeTestParams{
+            .InThrottlers = {
+                {"user_batch_in", New<TFairThrottlerBucketConfig>()},
+                {"user_interactive_in", New<TFairThrottlerBucketConfig>()},
+            },
+            .OutThrottlers = {
+                {"user_realtime_out", New<TFairThrottlerBucketConfig>()},
+            },
+        })
+    { }
+};
+
+TEST_F(TConfiguredUserWorkloadThrottlersTest, ConfiguredUserWorkloadsGetDedicatedNetThrottlers)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+
+    // |Idle| never has a dedicated bucket, so these are the default throttlers.
+    auto defaultInThrottler = bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::Idle));
+    auto defaultOutThrottler = bootstrap->GetOutThrottler(TWorkloadDescriptor(EWorkloadCategory::Idle));
+
+    auto batchInThrottler = bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+    EXPECT_EQ(batchInThrottler, bootstrap->GetThrottler(EDataNodeThrottlerKind::UserBatchIn));
+    EXPECT_TRUE(batchInThrottler);
+    EXPECT_NE(batchInThrottler, defaultInThrottler);
+
+    auto interactiveInThrottler = bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::UserInteractive));
+    EXPECT_EQ(interactiveInThrottler, bootstrap->GetThrottler(EDataNodeThrottlerKind::UserInteractiveIn));
+    EXPECT_TRUE(interactiveInThrottler);
+    EXPECT_NE(interactiveInThrottler, defaultInThrottler);
+
+    auto realtimeOutThrottler = bootstrap->GetOutThrottler(TWorkloadDescriptor(EWorkloadCategory::UserRealtime));
+    EXPECT_EQ(realtimeOutThrottler, bootstrap->GetThrottler(EDataNodeThrottlerKind::UserRealtimeOut));
+    EXPECT_TRUE(realtimeOutThrottler);
+    EXPECT_NE(realtimeOutThrottler, defaultOutThrottler);
+
+    EXPECT_EQ(bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::UserRealtime)), defaultInThrottler);
+    EXPECT_EQ(bootstrap->GetOutThrottler(TWorkloadDescriptor(EWorkloadCategory::UserBatch)), defaultOutThrottler);
+    EXPECT_EQ(bootstrap->GetInThrottler(TWorkloadDescriptor(EWorkloadCategory::UserDynamicStoreRead)), defaultInThrottler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

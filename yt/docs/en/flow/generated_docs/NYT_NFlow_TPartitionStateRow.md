@@ -7,9 +7,9 @@ A single row in the `partition_states` section of the `read-states` response.
 
 #|
 || **Parameter** | **Description** ||
-|| `computation_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>>`
+|| `computation_id` | **Type**: `std::optional<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`>`
 ID of the Computation. May be absent if the partition is not bound to a specific Computation. ||
-|| `partition_id` | **Type**: `NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>`
+|| `partition_id` | **Type**: [NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)
 **Required parameter**
 Partition ID. ||
 || `states` | **Type**: `THashMap<std::string, NYT::NYson::TYsonString>`

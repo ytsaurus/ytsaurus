@@ -8,6 +8,8 @@
 #include <yt/yql/providers/dq/config/config.pb.h>
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
 
+#include <limits>
+
 namespace NYql::NDq {
 
 class IScheduler {
@@ -56,7 +58,31 @@ public:
 
     using TProcessor = std::function<bool(const TWaitInfo& info)>;
 
-    virtual void Process(size_t totalWorkersCount, size_t freeWorkersCount, const TProcessor& processor, const TInstant& timestamp = TInstant::Now()) = 0;
+    struct TProcessLimits {
+        size_t TotalSlots = 0;
+        size_t FreeSlots = 0;
+        size_t LargeSlotsBudget = std::numeric_limits<size_t>::max();
+    };
+
+    virtual void Process(
+        const TProcessLimits& limits,
+        const TProcessor& processor,
+        const TInstant& timestamp = TInstant::Now()) = 0;
+
+    void Process(
+        size_t totalWorkersCount,
+        size_t freeWorkersCount,
+        const TProcessor& processor,
+        const TInstant& timestamp = TInstant::Now())
+    {
+        Process(
+            TProcessLimits{
+                .TotalSlots = totalWorkersCount,
+                .FreeSlots = freeWorkersCount,
+            },
+            processor,
+            timestamp);
+    }
 
     virtual void ProcessAll(const TProcessor& processor) = 0;
 

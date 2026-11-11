@@ -10,7 +10,7 @@
 #include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
 
-#include <contrib/ydb/library/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
+#include <yt/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 

@@ -105,6 +105,7 @@ class Test(FlowTestCppCompanionBase):
         word_metadata,
         word_state,
         tag_metadata,
+        finite,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -113,7 +114,7 @@ class Test(FlowTestCppCompanionBase):
             {
                 "queue_path": f"<cluster={cluster}>{input_queue}",
                 "consumer_path": f"<cluster={cluster}>{input_consumer}",
-                "finite": True,
+                "finite": finite,
             }
         )
         reader = pipeline_config["spec"]["computations"]["reader"]
@@ -130,7 +131,8 @@ class Test(FlowTestCppCompanionBase):
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
 
     @pytest.mark.authors(["sergeypozdeev"])
-    def test_all_states(self):
+    @pytest.mark.parametrize("finite", [True, False])
+    def test_all_states(self, finite):
         input_queue = f"{self.work_yt_path}/input_queue"
         input_consumer = f"{self.work_yt_path}/consumer"
         source_output_queue = f"{self.work_yt_path}/source_output_queue"
@@ -148,6 +150,7 @@ class Test(FlowTestCppCompanionBase):
             word_metadata,
             word_state,
             tag_metadata,
+            finite,
         )
 
         with self.start_flow_process_federation(
@@ -155,6 +158,12 @@ class Test(FlowTestCppCompanionBase):
             workers_count=1,
             controllers_count=1,
         ) as federation:
+            if not finite:
+                self._check_companion_sensors(federation)
+                self.client.stop_pipeline(self.pipeline_path)
+                self.wait_pipeline_state("stopped", timeout=240)
+                return
+
             self.wait_pipeline_state("completed", timeout=240)
             logging.info("pipeline completed")
 
@@ -201,8 +210,6 @@ class Test(FlowTestCppCompanionBase):
             assert all(row["tag_weight"] == tag_weight(row["word"][::-1]) for row in output_rows)
             logging.info("check completed")
 
-            self._check_companion_sensors(federation)
-
     def _check_companion_sensors(self, federation):
         """Check that the merged endpoint contains companion and node sensors."""
         worker = federation.workers[0]
@@ -214,6 +221,17 @@ class Test(FlowTestCppCompanionBase):
             {"computation_id": "counter", "flow_process": "companion"},
         )
 
+        labels = {"computation_id": "counter", "request_type": "process_batch", "flow_process": "companion"}
+        for item in ("message", "timer", "visit"):
+            name = f"yt.flow.companion.request.{item}_count.max"
+            sensors = self._wait_for_sensor(worker.monitoring_port, name, labels)
+            assert find_sensor(sensors, name, labels)["value"] >= 0
+
+        state_labels = dict(labels, direction="response", state_type="internal", state_name="word-state")
+        name = "yt.flow.companion.state.item_count.max"
+        sensors = self._wait_for_sensor(worker.monitoring_port, name, state_labels)
+        assert find_sensor(sensors, name, state_labels)["value"] >= 0
+
         # Node sensors remain present and untagged as companion.
         node_sensor = find_sensor(sensors, "yt.flow.worker.job_count", {"computation_id": "counter"})
         assert node_sensor is not None, "node sensors are missing from the merged endpoint"
@@ -222,7 +240,12 @@ class Test(FlowTestCppCompanionBase):
     def _wait_for_sensor(self, monitoring_port, name, labels, timeout=90, period=2):
         deadline = time.monotonic() + timeout
         while True:
-            sensors = fetch_merged_sensors(monitoring_port)
+            last_error = None
+            try:
+                sensors = fetch_merged_sensors(monitoring_port)
+            except requests.RequestException as error:
+                last_error = error
+                sensors = []
             if find_sensor(sensors, name, labels) is not None:
                 return sensors
             if time.monotonic() >= deadline:
@@ -236,5 +259,5 @@ class Test(FlowTestCppCompanionBase):
                 raise AssertionError(
                     f"sensor {name} with {labels} is missing from the merged endpoint; "
                     f"companion sensors seen: {companion_sensors}"
-                )
+                ) from last_error
             time.sleep(period)

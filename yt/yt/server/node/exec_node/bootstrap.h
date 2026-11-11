@@ -40,7 +40,8 @@ struct IBootstrap
 
     virtual const TArtifactCachePtr& GetArtifactCache() const = 0;
 
-    virtual bool IsSimpleEnvironment() const = 0;
+    //! Thread affinity: Job.
+    virtual TJobEnvironmentCapabilities GetJobEnvironmentCapabilities() const = 0;
 
     virtual const IJobControllerPtr& GetJobController() const = 0;
 

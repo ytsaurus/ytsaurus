@@ -87,6 +87,21 @@ double ComputeKeyVisitorSweepRate(double span, double periodSeconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool NamesContain(const std::optional<THashSet<std::string>>& names, const std::string& name)
+{
+    return names && names->contains(name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TKeyVisitor::TKeyVisitor(
     TKeyVisitorContextPtr context,
     TDynamicKeyVisitorContextPtr dynamicContext)
@@ -116,6 +131,7 @@ TKeyVisitor::TKeyVisitor(
     // never advance; refuse the combination when the visitor is built.
     const auto& names = Context_->Spec->Names;
     const auto& externalNames = Context_->Spec->ExternalNames;
+    const auto& weakExternalNames = Context_->Spec->WeakExternalNames;
     const bool scanAll = !names && !externalNames;
     if (Context_->StateManager && (scanAll || (externalNames && !externalNames->empty()))) {
         for (const auto& [name, manager] : Context_->StateManager->GetExternalStateManagers()) {
@@ -132,8 +148,12 @@ TKeyVisitor::TKeyVisitor(
                     .With(ex);
             }
         }
+    }
+    if (Context_->StateManager) {
         for (const auto& [name, joiner] : Context_->StateManager->GetExternalStateJoiners()) {
-            if (!externalNames || !externalNames->contains(name) || !joiner->IsVisitorDriven()) {
+            if ((!NamesContain(externalNames, name) && !NamesContain(weakExternalNames, name)) ||
+                !joiner->IsVisitorDriven())
+            {
                 continue;
             }
             try {
@@ -406,9 +426,12 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
 
     const auto& names = Context_->Spec->Names;
     const auto& externalNames = Context_->Spec->ExternalNames;
+    const auto& weakExternalNames = Context_->Spec->WeakExternalNames;
     const bool scanAll = !names && !externalNames;
     const bool scanInternal = scanAll || (names && !names->empty());
     const bool scanExternal = scanAll || (externalNames && !externalNames->empty());
+    const bool scanJoiners = (externalNames && !externalNames->empty()) ||
+        (weakExternalNames && !weakExternalNames->empty());
 
     YT_VERIFY(!BackgroundFillInProgress_);
     BackgroundFillInProgress_ = true;
@@ -419,7 +442,17 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
     const i64 maxRows = DynamicContext_->DynamicSpec->MaxScanRowsPerIteration;
     YT_VERIFY(maxRows > 0);
 
-    std::vector<TFuture<std::vector<TKey>>> futures;
+    //! One swept source: its keys in the range, and whether they become visits. A weak joiner is
+    //! read so that its rows are served to the visits of the range, but contributes no keys.
+    struct TSweptSource
+    {
+        TFuture<std::vector<TKey>> Keys;
+        bool ContributesKeys = true;
+        //! Set for a weak joiner, which is told which of its listed keys got visits.
+        IExternalStateJoinerPtr WeakJoiner;
+    };
+
+    std::vector<TSweptSource> sources;
     if (scanInternal) {
         NTables::IKeyStates::TTableKeyFilter filter;
         filter.ComputationId = Context_->ComputationId;
@@ -428,7 +461,8 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
         }
         filter.LowerKey = throttledRange.Lower;
         filter.UpperKey = throttledRange.Upper;
-        futures.push_back(Context_->KeyStates->List(filter, maxRows, std::nullopt)
+        sources.push_back({
+            .Keys = Context_->KeyStates->List(filter, maxRows, std::nullopt)
                 .AsUnique()
                 .Apply(BIND([] (NTables::IKeyStates::TListResult&& result) {
                     std::vector<TKey> keys;
@@ -437,7 +471,8 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
                         keys.push_back(std::move(tableKey.Key));
                     }
                     return keys;
-                })));
+                })),
+        });
     }
     if (scanExternal && Context_->StateManager) {
         IExternalStateManager::TFilter managerFilter;
@@ -447,20 +482,26 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
             if (externalNames && !externalNames->contains(name)) {
                 continue;
             }
-            futures.push_back(manager->List(managerFilter, maxRows, std::nullopt)
+            sources.push_back({
+                .Keys = manager->List(managerFilter, maxRows, std::nullopt)
                     .AsUnique()
                     .Apply(BIND([] (IExternalStateManager::TListResult&& result) {
                         return std::move(result.Keys);
-                    })));
+                    })),
+            });
         }
+    }
+    if (scanJoiners && Context_->StateManager) {
         IExternalStateJoiner::TFilter joinerFilter;
         joinerFilter.LowerKey = throttledRange.Lower;
         joinerFilter.UpperKey = throttledRange.Upper;
         for (const auto& [name, joiner] : Context_->StateManager->GetExternalStateJoiners()) {
             // Unlike a state manager, a joiner is swept only when explicitly named in
-            // external_names — scan-all never sweeps joiners. A visitor-driven joiner holds a
-            // single sweep cursor and is bound to at most one stream (validated at construction).
-            if (!externalNames || !externalNames->contains(name)) {
+            // external_names or weak_external_names — scan-all never sweeps joiners. A
+            // visitor-driven joiner holds a single sweep cursor and is bound to at most one
+            // stream (validated at construction).
+            const bool contributesKeys = NamesContain(externalNames, name);
+            if (!contributesKeys && !NamesContain(weakExternalNames, name)) {
                 continue;
             }
             if (!joiner->IsVisitorDriven()) {
@@ -472,18 +513,22 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
                 }
                 continue;
             }
-            futures.push_back(joiner->List(joinerFilter, maxRows, std::nullopt)
+            sources.push_back({
+                .Keys = joiner->List(joinerFilter, maxRows, std::nullopt)
                     .AsUnique()
                     .Apply(BIND([] (IExternalStateJoiner::TListResult&& result) {
                         return std::move(result.Keys);
-                    })));
+                    })),
+                .ContributesKeys = contributesKeys,
+                .WeakJoiner = contributesKeys ? nullptr : joiner,
+            });
         }
     }
 
     std::vector<TFuture<void>> waits;
-    waits.reserve(futures.size());
-    for (const auto& future : futures) {
-        waits.push_back(future.AsVoid());
+    waits.reserve(sources.size());
+    for (const auto& source : sources) {
+        waits.push_back(source.Keys.AsVoid());
     }
     WaitFor(AllSucceeded(std::move(waits))).ThrowOnError();
 
@@ -491,16 +536,21 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
     // unread rows past its last returned key. Truncating the read-range at
     // the smallest such last-key across all hit-cap sources keeps the tail
     // Pending in the store so the next iteration re-reads it from scratch —
-    // no keys are lost.
+    // no keys are lost. A weak source takes part in the truncation too: a
+    // visit must not run ahead of the rows the weak joiner has read for it.
     std::set<TKey> sortedKeys;
     std::optional<TKey> truncationUpper;
-    for (auto& future : futures) {
-        auto keys = WaitFor(future).ValueOrThrow();
+    for (auto& source : sources) {
+        auto keys = WaitFor(source.Keys)
+            .ValueOrThrow();
         if (std::ssize(keys) >= maxRows) {
             auto& candidate = keys.back();
             if (!truncationUpper || candidate < *truncationUpper) {
                 truncationUpper = candidate;
             }
+        }
+        if (!source.ContributesKeys) {
+            continue;
         }
         for (auto& key : keys) {
             sortedKeys.insert(std::move(key));
@@ -511,6 +561,14 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
     if (truncationUpper) {
         sortedKeys.erase(sortedKeys.lower_bound(*truncationUpper), sortedKeys.end());
         readRange.Upper = *truncationUpper;
+    }
+
+    // Over the whole throttled range: what lies past a truncation is listed again with the
+    // Pending tail, and a key with no visit here would otherwise stay cached in the joiner.
+    for (const auto& source : sources) {
+        if (source.WeakJoiner) {
+            source.WeakJoiner->RetainListed(throttledRange, sortedKeys);
+        }
     }
 
     if (truncationUpper && readRange.Upper == readRange.Lower) {

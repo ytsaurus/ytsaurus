@@ -441,7 +441,7 @@ SELECT Udf(Foo::Bar, "4.5" as Cpu, "100M" as ExtraMem)(1);
 ```
 
 
-## CurrentUtc... {#current-utc}
+## CurrentUtc... {#current-utc} {#currentutcdate}
 
 `CurrentUtcDate()`, `CurrentUtcDatetime()` и `CurrentUtcTimestamp()` - получение текущей даты и/или времени в UTC. Тип данных результата указан в конце названия функции.
 
@@ -589,7 +589,7 @@ SELECT MIN_OF(1, 2, 3);
 ```
 
 
-## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict и AsSetStrict {#as-container}
+## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict и AsSetStrict {#as-container} {#aslist} {#asstruct} {#astuple}
 
 Создает контейнеры соответствующих типов. Также доступна [операторная запись](#containerliteral) литералов контейнеров.
 
@@ -989,7 +989,7 @@ TableRow()->Struct
 SELECT TableRow() FROM my_table;
 ```
 
-## FileContent и FilePath {#file-content-path}
+## FileContent и FilePath {#file-content-path} {#filecontent}
 
 Как {% if audience == "internal" %}[консольный]({{yql.link}}/docs/yt/interfaces/cli){% else %}консольный{% endif %}, так и {% if audience == "internal" %}[веб]({{yql.link}}/docs/yt/interfaces/web){% else %}веб{% endif %}-интерфейсы позволяют «прикладывать» к запросу произвольные именованные файлы. С помощью этих функций можно по имени приложенного файла получить его содержимое или путь в «песочнице» и в дальнейшем использовать в запросе произвольным образом.
 

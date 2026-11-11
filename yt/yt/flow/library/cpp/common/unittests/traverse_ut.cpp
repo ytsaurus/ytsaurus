@@ -248,6 +248,74 @@ TEST(TTraverseTest, ApplyInflightPreservesProducerSystemWatermark)
     EXPECT_EQ(applied->SystemWatermark, TSystemTimestamp(80));
 }
 
+TEST(TTraverseTest, MinTriggerTimestampIsReportedPerPartition)
+{
+    auto stream = New<TStreamTraverseData>();
+    stream->MinTriggerTimestamp = TSystemTimestamp(10);
+
+    auto inflight = New<TInflightStreamTraverseData>();
+    inflight->MinTriggerTimestamp = TSystemTimestamp(30);
+    EXPECT_EQ(ApplyInflightTraverseData(stream, inflight)->MinTriggerTimestamp, TSystemTimestamp(30));
+    EXPECT_FALSE(ApplyInflightTraverseData(stream, New<TInflightStreamTraverseData>())->MinTriggerTimestamp);
+
+    auto later = New<TStreamTraverseData>();
+    later->MinTriggerTimestamp = TSystemTimestamp(40);
+    auto withoutTimers = New<TStreamTraverseData>();
+    EXPECT_EQ(MergeStreamTraverseData({withoutTimers, later, stream}, EInflightMerge::Sum)->MinTriggerTimestamp, TSystemTimestamp(10));
+
+    stream->Epoch = 1;
+    later->Epoch = 2;
+    EXPECT_EQ(AdvanceStreamTraverseData(stream, later)->MinTriggerTimestamp, TSystemTimestamp(40));
+}
+
+TEST(TTraverseTest, ReadyWatermarkMergeRules)
+{
+    auto makeStream = [] (ui64 systemWatermark, std::optional<ui64> readyWatermark, bool unknown = false) {
+        auto stream = New<TStreamTraverseData>();
+        stream->SystemWatermark = TSystemTimestamp(systemWatermark);
+        if (readyWatermark) {
+            stream->ReadyWatermark = TSystemTimestamp(*readyWatermark);
+        }
+
+        stream->ReadyWatermarkUnknown = unknown;
+        return stream;
+    };
+
+    auto resolved = makeStream(/*systemWatermark*/ 40, /*readyWatermark*/ 50);
+    auto applied = ApplyInflightTraverseData(resolved, New<TInflightStreamTraverseData>());
+    EXPECT_FALSE(applied->ReadyWatermark);
+    EXPECT_FALSE(applied->ReadyWatermarkUnknown);
+    applied = ApplyInflightTraverseData(makeStream(/*systemWatermark*/ 40, /*readyWatermark*/ std::nullopt, /*unknown*/ true), New<TInflightStreamTraverseData>());
+    EXPECT_FALSE(applied->ReadyWatermarkUnknown);
+
+    // Partition merges never carry a ready watermark.
+    auto merged = MergeStreamTraverseData({makeStream(/*systemWatermark*/ 30, /*readyWatermark*/ std::nullopt), makeStream(/*systemWatermark*/ 70, /*readyWatermark*/ std::nullopt)}, EInflightMerge::Sum);
+    EXPECT_FALSE(merged->ReadyWatermark);
+    EXPECT_FALSE(merged->ReadyWatermarkUnknown);
+
+    // United streams: unresolved inputs contribute their system watermark.
+    merged = MergeStreamTraverseData({makeStream(/*systemWatermark*/ 70, /*readyWatermark*/ std::nullopt), resolved}, EInflightMerge::Sum);
+    EXPECT_EQ(merged->ReadyWatermark, TSystemTimestamp(50));
+    merged = MergeStreamTraverseData({resolved, makeStream(/*systemWatermark*/ 30, /*readyWatermark*/ std::nullopt)}, EInflightMerge::Sum);
+    EXPECT_EQ(merged->ReadyWatermark, TSystemTimestamp(30));
+
+    merged = MergeStreamTraverseData({resolved, makeStream(/*systemWatermark*/ 70, /*readyWatermark*/ std::nullopt, /*unknown*/ true)}, EInflightMerge::Sum);
+    EXPECT_FALSE(merged->ReadyWatermark);
+    EXPECT_TRUE(merged->ReadyWatermarkUnknown);
+
+    // Not max-advanced: a newer smaller value replaces a larger current one.
+    auto current = makeStream(/*systemWatermark*/ 40, /*readyWatermark*/ 100);
+    current->Epoch = 1;
+    auto next = makeStream(/*systemWatermark*/ 40, /*readyWatermark*/ 60);
+    next->Epoch = 2;
+    EXPECT_EQ(AdvanceStreamTraverseData(current, next)->ReadyWatermark, TSystemTimestamp(60));
+    auto nextUnknown = makeStream(/*systemWatermark*/ 40, /*readyWatermark*/ std::nullopt, /*unknown*/ true);
+    nextUnknown->Epoch = 2;
+    auto advanced = AdvanceStreamTraverseData(current, nextUnknown);
+    EXPECT_FALSE(advanced->ReadyWatermark);
+    EXPECT_TRUE(advanced->ReadyWatermarkUnknown);
+}
+
 TEST(TTraverseTest, MergeNodeDoesNotCombineLocalIterationCycles)
 {
     const TStreamId streamId("stream");

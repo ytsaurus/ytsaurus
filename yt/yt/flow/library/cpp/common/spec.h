@@ -1,10 +1,12 @@
 #pragma once
 
+#include "dynamic_spec.h"
 #include "file_provider.h"
 #include "public.h"
 #include "yt_path_option.h"
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client_spec.h>
+#include <yt/yt/flow/library/cpp/source_read_delay/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/core/concurrency/public.h>
@@ -17,6 +19,8 @@
 
 #include <yt/yt/core/ytree/size.h>
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <mutex>
 
 namespace NYT::NFlow {
 
@@ -72,11 +76,9 @@ struct TResourceSpec
     THashMap<TResourceId, TResourceDescriptionPtr> Dependencies;
     THashMap<std::string, ssize_t> RequiredCapabilities;
     bool PreloadRequired{};
-    //! When true, the resource is loaded eagerly at unit startup and kept resident for the unit's
-    //! whole lifetime (never deallocated), rather than lazily on first use. It is loaded only on the
-    //! units where some computation requires it (see TResourceDescription::Worker / ::Controller):
-    //! a resource required only on the worker is not loaded on the controller, and a resource that
-    //! no computation requires is not loaded at all. Mutually exclusive with preload_required.
+    //! Loads the resource eagerly on units where a computation requires it. Worker instances
+    //! remain resident while assigned in the layout and are released after pipeline jobs stop.
+    //! Controller instances retain their existing lifetime. Mutually exclusive with preload_required.
     bool AlwaysOn{};
 
     REGISTER_YSON_STRUCT(TResourceSpec);
@@ -276,18 +278,29 @@ DEFINE_REFCOUNTED_TYPE(TTimerSpec);
 struct TKeyVisitorStreamSpec
     : public NYTree::TYsonStruct
 {
-    // Internal state names to visit. If both Names and ExternalNames are unset, the visitor
-    // sweeps all internal names and all external state managers; otherwise only the listed ones.
+    // Internal state names to visit.
+    // Null means all internal states when ExternalNames is null too (the scan-all mode) and nothing
+    // otherwise; empty means nothing.
     std::optional<THashSet<std::string>> Names;
     // External-state-manager and joiner names to visit. A joiner is swept only when explicitly
-    // listed here; the unset scan-all mode never sweeps joiners.
-    // A visitor-driven joiner may be listed in at most one key-visitor stream.
+    // listed here. A visitor-driven joiner may be listed in at most one key-visitor stream.
+    // Null means all external state managers, but no joiners, when Names is null too (the scan-all
+    // mode) and nothing otherwise; empty means nothing.
     std::optional<THashSet<std::string>> ExternalNames;
 
+    // Visitor-driven joiners swept alongside the stream without contributing keys: each is listed
+    // over the same key ranges as the stream's own sources, so its rows are available to the
+    // visit handler, but a key present only in the joiner produces no visit — a weak (left) join
+    // against the keys of Names/ExternalNames. Disjoint with ExternalNames; the one-stream rule
+    // above counts both lists.
+    // Null means nothing, the same as empty.
+    std::optional<THashSet<std::string>> WeakExternalNames;
+
     // Input and source streams whose completion the visitor waits for before it may finalize.
-    // Unset — every input and source stream of the computation. Narrowing lets a visitor
-    // retire once the streams it actually feeds on are done, ignoring the ones that outlive
-    // it; an explicit empty set waits for nothing, so the visitor may finalize right away.
+    // Narrowing lets a visitor retire once the streams it actually feeds on are done, ignoring
+    // the ones that outlive it.
+    // Null means all: every input and source stream of the computation; empty means nothing, so
+    // the visitor may finalize right away.
     std::optional<THashSet<TStreamId>> UpstreamStreams;
 
     // Static — changing it invalidates persisted coverage intervals.
@@ -545,11 +558,57 @@ DEFINE_REFCOUNTED_TYPE(TDynamicStateJoinerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyCountPartitioningSpec
+    : public NYTree::TYsonStruct
+{
+    bool Enable = false;
+    i64 MaxKeysPerPartition = 1;
+
+    REGISTER_YSON_STRUCT(TKeyCountPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyCountPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPartitioningSpec
+    : public virtual NYTree::TYsonStruct
+{
+    TKeyCountPartitioningSpecPtr KeyCountPartitioning;
+
+    REGISTER_YSON_STRUCT(TPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicKeyCountPartitioningSpec
+    : public NYTree::TYsonStruct
+{
+    TDuration KeyRetentionPeriod;
+    TDuration RebalancePeriod;
+
+    REGISTER_YSON_STRUCT(TDynamicKeyCountPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicKeyCountPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicPartitioningSpec
     : public virtual NYTree::TYsonStruct
 {
     static constexpr int DefaultMinPartitionCount = 3;
     static constexpr int DefaultMaxPartitionCount = 20'000;
+    TDynamicKeyCountPartitioningSpecPtr KeyCountPartitioning;
+
     std::optional<int> DesiredPartitionCount;
     std::optional<int> MinPartitionCount;
     std::optional<int> MaxPartitionCount;
@@ -567,12 +626,12 @@ struct TPartitioningSpec
 
     std::pair<i64, i64> GetPartitionCountBounds() const;
 
-    REGISTER_YSON_STRUCT(TPartitioningSpec);
+    REGISTER_YSON_STRUCT(TDynamicPartitioningSpec);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -580,6 +639,9 @@ struct TComputationSpec
     : public NYTree::TYsonStruct
 {
     static constexpr bool ExperimentalEnableNonUintKeyDefault = false;
+    static constexpr ETimerStoreBackend DefaultTimerStoreBackend = ETimerStoreBackend::InMemory;
+    static constexpr i64 DefaultTimerPageSize = 4096;
+    static constexpr i64 MinTimerPageSize = 16;
 
     std::string ComputationClassName;
 
@@ -618,6 +680,7 @@ struct TComputationSpec
     //! Read-only joiners over other computations' internal state, bound to client names.
     THashMap<std::string, TStateJoinerSpecPtr> StateJoiners;
 
+
     THeavyHittersSpec HeavyHitters;
     TPivotFinderSpec PivotFinder;
 
@@ -629,6 +692,11 @@ struct TComputationSpec
 
     bool AllowTimerSelfDependency{};
     std::optional<bool> UseCompactInputMessages;
+
+    //! Timer store backend and page size. A backend change is applied by a conversion at
+    //! the next job start; pages are split and merged gradually to approach the configured page size.
+    ETimerStoreBackend TimerStoreBackend{};
+    NYTree::TSize TimerPageSize;
 
     REGISTER_YSON_STRUCT(TComputationSpec);
 
@@ -652,6 +720,12 @@ THashSet<TStreamId> ComputeAllowedInputStreams(
 THashSet<TStreamId> ComputeKeyVisitorUpstreamStreams(
     const TComputationSpec& computationSpec,
     const TStreamId& visitStreamId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Whether the computation keeps the event ordering of its timers, which only a percentile
+//! watermark needs; meaningful for the paged backend only.
+bool ResolveTimerEventOrdering(const TComputationSpecPtr& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -823,6 +897,10 @@ struct TDynamicTimerStoreSpec
 {
     TDynamicTableRequestSpecPtr TableRequest;
 
+    // Paged backend only.
+    //! Maximum timer row writes per required insertion in one epoch.
+    double TimerWriteMultiplier{};
+
     REGISTER_YSON_STRUCT(TDynamicTimerStoreSpec);
 
     static void Register(TRegistrar registrar);
@@ -889,6 +967,8 @@ struct TDynamicComputationSpec
 {
     bool Draining{};
 
+    TSourceReadDelayEstimatorSpecPtr SourceReadDelayEstimator;
+
     // TODO(mikari): revise parameters
 
     // Would sleep for EmptyBatchBackoff if batch is empty.
@@ -929,11 +1009,6 @@ struct TDynamicComputationSpec
     // In case of too much data in memory - some computations may fail, some may suspend processing new data.
     NYTree::TSize TimerStoreCountLimit;
     NYTree::TSize TimerStoreByteSizeLimit;
-
-    // Limits for OutputStore.
-    // In case of too much data in memory - computation may suspend any processing.
-    NYTree::TSize OutputStoreCountLimit;
-    NYTree::TSize OutputStoreByteSizeLimit;
 
     //! Averaging window of the blocked-time shares reported in
     //! #TJobEntityLimitStatus::BlockedTimeShare.
@@ -1236,17 +1311,17 @@ DEFINE_REFCOUNTED_TYPE(TThroughputSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicPartitioningSpec
+struct TDynamicPartitioningCoordinatorSpec
     : public NYTree::TYsonStruct
 {
     bool EnableThroughputAutoscaler{};
     TThroughputSpecPtr Throughput;
 
-    REGISTER_YSON_STRUCT(TDynamicPartitioningSpec);
+    REGISTER_YSON_STRUCT(TDynamicPartitioningCoordinatorSpec);
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningSpec);
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningCoordinatorSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1259,8 +1334,10 @@ struct TDynamicJobManagerSpec
     THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
     //! Most partition histories kept in the balancer state; the lightest one goes when it is full.
     i64 PartitionHistoryLimit{};
+    //! A merged element of a timer watermark history spans at most 1/K of its age.
+    int WatermarkHistoryThinningFactor{};
 
-    TDynamicPartitioningSpecPtr Partitioning;
+    TDynamicPartitioningCoordinatorSpecPtr Partitioning;
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 
@@ -1460,6 +1537,8 @@ struct TDynamicPipelineSpec
     //! Experimental: enable the describe-pipeline mermaid diagnostic graph.
     bool EnableMermaidGraphDescribe = false;
 
+    bool EnableUnitedStreamMetrics = true;
+
     //! Codec for the compressed flow view served by the get-flow-view-v2 command.
     NCompression::ECodec FlowViewCacheCodec{};
 
@@ -1472,6 +1551,27 @@ DEFINE_REFCOUNTED_TYPE(TDynamicPipelineSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TVersionedDynamicPipelineSpec
+    : public TVersionedValue<TDynamicPipelineSpecPtr>
+{
+    std::vector<TDynamicSpecPatchPtr> Patches;
+
+    const TDynamicPipelineSpecPtr& GetBaseSpec() const;
+    const TDynamicPipelineSpecPtr& GetValue() const;
+    bool TrySetValue(TDynamicPipelineSpecPtr spec, const IVersionProviderPtr& versionProvider);
+    void SetEffectiveSpec(TDynamicPipelineSpecPtr spec);
+
+    REGISTER_YSON_STRUCT(TVersionedDynamicPipelineSpec);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    mutable std::mutex EffectiveSpecMutex_;
+    mutable TDynamicPipelineSpecPtr EffectiveSpec_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_REFCOUNTED_TYPE(TVersionedPipelineSpec);
 DEFINE_REFCOUNTED_TYPE(TVersionedExtendedPipelineSpec);
 DEFINE_REFCOUNTED_TYPE(TVersionedDynamicPipelineSpec);
@@ -1480,7 +1580,8 @@ DEFINE_REFCOUNTED_TYPE(TVersionedDynamicPipelineSpec);
 
 THashMap<TStreamId, std::vector<TStreamId>> BuildStreamGraph(const TPipelineSpecPtr& spec, bool addReadDelayEdges = false);
 void ValidateIsDirectedAcyclicGraph(const THashMap<TStreamId, std::vector<TStreamId>>& streamGraph);
-void ValidatePipelineSpec(const TPipelineSpecPtr& spec);
+//! |pipelineCluster| is the cluster of YT paths with neither `cluster` nor `clusters` in the writer-conflict check.
+void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std::string>& pipelineCluster = std::nullopt);
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& spec);
 
 //! Throws unless |id| is a valid ID of a user-defined entity of kind |entityKind|, such as a stream or a timer.

@@ -80,12 +80,14 @@ static constexpr auto InfinitySystemTimestamp = TSystemTimestamp(0xfffffffffffff
 static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
+DECLARE_REFCOUNTED_STRUCT(ITimerPageCatalogue);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
 DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
 
 struct TMessageMeta;
 struct TMessage;
+struct TParsedPipelineParameters;
 
 DECLARE_REFCOUNTED_STRUCT(TInputMessage);
 using TInputMessageConstPtr = TIntrusivePtr<const TInputMessage>;
@@ -161,6 +163,14 @@ DEFINE_ENUM(EJobFinishReason,
     ((PartitionUpdated)      (6))
 );
 
+//! Where a computation keeps its timers.
+DEFINE_ENUM(ETimerStoreBackend,
+    // All timers of a partition are resident in worker memory, persisted in the "timers" table.
+    ((InMemory)    (0))
+    // Timers live in pages of a dynamic table; only the pages needed for firing are resident.
+    ((Paged)       (1))
+);
+
 DEFINE_ENUM(EDistributionOrdering,
     // Output messages (created from input messages with the same key) are distributed in their creation order.
     // Ordering survives repartitioning (race between finishing and executing partitions is not possible).
@@ -184,6 +194,7 @@ DECLARE_REFCOUNTED_STRUCT(TNodeTraverseData);
 DECLARE_REFCOUNTED_STRUCT(TFromPartitionTraverseData);
 DECLARE_REFCOUNTED_STRUCT(TToPartitionTraverseData);
 DECLARE_REFCOUNTED_STRUCT(TPipelineTraverseData);
+DECLARE_REFCOUNTED_STRUCT(TPipelineWatermarkHistory);
 
 DECLARE_REFCOUNTED_STRUCT(TWatermarks);
 DECLARE_REFCOUNTED_STRUCT(TWatermarkState);
@@ -249,6 +260,8 @@ DECLARE_REFCOUNTED_STRUCT(TStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TKeyCountPartitioningSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphNodeSpec);
@@ -256,6 +269,13 @@ DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphSpec);
 DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphParameters);
 DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphDynamicParameters);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
+
+//! Computation classes that can host a process function graph.
+DEFINE_ENUM(EProcessFunctionGraphHost,
+    ((Transform)      (0))
+    ((SwiftMap)       (1))
+    ((SwiftSource)    (2))
+);
 
 DECLARE_REFCOUNTED_STRUCT(TExtendedComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TExtendedPipelineSpec);
@@ -272,6 +292,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicOutputStoreSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableClientSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableRequestSpec);
 DECLARE_REFCOUNTED_STRUCT(TMessageBatcherSettings);
+DECLARE_REFCOUNTED_STRUCT(TDynamicKeyCountPartitioningSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicFileProviderSpec);
@@ -287,15 +308,15 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicJobTrackerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicControllerConnectorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateCacheSpec);
 DECLARE_REFCOUNTED_STRUCT(TThroughputSpec);
-DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningCoordinatorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPipelineSpec);
 
 using TVersionedPipelineSpec = TVersionedValue<TPipelineSpecPtr>;
 DECLARE_REFCOUNTED_TYPE(TVersionedPipelineSpec);
 using TVersionedExtendedPipelineSpec = TVersionedValue<TExtendedPipelineSpecPtr>;
 DECLARE_REFCOUNTED_TYPE(TVersionedExtendedPipelineSpec);
-using TVersionedDynamicPipelineSpec = TVersionedValue<TDynamicPipelineSpecPtr>;
-DECLARE_REFCOUNTED_TYPE(TVersionedDynamicPipelineSpec);
+DECLARE_REFCOUNTED_STRUCT(TVersionedDynamicPipelineSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicSpecPatch);
 
 using TStreamsTraverse = THashMap<TStreamId, TStreamTraverseDataPtr>;
 using TVersionedStreamsTraverse = TVersionedValue<TStreamsTraverse>;
@@ -369,6 +390,15 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
 DECLARE_REFCOUNTED_STRUCT(IResource);
 DECLARE_REFCOUNTED_STRUCT(TResourceManagerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceManager);
+DECLARE_REFCOUNTED_STRUCT(TResourceInstance);
+DECLARE_REFCOUNTED_STRUCT(TResourceInstanceDynamicSpec);
+
+DEFINE_ENUM(EResourceLoadState,
+    ((NotLoaded) (0))
+    ((Loading)   (1))
+    ((Loaded)    (2))
+    ((Failed)    (3))
+);
 DECLARE_REFCOUNTED_STRUCT(TFileSnapshot);
 DECLARE_REFCOUNTED_STRUCT(TFileSnapshotStatus);
 DECLARE_REFCOUNTED_STRUCT(TResourceRevision);

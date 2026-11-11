@@ -2,7 +2,7 @@ GTEST(unittester-job-proxy)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(TCMALLOC)
+INCLUDE(${ARCADIA_ROOT}/yt/ya_allocator.inc)
 
 SRCS(
     asan_warning_filter_ut.cpp

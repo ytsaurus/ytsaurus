@@ -58,6 +58,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 DEFINE_ENUM(ETransactionType,
     (Async)
+    (JournalNbd)
     (Input)
     (Output)
     (Debug)
@@ -327,6 +328,9 @@ public:
         const std::vector<TUserFile>& files,
         const std::string& debugArtifactsAccount) override;
     const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
+    bool IsJournalNbdEnabled() const override;
+    const THashMap<std::string, TJournalNbdSpec>& GetJournalNbdSpecs(
+        const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const override;
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) override;
@@ -361,6 +365,7 @@ public:
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
+    NChunkClient::TChunkListId ExtractJournalNbdChunkList() override;
     void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
         bool unstageRecursively,
@@ -445,7 +450,7 @@ public:
     void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
 
-    bool CanInterruptJobs() const override;
+    bool CanInterruptJobs() const final;
     void InterruptJob(TJobId jobId, EInterruptionReason reason) override;
 
     void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
@@ -562,6 +567,7 @@ protected:
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
     TInputTransactionManagerPtr InputTransactions_;
     NApi::ITransactionPtr AsyncTransaction_;
+    NApi::ITransactionPtr JournalNbdTransaction_;
     // NB: OutputTransaction_ may be read from the ControlThread (GetIntermediateMediumTransaction)
     // while being written from the controller invoker (StartTransactions/InitializeReviving).
     // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
@@ -602,6 +608,8 @@ protected:
     TIntermediateTablePtr IntermediateTable_ = New<TIntermediateTable>();
 
     THashMap<NScheduler::TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
+
+    THashMap<NScheduler::TUserJobSpecPtr, THashMap<std::string, TJournalNbdSpec>> JournalNbdSpecs_;
 
     std::optional<NScheduler::TInputQuerySpec> InputQuerySpec_;
 
@@ -649,6 +657,8 @@ protected:
     i64 CompletedRowCount_ = 0;
 
     virtual void OnJobStarted(const TJobletPtr& joblet);
+
+    TFuture<NObjectClient::TCellTag> PickChunkHostCellTag(const NApi::NNative::IClientPtr& client) const;
 
     TFuture<NApi::NNative::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -724,6 +734,7 @@ protected:
     void InitUpdatingTables();
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
+    bool HasJournalNbdDiskRequests() const;
     void InitAccountResourceUsageLeases();
     void ValidateCollectiveOptions() const;
     void ValidateSecureVault() const;
@@ -995,7 +1006,7 @@ protected:
         NChunkPools::TChunkStripeKey key,
         int tableIndex) override;
 
-    bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
+    bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable, bool isUsingJournalNbd);
 
     std::vector<NChunkClient::TDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
@@ -1127,6 +1138,7 @@ private:
     TChunkListPoolPtr OutputChunkListPool_;
     TChunkListPoolPtr OutputHunkChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
+    TChunkListPoolPtr JournalNbdChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputHunkChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;

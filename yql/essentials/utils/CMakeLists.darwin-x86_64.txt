@@ -24,6 +24,7 @@ target_link_libraries(yql-essentials-utils PUBLIC
   cpp-string_utils-quote
   cpp-threading-future
   cpp-deprecated-atomic
+  essentials-public-utf8
 )
 
 target_sources(yql-essentials-utils PRIVATE
@@ -48,7 +49,6 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/time_provider.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/url_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/utf8.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_panic.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_paths.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/cast.h

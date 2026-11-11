@@ -61,6 +61,10 @@ All arguments of the functions described above can be declared separately using 
 
 To get the name of the source table from which you originally obtained each row, use T[ablePath()](../../builtins/basic.md#tablepath).
 
+## Early partition pruning {#early-partition-pruning}
+
+The [yt.EarlyPartitionPruning](../pragma/yt.md#early-partition-pruning) pragma makes the query skip partitions obtained via `PARTITIONS` and `PARTITION_LIST` that cannot satisfy the `WHERE` condition on the added columns. Pruning happens before the data is read, so a query over many partitions processes only the needed ones. The pragma is disabled by default because it may change the result schema; for details, see the [pragma description](../pragma/yt.md#early-partition-pruning). For an example with this pragma, see below.
+
 ## Examples
 
 ```yql
@@ -166,3 +170,9 @@ FROM PARTITIONS(`//home/daily_logs`, "${event_date:Date}/${company}/event_log")
 WHERE event_date >= Date("2025-10-01") OR event_id = 123 AND event_date >= Date("2025-01-01")
 GROUP BY company, event_id;
 ```
+
+YQL evaluates the condition using the dates from the paths:
+
+* Tables for dates before 2025-01-01 are excluded: both parts of the condition are false for them.
+* Tables from January through September 2025 stay: the data must be read to check `event_id = 123`.
+* Tables from 2025-10-01 on stay, because they match the date condition regardless of `event_id`.

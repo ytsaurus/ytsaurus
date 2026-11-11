@@ -10,6 +10,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -366,6 +368,18 @@ private:
             // Instead, we send the authenticated username via "X-Clickhouse-User" header.
             ProxiedRequestHeaders_->Remove("Authorization");
             ProxiedRequestHeaders_->Remove("X-Clickhouse-Key");
+            ProxiedRequestHeaders_->Remove(NHeaders::ServiceTicketHeaderName);
+            ProxiedRequestHeaders_->Remove(NHeaders::UserTicketHeaderName);
+
+            auto* authenticationManager = NAuth::TNativeAuthenticationManager::Get();
+            if (Config_->EnableServiceTicketSubmission && authenticationManager->IsSubmissionEnabled()) {
+                auto tvmId = Bootstrap_->GetNativeConnection()->GetTvmId();
+                if (auto tvmService = authenticationManager->GetTvmService(); tvmService && tvmId) {
+                    ProxiedRequestHeaders_->Set(
+                        NHeaders::ServiceTicketHeaderName,
+                        tvmService->GetServiceTicket(*tvmId));
+                }
+            }
 
             ProxiedRequestHeaders_->Set("X-Clickhouse-User", User_);
             // In rare cases the request can be sent to an instance from another clique.

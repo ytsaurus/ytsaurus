@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import typing as t
+
 from sqlglot import exp
 from sqlglot.dialects.dialect import (
     approx_count_distinct_sql,
@@ -21,7 +23,14 @@ def _lag_lead_sql(self, expression: exp.Lag | exp.Lead) -> str:
 
 
 class DorisGenerator(MySQLGenerator):
+    def match_sql(self, expression: exp.Match) -> str:
+        kind = expression.text("kind")
+        sql = self.binary(expression, f"MATCH_{kind}" if kind else "MATCH")
+        analyzer = self.sql(expression, "analyzer")
+        return f"{sql} USING ANALYZER {analyzer}" if analyzer else sql
+
     LAST_DAY_SUPPORTS_DATE_PART = False
+    SUPPORTS_ALTER_COLUMN_NULLABILITY = False
     VARCHAR_REQUIRES_SIZE = False
     WITH_PROPERTIES_PREFIX = "PROPERTIES"
     RENAME_TABLE_WITH_DB = False
@@ -39,10 +48,11 @@ class DorisGenerator(MySQLGenerator):
         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,
         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,
         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,
+        exp.Property: exp.Properties.Location.POST_WITH,
     }
 
-    CAST_MAPPING = {}
-    TIMESTAMP_FUNC_TYPES = set()
+    CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}
+    TIMESTAMP_FUNC_TYPES: t.ClassVar[set[exp.DType]] = set()
 
     TRANSFORMS = {
         **MySQLGenerator.TRANSFORMS,
@@ -101,6 +111,7 @@ class DorisGenerator(MySQLGenerator):
         "alter",
         "analyze",
         "analyzed",
+        "analyzer",
         "and",
         "anti",
         "append",
@@ -108,6 +119,7 @@ class DorisGenerator(MySQLGenerator):
         "array_range",
         "as",
         "asc",
+        "asof",
         "at",
         "authors",
         "auto",
@@ -129,6 +141,7 @@ class DorisGenerator(MySQLGenerator):
         "bitxor",
         "blob",
         "boolean",
+        "both",
         "brief",
         "broker",
         "buckets",
@@ -145,6 +158,7 @@ class DorisGenerator(MySQLGenerator):
         "catalogs",
         "chain",
         "char",
+        "char_filter",
         "character",
         "charset",
         "check",
@@ -224,6 +238,7 @@ class DorisGenerator(MySQLGenerator):
         "drop",
         "dropp",
         "dual",
+        "dump",
         "duplicate",
         "dynamic",
         "else",
@@ -326,8 +341,10 @@ class DorisGenerator(MySQLGenerator):
         "largeint",
         "last",
         "lateral",
+        "layout",
         "ldap",
         "ldap_admin_password",
+        "leading",
         "left",
         "less",
         "level",
@@ -349,6 +366,7 @@ class DorisGenerator(MySQLGenerator):
         "match",
         "match_all",
         "match_any",
+        "match_condition",
         "match_phrase",
         "match_phrase_edge",
         "match_phrase_prefix",
@@ -374,6 +392,7 @@ class DorisGenerator(MySQLGenerator):
         "next",
         "ngram_bf",
         "no",
+        "no_use_mv",
         "non_nullable",
         "not",
         "null",
@@ -407,6 +426,7 @@ class DorisGenerator(MySQLGenerator):
         "permissive",
         "physical",
         "plan",
+        "play",
         "process",
         "plugin",
         "plugins",
@@ -517,6 +537,9 @@ class DorisGenerator(MySQLGenerator):
         "timestampdiff",
         "tinyint",
         "to",
+        "token_filter",
+        "tokenizer",
+        "trailing",
         "transaction",
         "trash",
         "tree",
@@ -524,6 +547,7 @@ class DorisGenerator(MySQLGenerator):
         "trim",
         "true",
         "truncate",
+        "try_cast",
         "type",
         "type_cast",
         "types",
@@ -536,6 +560,7 @@ class DorisGenerator(MySQLGenerator):
         "unsigned",
         "update",
         "use",
+        "use_mv",
         "user",
         "using",
         "value",

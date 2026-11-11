@@ -68,6 +68,12 @@ DEFINE_REFCOUNTED_TYPE(TProcessFunctionGraphDynamicParameters)
 
 inline constexpr TStringBuf ProcessFunctionGraphFunctionName = "NYT::NFlow::TGraphProcessFunction";
 
+//! Returns the kind of |computation| hosting a graph; throws if its class cannot host one.
+EProcessFunctionGraphHost GetProcessFunctionGraphHost(const TComputationSpec& computation);
+
+//! Returns the streams a graph reads from outside: the input and source streams of |computation|.
+THashSet<TStreamId> GetProcessFunctionGraphInputStreamIds(const TComputationSpec& computation);
+
 //! Returns the computation timer stream ID of timer |timerId| of node |nodeId|.
 TStreamId MakeProcessFunctionGraphTimerId(TStringBuf nodeId, const TStreamId& timerId);
 
@@ -87,14 +93,15 @@ struct TProcessFunctionGraphTopology
     THashMap<TStreamId, std::vector<std::string>> Consumers;
     //! Streams written and read inside the graph that are not computation outputs.
     THashSet<TStreamId> InternalStreams;
-    //! Maps each input, output and timer of each node to the computation input and timer streams it derives from.
+    //! Maps each input, output and timer of each node to the computation input, source and timer streams it derives from.
     THashMap<std::string, THashMap<TStreamId, THashSet<TStreamId>>> Boundaries;
     //! Same as #Boundaries for system time, which does not wait for pending timers: messages emitted
     //! by timers get the current system timestamp. Input and output streams map only to computation inputs.
     THashMap<std::string, THashMap<TStreamId, THashSet<TStreamId>>> SystemBoundaries;
 };
 
-//! Validates |graph| against the computation stream IDs and computes its structure.
+//! Validates |graph| against the computation stream IDs and computes its structure. |inputStreamIds| are
+//! the streams the graph reads from outside, see #GetProcessFunctionGraphInputStreamIds().
 TProcessFunctionGraphTopology BuildProcessFunctionGraphTopology(
     const TProcessFunctionGraphSpecPtr& graph,
     const THashSet<TStreamId>& inputStreamIds,

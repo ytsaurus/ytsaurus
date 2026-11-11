@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/trigger_condition.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -28,6 +29,47 @@ struct TPartitionRuleResult
     std::vector<TNodeTraverseDataPtr> Nodes;
     TPartitionRuleCounters Counters;
 };
+
+void ResolveTimerReadyWatermarks(
+    const TComputationSpecPtr& spec,
+    const std::vector<TNodeTraverseDataPtr>& partitionTraverseData,
+    const TNodeTraverseDataPtr& acceptedTraverseData,
+    const TPipelineWatermarkHistory& watermarkHistory,
+    TSystemTimestamp now)
+{
+    auto conditions = BuildTimerTriggerConditions(spec->TimerStreams, spec->StreamsDependency);
+    for (const auto& [streamId, condition] : conditions) {
+        auto readyWatermark = now;
+        bool unknown = false;
+        // Resolved per partition: merging trigger timestamps across partitions first would pair
+        // one partition's due timers with another partition's creation times.
+        for (const auto& node : partitionTraverseData) {
+            const auto& stream = GetOrCrash(node->Streams, streamId);
+            auto candidate = stream->SystemWatermark;
+            if (stream->MinTriggerTimestamp) {
+                auto reach = ResolveTriggerReach(condition, *stream->MinTriggerTimestamp, watermarkHistory, now);
+                // The partition's ready instant could be the minimum, so the stream's one is undetermined.
+                if (!reach) {
+                    unknown = true;
+                    break;
+                }
+
+                // A partition with nothing due yet contributes infinity.
+                candidate = std::max(candidate, *reach);
+            }
+
+            readyWatermark = std::min(readyWatermark, candidate);
+        }
+
+        // The accepted stream may be shared with the current traverse data.
+        auto& acceptedStream = GetOrCrash(acceptedTraverseData->Streams, streamId);
+        acceptedStream = NYTree::CloneYsonStruct(acceptedStream);
+        acceptedStream->ReadyWatermarkUnknown = unknown;
+        acceptedStream->ReadyWatermark = unknown
+            ? std::nullopt
+            : std::optional(std::max(readyWatermark, acceptedStream->SystemWatermark));
+    }
+}
 
 void UpdateIdlePartitionsObservability(
     const TPartitionRuleCounters& counters,
@@ -710,6 +752,12 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
     auto result = New<TProcessPartitionTraverseDataResult>();
     result->StreamMetrics = ComputeStreamMetrics(preparedTraverseData, GetSpec());
     result->AcceptedTraverseData = AdvanceNodeTraverseData(currentTraverseData, MergeNodeTraverseData(preparedTraverseData));
+    ResolveTimerReadyWatermarks(
+        GetSpec(),
+        preparedTraverseData,
+        result->AcceptedTraverseData,
+        *flowView->State->WatermarkHistory,
+        flowView->State->CurrentTimestamp);
 
     // Published only once every step above has succeeded. Suppression silences a group's errors, and a
     // traverse whose result is discarded hides no watermark, so publishing early would leave the pipeline

@@ -23,6 +23,10 @@ type Config struct {
 	// LocationProxies defines operating clusters HTTP proxy in form: name|[scheme://]fqdn[:port]
 	LocationProxies []string `yson:"location_proxies"`
 
+	// EnabledFamilies defaults to all registered controller families when omitted.
+	// An empty list disables all families.
+	EnabledFamilies *[]string `yson:"enabled_families"`
+
 	// Strawberry contains strawberry-specific configuration.
 	Strawberry agent.Config `yson:"strawberry"`
 
@@ -60,6 +64,10 @@ type Config struct {
 }
 
 type LocationOverrides struct {
+	// EnabledFamilies replaces the global list; an empty list disables all families.
+	// When omitted, the global list is used.
+	EnabledFamilies *[]string `yson:"enabled_families"`
+
 	Agent       agent.ConfigOverrides    `yson:"agent"`
 	Controllers map[string]yson.RawValue `yson:"controllers"`
 }

@@ -134,6 +134,12 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobPhaseSpacing)                       (302403))
     ((RlsAuthenticatedUser)                  (302404))
     ((PushBasedShuffle)                      (302405))
+    ((PersistSkippedInputChunks)             (302406))
+    ((RemoteCopyRangeSeparation)             (302407))
+    ((JournalNbd)                            (302408))
+    // 27.1 starts here
+    ((BumpTo_27_1)                           (302500))
+    ((SharedJobSizeAdjuster)                 (302501))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

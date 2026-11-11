@@ -4,14 +4,18 @@
 
 #include <library/cpp/streams/zstd/zstd.h>
 
-#include <library/cpp/yt/assert/assert.h>
 #include <library/cpp/yt/error/error.h>
 
+#include <library/cpp/yt/assert/assert.h>
+
+#include <util/generic/size_literals.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
+
 #include <util/stream/file.h>
 #include <util/stream/str.h>
 #include <util/stream/zlib.h>
+
 #include <util/system/shellcommand.h>
 
 #include <algorithm>
@@ -41,6 +45,15 @@ constexpr TStringBuf GzipMemberMagic = TStringBuf("\x1f\x8b", 2);
 //! within this prefix.
 constexpr i64 ProbeLimit = 1 << 20;
 
+//! Upper bound on how much decoded text we read from a block's head: enough for
+//! its leading "Logging started" lines and the timestamp of the line after them.
+constexpr i64 HeadProbeLimit = 4_KB;
+
+//! The message of the event a log writer puts first into a file it opens.
+constexpr TStringBuf LogStartMessage = "Logging started";
+constexpr TStringBuf JsonLogStartField = R"("message":"Logging started)";
+constexpr TStringBuf YsonLogStartField = R"("message"="Logging started)";
+
 //! Window used when scanning the file for a boundary marker.
 constexpr i64 ScanWindowSize = 1 << 20;
 
@@ -61,6 +74,18 @@ TString ReadFileRange(TFile& file, i64 offset, i64 size)
     }
     buffer.resize(done);
     return buffer;
+}
+
+bool IsLogStartLine(TStringBuf line)
+{
+    if (line.StartsWith('{')) {
+        return line.Contains(JsonLogStartField) || line.Contains(YsonLogStartField);
+    }
+    TStringBuf message = line;
+    message.NextTok('\t');
+    message.NextTok('\t');
+    message.NextTok('\t');
+    return message.StartsWith(LogStartMessage);
 }
 
 void EmitIfInRange(TStringBuf line, TInstant from, TInstant to, IOutputStream& output)
@@ -133,29 +158,44 @@ private:
  *    - FindCandidateAtOrAfter: the next potential block/line boundary;
  *    - MakeDecoder: how to turn a raw byte range into a decompressed stream.
  *
- *  Candidate boundaries are validated by decoding their first line and parsing its
- *  timestamp, which both rejects spurious magic-number matches inside compressed
- *  data and yields the per-block timestamp the binary search needs.
+ *  Candidate boundaries are validated by decoding their head (see
+ *  TryDecodeBlockInfo), which both rejects spurious magic-number matches inside
+ *  compressed data and yields the per-block timestamp the binary search needs.
  */
 class TBlockSliceEngine
     : public ILogSliceEngine
 {
 public:
-    void Slice(TFile& file, TInstant from, TInstant to, IOutputStream& output) final
+    void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) final
     {
-        i64 fileSize = file.GetLength();
-        if (fileSize == 0) {
-            return;
-        }
-
-        auto startBlock = FindStartBlock(file, fileSize, from);
-        i64 startOffset = startBlock ? startBlock->Offset : 0;
-        i64 endOffset = FindEndOffset(file, fileSize, to);
+        auto [startOffset, endOffset] = FindRange(file, from, to, seekMargin);
         if (endOffset <= startOffset) {
             return;
         }
 
         DecodeAndFilter(file, startOffset, endOffset, from, to, output);
+    }
+
+    std::pair<i64, i64> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) final
+    {
+        i64 fileSize = file.GetLength();
+        if (fileSize == 0) {
+            return {0, 0};
+        }
+
+        i64 startOffset = FindStartOffset(file, fileSize, from - seekMargin, to + seekMargin);
+        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin);
+        return {startOffset, std::max(startOffset, endOffset)};
+    }
+
+    void Decode(TFile& file, i64 start, i64 end, const std::function<void(TStringBuf)>& consumer) final
+    {
+        if (start >= end) {
+            return;
+        }
+        DecodeRange(file, start, end, [&] (const char* data, size_t size) {
+            consumer(TStringBuf(data, size));
+        });
     }
 
     std::optional<std::pair<TInstant, TInstant>> GetTimeRange(TFile& file) final
@@ -177,6 +217,17 @@ public:
         auto last = DecodeLastTime(file, lastOffset, fileSize);
 
         return std::make_pair(first->FirstTime, last.value_or(first->FirstTime));
+    }
+
+    std::optional<TInstant> FindFirstTime(TFile& file) final
+    {
+        i64 fileSize = file.GetLength();
+        if (fileSize == 0) {
+            return std::nullopt;
+        }
+
+        auto first = FindBlockAtOrAfter(file, /*pos*/ 0, fileSize);
+        return first ? std::optional(first->FirstTime) : std::nullopt;
     }
 
 protected:
@@ -241,12 +292,15 @@ private:
     {
         i64 Offset;
         TInstant FirstTime;
+        std::optional<TInstant> LogStartTime;
     };
 
-    //! Decodes the timestamp of the first log line of the block supposedly starting
-    //! at [offset]. Returns null if the bytes there do not decode into a timestamped
-    //! line (which is how spurious boundary matches are rejected).
-    std::optional<TInstant> TryDecodeFirstTime(TFile& file, i64 offset, i64 fileSize)
+    //! Decodes the head of the block supposedly starting at [offset]. Its first
+    //! time is the earlier of its leading "Logging started" line and the first line
+    //! after it, since lines queued before the log was opened follow that line but
+    //! are stamped earlier. Returns null if the bytes there do not decode into a
+    //! timestamped line (which is how spurious boundary matches are rejected).
+    std::optional<TBlockInfo> TryDecodeBlockInfo(TFile& file, i64 offset, i64 fileSize)
     {
         i64 end = std::min<i64>(offset + ProbeLimit, fileSize);
         TFileRangeInput raw(file, offset, end);
@@ -258,15 +312,14 @@ private:
             return std::nullopt;
         }
 
-        // We only need the leading timestamp (26 bytes).
         TString head;
         char buffer[256];
-        while (std::ssize(head) < 64) {
+        while (std::ssize(head) < HeadProbeLimit) {
             size_t read = 0;
             try {
                 read = decoder->Read(buffer, sizeof(buffer));
             } catch (const std::exception&) {
-                return std::nullopt;
+                break;
             }
             if (read == 0) {
                 break;
@@ -274,7 +327,37 @@ private:
             head.append(buffer, read);
         }
 
-        return ParseLogLineTime(head);
+        std::optional<TInstant> logStartTime;
+        TStringBuf rest = head;
+        while (!rest.empty()) {
+            TStringBuf line = rest.NextTok('\n');
+            if (line.empty()) {
+                continue;
+            }
+            auto time = ParseLogLineTime(line);
+            if (IsLogStartLine(line)) [[unlikely]] {
+                if (!logStartTime) {
+                    logStartTime = time;
+                }
+            } else if (time) {
+                return TBlockInfo{
+                    .Offset = offset,
+                    .FirstTime = std::min(*time, logStartTime.value_or(*time)),
+                    .LogStartTime = logStartTime,
+                };
+            } else {
+                break;
+            }
+        }
+
+        if (logStartTime) {
+            return TBlockInfo{
+                .Offset = offset,
+                .FirstTime = *logStartTime,
+                .LogStartTime = logStartTime,
+            };
+        }
+        return std::nullopt;
     }
 
     std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize)
@@ -285,8 +368,8 @@ private:
             if (!candidate) {
                 break;
             }
-            if (auto firstTime = TryDecodeFirstTime(file, *candidate, fileSize)) {
-                return TBlockInfo{*candidate, *firstTime};
+            if (auto block = TryDecodeBlockInfo(file, *candidate, fileSize)) {
+                return block;
             }
             cursor = *candidate + 1;
         }
@@ -312,9 +395,26 @@ private:
         return result;
     }
 
+    //! Start of the found start block, or of the head block when it begins with a
+    //! "Logging started" line within [startKey, endKey].
+    i64 FindStartOffset(TFile& file, i64 fileSize, TInstant startKey, TInstant endKey)
+    {
+        auto startBlock = FindStartBlock(file, fileSize, startKey);
+        if (!startBlock) {
+            return 0;
+        }
+        auto firstBlock = FindBlockAtOrAfter(file, /*pos*/ 0, fileSize);
+        bool startsLogInWindow = firstBlock &&
+            firstBlock->Offset < startBlock->Offset &&
+            firstBlock->LogStartTime &&
+            *firstBlock->LogStartTime >= startKey &&
+            *firstBlock->LogStartTime <= endKey;
+        return startsLogInWindow ? firstBlock->Offset : startBlock->Offset;
+    }
+
     //! Offset of the physically last decodable block in the file, located by
     //! scanning backward for a boundary marker and validating each candidate by
-    //! decoding its first timestamp. Returns null if no valid block is found.
+    //! decoding its head (see TryDecodeBlockInfo). Returns null if no valid block is found.
     std::optional<i64> FindLastBlockOffset(TFile& file, i64 fileSize)
     {
         i64 endPos = fileSize;
@@ -323,7 +423,7 @@ private:
             if (!candidate) {
                 break;
             }
-            if (TryDecodeFirstTime(file, *candidate, fileSize)) {
+            if (TryDecodeBlockInfo(file, *candidate, fileSize)) {
                 return *candidate;
             }
             // Spurious marker (or undecodable tail): keep looking before it.
@@ -379,6 +479,8 @@ private:
                 size_t read = 0;
                 try {
                     read = decoder->Read(buffer.data(), buffer.size());
+                } catch (const TFileError&) {
+                    throw;
                 } catch (const std::exception&) {
                     truncated = true;
                     break;
@@ -400,22 +502,28 @@ private:
         TFileRangeInput raw(file, startOffset, endOffset);
         std::unique_ptr<IInputStream> decoder = MakeDecoder(&raw);
         std::vector<char> buffer(DecodeChunkSize);
-        try {
-            i64 skipped = 0;
-            while (skipped < cleanBytes) {
-                i64 want = std::min<i64>(std::ssize(buffer), cleanBytes - skipped);
-                size_t read = decoder->Read(buffer.data(), want);
-                if (read == 0) {
-                    break;
-                }
-                skipped += static_cast<i64>(read);
+        auto tryRead = [&] (char* data, size_t size) -> size_t {
+            try {
+                return decoder->Read(data, size);
+            } catch (const TFileError&) {
+                throw;
+            } catch (const std::exception&) {
+                // Reached the premature end again: stop with what was recovered.
+                return 0;
             }
-            char byte;
-            while (decoder->Read(&byte, 1) != 0) {
-                sink(&byte, 1);
+        };
+        i64 skipped = 0;
+        while (skipped < cleanBytes) {
+            i64 want = std::min<i64>(std::ssize(buffer), cleanBytes - skipped);
+            size_t read = tryRead(buffer.data(), want);
+            if (read == 0) {
+                return;
             }
-        } catch (const std::exception&) {
-            // Reached the premature end again: stop with what was recovered.
+            skipped += static_cast<i64>(read);
+        }
+        char byte;
+        while (tryRead(&byte, 1) != 0) {
+            sink(&byte, 1);
         }
     }
 
@@ -429,18 +537,17 @@ private:
     {
         TString carry;
         DecodeRange(file, startOffset, endOffset, [&] (const char* data, size_t size) {
-            carry.append(data, size);
-            size_t lineStart = 0;
+            TStringBuf chunk(data, size);
             while (true) {
-                size_t newline = carry.find('\n', lineStart);
-                if (newline == TString::npos) {
+                size_t newline = chunk.find('\n');
+                auto room = static_cast<size_t>(MaxLineLength - std::ssize(carry));
+                carry.append(chunk.substr(0, std::min(newline, room)));
+                if (newline == TStringBuf::npos) {
                     break;
                 }
-                EmitIfInRange(TStringBuf(carry.data() + lineStart, newline - lineStart), from, to, output);
-                lineStart = newline + 1;
-            }
-            if (lineStart > 0) {
-                carry.remove(0, lineStart);
+                EmitIfInRange(TStringBuf(carry), from, to, output);
+                carry.clear();
+                chunk = chunk.substr(newline + 1);
             }
         });
 

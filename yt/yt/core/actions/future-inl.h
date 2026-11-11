@@ -39,7 +39,7 @@ class TFiberCanceledException
 } // namespace NConcurrency
 
 // Forward declaration from invoker_util.h.
-IInvokerPtr GetSyncInvoker();
+const IInvokerPtr& GetSyncInvoker();
 
 namespace NDetail {
 
@@ -1215,6 +1215,14 @@ TFuture<T> TFutureBase<T>::WithDeadline(
 }
 
 template <class T>
+TFuture<T> TFutureBase<T>::WithDeadline(
+    std::optional<TInstant> deadline,
+    TFutureTimeoutOptions options) const
+{
+    return deadline ? WithDeadline(*deadline, std::move(options)) : TFuture<T>(Impl_);
+}
+
+template <class T>
 TFuture<T> TFutureBase<T>::WithTimeout(
     TDuration timeout,
     TFutureTimeoutOptions options) const
@@ -1408,6 +1416,12 @@ TFuture<R> TFuture<void>::Apply(TCallback<R()> callback) const
 }
 
 template <class R>
+TFuture<R> TFuture<void>::Apply(TCallback<TErrorOr<R>()> callback) const
+{
+    return NYT::NDetail::ApplyHelper<R>(this->Impl_, callback);
+}
+
+template <class R>
 TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> callback) const
 {
     return NYT::NDetail::ApplyHelper<R>(this->Impl_, callback);
@@ -1509,6 +1523,12 @@ TFuture<R> TUniqueFuture<T>::Apply(TCallback<TUniqueFuture<R>(T&&)> callback) co
 
 template <class R>
 TFuture<R> TUniqueFuture<void>::Apply(TCallback<R()> callback) const
+{
+    return NYT::NDetail::ApplyUniqueHelper<R>(this->Impl_, callback);
+}
+
+template <class R>
+TFuture<R> TUniqueFuture<void>::Apply(TCallback<TErrorOr<R>()> callback) const
 {
     return NYT::NDetail::ApplyUniqueHelper<R>(this->Impl_, callback);
 }

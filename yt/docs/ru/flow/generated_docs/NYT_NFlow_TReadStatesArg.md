@@ -13,9 +13,9 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `computation_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>>`
+|| `computation_id` | **Тип**: `std::optional<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`>`
 Идентификатор Computation'а. Обязателен для режимов 1 и 2 (см. описание самой команды). ||
-|| `partition_id` | **Тип**: `std::optional<NYT::TStrongTypedef<NYT::TGuid, NYT::NFlow::TPartitionIdTag, NYT::TStrongTypedefOptions{true}>>`
+|| `partition_id` | **Тип**: `std::optional<`[NYT::NFlow::TPartitionId](./all_yson_structs#NYT_NFlow_TPartitionId)`>`
 Идентификатор партиции. Обязателен для режима 3 (см. описание самой команды). ||
 || `key` | **Тип**: `std::optional<NYT::NYson::TYsonString>`
 Ключ для точечного lookup'а (режим 2). Принимается в двух формах:

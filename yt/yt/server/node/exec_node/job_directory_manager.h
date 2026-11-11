@@ -38,21 +38,6 @@ struct IJobDirectoryManager
 
 DEFINE_REFCOUNTED_TYPE(IJobDirectoryManager)
 
-#ifdef _linux_
-
-IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
-    NExecNode::TJobDirectoryManagerDynamicConfigPtr config,
-    bool enableDiskQuota,
-    const std::string& path,
-    int locationIndex);
-
-#endif
-
-IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
-    IInvokerPtr invoker,
-    const std::string& path,
-    bool detachedTmpfsUmount);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

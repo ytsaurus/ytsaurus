@@ -444,7 +444,8 @@ func (c *client) startCall() *Call {
 	bf := backoff.NewExponentialBackOff()
 	bf.MaxElapsedTime = c.conf.GetLightRequestTimeout()
 	return &Call{
-		Backoff: bf,
+		Backoff:    bf,
+		FixedProxy: c.conf.RPCProxy != "",
 	}
 }
 

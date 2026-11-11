@@ -21,10 +21,6 @@ on:
         required: false
       S3_SECRET_KEY:
         required: false
-      BUILD_CACHE_BAZEL_USERNAME:
-        required: false
-      BUILD_CACHE_BAZEL_PASSWORD:
-        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -123,16 +119,40 @@ jobs:
       build-chyt: ${{ github.ref_name == 'main' }}
       build-types: '["relwithdebinfo"]'
       run-unittests: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/cmake-action.yaml
+
+  cleanup-cmake:
+    name: Clean CMake build artifacts
+    needs:
+      - start-vm
+      - checkout
+      - build-check-cmake
+    if: ${{ !cancelled() && needs.checkout.result == 'success' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 30
+    steps:
+      - name: Remove CMake build artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          df -h .
+          df -i .
+          for cleanup_dir in ../build_cmake_relwithdebinfo ../build_yql_cmake_relwithdebinfo ../venv; do
+            if [ -d "$cleanup_dir" ]; then
+              du -sh -- "$cleanup_dir"
+            fi
+            rm -rf -- "$cleanup_dir"
+          done
+          df -h .
+          df -i .
 
   build-ya-make:
     name: Build with ya-make
     needs:
       - start-vm
-      - checkout
+      - cleanup-cmake
+    if: ${{ !cancelled() && needs.cleanup-cmake.result == 'success' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -142,9 +162,6 @@ jobs:
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
       build-types: '["relwithdebinfo"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   run-tests:
@@ -153,8 +170,7 @@ jobs:
       - start-vm
       - build-ya-make
       - notify-start
-      - checkout
-    if: ${{ needs.build-ya-make.result == 'success' }}
+    if: ${{ !cancelled() && needs.build-ya-make.result == 'success' && needs.notify-start.result == 'success' }}
     permissions:
       contents: read
       issues: write
@@ -176,6 +192,7 @@ jobs:
       - start-vm
       - build-ya-make
       - build-check-cmake
+      - cleanup-cmake
       - build-strawberry
     runs-on: trampoline
     permissions:
@@ -213,6 +230,7 @@ jobs:
       - start-vm
       - build-ya-make
       - build-check-cmake
+      - cleanup-cmake
       - run-tests
       - notify-finish
     runs-on: trampoline
