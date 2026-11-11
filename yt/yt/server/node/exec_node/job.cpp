@@ -3636,6 +3636,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
         }
         proxyInternalConfig->EnableJobIoStatistics = proxyDynamicConfig->EnableJobIoStatistics;
+        proxyInternalConfig->IOConsumedReportWindow = proxyDynamicConfig->IOConsumedReportWindow;
         proxyInternalConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
         proxyInternalConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
         proxyInternalConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;

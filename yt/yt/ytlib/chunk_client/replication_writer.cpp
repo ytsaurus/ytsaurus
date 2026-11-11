@@ -45,6 +45,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/retrying_channel.h>
 
@@ -208,6 +209,14 @@ public:
         return Error_.Load().IsOK();
     }
 
+    i64 AccountCumulativeDiskBytes(i64 total)
+    {
+        // Flush responses may be repeated or arrive after a newer flush or FinishChunk.
+        auto previous = AccountedDiskBytes_;
+        AccountedDiskBytes_ = std::max(previous, total);
+        return AccountedDiskBytes_ - previous;
+    }
+
     void UpdateAcquiredMemory(i64 requestedMemory, i64 approvedMemory)
     {
         // An old ping response can be handled after ProbePutBlocks request.
@@ -267,6 +276,7 @@ private:
     bool Finished_ = false;
     bool UseProbePutBlocks_ = false;
 
+    i64 AccountedDiskBytes_ = 0;
     i64 RequestedMemory_ = 0;
     i64 ApprovedMemory_ = 0;
     bool NetThrottling_ = false;
@@ -925,15 +935,17 @@ private:
 
     void HandleChunkWriterStatistics(
         const IChunkWriter::TWriteBlocksOptions& options,
-        const NProto::TChunkWriterStatistics& protoChunkWriterStatistics)
+        const TNodePtr& node,
+        const NProto::TChunkWriterStatistics& statistics,
+        std::optional<i64> cumulativeIOConsumed)
     {
-        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, protoChunkWriterStatistics);
+        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, statistics);
 
-        if (const auto& jobIoMeter = options.ClientOptions.JobIoMeter) {
-            auto bytesWrittenToDisk =
-                protoChunkWriterStatistics.data_bytes_written_to_disk() +
-                protoChunkWriterStatistics.meta_bytes_written_to_disk();
-            jobIoMeter->AccountWrite(bytesWrittenToDisk);
+        if (const auto& meter = options.ClientOptions.JobIoMeter; meter && meter->IsEnabled()) {
+            auto dataBytes = cumulativeIOConsumed
+                ? node->AccountCumulativeDiskBytes(*cumulativeIOConsumed)
+                : statistics.data_bytes_written_to_disk();
+            meter->Account(dataBytes + statistics.meta_bytes_written_to_disk());
         }
     }
 
@@ -975,7 +987,11 @@ private:
             DemandClose();
         }
 
-        HandleChunkWriterStatistics(options, rsp->chunk_writer_statistics());
+        HandleChunkWriterStatistics(
+            options,
+            node,
+            rsp->chunk_writer_statistics(),
+            YT_OPTIONAL_FROM_PROTO(*rsp, cumulative_io_consumed));
 
         if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
             // We flushed the last block in chunk.
@@ -1173,7 +1189,7 @@ private:
         auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
-        SetRequestIoConsumed(req, options.ClientOptions, Config_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, options.ClientOptions);
         SetRequestIoFairShareWeight(req, options.ClientOptions, Config_->IoFairShareWeight);
 
         // NB: If we are under erasure writer, he already have called #Finalize() on chunkMeta.
@@ -1206,7 +1222,8 @@ private:
             .With("Address", node->GetDefaultAddress())
             .With("DiskSpace", chunkInfo.disk_space());
 
-        HandleChunkWriterStatistics(options, rsp->chunk_writer_statistics());
+        const auto& statistics = rsp->chunk_writer_statistics();
+        HandleChunkWriterStatistics(options, node, statistics, statistics.data_bytes_written_to_disk());
 
         node->SetFinished();
         YT_UNUSED_FUTURE(node->StopPing());
@@ -1423,7 +1440,7 @@ void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWri
             .With("Node", node->GetIndex())
             .With("RequestedCumulativeBlockSize", CumulativeBlockSize_)
             .With("SessionId", writer->SessionId_);
-        SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, options.ClientOptions);
         SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
         auto rspOrError = WaitFor(req->Invoke());
 
@@ -1491,7 +1508,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_first_block_index(FirstBlockIndex_);
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
-        SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, options.ClientOptions);
         SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
 
         SetRpcAttachedBlocks(req, Blocks_);
@@ -1595,7 +1612,7 @@ void TGroup::SendGroup(
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
         req->set_cumulative_block_size(CumulativeBlockSize_);
-        SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, options.ClientOptions);
         SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
         ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 

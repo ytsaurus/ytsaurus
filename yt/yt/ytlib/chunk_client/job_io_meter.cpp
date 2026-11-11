@@ -2,12 +2,11 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NThreading;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobIoMeter::TJobIoMeter(TDuration maxHistoryDuration, bool enabled)
-    : MaxHistoryDuration_(maxHistoryDuration)
+TJobIoMeter::TJobIoMeter(TDuration window, bool enabled)
+    // A bucket expires when its end reaches the beginning of the window.
+    : BucketLifetime_(window + TDuration::Seconds(1))
     , Enabled_(enabled)
 { }
 
@@ -16,62 +15,41 @@ bool TJobIoMeter::IsEnabled() const
     return Enabled_;
 }
 
-void TJobIoMeter::AccountRead(i64 size)
+void TJobIoMeter::Account(i64 bytes)
 {
-    Account(size);
-}
-
-void TJobIoMeter::AccountWrite(i64 size)
-{
-    Account(size);
-}
-
-void TJobIoMeter::Account(i64 size)
-{
-    if (!Enabled_) {
+    if (!Enabled_ || bytes <= 0) {
         return;
     }
 
-    auto now = TInstant::Now();
-    auto minute = TInstant::Minutes(now.Minutes());
-
-    auto guard = WriterGuard(Lock_);
-
-    // Accumulate into the current minute's bucket if it is already the newest
-    // one, otherwise open a new bucket.
-    if (!History_.empty() && History_.back().Minute == minute) {
-        History_.back().Size += size;
+    auto guard = Guard(Lock_);
+    auto now = TClock::now();
+    ExpireBuckets(now);
+    auto bucketStart = std::chrono::floor<std::chrono::seconds>(now);
+    if (!History_.empty() && History_.back().Start == bucketStart) {
+        History_.back().Bytes += bytes;
     } else {
-        History_.push_back(TIoBucket{
-            .Minute = minute,
-            .Size = size,
-        });
+        History_.push_back({bucketStart, bytes});
     }
-
-    // Drop buckets that fell out of the retention window.
-    auto historyStart = now - MaxHistoryDuration_;
-    while (!History_.empty() && History_.front().Minute < historyStart) {
-        History_.pop_front();
-    }
+    BytesInWindow_ += bytes;
 }
 
-i64 TJobIoMeter::GetIoConsumedInWindow(TDuration window) const
+i64 TJobIoMeter::GetIoConsumedInWindow()
 {
-    auto windowStart = TInstant::Now() - window;
+    auto guard = Guard(Lock_);
+    ExpireBuckets(TClock::now());
+    return BytesInWindow_;
+}
 
-    auto guard = ReaderGuard(Lock_);
-
-    // The window is a suffix of the queue, so we walk back from the newest
-    // bucket until we leave the window.
-    i64 consumed = 0;
-    for (auto it = History_.rbegin(); it != History_.rend(); ++it) {
-        if (it->Minute < windowStart) {
+void TJobIoMeter::ExpireBuckets(TClock::time_point now)
+{
+    while (!History_.empty()) {
+        auto age = std::chrono::duration_cast<std::chrono::microseconds>(now - History_.front().Start);
+        if (TDuration::MicroSeconds(age.count()) < BucketLifetime_) {
             break;
         }
-        consumed += it->Size;
+        BytesInWindow_ -= History_.front().Bytes;
+        History_.pop_front();
     }
-
-    return consumed;
 }
 
 void TJobIoMeter::SetIoFairShareWeight(double weight)

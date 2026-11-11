@@ -11,11 +11,10 @@ namespace NYT::NChunkClient {
 template <class TRequestPtr, class TClientChunkOptions>
 void SetRequestIoConsumed(
     const TRequestPtr& req,
-    const TClientChunkOptions& options,
-    TDuration window)
+    const TClientChunkOptions& options)
 {
     if (const auto& jobIoMeter = options.JobIoMeter; jobIoMeter && jobIoMeter->IsEnabled()) {
-        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow(window));
+        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow());
     }
 }
 
