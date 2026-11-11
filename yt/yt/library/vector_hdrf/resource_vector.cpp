@@ -34,6 +34,11 @@ TResourceVector TResourceVector::FromJobResources(
     return resultVector;
 }
 
+TResourceVector TResourceVector::ComputeAdaptiveEpsilon(const TJobResources& totalLimits)
+{
+    return Max(Epsilon(), FromJobResources(TJobResources::Quantum(), totalLimits) * 1e-3);
+}
+
 void Serialize(const TResourceVector& resourceVector, IYsonConsumer* consumer)
 {
     auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();

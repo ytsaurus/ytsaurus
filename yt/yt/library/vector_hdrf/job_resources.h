@@ -46,6 +46,7 @@ public:
     TJobResources& operator=(const TJobResources& other) = default;
 
     static TJobResources Infinite();
+    static TJobResources Quantum();
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \
