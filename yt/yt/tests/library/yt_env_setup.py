@@ -1,4 +1,5 @@
 import yt_commands
+import yt_error_codes
 import yt_sequoia_helpers
 import yt_scheduler_helpers
 
@@ -7,6 +8,7 @@ try:
 except ImportError:
     from yt_tests_opensource_settings import has_tvm_service_support
 
+from yt.common import YtError
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import (
@@ -2143,7 +2145,13 @@ class YTEnvSetup(object):
             for scion in scions:
                 if yt_commands.get(f"#{scion}/@path", driver=driver) == "//sys/operations":
                     continue
-                yt_commands.remove(f"#{scion}", driver=driver)
+                while True:
+                    try:
+                        yt_commands.remove(f"#{scion}", driver=driver)
+                        break
+                    except YtError as error:
+                        if not error.contains_code(yt_error_codes.Unavailable):
+                            raise
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
