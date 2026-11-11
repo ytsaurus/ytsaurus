@@ -19,7 +19,7 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt_commands import (
     authors, commit_transaction, create, create_host, get, get_cell_tag, raises_yt_error,
     remove, get_singular_chunk_id, remove_host, write_table, read_table, wait, exists,
-    ls, set, link, build_master_snapshots,
+    ls, set, link, lock, build_master_snapshots,
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
@@ -1503,6 +1503,77 @@ class TestSequoiaQueues(YTEnvSetup):
 
     def _resume_sequoia_queue(self):
         remove("//sys/@config/ground_update_queue_manager/queues/sequoia")
+
+    def _lookup_link_resolve_rows(self, path, node_id, transaction_id=None):
+        path_rows = lookup_rows_in_ground(
+            DESCRIPTORS.path_to_node_id.get_default_path(),
+            [{"path": mangle_sequoia_path(path), "transaction_id": transaction_id}])
+        node_rows = lookup_rows_in_ground(
+            DESCRIPTORS.node_id_to_path.get_default_path(),
+            [{"node_id": node_id, "transaction_id": transaction_id}])
+        return (
+            [row["node_id"] for row in path_rows],
+            [(row["path"], row["target_path"]) for row in node_rows],
+        )
+
+    @authors("danilalexeev")
+    def test_symlink_backfill(self):
+        # Create links without resolve rows so enabling backfill must populate them.
+        set("//sys/@config/sequoia_manager/enable_ground_update_queues", False)
+        create("map_node", "//tmp/target")
+        link_id = link("//tmp/target", "//tmp/old_link")
+        removed_link_id = link("//tmp/target", "//tmp/removed_link")
+
+        tx = start_transaction()
+        tx_link_id = link("//tmp/target", "//tmp/tx_link", tx=tx)
+        lock("//tmp/old_link&", mode="snapshot", tx=tx)
+        lock("//tmp/removed_link&", mode="snapshot", tx=tx)
+        remove("//tmp/removed_link&")
+
+        annotation_tx = start_transaction()
+        set("//tmp/old_link&/@annotation", "branched", tx=annotation_tx)
+
+        link_versions = [
+            ("//tmp/old_link", link_id, None),
+            ("//tmp/tx_link", tx_link_id, tx),
+        ]
+        for path, node_id, transaction_id in link_versions:
+            assert self._lookup_link_resolve_rows(path, node_id, transaction_id) == ([], [])
+
+        set("//sys/@config/sequoia_manager/enable_ground_update_queues", True)
+        set("//sys/@config/cypress_manager/enable_symlink_backfill", True)
+        build_master_snapshots()
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        for path, node_id, transaction_id in link_versions:
+            wait(lambda: self._lookup_link_resolve_rows(path, node_id, transaction_id)
+                 == ([node_id], [(path, "//tmp/target")]))
+
+        # Snapshot and annotation branches use the originator's rows.
+        assert get("//tmp/old_link&/@reachable", tx=annotation_tx)
+        for branch_tx in (tx, annotation_tx):
+            assert self._lookup_link_resolve_rows("//tmp/old_link", link_id, branch_tx) == ([], [])
+
+        assert self._lookup_link_resolve_rows("//tmp/tx_link", tx_link_id) == ([], [])
+        assert self._lookup_link_resolve_rows("//tmp/removed_link", removed_link_id) == ([], [])
+
+        abort_transaction(annotation_tx)
+        remove("//tmp/old_link&")
+        wait(lambda: self._lookup_link_resolve_rows("//tmp/old_link", link_id) == ([], []))
+
+        abort_transaction(tx)
+
+        # Replay from the same snapshot after deleting the links.
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        new_link_id = link("//tmp/target", "//tmp/new_link")
+        wait(lambda: self._lookup_link_resolve_rows("//tmp/new_link", new_link_id)
+             == ([new_link_id], [("//tmp/new_link", "//tmp/target")]))
+        for path, node_id, transaction_id in link_versions:
+            assert self._lookup_link_resolve_rows(path, node_id, transaction_id) == ([], [])
+        assert self._lookup_link_resolve_rows("//tmp/removed_link", removed_link_id) == ([], [])
 
     @authors("aleksandra-zh")
     def test_link(self):

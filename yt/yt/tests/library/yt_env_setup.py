@@ -2154,7 +2154,10 @@ class YTEnvSetup(object):
 
                 # NB: //sys/schemas links for object types added by a master update
                 # are mirrored to ground and are never removed.
-                paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry", "//sys/schemas"]
+                paths_to_ignore = [
+                    "//sys/operations", "//sys/pools", "//sys/strawberry", "//sys/schemas",
+                    "//sys/account_tree", "//sys/cluster_masters",
+                ]
 
                 non_empty_tables = list(yt_sequoia.DESCRIPTORS.get_group("resolve_tables"))
 

@@ -1,7 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, create_user, make_ace, remove, write_table, start_transaction, abort_transaction, commit_transaction, lock, link, set)
+    authors, create, create_user, make_ace, remove, write_table,
+    start_transaction, abort_transaction, abort_all_transactions,
+    commit_transaction, get, lock, link, set)
 
 from sequoia_reconstructor import check_single_cell_sequoia_reconstructor
 
@@ -21,6 +23,20 @@ class TestSingleCellSequoiaReconstructor(YTEnvSetup):
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
     }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "enable_symlink_backfill": True,
+        },
+    }
+
+    @pytest.fixture
+    def cypress_root(self):
+        path = "//cypress"
+        create("map_node", path, attributes={"account": "tmp"})
+        yield path
+        abort_all_transactions()
+        remove(path, recursive=True)
 
     @authors("grphil")
     def test_simple_reconstruction(self):
@@ -262,6 +278,50 @@ class TestSingleCellSequoiaReconstructor(YTEnvSetup):
         link("//tmp/dir1/dir2/t1", "//tmp/dir1/t1", tx=tx2)
         link("//tmp/dir1/t2", "//tmp/dir1/dir2/t2", tx=tx1)
 
+        check_single_cell_sequoia_reconstructor(self)
+
+    @authors("danilalexeev")
+    def test_cypress_links(self, cypress_root):
+        set(cypress_root + "/target", 1)
+        set("//tmp/target", 2)
+        link(cypress_root + "/target", cypress_root + "/to_cypress")
+        link_path = cypress_root + r"/escaped\/name\@link"
+        link_id = link("//tmp/target", link_path)
+
+        tx = start_transaction(timeout=100000)
+        set(cypress_root + "/to_cypress&/@annotation", "branched", tx=tx)
+        lock(link_path + "&", mode="snapshot", tx=tx)
+        check_single_cell_sequoia_reconstructor(self)
+
+        remove(link_path + "&")
+        assert get(f"#{link_id}&/@target_path", tx=tx) == "//tmp/target"
+        check_single_cell_sequoia_reconstructor(self)
+
+        link(cypress_root + "/target", link_path)
+        check_single_cell_sequoia_reconstructor(self)
+
+        abort_transaction(tx)
+        remove(cypress_root + "/target")
+        check_single_cell_sequoia_reconstructor(self)
+
+    @authors("danilalexeev")
+    def test_cypress_link_transactions(self, cypress_root):
+        set("//tmp/target", 1)
+        parent_tx = start_transaction(timeout=100000)
+        link("//tmp/target", cypress_root + "/parent_link", tx=parent_tx)
+
+        committed_tx = start_transaction(timeout=100000, tx=parent_tx)
+        link("//tmp/target", cypress_root + "/committed_link", tx=committed_tx)
+        aborted_tx = start_transaction(timeout=100000, tx=parent_tx)
+        link("//tmp/target", cypress_root + "/aborted_link", tx=aborted_tx)
+        check_single_cell_sequoia_reconstructor(self)
+
+        commit_transaction(committed_tx)
+        abort_transaction(aborted_tx)
+        remove(cypress_root + "/parent_link&", tx=parent_tx)
+        check_single_cell_sequoia_reconstructor(self)
+
+        commit_transaction(parent_tx)
         check_single_cell_sequoia_reconstructor(self)
 
     @authors("grphil")

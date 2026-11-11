@@ -34,16 +34,19 @@
 #include "virtual.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/cypress_integration.h>
-#include <yt/yt/server/master/cell_server/cypress_integration.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
+#include <yt/yt/server/master/cell_server/cypress_integration.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/cypress_integration.h>
+
+#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
 
@@ -73,6 +76,7 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
 #include <yt/yt/server/master/sequoia_server/context.h>
 #include <yt/yt/server/master/sequoia_server/prelock_tracker.h>
 
@@ -96,6 +100,7 @@
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -1373,6 +1378,7 @@ public:
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraTouchNodes, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraEnqueueSymlinksToSequoia, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
@@ -5143,6 +5149,70 @@ private:
         securityManager->ValidatePermission(schema, EPermission::Create);
     }
 
+    void HydraEnqueueSymlinksToSequoia(NProto::TReqEnqueueSymlinksToSequoia* /*request*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& config = GetDynamicConfig();
+        if (!config->EnableSymlinkBackfill) {
+            return;
+        }
+
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager->EnableGroundUpdateQueues) {
+            YT_TLOG_ALERT("Cannot backfill Cypress symlinks while ground update queues are disabled");
+            return;
+        }
+
+        std::vector<TVersionedNodeId> linkIds;
+        for (auto [nodeId, node] : NodeMap_) {
+            // Snapshot branches must not introduce path mappings for their transaction.
+            if (node->GetType() != EObjectType::Link ||
+                !IsObjectAlive(node->GetTrunkNode()) ||
+                !node->GetReachable() ||
+                node->GetLockMode() == ELockMode::Snapshot)
+            {
+                continue;
+            }
+
+            linkIds.push_back(nodeId);
+            if (std::ssize(linkIds) > config->SymlinkBackfillMaxLinkCount) {
+                YT_TLOG_ALERT("Cannot backfill Cypress symlinks: candidate link count exceeds the limit")
+                    .With("LinkCountLimit", config->SymlinkBackfillMaxLinkCount);
+                return;
+            }
+        }
+
+        std::sort(linkIds.begin(), linkIds.end());
+
+        int linkCount = 0;
+        for (auto nodeId : linkIds) {
+            auto* node = GetNode(nodeId)->As<TLinkNode>();
+            if (!node->ImmutableSequoiaProperties()) {
+                // When a reachable node is branched, it does not produce new resolve rows.
+                if (!node->IsTrunk() && node->GetOriginator()->GetReachable()) {
+                    continue;
+                }
+
+                auto pathRootType = EPathRootType::Other;
+                auto path = GetNodePath(node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
+                if (pathRootType != EPathRootType::RootNode && pathRootType != EPathRootType::PortalExit) {
+                    continue;
+                }
+
+                node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
+                    NYPath::DirNameAndBaseName(path).second,
+                    path,
+                    node->GetParent()->GetId());
+            }
+
+            EnqueueCypressLinkResolveRows(Bootstrap_, node);
+            ++linkCount;
+        }
+
+        YT_TLOG_INFO("Cypress symlink resolve rows enqueued")
+            .With("LinkCount", linkCount);
+    }
+
     void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -5661,10 +5731,21 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
+        const auto& config = GetDynamicConfig();
         RecursiveResourceUsageCache_->SetExpirationTimeout(
-            GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
+            config->RecursiveResourceUsageCacheExpirationTimeout);
+
+        if (IsActiveLeader() &&
+            !oldConfig->CypressManager->EnableSymlinkBackfill &&
+            config->EnableSymlinkBackfill)
+        {
+            YT_UNUSED_FUTURE(CreateMutation(
+                Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                NProto::TReqEnqueueSymlinksToSequoia{})
+                ->CommitAndLog(Logger()));
+        }
     }
 };
 
