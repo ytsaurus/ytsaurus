@@ -319,6 +319,75 @@ This disables forced data transformation for user tables with storage settings (
 
 Forced transformation is applied to input tables if they're used to write to output tables only via the YtMerge operation.
 
+## yt.EarlyPartitionPruning {#early-partition-pruning}
+
+| **Possible values** | **Default value** | **Type** |
+| --- | --- | --- |
+| Flag | false | Static |
+
+Enables early partition pruning: YQL excludes in advance the tables that definitely do not match the `WHERE` condition. Partitions are the tables selected by the `PARTITIONS` and `PARTITION_LIST` functions (and their `_STRICT` variants). Pruning happens before the data is read: for the excluded partitions, the query does not load the schemas and the metadata needed for reading. The pragma is useful when a query accesses many partitions, but the `WHERE` condition selects only some of them, for example, the daily tables for the last month.
+
+{% note warning %}
+
+Pruning happens before table schemas are merged, so the result schema is determined only by the remaining partitions. The set of columns and their types may change. For example, if in an excluded table the `userId` column has the `Optional<Uint64>` type, and in the remaining tables it has the `Uint64` type, the column type in the result changes from `Optional<Uint64>` to `Uint64`. Keep this in mind if you process the result programmatically. This is why the pragma is disabled by default.
+
+{% endnote %}
+
+#### How to enable {#early-partition-pruning-enable}
+
+Add the following line to the query before `SELECT`:
+
+```yql
+PRAGMA yt.EarlyPartitionPruning;
+```
+
+#### How it works {#early-partition-pruning-how-it-works}
+
+Each partition table is described by extra columns, for example the date or company name. Where their values come from depends on the function:
+
+* `PARTITIONS`: the values are extracted from the path by the template. The pragma does not cancel the initial lookup of tables in directories performed by `PARTITIONS`.
+* `PARTITION_LIST`: the values are set by the fields of the structures in the input list.
+
+A partition is excluded only if the known values of its extra columns prove that the whole `WHERE` condition cannot be true. If the condition can't be checked in advance, the partition stays in the query.
+
+The table below shows which partitions can be excluded for different `WHERE` conditions. In the examples, `company` is an extra partition column, and `event_id` is a column stored in the table:
+
+| **`WHERE` condition** | **What can be excluded** |
+| --- | --- |
+| `company = "A" AND event_id > 5` | Partitions of other companies: for them `company = "A"` is false, so the whole condition is false. The remaining partitions are read, and `event_id > 5` is applied to their data as usual. |
+| `company = "A" OR event_id > 5` | Nothing: a table of any company may contain events with a suitable `event_id`, so the condition can't be proven false for any partition. |
+
+#### Limitations {#early-partition-pruning-limitations}
+
+Pruning is performed only if all of the following conditions are met:
+
+* The `WHERE` condition is applied directly to the result of the partition functions.
+* The partitions have additional columns other than `TablePath` and `TableView`.
+* The condition has a part that depends only on the additional columns.
+
+The following are not used for pruning:
+
+* Conditions on ordinary table columns: their values are known only when the data is read.
+* Non-deterministic expressions over the additional columns, such as `Random` over the value of such a column. Other parts of the condition may still allow partitions to be excluded.
+
+If no partition matches the condition, one partition still remains in the query: it's used to infer the result schema.
+
+For more information about partition functions, see [Accessing multiple tables in one query](../select/concat.md#early-partition-pruning).
+
+#### Example {#early-partition-pruning-example}
+
+```yql
+-- Let's assume that the //home/daily_logs directory has the following structure: //home/daily_logs/<date in YYYY-MM-DD format>/<company name>/event_log
+USE some_cluster;
+
+PRAGMA yt.EarlyPartitionPruning;
+
+SELECT company, event_id
+FROM PARTITIONS(`//home/daily_logs`, "${event_date:Date}/${company}/event_log")
+-- YQL will exclude all tables whose date in the path is earlier than 2025-10-01, for all companies.
+WHERE event_date >= Date("2025-10-01");
+```
+
 ## yt.ErasureCodecCpu {#erasure-codec-cpu}
 
 | Possible values | Default value | Type |
