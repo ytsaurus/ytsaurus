@@ -323,6 +323,12 @@ void TScanVersionExtractor<Aggregate>::ExtractVersion(TVersionedValue* value, co
     value->Timestamp = timestamps[WriteTimestampIds_[position]];
 }
 
+template <bool Aggregate>
+size_t TScanVersionExtractor<Aggregate>::DoGetMemoryUsage() const
+{
+    return WriteTimestampIds_.GetSize();
+}
+
 ui32 TScanMultiValueIndexExtractor::GetSegmentRowLimit() const
 {
     return SegmentRowLimit_;
