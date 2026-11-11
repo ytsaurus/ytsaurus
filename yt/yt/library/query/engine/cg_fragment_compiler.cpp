@@ -4730,7 +4730,9 @@ TCGQueryImage CodegenQuery(
     auto cgModule = TCGModule::Create(
         GetQueryRoutineRegistry(options.ExecutionBackend),
         options.ExecutionBackend,
-        options.OptimizationLevel);
+        options.OptimizationLevel,
+        /*moduleName*/ "module",
+        options.MaxJitStackFrameSize);
     const auto entryFunctionName = std::string("EvaluateQuery");
 
     auto* queryFunction = MakeFunction<TCGPIQuerySignature>(cgModule, entryFunctionName.c_str(), [&] (

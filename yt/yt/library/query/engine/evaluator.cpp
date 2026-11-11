@@ -159,7 +159,8 @@ private:
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
                 options.OptimizationLevel,
-                options.MaxJoinBatchSize);
+                options.MaxJoinBatchSize,
+                options.MaxJitStackFrameSize);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] {
@@ -214,7 +215,8 @@ private:
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
         NCodegen::EOptimizationLevel optimizationLevel,
-        i64 maxJoinBatchSize)
+        i64 maxJoinBatchSize,
+        std::optional<int> maxJitStackFrameSize)
     {
         llvm::FoldingSetNodeID id;
 
@@ -223,6 +225,7 @@ private:
             .ExecutionBackend = executionBackend,
             .OptimizationLevel = optimizationLevel,
             .MaxJoinBatchSize = maxJoinBatchSize,
+            .MaxJitStackFrameSize = maxJitStackFrameSize,
         };
 
         auto makeCodegenQuery = Profile(
