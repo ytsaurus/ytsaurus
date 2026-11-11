@@ -85,13 +85,15 @@ class CodebaseMapValidatorTest(unittest.TestCase):
     def test_bare_arcadia_root_is_not_counted_as_exact_path(self) -> None:
         self.assertEqual(checker.extract_arcadia_paths("Root: `yt/`"), [])
 
-    def test_live_map_declares_62_concrete_exact_paths(self) -> None:
+    def test_live_map_declares_64_concrete_exact_paths(self) -> None:
         map_path = Path(__file__).resolve().parents[1] / "artifacts/codebase/codebase-map.md"
         paths = checker.extract_arcadia_paths(map_path.read_text(encoding="utf-8"))
         concrete_paths = [path for path in paths if not checker.validate_pattern_syntax(path)[0]]
 
-        self.assertEqual(len(paths), 65)
-        self.assertEqual(len(concrete_paths), 62)
+        self.assertEqual(len(paths), 67)
+        self.assertEqual(len(concrete_paths), 64)
+        self.assertIn("yt/architecture/ya.make", concrete_paths)
+        self.assertIn("yt/yt/server/scheduler/ARCHITECTURE.md", concrete_paths)
         self.assertNotIn("yt/", paths)
 
     def test_valid_exact_paths_include_spaces_and_directory_slashes(self) -> None:

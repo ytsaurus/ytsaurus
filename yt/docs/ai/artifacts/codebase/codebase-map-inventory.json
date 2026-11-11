@@ -4,10 +4,12 @@
   "top_level_directories": [
     "admin",
     "airflow-provider",
+    "architecture",
     "benchmarks",
     "buildall",
     "cfg",
     "chyt",
+    "ci",
     "connectors",
     "cpp",
     "cron",
