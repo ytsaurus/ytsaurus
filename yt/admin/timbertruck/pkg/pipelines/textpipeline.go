@@ -28,6 +28,9 @@ type TextPipelineOptions struct {
 	// OnTruncatedRow is called when a row is truncated.
 	OnTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
 
+	// OnLineSize is called with the full size of every line read, including truncated lines.
+	OnLineSize func(size int)
+
 	// SplitByCarriageReturn also treats '\r' and '\r\n' as line terminators (in addition to '\n').
 	SplitByCarriageReturn bool
 }
@@ -36,6 +39,7 @@ type textFollower struct {
 	logger         *slog.Logger
 	lineLimit      int
 	onTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
+	onLineSize     func(size int)
 	splitByCR      bool
 
 	file LogFile
@@ -69,9 +73,13 @@ func NewTextPipeline(
 		logger:         logger,
 		lineLimit:      options.LineLimit,
 		onTruncatedRow: options.OnTruncatedRow,
+		onLineSize:     options.OnLineSize,
 		splitByCR:      options.SplitByCarriageReturn,
 		file:           file,
 		buffer:         make([]byte, options.BufferLimit),
+	}
+	if root.onLineSize == nil {
+		root.onLineSize = func(int) {}
 	}
 	p, s = NewPipelineFromRootTransform(root, root.stop)
 	return
@@ -176,6 +184,7 @@ func (t *textFollower) emitAllLines(ctx context.Context, emit EmitFunc[TextLine]
 func (t *textFollower) emitLine(ctx context.Context, emit EmitFunc[TextLine]) {
 	line := TextLine{}
 	line.Bytes = t.buffer[t.begin:t.scanEnd]
+	t.onLineSize(len(line.Bytes))
 	truncatedBytes := 0
 	if len(line.Bytes) > t.lineLimit {
 		t.onTruncatedRow(
@@ -232,12 +241,15 @@ func (t *textFollower) emitOversizedLine(ctx context.Context, emit EmitFunc[Text
 	// The line is not fully read yet (no newline found), so we use brokenLineWriter
 	// to continue reading and streaming the full line from the file.
 	brokenLineWriterCalled := false
+	var lineSize int64
 	brokenLineWriter := writerToFunc(func(w io.Writer) (int64, error) {
 		if brokenLineWriterCalled {
 			panic("writeBrokenLineTo was called more than once")
 		}
 		brokenLineWriterCalled = true
-		return t.writeBrokenLineTo(ctx, w)
+		n, err := t.writeBrokenLineTo(ctx, w)
+		lineSize = n
+		return n, err
 	})
 	t.onTruncatedRow(brokenLineWriter, SkippedRowInfo{
 		Reason: SkipRowReasonTruncated,
@@ -247,6 +259,7 @@ func (t *textFollower) emitOversizedLine(ctx context.Context, emit EmitFunc[Text
 	if !brokenLineWriterCalled {
 		panic("onTruncatedRow did not call WriteTo on brokenLineWriter")
 	}
+	t.onLineSize(int(lineSize))
 }
 
 func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit EmitFunc[TextLine]) {

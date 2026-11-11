@@ -295,12 +295,16 @@ func TestOversizedLineSkippedRowsContent(t *testing.T) {
 	require.NoError(t, err)
 
 	var skippedData strings.Builder
+	var lineSizes []int
 
 	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
 		LineLimit:   10, // Long line will be truncated.
 		BufferLimit: 64, // Buffer is small, so long line won't fit.
 		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
 			_, _ = data.WriteTo(&skippedData)
+		},
+		OnLineSize: func(size int) {
+			lineSizes = append(lineSizes, size)
 		},
 	})
 	require.NoError(t, err)
@@ -339,6 +343,8 @@ func TestOversizedLineSkippedRowsContent(t *testing.T) {
 	require.NotContains(t, skippedContent, "short1", "skipped_rows should not contain 'short1'")
 	require.NotContains(t, skippedContent, "short2", "skipped_rows should not contain 'short2'")
 	require.NotContains(t, skippedContent, "short3", "skipped_rows should not contain 'short3'")
+
+	require.Equal(t, []int{len(longLine), len("short1\n"), len("short2\n"), len("short3\n")}, lineSizes)
 }
 
 func TestCarriageReturnSplitting(t *testing.T) {

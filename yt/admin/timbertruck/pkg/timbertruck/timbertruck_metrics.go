@@ -2,6 +2,8 @@ package timbertruck
 
 import (
 	"log/slog"
+	"sync"
+	"sync/atomic"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
@@ -81,4 +83,73 @@ func newRowCounters[T ~string](registry metrics.Registry, streamName string, nam
 	}
 
 	return result
+}
+
+// rowMaxGauges holds a gauge per value of a single tag. It is a noop when registry is nil.
+type rowMaxGauges[T ~string] struct {
+	maxes map[T]*periodMax
+}
+
+func (g rowMaxGauges[T]) Observe(value T, size int) {
+	if m, ok := g.maxes[value]; ok {
+		m.observe(int64(size))
+	}
+}
+
+func (g rowMaxGauges[T]) Rotate() {
+	for _, m := range g.maxes {
+		m.rotate()
+	}
+}
+
+func newRowMaxGauges[T ~string](registry metrics.Registry, streamName string, name string, tag string, values []T) rowMaxGauges[T] {
+	result := rowMaxGauges[T]{maxes: make(map[T]*periodMax, len(values))}
+	if registry == nil {
+		return result
+	}
+
+	for _, value := range values {
+		m := &periodMax{}
+		registry.WithTags(map[string]string{
+			"stream": streamName,
+			tag:      string(value),
+		}).FuncIntGauge(name, m.value)
+		result.maxes[value] = m
+	}
+
+	return result
+}
+
+func newStreamMaxGauge(registry metrics.Registry, streamName string, name string) *periodMax {
+	result := &periodMax{}
+	if registry != nil {
+		registry.WithTags(map[string]string{"stream": streamName}).FuncIntGauge(name, result.value)
+	}
+	return result
+}
+
+type periodMax struct {
+	mu       sync.Mutex
+	current  atomic.Int64
+	previous int64
+}
+
+func (m *periodMax) observe(value int64) {
+	for current := m.current.Load(); value > current; current = m.current.Load() {
+		if m.current.CompareAndSwap(current, value) {
+			return
+		}
+	}
+}
+
+func (m *periodMax) rotate() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.previous = m.current.Swap(0)
+}
+
+func (m *periodMax) value() int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return max(m.previous, m.current.Load())
 }

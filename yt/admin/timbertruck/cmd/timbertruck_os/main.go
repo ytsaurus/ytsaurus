@@ -123,6 +123,7 @@ func newOutput(config *Config, logConfig BaseLogConfig, task timbertruck.TaskArg
 				},
 				OnSkippedRow: task.Controller.OnSkippedRow,
 				OnLargeRow:   task.Controller.OnLargeRow,
+				OnRowSize:    task.Controller.OnRowSize,
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]
