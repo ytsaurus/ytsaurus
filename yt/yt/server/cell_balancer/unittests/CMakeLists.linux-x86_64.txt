@@ -60,6 +60,7 @@ target_sources(unittester-cell-balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/chaos_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/memory_limit_bounds_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/pod_id_ut.cpp
 )
 

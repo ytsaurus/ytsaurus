@@ -366,6 +366,8 @@ struct TZoneInfo
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
 
+    NBundleControllerClient::TMemoryLimitBoundsPtr TabletNodeMemoryLimitBounds;
+
     TBundleConfigPtr SpareTargetConfig;
     std::string SpareBundleName;
     double DisruptedThresholdFactor;
