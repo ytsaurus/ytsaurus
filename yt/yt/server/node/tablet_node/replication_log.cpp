@@ -267,26 +267,41 @@ public:
         auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
 
-        auto rowIndexLo = lowerRowIndex.value_or(trimmedRowCount);
+        auto rowIndexLo = trimmedRowCount;
+        if (lowerRowIndex && *lowerRowIndex > rowIndexLo) {
+            rowIndexLo = *lowerRowIndex;
+        }
+
         auto rowIndexHi = totalRowCount;
         if (rowIndexLo == rowIndexHi) {
             onMissingRow();
             return {};
         }
 
+        std::optional<TTimestamp> timestampLo;
+        if (lowerRowIndex && *lowerRowIndex == rowIndexLo) {
+            timestampLo = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexLo, onMissingRow);
+        }
+
         YT_TLOG_DEBUG("Started computing replication start row index")
             .With("StartReplicationTimestamp", startReplicationTimestamp)
             .With("RowIndexLo", rowIndexLo)
-            .With("RowIndexHi", rowIndexHi);
+            .With("RowIndexHi", rowIndexHi)
+            .With("TimestampLo", timestampLo);
 
-        while (rowIndexLo < rowIndexHi - 1) {
-            auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid, onMissingRow);
-            if (!timestampMid || *timestampMid <= startReplicationTimestamp) {
-                rowIndexLo = rowIndexMid;
-            } else {
-                rowIndexHi = rowIndexMid;
+        if (!timestampLo || *timestampLo <= startReplicationTimestamp) {
+            while (rowIndexLo < rowIndexHi - 1) {
+                auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
+                auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid, onMissingRow);
+                if (!timestampMid || *timestampMid <= startReplicationTimestamp) {
+                    rowIndexLo = rowIndexMid;
+                } else {
+                    rowIndexHi = rowIndexMid;
+                }
             }
+        } else {
+            YT_TLOG_DEBUG("Skipped binary search since lower timestamp is OK");
+            return rowIndexLo;
         }
 
         auto startRowIndex = rowIndexLo;
@@ -299,6 +314,7 @@ public:
                     break;
                 }
             }
+
             ++startRowIndex;
         }
 
