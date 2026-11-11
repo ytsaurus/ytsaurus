@@ -1304,8 +1304,11 @@ private:
                     node,
                     Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager);
 
+            // Include unreliable cells since they also receive the restart mutation.
             if (GetDynamicConfig()->NoRestartingNodesDisposal &&
-                node->GetAggregatedState() == ENodeState::Online &&
+                std::ranges::all_of(node->MulticellDescriptors(), [] (const auto& descriptor) {
+                    return descriptor.second.State == ENodeState::Online;
+                }) &&
                 options.Flavors.contains(ENodeFlavor::Data) &&
                 options.LocationIndexesInHeartbeatsSupported &&
                 nodeTemporarilyUnavailable &&
