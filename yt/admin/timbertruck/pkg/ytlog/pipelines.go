@@ -38,6 +38,7 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		LineLimit:      options.TextFileLineLimit,
 		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
 		OnTruncatedRow: task.Controller.OnSkippedRow,
+		OnLineSize:     task.Controller.OnLineSize,
 	})
 	if err != nil {
 		return
@@ -72,6 +73,7 @@ func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		LineLimit:      options.TextFileLineLimit,
 		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
 		OnTruncatedRow: task.Controller.OnSkippedRow,
+		OnLineSize:     task.Controller.OnLineSize,
 	})
 	if err != nil {
 		return
@@ -104,6 +106,7 @@ func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		LineLimit:      options.TextFileLineLimit,
 		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
 		OnTruncatedRow: task.Controller.OnSkippedRow,
+		OnLineSize:     task.Controller.OnLineSize,
 	})
 	if err != nil {
 		return

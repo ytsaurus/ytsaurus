@@ -39,3 +39,20 @@ func TestStagedName(t *testing.T) {
 	require.Equal(t, createTime, parsedTime)
 	require.Equal(t, false, isFinal)
 }
+
+func TestPeriodMaxKeepsValueForOnePeriod(t *testing.T) {
+	var m periodMax
+	m.observe(10)
+	m.observe(5)
+	require.EqualValues(t, 10, m.value())
+
+	m.rotate()
+	m.observe(7)
+	require.EqualValues(t, 10, m.value())
+
+	m.rotate()
+	require.EqualValues(t, 7, m.value())
+
+	m.rotate()
+	require.EqualValues(t, 0, m.value())
+}

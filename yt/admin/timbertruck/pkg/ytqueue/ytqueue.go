@@ -107,6 +107,7 @@ type OutputConfig struct {
 	OnSent       func(meta pipelines.RowMeta)
 	OnSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
 	OnLargeRow   func(info pipelines.LargeRowInfo)
+	OnRowSize    func(kind pipelines.LargeRowKind, size int)
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
@@ -186,6 +187,7 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		onSent:       config.OnSent,
 		onSkippedRow: config.OnSkippedRow,
 		onLargeRow:   config.OnLargeRow,
+		onRowSize:    config.OnRowSize,
 	}
 	o.startAsync()
 	out = o
@@ -232,6 +234,7 @@ type output struct {
 	onSent       func(meta pipelines.RowMeta)
 	onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
 	onLargeRow   func(info pipelines.LargeRowInfo)
+	onRowSize    func(kind pipelines.LargeRowKind, size int)
 }
 
 type sendItem struct {
@@ -255,6 +258,7 @@ func (o *output) startAsync() {
 func (o *output) compressorLoop() {
 	for item := range o.toCompress {
 		uncompressedSize := len(item.row.Value)
+		o.notifyRowSize(pipelines.LargeRowKindUncompressed, uncompressedSize)
 		if uncompressedSize >= o.largeUncompressedRowBytes {
 			o.notifyLargeRow(item.meta.Begin, pipelines.LargeRowKindUncompressed, map[string]any{
 				"uncompressed_size": uncompressedSize,
@@ -268,6 +272,7 @@ func (o *output) compressorLoop() {
 			item.row.Value = o.compressor.compress(item.row.Value)
 			compressedSize := len(item.row.Value)
 			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", uncompressedSize, "compressed_size", compressedSize, "duration_ms", time.Since(startedAt).Milliseconds())
+			o.notifyRowSize(pipelines.LargeRowKindCompressed, compressedSize)
 
 			if compressedSize >= o.maxCompressedRowBytes {
 				if o.onSkippedRow != nil {
@@ -305,6 +310,13 @@ func (o *output) notifyLargeRow(offset pipelines.FilePosition, kind pipelines.La
 		Offset: offset,
 		Attrs:  attrs,
 	})
+}
+
+func (o *output) notifyRowSize(kind pipelines.LargeRowKind, size int) {
+	if o.onRowSize == nil {
+		return
+	}
+	o.onRowSize(kind, size)
 }
 
 func (o *output) senderLoop() {

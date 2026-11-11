@@ -551,6 +551,10 @@ func (c *oneShotAppTaskController) OnLargeRow(info pipelines.LargeRowInfo) {
 	c.logger.Warn("Large row", attrs...)
 }
 
+func (c *oneShotAppTaskController) OnRowSize(kind pipelines.LargeRowKind, size int) {}
+
+func (c *oneShotAppTaskController) OnLineSize(size int) {}
+
 type oneShotApp struct {
 	tasks []oneShotAppTask
 
