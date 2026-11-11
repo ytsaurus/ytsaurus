@@ -435,6 +435,19 @@ void TSetPipelineSpecResult::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemovePipelineSpecArg::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default("");
+    registrar.Parameter("expected_version", &TThis::ExpectedVersion)
+        .Default();
+    registrar.Parameter("force", &TThis::Force)
+        .Default(false);
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSetPipelineSpecsArg::Register(TRegistrar registrar)
 {
     registrar.Parameter("spec", &TThis::Spec)

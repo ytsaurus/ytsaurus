@@ -300,6 +300,53 @@ TEST_P(TFlowExecutorSpecUpdateTest, DynamicUpdateRevalidatesAfterStaticUpdate)
     RunConcurrentUpdates(/*staticFirst*/ true);
 }
 
+TEST_P(TFlowExecutorSpecUpdateTest, RemovePipelineSpecPreservesVersionAndStateGuards)
+{
+    WaitFor(BIND([this] {
+        State_->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Paused, VersionProvider_);
+        SyncFlowView();
+        auto version = Spec_->GetVersion();
+        TRemovePipelineSpecArg argument;
+        argument.Path = "/computations/graph/processing_function_parameters/graph/nodes/removed";
+        argument.ExpectedVersion = TVersion(version.Underlying() + 1);
+        argument.Force = true;
+        auto remove = [&] {
+            return ConvertTo<TSetPipelineSpecResult>(Executor_->Execute(
+                "remove-pipeline-spec",
+                ConvertToYsonString(argument),
+                "alice"));
+        };
+
+        EXPECT_THROW_THAT(remove(), HasSubstr("Spec version mismatch"));
+        argument.ExpectedVersion = version;
+        argument.Force = false;
+        EXPECT_THROW_THAT(remove(), HasSubstr("stop the pipeline"));
+        EXPECT_EQ(PersistCount_, 0);
+
+        argument.Force = true;
+        auto result = remove();
+        EXPECT_GT(result.Version, version);
+        EXPECT_EQ(result.Version, Spec_->GetVersion());
+        EXPECT_EQ(PersistCount_, 1);
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(Spec_->GetValue()),
+            ConvertToNode(MakeGraphPipelineSpec(/*includeRemovedNode*/ false))));
+
+        argument.ExpectedVersion.reset();
+        EXPECT_THROW(remove(), TErrorException);
+        EXPECT_EQ(PersistCount_, 1);
+        EXPECT_EQ(Spec_->GetVersion(), result.Version);
+
+        auto permission = ConvertTo<IMapNodePtr>(Executor_->Execute(
+            "get-command-required-permission",
+            TYsonString(TStringBuf("{command=remove-pipeline-spec;}")),
+            "alice"));
+        EXPECT_EQ(permission->GetChildValueOrThrow<EPermission>("permission"), EPermission::Write);
+    }).AsyncVia(Queue_->GetInvoker())
+            .Run())
+        .ThrowOnError();
+}
+
 TEST_P(TFlowExecutorSpecUpdateTest, StaticUpdateRevalidatesAfterDynamicUpdate)
 {
     RunConcurrentUpdates(/*staticFirst*/ false);

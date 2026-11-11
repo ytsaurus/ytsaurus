@@ -1,5 +1,5 @@
 from .common import set_param
-from .driver import make_request, make_formatted_request, get_structured_format
+from .driver import make_formatted_request, get_structured_format
 from .dynamic_table_commands import get_tablet_infos, select_rows
 from .ypath import YPath
 
@@ -106,14 +106,15 @@ def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, f
     :param force: if true, remove spec even if pipeline is paused.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-    set_param(params, "spec_path", spec_path)
+    params = {}
+    set_param(params, "path", spec_path)
     set_param(params, "expected_version", expected_version)
     set_param(params, "force", force)
 
-    return make_request(
-        "remove_pipeline_spec",
-        params,
+    return flow_execute(
+        pipeline_path,
+        flow_command="remove-pipeline-spec",
+        flow_argument=params,
         client=client)
 
 

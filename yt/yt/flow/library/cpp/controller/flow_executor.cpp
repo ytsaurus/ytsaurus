@@ -313,6 +313,23 @@ TFlowExecutor::TFlowExecutor(IFlowExecutorRuntimePtr runtime)
     RegisterCommand("set-pipeline-spec", EPermission::Write, [this] (const auto& argument) {
         return ConvertToYsonString(SetPipelineSpec(ConvertTo<TSetPipelineSpecArg>(argument)));
     });
+    RegisterCommand("remove-pipeline-spec", EPermission::Write, [this] (const auto& argument) {
+        auto arg = ConvertTo<TRemovePipelineSpecArg>(argument);
+        auto spec = GetPipelineSpec(TGetPipelineSpecArg());
+        THROW_ERROR_EXCEPTION_IF(
+            arg.ExpectedVersion && spec.Version != *arg.ExpectedVersion,
+            NFlow::EErrorCode::SpecVersionMismatch,
+            "Spec version mismatch: expected %v, got %v",
+            *arg.ExpectedVersion,
+            spec.Version);
+
+        TSetPipelineSpecArg setArg;
+        setArg.Spec = CloneNode(spec.Spec);
+        SyncYPathRemove(setArg.Spec, TYPath(arg.Path));
+        setArg.ExpectedVersion = spec.Version;
+        setArg.Force = arg.Force;
+        return ConvertToYsonString(SetPipelineSpec(setArg));
+    });
     RegisterCommand("get-pipeline-dynamic-spec", EPermission::Read, [this] (const auto& argument) {
         return ConvertToYsonString(GetPipelineDynamicSpec(ConvertTo<TGetPipelineDynamicSpecArg>(argument)));
     });

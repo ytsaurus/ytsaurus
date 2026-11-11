@@ -7,6 +7,39 @@ import pytest
 
 
 @pytest.mark.authors(["timoninmaxim"])
+@pytest.mark.parametrize(
+    "options,argument",
+    [
+        ({}, {}),
+        (
+            {"spec_path": "/computations/reader", "expected_version": 7, "force": True},
+            {"path": "/computations/reader", "expected_version": 7, "force": True},
+        ),
+        ({"spec_path": "", "expected_version": 0, "force": False}, {"path": "", "expected_version": 0, "force": False}),
+    ],
+)
+def test_static_spec_remove_uses_flow_execute(monkeypatch, options, argument):
+    calls = []
+    client = object()
+    monkeypatch.setattr(
+        flow_commands,
+        "flow_execute",
+        lambda pipeline_path, **kwargs: calls.append((pipeline_path, kwargs)) or {"version": 8},
+    )
+    assert flow_commands.remove_pipeline_spec("//pipeline", client=client, **options) == {"version": 8}
+    assert calls == [
+        (
+            "//pipeline",
+            {
+                "flow_command": "remove-pipeline-spec",
+                "flow_argument": argument,
+                "client": client,
+            },
+        )
+    ]
+
+
+@pytest.mark.authors(["timoninmaxim"])
 def test_dynamic_spec_remove_is_atomic(monkeypatch):
     calls = []
 
