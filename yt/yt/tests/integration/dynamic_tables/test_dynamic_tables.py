@@ -4118,7 +4118,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: get("//tmp/a/@chunk_ids/0") != initial_chunk_id)
 
         assert exists(f"#{initial_chunk_id}")
-        assert [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+        wait(lambda: [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
 
         set("//tmp/a/@forced_compaction_revision", 1)
         remount_table("//tmp/a")
