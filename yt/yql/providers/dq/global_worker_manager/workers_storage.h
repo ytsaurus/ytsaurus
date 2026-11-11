@@ -10,7 +10,24 @@ namespace NYql {
 
 class TWorkersStorage {
 public:
-    TWorkersStorage(ui32 nodeId, TSensorsGroupPtr metrics, TSensorsGroupPtr workerMetrics);
+    using TLargeSlotsBudgetByCluster = THashMap<TString, ui64>;
+
+    struct TSlotsSnapshot {
+        struct TCluster {
+            ui64 Capacity = 0;
+            ui64 Free = 0;
+        };
+
+        ui64 Capacity = 0;
+        ui64 Free = 0;
+        THashMap<TString, TCluster> Clusters;
+    };
+
+    TWorkersStorage(
+        ui32 nodeId,
+        TSensorsGroupPtr metrics,
+        TSensorsGroupPtr workerMetrics,
+        bool trackSlotsSnapshot = false);
 
     void Clear();
 
@@ -18,6 +35,10 @@ public:
 
     size_t Capacity() const { return GlobalResources.GetCapacity(); }
     size_t FreeSlots() const { return Max<i64>(GlobalResources.GetCapacity() - GlobalResources.GetRunningRequests(), 0); }
+
+    const TSlotsSnapshot& GetSlotsSnapshot() const;
+
+    void SetStopping(const NDqs::TWorkerInfo::TPtr& workerInfo, bool stopping = true);
 
     std::tuple<NDqs::TWorkerInfo::TPtr, bool> CreateOrUpdate(ui32 nodeId, TGUID workerId, Yql::DqsProto::RegisterNodeRequest& request);
 
@@ -29,7 +50,11 @@ public:
 
     void FreeWorker(TInstant now, const NDqs::TWorkerInfo::TPtr& worker);
 
-    TVector<NDqs::TWorkerInfo::TPtr> TryAllocate(const NDq::IScheduler::TWaitInfo& waitInfo) noexcept;
+    // Missing clusters are unrestricted. A supplied budget is updated only after the whole
+    // request has been allocated successfully.
+    TVector<NDqs::TWorkerInfo::TPtr> TryAllocate(
+        const NDq::IScheduler::TWaitInfo& waitInfo,
+        TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster = nullptr) noexcept;
 
     void IsReady(const TVector<NDqs::TWorkerInfo::TFileResource>& resources, THashMap<TString, std::pair<ui32, ui32>>& clusterMap);
 
@@ -46,20 +71,10 @@ public:
     void Visit(const std::function<void(const NDqs::TWorkerInfo::TPtr& workerInfo)>& f);
 
 private:
-
-    // Max total file lookups across both SearchFreeList passes per TryAllocate call.
-    // Each outer iteration (worker) costs M * K file lookups in the no-match worst case.
-    // Effective outer iterations per pass = limit / (M * K_avg).
-    //
-    // At 3GHz, ~50ns per hash lookup:
-    //   1M lookups ≈ 50ms per TryAllocate call.
-    //
-    // Current cluster: N=500, M=100, K=100 → full scan = 10M lookups > limit →
-    //   maxOuterItersPerPass = 1M / (100*100) = 100 outer iters scanned per pass (20% of 500 workers).
-    // Target cluster: N=10000, M=100, K=100 → maxOuterItersPerPass = 100 → 1% of 10000 workers scanned.
-    //   This aggressively limits search but prevents GWM from blocking for seconds.
-    //
-    // The real fix for large N/M/K is an inverted file→workers index (see architecture notes).
+    // Work estimate used to cap each linear search pass independently, with at
+    // least one iteration. Also caps host checks in the budgeted candidate scan.
+    // This is not a bound on the whole allocation: indexed search, downloads and
+    // a possible bounded-selection retry perform additional work.
     // 0 = unlimited (for tests / manual override).
     size_t SearchComplexityLimit = 1'000'000;
 
@@ -92,6 +107,40 @@ private:
     THashMap<TString, THashSet<NDqs::TWorkerInfo::TPtr>> FileToWorkers;
 
     NDqs::TGlobalResources GlobalResources;
+    const bool TrackSlotsSnapshot;
+
+    struct TWorkerSlots {
+        ui64 Capacity = 0;
+        ui64 Free = 0;
+    };
+
+    TSlotsSnapshot SlotsSnapshot;
+
+    struct TAllocationBudget;
+
+    TVector<NDqs::TWorkerInfo::TPtr> TryAllocateImpl(
+        const NDq::IScheduler::TWaitInfo& waitInfo,
+        TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster,
+        bool useBudgetedBoundedSelection,
+        bool& retryWithBudgeted);
+
+    TWorkerSlots GetSchedulableSlots(const NDqs::TWorkerInfo::TPtr& workerInfo) const;
+    void UpdateSlotsSnapshot(
+        const NDqs::TWorkerInfo::TPtr& workerInfo,
+        const TWorkerSlots& before);
+
+    ui64 BuildLegacyBoundedFreeList(
+        TFreeList& boundedList,
+        size_t workersCount,
+        i32 maxTasksPerWorker);
+
+    ui64 BuildBudgetedBoundedFreeList(
+        TFreeList& boundedList,
+        size_t workersCount,
+        i32 maxTasksPerWorker,
+        const TAllocationBudget& budget,
+        const TWorkerFilter* mandatoryHostFilter,
+        const THashMap<i32, TWorkerFilter>& taskFilters);
 
     TFreeList::iterator ProcessMatched(
         TWorkersStorage::TFreeList::iterator it,
@@ -99,7 +148,8 @@ private:
         TFreeList* freeList,
         THashMap<NDqs::TWorkerInfo::TPtr, int>& tasksPerWorker,
         THashMap<i32, TWorkerFilter>& tasksToAllocate,
-        int taskId);
+        int taskId,
+        TAllocationBudget* budget);
 
     // Returns number of outer (per-worker) iterations performed.
     // maxOuterIters==0 means unlimited.
@@ -111,6 +161,7 @@ private:
         THashMap<i32, TWorkerFilter>& tasksToAllocate,
         THashMap<TString, THashSet<int>>& waitingResources,
         TWorkerFilter::EMatchStatus matchMode,
+        TAllocationBudget* budget,
         size_t maxOuterIters = 0);
 
     // Fast path: for each task with file filters, find candidate workers via
@@ -125,7 +176,8 @@ private:
         const i32 maxTasksPerWorker,
         THashMap<NDqs::TWorkerInfo::TPtr, int>& tasksPerWorker,
         THashMap<i32, TWorkerFilter>& tasksToAllocate,
-        THashMap<TString, THashSet<int>>& waitingResources);
+        THashMap<TString, THashSet<int>>& waitingResources,
+        TAllocationBudget* budget);
 };
 
 } // namespace NYql

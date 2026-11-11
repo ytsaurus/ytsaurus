@@ -30,9 +30,152 @@ IScheduler::TPtr MakeRunningLimiterScheduler(
         targetCapacity);
 }
 
+using TProcessedTasks = std::tuple<size_t, size_t, size_t>;
+
+TProcessedTasks RunHardReserveScenario(
+    size_t smallRequests,
+    size_t largeRequests,
+    ui32 largeRequestSize,
+    const IScheduler::TProcessLimits& limits,
+    bool keepReserveForLiteralRequests)
+{
+    NYql::NProto::TDqConfig::TScheduler cfg;
+    cfg.SetKeepReserveForLiteralRequests(keepReserveForLiteralRequests);
+    const auto scheduler = IScheduler::Make(cfg);
+    for (size_t i = 0; i < smallRequests; ++i) {
+        scheduler->Suspend({MakeRequest(1U, "small"), {}});
+    }
+    for (size_t i = 0; i < largeRequests; ++i) {
+        scheduler->Suspend({MakeRequest(largeRequestSize, "large"), {}});
+    }
+
+    size_t small = 0;
+    size_t large = 0;
+    scheduler->Process(limits, [&] (const IScheduler::TWaitInfo& wait) {
+        (wait.Request.GetCount() == 1 ? small : large) += wait.Request.GetCount();
+        return true;
+    });
+    return {small, large, scheduler->UpdateMetrics()};
+}
+
 }
 
 Y_UNIT_TEST_SUITE(TSchedulerTest) {
+    Y_UNIT_TEST(HardReserveQuotas) {
+        struct TCase {
+            size_t SmallRequests;
+            size_t LargeRequests;
+            ui32 LargeRequestSize;
+            IScheduler::TProcessLimits Limits;
+            bool KeepReserveForLiteralRequests;
+            TProcessedTasks Expected;
+        };
+        const TVector<TCase> cases = {
+            {8, 1, 2, {.TotalSlots = 10, .FreeSlots = 10, .LargeSlotsBudget = 2}, false, {8, 2, 0}},
+            {10, 25, 3, {.TotalSlots = 100, .FreeSlots = 100, .LargeSlotsBudget = 90}, true, {10, 75, 0}},
+            {4, 1, 2, {.TotalSlots = 4, .FreeSlots = 4, .LargeSlotsBudget = 0}, true, {4, 0, 1}},
+        };
+
+        for (const auto& scenario : cases) {
+            const auto actual = RunHardReserveScenario(
+                scenario.SmallRequests,
+                scenario.LargeRequests,
+                scenario.LargeRequestSize,
+                scenario.Limits,
+                scenario.KeepReserveForLiteralRequests);
+            UNIT_ASSERT_VALUES_EQUAL(std::get<0>(actual), std::get<0>(scenario.Expected));
+            UNIT_ASSERT_VALUES_EQUAL(std::get<1>(actual), std::get<1>(scenario.Expected));
+            UNIT_ASSERT_VALUES_EQUAL(std::get<2>(actual), std::get<2>(scenario.Expected));
+        }
+    }
+
+    Y_UNIT_TEST(UserLimiterDoesNotReleaseReservedSlotsToLargeRequests) {
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetLimitTasksPerWindow(true);
+        const auto scheduler = IScheduler::Make(cfg);
+
+        scheduler->Suspend({MakeRequest(5U, "limited"), {}});
+        scheduler->Process(10, 10, [] (const IScheduler::TWaitInfo&) { return true; });
+
+        scheduler->Suspend({MakeRequest(1U, "limited"), {}});
+        scheduler->Suspend({MakeRequest(2U, "large"), {}});
+
+        size_t allocatedTasks = 0;
+        const auto processor = [&] (const IScheduler::TWaitInfo& wait) {
+            allocatedTasks += wait.Request.GetCount();
+            return true;
+        };
+        scheduler->Process(
+            {.TotalSlots = 10, .FreeSlots = 4, .LargeSlotsBudget = 0},
+            processor);
+
+        UNIT_ASSERT_VALUES_EQUAL(allocatedTasks, 0);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 2);
+    }
+
+    Y_UNIT_TEST(ZeroLargeBudgetDoesNotRetryRejectedLiteral) {
+        const auto scheduler = IScheduler::Make();
+        scheduler->Suspend({MakeRequest(1U, "small"), {}});
+        scheduler->Suspend({MakeRequest(2U, "large"), {}});
+
+        size_t attempts = 0;
+        scheduler->Process(
+            {.TotalSlots = 10, .FreeSlots = 10, .LargeSlotsBudget = 0},
+            [&] (const IScheduler::TWaitInfo& wait) {
+                ++attempts;
+                UNIT_ASSERT_VALUES_EQUAL(wait.Request.GetCount(), 1);
+                return false;
+            });
+
+        UNIT_ASSERT_VALUES_EQUAL(attempts, 1);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 2);
+    }
+
+    Y_UNIT_TEST(HardReserveKeepsRunningLimitedLargeRequestsFromBlockingLiterals) {
+        const auto scheduler = MakeRunningLimiterScheduler(10);
+        scheduler->Suspend({MakeRequest(5U, "limited"), {}});
+        scheduler->Process(10, 10, [] (const IScheduler::TWaitInfo&) { return true; });
+
+        scheduler->Suspend({MakeRequest(2U, "limited"), {}});
+        for (int i = 0; i < 5; ++i) {
+            scheduler->Suspend({MakeRequest(1U, "literal"), {}});
+        }
+
+        size_t allocated = 0;
+        scheduler->Process(
+            {.TotalSlots = 10, .FreeSlots = 5, .LargeSlotsBudget = 2},
+            [&] (const IScheduler::TWaitInfo& wait) {
+                UNIT_ASSERT_VALUES_EQUAL(wait.Request.GetCount(), 1);
+                ++allocated;
+                return true;
+            });
+
+        UNIT_ASSERT_VALUES_EQUAL(allocated, 5);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1);
+    }
+
+    Y_UNIT_TEST(HardReserveKeepsRunningLimitedLiteralsFromBlockingLargeRequests) {
+        const auto scheduler = MakeRunningLimiterScheduler(10);
+        scheduler->Suspend({MakeRequest(5U, "limited"), {}});
+        scheduler->Process(20, 20, [] (const IScheduler::TWaitInfo&) { return true; });
+
+        scheduler->Suspend({MakeRequest(1U, "limited"), {}});
+        scheduler->Suspend({MakeRequest(4U, "large1"), {}});
+        scheduler->Suspend({MakeRequest(4U, "large2"), {}});
+
+        size_t allocated = 0;
+        scheduler->Process(
+            {.TotalSlots = 20, .FreeSlots = 10, .LargeSlotsBudget = 8},
+            [&] (const IScheduler::TWaitInfo& wait) {
+                UNIT_ASSERT_VALUES_EQUAL(wait.Request.GetCount(), 4);
+                allocated += wait.Request.GetCount();
+                return true;
+            });
+
+        UNIT_ASSERT_VALUES_EQUAL(allocated, 8);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1);
+    }
+
     Y_UNIT_TEST(SimpleFifo) {
         const auto scheduler = IScheduler::Make();
         UNIT_ASSERT(scheduler);
