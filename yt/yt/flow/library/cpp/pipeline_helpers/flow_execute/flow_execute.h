@@ -226,6 +226,20 @@ struct TSetPipelineSpecResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRemovePipelineSpecArg
+    : public NYTree::TYsonStructLite
+{
+    std::string Path;
+    std::optional<TVersion> ExpectedVersion;
+    bool Force{};
+
+    REGISTER_YSON_STRUCT_LITE(TRemovePipelineSpecArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSetPipelineSpecsArg
     : public NYTree::TYsonStructLite
 {
@@ -447,6 +461,7 @@ typename TFlowExecuteTraits<TArg>::TResult FlowExecute(
 
 YT_FLOW_DEFINE_COMMAND(TGetPipelineSpecArg, TGetPipelineSpecResult, "get-pipeline-spec")
 YT_FLOW_DEFINE_COMMAND(TSetPipelineSpecArg, TSetPipelineSpecResult, "set-pipeline-spec")
+YT_FLOW_DEFINE_COMMAND(TRemovePipelineSpecArg, TSetPipelineSpecResult, "remove-pipeline-spec")
 YT_FLOW_DEFINE_COMMAND(TGetPipelineDynamicSpecArg, TGetPipelineDynamicSpecResult, "get-pipeline-dynamic-spec")
 YT_FLOW_DEFINE_COMMAND(TSetPipelineDynamicSpecArg, TSetPipelineDynamicSpecResult, "set-pipeline-dynamic-spec")
 YT_FLOW_DEFINE_COMMAND(TSetPipelineSpecsArg, TSetPipelineSpecsResult, "set-pipeline-specs")
