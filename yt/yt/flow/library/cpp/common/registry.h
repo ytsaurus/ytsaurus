@@ -55,6 +55,16 @@ struct TComputationInvokesProcessFunctionSync<T, std::void_t<decltype(T::Invokes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Parameters of sources and sinks parsed by #TRegistry::ValidatePipelineSpecParseability, keyed by
+//! (computation id, local stream or sink id). Entities that fail to parse are absent.
+struct TParsedPipelineParameters
+{
+    THashMap<std::pair<TComputationId, TStreamId>, NYTree::TYsonStructPtr> Sources;
+    THashMap<std::pair<TComputationId, TSinkId>, NYTree::TYsonStructPtr> Sinks;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRegistry
 {
 public:
@@ -286,7 +296,9 @@ public:
 
     // Validate spec and return list of errors.
     // Possible errors: failed parsing, unrecognized fields.
-    std::vector<TError> ValidatePipelineSpecParseability(const NYTree::IMapNodePtr& specNode) const;
+    std::vector<TError> ValidatePipelineSpecParseability(
+        const NYTree::IMapNodePtr& specNode,
+        TParsedPipelineParameters* parsedParameters = nullptr) const;
     std::vector<TError> ValidateDynamicPipelineSpecParseability(const TPipelineSpecPtr& spec, const NYTree::IMapNodePtr& dynamicSpecNode) const;
 
 protected:

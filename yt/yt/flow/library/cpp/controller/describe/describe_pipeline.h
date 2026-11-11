@@ -80,6 +80,28 @@ struct TReadDelayEdge
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EGraphEdgeKind,
+    //! A sink (|From|) writes and a source (|To|) reads the same data channel.
+    (DataChannel)
+);
+
+//! An edge between two graph entities that is not implied by the pipeline topology.
+struct TGraphEdge
+    : public NYTree::TYsonStructLite
+{
+    TGraphEntityId From;
+    TGraphEntityId To;
+    EGraphEdgeKind Kind = EGraphEdgeKind::DataChannel;
+    //! Text to display on the edge, e.g. the data channel.
+    std::string Label;
+
+    REGISTER_YSON_STRUCT_LITE(TGraphEdge);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Extended info about an edge between a computation and one of its streams.
 // Carries the per-edge messages that the pipeline graph renders on this edge.
 struct TStreamEdge
@@ -166,7 +188,8 @@ struct TSink
     std::string Description;
     NLogging::ELogLevel Status{};
     std::vector<TMessage> Messages;
-    TGraphEntityId StreamGraphEntityId; // The stream this sink reads.
+    TGraphEntityId StreamGraphEntityId;               // One of the streams this sink reads, kept for compatibility.
+    std::vector<TGraphEntityId> StreamGraphEntityIds; // All streams this sink reads, sorted.
 
     REGISTER_YSON_STRUCT_LITE(TSink);
 
@@ -190,6 +213,9 @@ struct TPipelineDescription
 
     // Read-delay edges from WatermarkAlignment.ReadDelays of all computations.
     std::vector<TReadDelayEdge> ReadDelayEdges;
+
+    // Edges of other kinds than the pipeline topology, sorted by (from, to) within a kind.
+    std::vector<TGraphEdge> Edges;
 
     REGISTER_YSON_STRUCT_LITE(TPipelineDescription);
 

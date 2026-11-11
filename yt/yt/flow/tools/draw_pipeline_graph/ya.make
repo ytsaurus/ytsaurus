@@ -41,3 +41,7 @@ RESOURCE(${BINDIR}/crimson/crimson/Crimson-SemiboldItalic.ttf Crimson-SemiboldIt
 RESOURCE(${BINDIR}/crimson/crimson/Crimson-Semibold.ttf Crimson-Semibold.ttf)
 
 END()
+
+RECURSE(
+    tests
+)

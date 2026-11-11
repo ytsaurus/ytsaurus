@@ -1,5 +1,8 @@
 #include "describe_traits.h"
 
+#include "registry.h"
+#include "yt_path_option.h"
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -77,6 +80,31 @@ TDescribeTraitsBase::TDescribeTraitsBase(TDescribeTraitsContext context)
 void TDescribeTraitsBase::MakeLinks(const IMapNodePtr& parameters) const
 {
     MakeLinksInplace(parameters, Context_.PipelinePath.GetCluster());
+}
+
+std::vector<TDataChannel> TDescribeTraitsBase::GetDataChannels(
+    const TYsonStructPtr& parameters,
+    const TEntityControllerStateMap& /*states*/) const
+{
+    std::vector<TDataChannel> channels;
+    const TYTPathClaim* previousClaim = nullptr;
+    for (const auto& claim : TRegistry::Get()->CollectYTPathClaims(parameters, Context_.PipelinePath.GetCluster())) {
+        // A path on several clusters yields consecutive claims that differ only in the cluster: one channel for them.
+        bool samePath = previousClaim &&
+            previousClaim->ParameterKey == claim.ParameterKey &&
+            previousClaim->Path == claim.Path &&
+            previousClaim->Ownership == claim.Ownership;
+        if (!samePath) {
+            channels.emplace_back().Access = claim.Ownership == EYTPathOwnership::ReadOnly
+                ? EDataChannelAccess::Read
+                : EDataChannelAccess::Write;
+        }
+
+        channels.back().Aliases.push_back(Format("yt:%v:%v", claim.Cluster, claim.Path));
+        previousClaim = &claim;
+    }
+
+    return channels;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,8 +10,8 @@ from yt.wrapper import yson
 from yt.ypath.rich import RichYPath
 
 from yt.yt.flow.tools.draw_pipeline_graph.dot_graph import get_dot_binary_path, render_dot_graph
-from yt.yt.flow.tools.draw_pipeline_graph.graph_model import get_graph
-from yt.yt.flow.tools.draw_pipeline_graph.mermaid_graph import render_mermaid_graph
+from yt.yt.flow.tools.draw_pipeline_graph.graph_model import fetch_describe, get_graph
+from yt.yt.flow.tools.draw_pipeline_graph.mermaid_graph import escape_html_text, render_mermaid_graph
 from yt.yt.flow.library.python.client.flow_view import get_flow_view
 
 from yt.yt.flow.tools.draw_pipeline_graph.bindings import (
@@ -101,6 +101,8 @@ def parse_args():
 
 def _render_mermaid_cpp_html(computations_diagram, unrolled_diagram):
     """Wrap two C++ Mermaid diagram strings in a standalone HTML page."""
+    computations_diagram = escape_html_text(computations_diagram)
+    unrolled_diagram = escape_html_text(unrolled_diagram)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -175,12 +177,16 @@ def main():
         logging.info("Loaded flow view")
 
         flow_view_yson = bytes(yson.dumps(flow_view))
+        describe = fetch_describe(yt_client, args.pipeline_path)
+        # Graph edges come only from the controller; without its describe there are none.
+        edges_yson = bytes(yson.dumps(describe["edges"])) if describe is not None else b""
 
         computations_diagram = flow_view_yson_to_mermaid_computations_graph(
             flow_view_yson,
             args.orientation,
             args.cluster_name,
             args.pipeline_path,
+            edges_yson,
         )
         logging.info("Built mermaid computations graph")
 
@@ -189,6 +195,7 @@ def main():
             args.orientation,
             args.cluster_name,
             args.pipeline_path,
+            edges_yson,
         )
         logging.info("Built mermaid unrolled graph")
 
