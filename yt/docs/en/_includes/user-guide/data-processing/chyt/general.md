@@ -28,7 +28,7 @@ This leads to the fact that processing even a "relatively light" table of a doze
 
 Not wanting to solve the difficult task of managing CPU, RAM, network and disk IO bandwidth resources within ClickHouse, the decision was made to separate users physically between different processes, which is just achieved by having the required number of cliques used by small groups of users and independent of each other. Cliques are expected to be small-granular enough not to serve different types of load or a large number of users at the same time.
 
-The only exception to this rule are [public cliques](../../../../user-guide/data-processing/chyt/try-chyt.md#public) which are intentionally open to all, but are provided on the best effort principle: they may be unavailable or overloaded at any time, although their performance is monitored. There are restrictions on the complexity of executed queries, sometimes quite severe. Consider public cliques to be a demo version of CHYT.
+The only exception to this rule are [public cliques](../../../../user-guide/data-processing/chyt/try-chyt.md) which are intentionally open to all, but are provided on the best effort principle: they may be unavailable or overloaded at any time, although their performance is monitored. There are restrictions on the complexity of executed queries, sometimes quite severe. Consider public cliques to be a demo version of CHYT.
 
 ## CHYT as a service: reuse of resources in {{product-name}} and exploitation by users { #as-a-service }
 

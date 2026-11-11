@@ -8,7 +8,7 @@ We recommend running all programs on `Linux`.
 
 The modern method of working with the Python API is typed.
 Data stored in tables and processed by operations is represented in the code by [classes](../../../api/python/userdoc.md#dataclass) with typed fields (similar to [dataclasses](https://docs.python.org/3/library/dataclasses.html)). An unrecommended (but sometimes unavoidable, especially when working with old tables) method is untyped when table rows are represented by dicts.
-This method is much slower, fraught with errors, and inconvenient when working with composite types. Therefore, this section of the documentation provides examples of working with the typed API and the untyped examples can be found in the [corresponding section](#untyped_tutorial).
+This method is much slower, fraught with errors, and inconvenient when working with composite types. Therefore, this section of the documentation provides examples of working with the typed API.<!-- The untyped examples can be found in the [corresponding section](#untyped_tutorial). -->
 
 ### Reading and writing tables { #read_write }
 

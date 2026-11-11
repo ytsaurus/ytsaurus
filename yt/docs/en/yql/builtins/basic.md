@@ -858,7 +858,7 @@ Examples of use cases:
 
 ## TablePath {#tablepath}
 
-Access to the current table name, which might be needed when using [CONCAT](../syntax/select/concat.md#concat), [RANGE](../syntax/select/concat.md#range), and other related mechanisms.
+Access to the current table name, which might be needed when using [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md), and other related mechanisms.
 
 #### Signature
 
@@ -925,7 +925,7 @@ Access to the current sequence number of a row in the physical source table, **s
 TableRecordIndex()->Uint64
 ```
 
-No arguments. When used together with [CONCAT](../syntax/select/concat.md#concat), [RANGE](../syntax/select/concat.md#range), and other related mechanisms, numbering is reset for each input table. If used in an incorrect context, it returns 0.
+No arguments. When used together with [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md), and other related mechanisms, numbering is reset for each input table. If used in an incorrect context, it returns 0.
 
 #### Example
 
@@ -983,7 +983,7 @@ FolderPath(String)->String
 
 The argument is a string with a prefix among aliases.
 
-See also [PRAGMA File](../syntax/pragma/file.md#file) and [PRAGMA Folder](../syntax/pragma/file.md#folder).
+See also [PRAGMA File](../syntax/pragma/file.md#file){% if audience == "internal" %} and [PRAGMA Folder](../syntax/pragma/file.md#folder){% endif %}.
 
 #### Examples
 

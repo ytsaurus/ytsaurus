@@ -59,19 +59,7 @@ pip install ytsaurus-client
 
 {% endnote %}
 
-#### Дополнительные зависимости (extras) { #extras }
-
-Часть функциональности требует дополнительных зависимостей, которые не ставятся по умолчанию. Они объявлены в наборах extras пакета `ytsaurus-client` и устанавливаются указанием набора в квадратных скобках:
-
-| Набор | Зависимости | Для чего нужен |
-| --- | --- | --- |
-| `recommended` | `brotli`, `cryptography` | Рекомендуемые опциональные зависимости |
-| `admin` | `kubernetes`, `docker` | [Административные команды CLI](../../../admin-guide/cli-admin.md) (`yt admin logs k8s`, `yt admin metrics replay`) |
-
-```bash
-pip install "ytsaurus-client[recommended]"
-pip install "ytsaurus-client[admin]"
-```
+{% include [Дополнительные зависимости](extras.md) %}
 
 ### Документация для пользователей { #userdoc }
   * [Общее](../../../api/python/userdoc.md#common)
@@ -128,8 +116,8 @@ pip install "ytsaurus-client[admin]"
   * [Другое](../../../api/python/userdoc.md#other)
     - [gRPC](../../../api/python/userdoc.md#grpc)
     - [YSON-биндинги](../../../api/python/userdoc.md#yson_bindings)
-  * [Устаревшее](../../../api/python/userdoc.md#legacy)
-    - [Python3 и байтовые строки](../../../api/python/userdoc.md#python3_strings)
+<!--   * [Устаревшее](../../../api/python/userdoc.md#legacy) -->
+  * [Python3 и байтовые строки](../../../api/python/userdoc.md#python3_strings)
 
 ### Справка { #pydoc }
 Самая актуальная справка по конкретным функциям и их параметрам находится в коде.

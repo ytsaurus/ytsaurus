@@ -11,7 +11,7 @@ The following values are supported:
 
 When setting the `SCHEMA` and `COLUMNS` hints, the type must be a [structure](../../types/containers.md).
 
-If you use the `SCHEMA` hint, then with the table functions like [EACH](concat.md#each) you can use an empty list of tables that is treated as an empty table with columns defined in the `SCHEMA`.
+If you use the `SCHEMA` hint, then with the table functions like [EACH](concat.md) you can use an empty list of tables that is treated as an empty table with columns defined in the `SCHEMA`.
 
 ## Examples
 

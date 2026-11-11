@@ -1,6 +1,6 @@
 # Working with files
 
-## File
+## File {#file}
 
 | Value type | Default value | Static/<br/>dynamic |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ PRAGMA FileOption("<file-name>", "bypass_artifact_cache", "true");
 ```
 
 {% if audience == "internal" %}
-## Folder
+## Folder {#folder}
 
 | Value type | Default value | Static/<br/>dynamic |
 | --- | --- | --- |

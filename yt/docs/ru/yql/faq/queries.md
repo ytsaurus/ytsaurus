@@ -4,7 +4,7 @@
 Если подставлять даты в текст запроса перед запуском неудобно, то можно сделать следующим образом:
 
 1. Пишем UDF на [Python](../udf/python.md){% if audience == "internal" %}, [JavaScript](../udf/javascript.md){% endif %} или [C++](../udf/cpp.md) с сигнатурой `(String)->Bool`. По имени таблицы она должна вернуть true только для попадающих в нужный диапазон, ориентируясь на текущее время или дату, полученные средствами выбранного языка программирования.
-2. Передаём эту UDF в функцию [FILTER](../syntax/select/index.md#func_table) вместе с префиксом до директории с логами.
+2. Передаём эту UDF в функцию [FILTER](../syntax/select/concat.md) вместе с префиксом до директории с логами.
 3. Используем результат работы FILTER в любом месте, где ожидается путь к входным данным ([FROM](../syntax/select/from.md), [PROCESS](../syntax/process.md), [REDUCE](../syntax/reduce.md))
 
 {% if audience == "internal" %}[Пример](https://nda.ya.ru/t/Qa3wDKXV7FVHVJ).{% endif %}

@@ -128,8 +128,8 @@ pip install "ytsaurus-client[admin]"
 * [Other](../../../api/python/userdoc.md#other)
    - [gRPC](../../../api/python/userdoc.md#grpc)
    - [YSON bindings](../../../api/python/userdoc.md#yson_bindings)
-* [Deprecated](../../../api/python/userdoc.md#legacy)
-   - [Python3 and byte strings](../../../api/python/userdoc.md#python3_strings)
+<!-- * [Deprecated](../../../api/python/userdoc.md#legacy) -->
+* [Python3 and byte strings](../../../api/python/userdoc.md#python3_strings)
 
 ### Help { #pydoc }
 The most up-to-date help on specific functions and their parameters is in the code.
@@ -164,7 +164,7 @@ python
    - [Context and managing writes to output tables](../../../api/python/examples.md#table_switches)
    - [Spec builders](../../../api/python/examples.md#spec_builder)
    - [Using gevent](../../../api/python/examples.md#gevent)
-* [Untyped API](../../../api/python/examples.md#untyped_tutorial)
+<!-- * [Untyped API](../../../api/python/examples.md#untyped_tutorial)
    - [Reading and writing tables](../../../api/python/examples.md#read_write_untyped)
    - [Simple map](../../../api/python/examples.md#simple_map_untyped)
    - [Sorting a table and a simple reduce operation](../../../api/python/examples.md#sort_and_reduce_untyped)
@@ -172,8 +172,7 @@ python
    - [Reduce with multiple input and output tables](../../../api/python/examples.md#reduce_multiple_input_output_untyped)
    - [MapReduce operation](../../../api/python/examples.md#map_reduce_untyped)
    - [Decorators for job classes and functions](../../../api/python/examples.md#job_decorators_untyped)
-   - [Table switches and context](../../../api/python/examples.md#table_switches_untyped)
-   - [Working with strings in Python3](../../../api/python/examples.md#yson_string_proxy)
+   - [Working with strings in Python3](../../../api/python/examples.md#yson_string_proxy) -->
 
 <!-- ### Для разработчика { #fordeveloper }
 

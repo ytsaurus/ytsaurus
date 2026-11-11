@@ -340,7 +340,7 @@ If needed, you can disable the decoding logic or select another encoding. Use th
 
 If the `encoding` parameter is specified and is not `None`, the library handles Unicode strings, but expects the specified encoding from all data (instead of UTF-8 used by default).
 
-An example of use with comments is [in a separate section](../../../api/python/examples.md#yson_string_proxy).
+<!-- An example of use with comments is [in a separate section](../../../api/python/examples.md#yson_string_proxy). -->
 
 ### Batch requests
 
@@ -747,7 +747,7 @@ yt.is_sorted("//home/table") # Output: False
 
     Writes rows from `input_stream` to the `table`.
     If the table is missing, it is created first. You can set up retries using the `write_retries` config option.
-    Learn the [example](../../../api/python/examples.md#read_write_untyped) in the dedicated section.
+    <!-- Learn the [example](../../../api/python/examples.md#read_write_untyped) in the dedicated section. -->
 
     {% note warning "Attention" %}
 
@@ -797,7 +797,7 @@ yt.is_sorted("//home/table") # Output: False
 
     The `response_parameters` (dict) option enables you to send a dict to it. This dict will be appended by special read command parameters (in the current implementation, the two parameters are: start_row_index and approximate_row_count).
 
-    See the [example](../../../user-guide/storage/examples.md#read_write_untyped) in the dedicated section.
+    <!-- See the [example](../../../user-guide/storage/examples.md#read_write_untyped) in the dedicated section. -->
 
     A few more words about reading with retries: in this case, a transaction is created in the current context and a snapshot lock is taken on the table. This lock holds until you've read the entire data stream or call `.close()` on the stream or the iterator returned. Such a behavior can result in errors. For example, the following code **won't** work: because of the nested read transaction, you won't be able to commit the transaction explicitly created within the code (the nested read transaction hasn't been completed because [read_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_table) created an iterator that hasn't been used).
 
@@ -1560,7 +1560,7 @@ In the untyped API, the meaning of some decorators changes slightly compared to 
 
 Note that decorators are implemented by setting an attribute on the function. Therefore, for example, you can’t define a function with a decorator and then wrap it with `functools.partial`. If you want to pass some parameters to the function directly at call time, create a class with the decorator (see the last example below).
 
-You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators_untyped).
+<!-- You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators_untyped). -->
 
 
 ### Formats { #python_formats }
@@ -1614,8 +1614,6 @@ In the YSON format, there are several modes for automatic processing of control 
 - `iterator` (default) — when parsing the stream, the format returns an iterator over records; to get control attributes in the job, you’ll need to use the context.
 - `row_fields` — requested control attributes will be written as fields on each record. For example, if `row_index` is requested, each record will have an `@row_index` field containing that record’s number.
 - `none` — no special processing of control attributes will be performed, meaning the client will receive a record stream that includes entity records with control attributes.
-
-You can find examples of switching between output tables with `table_index` when `control_attributes_mode` is set to `iterator` and `row_fields`, as well as an example of getting the current table row index in a reducer using `context`, [here](../../../api/python/examples.md#table_switches_untyped).
 
 #### Other formats { #other_formats }
 

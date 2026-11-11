@@ -148,7 +148,7 @@ In addition, specifying `disk_space` means that {{product-name}} starts limiting
 
 If you want to use other disks for your operations' jobs, such as an SSD in place of the default HDD, specify the desired `medium` and your `account` for quoting the requested space.
 
-{% if audience == "internal" %}In the current implementation, {{mr-clusters}} clusters have SSDs for jobs in the `ssd_slots_physical` medium. In order to use them, you need to request the disk quota for your account in this medium. For more information about requesting a quota, see [Requesting and getting resources](../../../../user-guide/storage/quota-request.md#zapros-na-rasshirenie-kvoty-pod-sushestvuyushij-akkaunt).{% endif %}
+{% if audience == "internal" %}In the current implementation, {{mr-clusters}} clusters have SSDs for jobs in the `ssd_slots_physical` medium. In order to use them, you need to request the disk quota for your account in this medium. For more information about requesting a quota, see [Requesting and getting resources](../../../../user-guide/storage/quota-request.md#account-quota-request).{% endif %}
 
 ## Path attributes { #path_attributes }
 
