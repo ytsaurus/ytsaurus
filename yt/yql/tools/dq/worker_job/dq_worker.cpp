@@ -219,7 +219,7 @@ namespace NYql::NDq::NWorker {
         }
         pfOptions.MaxProcesses = capacity*1.5;
         const auto portoCtlToWatch = NDq::PrepareTaskRunnerPorto(
-            backendConfig, fileCacheDir, &pfOptions, NDq::ETaskRunnerPortoRoot::SandboxArchives);
+            backendConfig, fileCacheDir, &pfOptions);
 
         TResourceManagerOptions rmOptions;
         rmOptions.YtBackend = backendConfig;
