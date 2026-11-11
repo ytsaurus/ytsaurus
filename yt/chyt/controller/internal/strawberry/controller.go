@@ -59,9 +59,6 @@ type Controller interface {
 	// May be called concurrently since it is accessed from `runScaler`, not from `background` goroutine.
 	GetScalerTarget(ctx context.Context, opletInfo OpletInfoForScaler) (*ScalerTarget, error)
 
-	// COMPAT(buyval01): Temporary auxiliary method that is only needed to modify persistent state.
-	GetOpletInfo(ctx context.Context, oplet *Oplet) (any, error)
-
 	// CheckState gets family specific info about oplet health state and if it needs to be restarted.
 	CheckState(ctx context.Context, oplet *Oplet) (ControllerOpletState, error)
 }

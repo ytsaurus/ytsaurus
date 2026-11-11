@@ -490,6 +490,10 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 		return false, nil
 	}
 
+	if len(oplet.OpletInfo()) == 0 {
+		return false, nil
+	}
+
 	info, err := c.getChytBinaryInfo(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
 	if err != nil {
 		return false, err
@@ -805,55 +809,6 @@ func getVersionMetric(opletInfo yson.RawValue) (strawberry.Metric, bool) {
 		},
 		Value: 1,
 	}, true
-}
-
-func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
-	opID := oplet.GetBriefInfo().YTOperation.ID
-	if opID == yt.NullOperationID {
-		return chytOpletInfo{}, nil
-	}
-
-	opInfo, err := c.ytc.GetOperation(
-		ctx,
-		opID,
-		&yt.GetOperationOptions{
-			Attributes: []string{"full_spec"},
-			MasterReadOptions: &yt.MasterReadOptions{
-				ReadFrom: yt.ReadFromFollower,
-			},
-		})
-	if err != nil {
-		return nil, err
-	}
-
-	var s struct {
-		Description struct {
-			Artifacts struct {
-				CH struct {
-					Version string `yson:"version"`
-				} `yson:"ytserver-clickhouse"`
-			} `yson:"artifacts"`
-		} `yson:"description"`
-
-		Tasks struct {
-			Instances struct {
-				FilePaths []ypath.Rich `yson:"file_paths"`
-			} `yson:"instances"`
-		} `yson:"tasks"`
-	}
-	err = yson.Unmarshal(opInfo.FullSpec, &s)
-	if err != nil {
-		return nil, err
-	}
-
-	opletInfo := chytOpletInfo{CHYTRunningVersion: s.Description.Artifacts.CH.Version}
-	for _, fp := range s.Tasks.Instances.FilePaths {
-		if fp.FileName == "ytserver-clickhouse" {
-			opletInfo.CHYTRunningVersionPath = fp.Path.String()
-			break
-		}
-	}
-	return opletInfo, nil
 }
 
 func (c *Controller) RunAsUser() bool {
