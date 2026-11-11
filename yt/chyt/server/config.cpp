@@ -534,7 +534,7 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path)
         .Default();
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("expire_after_successful_sync_time", &TThis::ExpireAfterSuccessfulSyncTime)
         .Default(TDuration::Seconds(60));
 
