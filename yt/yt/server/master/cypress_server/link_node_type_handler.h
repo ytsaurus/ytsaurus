@@ -15,6 +15,9 @@ DEFINE_ENUM(ELinkType,
 
 INodeTypeHandlerPtr CreateLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap, ELinkType type);
 
+//! Requires a mutation context and immutable Sequoia properties initialized.
+void EnqueueCypressLinkResolveRows(NCellMaster::TBootstrap* bootstrap, TLinkNode* node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

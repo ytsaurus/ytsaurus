@@ -45,6 +45,8 @@ TABLE_NAMES = [
 ]
 
 RETIRABLE_TABLES = [
+    NODE_ID_TO_PATH,
+    PATH_TO_NODE_ID,
     ACLS,
 ]
 
