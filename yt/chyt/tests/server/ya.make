@@ -4,6 +4,8 @@ SET(YT_SPLIT_FACTOR 30)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
+
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:36
