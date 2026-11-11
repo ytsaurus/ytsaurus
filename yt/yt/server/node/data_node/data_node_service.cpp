@@ -740,6 +740,9 @@ private:
             }
 
             ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+            if (result.CumulativeIOConsumed) {
+                response->set_cumulative_io_consumed(*result.CumulativeIOConsumed);
+            }
         }));
 
         context->ReplyFrom(voidResult);

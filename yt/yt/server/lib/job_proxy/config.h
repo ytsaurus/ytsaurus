@@ -462,6 +462,9 @@ struct TJobProxyInternalConfig
     //! including an explicitly configured reader or writer weight.
     bool EnableJobIoStatistics;
 
+    //! Sliding window for reporting disk I/O in jobs started by this exec node.
+    TDuration IOConsumedReportWindow;
+
     //! Time span over which the job I/O meter retains accounted I/O history.
     TDuration JobIoMeterMaxHistoryDuration;
 
@@ -609,6 +612,9 @@ struct TJobProxyDynamicConfig
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
 
     bool EnableJobIoStatistics;
+
+    //! Sliding window for reporting disk I/O in jobs started by this exec node.
+    TDuration IOConsumedReportWindow;
 
     bool EnableJobShellSeccopm;
 
