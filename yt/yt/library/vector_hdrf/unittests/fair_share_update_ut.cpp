@@ -1734,6 +1734,232 @@ TEST_F(TFairShareUpdateTest, TestMultipleGangOperations)
     EXPECT_RV_NEAR(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationB2->Attributes().FairShare.Total);
 }
 
+class TPoolWithGuaranteeUndershootMock
+    : public TPoolElementMock
+{
+public:
+    TPoolWithGuaranteeUndershootMock(std::string id, TResourceVector undershoot)
+        : TPoolElementMock(std::move(id))
+        , Undershoot_(undershoot)
+    { }
+
+private:
+    const TResourceVector Undershoot_;
+
+    // Inject precision loss independently of changes to guarantee inference.
+    void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* /*context*/) override
+    {
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::RegularPools] =
+            Attributes().StrongGuaranteeShare - Undershoot_;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TFairShareUpdateTest, FifoReorderingHandlesResourcePrecision)
+{
+    struct TTestCase
+    {
+        EJobResourceType ResourceType;
+        double Total;
+        double Quantum;
+        double Undershoot;
+        bool AcceptUndershoot;
+    };
+
+    const TTestCase testCases[] = {
+        {
+            .ResourceType = EJobResourceType::Gpu,
+            .Total = 1344,
+            .Quantum = 1,
+            .Undershoot = 0.000459667,
+            .AcceptUndershoot = true,
+        },
+        {
+            .ResourceType = EJobResourceType::Cpu,
+            .Total = 2,
+            .Quantum = 0.01,
+            .Undershoot = 0.000005,
+            .AcceptUndershoot = true,
+        },
+        {
+            .ResourceType = EJobResourceType::UserSlots,
+            .Total = 20507,
+            .Quantum = 1,
+            .Undershoot = 0.0005,
+            .AcceptUndershoot = true,
+        },
+        {
+            .ResourceType = EJobResourceType::Memory,
+            .Total = 1000,
+            .Quantum = 1,
+            .Undershoot = 0.0005,
+            .AcceptUndershoot = true,
+        },
+        {
+            .ResourceType = EJobResourceType::Network,
+            .Total = 100,
+            .Quantum = 1,
+            .Undershoot = 0.0005,
+            .AcceptUndershoot = true,
+        },
+        {
+            .ResourceType = EJobResourceType::Gpu,
+            .Total = 1344,
+            .Quantum = 1,
+            .Undershoot = 0.1,
+            .AcceptUndershoot = false,
+        },
+    };
+
+    for (const auto& testCase : testCases) {
+        for (bool overshoot : {false, true}) {
+            for (bool enableImproved : {false, true}) {
+                for (bool enableFastFifo : {false, true}) {
+                    SCOPED_TRACE(Format(
+                        "Resource: %v, Undershoot: %v, Overshoot: %v, Improved: %v, FastFifo: %v",
+                        testCase.ResourceType,
+                        testCase.Undershoot,
+                        overshoot,
+                        enableImproved,
+                        enableFastFifo));
+
+                    TJobResources totalLimits;
+                    SetResource(totalLimits, testCase.ResourceType, testCase.Total);
+                    auto root = CreateRootElement();
+
+                    auto undershoot = TResourceVector::Zero();
+                    undershoot[testCase.ResourceType] = testCase.Undershoot / testCase.Total;
+                    auto fifoPool = New<TPoolWithGuaranteeUndershootMock>("FifoPool", undershoot);
+                    fifoPool->SetMode(ESchedulingMode::Fifo);
+                    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+                    fifoPool->AttachParent(root.Get());
+                    auto competitorPool = CreateSimplePool("CompetitorPool");
+                    competitorPool->AttachParent(root.Get());
+
+                    double guarantee = 16 * testCase.Quantum;
+                    auto fifoConfig = New<TTestJobResourcesConfig>();
+                    auto competitorConfig = New<TTestJobResourcesConfig>();
+                    TJobResourcesConfig::ForEachResource([&] (auto resourceDataMember, EJobResourceType resourceType) {
+                        if (resourceType == testCase.ResourceType) {
+                            fifoConfig.Get()->*resourceDataMember = guarantee;
+                            competitorConfig.Get()->*resourceDataMember = testCase.Total - guarantee;
+                        }
+                    });
+                    fifoPool->SetStrongGuaranteeResourcesConfig(fifoConfig);
+                    competitorPool->SetStrongGuaranteeResourcesConfig(competitorConfig);
+
+                    TJobResources demand;
+                    SetResource(demand, testCase.ResourceType, 8 * testCase.Quantum);
+                    auto firstGang = CreateGangOperation(fifoPool.Get(), demand);
+                    firstGang->SetWeight(4.0);
+                    auto secondDemand = demand;
+                    SetResource(secondDemand, testCase.ResourceType, (overshoot ? 9 : 8) * testCase.Quantum);
+                    auto secondGang = CreateGangOperation(fifoPool.Get(), secondDemand);
+                    secondGang->SetWeight(3.0);
+                    auto blockingGang = CreateGangOperation(fifoPool.Get(), demand * 3);
+                    blockingGang->SetWeight(2.0);
+                    auto runningGang = CreateGangOperation(fifoPool.Get(), demand, demand);
+                    runningGang->SetWeight(1.0);
+
+                    TJobResources competitorDemand;
+                    SetResource(competitorDemand, testCase.ResourceType, testCase.Total - guarantee);
+                    CreateOperation(competitorPool.Get(), competitorDemand);
+
+                    auto context = DoFairShareUpdate(totalLimits, root, TTestFairShareUpdateOptions{
+                        .MainResource = testCase.ResourceType,
+                        .EnableStepFunctionForGangOperations = true,
+                        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+                        .EnableImprovedFairShareByFitFactorComputation = enableImproved,
+                        .EnableFastFifoFairShareByFitFactorComputation = enableFastFifo,
+                    });
+                    ASSERT_TRUE(context.Errors.empty());
+
+                    double actualGuarantee = fifoPool->Attributes().StrongGuaranteeShare[testCase.ResourceType];
+                    double guaranteeUndershoot = guarantee / testCase.Total - actualGuarantee;
+                    ASSERT_GT(guaranteeUndershoot, Epsilon);
+                    double epsilon = TResourceVector::ComputeAdaptiveEpsilon(totalLimits)[testCase.ResourceType];
+                    if (testCase.AcceptUndershoot) {
+                        ASSERT_LT(guaranteeUndershoot, epsilon);
+                    } else {
+                        EXPECT_GT(guaranteeUndershoot, epsilon);
+                    }
+                    bool secondGangFits = testCase.AcceptUndershoot && !overshoot;
+                    EXPECT_EQ(0, firstGang->Attributes().FifoIndex);
+                    EXPECT_EQ(1, secondGang->Attributes().FifoIndex);
+                    EXPECT_EQ(2, blockingGang->Attributes().FifoIndex);
+                    EXPECT_EQ(3, runningGang->Attributes().FifoIndex);
+                    EXPECT_EQ(0, firstGang->Attributes().EffectiveFifoIndex);
+                    EXPECT_EQ(secondGangFits ? 1 : 2, secondGang->Attributes().EffectiveFifoIndex);
+                    EXPECT_EQ(3, blockingGang->Attributes().EffectiveFifoIndex);
+                    EXPECT_EQ(secondGangFits ? 2 : 1, runningGang->Attributes().EffectiveFifoIndex);
+
+                    auto getAbsoluteFairShare = [&] (const TOperationElementMockPtr& operation) {
+                        return operation->Attributes().FairShare.Total[testCase.ResourceType] * testCase.Total;
+                    };
+                    EXPECT_NEAR(8 * testCase.Quantum, getAbsoluteFairShare(firstGang), 1e-9);
+                    EXPECT_NEAR(secondGangFits ? 8 * testCase.Quantum : 0, getAbsoluteFairShare(secondGang), 1e-9);
+                    EXPECT_NEAR(0.0, getAbsoluteFairShare(blockingGang), 1e-9);
+                    EXPECT_NEAR(secondGangFits ? 0 : 8 * testCase.Quantum, getAbsoluteFairShare(runningGang), 1e-9);
+                }
+            }
+        }
+    }
+}
+
+TEST_F(TFairShareUpdateTest, FifoReorderingChecksAdaptiveEpsilonComponentwise)
+{
+    TJobResources totalLimits;
+    totalLimits.SetCpu(2);
+    totalLimits.SetGpu(1344);
+    auto root = CreateRootElement();
+    auto fifoPool = CreateGpuPool(
+        "FifoPool",
+        /*strongGuaranteeGpu*/ 16,
+        /*strongGuaranteeCpu*/ 0.16);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(root.Get());
+    auto competitorPool = CreateGpuPool(
+        "CompetitorPool",
+        /*strongGuaranteeGpu*/ 1328,
+        /*strongGuaranteeCpu*/ 1.84);
+    competitorPool->AttachParent(root.Get());
+
+    TJobResources demand;
+    demand.SetCpu(0.08);
+    demand.SetGpu(8);
+    auto firstGang = CreateGangOperation(fifoPool.Get(), demand);
+    firstGang->SetWeight(3.0);
+    auto excessiveDemand = demand;
+    excessiveDemand.SetCpu(0.09);
+    auto excessiveGang = CreateGangOperation(fifoPool.Get(), excessiveDemand);
+    excessiveGang->SetWeight(2.0);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), demand);
+    fittingGang->SetWeight(1.0);
+
+    TJobResources competitorDemand;
+    competitorDemand.SetCpu(1.84);
+    competitorDemand.SetGpu(1328);
+    CreateOperation(competitorPool.Get(), competitorDemand);
+
+    auto context = DoFairShareUpdate(totalLimits, root, TTestFairShareUpdateOptions{
+        .MainResource = EJobResourceType::Gpu,
+        .EnableStepFunctionForGangOperations = true,
+        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+        .EnableImprovedFairShareByFitFactorComputation = true,
+    });
+    ASSERT_TRUE(context.Errors.empty());
+
+    EXPECT_EQ(0, firstGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(2, excessiveGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(1, fittingGang->Attributes().EffectiveFifoIndex);
+    auto expectedShare = TResourceVector::FromJobResources(demand, totalLimits);
+    EXPECT_RV_NEAR(expectedShare, firstGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(expectedShare, fittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector::Zero(), excessiveGang->Attributes().FairShare.Total);
+}
+
 TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilization)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
