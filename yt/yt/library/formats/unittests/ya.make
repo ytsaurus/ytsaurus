@@ -8,6 +8,7 @@ SRCS(
     protobuf_format_ut.proto
 
     arrow_parser_ut.cpp
+    arrow_writer_statistics_ut.cpp
     blob_writer_ut.cpp
     dsv_parser_ut.cpp
     dsv_writer_ut.cpp
