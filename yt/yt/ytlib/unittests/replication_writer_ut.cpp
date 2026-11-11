@@ -93,6 +93,13 @@ std::vector<TChecksum> ChecksumsFromHashMap(const THashMap<int, TBlock>& blocks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TControlledFlush
+{
+    i64 ExpectedPutIOConsumed = 0;
+    TPromise<void> Requested = NewPromise<void>();
+    TPromise<i64> Reply = NewPromise<i64>();
+};
+
 class TTestDataNodeService
     : public TServiceBase
 {
@@ -193,7 +200,14 @@ public:
 
         *response->mutable_chunk_info() = {};
         if (ReportChunkWriterStatistics_) {
-            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), /*dataBytes*/ 0, MetaBytesPerFinish_);
+            // With a blob session, all flushed data is accounted before FinishChunk.
+            // The full total in its response is also consumed by legacy clients.
+            i64 dataBytes = 0;
+            if (ReportCumulativeFlushBytes_) {
+                dataBytes = request->block_count() * DataBytesPerFlush_;
+                EXPECT_GE(request->io_consumed(), dataBytes);
+            }
+            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), dataBytes, MetaBytesPerFinish_);
         }
         context->Reply();
     }
@@ -244,6 +258,12 @@ public:
 
         if (UseProbePutBlocks_) {
             YT_VERIFY(MaxCumulativeBlockSize_ >= cumulativeBlockSize);
+        }
+
+        if (!ControlledFlushes_.empty()) {
+            EXPECT_EQ(blockCount, 1);
+            EXPECT_TRUE(request->has_io_consumed());
+            EXPECT_EQ(request->io_consumed(), ControlledFlushes_.at(firstBlockIndex).ExpectedPutIOConsumed);
         }
 
         auto blocks = GetRpcAttachedBlocks(request, /*validateChecksums*/ false);
@@ -360,8 +380,26 @@ public:
             it->second = true;
         }
 
+        if (!ControlledFlushes_.empty()) {
+            const auto& flush = ControlledFlushes_.at(blockIndex);
+            // Mark each processed response in the client's statistics, even when the byte delta is zero.
+            auto* statistics = response->mutable_chunk_writer_statistics();
+            FillChunkWriterStatistics(statistics, /*dataBytes*/ 0, /*metaBytes*/ 0);
+            statistics->set_data_io_write_requests(1);
+            flush.Requested.Set();
+            context->ReplyFrom(flush.Reply.ToFuture().Apply(BIND([context] (i64 cumulativeIOConsumed) {
+                context->Response().set_cumulative_io_consumed(cumulativeIOConsumed);
+            })));
+            return;
+        }
+
         if (ReportChunkWriterStatistics_) {
-            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), DataBytesPerFlush_, /*metaBytes*/ 0);
+            if (ReportCumulativeFlushBytes_) {
+                auto bytes = (blockIndex + 1) * DataBytesPerFlush_;
+                response->set_cumulative_io_consumed(bytes);
+            } else {
+                FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), DataBytesPerFlush_, /*metaBytes*/ 0);
+            }
         }
 
         context->Reply();
@@ -421,11 +459,17 @@ public:
         ProbePutBlocksApprovalThreshold_ = threshold.value_or(std::numeric_limits<i64>::max());
     }
 
-    void SetReportChunkWriterStatistics(i64 dataBytesPerFlush, i64 metaBytesPerFinish)
+    void SetReportChunkWriterStatistics(i64 dataBytesPerFlush, i64 metaBytesPerFinish, bool cumulative)
     {
         ReportChunkWriterStatistics_ = true;
+        ReportCumulativeFlushBytes_ = cumulative;
         DataBytesPerFlush_ = dataBytesPerFlush;
         MetaBytesPerFinish_ = metaBytesPerFinish;
+    }
+
+    void SetControlledFlushes(std::vector<TControlledFlush> flushes)
+    {
+        ControlledFlushes_ = std::move(flushes);
     }
 
     i64 GetReportedWriterBytes() const
@@ -476,7 +520,9 @@ private:
     i64 MaxCumulativeBlockSize_ = 0;
     std::atomic<i64> ProbePutBlocksApprovalThreshold_ = std::numeric_limits<i64>::max();
 
+    std::vector<TControlledFlush> ControlledFlushes_;
     bool ReportChunkWriterStatistics_ = false;
+    bool ReportCumulativeFlushBytes_ = false;
     i64 DataBytesPerFlush_ = 0;
     i64 MetaBytesPerFinish_ = 0;
     std::atomic<i64> ReportedWriterBytes_ = 0;
@@ -526,6 +572,9 @@ struct TWriterTestCase
     std::optional<double> JobIoFairShareWeight;
     bool AttachJobIoMeter = false;
     bool EnableJobIoStatistics = true;
+    bool ReportCumulativeFlushBytes = false;
+    std::optional<i64> GroupSize;
+    i64 FirstFlushTotal = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -634,6 +683,7 @@ public:
         config->UploadReplicationFactor = nodeCount;
         config->UseSendBlocks = testCase.UseSendBlocks;
         config->IoFairShareWeight = testCase.IoFairShareWeight;
+        config->GroupSize = testCase.GroupSize.value_or(config->GroupSize);
         config->NodeChannel = New<TRetryingChannelConfig>();
         config->NodeChannel->RetryAttempts = 5;
 
@@ -943,7 +993,10 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
     constexpr i64 MetaBytesPerFinish = 50;
 
     for (const auto& service : Services) {
-        service->SetReportChunkWriterStatistics(DataBytesPerFlush, MetaBytesPerFinish);
+        service->SetReportChunkWriterStatistics(
+            DataBytesPerFlush,
+            MetaBytesPerFinish,
+            GetParam().ReportCumulativeFlushBytes);
     }
 
     auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
@@ -974,7 +1027,9 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
     }
 
     EXPECT_GT(expectedBytes, 0);
-    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedBytes);
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedBytes);
+    const auto& statistics = writeOptions.ClientOptions.ChunkWriterStatistics;
+    EXPECT_EQ(statistics->DataBytesWrittenToDisk.load() + statistics->MetaBytesWrittenToDisk.load(), expectedBytes);
 
     for (const auto& service : Services) {
         EXPECT_TRUE(service->GetFinishHasIoConsumed());
@@ -997,12 +1052,99 @@ INSTANTIATE_TEST_SUITE_P(
             .ReplicationFactor = 3,
             .NodeCount = 3,
             .BlockCount = 16,
+            .ReportCumulativeFlushBytes = true,
         },
         TWriterTestCase{
             .UseProbePutBlocks = true,
             .ReplicationFactor = 1,
             .NodeCount = 1,
             .BlockCount = 16,
+        }));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobIoMeterFlushOrderTest
+    : public TReplicationWriterTest
+{ };
+
+TEST_P(TJobIoMeterFlushOrderTest, AccountsDelayedFirstFlushOnce)
+{
+    constexpr i64 DataBytesPerBlock = 50;
+    constexpr i64 MetaBytes = 7;
+    const auto timeout = TDuration::Seconds(30);
+    const std::vector<TControlledFlush> flushes = {
+        {.ExpectedPutIOConsumed = 0},
+        {.ExpectedPutIOConsumed = 0},
+        {.ExpectedPutIOConsumed = 100},
+        {.ExpectedPutIOConsumed = 100},
+        {.ExpectedPutIOConsumed = 150},
+    };
+    ASSERT_EQ(GeneratedBlocks.size(), flushes.size());
+    ASSERT_EQ(Services.size(), 1u);
+    Services.front()->SetControlledFlushes(flushes);
+    Services.front()->SetReportChunkWriterStatistics(DataBytesPerBlock, MetaBytes, /*cumulative*/ true);
+
+    IChunkWriter::TWriteBlocksOptions options;
+    auto meter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
+    options.ClientOptions.JobIoMeter = meter;
+    const auto& statistics = options.ClientOptions.ChunkWriterStatistics;
+
+    auto writeBlock = [&] (int index) {
+        EXPECT_TRUE(Writer->WriteBlock(options, /*workloadDescriptor*/ {}, GeneratedBlocks[index]));
+        WaitFor(flushes[index].Requested.ToFuture().WithTimeout(timeout))
+            .ThrowOnError();
+    };
+    int replyCount = 0;
+    auto replyToFlush = [&] (int index, i64 total) {
+        flushes[index].Reply.Set(total);
+        ++replyCount;
+        WaitForPredicate([&] {
+            return statistics->DataIOWriteRequests.load() == replyCount;
+        }, "Writer did not process the flush response");
+    };
+
+    WaitFor(Writer->Open().WithTimeout(timeout))
+        .ThrowOnError();
+    // Hold the first flush until the client has accounted the second and sent another PutBlocks.
+    writeBlock(0);
+    writeBlock(1);
+    replyToFlush(/*index*/ 1, /*total*/ 100);
+    writeBlock(2);
+    replyToFlush(/*index*/ 0, GetParam().FirstFlushTotal);
+    writeBlock(3);
+    replyToFlush(/*index*/ 2, /*total*/ 150);
+    writeBlock(4);
+    replyToFlush(/*index*/ 3, /*total*/ 200);
+    replyToFlush(/*index*/ 4, /*total*/ 250);
+
+    auto meta = New<TDeferredChunkMeta>();
+    meta->set_type(0);
+    meta->set_format(0);
+    *meta->mutable_extensions() = {};
+    WaitFor(Writer->Close(options, /*workloadDescriptor*/ {}, meta).WithTimeout(timeout))
+        .ThrowOnError();
+    EXPECT_EQ(meter->GetIoConsumedInWindow(), 250 + MetaBytes);
+    EXPECT_EQ(statistics->DataBytesWrittenToDisk.load(), 250);
+    EXPECT_EQ(statistics->MetaBytesWrittenToDisk.load(), MetaBytes);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TJobIoMeterFlushOrderTest,
+    TJobIoMeterFlushOrderTest,
+    ::testing::Values(
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 5,
+            .GroupSize = 1,
+            .FirstFlushTotal = 100,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 5,
+            .GroupSize = 1,
+            .FirstFlushTotal = 50,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////

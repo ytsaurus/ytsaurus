@@ -8,6 +8,8 @@
 
 namespace NYT::NJobProxy {
 
+static constexpr auto DefaultIOConsumedReportWindow = TDuration::Minutes(1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TJobProxyTestingConfig::Register(TRegistrar registrar)
@@ -347,6 +349,11 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
         .Default(false);
 
+    registrar.Parameter("io_consumed_report_window", &TThis::IOConsumedReportWindow)
+        .Default(DefaultIOConsumedReportWindow)
+        .GreaterThan(TDuration::Zero())
+        .DontSerializeDefault();
+
     registrar.Parameter("job_io_meter_max_history_duration", &TThis::JobIoMeterMaxHistoryDuration)
         .Default(TDuration::Hours(1));
 
@@ -553,6 +560,11 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
         .Default(false);
+
+    registrar.Parameter("io_consumed_report_window", &TThis::IOConsumedReportWindow)
+        .Default(DefaultIOConsumedReportWindow)
+        .GreaterThan(TDuration::Zero())
+        .DontSerializeDefault();
 
     registrar.Parameter("enable_job_shell_seccomp", &TThis::EnableJobShellSeccopm)
         .Default(true);

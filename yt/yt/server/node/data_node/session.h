@@ -122,6 +122,7 @@ struct ISession
     {
         NIO::TIOCounters IOCounters;
         NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
+        std::optional<i64> CumulativeIOConsumed;
     };
 
     struct TSendBlocksResult

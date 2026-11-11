@@ -959,7 +959,7 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_->Start();
 
         JobIoMeter_ = New<TJobIoMeter>(
-            Config_->JobIoMeterMaxHistoryDuration,
+            std::min(Config_->IOConsumedReportWindow, Config_->JobIoMeterMaxHistoryDuration),
             Config_->EnableJobIoStatistics);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);

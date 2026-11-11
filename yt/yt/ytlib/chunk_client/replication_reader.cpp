@@ -1059,12 +1059,11 @@ protected:
 
         auto bytesReadFromDisk =
             protoChunkReaderStatistics.data_bytes_read_from_disk() +
-            protoChunkReaderStatistics.wasted_data_bytes_read_from_disk() +
             protoChunkReaderStatistics.meta_bytes_read_from_disk();
         TotalBytesReadFromDisk_.fetch_add(bytesReadFromDisk, std::memory_order::relaxed);
 
         if (const auto& jobIoMeter = SessionOptions_.JobIoMeter) {
-            jobIoMeter->AccountRead(bytesReadFromDisk);
+            jobIoMeter->Account(bytesReadFromDisk);
         }
     }
 
@@ -3512,7 +3511,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, SessionOptions_);
         SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
@@ -3828,7 +3827,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, SessionOptions_);
         SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -4884,7 +4883,7 @@ private:
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
+        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_);
         SetRequestIoFairShareWeight(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
