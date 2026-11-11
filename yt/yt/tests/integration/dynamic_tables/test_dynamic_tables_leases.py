@@ -10,6 +10,8 @@ from yt_commands import (
 
 from yt_driver_bindings import Driver
 
+import yt_error_codes
+
 from yt_helpers import master_exit_read_only_sync
 
 from yt.test_helpers import (
@@ -29,6 +31,9 @@ class TestDynamicTablesLeases(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
+
+    # Failed assertions can leave deliberately held lease references blocking cleanup.
+    FORCE_ABORT_TRANSACTIONS_ON_CLEANUP = True
 
     LEASE_ID = "1-2-3-4"
 
@@ -730,8 +735,10 @@ class TestDynamicTablesLeases(YTEnvSetup):
         driver = Driver(driver_config)
 
         def run_abort():
-            with raises_yt_error("Request timed out|Request queue size limit exceeded"):
+            with raises_yt_error() as error:
                 abort_transaction(tx, driver=driver, verbose=False)
+            assert error[0].contains_code(yt_error_codes.Timeout) or error[0].contains_code(
+                yt_error_codes.RequestQueueSizeLimitExceeded)
 
         abort_requests = [
             self.spawn_additional_thread(target=run_abort)
@@ -743,7 +750,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
 
         # NB: If all previous requests aren't stuck this request won't get
         # "RequestQueueSizeLimitExceeded" error.
-        with raises_yt_error("Request timed out"):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             abort_transaction(tx, driver=driver)
 
         self._check_lease(cell_id, "revoking", 1, 0, lease_id=tx)
