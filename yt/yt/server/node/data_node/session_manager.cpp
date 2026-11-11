@@ -225,6 +225,15 @@ ISessionPtr TSessionManager::StartSession(
     return session;
 }
 
+TWriteSessionStartCountersPtr TSessionManager::GetOrCreateWriteSessionStartCounters(
+    const std::string& mediumName)
+{
+    return *WriteSessionStartCounters_.FindOrInsert(mediumName, [&] {
+        return New<TWriteSessionStartCounters>(
+            DataNodeProfiler().WithTag("medium", mediumName));
+    }).first;
+}
+
 ISessionPtr TSessionManager::CreateSession(
     TSessionId sessionId,
     const TSessionOptions& options)
@@ -233,6 +242,8 @@ ISessionPtr TSessionManager::CreateSession(
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     auto [location, lockedChunkGuard] = chunkStore->AcquireNewChunkLocation(sessionId, options);
+
+    auto counters = GetOrCreateWriteSessionStartCounters(location->GetMediumName());
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,
@@ -251,8 +262,8 @@ ISessionPtr TSessionManager::CreateSession(
                 location,
                 lease,
                 std::move(lockedChunkGuard),
-                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
-            break;
+                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{},
+                std::move(counters));
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
@@ -264,8 +275,8 @@ ISessionPtr TSessionManager::CreateSession(
                 location,
                 lease,
                 std::move(lockedChunkGuard),
-                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
-            break;
+                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{},
+                std::move(counters));
 
         case EObjectType::NbdChunk:
             return New<TNbdSession>(
@@ -275,8 +286,8 @@ ISessionPtr TSessionManager::CreateSession(
                 options,
                 location,
                 lease,
-                std::move(lockedChunkGuard));
-            break;
+                std::move(lockedChunkGuard),
+                std::move(counters));
 
         default:
             THROW_ERROR_EXCEPTION("Invalid session chunk type %Qlv",

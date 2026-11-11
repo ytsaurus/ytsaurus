@@ -27,6 +27,10 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/library/syncmap/map.h>
+
 #include <optional>
 
 namespace NYT::NDataNode {
@@ -84,6 +88,28 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TProbePutBlocksRequestSupplier)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWriteSessionStartCounters
+    : public TRefCounted
+{
+public:
+    explicit TWriteSessionStartCounters(NProfiling::TProfiler profiler);
+
+    void Update(const TError& error);
+
+private:
+    const NProfiling::TCounter StartCount_;
+    const NProfiling::TProfiler Profiler_;
+
+    NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> FailureCounters_;
+
+    void IncrementStart();
+    void IncrementFailure(const TError& error);
+};
+
+DEFINE_REFCOUNTED_TYPE(TWriteSessionStartCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 

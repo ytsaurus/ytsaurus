@@ -333,7 +333,8 @@ TBlobSession::TBlobSession(
     TStoreLocationPtr location,
     NConcurrency::TLease lease,
     TLockedChunkGuard lockedChunkGuard,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    TWriteSessionStartCountersPtr startCounters)
     : TSessionBase(
         std::move(config),
         bootstrap,
@@ -342,7 +343,8 @@ TBlobSession::TBlobSession(
         std::move(location),
         std::move(lease),
         std::move(lockedChunkGuard),
-        std::move(writeBlocksOptions))
+        std::move(writeBlocksOptions),
+        std::move(startCounters))
     , Pipeline_(New<TBlobWritePipeline>(
         Location_,
         SessionInvoker_,
