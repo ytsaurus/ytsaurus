@@ -8,6 +8,7 @@ SRCS(
     bundle_scheduler_ut.cpp
     chaos_scheduler_ut.cpp
     helpers.cpp
+    memory_limit_bounds_ut.cpp
     pod_id_ut.cpp
 )
 
