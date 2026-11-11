@@ -16,6 +16,7 @@ RECURSE(
     queues
     rng
     rpc
+    row_io
     sendfile
     skiff
     versioned_block_format
