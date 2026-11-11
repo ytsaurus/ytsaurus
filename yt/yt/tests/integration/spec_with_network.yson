@@ -32,7 +32,7 @@
         use_porto_memory_tracking=%true;
         layer_paths=[
             "//porto_layers/delta/fuse/porto_delta_layer_ubuntu_jammy_libfuse2_2024-11-22.tar.gz"; 
-            "//porto_layers/base/jammy/porto_layer_search_ubuntu_jammy_app_lastest.tar.gz";
+            "//porto_layers/base/jammy/porto_layer_search_ubuntu_jammy_app_latest";
         ];
         network_project="cluster_job_nets";
     };

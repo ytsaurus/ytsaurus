@@ -1,5 +1,5 @@
 {
-    "system_layer_path" = "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz";
+    "system_layer_path" = "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_latest";
     "jdk_layers" = {
         "17" = {
             "layer_path" = "//porto_layers/delta/jdk/jdk17/layer_with_jdk17_latest.tar.gz";

@@ -56,7 +56,7 @@ class FlowLauncherTest {
             EXPECTED_JAVA_BIN_PATHS.get(JDK_MAJOR_VERSION),
             () -> "No expected java bin path for major version " + JDK_MAJOR_VERSION);
     private static final String EXPECTED_SYSTEM_LAYER =
-            "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz";
+            "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_latest";
 
     // The java.home of the launcher JVM, the last resort java of a job without a JDK layer.
     private static final String LAUNCHER_JAVA_HOME = "/opt/java/openjdk";
