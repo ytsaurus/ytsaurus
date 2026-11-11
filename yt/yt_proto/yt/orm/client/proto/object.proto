@@ -910,6 +910,8 @@ message TReferencesOption
 
     message TEndpoint
     {
+        extensions 1000 to 1999;
+
         // The object type that owns this side of the reference (snake_case).
         optional string object_type = 1;
 
