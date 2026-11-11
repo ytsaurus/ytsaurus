@@ -28,6 +28,9 @@ TGraphEntityId MakeSourceGraphId(const TStreamId& globalStreamId);
 TGraphEntityId MakeSinkGraphId(const TSinkId& globalSinkId);
 TGraphEntityId MakeComputationGraphId(const TComputationId& computationId);
 
+//! Global sink id, e.g. "heavy_reader/queue".
+TSinkId MakeGlobalSinkId(const TComputationId& computationId, const TSinkId& localSinkId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NDescribe

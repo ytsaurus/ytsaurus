@@ -11,6 +11,16 @@
                     };
                 };
             };
+            "audit_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["audit_records"];
+                "source_streams" = {
+                    "queue_source" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+            };
             "keyed_transform" = {
                 "computation_class_name" = "NYT::NFlow::NUIScreenshotPipeline::TSlowPassthroughComputation";
                 "group_by_schema" = [
@@ -64,11 +74,26 @@
                     {"name" = "value"; "type" = "string"; required = %true;};
                 ];
             };
+            "audit_records" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
         };
     };
     "dynamic_spec" = {
         "computations" = {
             "source_reader" = {
+                "batch_duration" = 250;
+                "max_rows_per_batch" = 50;
+                "source_streams" = {
+                    "queue_source" = {
+                        "parameters" = {};
+                    };
+                };
+            };
+            "audit_reader" = {
                 "batch_duration" = 250;
                 "max_rows_per_batch" = 50;
                 "source_streams" = {

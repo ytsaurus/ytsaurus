@@ -12,9 +12,9 @@ from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
 from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
     MIN_VISIBLE_BLOCKED_TIME_SHARE,
     format_limit_entry,
-    get_group_by_columns,
     is_computation_warning,
     is_edge_warning,
+    iter_data_channel_stream_edges,
     iter_read_delay_edges,
     make_computation_url,
 )
@@ -35,33 +35,30 @@ def make_stream_label(stream):
 
 
 def make_dot_computation_attributes(computation, graph):
-    label_html_text = f'ClassName: {html.escape(computation.spec["computation_class_name"])}'
+    label_html_text = f"ClassName: {html.escape(computation.class_name)}"
     tooltip_text = ""
 
-    group_by_columns = get_group_by_columns(computation)
+    group_by_columns = computation.group_by
     if group_by_columns:
-        label_html_text += f'<br ALIGN="LEFT"/>GroupBy: {html.escape(repr(group_by_columns)).strip()}'
+        label_html_text += f'<br ALIGN="LEFT"/>GroupBy: {html.escape(group_by_columns).strip()}'
 
-    state = computation.spec["parameters"].get("state", {}).get("path")
+    state = computation.state_path
     if state:
         label_html_text += f'<br ALIGN="LEFT"/>State: {html.escape(repr(state).strip())}'
 
-    processing_mode = computation.spec["parameters"].get("processing_mode", "exactly_once")
+    processing_mode = computation.processing_mode
     if processing_mode != "exactly_once":
         label_html_text += f'<br ALIGN="LEFT"/>ProcessingMode: {processing_mode}'
 
-    watermark_alignment = computation.spec.get("watermark_strategy", {}).get("watermark_alignment", {})
-    if "read_delays" in watermark_alignment:
+    if computation.read_delays:
         label_html_text += '<br ALIGN="LEFT"/>ReadDelays:<br ALIGN="LEFT"/>'
-        label_html_text += yson_to_html(watermark_alignment["read_delays"])
+        label_html_text += yson_to_html(computation.read_delays)
 
     if computation.max_cpu_usage[0] >= 0.5:
         usage, partition_id = computation.max_cpu_usage
         label_html_text += f'<br ALIGN="LEFT"/><B>MaxCpuUsage={usage:.3f}, PartitionId={partition_id}</B>'
 
-    unstable_partition_count = computation.unstable_job_count + (
-        computation.total_partition_count - computation.total_job_count
-    )
+    unstable_partition_count = computation.unstable_partition_count
     if unstable_partition_count > 0:
         label_html_text += (
             f'<br ALIGN="LEFT"/><B>UnstablePartitions: '
@@ -193,8 +190,24 @@ class ClusterBuilder:
         for blocker_stream_id, delayed_stream_id, delay_duration in iter_read_delay_edges(graph):
             cluster.add_edge(self.make_read_delay_edge(blocker_stream_id, delayed_stream_id, delay_duration))
 
+    def add_data_channel_edges(self, cluster, graph):
+        """Dashed arrow from a sink stream to the source stream that reads the same data channel."""
+        for sink_stream_id, source_stream_id, label in iter_data_channel_stream_edges(graph):
+            cluster.add_edge(
+                pydot.Edge(
+                    self._entity_prefix + sink_stream_id,
+                    self._entity_prefix + source_stream_id,
+                    style="dashed",
+                    color="#3366cc",
+                    fontcolor="#3366cc",
+                    # pydot escapes double quotes only, and dot treats backslashes as escapes.
+                    label=label.replace("\\", "\\\\"),
+                )
+            )
+
     def build(self):
         self.do_build(self._graph, self._cluster)
+        self.add_data_channel_edges(self._cluster, self._graph)
         return self._cluster
 
     def do_build(self, graph, cluster):
@@ -230,7 +243,7 @@ class StreamClusterBuilder(ClusterBuilder):
                 computation = graph.computations[computation_id]
                 outputs = []
                 for output_stream_id in computation.output_streams:
-                    if stream.stream_id in computation.spec["streams_dependency"][output_stream_id]:
+                    if stream.stream_id in computation.streams_dependency.get(output_stream_id, ()):
                         outputs.append(output_stream_id)
                 concatenated_sorted_outputs = ",".join(sorted(outputs))
 

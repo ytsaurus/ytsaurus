@@ -527,7 +527,8 @@ std::vector<std::string> TRegistry::GetYsonMessageTypeNames() const
 
 namespace {
 
-void ValidateParameters(
+//! Returns the parsed parameters, null on error.
+NYTree::TYsonStructPtr ValidateParameters(
     TStringBuf specType,
     TYPath path,
     auto factory,
@@ -545,8 +546,11 @@ void ValidateParameters(
         if (!parametersUnrecognized->GetKeys().empty()) {
             SetNodeByYPath(unrecognizedOutput, path, parametersUnrecognized, /*force*/ true);
         }
+
+        return parameters;
     } catch (const std::exception& exception) {
         errors->push_back(TError(exception));
+        return nullptr;
     }
 }
 
@@ -655,7 +659,9 @@ NYTree::TYsonStructPtr TRegistry::ParseDynamicProcessFunctionParameters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IMapNodePtr& specNode) const
+std::vector<TError> TRegistry::ValidatePipelineSpecParseability(
+    const NYTree::IMapNodePtr& specNode,
+    TParsedPipelineParameters* parsedParameters) const
 {
     std::vector<TError> errors;
 
@@ -682,22 +688,28 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
                 &errors,
                 unrecognized);
             for (const auto& [streamId, sourceSpec] : computationSpec->SourceStreams) {
-                ValidateParameters(
+                auto parameters = ValidateParameters(
                     "static_pipeline_spec",
                     Format("/computations/%v/source_streams/%v/parameters", computationName, streamId),
                     GetSourceDescriptor(sourceSpec->SourceClassName).ParametersFactory,
                     sourceSpec->Parameters,
                     &errors,
                     unrecognized);
+                if (parsedParameters && parameters) {
+                    parsedParameters->Sources.emplace(std::pair(computationName, streamId), std::move(parameters));
+                }
             }
             for (const auto& [sinkId, sinkSpec] : computationSpec->Sinks) {
-                ValidateParameters(
+                auto parameters = ValidateParameters(
                     "static_pipeline_spec",
                     Format("/computations/%v/sinks/%v/parameters", computationName, sinkId),
                     GetSinkDescriptor(sinkSpec->SinkClassName).ParametersFactory,
                     sinkSpec->Parameters,
                     &errors,
                     unrecognized);
+                if (parsedParameters && parameters) {
+                    parsedParameters->Sinks.emplace(std::pair(computationName, sinkId), std::move(parameters));
+                }
             }
             if (GetComputationDescriptor(computationSpec->ComputationClassName).RequiresProcessingFunction &&
                 !computationSpec->ProcessingFunction)

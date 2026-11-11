@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/sink_controller.h>
 #include <yt/yt/flow/library/cpp/common/source_controller.h>
+#include <yt/yt/flow/library/cpp/common/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -163,7 +164,7 @@ void TUniversalComputationController::Init(IInitContextPtr initContext)
 {
     initContext->InitClient(PartitioningState_, "partitioning/v0");
     for (const auto& [streamId, source] : Sources_) {
-        auto sourceInitContext = initContext->WithPrefix(Format("sources/%v", streamId));
+        auto sourceInitContext = initContext->WithPrefix(Format("%v/%v", SourcesStateNameSegment, streamId));
         // Nest the source state under its identity - the same string that versions its partition
         // keys - so changing the identifying params orphans the previous state (it is then reclaimed
         // by the state manager) and the source starts fresh.
@@ -173,7 +174,7 @@ void TUniversalComputationController::Init(IInitContextPtr initContext)
         source->Init(std::move(sourceInitContext));
     }
     for (const auto& [sinkId, sink] : Sinks_) {
-        sink->Init(initContext->WithPrefix(Format("sinks/%v", sinkId)));
+        sink->Init(initContext->WithPrefix(Format("%v/%v", SinksStateNameSegment, sinkId)));
     }
 }
 

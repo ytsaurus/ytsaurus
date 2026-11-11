@@ -42,6 +42,8 @@
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/matchers.h>
 
+#include <util/string/split.h>
+
 #include <util/system/sanitizers.h>
 #include <util/system/type_name.h>
 
@@ -101,6 +103,60 @@ private:
 };
 
 YT_FLOW_DEFINE_SINK(TTestSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestPathSinkParameters
+    : public TTestSink::TParameters
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TTestPathSinkParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::SharedWrite)
+            .Default();
+    }
+};
+
+class TTestPathSink
+    : public TTestSink
+{
+public:
+    YT_FLOW_EXTEND_PARAMETERS(TTestPathSinkParameters);
+
+    using TTestSink::TTestSink;
+};
+
+YT_FLOW_DEFINE_SINK(TTestPathSink);
+
+struct TTestPathSourceParameters
+    : public TRandomSource::TParameters
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TTestPathSourceParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::ReadOnly)
+            .Default();
+    }
+};
+
+class TTestPathSource
+    : public TRandomSource
+{
+public:
+    YT_FLOW_EXTEND_PARAMETERS(TTestPathSourceParameters);
+
+    using TRandomSource::TRandomSource;
+};
+
+YT_FLOW_DEFINE_SOURCE(TTestPathSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -568,6 +624,35 @@ TEST_W(TDescribeTest, RegisterStreams)
     ASSERT_GE(Pipeline.Streams.at("output_stream").Messages.size(), 1u);
 }
 
+TEST_W(TDescribeTest, RegisterStreamsListsAllSinkInputs)
+{
+    Prepare();
+    auto& computation = Spec->Computations["Computation_1"];
+    computation->OutputStreamIds.insert("second_stream");
+    // A sink with two inputs and a second sink that reads one of them.
+    computation->Sinks["Sink_1"]->InputStreamIds = {"second_stream", "output_stream"};
+    auto& extraSink = computation->Sinks["Sink_extra"] = New<TSinkSpec>();
+    extraSink->SinkClassName = TypeName<TTestSink>();
+    extraSink->InputStreamIds = {"output_stream"};
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto computationDescription = TPipelineComputationDescription();
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+
+    auto outputStream = MakeStreamGraphId(TStreamId("output_stream"));
+    auto secondStream = MakeStreamGraphId(TStreamId("second_stream"));
+    const auto& sink = Pipeline.Sinks.at(TSinkId("Computation_1/Sink_1"));
+    EXPECT_EQ(sink.StreamGraphEntityIds, (std::vector{outputStream, secondStream}));
+    EXPECT_TRUE(sink.StreamGraphEntityId == outputStream || sink.StreamGraphEntityId == secondStream);
+    const auto& extra = Pipeline.Sinks.at(TSinkId("Computation_1/Sink_extra"));
+    EXPECT_EQ(extra.StreamGraphEntityIds, (std::vector{outputStream}));
+    EXPECT_EQ(extra.StreamGraphEntityId, outputStream);
+
+    auto node = ConvertToNode(sink)->AsMap();
+    EXPECT_EQ(node->GetChildOrThrow("stream_ids")->AsList()->GetChildCount(), 2);
+}
+
 TEST_W(TDescribeTest, FillTopHeavyHittersMessages)
 {
     Prepare();
@@ -655,6 +740,14 @@ TEST_W(TDescribeTest, FillStreamTraverseData)
     EXPECT_TRUE(Pipeline.Streams["output_stream"].BytesPerSecond == 200);
     EXPECT_TRUE(Pipeline.Streams["output_stream"].InflightBytes == 200);
     EXPECT_TRUE(Pipeline.Streams["output_stream"].InflightRows == 20);
+
+    // A stream known only from the traverse data gets its global name, and the graphs label it.
+    EXPECT_EQ(Pipeline.Streams["Computation_3/input_stream"].GlobalName, TStreamId("Computation_3/input_stream"));
+
+    for (const auto& diagram : {BuildMermaidComputationsGraph(Pipeline), BuildMermaidUnrolledGraph(Pipeline)}) {
+        EXPECT_THAT(diagram, HasSubstr("s_stm_2dComputation__3_2finput__stream([\"Computation_3/input_stream\"])")) << diagram;
+        EXPECT_THAT(diagram, Not(HasSubstr("([\"\"])"))) << diagram;
+    }
 }
 
 TEST_W(TDescribeTest, FillComputationPerformanceMetrics)
@@ -818,6 +911,102 @@ TEST_W(TDescribeTest, DescribeToleratesComputationMissingFromSpec)
             EXPECT_FALSE(description.Computations.contains(TComputationId("Computation_removed")));
             EXPECT_EQ(description.Streams.at(TStreamId("output_stream")).InflightRows, 10);
         }
+    }
+}
+
+TEST_W(TDescribeTest, DescribePipelineExposesDataChannelEdges)
+{
+    Prepare();
+    FlowView->EphemeralState->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+
+    auto& writer = Spec->Computations["Computation_1"];
+    writer->OutputStreamIds.insert("second_stream");
+    auto& sink = writer->Sinks["Sink_1"];
+    sink->InputStreamIds = {"output_stream", "second_stream"};
+    sink->SinkClassName = TypeName<TTestPathSink>();
+    auto setSinkPath = [&] (TStringBuf path) {
+        sink->Parameters = ConvertToNode(TYsonString(Format("{path=%Qv}", path)))->AsMap();
+    };
+
+    // A sink without input streams has no graph entity and gets no edges.
+    auto& streamlessSink = Spec->Computations["Computation_2"]->Sinks["Sink_2"];
+    streamlessSink->SinkClassName = TypeName<TTestPathSink>();
+    streamlessSink->Parameters = ConvertToNode(TYsonString(TStringBuf("{path=\"//q\"}")))->AsMap();
+
+    // A sink-only channel produces no edge.
+    auto& sinkOnly = Spec->Computations["Computation_3"]->Sinks["Sink_3"];
+    sinkOnly->InputStreamIds = {"output_stream"};
+    sinkOnly->SinkClassName = TypeName<TTestPathSink>();
+    sinkOnly->Parameters = ConvertToNode(TYsonString(TStringBuf("{path=\"//only_written\"}")))->AsMap();
+
+    auto& source = Spec->Computations["Computation_3"]->SourceStreams["Source"];
+    source->SourceClassName = TypeName<TTestPathSource>();
+    auto setSourcePath = [&] (TStringBuf path) {
+        source->Parameters = ConvertToNode(TYsonString(Format("{path=%Qv}", path)))->AsMap();
+    };
+    auto sourceStreamId = MakeGlobalStreamId("Computation_3", "Source", Spec->Computations["Computation_3"]);
+
+    auto describe = [&] {
+        return DescribePipeline({.FlowView = FlowView, .Logger = TLogger("test")});
+    };
+
+    setSinkPath("//q");
+    setSourcePath("<cluster=pipeline_cluster>//q");
+    {
+        auto description = describe();
+        ASSERT_EQ(description.Edges.size(), 1u);
+        const auto& edge = description.Edges[0];
+        EXPECT_EQ(edge.From.Underlying(), "snk-Computation_1/Sink_1");
+        EXPECT_EQ(edge.To, MakeSourceGraphId(sourceStreamId));
+        EXPECT_EQ(edge.Kind, EGraphEdgeKind::DataChannel);
+        EXPECT_EQ(edge.Label, "yt:pipeline_cluster://q");
+
+        auto node = ConvertToNode(edge)->AsMap();
+        EXPECT_EQ(node->GetChildValueOrThrow<std::string>("kind"), "data_channel");
+        EXPECT_EQ(node->GetChildValueOrThrow<std::string>("from"), "snk-Computation_1/Sink_1");
+
+        // The sink node reads both of its input streams; the edge goes from the sink node to the source node.
+        for (const auto& diagram : {BuildMermaidComputationsGraph(description), BuildMermaidUnrolledGraph(description)}) {
+            EXPECT_THAT(diagram, HasSubstr("s_stm_2doutput__stream --> e_snk_2dComputation__1_2fSink__1")) << diagram;
+            EXPECT_THAT(diagram, HasSubstr("s_stm_2dsecond__stream --> e_snk_2dComputation__1_2fSink__1")) << diagram;
+            EXPECT_THAT(diagram, HasSubstr("e_snk_2dComputation__1_2fSink__1 -.->|yt:pipeline_cluster://q| e_src_2d")) << diagram;
+        }
+
+        auto unrolled = UnrollPipelineDescription(description);
+        ASSERT_EQ(unrolled.Edges.size(), 1u);
+        EXPECT_EQ(unrolled.Edges[0].Label, edge.Label);
+
+        auto status = DescribeStatus();
+        EXPECT_TRUE(status.Edges.empty());
+        EXPECT_EQ(status.Messages.size(), description.Messages.size());
+    }
+
+    setSinkPath("<clusters=[a;b]>//q");
+    setSourcePath("<cluster=b>//q");
+    {
+        auto description = describe();
+        ASSERT_EQ(description.Edges.size(), 1u);
+        EXPECT_EQ(description.Edges[0].Label, "yt:b://q");
+    }
+
+    // A path with both attributes is on the union of their clusters.
+    setSinkPath("<cluster=a;clusters=[c;b]>//q");
+    {
+        auto description = describe();
+        ASSERT_EQ(description.Edges.size(), 1u);
+        EXPECT_EQ(description.Edges[0].Label, "yt:b://q");
+    }
+
+    setSinkPath("<cluster=a;clusters=[a;c]>//q");
+    EXPECT_TRUE(describe().Edges.empty());
+
+    // An unknown source class yields no channels and no extra messages.
+    source->SourceClassName = "NYT::NFlow::TUnknownSource";
+    setSinkPath("<cluster=b>//q");
+    {
+        auto description = describe();
+        EXPECT_TRUE(description.Edges.empty());
+        EXPECT_EQ(DescribeStatus().Messages.size(), description.Messages.size());
     }
 }
 
@@ -1746,6 +1935,113 @@ TEST_F(TDescribeTest, MermaidGraphEscapesBraces)
     EXPECT_THAT(diagram, Not(HasSubstr("\uff5d")));
 }
 
+// The edge lines of a Mermaid diagram in emission order: the indices of linkStyle refer to them.
+std::vector<std::string> GetMermaidEdgeLines(const std::string& diagram)
+{
+    std::vector<std::string> edgeLines;
+    for (const auto& line : StringSplitter(diagram).Split('\n')) {
+        auto text = std::string(line.Token());
+        if (text.find("-->") != std::string::npos || text.find("-.->") != std::string::npos) {
+            edgeLines.push_back(std::move(text));
+        }
+    }
+
+    return edgeLines;
+}
+
+// The edge lines that a linkStyle with |style| applies to.
+std::vector<std::string> GetStyledMermaidEdgeLines(const std::string& diagram, TStringBuf style)
+{
+    auto edgeLines = GetMermaidEdgeLines(diagram);
+    std::vector<std::string> result;
+    for (const auto& line : StringSplitter(diagram).Split('\n')) {
+        int index = 0;
+        auto text = std::string(line.Token());
+        if (text.find(style) != std::string::npos && sscanf(text.c_str(), "  linkStyle %d", &index) == 1) {
+            EXPECT_LT(index, std::ssize(edgeLines)) << diagram;
+            if (index < std::ssize(edgeLines)) {
+                result.push_back(edgeLines[index]);
+            }
+        }
+    }
+
+    return result;
+}
+
+constexpr TStringBuf WarningLinkStyle = "stroke:#cc0000";
+
+TEST_F(TDescribeTest, MermaidGraphShowsDataChannelEdges)
+{
+    Prepare();
+    Spec->Computations["Computation_1"]->Sinks["Sink_1"]->InputStreamIds = {"output_stream"};
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+
+    auto sourceStreamId = MakeStreamGraphId(MakeGlobalStreamId("Computation_3", "Source", Spec->Computations["Computation_3"]));
+    auto outputStreamId = MakeStreamGraphId(TStreamId("output_stream"));
+
+    // A warning edge, to check that the link style indices stay aligned.
+    auto& stats = Pipeline.Computations["Computation_1"].OutputLimitStats[outputStreamId]["output_buffer_bytes"];
+    stats.Max.Limit = 100;
+    stats.Max.Used = 100;
+
+    auto sourceGraphId = Pipeline.Sources.at(MakeGlobalStreamId("Computation_3", "Source", Spec->Computations["Computation_3"])).Id;
+    TGraphEdge edge;
+    edge.From = MakeSinkGraphId(TSinkId("Computation_1/Sink_1"));
+    edge.To = sourceGraphId;
+    edge.Kind = EGraphEdgeKind::DataChannel;
+    edge.Label = "yt:b://q";
+    Pipeline.Edges.push_back(edge);
+
+    // Mermaid syntax characters of a valid YT path are encoded.
+    auto parenthesized = edge;
+    parenthesized.Label = "yt:a://tmp/q(a)[b]#c";
+    Pipeline.Edges.push_back(parenthesized);
+
+    // Edges between entities absent from the graph are skipped.
+    auto missing = edge;
+    missing.From = MakeSinkGraphId(TSinkId("Computation_1/missing_sink"));
+    missing.Label = "yt:a://missing";
+    Pipeline.Edges.push_back(missing);
+
+    // "src-Computation_3/Source" and "stm-Computation_3/Source" encoded: '-' is _2d, '/' is _2f, '_' is __.
+    ASSERT_EQ(sourceGraphId.Underlying(), "src-Computation_3/Source");
+    ASSERT_EQ(sourceStreamId.Underlying(), "stm-Computation_3/Source");
+    std::string sourceNode = "e_src_2dComputation__3_2fSource";
+    std::string sourceStreamNode = "s_stm_2dComputation__3_2fSource";
+
+    for (const auto& diagram : {BuildMermaidComputationsGraph(Pipeline), BuildMermaidUnrolledGraph(Pipeline)}) {
+        // Sources and sinks are nodes connected to their streams; the stream labels have no annotations.
+        EXPECT_THAT(diagram, HasSubstr(Format("%v[/\"Computation_3/Source", sourceNode))) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("e_snk_2dComputation__1_2fSink__1[\\\"Computation_1/Sink_1")) << diagram;
+        EXPECT_THAT(diagram, HasSubstr(Format("%v --> %v", sourceNode, sourceStreamNode))) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("s_stm_2doutput__stream --> e_snk_2dComputation__1_2fSink__1")) << diagram;
+        EXPECT_THAT(diagram, Not(HasSubstr("(source)"))) << diagram;
+        EXPECT_THAT(diagram, Not(HasSubstr("(sink)"))) << diagram;
+
+        auto expectedEdge = Format("e_snk_2dComputation__1_2fSink__1 -.->|yt:b://q| %v", sourceNode);
+        EXPECT_THAT(diagram, HasSubstr(expectedEdge)) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("-.->|yt:a://tmp/q#40;a#41;#91;b#93;#35;c|")) << diagram;
+        EXPECT_THAT(diagram, Not(HasSubstr("missing"))) << diagram;
+
+        auto edgeLines = GetMermaidEdgeLines(diagram);
+        auto dataEdgeIndex = std::find_if(edgeLines.begin(), edgeLines.end(), [] (const auto& line) {
+            return line.find("-.->") != std::string::npos;
+        }) - edgeLines.begin();
+        ASSERT_LT(dataEdgeIndex, std::ssize(edgeLines));
+        EXPECT_THAT(diagram, HasSubstr(Format("linkStyle %v stroke:#3366cc", dataEdgeIndex))) << diagram;
+        auto warningEdgeLines = GetStyledMermaidEdgeLines(diagram, WarningLinkStyle);
+        EXPECT_FALSE(warningEdgeLines.empty()) << diagram;
+        for (const auto& line : warningEdgeLines) {
+            EXPECT_THAT(line, HasSubstr("-->|"));
+            EXPECT_THAT(line, HasSubstr("s_stm_2doutput__stream"));
+        }
+    }
+}
+
 TEST_F(TDescribeTest, BlockedTimeShareReachesDescribeFromJobStatus)
 {
     Prepare();
@@ -1794,6 +2090,84 @@ TEST_F(TDescribeTest, BlockedTimeShareReachesDescribeFromJobStatus)
     ASSERT_TRUE(share);
     EXPECT_EQ(share->Share, 0.75);
     EXPECT_EQ(share->ExamplePartitionId, blockedPartitionId);
+}
+
+TEST_F(TDescribeTest, MermaidNodeIdsAreInjective)
+{
+    Prepare();
+    // Valid sink names that a lossy encoding would merge.
+    auto& computation = Spec->Computations["Computation_1"];
+    for (const auto& sinkId : {"a-b", "a_b"}) {
+        auto& sink = computation->Sinks[TSinkId(sinkId)] = New<TSinkSpec>();
+        sink->SinkClassName = TypeName<TTestSink>();
+        sink->InputStreamIds = {"output_stream"};
+    }
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+
+    for (const auto& diagram : {BuildMermaidComputationsGraph(Pipeline), BuildMermaidUnrolledGraph(Pipeline)}) {
+        EXPECT_THAT(diagram, HasSubstr("e_snk_2dComputation__1_2fa_2db[\\\"Computation_1/a-b")) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("e_snk_2dComputation__1_2fa__b[\\\"Computation_1/a_b")) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("s_stm_2doutput__stream --> e_snk_2dComputation__1_2fa_2db")) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("s_stm_2doutput__stream --> e_snk_2dComputation__1_2fa__b")) << diagram;
+    }
+}
+
+TEST_F(TDescribeTest, SourceStreamLimitsReachDescribe)
+{
+    Prepare();
+
+    // A source computation reports the read window of its source stream by the local stream id.
+    TPartitionId limitedPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("Computation_3")) {
+            continue;
+        }
+
+        auto& jobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId]->CurrentJobStatus;
+        auto& limitStatus = jobStatus->InputLimits["max_read_window_seconds"][TStreamId("Source")];
+        limitStatus.Limit = 120;
+        limitStatus.Used = 120;
+        limitedPartitionId = partitionId;
+        break;
+    }
+
+    ASSERT_FALSE(limitedPartitionId == TPartitionId());
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+
+    FillGraphLimits(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), Pipeline);
+    FillExtendedStreams(FlowView, Pipeline);
+
+    auto sourceStreamId = MakeStreamGraphId(MakeGlobalStreamId("Computation_3", "Source", Spec->Computations["Computation_3"]));
+    const auto& computation = Pipeline.Computations.at(TComputationId("Computation_3"));
+    const auto& stats = computation.InputLimitStats.at(sourceStreamId).at("max_read_window_seconds");
+    EXPECT_EQ(stats.Max.Used, 120);
+    EXPECT_EQ(stats.Max.Limit, 120);
+    EXPECT_EQ(stats.MaxPartitionId, limitedPartitionId);
+
+    ASSERT_EQ(computation.ExtendedSourceStreams.size(), 1u);
+    EXPECT_EQ(computation.ExtendedSourceStreams[0].StreamGraphEntityId, sourceStreamId);
+    EXPECT_TRUE(computation.ExtendedSourceStreams[0].BackpressureDetected);
+
+    // The source edge is drawn with the limit and highlighted.
+    auto diagram = BuildMermaidComputationsGraph(Pipeline);
+    EXPECT_THAT(diagram, HasSubstr("max_read_window_seconds")) << diagram;
+    // The read window is in seconds, not bytes.
+    EXPECT_THAT(diagram, HasSubstr("limit=2m")) << diagram;
+    EXPECT_THAT(diagram, Not(HasSubstr("limit=120B"))) << diagram;
+    auto warningEdgeLines = GetStyledMermaidEdgeLines(diagram, WarningLinkStyle);
+    bool hasWarningSourceEdge = std::ranges::any_of(warningEdgeLines, [] (const auto& line) {
+        return line.find("max_read_window_seconds") != std::string::npos;
+    });
+
+    EXPECT_TRUE(hasWarningSourceEdge) << diagram;
 }
 
 TEST_F(TDescribeTest, FillStreamStatisticsMessages)

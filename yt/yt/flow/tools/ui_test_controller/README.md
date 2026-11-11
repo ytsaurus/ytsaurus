@@ -36,4 +36,4 @@ ya make
 
 The surrounding test harness is responsible for creating a local pipeline, publishing the RPC address as `leader_controller_address`, and provisioning the `flow_control` row used by the UI header.
 
-Canonical fixtures are captured artifacts stored in infinite-TTL Sandbox resource [`13809993962`](https://sandbox.yandex-team.ru/resource/13809993962/view), owned by `YT_FLOW`. Change the live test pipeline or its lifecycle harness, rerun the capture target, upload its complete output as a replacement resource, and review the resulting describe/UI changes; do not edit fixture YSON by hand.
+Canonical fixtures are captured artifacts stored in infinite-TTL Sandbox resource [`14189103114`](https://sandbox.yandex-team.ru/resource/14189103114/view), owned by `YT_FLOW`. Change the live test pipeline or its lifecycle harness, rerun the capture target, upload its complete output as a replacement resource, and review the resulting describe/UI changes; do not edit fixture YSON by hand.

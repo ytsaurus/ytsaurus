@@ -87,6 +87,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
 
 struct TMessageMeta;
 struct TMessage;
+struct TParsedPipelineParameters;
 
 DECLARE_REFCOUNTED_STRUCT(TInputMessage);
 using TInputMessageConstPtr = TIntrusivePtr<const TInputMessage>;

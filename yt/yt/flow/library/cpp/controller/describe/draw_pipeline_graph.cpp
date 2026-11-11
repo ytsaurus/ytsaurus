@@ -8,6 +8,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <algorithm>
+#include <tuple>
 #include <vector>
 
 namespace NYT::NFlow::NDescribe {
@@ -19,20 +20,23 @@ namespace {
 const std::string WarningNodeStyle = "fill:#ffcccc,color:#333,stroke:#cc0000";
 const std::string WarningLinkStyle = "stroke:#cc0000,stroke-width:2px";
 const std::string ReadDelayLinkStyle = "stroke:#ccaa00,stroke-width:1px,stroke-dasharray:5 5";
+const std::string DataChannelLinkStyle = "stroke:#3366cc,stroke-width:1px";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Convert an arbitrary string into a valid Mermaid node identifier.
-// Replaces all characters that are not [a-zA-Z0-9_] with '_'.
+// Convert an arbitrary string into a valid Mermaid node identifier, injectively:
+// [a-zA-Z0-9] stay as is, '_' becomes "__", and any other byte becomes '_' and two lowercase hex digits.
 std::string MermaidSafeId(std::string_view raw)
 {
     std::string result;
-    result.reserve(raw.size());
+    result.reserve(raw.size() * 3);
     for (char c : raw) {
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
             result += c;
+        } else if (c == '_') {
+            result += "__";
         } else {
-            result += '_';
+            result += Format("_%02x", static_cast<unsigned char>(c));
         }
     }
     return result;
@@ -120,6 +124,9 @@ std::string MermaidSafeEdgeLabel(const std::string& text)
             result += "&lbrace;";
         } else if (c == '}') {
             result += "&rbrace;";
+        } else if (c == '(' || c == ')' || c == '[' || c == ']' || c == '<' || c == '>' || c == '#') {
+            // Shape and comment syntax of the label grammar; Mermaid decodes #<code>; entities.
+            result += Format("#%v;", static_cast<int>(c));
         } else {
             result += c;
         }
@@ -182,15 +189,7 @@ std::string MakeComputationLabel(const TPipelineComputationDescription& computat
 // Uses stream.GlobalName (= globalStreamId, without StreamPrefix) for unambiguous human-readable display.
 std::string MakeStreamLabel(const TStream& stream)
 {
-    TStringBuilder sb;
-    sb.AppendString(stream.GlobalName.Underlying());
-    if (stream.SourceGraphEntityId) {
-        sb.AppendString("\n(source)");
-    }
-    if (stream.SinkGraphEntityId) {
-        sb.AppendString("\n(sink)");
-    }
-    return MermaidSafeLabel(sb.Flush());
+    return MermaidSafeLabel(std::string(stream.GlobalName.Underlying()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,6 +214,19 @@ auto SortedElements(const TSet& set)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Sources and sinks are drawn as nodes with their graph entity ids, like in the UI.
+std::string MakeEntityNodeId(const TGraphEntityId& entityId)
+{
+    return "e_" + MermaidSafeId(entityId.Underlying());
+}
+
+std::string MakeStreamNodeId(const TGraphEntityId& streamId)
+{
+    return "s_" + MermaidSafeId(streamId.Underlying());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Accumulates Mermaid flowchart content and emits the final string.
 // Tracks edge indices for linkStyle application.
 struct TMermaidBuilder
@@ -223,10 +235,11 @@ struct TMermaidBuilder
     int EdgeIndex = 0;
     std::vector<int> WarningEdgeIndices;
     std::vector<int> ReadDelayEdgeIndices;
+    std::vector<int> DataChannelEdgeIndices;
 
     void EmitStreamNode(const TStream& stream)
     {
-        std::string nodeId = "s_" + MermaidSafeId(stream.Id.Underlying());
+        std::string nodeId = MakeStreamNodeId(stream.Id);
         Out.AppendFormat("  %v([\"%v\"])\n", nodeId, MakeStreamLabel(stream));
     }
 
@@ -265,11 +278,85 @@ struct TMermaidBuilder
 
     void EmitReadDelayEdge(const TReadDelayEdge& edge)
     {
-        std::string blockerNode = "s_" + MermaidSafeId(edge.BlockerStreamGraphEntityId.Underlying());
-        std::string delayedNode = "s_" + MermaidSafeId(edge.DelayedStreamGraphEntityId.Underlying());
+        std::string blockerNode = MakeStreamNodeId(edge.BlockerStreamGraphEntityId);
+        std::string delayedNode = MakeStreamNodeId(edge.DelayedStreamGraphEntityId);
         std::string delayStr = MermaidSafeEdgeLabel(Format("delay=%v", edge.Delay));
         Out.AppendFormat("  %v -->|%v| %v\n", blockerNode, delayStr, delayedNode);
         ReadDelayEdgeIndices.push_back(EdgeIndex++);
+    }
+
+    void EmitSourceAndSinkNodes(const TPipelineDescription& pipeline)
+    {
+        Out.AppendString("  %% Sources and sinks\n");
+
+        for (const auto& streamId : SortedKeys(pipeline.Sources)) {
+            const auto& source = GetOrCrash(pipeline.Sources, streamId);
+            Out.AppendFormat("  %v[/\"%v\"/]\n",
+                MakeEntityNodeId(source.Id),
+                MermaidSafeLabel(Format("%v\n%v", streamId, source.Description)));
+        }
+
+        for (const auto& sinkId : SortedKeys(pipeline.Sinks)) {
+            const auto& sink = GetOrCrash(pipeline.Sinks, sinkId);
+            Out.AppendFormat("  %v[\\\"%v\"\\]\n",
+                MakeEntityNodeId(sink.Id),
+                MermaidSafeLabel(Format("%v\n%v", sinkId, sink.Description)));
+        }
+    }
+
+    // Source -> its stream and input stream -> sink; streams absent from the graph are skipped.
+    void EmitSourceAndSinkEdges(const TPipelineDescription& pipeline)
+    {
+        THashSet<TGraphEntityId> streamIds;
+        for (const auto& [_, stream] : pipeline.Streams) {
+            streamIds.insert(stream.Id);
+        }
+
+        Out.AppendString("  %% Source and sink edges\n");
+
+        for (const auto& streamId : SortedKeys(pipeline.Sources)) {
+            const auto& source = GetOrCrash(pipeline.Sources, streamId);
+            if (streamIds.contains(source.StreamGraphEntityId)) {
+                Out.AppendFormat("  %v --> %v\n", MakeEntityNodeId(source.Id), MakeStreamNodeId(source.StreamGraphEntityId));
+                ++EdgeIndex;
+            }
+        }
+
+        for (const auto& sinkId : SortedKeys(pipeline.Sinks)) {
+            const auto& sink = GetOrCrash(pipeline.Sinks, sinkId);
+            for (const auto& inputStreamId : sink.StreamGraphEntityIds) {
+                if (streamIds.contains(inputStreamId)) {
+                    Out.AppendFormat("  %v --> %v\n", MakeStreamNodeId(inputStreamId), MakeEntityNodeId(sink.Id));
+                    ++EdgeIndex;
+                }
+            }
+        }
+    }
+
+    // Data-channel edges go directly between the sink and the source nodes; edges of other kinds and
+    // edges between entities absent from the graph are skipped.
+    void EmitDataChannelEdges(const TPipelineDescription& pipeline)
+    {
+        THashSet<TGraphEntityId> entityIds;
+        for (const auto& [_, source] : pipeline.Sources) {
+            entityIds.insert(source.Id);
+        }
+
+        for (const auto& [_, sink] : pipeline.Sinks) {
+            entityIds.insert(sink.Id);
+        }
+
+        Out.AppendString("  %% Data-channel edges\n");
+
+        for (const auto& edge : pipeline.Edges) {
+            if (edge.Kind != EGraphEdgeKind::DataChannel || !entityIds.contains(edge.From) || !entityIds.contains(edge.To)) {
+                continue;
+            }
+
+            auto arrow = edge.Label.empty() ? std::string("-.->") : "-.->|" + MermaidSafeEdgeLabel(edge.Label) + "|";
+            Out.AppendFormat("  %v %v %v\n", MakeEntityNodeId(edge.From), arrow, MakeEntityNodeId(edge.To));
+            DataChannelEdgeIndices.push_back(EdgeIndex++);
+        }
     }
 
     void EmitWarningNodeStyle(const std::string& nodeId)
@@ -284,6 +371,10 @@ struct TMermaidBuilder
         }
         for (int idx : ReadDelayEdgeIndices) {
             Out.AppendFormat("  linkStyle %v %v\n", idx, ReadDelayLinkStyle);
+        }
+
+        for (int idx : DataChannelEdgeIndices) {
+            Out.AppendFormat("  linkStyle %v %v\n", idx, DataChannelLinkStyle);
         }
     }
 
@@ -317,6 +408,12 @@ std::string MakeComputationUrl(const TDrawPipelineGraphOptions& options, const T
 TGraphEntityId ComputationGraphId(const TComputationId& computationId, const TPipelineComputationDescription& computation)
 {
     return computation.Id.Underlying().empty() ? MakeComputationGraphId(computationId) : computation.Id;
+}
+
+// The unrolled graph's node of a computation for one (input, output) stream pair; '|' never occurs in graph ids.
+std::string MakeSubNodeId(const TGraphEntityId& computationId, const TGraphEntityId& inId, const TGraphEntityId& outId)
+{
+    return "c_" + MermaidSafeId(Format("%v|%v|%v", computationId, inId, outId));
 }
 
 // Iterate (outStreamId, inStreamId) pairs from StreamsDependency in sorted order.
@@ -357,6 +454,8 @@ std::string BuildMermaidComputationsGraph(
         b.EmitStreamNode(pipeline.Streams.at(streamId));
     }
 
+    b.EmitSourceAndSinkNodes(pipeline);
+
     // Computation nodes.
     b.Out.AppendString("  %% Computations\n");
     auto sortedComputationIds = SortedKeys(pipeline.Computations);
@@ -376,20 +475,24 @@ std::string BuildMermaidComputationsGraph(
         inputStreams.insert(inputStreams.end(), computation.SourceStreams.begin(), computation.SourceStreams.end());
         std::sort(inputStreams.begin(), inputStreams.end());
         for (const auto& streamId : inputStreams) {
-            b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), cNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
+            b.EmitEdge(MakeStreamNodeId(streamId), cNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
         }
 
         // Output edges: computation → stream.
         for (const auto& streamId : SortedElements(computation.OutputStreams)) {
-            b.EmitEdge(cNode, "s_" + MermaidSafeId(streamId.Underlying()), computation.OutputLimitStats, streamId);
+            b.EmitEdge(cNode, MakeStreamNodeId(streamId), computation.OutputLimitStats, streamId);
         }
     }
+
+    b.EmitSourceAndSinkEdges(pipeline);
 
     // Read-delay edges.
     b.Out.AppendString("  %% Read-delay edges\n");
     for (const auto& edge : pipeline.ReadDelayEdges) {
         b.EmitReadDelayEdge(edge);
     }
+
+    b.EmitDataChannelEdges(pipeline);
 
     // Styles.
     b.Out.AppendString("  %% Styles\n");
@@ -434,6 +537,8 @@ std::string BuildMermaidUnrolledGraph(
         b.EmitStreamNode(pipeline.Streams.at(streamId));
     }
 
+    b.EmitSourceAndSinkNodes(pipeline);
+
     // Computation sub-nodes.
     // - Non-empty StreamsDependency: one sub-node per (output, input) pair.
     // - Empty StreamsDependency: single node (source/sink).
@@ -450,7 +555,7 @@ std::string BuildMermaidUnrolledGraph(
             subNodes.emplace_back(baseNode, isWarning);
         } else {
             ForEachDependencyPair(computation.StreamsDependency, [&] (const auto& outId, const auto& inId) {
-                std::string nodeId = baseNode + "__i_" + MermaidSafeId(inId.Underlying()) + "__o_" + MermaidSafeId(outId.Underlying());
+                std::string nodeId = MakeSubNodeId(ComputationGraphId(computationId, computation), inId, outId);
                 b.EmitComputationNode(nodeId, computation);
                 subNodes.emplace_back(nodeId, isWarning);
             });
@@ -469,20 +574,24 @@ std::string BuildMermaidUnrolledGraph(
             inputStreams.insert(inputStreams.end(), computation.SourceStreams.begin(), computation.SourceStreams.end());
             std::sort(inputStreams.begin(), inputStreams.end());
             for (const auto& streamId : inputStreams) {
-                b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), baseNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
+                b.EmitEdge(MakeStreamNodeId(streamId), baseNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
             }
             for (const auto& streamId : SortedElements(computation.OutputStreams)) {
-                b.EmitEdge(baseNode, "s_" + MermaidSafeId(streamId.Underlying()), computation.OutputLimitStats, streamId);
+                b.EmitEdge(baseNode, MakeStreamNodeId(streamId), computation.OutputLimitStats, streamId);
             }
         } else {
             // Unrolled: input_stream → sub-node → output_stream.
             ForEachDependencyPair(computation.StreamsDependency, [&] (const auto& outId, const auto& inId) {
-                std::string cNode = baseNode + "__i_" + MermaidSafeId(inId.Underlying()) + "__o_" + MermaidSafeId(outId.Underlying());
-                b.EmitEdge("s_" + MermaidSafeId(inId.Underlying()), cNode, computation.InputLimitStats, inId, GetOrDefault(writerBlockedShares, inId, TWriterBlockedShare{}).Share);
-                b.EmitEdge(cNode, "s_" + MermaidSafeId(outId.Underlying()), computation.OutputLimitStats, outId);
+                std::string cNode = MakeSubNodeId(ComputationGraphId(computationId, computation), inId, outId);
+                b.EmitEdge(MakeStreamNodeId(inId), cNode, computation.InputLimitStats, inId, GetOrDefault(writerBlockedShares, inId, TWriterBlockedShare{}).Share);
+                b.EmitEdge(cNode, MakeStreamNodeId(outId), computation.OutputLimitStats, outId);
             });
         }
     }
+
+    b.EmitSourceAndSinkEdges(pipeline);
+
+    b.EmitDataChannelEdges(pipeline);
 
     // Styles.
     b.Out.AppendString("  %% Styles\n");
@@ -505,7 +614,7 @@ std::string BuildMermaidUnrolledGraph(
                 b.EmitClickLink(baseNode, url);
             } else {
                 ForEachDependencyPair(computation.StreamsDependency, [&] (const auto& outId, const auto& inId) {
-                    std::string nodeId = baseNode + "__i_" + MermaidSafeId(inId.Underlying()) + "__o_" + MermaidSafeId(outId.Underlying());
+                    std::string nodeId = MakeSubNodeId(ComputationGraphId(computationId, computation), inId, outId);
                     b.EmitClickLink(nodeId, url);
                 });
             }

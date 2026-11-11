@@ -274,9 +274,13 @@ void AppendPartitionStats(TPartitionsStats& stats, const TPartitionIntermediateD
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateSpecs(TPipelineSpecPtr pipelineSpec, TDynamicPipelineSpecPtr dynamicPipelineSpec, std::vector<TMessage>& messages)
+void ValidateSpecs(
+    TPipelineSpecPtr pipelineSpec,
+    TDynamicPipelineSpecPtr dynamicPipelineSpec,
+    std::vector<TMessage>& messages,
+    TParsedPipelineParameters* parsedParameters)
 {
-    auto staticSpecErrors = TRegistry::Get()->ValidatePipelineSpecParseability(ConvertTo<IMapNodePtr>(pipelineSpec));
+    auto staticSpecErrors = TRegistry::Get()->ValidatePipelineSpecParseability(ConvertTo<IMapNodePtr>(pipelineSpec), parsedParameters);
     auto dynamicSpecErrors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(pipelineSpec, ConvertTo<IMapNodePtr>(dynamicPipelineSpec));
 
     for (auto& error : staticSpecErrors) {

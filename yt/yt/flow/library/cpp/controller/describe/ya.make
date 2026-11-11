@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     common.cpp
+    data_channels.cpp
     describe_computation.cpp
     describe_computations.cpp
     describe_partition.cpp
