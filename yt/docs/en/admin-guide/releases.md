@@ -47,7 +47,7 @@ Thanks to multiple outside contributors for the active participation in {{produc
 
 {% include notitle [Tutorial](../_includes/releases/tutorial.md) %}
 
-## Task proxy
+## Task proxy {#task-proxy}
 
 {% include notitle [Task proxy](../_includes/releases/task-proxy.md) %}
 

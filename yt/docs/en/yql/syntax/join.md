@@ -416,7 +416,7 @@ When you specify the hint:
 
 | Name | Description |
 | --- | --- |
-| [`yt.JoinEnableStarJoin`](pragma/yt.md#ytjoinenablestarjoin) | Enables/disables StarJoin strategy selection (enabled by default) |
+| `yt.JoinEnableStarJoin` | Enables/disables StarJoin strategy selection (enabled by default) |
 
 ### Strategy selection sequence
 

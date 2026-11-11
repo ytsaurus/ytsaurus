@@ -396,7 +396,7 @@ FROM T1 AS a
 
 | Название | Описание |
 | --- | --- |
-| [`yt.JoinEnableStarJoin`](pragma/yt.md#ytjoinenablestarjoin) | Включает/отключает выбор стратегии StarJoin (включена по умолчанию)|
+| `yt.JoinEnableStarJoin` | Включает/отключает выбор стратегии StarJoin (включена по умолчанию)|
 
 ### Порядок выбора стратегий
 

@@ -897,7 +897,7 @@ Untag(Tagged<T, tagName>?)->T?
 
 ## TablePath {#tablepath}
 
-Доступ к текущему имени таблицы, что бывает востребовано при использовании [CONCAT](../syntax/select/concat.md#concat), [RANGE](../syntax/select/concat.md#range) и других подобных механизмов.
+Доступ к текущему имени таблицы, что бывает востребовано при использовании [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md) и других подобных механизмов.
 
 #### Сигнатура
 
@@ -964,7 +964,7 @@ SELECT TableName(Path, "yt") FROM cluster.FOLDER(folder_name);
 TableRecordIndex()->Uint64
 ```
 
-Аргументов нет. При использовании в сочетании с [CONCAT](../syntax/select/concat.md#concat), [RANGE](../syntax/select/concat.md#range) и другими подобными механизмами нумерация начинается заново для каждой таблицы на входе. В случае использования в некорректном контексте возвращает 0.
+Аргументов нет. При использовании в сочетании с [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md) и другими подобными механизмами нумерация начинается заново для каждой таблицы на входе. В случае использования в некорректном контексте возвращает 0.
 
 #### Пример
 
@@ -1022,7 +1022,7 @@ FolderPath(String)->String
 
 Аргумент — строка с префиксом среди алиасов.
 
-Также см. [PRAGMA File](../syntax/pragma/file.md#file) и [PRAGMA Folder](../syntax/pragma/file.md#folder).
+Также см. [PRAGMA File](../syntax/pragma/file.md#file){% if audience == "internal" %} и [PRAGMA Folder](../syntax/pragma/file.md#folder){% endif %}.
 
 #### Примеры
 

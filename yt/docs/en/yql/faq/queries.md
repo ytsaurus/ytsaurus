@@ -4,7 +4,7 @@
 If adding dates to your query text before execution isn't convenient, do as follows:
 
 1. Write a user-defined function (UDF) in [Python](../udf/python.md) or [C++](../udf/cpp.md) with the signature `(String)->Bool`. By the table name, this function should return TRUE only for the dates from the relevant range, using the current time or date obtained by the tools of the selected programming language.
-2. Pass this UDF to the [FILTER](../syntax/select/index.md#func_table) function, including the prefix to the log directory.
+2. Pass this UDF to the [FILTER](../syntax/select/concat.md) function, including the prefix to the log directory.
 3. Use the FILTER result anywhere where you expect a path to the input data ([FROM](../syntax/select/from.md), [PROCESS](../syntax/process.md), [REDUCE](../syntax/reduce.md))
 
 

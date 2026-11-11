@@ -1,4 +1,3 @@
 log-levels:
   YFM001: 'disabled'    # Inline code length
   YFM010: 'disabled'    # Autotitle anchor is missed
-  YFM025: 'disabled'    # Local anchor validation (temporary)

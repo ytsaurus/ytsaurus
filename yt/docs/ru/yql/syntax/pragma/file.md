@@ -1,6 +1,6 @@
 # Прагмы для работы с файлами
 
-## File
+## File {#file}
 
 | Тип значения | По умолчанию | Статическая /<br/>динамическая |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ PRAGMA FileOption("<file-name>", "bypass_artifact_cache", "true");
 ```
 
 {% if audience == "internal" %}
-## Folder
+## Folder {#folder}
 
 | Тип значения | По умолчанию | Статическая /<br/>динамическая |
 | --- | --- | --- |

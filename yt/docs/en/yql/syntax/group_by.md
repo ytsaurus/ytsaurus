@@ -282,6 +282,62 @@ GROUP BY key
 HAVING COUNT(value) > 100;
 ```
 
+## GROUP BY ... HOP {#group-by-hop}
+For RTMR, the following functionality is available for grouping a table by the values of the specified columns or expressions, as well as by a time window.
+
+If `GROUP BY` is present in the query, then when selecting columns (between `SELECT STREAM ... FROM`), **only** the following constructs are allowed:
+
+1. Columns used for grouping (present in the `GROUP BY` argument).
+1. Aggregate functions (see the next section). Columns that are **not** used for grouping can only be included as arguments of an aggregate function.
+1. Functions that return the start and end time of the current window (`HOP_START` and `HOP_END`).
+1. Arbitrary computations combining items 1–3.
+
+You can group by the result of an arbitrary expression computed from the source columns. In this case, to access the result of this expression, it's recommended to assign it a name using `AS`, see the second example.
+
+Aggregate functions automatically skip `NULL` in their arguments.
+
+Among the columns used for grouping, a `HOP` construct must be present, defining the characteristics of the time window for grouping.
+```yql
+HOP(time_extractor, hop, interval, delay)
+```
+The implemented time window variant is called a **hopping window**. This is a window that advances forward in discrete intervals (the `hop` parameter). The total window duration is set by the `interval` parameter. The `time_extractor` parameter is used to determine the time of each input event. This is an expression that depends only on the input values of the stream columns and must have the `Timestamp` type. It specifies exactly where in the input events to get the time value from.
+
+In each stream, defined by the values of all grouping columns, the window advances independently of other streams. The window's progress depends entirely on the most recent event in the stream. Since records in streams are slightly shuffled in time, a `delay` parameter has been added, allowing you to defer closing the window by the specified amount. Events arriving before the current window are ignored.
+
+The `interval` and `delay` parameters should be set as multiples of the `hop` parameter. Non-multiple intervals will be rounded down.
+
+To set `hop`, `interval`, and `delay`, use a string expression conforming to the [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) standard. This is the format used to construct the built-in `Interval` type [from a string](../builtins/basic.md#data-type-literals).
+
+The parameterless `HOP_START` and `HOP_END` functions return a value of the `Timestamp` type and correspond to the start and end of the current window, respectively.
+
+The **tumbling window**, known in other systems, is a special case of the **hopping window** where `interval` == `hop`.
+
+### Examples
+
+```yql
+SELECT STREAM
+    key,
+    COUNT(*)
+FROM my_stream
+GROUP BY
+    HOP(CAST(subkey AS Timestamp), "PT10S", "PT1M", "PT30S"),
+    key;
+-- hop = 10 seconds
+-- interval = 1 minute
+-- delay = 30 seconds
+```
+
+```yql
+SELECT STREAM
+    double_key,
+    HOP_END() as time,
+    COUNT(*) as count
+FROM my_stream
+GROUP BY
+    key + key AS double_key,
+    HOP(ts, "PT1M", "PT1M", "PT1M");
+```
+
 
 
 
