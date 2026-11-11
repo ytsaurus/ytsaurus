@@ -590,16 +590,16 @@ class TestSpecBuilders(object):
 
             assert BaseLayerDetector._get_default_layer(client, layer_type="porto") is None, "no registry, no regular"
 
-            client.create("file", "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz", recursive=True)
+            client.create("file", "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_latest", recursive=True)
             assert BaseLayerDetector._get_default_layer(client, layer_type="porto") is None, "no registry, wrong regular"
 
-            client.create("file", "//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz", recursive=True)
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            client.create("file", "//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest", recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python"
 
             # with registry
             client.create("map_node", client.config["base_layers_registry_path"], recursive=True)
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python, wrong registry"
             client.remove(client.config["base_layers_registry_path"])
 
@@ -608,7 +608,7 @@ class TestSpecBuilders(object):
                 client.config["base_layers_registry_path"],
                 ["", ""]
             )
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python, wrong registry"
 
             client.set(
@@ -619,7 +619,7 @@ class TestSpecBuilders(object):
                     }
                 }
             )
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python, wrong registry"
             assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == [], \
                 "no match"
@@ -636,7 +636,7 @@ class TestSpecBuilders(object):
                     }
                 }
             )
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "wrong python, use default form //porto_layers"
             assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == ["images/docker/image1"], \
                 "wrong python, use default from registry"
@@ -657,10 +657,10 @@ class TestSpecBuilders(object):
                 }
             )
 
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python, missed files, fallback"
             client.create("file", "//tmp/l_bionic_3.10", recursive=True)
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "regular, wrong python, missed registry file, fallback"
             client.create("file", "//tmp/l_bionic_3.11", recursive=True)
             client.create("file", "//tmp/l_bionic_latest", recursive=True)
@@ -758,7 +758,7 @@ class TestSpecBuilders(object):
 
             client.config["base_layers_registry_path"] = "//wrong_path"
 
-            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"], \
                 "ok, from //porto_layers"
             assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == [], \
                 "no docker default image without registry"

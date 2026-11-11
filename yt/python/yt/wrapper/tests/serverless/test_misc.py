@@ -1,5 +1,6 @@
 import yt.logger as yt_logger
 import yt.wrapper as yt
+from yt.wrapper.spec_builder_helpers import BaseLayerDetector
 
 from typing import get_type_hints
 from unittest import mock
@@ -75,3 +76,58 @@ def test_log_once():
         assert logger_mock.call_count == 5, "hit after clean"
         yt_logger.log_once(30, 'test1')
         assert logger_mock.call_count == 6, "miss after clean"
+
+
+@authors("pogorelov")
+@pytest.mark.parametrize("codename,layer_path", [
+    ("xenial", "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_latest"),
+    ("bionic", "//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_latest"),
+    ("focal", "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_latest"),
+    ("jammy", "//porto_layers/base/jammy/porto_layer_search_ubuntu_jammy_app_latest"),
+    ("precise", "//porto_layers/base/precise/porto_layer_search_ubuntu_precise_app_lastest.tar.gz"),
+    ("trusty", "//porto_layers/base/trusty/porto_layer_search_ubuntu_trusty_app_lastest.tar.gz"),
+    ("noble", "//porto_layers/base/noble/porto_layer_search_ubuntu_noble_app_lastest.tar.gz"),
+])
+def test_porto_base_layer_fallback(codename, layer_path):
+    client = yt.YtClient()
+    os_env = ("ubuntu", codename, None)
+    with mock.patch.object(BaseLayerDetector, "_detect_os_env", return_value=os_env), \
+            mock.patch.object(yt, "exists", side_effect=lambda path, **kwargs: path == layer_path):
+        assert BaseLayerDetector._get_default_layer(client, "porto") == [layer_path]
+
+
+@authors("pogorelov")
+def test_porto_base_layer_missing_canonical_alias():
+    client = yt.YtClient()
+    legacy_path = "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
+    os_env = ("ubuntu", "focal", None)
+    with mock.patch.object(BaseLayerDetector, "_detect_os_env", return_value=os_env), \
+            mock.patch.object(yt, "exists", side_effect=lambda path, **kwargs: path == legacy_path):
+        assert BaseLayerDetector._get_default_layer(client, "porto") is None
+
+
+@authors("pogorelov")
+def test_porto_base_layer_registry_precedes_fallback():
+    client = yt.YtClient()
+    registry = {"porto": {"//custom/python-layer": {
+        "os": "ubuntu",
+        "tags": ["os_codename=focal", "python=3.11"],
+        "base_layers": ["//custom/base-layer"],
+    }}}
+    os_env = ("ubuntu", "focal", (3, 11))
+    with mock.patch.object(BaseLayerDetector, "_detect_os_env", return_value=os_env), \
+            mock.patch.object(yt, "exists", return_value=True), \
+            mock.patch.object(yt, "get", return_value=registry):
+        assert BaseLayerDetector._get_default_layer(client, "porto") == [
+            "//custom/python-layer",
+            "//custom/base-layer",
+        ]
+
+
+@authors("pogorelov")
+def test_porto_base_layer_keeps_explicit_spec():
+    client = yt.YtClient(config={"operation_base_layer": "porto:auto"})
+    spec = {"layer_paths": ["//custom/explicit-layer"]}
+    assert BaseLayerDetector.guess_base_layers(spec, client) == {
+        "layer_paths": ["//custom/explicit-layer"],
+    }

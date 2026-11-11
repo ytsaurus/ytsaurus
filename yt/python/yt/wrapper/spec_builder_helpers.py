@@ -122,7 +122,8 @@ class BaseLayerDetector:
                 if not layer_path:
                     if python_version:
                         logger.warning("Assume default porto base layer for \"%s\".", os_codename)
-                    layer_path = ["//porto_layers/base/{}/porto_layer_search_ubuntu_{}_app_lastest.tar.gz".format(os_codename, os_codename)]
+                    suffix = "latest" if os_codename in ("xenial", "bionic", "focal", "jammy") else "lastest.tar.gz"
+                    layer_path = ["//porto_layers/base/{}/porto_layer_search_ubuntu_{}_app_{}".format(os_codename, os_codename, suffix)]
                     logger.debug("Guessed porto base layer \"%s\" (without registry)", layer_path)
 
                 if not all(map(lambda p: yt.exists(p, client=client), layer_path)):

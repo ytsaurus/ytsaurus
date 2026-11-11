@@ -330,7 +330,7 @@ public class YTsaurusClientConfig {
             this.layerPaths = List.of(
                     YPath.simple(String.format(
                             "//porto_layers/delta/jdk/jdk%d/layer_with_jdk%d_latest.tar.gz", jdkVersion, jdkVersion)),
-                    YPath.simple("//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz")
+                    YPath.simple("//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_latest")
             );
 
             this.specPatch = YTree.builder()
