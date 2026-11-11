@@ -79,12 +79,6 @@ func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *str
 	return !bytes.Equal(snapshot, current), nil
 }
 
-type jupytOpletInfo struct{}
-
-func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
-	return jupytOpletInfo{}, nil
-}
-
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
 	cmd := c.config.CommandOrDefault()
 	jupyterEnv := map[string]string{

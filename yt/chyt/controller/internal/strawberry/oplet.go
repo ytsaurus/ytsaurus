@@ -23,7 +23,6 @@ type persistentStateModification int
 
 const (
 	beginPersistentStateModification persistentStateModification = iota
-	addOpletInfo
 	addYTOpControllerSnapshot
 )
 
@@ -741,9 +740,6 @@ func (oplet *Oplet) needsModifyState() persistentStateModification {
 	if oplet.persistentState.YTOpControllerSnapshot == nil {
 		return addYTOpControllerSnapshot
 	}
-	if oplet.persistentState.OpletInfo == nil {
-		return addOpletInfo
-	}
 
 	return beginPersistentStateModification
 }
@@ -756,15 +752,6 @@ func (oplet *Oplet) modifyPersistentState(ctx context.Context, mod persistentSta
 			return err
 		}
 		oplet.persistentState.YTOpControllerSnapshot = snapshot
-	}
-
-	if mod >= addOpletInfo {
-		info, err := oplet.c.GetOpletInfo(ctx, oplet)
-		if err != nil {
-			oplet.l.Error("failet to get oplet info", log.Error(err))
-			return err
-		}
-		oplet.SetOpletInfo(info)
 	}
 
 	return nil

@@ -74,12 +74,6 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	return nil, nil
 }
 
-type livyOpletInfo struct{}
-
-func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
-	return livyOpletInfo{}, nil
-}
-
 func parseConfig(rawConfig yson.RawValue) Config {
 	var controllerConfig Config
 	if rawConfig != nil {
