@@ -5,6 +5,7 @@
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
 
 #include <yql/essentials/utils/log/proto/logger_config.pb.h>
 #include <yql/essentials/utils/log/log.h>
@@ -2058,6 +2059,445 @@ protected:
     }
 };
 
+class TGlobalWorkerManagerRuntimeFixture: public TTestBase {
+protected:
+    void TearDown() override {
+        Runtime_.Reset();
+    }
+
+    void Initialize(
+        const NProto::TDqConfig::TScheduler& schedulerConfig,
+        TVector<TResourceManagerOptions> backendOptions = {})
+    {
+        Runtime_.Reset(new NActors::TTestActorRuntimeBase(2, false));
+        GwmNodeId_ = Runtime_->GetNodeId(0);
+
+        NameserverTable_ = MakeNameserverTable(*Runtime_);
+        for (ui32 nodeIndex = 0; nodeIndex < 2; ++nodeIndex) {
+            Runtime_->AddLocalService(
+                GetNameserviceActorId(),
+                NActors::TActorSetupCmd(
+                    NYql::NDqs::CreateDynamicNameserver(NameserverTable_),
+                    NActors::TMailboxType::Simple,
+                    0),
+                nodeIndex);
+        }
+
+        Coordinator_ = MakeIntrusive<TTestCoordinationHelper>(GwmNodeId_);
+        Sensors_ = new TSensorsGroup();
+
+        Runtime_->Initialize();
+        GwmActorId_ = Runtime_->Register(CreateGlobalWorkerManager(
+            Coordinator_,
+            backendOptions,
+            CreateMetricsRegistry(Sensors_),
+            schedulerConfig,
+            TDuration::Seconds(60)));
+        Runtime_->SetScheduledEventsSelectorFunc(NActors::TTestActorRuntimeBase::DroppingScheduledEventsSelector);
+
+        NActors::TDispatchOptions bootOpts;
+        bootOpts.FinalEvents.emplace_back(NActors::TEvents::TSystem::Bootstrap, 1);
+        Runtime_->DispatchEvents(bootOpts);
+        BecomeLeader();
+    }
+
+    TString MakeLeaderAttributes(ui32 leaderNodeId) const {
+        return NYT::NodeToYsonString(
+            NYT::BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item(NCommonAttrs::ACTOR_NODEID_ATTR).Value(leaderNodeId)
+                    .Item(NCommonAttrs::HOSTNAME_ATTR).Value("localhost")
+                    .Item(NCommonAttrs::GRPCPORT_ATTR).Value("1")
+                    .Item(NCommonAttrs::REVISION_ATTR).Value(ToString(GetProgramCommitId()))
+                    .Item(NCommonAttrs::UPLOAD_EXECUTABLE_ATTR).Value("true")
+                .EndMap());
+    }
+
+    void BecomeLeader(ui32 epoch = 1) {
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            TActorId(),
+            new TEvBecomeLeader(epoch, "1", MakeLeaderAttributes(GwmNodeId_))));
+
+        const TActorId statusSender = Runtime_->AllocateEdgeActor();
+        Runtime_->Send(new IEventHandle(GwmActorId_, statusSender, new TEvClusterStatus()));
+        Runtime_->GrabEdgeEvent<TEvClusterStatusResponse>(statusSender);
+    }
+
+    TString RegisterWorker(
+        ui32 workerNodeId,
+        ui32 guidSuffix,
+        const TString& clusterName = "plato",
+        ui32 capacity = 5,
+        ui32 runningWorkers = 0,
+        bool withFile = false)
+    {
+        Yql::DqsProto::RegisterNodeRequest req;
+        req.SetCapabilities(Yql::DqsProto::RegisterNodeRequest::ECAP_RUNEXE);
+        req.SetNodeId(workerNodeId);
+        req.SetPort(1);
+        req.SetRole("worker_node");
+        req.SetAddress("Address");
+        req.SetRevision(ToString(GetProgramCommitId()));
+        req.SetRunningWorkers(runningWorkers);
+        req.SetCapacity(capacity);
+        req.SetClusterName(clusterName);
+        req.MutableKnownNodes()->Add(GwmNodeId_);
+        req.MutableKnownNodes()->Add(workerNodeId);
+        req.MutableGuid()->SetDw0(1);
+        req.MutableGuid()->SetDw1(1);
+        req.MutableGuid()->SetDw2(1);
+        req.MutableGuid()->SetDw3(guidSuffix);
+        if (withFile) {
+            req.AddFilesOnNode()->SetObjectId("file0_id");
+        }
+
+        const TActorId sender = Runtime_->AllocateEdgeActor();
+        Runtime_->Send(new IEventHandle(GwmActorId_, sender, new TEvRegisterNode(req)));
+        Runtime_->GrabEdgeEvent<TEvRegisterNodeResponse>(sender);
+        return GetGuidAsString(NYql::NDqs::NExecutionHelpers::GuidFromProto(req.GetGuid()));
+    }
+
+    size_t GetWaitListSize() {
+        const TActorId statusSender = Runtime_->AllocateEdgeActor();
+        Runtime_->Send(new IEventHandle(GwmActorId_, statusSender, new TEvClusterStatus()));
+        auto resp = Runtime_->GrabEdgeEvent<TEvClusterStatusResponse>(statusSender, TDuration::Seconds(5));
+        UNIT_ASSERT_C(resp, "TEvClusterStatusResponse timeout");
+        return resp->Get()->Record.GetResponse().WaitListSize();
+    }
+
+protected:
+    TIntrusivePtr<TTestCoordinationHelper> Coordinator_;
+    TIntrusivePtr<NActors::TTableNameserverSetup> NameserverTable_;
+    TIntrusivePtr<TSensorsGroup> Sensors_;
+    THolder<NActors::TTestActorRuntimeBase> Runtime_;
+    TActorId GwmActorId_;
+    ui32 GwmNodeId_ = 0;
+};
+
+class TGlobalWorkerManagerAllocationValidationTest: public TGlobalWorkerManagerRuntimeFixture {
+public:
+    UNIT_TEST_SUITE(TGlobalWorkerManagerAllocationValidationTest);
+    UNIT_TEST(TestZeroCountAllocationRejected)
+    UNIT_TEST_SUITE_END();
+
+    void SetUp() override {
+        Initialize({});
+        RegisterWorker(GwmNodeId_ + 1, 1, "plato", 400);
+    }
+
+    void TestZeroCountAllocationRejected() {
+        const TActorId sender = Runtime_->AllocateEdgeActor();
+        auto request = MakeHolder<TEvAllocateWorkersRequest>(0, "user");
+        request->Record.SetTraceId("zero-count");
+        Runtime_->Send(new IEventHandle(GwmActorId_, sender, request.Release()));
+
+        const auto response = Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(
+            sender,
+            TDuration::Seconds(5));
+        UNIT_ASSERT_C(response, "Zero-count allocation response timeout");
+        UNIT_ASSERT(
+            response->Get()->Record.GetError().GetStatusCode() ==
+            NYql::NDqProto::StatusIds::BAD_REQUEST);
+        UNIT_ASSERT(response->Get()->Record.GetError().GetMessage().Contains("count must be positive"));
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 0u);
+
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            sender,
+            new TEvAllocateWorkersRequest(1, "user")));
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1u);
+    }
+};
+
+class TGlobalWorkerManagerHardReserveTest: public TGlobalWorkerManagerRuntimeFixture {
+public:
+    UNIT_TEST_SUITE(TGlobalWorkerManagerHardReserveTest);
+    UNIT_TEST(TestHardReserveLifecycle)
+    UNIT_TEST(TestLeaderTransitionResetsCurrentEpochAccounting)
+    UNIT_TEST(TestCapacityShrinkKeepsLargeAccounting)
+    UNIT_TEST(TestExplicitZeroDisablesHardReserve)
+    UNIT_TEST(TestIndependentClusterReserves)
+    UNIT_TEST_SUITE_END();
+
+    void SetUp() override {
+        Initialize({MakeBackend("plato", 20)});
+    }
+
+    void TestHardReserveLifecycle() {
+        const auto largeSender = Runtime_->AllocateEdgeActor(1);
+        auto largeResponse = Allocate(7, largeSender, "large-7");
+        const ui64 largeResourceId = largeResponse->Get()->Record.GetNodes().GetResourceId();
+
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 7);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveEffectiveSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsLimit"), 8);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 1);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveProtectedFreeSlots"), 2);
+
+        const auto blockedLargeSender = Runtime_->AllocateEdgeActor(1);
+        SendAllocation(2, blockedLargeSender, "blocked-large-2");
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+
+        const auto literalSender = Runtime_->AllocateEdgeActor();
+        Allocate(1, literalSender, "literal-1");
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveProtectedFreeSlots"), 1);
+
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            largeSender,
+            new TEvFreeWorkersNotify(largeResourceId)));
+        GetWaitListSize();
+        Runtime_->Send(new IEventHandle(GwmActorId_, TActorId(), new TEvTick()));
+
+        auto resumedLargeResponse = Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(
+            blockedLargeSender,
+            TDuration::Seconds(5));
+        UNIT_ASSERT_C(resumedLargeResponse, "Blocked large request must resume after large allocation release");
+        UNIT_ASSERT_VALUES_EQUAL(resumedLargeResponse->Get()->Record.GetNodes().WorkerSize(), 2);
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 6);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveDeficit"), 0);
+
+        // A late duplicate release must not change accounting for the resumed request.
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            largeSender,
+            new TEvFreeWorkersNotify(largeResourceId)));
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 6);
+
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            GwmActorId_,
+            new TEvInterconnect::TEvNodeDisconnected(blockedLargeSender.NodeId())));
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 8);
+    }
+
+    void TestLeaderTransitionResetsCurrentEpochAccounting() {
+        const auto largeSender = Runtime_->AllocateEdgeActor();
+        const auto oldResponse = Allocate(8, largeSender, "large-before-leader-transition");
+        const ui64 oldResourceId = oldResponse->Get()->Record.GetNodes().GetResourceId();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 8);
+
+        BecomeFollower();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 0);
+
+        BecomeLeader(2);
+        RegisterWorker(GwmNodeId_ + 1, 1, "plato", 5, 4);
+        RegisterWorker(GwmNodeId_ + 2, 2, "plato", 5, 4);
+        GetWaitListSize();
+
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 8);
+
+        const auto newEpochLargeSender = Runtime_->AllocateEdgeActor();
+        const auto newResponse = Allocate(8, newEpochLargeSender, "large-after-leader-transition");
+        const ui64 newResourceId = newResponse->Get()->Record.GetNodes().GetResourceId();
+        UNIT_ASSERT(oldResourceId != newResourceId);
+        Runtime_->Send(new IEventHandle(GwmActorId_, largeSender, new TEvFreeWorkersNotify(oldResourceId)));
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 8);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 0);
+
+        const auto literalSender = Runtime_->AllocateEdgeActor();
+        Allocate(1, literalSender, "literal-after-leader-transition");
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 0);
+
+        Runtime_->Send(new IEventHandle(GwmActorId_, newEpochLargeSender, new TEvFreeWorkersNotify(newResourceId)));
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveLargeSlotsHeadroom"), 8);
+    }
+
+    void TestCapacityShrinkKeepsLargeAccounting() {
+        const auto largeSender = Runtime_->AllocateEdgeActor();
+        Allocate(8, largeSender, "large-before-shrink");
+
+        Yql::DqsProto::JobStopRequest stopRequest;
+        stopRequest.SetWorkerId(WorkerId1_);
+        stopRequest.SetForce(true);
+        Runtime_->Send(new IEventHandle(GwmActorId_, TActorId(), new TEvJobStop(stopRequest)));
+        GetWaitListSize();
+
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 8);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveEffectiveSlots"), 1);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveDeficit"), 4);
+
+        const auto blockedLargeSender = Runtime_->AllocateEdgeActor();
+        SendAllocation(2, blockedLargeSender, "large-after-shrink");
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+
+        const auto literalSender = Runtime_->AllocateEdgeActor();
+        Allocate(1, literalSender, "literal-after-shrink");
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 8);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveDeficit"), 4);
+    }
+
+    void TestExplicitZeroDisablesHardReserve() {
+        Initialize({MakeBackend("plato", 0, 0)});
+
+        const auto sender = Runtime_->AllocateEdgeActor();
+        Allocate(10, sender, "explicit-zero-large");
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveConfiguredClusters"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveEffectiveSlots"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 0);
+    }
+
+    void TestIndependentClusterReserves() {
+        Initialize({
+            MakeBackend("plato", 20, 3),
+            MakeBackend("arnold", 50, 1),
+        });
+        RegisterWorker(GwmNodeId_ + 3, 3, "arnold");
+        RegisterWorker(GwmNodeId_ + 4, 4, "arnold");
+        RegisterWorker(GwmNodeId_ + 5, 5, "unconfigured");
+        GetWaitListSize();
+
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveConfiguredClusters"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveEffectiveSlots"), 8);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("plato", "LiteralHardReserveEffectiveSlots"), 3);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("arnold", "LiteralHardReserveEffectiveSlots"), 5);
+
+        const auto platoLargeSender = Runtime_->AllocateEdgeActor();
+        Allocate(7, platoLargeSender, "plato-large-7", {"plato", "plato", "plato", "plato", "plato", "plato", "plato"});
+
+        const auto blockedPlatoSender = Runtime_->AllocateEdgeActor();
+        SendAllocation(2, blockedPlatoSender, "blocked-plato-2", {"plato", "plato"});
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+
+        const auto arnoldLargeSender = Runtime_->AllocateEdgeActor();
+        Allocate(2, arnoldLargeSender, "arnold-large-2", {"arnold", "arnold"});
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+
+        const auto platoLiteralSender = Runtime_->AllocateEdgeActor();
+        Allocate(1, platoLiteralSender, "plato-literal", {"plato"});
+        UNIT_ASSERT_VALUES_EQUAL(GetWaitListSize(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("plato", "LiteralHardReserveCurrentEpochLargeSlots"), 7);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("arnold", "LiteralHardReserveCurrentEpochLargeSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("plato", "LiteralHardReserveProtectedFreeSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("arnold", "LiteralHardReserveProtectedFreeSlots"), 5);
+
+        Initialize({
+            MakeBackend("plato", 0, 2),
+            MakeBackend("arnold", 0, 2),
+        });
+        RegisterWorker(GwmNodeId_ + 3, 3, "arnold");
+        RegisterWorker(GwmNodeId_ + 4, 4, "unconfigured");
+
+        const auto sender = Runtime_->AllocateEdgeActor();
+        const auto response = Allocate(
+            4,
+            sender,
+            "mixed-cluster-large",
+            {"plato", "plato", "arnold", "unconfigured"});
+        const ui64 resourceId = response->Get()->Record.GetNodes().GetResourceId();
+        UNIT_ASSERT_VALUES_EQUAL(Metric("LiteralHardReserveCurrentEpochLargeSlots"), 3);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("plato", "LiteralHardReserveCurrentEpochLargeSlots"), 2);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("arnold", "LiteralHardReserveCurrentEpochLargeSlots"), 1);
+
+        Runtime_->Send(new IEventHandle(GwmActorId_, sender, new TEvFreeWorkersNotify(resourceId)));
+        GetWaitListSize();
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("plato", "LiteralHardReserveCurrentEpochLargeSlots"), 0);
+        UNIT_ASSERT_VALUES_EQUAL(ClusterMetric("arnold", "LiteralHardReserveCurrentEpochLargeSlots"), 0);
+    }
+
+private:
+    void Initialize(TVector<TResourceManagerOptions> backendOptions) {
+        NProto::TDqConfig::TScheduler schedulerConfig;
+        schedulerConfig.SetKeepReserveForLiteralRequests(false);
+        TGlobalWorkerManagerRuntimeFixture::Initialize(schedulerConfig, std::move(backendOptions));
+        WorkerId1_ = RegisterWorker(GwmNodeId_ + 1, 1);
+        WorkerId2_ = RegisterWorker(GwmNodeId_ + 2, 2);
+    }
+
+    static TResourceManagerOptions MakeBackend(
+        const TString& clusterName,
+        ui32 percent,
+        ui64 minSlots = 0)
+    {
+        TResourceManagerOptions options;
+        options.YtBackend.SetClusterName(clusterName);
+        options.YtBackend.SetDqLiteralReservePercent(percent);
+        options.YtBackend.SetDqLiteralReserveMinSlots(minSlots);
+        return options;
+    }
+
+    void BecomeFollower() {
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            TActorId(),
+            new TEvBecomeFollower(MakeLeaderAttributes(GwmNodeId_ + 100))));
+        const auto sender = Runtime_->AllocateEdgeActor();
+        Runtime_->Send(new IEventHandle(GwmActorId_, sender, new TEvGetMasterRequest()));
+        Runtime_->GrabEdgeEvent<TEvGetMasterResponse>(sender);
+    }
+
+    THolder<TEvAllocateWorkersRequest> MakeAllocation(ui32 count, const TString& traceId) const {
+        auto request = MakeHolder<TEvAllocateWorkersRequest>(count, "user");
+        request->Record.SetTraceId(traceId);
+        request->Record.SetCreateComputeActor(false);
+        return request;
+    }
+
+    void SendAllocation(
+        ui32 count,
+        const TActorId& sender,
+        const TString& traceId,
+        std::initializer_list<TString> clusters = {})
+    {
+        auto request = MakeAllocation(count, traceId);
+        for (const auto& cluster : clusters) {
+            request->Record.AddWorkerFilterPerTask()->SetClusterName(cluster);
+        }
+        Runtime_->Send(new IEventHandle(
+            GwmActorId_,
+            sender,
+            request.Release()));
+    }
+
+    TEvAllocateWorkersResponse::TPtr Allocate(
+        ui32 count,
+        const TActorId& sender,
+        const TString& traceId,
+        std::initializer_list<TString> clusters = {})
+    {
+        SendAllocation(count, sender, traceId, clusters);
+        GetWaitListSize();
+        Runtime_->Send(new IEventHandle(GwmActorId_, TActorId(), new TEvTick()));
+        auto response = Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(sender, TDuration::Seconds(5));
+        UNIT_ASSERT_C(response, "Allocation response timeout for " << traceId);
+        UNIT_ASSERT_C(response->Get()->Record.GetNodes().WorkerSize() == count,
+            "Unexpected allocation response for " << traceId << ": " << response->Get()->Record.ShortDebugString());
+        GetWaitListSize();
+        return response;
+    }
+
+    ui64 Metric(const TString& name) const {
+        return *Sensors_
+            ->GetSubgroup("counters", "gwm")
+            ->GetSubgroup("component", "scheduler")
+            ->GetCounter(name);
+    }
+
+    ui64 ClusterMetric(const TString& clusterName, const TString& name) const {
+        return *Sensors_
+            ->GetSubgroup("counters", "gwm")
+            ->GetSubgroup("component", "scheduler")
+            ->GetSubgroup("ClusterName", clusterName)
+            ->GetCounter(name);
+    }
+
+private:
+    TString WorkerId1_;
+    TString WorkerId2_;
+};
+
 class TGlobalWorkerManagerDisconnectTest: public TGlobalWorkerManagerTest {
 public:
     UNIT_TEST_SUITE(TGlobalWorkerManagerDisconnectTest);
@@ -2293,4 +2733,6 @@ UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerStartFollowerTest)
 UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerForwardedExeFileTest)
 UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerQueueProcessingTest)
 UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerQueueLimitsTest)
+UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerAllocationValidationTest)
+UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerHardReserveTest)
 UNIT_TEST_SUITE_REGISTRATION(TGlobalWorkerManagerDisconnectTest)

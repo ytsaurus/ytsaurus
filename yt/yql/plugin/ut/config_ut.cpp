@@ -1,7 +1,10 @@
 #include <yt/yql/plugin/config.h>
 
+#include <yt/yql/providers/dq/config/config.pb.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -28,7 +31,41 @@ TDQYTBackendPtr ParseBackend(ui32 jobsPerOperation = 5, i32 workerCapacity = 24,
     })", jobsPerOperation, workerCapacity, cpuLimit)));
 }
 
+NYql::NProto::TDqConfig::TYtBackend BackendConfigToProto(const TDQYTBackendPtr& config)
+{
+    TProtobufWriterOptions options;
+    options.ConvertSnakeToCamelCase = true;
+    NYql::NProto::TDqConfig::TYtBackend backend;
+    backend.ParseFromStringOrThrow(YsonStringToProto(
+        ConvertToYsonString(config),
+        ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
+        options));
+    return backend;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TDqConfigValidationTest, PreservesLiteralReserveInProtobuf)
+{
+    const auto config = ConvertTo<TDQYTBackendPtr>(TYsonString(TString(R"({
+        cluster_name="local";
+        max_jobs=0;
+        token_file="/tmp/token";
+        dq_literal_reserve_percent=20;
+        dq_literal_reserve_min_slots=7;
+    })")));
+
+    const auto backend = BackendConfigToProto(config);
+    EXPECT_EQ(backend.GetDqLiteralReservePercent(), 20u);
+    EXPECT_EQ(backend.GetDqLiteralReserveMinSlots(), 7u);
+}
+
+TEST(TDqConfigValidationTest, DefaultsLiteralReserveToZeroInProtobuf)
+{
+    const auto backend = BackendConfigToProto(ParseBackend());
+    EXPECT_EQ(backend.GetDqLiteralReservePercent(), 0u);
+    EXPECT_EQ(backend.GetDqLiteralReserveMinSlots(), 0u);
+}
 
 TEST(TDqConfigValidationTest, AcceptsConsistentJobCounts)
 {

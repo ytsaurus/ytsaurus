@@ -4,6 +4,7 @@ SRCS(
     coordination_helper_common.cpp
     dq_warmup_common.cpp
     global_worker_manager.cpp
+    literal_requests_hard_reserve.cpp
     service_node_pinger.cpp
     worker_filter.cpp
     workers_storage.cpp

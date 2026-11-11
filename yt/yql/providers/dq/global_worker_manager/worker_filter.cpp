@@ -39,6 +39,13 @@ bool TWorkerFilter::MatchHost(const NDqs::TWorkerInfo::TPtr& workerInfo) const {
     return true;
 }
 
+bool TWorkerFilter::HasSameMandatoryHostFilter(const TWorkerFilter& other) const {
+    return Filter.GetRevision() == other.Filter.GetRevision() &&
+        Filter.GetClusterName() == other.Filter.GetClusterName() &&
+        Addresses == other.Addresses &&
+        NodeIds == other.NodeIds;
+}
+
 TWorkerFilter::EMatchStatus TWorkerFilter::Match(const TWorkerInfo::TPtr& workerInfo, int taskId, TStats* stats) const {
     bool allExists = true;
     bool partial = false;

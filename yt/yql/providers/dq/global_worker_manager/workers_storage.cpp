@@ -5,6 +5,8 @@
 
 #include <util/generic/scope.h>
 
+#include <algorithm>
+
 namespace NYql {
 
 using namespace NDqs;
@@ -13,7 +15,11 @@ using namespace NMonitoring;
 using EFileType = Yql::DqsProto::TFile::EFileType;
 using TFileResource = Yql::DqsProto::TFile;
 
-TWorkersStorage::TWorkersStorage(ui32 nodeId, TSensorsGroupPtr metrics, TSensorsGroupPtr workerMetrics)
+TWorkersStorage::TWorkersStorage(
+    ui32 nodeId,
+    TSensorsGroupPtr metrics,
+    TSensorsGroupPtr workerMetrics,
+    bool trackSlotsSnapshot)
     : NodeId(nodeId)
     , Metrics(std::move(metrics))
     , WorkerMetrics(std::move(workerMetrics))
@@ -25,12 +31,14 @@ TWorkersStorage::TWorkersStorage(ui32 nodeId, TSensorsGroupPtr metrics, TSensors
     , WorkersSize(nullptr)
     , FreeListSize(nullptr)
     , GlobalResources(Metrics)
+    , TrackSlotsSnapshot(trackSlotsSnapshot)
 {
     NodeIds.resize(65536);
 }
 
 void TWorkersStorage::Clear()
 {
+    SlotsSnapshot = {};
     Workers.clear();
     FreeList.clear();
     FileToWorkers.clear();
@@ -47,6 +55,63 @@ TList<TWorkerInfo::TPtr> TWorkersStorage::GetList() {
     }
 
     return workers;
+}
+
+const TWorkersStorage::TSlotsSnapshot& TWorkersStorage::GetSlotsSnapshot() const
+{
+    return SlotsSnapshot;
+}
+
+TWorkersStorage::TWorkerSlots TWorkersStorage::GetSchedulableSlots(
+    const TWorkerInfo::TPtr& workerInfo) const
+{
+    if (!TrackSlotsSnapshot || workerInfo->IsDead || workerInfo->Stopping) {
+        return {};
+    }
+    const ui64 capacity = workerInfo->Capacity;
+    const ui64 running = std::clamp<i64>(workerInfo->RunningRequests, 0, workerInfo->Capacity);
+    return {
+        .Capacity = capacity,
+        .Free = capacity - running,
+    };
+}
+
+void TWorkersStorage::UpdateSlotsSnapshot(
+    const TWorkerInfo::TPtr& workerInfo,
+    const TWorkerSlots& before)
+{
+    if (!TrackSlotsSnapshot) {
+        return;
+    }
+
+    const auto after = GetSchedulableSlots(workerInfo);
+    Y_ABORT_UNLESS(SlotsSnapshot.Capacity >= before.Capacity);
+    Y_ABORT_UNLESS(SlotsSnapshot.Free >= before.Free);
+    SlotsSnapshot.Capacity -= before.Capacity;
+    SlotsSnapshot.Free -= before.Free;
+    SlotsSnapshot.Capacity += after.Capacity;
+    SlotsSnapshot.Free += after.Free;
+
+    auto& cluster = SlotsSnapshot.Clusters[workerInfo->ClusterName];
+    Y_ABORT_UNLESS(cluster.Capacity >= before.Capacity);
+    Y_ABORT_UNLESS(cluster.Free >= before.Free);
+    cluster.Capacity -= before.Capacity;
+    cluster.Free -= before.Free;
+    cluster.Capacity += after.Capacity;
+    cluster.Free += after.Free;
+    if (cluster.Capacity == 0) {
+        Y_ABORT_UNLESS(cluster.Free == 0);
+        SlotsSnapshot.Clusters.erase(workerInfo->ClusterName);
+    }
+}
+
+void TWorkersStorage::SetStopping(const TWorkerInfo::TPtr& workerInfo, bool stopping)
+{
+    if (workerInfo->Stopping != stopping) {
+        const auto before = GetSchedulableSlots(workerInfo);
+        workerInfo->Stopping = stopping;
+        UpdateSlotsSnapshot(workerInfo, before);
+    }
 }
 
 static void AddWorkerToFileIndex(
@@ -100,12 +165,14 @@ std::tuple<TWorkerInfo::TPtr, bool> TWorkersStorage::CreateOrUpdate(ui32 nodeId,
                 Workers[workerId] = workerInfo;
                 FreeList.insert(workerInfo);
                 AddWorkerToFileIndex(FileToWorkers, workerInfo);
+                UpdateSlotsSnapshot(workerInfo, {});
                 needResume = true;
                 break;
             }
         }
     } else {
         workerInfo = maybeWorker->second;
+        const auto slotsBeforeUpdate = GetSchedulableSlots(workerInfo);
         FreeList.erase(workerInfo);
         // Snapshot old file set before Update so we can diff for the index.
         THashSet<TString> oldFiles = workerInfo->GetResources();
@@ -131,6 +198,7 @@ std::tuple<TWorkerInfo::TPtr, bool> TWorkersStorage::CreateOrUpdate(ui32 nodeId,
         if (workerInfo->RunningRequests < workerInfo->Capacity) {
             FreeList.insert(workerInfo);
         }
+        UpdateSlotsSnapshot(workerInfo, slotsBeforeUpdate);
     }
 
     return std::make_tuple(workerInfo, needResume);
@@ -158,7 +226,9 @@ void TWorkersStorage::CheckZombie(ui32 nodeId, TGUID workerId, Yql::DqsProto::Re
             NodeIds[nodeId] = std::make_pair(workerId, request.GetStartTime());
             auto maybeWorker = Workers.find(oldWorkerId);
             if (maybeWorker != Workers.end()) {
+                const auto before = GetSchedulableSlots(maybeWorker->second);
                 maybeWorker->second->OnDead();
+                UpdateSlotsSnapshot(maybeWorker->second, before);
             }
         } else {
             // Ping from old node
@@ -178,7 +248,9 @@ void TWorkersStorage::CleanUp(TInstant now, TDuration duration) {
 
             deadWorkers.push_back(k);
             downloadList.insert(v->GetDownloadList().begin(), v->GetDownloadList().end());
+            const auto before = GetSchedulableSlots(v);
             v->OnDead();
+            UpdateSlotsSnapshot(v, before);
         }
     }
 
@@ -210,7 +282,9 @@ void TWorkersStorage::DropWorker(TInstant now, TGUID workerId) {
     if (it != Workers.end()) {
         RemoveWorkerFromFileIndex(FileToWorkers, it->second);
         FreeList.erase(it->second);
+        const auto before = GetSchedulableSlots(it->second);
         it->second->OnDead();
+        UpdateSlotsSnapshot(it->second, before);
         Workers.erase(it);
     }
 }
@@ -219,9 +293,235 @@ void TWorkersStorage::FreeWorker(TInstant now, const TWorkerInfo::TPtr& worker) 
     Y_UNUSED(now);
 
     FreeList.erase(worker);
+    const auto before = GetSchedulableSlots(worker);
     if (worker->Release()) {
         FreeList.insert(worker);
     }
+    UpdateSlotsSnapshot(worker, before);
+}
+
+static ui64 GetClusterBudget(
+    const TWorkerInfo::TPtr& workerInfo,
+    const TWorkersStorage::TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster)
+{
+    if (!largeSlotsBudgetByCluster) {
+        return std::numeric_limits<ui64>::max();
+    }
+    const auto it = largeSlotsBudgetByCluster->find(workerInfo->ClusterName);
+    return it == largeSlotsBudgetByCluster->end()
+        ? std::numeric_limits<ui64>::max()
+        : it->second;
+}
+
+static void ConsumeClusterBudget(
+    const TWorkerInfo::TPtr& workerInfo,
+    ui64 slots,
+    TWorkersStorage::TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster)
+{
+    if (!largeSlotsBudgetByCluster) {
+        return;
+    }
+    const auto it = largeSlotsBudgetByCluster->find(workerInfo->ClusterName);
+    if (it != largeSlotsBudgetByCluster->end()) {
+        Y_ABORT_UNLESS(it->second >= slots);
+        it->second -= slots;
+    }
+}
+
+struct TWorkersStorage::TAllocationBudget
+{
+    TLargeSlotsBudgetByCluster SlotsByCluster;
+    TLargeSlotsBudgetByCluster MandatorySlotsByCluster;
+
+    bool CanAllocate(const TWorkerInfo::TPtr& workerInfo, const TWorkerFilter& filter) const
+    {
+        ui64 mandatorySlots = 0;
+        if (!filter.GetClusterName()) {
+            const auto mandatoryIt = MandatorySlotsByCluster.find(workerInfo->ClusterName);
+            if (mandatoryIt != MandatorySlotsByCluster.end()) {
+                mandatorySlots = mandatoryIt->second;
+            }
+        }
+        return GetClusterBudget(workerInfo, &SlotsByCluster) > mandatorySlots;
+    }
+
+    void Consume(const TWorkerInfo::TPtr& workerInfo, const TWorkerFilter& filter)
+    {
+        ConsumeClusterBudget(workerInfo, 1, &SlotsByCluster);
+        if (filter.GetClusterName()) {
+            const auto mandatoryIt = MandatorySlotsByCluster.find(filter.GetClusterName());
+            Y_ABORT_UNLESS(mandatoryIt != MandatorySlotsByCluster.end() && mandatoryIt->second != 0);
+            --mandatoryIt->second;
+        }
+    }
+};
+
+ui64 TWorkersStorage::BuildLegacyBoundedFreeList(
+    TFreeList& boundedList,
+    size_t workersCount,
+    i32 maxTasksPerWorker)
+{
+    ui64 slots = 0;
+    for (auto it = FreeList.begin(); it != FreeList.end() && boundedList.size() < workersCount; ) {
+        const auto& workerInfo = *it;
+        if (workerInfo->IsDead || workerInfo->Capacity <= workerInfo->RunningRequests) {
+            it = FreeList.erase(it);
+            continue;
+        }
+
+        const ui64 freeSlots = workerInfo->Capacity - workerInfo->RunningRequests;
+        if (freeSlots >= static_cast<ui64>(maxTasksPerWorker)) {
+            boundedList.insert(workerInfo);
+            slots += freeSlots;
+            it = FreeList.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return slots;
+}
+
+ui64 TWorkersStorage::BuildBudgetedBoundedFreeList(
+    TFreeList& boundedList,
+    size_t workersCount,
+    i32 maxTasksPerWorker,
+    const TAllocationBudget& budget,
+    const TWorkerFilter* mandatoryHostFilter,
+    const THashMap<i32, TWorkerFilter>& taskFilters)
+{
+    struct TCandidate {
+        TWorkerInfo::TPtr Worker;
+        ui64 Slots = 0;
+        size_t Order = 0;
+        bool RequiredForMandatoryTasks = false;
+    };
+
+    THashMap<TString, TVector<TCandidate>> candidatesByCluster;
+    size_t order = 0;
+    for (auto it = FreeList.begin(); it != FreeList.end(); ) {
+        const auto& workerInfo = *it;
+        if (workerInfo->IsDead || workerInfo->Capacity <= workerInfo->RunningRequests) {
+            it = FreeList.erase(it);
+            continue;
+        }
+        if (!workerInfo->Stopping &&
+            GetClusterBudget(workerInfo, &budget.SlotsByCluster) != 0 &&
+            (!mandatoryHostFilter || mandatoryHostFilter->MatchHost(workerInfo)))
+        {
+            candidatesByCluster[workerInfo->ClusterName].push_back({
+                .Worker = workerInfo,
+                .Slots = Min<ui64>(
+                    workerInfo->Capacity - workerInfo->RunningRequests,
+                    maxTasksPerWorker),
+                .Order = order,
+            });
+        }
+        ++order;
+        ++it;
+    }
+
+    // Cluster capacity cannot replace a worker required by an individual host filter.
+    // Bound this extra search just like allocation; a truncated scan proves nothing.
+    size_t hostChecks = 0;
+    size_t requiredWorkerCount = 0;
+    for (const auto& [_, filter] : taskFilters) {
+        TCandidate* unique = nullptr;
+        bool complete = true;
+        bool multiple = false;
+        for (auto& [_, candidates] : candidatesByCluster) {
+            for (auto& candidate : candidates) {
+                if (SearchComplexityLimit && hostChecks >= SearchComplexityLimit) {
+                    complete = false;
+                    break;
+                }
+                ++hostChecks;
+                if (filter.MatchHost(candidate.Worker)) {
+                    if (unique) {
+                        multiple = true;
+                        break;
+                    }
+                    unique = &candidate;
+                }
+            }
+            if (!complete || multiple) {
+                break;
+            }
+        }
+        if (!complete) {
+            break;
+        }
+        if (unique && !multiple && !unique->RequiredForMandatoryTasks) {
+            unique->RequiredForMandatoryTasks = true;
+            if (++requiredWorkerCount > workersCount) {
+                return 0;
+            }
+        }
+    }
+
+    const auto compareCandidates = [] (const TCandidate& lhs, const TCandidate& rhs) {
+        if (lhs.RequiredForMandatoryTasks != rhs.RequiredForMandatoryTasks) {
+            return lhs.RequiredForMandatoryTasks;
+        }
+        return lhs.Slots != rhs.Slots
+            ? lhs.Slots > rhs.Slots
+            : lhs.Order < rhs.Order;
+    };
+
+    TVector<TCandidate> marginalCandidates;
+    auto remainingMandatorySlots = budget.MandatorySlotsByCluster;
+    for (auto& [clusterName, clusterCandidates] : candidatesByCluster) {
+        const size_t clusterSelectedCount = Min(workersCount, clusterCandidates.size());
+        std::partial_sort(
+            clusterCandidates.begin(),
+            clusterCandidates.begin() + clusterSelectedCount,
+            clusterCandidates.end(),
+            compareCandidates);
+        ui64 remainingBudget = std::numeric_limits<ui64>::max();
+        if (const auto budgetIt = budget.SlotsByCluster.find(clusterName);
+            budgetIt != budget.SlotsByCluster.end())
+        {
+            remainingBudget = budgetIt->second;
+        }
+        const auto mandatoryIt = remainingMandatorySlots.find(clusterName);
+        ui64 mandatorySlots = mandatoryIt != remainingMandatorySlots.end() ? mandatoryIt->second : 0;
+        for (size_t i = 0; i < clusterSelectedCount; ++i) {
+            auto& candidate = clusterCandidates[i];
+            candidate.Slots = Min(candidate.Slots, remainingBudget);
+            remainingBudget -= candidate.Slots;
+            if (mandatorySlots != 0 && candidate.Slots != 0) {
+                if (!candidate.RequiredForMandatoryTasks) {
+                    candidate.RequiredForMandatoryTasks = true;
+                    ++requiredWorkerCount;
+                }
+                mandatorySlots -= Min(mandatorySlots, candidate.Slots);
+            }
+            // Zero-marginal workers may still be needed by task filters.
+            marginalCandidates.push_back(std::move(candidate));
+        }
+        if (mandatorySlots != 0 || requiredWorkerCount > workersCount) {
+            return 0;
+        }
+        remainingMandatorySlots.erase(clusterName);
+    }
+    if (!remainingMandatorySlots.empty()) {
+        return 0;
+    }
+
+    const size_t selectedCount = Min(workersCount, marginalCandidates.size());
+    std::partial_sort(
+        marginalCandidates.begin(),
+        marginalCandidates.begin() + selectedCount,
+        marginalCandidates.end(),
+        compareCandidates);
+
+    ui64 slots = 0;
+    for (size_t i = 0; i < selectedCount; ++i) {
+        const auto& candidate = marginalCandidates[i];
+        slots += candidate.Slots;
+        boundedList.insert(candidate.Worker);
+        FreeList.erase(candidate.Worker);
+    }
+    return slots;
 }
 
 TWorkersStorage::TFreeList::iterator TWorkersStorage::ProcessMatched(
@@ -230,15 +530,24 @@ TWorkersStorage::TFreeList::iterator TWorkersStorage::ProcessMatched(
     TFreeList* freeList,
     THashMap<TWorkerInfo::TPtr, int>& tasksPerWorker,
     THashMap<i32, TWorkerFilter>& tasksToAllocate,
-    int taskId)
+    int taskId,
+    TAllocationBudget* budget)
 {
     auto workerInfo = *it;
 
+    if (budget) {
+        const auto taskIt = tasksToAllocate.find(taskId);
+        Y_ABORT_UNLESS(taskIt != tasksToAllocate.end());
+        budget->Consume(workerInfo, taskIt->second);
+    }
+
     it = freeList->erase(it);
+    const auto slotsBeforeAcquire = GetSchedulableSlots(workerInfo);
     if (!workerInfo->Acquire()) {
         freeList->insert(workerInfo);
         it = freeList->begin();
     }
+    UpdateSlotsSnapshot(workerInfo, slotsBeforeAcquire);
 
     tasksPerWorker[workerInfo]++;
 
@@ -257,6 +566,7 @@ size_t TWorkersStorage::SearchFreeList(
     THashMap<i32, TWorkerFilter>& tasksToAllocate,
     THashMap<TString, THashSet<int>>& waitingResources,
     TWorkerFilter::EMatchStatus matchMode,
+    TAllocationBudget* budget,
     size_t maxOuterIters)
 {
     TWorkerFilter::TStats stats;
@@ -295,12 +605,18 @@ size_t TWorkersStorage::SearchFreeList(
             ++outerIters;
             continue;
         }
+        if (budget && GetClusterBudget(workerInfo, &budget->SlotsByCluster) == 0) {
+            ++it;
+            continue;
+        }
 
         i32 taskId = 0;
         bool ok = false;
         for (const auto& [taskId_, filter] : tasksToAllocate) {
             taskId = taskId_;
-            if ((matchMode == filter.Match(workerInfo, taskId, &stats))) {
+            if ((!budget || budget->CanAllocate(workerInfo, filter)) &&
+                matchMode == filter.Match(workerInfo, taskId, &stats))
+            {
                 ok = true;
                 break;
             }
@@ -310,7 +626,7 @@ size_t TWorkersStorage::SearchFreeList(
 
         if (ok) {
             it = ProcessMatched(
-                it, result, freeList, tasksPerWorker, tasksToAllocate, taskId);
+                it, result, freeList, tasksPerWorker, tasksToAllocate, taskId, budget);
         } else {
             ++it;
         }
@@ -329,7 +645,8 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
     const i32 maxTasksPerWorker,
     THashMap<TWorkerInfo::TPtr, int>& tasksPerWorker,
     THashMap<i32, TWorkerFilter>& tasksToAllocate,
-    THashMap<TString, THashSet<int>>& waitingResources)
+    THashMap<TString, THashSet<int>>& waitingResources,
+    TAllocationBudget* budget)
 {
     // Snapshot task IDs to avoid iterator invalidation when ProcessMatched
     // erases matched tasks from tasksToAllocate.
@@ -403,6 +720,9 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
             if (maxTasksPerWorker > 0 && tasksPerWorker[workerInfo] >= maxTasksPerWorker) {
                 continue;
             }
+            if (budget && !budget->CanAllocate(workerInfo, filter)) {
+                continue;
+            }
             if (!filter.MatchHost(workerInfo)) {
                 continue;
             }
@@ -430,7 +750,7 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
 
             // Allocate: find iterator in freeList and call ProcessMatched.
             auto freeIt = freeList->find(workerInfo);
-            ProcessMatched(freeIt, result, freeList, tasksPerWorker, tasksToAllocate, taskId);
+            ProcessMatched(freeIt, result, freeList, tasksPerWorker, tasksToAllocate, taskId, budget);
             allocated = true;
             break;
         }
@@ -444,10 +764,32 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
     return opsCount;
 }
 
-TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::TWaitInfo& waitInfo) noexcept
+TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(
+    const NDq::IScheduler::TWaitInfo& waitInfo,
+    TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster) noexcept
 {
+    bool retryWithBudgeted = false;
+    auto result = TryAllocateImpl(
+        waitInfo, largeSlotsBudgetByCluster, /*useBudgetedBoundedSelection*/ false, retryWithBudgeted);
+    if (retryWithBudgeted) {
+        // Preserve legacy placements that fit the budget. Retry with budgeted candidates
+        // after the first attempt has rolled back and restored FreeList.
+        result = TryAllocateImpl(
+            waitInfo, largeSlotsBudgetByCluster, /*useBudgetedBoundedSelection*/ true, retryWithBudgeted);
+    }
+    return result;
+}
+
+TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocateImpl(
+    const NDq::IScheduler::TWaitInfo& waitInfo,
+    TLargeSlotsBudgetByCluster* largeSlotsBudgetByCluster,
+    bool useBudgetedBoundedSelection,
+    bool& retryWithBudgeted)
+{
+    retryWithBudgeted = false;
     auto& request = waitInfo.Request;
     auto count = request.GetCount();
+    Y_ABORT_UNLESS(count != 0);
     TVector<TWorkerInfo::TPtr> result(count, nullptr);
     auto& filterPerTask = request.GetWorkerFilterPerTask();
     THashMap<i32, TWorkerFilter> tasksToAllocate;
@@ -471,6 +813,18 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
     }
 
     Y_ASSERT(tasksToAllocate.size() == count);
+
+    TAllocationBudget allocationBudget;
+    TAllocationBudget* budget = nullptr;
+    if (largeSlotsBudgetByCluster) {
+        allocationBudget.SlotsByCluster = *largeSlotsBudgetByCluster;
+        for (const auto& [_, filter] : tasksToAllocate) {
+            if (const auto& clusterName = filter.GetClusterName(); !clusterName.empty()) {
+                ++allocationBudget.MandatorySlotsByCluster[clusterName];
+            }
+        }
+        budget = &allocationBudget;
+    }
 
     auto now = TInstant::Now();
 
@@ -505,23 +859,42 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
             << ", workers limit: " << request.GetWorkersCount();
         maxTasksPerWorker = (count + request.GetWorkersCount() - 1) / request.GetWorkersCount();
         freeList = &boundedList;
-        auto slots = count;
-        slots = 0;
-
-        for (auto it = FreeList.begin(); it != FreeList.end() && freeList->size() < request.GetWorkersCount(); ) {
-            auto workerInfo = *it;
-            if (workerInfo->IsDead || workerInfo->Capacity <= workerInfo->RunningRequests) {
-                it = FreeList.erase(it);
-                continue;
-            }
-            auto freeSlots = workerInfo->Capacity - workerInfo->RunningRequests;
-            if (freeSlots >= maxTasksPerWorker) {
-                freeList->insert(workerInfo);
-                slots += freeSlots;
-                it = FreeList.erase(it);
+        ui64 slots;
+        if (budget) {
+            const bool onlyUnconfiguredMandatoryClusters = std::all_of(
+                tasksToAllocate.begin(),
+                tasksToAllocate.end(),
+                [&] (const auto& item) {
+                    const auto& clusterName = item.second.GetClusterName();
+                    return clusterName && !budget->SlotsByCluster.contains(clusterName);
+                });
+            if (onlyUnconfiguredMandatoryClusters || !useBudgetedBoundedSelection) {
+                retryWithBudgeted = !onlyUnconfiguredMandatoryClusters;
+                slots = BuildLegacyBoundedFreeList(
+                    boundedList,
+                    request.GetWorkersCount(),
+                    maxTasksPerWorker);
             } else {
-                ++it;
+                const auto& mandatoryHostFilter = tasksToAllocate.begin()->second;
+                const bool hasCommonMandatoryHostFilter = std::all_of(
+                    tasksToAllocate.begin(),
+                    tasksToAllocate.end(),
+                    [&] (const auto& item) {
+                        return mandatoryHostFilter.HasSameMandatoryHostFilter(item.second);
+                    });
+                slots = BuildBudgetedBoundedFreeList(
+                    boundedList,
+                    request.GetWorkersCount(),
+                    maxTasksPerWorker,
+                    *budget,
+                    hasCommonMandatoryHostFilter ? &mandatoryHostFilter : nullptr,
+                    tasksToAllocate);
             }
+        } else {
+            slots = BuildLegacyBoundedFreeList(
+                boundedList,
+                request.GetWorkersCount(),
+                maxTasksPerWorker);
         }
 
         if (slots < count) {
@@ -531,11 +904,27 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
                 << ", workers limit=" << request.GetWorkersCount();
             return { };
         }
+
+        if (budget) {
+            TLargeSlotsBudgetByCluster availableSlotsByCluster;
+            for (const auto& workerInfo : boundedList) {
+                if (!workerInfo->IsDead && !workerInfo->Stopping) {
+                    availableSlotsByCluster[workerInfo->ClusterName] += Min<ui64>(
+                        workerInfo->Capacity - workerInfo->RunningRequests,
+                        maxTasksPerWorker);
+                }
+            }
+            for (const auto& [clusterName, availableSlots] : availableSlotsByCluster) {
+                auto [budgetIt, inserted] = budget->SlotsByCluster.emplace(clusterName, availableSlots);
+                if (!inserted) {
+                    budgetIt->second = Min(budgetIt->second, availableSlots);
+                }
+            }
+        }
     }
 
-    // Estimate average number of file lookups per task (K).
-    // Each outer iteration (worker) costs M * K file lookups in the worst case (no match).
-    // We use this to bound outer iterations so total file lookups <= SearchComplexityLimit.
+    // Estimate file lookup work per worker from the remaining tasks.
+    // The rounded-down average is a heuristic, not a strict lookup count.
     size_t totalFiles = 0;
     for (const auto& [_, filter] : tasksToAllocate) {
         totalFiles += filter.GetFileCount();
@@ -543,9 +932,8 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
     const size_t avgFilesPerTask = tasksToAllocate.empty() ? 1
         : Max<size_t>(1, totalFiles / tasksToAllocate.size());
 
-    // Bound outer (per-worker) iterations per SearchFreeList pass:
-    //   maxOuterItersPerPass * tasksToAllocate.size() * avgFilesPerTask <= SearchComplexityLimit.
-    // Two passes (EOK + EPARTIAL) share the same per-pass cap. 0 = unlimited.
+    // Each linear pass (EOK and EPARTIAL) gets its own cap, with at least one
+    // iteration when limiting is enabled. 0 = unlimited.
     const size_t maxOuterItersPerPass = (SearchComplexityLimit > 0 && !tasksToAllocate.empty())
         ? Max<size_t>(1, SearchComplexityLimit / (tasksToAllocate.size() * avgFilesPerTask))
         : 0;
@@ -558,15 +946,15 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
     // without scanning the full FreeList.
     if (!FileToWorkers.empty()) {
         totalIters += SearchFreeListWithIndex(result, freeList, maxTasksPerWorker,
-                                              tasksPerWorker, tasksToAllocate, waitingResources);
+                                              tasksPerWorker, tasksToAllocate, waitingResources, budget);
     }
 
     // Fallback: linear scan for remaining tasks (no file filter, or index had no candidates).
     if (!tasksToAllocate.empty()) {
-        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EOK, maxOuterItersPerPass);
+        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EOK, budget, maxOuterItersPerPass);
     }
     if (!tasksToAllocate.empty()) {
-        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EPARTIAL, maxOuterItersPerPass);
+        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EPARTIAL, budget, maxOuterItersPerPass);
     }
 
     if (SearchIterationsCounter) {
@@ -576,6 +964,23 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
         *TryAllocateOverloadedCounter += 1;
         YQL_CLOG(WARN, ProviderDq) << "TryAllocate search truncated: iters=" << totalIters
             << " limit=" << maxOuterItersPerPass << " remainingTasks=" << tasksToAllocate.size();
+    }
+
+    if (!tasksToAllocate.empty()) {
+        for (const auto& workerInfo : result) {
+            if (workerInfo == nullptr) {
+                continue;
+            }
+            freeList->erase(workerInfo);
+            const auto slotsBeforeRelease = GetSchedulableSlots(workerInfo);
+            if (workerInfo->Release()) {
+                freeList->insert(workerInfo);
+            }
+            UpdateSlotsSnapshot(workerInfo, slotsBeforeRelease);
+        }
+        if (retryWithBudgeted) {
+            return {};
+        }
     }
 
     for (const auto& file : request.GetFiles()) {
@@ -590,9 +995,11 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
 
     waitInfo.ResLeft.clear();
     if (tasksToAllocate.empty()) {
+        retryWithBudgeted = false;
         auto now = TInstant::Now();
         for (const auto& workerInfo : result) {
             Y_ASSERT(workerInfo != nullptr);
+            ConsumeClusterBudget(workerInfo, 1, largeSlotsBudgetByCluster);
             workerInfo->UseCount++;
             workerInfo->RequestStartTime = now;
         }
@@ -636,35 +1043,72 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
     } else {
         YQL_CLOG(DEBUG, ProviderDq) << "Tasks left " << tasksToAllocate.size();
         // schedule downloads
-        for (const auto& workerInfo : result) {
-            if (workerInfo == nullptr) {
-                continue;
-            }
-            freeList->erase(workerInfo);
-            if (workerInfo->Release()) {
-                freeList->insert(workerInfo);
-            }
-        }
         for (const auto& [_, filter] : tasksToAllocate) {
             filter.Visit([&](const auto& file) {
                 waitInfo.ResLeft[file.GetObjectId()]++;
             });
         }
 
-        auto it = freeList->begin();
+        const auto firstDownloadTask = std::find_if(
+            tasksToAllocate.begin(), tasksToAllocate.end(), [] (const auto& task) {
+                return task.second.GetFileCount() != 0;
+            });
+        if (firstDownloadTask == tasksToAllocate.end()) {
+            return {};
+        }
+        const auto& firstFilter = firstDownloadTask->second;
+        const bool commonHostFilter = std::all_of(
+            tasksToAllocate.begin(), tasksToAllocate.end(), [&] (const auto& task) {
+                return task.second.GetFileCount() == 0 || firstFilter.HasSameMandatoryHostFilter(task.second);
+            });
+        // Prefer receivers that can extend the partial allocation. After rollback,
+        // however, that placement is only a hint: downloading to a released slot
+        // may enable a different placement on the next attempt.
+        const auto fitsPartialAllocation = [&] (const auto& worker, const auto& filter) {
+            const auto* allocatedTasks = tasksPerWorker.FindPtr(worker);
+            const int used = allocatedTasks ? *allocatedTasks : 0;
+            return worker->Capacity - worker->RunningRequests > used &&
+                (maxTasksPerWorker == 0 || used < maxTasksPerWorker) &&
+                (!budget || budget->CanAllocate(worker, filter));
+        };
+        TVector<TWorkerInfo::TPtr> downloadCandidates;
+        TVector<TWorkerInfo::TPtr> preferredCandidates;
+        for (const auto& worker : *freeList) {
+            if (!worker->IsDead && !worker->Stopping && worker->Capacity > worker->RunningRequests &&
+                GetClusterBudget(worker, largeSlotsBudgetByCluster) != 0 &&
+                (!commonHostFilter || firstFilter.MatchHost(worker)))
+            {
+                downloadCandidates.push_back(worker);
+                if (commonHostFilter && fitsPartialAllocation(worker, firstFilter)) {
+                    preferredCandidates.push_back(worker);
+                }
+            }
+        }
+        if (commonHostFilter && !preferredCandidates.empty()) {
+            downloadCandidates = std::move(preferredCandidates);
+        }
+        size_t nextCandidate = 0;
         for (const auto& [_, filter] : tasksToAllocate) {
-            if (it == freeList->end()) {
-                it = freeList->begin();
-            }
-            if (it == freeList->end()) {
-                // begin == end => no free workers
-                break;
-            }
-            const auto workerInfo = *it++;
-            if (workerInfo->Stopping) {
+            if (filter.GetFileCount() == 0) {
                 continue;
             }
-            if (!filter.MatchHost(workerInfo)) {
+            TWorkerInfo::TPtr workerInfo;
+            for (bool preferPartial : {true, false}) {
+                for (size_t checked = 0; checked < downloadCandidates.size(); ++checked) {
+                    const auto& candidate = downloadCandidates[nextCandidate];
+                    nextCandidate = (nextCandidate + 1) % downloadCandidates.size();
+                    if (commonHostFilter || (filter.MatchHost(candidate) &&
+                        (!preferPartial || fitsPartialAllocation(candidate, filter))))
+                    {
+                        workerInfo = candidate;
+                        break;
+                    }
+                }
+                if (workerInfo || commonHostFilter) {
+                    break;
+                }
+            }
+            if (!workerInfo) {
                 continue;
             }
             filter.Visit([&](const auto& file) {
@@ -709,7 +1153,6 @@ void TWorkersStorage::IsReady(const TVector<TFileResource>& resources, THashMap<
         clusterMap[workerInfo->ClusterName].second += count == int(resources.size());
     }
 };
-
 
 void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) const {
     for (const auto& [_, workerInfo] : Workers) {

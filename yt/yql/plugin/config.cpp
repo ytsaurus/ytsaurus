@@ -252,6 +252,13 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
         .Default({});
+    registrar.Parameter("dq_literal_reserve_percent", &TThis::DqLiteralReservePercent)
+        .Default(0)
+        .InRange(0, 100)
+        .DontSerializeDefault();
+    registrar.Parameter("dq_literal_reserve_min_slots", &TThis::DqLiteralReserveMinSlots)
+        .Default(0)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->ClusterName.empty()) {

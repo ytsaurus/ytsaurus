@@ -42,6 +42,8 @@ public:
     EMatchStatus Match(const NDqs::TWorkerInfo::TPtr& workerInfo, int taskId, TStats* stats) const;
     // match mandatory host-specific fields like Address, NodeId, ClusterName
     bool MatchHost(const NDqs::TWorkerInfo::TPtr& workerInfo) const;
+    bool HasSameMandatoryHostFilter(const TWorkerFilter& other) const;
+    const TString& GetClusterName() const { return Filter.GetClusterName(); }
 
     void Visit(const std::function<void(const Yql::DqsProto::TFile&)>& visitor) const;
 

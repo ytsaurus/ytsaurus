@@ -58,6 +58,8 @@ struct TDQYTBackend
     bool EnforceJobUtc;
     bool UseLocalLDLibraryPath;
     TBooleanFormula SchedulingTagFilter;
+    ui32 DqLiteralReservePercent;
+    ui64 DqLiteralReserveMinSlots;
 
     REGISTER_YSON_STRUCT(TDQYTBackend);
 
