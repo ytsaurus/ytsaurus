@@ -247,6 +247,7 @@ public:
             case EInternedAttributeKey::EphemeralSubpoolConfig:
             case EInternedAttributeKey::Abc:
             case EInternedAttributeKey::IntegralGuarantees:
+            case EInternedAttributeKey::EnableFifoChildrenReorderingForGuaranteeUtilization:
                 return true;
             default:
                 return false;
