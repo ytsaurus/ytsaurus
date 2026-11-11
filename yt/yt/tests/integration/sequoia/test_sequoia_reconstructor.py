@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, create_user, make_ace, remove, write_table,
-    start_transaction, abort_transaction, abort_all_transactions,
+    start_transaction, abort_transaction, abort_all_user_transactions,
     commit_transaction, get, lock, link, set)
 
 from sequoia_reconstructor import check_single_cell_sequoia_reconstructor
@@ -35,7 +35,7 @@ class TestSingleCellSequoiaReconstructor(YTEnvSetup):
         path = "//cypress"
         create("map_node", path, attributes={"account": "tmp"})
         yield path
-        abort_all_transactions()
+        abort_all_user_transactions()
         remove(path, recursive=True)
 
     @authors("grphil")
