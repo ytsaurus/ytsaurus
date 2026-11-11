@@ -75,6 +75,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("max_jit_stack_frame_size", &TThis::MaxJitStackFrameSize)
+        .GreaterThan(0)
+        .Optional();
 }
 
 //////////////////////////////////////////////////////////////////////

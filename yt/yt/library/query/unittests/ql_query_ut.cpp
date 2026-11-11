@@ -12749,6 +12749,46 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
     }
 }
 
+TEST_F(TQueryEvaluateTest, BigJitStackFrame)
+{
+    auto split = MakeSplit({{"var", EValueType::String}});
+    auto source = TSource{"var=\"abacaba\""};
+
+    int termCount = 1000;
+
+    TStringBuilder stringBuilder;
+    stringBuilder.AppendString("* FROM [//t] WHERE ");
+    auto makeBalancedPredicate = [&] (auto& self, int from, int to) -> void {
+        if (to - from == 1) {
+            stringBuilder.AppendFormat(
+                "is_prefix(\"client_%v/gen\", var) "
+                "and regex_full_match(\"client_%v/gen/[^/]\", var)",
+                from,
+                from);
+            return;
+        }
+        int mid = (to + from) / 2;
+        stringBuilder.AppendChar('(');
+        self(self, from, mid);
+        stringBuilder.AppendString(" OR ");
+        self(self, mid, to);
+        stringBuilder.AppendChar(')');
+    };
+
+    makeBalancedPredicate(makeBalancedPredicate, 0, termCount);
+
+    auto query = stringBuilder.Flush();
+
+    EXPECT_THROW_THAT(
+        EvaluateOnlyViaNativeExecutionBackend(
+            query,
+            split,
+            source,
+            AnyMatcher,
+            {.MaxJitStackFrameSize = 128}),
+        HasSubstr("stack frame exceeds the limit"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

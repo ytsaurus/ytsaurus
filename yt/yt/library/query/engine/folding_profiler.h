@@ -40,6 +40,7 @@ struct TQueryFoldingProfilerOptions
     NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
     NCodegen::EOptimizationLevel OptimizationLevel = NCodegen::EOptimizationLevel::Default;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+    std::optional<int> MaxJitStackFrameSize;
 };
 
 TCGQueryGenerator Profile(
