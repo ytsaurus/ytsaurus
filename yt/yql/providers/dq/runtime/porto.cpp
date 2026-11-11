@@ -4,6 +4,8 @@
 
 #include <yql/essentials/utils/yql_panic.h>
 
+#include <util/datetime/base.h>
+
 #include <util/generic/list.h>
 
 #include <util/system/fs.h>
@@ -31,20 +33,22 @@ TString PrepareTaskRunnerPorto(
     const NProto::TDqConfig::TYtBackend& config,
     const TString& fileCacheDir,
     NTaskRunnerProxy::TPipeFactoryOptions* options,
-    ETaskRunnerPortoRoot root,
     const TString& jobRootPortoCtlPath)
 {
     options->EnablePorto = config.GetEnablePorto() == "isolate";
     options->EnablePortoAnonLimitRaiseBeforeDestroy = config.GetEnablePortoAnonLimitRaiseBeforeDestroy();
     options->ContainerName = "Outer";
     options->PortoLayer.clear();
+    options->UseJobRoot = config.GetPortoLayer().empty() && !config.GetOperationLayer().empty();
 
-    if (root == ETaskRunnerPortoRoot::JobRoot && !options->EnablePorto) {
+    if (!options->EnablePorto) {
         return {};
     }
 
+    const auto startedAt = TInstant::Now();
+    YQL_CLOG(INFO, ProviderDq) << "Preparing task-runner Porto use_job_root=" << options->UseJobRoot;
     TString layerDir;
-    if (root == ETaskRunnerPortoRoot::SandboxArchives && !config.GetPortoLayer().empty()) {
+    if (!options->UseJobRoot && !config.GetPortoLayer().empty()) {
         layerDir = fileCacheDir + "/layer";
         NFs::MakeDirectoryRecursive(layerDir + "/mnt/work");
         for (const auto& layer : config.GetPortoLayer()) {
@@ -60,14 +64,13 @@ TString PrepareTaskRunnerPorto(
             }
         }
         options->PortoLayer = layerDir;
-    } else if (root == ETaskRunnerPortoRoot::SandboxArchives) {
+    } else if (!options->UseJobRoot) {
         NFs::MakeDirectoryRecursive("mnt/work");
         NFs::MakeDirectoryRecursive("usr/local/bin");
-        return {};
     }
 
-    // An empty layer selects '/' in the pipe factory: reuse the vanilla job's
-    // root populated by layer_paths, without requiring archives in its sandbox.
+    // In job-root mode YT prepares layer_paths before starting the job.
+    // No archives or mutable copy of the root are needed in its sandbox.
     const TString portoCtl = layerDir.empty() ? jobRootPortoCtlPath : layerDir + "/usr/bin/portoctl";
     if (!NFs::Exists(portoCtl)) {
         return {};
@@ -83,6 +86,8 @@ TString PrepareTaskRunnerPorto(
     YQL_ENSURE(Chmod(cachedPortoCtl.c_str(), MODE0755) == 0,
         "Cannot make cached portoctl executable: " << cachedPortoCtl);
     options->PortoCtlPath = cachedPortoCtl;
+    YQL_CLOG(INFO, ProviderDq) << "Prepared task-runner Porto use_job_root=" << options->UseJobRoot
+        << " elapsed_ms=" << (TInstant::Now() - startedAt).MilliSeconds();
     return cachedPortoCtl;
 }
 
@@ -94,6 +99,7 @@ void ConfigureTaskRunnerPorto(
         return;
     }
     YQL_CLOG(INFO, ProviderDq) << "Configure task-runner Porto container=" << options.ContainerName
+        << " use_job_root=" << options.UseJobRoot
         << " root=" << (options.PortoLayer.empty() ? "/" : options.PortoLayer);
     RunCommand(options.PortoCtlPath, {"create", options.ContainerName});
     RunCommand(options.PortoCtlPath, {"set", options.ContainerName, "enable_porto", "isolate"});

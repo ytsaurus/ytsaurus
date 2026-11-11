@@ -7,6 +7,7 @@ SRCS(
 IF (NOT OS_WINDOWS)
     PEERDIR(
         yql/essentials/public/udf/service/stub
+        yql/essentials/sql/pg_dummy
     )
 
     SRCS(

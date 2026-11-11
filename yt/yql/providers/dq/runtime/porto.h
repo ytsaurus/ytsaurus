@@ -6,17 +6,11 @@
 
 namespace NYql::NDq {
 
-enum class ETaskRunnerPortoRoot {
-    SandboxArchives,
-    JobRoot,
-};
-
 // Returns the copied portoctl path to monitor for file-cache removal, or empty.
 TString PrepareTaskRunnerPorto(
     const NProto::TDqConfig::TYtBackend& config,
     const TString& fileCacheDir,
     NTaskRunnerProxy::TPipeFactoryOptions* options,
-    ETaskRunnerPortoRoot root,
     const TString& jobRootPortoCtlPath = "/usr/bin/portoctl");
 
 void ConfigureTaskRunnerPorto(
