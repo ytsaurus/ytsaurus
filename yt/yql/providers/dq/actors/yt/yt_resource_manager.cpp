@@ -40,6 +40,7 @@ namespace NYql {
     namespace NCommonJobVars {
         const TString ACTOR_PORT("ACTOR_PORT");
         const TString GRPC_PORT("GRPC_PORT");
+        const TString MONITORING_PORT("MONITORING_PORT");
         const TString ACTOR_NODE_ID("ACTOR_NODE_ID");
         const TString LOG_LEVEL("LOG_LEVEL");
         const TString ADDRESS_RESOLVER_CONFIG("ADDRESS_RESOLVER_CONFIG");
