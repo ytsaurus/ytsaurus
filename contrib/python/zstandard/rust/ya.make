@@ -20,6 +20,10 @@ PEERDIR(
     contrib/python/zstandard/rust/native
 )
 
+IF (OS_WINDOWS)
+    LDFLAGS(ntdll.lib)
+ENDIF()
+
 SRCS(
     py_wrapper.cpp
 )
