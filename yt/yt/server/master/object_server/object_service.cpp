@@ -2329,11 +2329,19 @@ private:
         NRpc::NProto::TResponseHeader header;
         YT_VERIFY(TryParseResponseHeader(subresponseMessage, &header));
 
-        if (header.has_error() &&
-            FromProto<TError>(header.error()).FindMatching(EErrorCode::LeaderFallbackRequired))
-        {
-            ForwardSubrequestToLeader(subrequest);
-            return;
+        if (header.has_error()) {
+            auto error = FromProto<TError>(header.error());
+
+            if (error.FindMatching(EErrorCode::LeaderFallbackRequired)) {
+                ForwardSubrequestToLeader(subrequest);
+                return;
+            }
+
+            if (error.FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)) {
+                // Fail the whole batch so that the client's retrying channel can retry it.
+                Reply(error);
+                return;
+            }
         }
 
         if (subrequest->TraceContext) {
