@@ -5,9 +5,17 @@
 
 #include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
 
+#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+
+#include <library/cpp/testing/gmock_in_unittest/gmock.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
+#include <library/cpp/yson/node/node_io.h>
+
 #include <yt/yt/client/unittests/mock/transaction.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 using namespace NActors;
 using namespace NYql;
@@ -52,6 +60,81 @@ struct TLockTestRuntime {
 } // anonymous namespace
 
 Y_UNIT_TEST_SUITE(TYtLockTest) {
+
+    Y_UNIT_TEST(MissingInfoNodeRestartsLeadershipEpoch) {
+        TTestActorRuntimeBase runtime;
+        runtime.Initialize();
+        const auto ytActor = runtime.AllocateEdgeActor();
+        const auto parentActor = runtime.AllocateEdgeActor();
+        const auto lockActor = runtime.Register(
+            CreateYtLock(ytActor, "//lock", "gwm", "{}", false),
+            /*nodeIndex*/ 0,
+            /*poolId*/ 0,
+            TMailboxType::Simple,
+            /*revolvingCounter*/ 0,
+            parentActor);
+        runtime.EnableScheduleForActor(lockActor);
+
+        auto prefix = runtime.GrabEdgeEvent<TEvCreateNode>(ytActor, TDuration::Seconds(5));
+        UNIT_ASSERT(prefix);
+        runtime.Send(new IEventHandle(lockActor, ytActor, new TEvCreateNodeResponse(
+            prefix->Get()->RequestId,
+            NYT::TErrorOr<NYT::NCypressClient::TNodeId>(NYT::NCypressClient::TNodeId::Create()))));
+        auto start = runtime.GrabEdgeEvent<TEvStartTransaction>(ytActor, TDuration::Seconds(5));
+        UNIT_ASSERT(start);
+
+        const auto transactionId = NYT::NTransactionClient::TTransactionId::Create();
+        const auto lockNodeId = NYT::NCypressClient::TNodeId::Create();
+        auto transaction = NYT::New<NYT::NApi::TMockTransaction>();
+        EXPECT_CALL(*transaction, GetId())
+            .WillRepeatedly(::testing::Return(transactionId));
+        EXPECT_CALL(*transaction, CreateNode("//lock/gwm.lock", ::testing::_, ::testing::_))
+            .WillOnce(::testing::Return(NYT::MakeFuture(lockNodeId)));
+        EXPECT_CALL(*transaction, LockNode("#" + ToString(lockNodeId), ::testing::_, ::testing::_))
+            .WillOnce(::testing::Return(NYT::MakeFuture(NYT::NApi::TLockNodeResult{})));
+        EXPECT_CALL(*transaction, SubscribeAborted(::testing::_)).Times(1);
+        runtime.Send(new IEventHandle(lockActor, ytActor, new TEvStartTransactionResponse(
+            start->Get()->RequestId, NYT::TErrorOr<NYT::NApi::ITransactionPtr>(transaction))));
+
+        auto epoch = runtime.GrabEdgeEvent<TEvGetNode>(ytActor, TDuration::Seconds(5));
+        UNIT_ASSERT(epoch);
+        UNIT_ASSERT_VALUES_EQUAL("//lock/gwm/@" + NCommonAttrs::EPOCH_ATTR, std::get<0>(*epoch->Get()));
+        runtime.Send(new IEventHandle(epoch->Sender, ytActor, new TEvGetNodeResponse(
+            epoch->Get()->RequestId,
+            NYT::TErrorOr<NYT::NYson::TYsonString>(
+                NYT::TError(NYT::NYTree::EErrorCode::ResolveError, "Info node is missing")))));
+        auto info = runtime.GrabEdgeEvent<TEvCreateNode>(ytActor, TDuration::Seconds(5));
+        UNIT_ASSERT(info);
+        UNIT_ASSERT_VALUES_EQUAL("//lock/gwm", std::get<0>(*info->Get()));
+        const auto& prerequisites = std::get<2>(*info->Get()).PrerequisiteTransactionIds;
+        UNIT_ASSERT_VALUES_EQUAL(1, prerequisites.size());
+        UNIT_ASSERT_VALUES_EQUAL(ToString(transactionId), ToString(prerequisites.front()));
+        runtime.Send(new IEventHandle(info->Sender, ytActor, new TEvCreateNodeResponse(
+            info->Get()->RequestId,
+            NYT::TErrorOr<NYT::NCypressClient::TNodeId>(NYT::NCypressClient::TNodeId::Create()))));
+
+        bool epochWritten = false;
+        for (int attributeIndex = 0; attributeIndex < 2; ++attributeIndex) {
+            auto attribute = runtime.GrabEdgeEvent<TEvSetNode>(ytActor, TDuration::Seconds(5));
+            UNIT_ASSERT(attribute);
+            const auto& prerequisites = std::get<2>(*attribute->Get()).PrerequisiteTransactionIds;
+            UNIT_ASSERT_VALUES_EQUAL(1, prerequisites.size());
+            UNIT_ASSERT_VALUES_EQUAL(ToString(transactionId), ToString(prerequisites.front()));
+            if (std::get<0>(*attribute->Get()) == "//lock/gwm/@" + NCommonAttrs::EPOCH_ATTR) {
+                epochWritten = true;
+                UNIT_ASSERT_VALUES_EQUAL(1,
+                    NYT::NodeFromYsonString(std::get<1>(*attribute->Get()).ToString()).AsUint64());
+            }
+            runtime.Send(new IEventHandle(attribute->Sender, ytActor,
+                new TEvSetNodeResponse(attribute->Get()->RequestId, NYT::TErrorOr<void>())));
+        }
+        UNIT_ASSERT(epochWritten);
+
+        auto leader = runtime.GrabEdgeEvent<TEvBecomeLeader>(parentActor, TDuration::Seconds(5));
+        UNIT_ASSERT(leader);
+        UNIT_ASSERT_VALUES_EQUAL(1, leader->Get()->LeaderEpoch);
+        UNIT_ASSERT_VALUES_EQUAL(ToString(transactionId), leader->Get()->LeaderTransaction);
+    }
 
     Y_UNIT_TEST(FirstLockAttemptIsImmediate) {
         TLockTestRuntime env;

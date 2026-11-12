@@ -193,17 +193,22 @@ namespace NYql {
     private:
         struct TRecoveredOperation;
 
-        // States: Follower <-> (ListOperations -> Leader)
-
         void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
             Y_UNUSED(ctx);
 
             auto leaderAttributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
-            LeaderTransactionId = NYT::NObjectClient::TTransactionId();
 
             RM_LOG(INFO) << "Become follower, leader=" << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64()
                          << " RunningOperations=" << RunningOperations.size()
                          << " PendingNodeReleases=" << PendingNodeReleases.size();
+            ResetLeaderState();
+            Become(&TYtResourceManager::Follower);
+        }
+
+        void ResetLeaderState()
+        {
+            TimerCookieHolder.Detach();
+            LeaderTransactionId = NYT::NObjectClient::TTransactionId();
             for (const auto& [k, v] : RunningOperations) {
                 UnregisterChild(v.ActorId);
             }
@@ -220,22 +225,24 @@ namespace NYql {
             NodeIdAllocator.Clear();
             PendingNodeReleases.clear();
             ResetHealthCounters();
-            Become(&TYtResourceManager::Follower);
         }
 
         void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
             Y_UNUSED(ctx);
+            const ui32 epoch = ev->Get()->LeaderEpoch;
+            const auto transactionId = NYT::NObjectClient::TTransactionId::FromString(ev->Get()->LeaderTransaction);
+
+            // Lock reacquisition may skip BecomeFollower.
+            ResetLeaderState();
+            LeaderTransactionId = transactionId;
             RM_LOG(INFO) << "Resource manager became leader; recovering vanilla operations: epoch="
-                         << ev->Get()->LeaderEpoch
+                         << epoch
+                         << " transaction=" << ToString(LeaderTransactionId)
                          << " path=" << ClusterOperationsPath;
 
-            LeaderTransactionId = NYT::NObjectClient::TTransactionId::FromString(ev->Get()->LeaderTransaction);
-            RecoveredOperations.clear();
-            ClaimReconciliationRequests.clear();
-
+            Become(&TYtResourceManager::ListOperationsState);
             ListOperations();
             Tick();
-            Become(&TYtResourceManager::ListOperationsState);
         }
 
         STRICT_STFUNC(Follower, {
@@ -256,6 +263,7 @@ namespace NYql {
 
         STRICT_STFUNC(ListOperationsState, {
             HFunc(TEvBecomeFollower, StartFollower)
+            HFunc(TEvBecomeLeader, StartLeader)
             HFunc(TEvDropOperation, OnDropOperation)
             HFunc(TEvListNodeResponse, OnListOperations)
             HFunc(TEvGetOperationResponse, OnClaimReconciliationResponse)
@@ -269,6 +277,7 @@ namespace NYql {
 
         STRICT_STFUNC(Leader, {
             HFunc(TEvBecomeFollower, StartFollower)
+            HFunc(TEvBecomeLeader, StartLeader)
             HFunc(TEvDropOperation, OnDropOperation)
             HFunc(TEvListNodeResponse, OnListResponse)
             IgnoreFunc(TEvGetOperationResponse)
@@ -1078,7 +1087,7 @@ namespace NYql {
                 NCommonAttrs::CLUSTERNAME_ATTR,
                 NCommonAttrs::ACTOR_NODEID_ATTR,
             };
-            auto command = new TEvListNode(ClusterOperationsPath, options);
+            auto command = new TEvListNode(YtRequestId++, ClusterOperationsPath, options);
             ListOperationsRequestId = command->RequestId;
             RM_LOG(DEBUG) << "List " << ClusterOperationsPath;
             Send(YtWrapper, command);
