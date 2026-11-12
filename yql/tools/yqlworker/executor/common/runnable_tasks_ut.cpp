@@ -1,5 +1,7 @@
 #include "runnable_tasks.h"
 
+#include <yql/essentials/core/qplayer/storage/memory/yql_qstorage_memory.h>
+
 #include <library/cpp/yson/node/node.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/testing/unittest/registar.h>
@@ -22,7 +24,8 @@ public:
     TTestYqlRunnableTaskFactory()
         : TTestYqlRunnableTaskFactory([](TGatewaysConfig&) {}) {}
 
-    explicit TTestYqlRunnableTaskFactory(TGatewaysConfigModifier modifier) {
+    explicit TTestYqlRunnableTaskFactory(TGatewaysConfigModifier modifier, TTaskDataPtr taskData = {},
+            const NProto::TFunctionRegistryData* functionRegistryData = nullptr, const TQContext& qContext = {}) {
         NProto::TTaskExecutorConfig executorCfg;
         executorCfg.SetThreads(1);
         executorCfg.SetQueueMaxSize(1);
@@ -45,8 +48,8 @@ public:
         fsCfg.SetMaxSizeMb(512);
 
         auto metrics = CreateMetricsRegistry(GetSensorsRootGroup());
-        Slave_.Reset(new TYqlRunnableTaskFactory(gatewaysCfg, staticGatewaysCfg, fsCfg, executorCfg, {}, metrics));
-        Slave_->InitGateways();
+        Slave_.Reset(new TYqlRunnableTaskFactory(gatewaysCfg, staticGatewaysCfg, fsCfg, executorCfg, NProto::TDqConfig{}, metrics));
+        Slave_->InitGateways(std::move(taskData), functionRegistryData, qContext);
     }
 
     IYqlRunnableTaskPtr Create(
@@ -155,16 +158,31 @@ TTaskDataPtr MakeStrictConfigValidationTaskData(bool strict) {
     return data;
 }
 
-IYqlRunnableTaskPtr RunStrictConfigValidationTask(
+IYqlRunnableTaskPtr RunTask(
         TTestYqlRunnableTaskFactory& factory,
         NProto::ETaskAction action,
-        bool strict) {
+        TTaskDataPtr data) {
     auto counter = MakeIntrusive<TCountingWatcher>();
-    IYqlRunnableTaskPtr runnable = factory.Create(action, MakeStrictConfigValidationTaskData(strict), counter);
+    IYqlRunnableTaskPtr runnable = factory.Create(action, std::move(data), counter);
     UNIT_ASSERT(runnable->IsIdle());
     UNIT_ASSERT(runnable->Run());
     UNIT_ASSERT(runnable->IsDone());
     return runnable;
+}
+
+IYqlRunnableTaskPtr RunStrictConfigValidationTask(
+        TTestYqlRunnableTaskFactory& factory,
+        NProto::ETaskAction action,
+        bool strict) {
+    return RunTask(factory, action, MakeStrictConfigValidationTaskData(strict));
+}
+
+void AddProjectPragma(NProto::TTaskData& data, const TString& name, const TVector<TString>& values) {
+    auto* pragma = data.MutableProject()->MutableSettings()->AddPragmas();
+    pragma->SetName(name);
+    for (const auto& value : values) {
+        pragma->AddValue(value);
+    }
 }
 
 bool ContainsError(const NProto::TTaskResult& result, TStringBuf needle) {
@@ -806,6 +824,177 @@ pragma library("lib1.sql","file{$x}");
             ss << TTaskResultChanges(TTaskResultChanges::PLAN | TTaskResultChanges::REVISION);
             UNIT_ASSERT_VALUES_EQUAL(
                 ss.Str(), "0b00000000000000010001000000000000(PLAN|REVISION)");
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsApplyToStartupLibraries) {
+        auto data = MakeStrictConfigValidationTaskData(true);
+        AddProjectPragma(*data, "ClassicDivision", {"false"});
+        data->SetProgram("IMPORT project SYMBOLS $value; SELECT $value;");
+        NProto::TFunctionRegistryData registry;
+        auto* package = registry.AddPackages();
+        package->SetName("test");
+        package->SetDefaultVersion(0);
+        auto* library = package->AddLibraries();
+        library->SetName("project.sql");
+        library->SetContent("$value = 1 / 2; EXPORT $value;");
+        library->SetVersion(0);
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig&) {}, data, &registry);
+        auto actual = RunTask(factory, NProto::ETaskAction::RUN, data);
+        UNIT_ASSERT_C(actual->GetResult().GetStatus() == NProto::ETaskStatus::COMPLETED, actual->GetResult().DebugString());
+        auto expectedData = MakeStrictConfigValidationTaskData(true);
+        expectedData->SetId("expected-library-result");
+        expectedData->SetProgram("PRAGMA ClassicDivision='false'; SELECT 1 / 2;");
+        auto expected = RunTask(factory, NProto::ETaskAction::RUN, expectedData);
+        UNIT_ASSERT_C(expected->GetResult().GetStatus() == NProto::ETaskStatus::COMPLETED, expected->GetResult().DebugString());
+        const auto actualResult = NYT::NodeFromYsonString(actual->GetResult().GetResults(0));
+        const auto expectedResult = NYT::NodeFromYsonString(expected->GetResult().GetResults(0));
+        UNIT_ASSERT_EQUAL(actualResult["Write"], expectedResult["Write"]);
+    }
+
+    Y_UNIT_TEST(ReplayProjectSettingsApplyToStartupLibraries) {
+        auto storage = MakeMemoryQStorage();
+        auto writer = storage->MakeWriter("query", {});
+        writer->Put({.Component = "Facade", .Label = "ProjectSettings"},
+            "{Pragmas=[{Name=ClassicDivision;Value=[false;];};];}").GetValueSync();
+        writer->Commit().GetValueSync();
+        const TQContext replay(storage->MakeReader("query", {}));
+        for (bool changedSettings : {false, true}) {
+            auto data = MakeStrictConfigValidationTaskData(true);
+            if (changedSettings) {
+                AddProjectPragma(*data, "ClassicDivision", {"true"});
+            }
+            data->SetProgram("IMPORT project SYMBOLS $value; SELECT $value;");
+            NProto::TFunctionRegistryData registry;
+            auto* package = registry.AddPackages();
+            package->SetName("test");
+            package->SetDefaultVersion(0);
+            auto* library = package->AddLibraries();
+            library->SetName("project.sql");
+            library->SetContent("$value = 1 / 2; EXPORT $value;");
+            library->SetVersion(0);
+            TTestYqlRunnableTaskFactory factory([](TGatewaysConfig&) {}, data, &registry, replay);
+            auto actual = RunTask(factory, NProto::ETaskAction::RUN, data);
+            UNIT_ASSERT_C(actual->GetResult().GetStatus() == NProto::ETaskStatus::COMPLETED, actual->GetResult().DebugString());
+            const auto result = NYT::NodeFromYsonString(actual->GetResult().GetResults(0));
+            UNIT_ASSERT_VALUES_EQUAL(result["Write"][0]["Data"][0][0].AsString(), "0.5");
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsSqlPragmaPrecedence) {
+        TTestYqlRunnableTaskFactory factory;
+        for (bool queryOverrides : {false, true}) {
+            auto data = MakeStrictConfigValidationTaskData(true);
+            AddProjectPragma(*data, "TablePathPrefix", {"project/"});
+            data->SetProgram(TString(queryOverrides ? "PRAGMA TablePathPrefix = 'query/'; " : "")
+                + "SELECT * FROM plato.Input;");
+            auto runnable = RunTask(factory, NProto::ETaskAction::PARSE, data);
+            const auto& result = runnable->GetResult();
+            UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::COMPLETED, result.DebugString());
+            UNIT_ASSERT_VALUES_EQUAL(result.ErrorsSize(), 0);
+            UNIT_ASSERT_C(result.GetAst().Contains(queryOverrides ? "query/Input" : "project/Input"), result.GetAst());
+            if (queryOverrides) {
+                UNIT_ASSERT(!result.GetAst().Contains("project/Input"));
+            }
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsAcceptedByDifferentComponents) {
+        TTestYqlRunnableTaskFactory factory;
+        for (const auto syntax : {NProto::ESyntax::SQLv1, NProto::ESyntax::PG}) {
+            auto data = MakeStrictConfigValidationTaskData(true);
+            data->SetSyntax(syntax);
+            AddProjectPragma(*data, "ClassicDivision", {"false"});
+            AddProjectPragma(*data, "yson.Strict", {});
+            AddProjectPragma(*data, "config.flags", {"LLVM_OFF"});
+            AddProjectPragma(*data, "config.flags", {"ValidateUdf", "None"});
+            AddProjectPragma(*data, "yt.StaticPool", {"project"});
+            AddProjectPragma(*data, "plato.StaticPool", {"cluster"});
+            AddProjectPragma(*data, "dq.MaxTasksPerStage", {"1"});
+            auto runnable = RunTask(factory, NProto::ETaskAction::VALIDATE, data);
+            const auto& result = runnable->GetResult();
+            UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::COMPLETED, result.DebugString());
+            UNIT_ASSERT_VALUES_EQUAL(result.ErrorsSize(), 0);
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsUnknownNamesRespectStrictValidation) {
+        TTestYqlRunnableTaskFactory factory;
+        for (bool strict : {false, true}) {
+            for (const auto& name : {"UnknownProjectPragma", "yt.UnknownProjectPragma", "plato.UnknownProjectPragma",
+                    "dq.UnknownProjectPragma", "unregistered.Option", "yt.Bad__Name", "plato.A_B_C_D_E_F"}) {
+                auto data = MakeStrictConfigValidationTaskData(strict);
+                AddProjectPragma(*data, name, {"value"});
+                auto runnable = RunTask(factory, NProto::ETaskAction::VALIDATE, data);
+                const auto& result = runnable->GetResult();
+                UNIT_ASSERT_C(result.GetStatus() == (strict ? NProto::ETaskStatus::ERROR : NProto::ETaskStatus::COMPLETED), result.DebugString());
+                if (strict) {
+                    UNIT_ASSERT_C(ContainsError(result, name), result.DebugString());
+                } else {
+                    UNIT_ASSERT_VALUES_EQUAL(result.ErrorsSize(), 0);
+                }
+            }
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsDisallowedPragmasRespectStrictValidation) {
+        TTestYqlRunnableTaskFactory factory;
+        for (bool strict : {false, true}) {
+            for (const auto& name : {"yt._EnableDq", "plato._EnableDq", "dq._AnalyzeQueryPercentage", "config.NodesAllocationLimit"}) {
+                auto data = MakeStrictConfigValidationTaskData(strict);
+                AddProjectPragma(*data, name, {"true"});
+                auto runnable = RunTask(factory, NProto::ETaskAction::VALIDATE, data);
+                const auto& result = runnable->GetResult();
+                UNIT_ASSERT_C(result.GetStatus() == (strict ? NProto::ETaskStatus::ERROR : NProto::ETaskStatus::COMPLETED), result.DebugString());
+                if (strict) {
+                    UNIT_ASSERT_C(ContainsError(result, name), result.DebugString());
+                } else {
+                    UNIT_ASSERT_VALUES_EQUAL(result.ErrorsSize(), 0);
+                }
+            }
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsInvalidValuesAreRejected) {
+        TTestYqlRunnableTaskFactory factory;
+        for (const auto& name : {"GroupByLimit", "yt.ValidateClusters", "dq.MaxTasksPerStage"}) {
+            auto data = MakeStrictConfigValidationTaskData(true);
+            AddProjectPragma(*data, name, {"invalid"});
+            auto runnable = RunTask(factory, NProto::ETaskAction::VALIDATE, data);
+            const auto& result = runnable->GetResult();
+            UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::ERROR, result.DebugString());
+            UNIT_ASSERT_C(result.ErrorsSize() > 0, result.DebugString());
+        }
+    }
+
+    Y_UNIT_TEST(ProjectSettingsKeepStrictSqlFlagValidation) {
+        TTestYqlRunnableTaskFactory factory([](TGatewaysConfig& cfg) {
+            cfg.MutableSqlCore()->AddTranslationFlags("UnknownProjectSqlFlag");
+        });
+        auto data = MakeStrictConfigValidationTaskData(true);
+        AddProjectPragma(*data, "TablePathPrefix", {"project/"});
+        auto runnable = RunTask(factory, NProto::ETaskAction::PARSE, data);
+        const auto& result = runnable->GetResult();
+        UNIT_ASSERT_C(result.GetStatus() == NProto::ETaskStatus::ERROR, result.DebugString());
+        UNIT_ASSERT_C(ContainsError(result, "Unknown SQL flag: UnknownProjectSqlFlag"), result.DebugString());
+    }
+
+    Y_UNIT_TEST(ProjectSettingsConfigFlagsRequireAllowedName) {
+        TTestYqlRunnableTaskFactory factory;
+        for (bool strict : {false, true}) {
+            for (const TVector<TString>& values : {TVector<TString>{}, TVector<TString>{""},
+                    TVector<TString>{"UnknownProjectFlag"}, TVector<TString>{"NodesAllocationLimit", "1"}}) {
+                auto data = MakeStrictConfigValidationTaskData(strict);
+                AddProjectPragma(*data, "config.flags", values);
+                auto runnable = RunTask(factory, NProto::ETaskAction::VALIDATE, data);
+                const auto& result = runnable->GetResult();
+                UNIT_ASSERT_C(result.GetStatus() == (strict ? NProto::ETaskStatus::ERROR : NProto::ETaskStatus::COMPLETED), result.DebugString());
+                if (strict) {
+                    UNIT_ASSERT_C(ContainsError(result, "config.flags"), result.DebugString());
+                } else {
+                    UNIT_ASSERT_VALUES_EQUAL(result.ErrorsSize(), 0);
+                }
+            }
         }
     }
 

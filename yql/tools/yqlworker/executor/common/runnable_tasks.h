@@ -2,6 +2,7 @@
 
 #include <yql/tools/yqlworker/config/config.h>
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
+#include <yql/essentials/core/qplayer/storage/interface/yql_qstorage.h>
 #include <yql/tools/yqlworker/proto/function_registry.pb.h>
 #include <util/generic/ptr.h>
 #include <util/generic/noncopyable.h>
@@ -30,7 +31,7 @@ public:
     void SetFunctionRegistryData(const NProto::TFunctionRegistryData& data);
     void SetUserAffiliation(NProto::EStaffAffiliation affiliation);
     void SetGatewaysConfig(const TGatewaysConfig& gatewaysConfig);
-    void InitGateways(TTaskDataPtr taskData = nullptr, const NProto::TFunctionRegistryData* data = nullptr);
+    void InitGateways(TTaskDataPtr taskData = nullptr, const NProto::TFunctionRegistryData* data = nullptr, const TQContext& qContext = {});
     void SetMetricsDecorator(TMetricsDecorator decorator);
 
     IYqlRunnableTaskPtr Create(

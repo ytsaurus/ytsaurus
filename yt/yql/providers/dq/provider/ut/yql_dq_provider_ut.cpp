@@ -17,6 +17,7 @@
 #include <yql/essentials/providers/common/udf_resolve/yql_simple_udf_resolver.h>
 
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
+#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/counters.h>
 #include <yt/yql/providers/dq/local_gateway/yql_dq_gateway_local.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/exec/yql_dq_exectransformer.h>
@@ -214,6 +215,47 @@ bool RunDqProgram(
     }
 
     return true;
+}
+}
+
+Y_UNIT_TEST_SUITE(DqProjectSettings) {
+Y_UNIT_TEST(PrecedenceAndRestore) {
+    NYql::TGatewaysConfig config;
+    auto* flag = config.MutableDq()->AddDefaultSettings();
+    flag->SetName("MaxTasksPerStage");
+    flag->SetValue("10");
+    NYql::TProjectSettings settings;
+    settings.AddPragma("dq.MaxTasksPerStage", "0");
+    settings.AddPragma("dq.EnableInsert", TVector<TString>{});
+    settings.AddPragma("yt.Unknown", "ignored");
+    NYql::TDqConfiguration configuration(/*strictConfigValidation=*/true);
+    configuration.Init(config.GetDq(), [](const auto&) { return true; }, settings);
+    UNIT_ASSERT_VALUES_EQUAL(configuration.MaxTasksPerStage.Get().GetRef(), 0);
+    UNIT_ASSERT(configuration.EnableInsert.Get().GetRef());
+    configuration.Dispatch(NYql::NCommon::ALL_CLUSTERS, "MaxTasksPerStage", TString("20"),
+        NYql::NCommon::ISettingDispatcher::EStage::STATIC, NYql::NCommon::GetDefaultErrorCallback());
+    UNIT_ASSERT_VALUES_EQUAL(configuration.MaxTasksPerStage.Get().GetRef(), 20);
+    configuration.Restore();
+    UNIT_ASSERT_VALUES_EQUAL(configuration.MaxTasksPerStage.Get().GetRef(), 0);
+}
+
+Y_UNIT_TEST(ValidationRespectsStrictMode) {
+    for (bool strict : {false, true}) {
+        for (const auto& name : {"dq.Unknown", "dq._AnalyzeQueryPercentage", "dq.MaxTasksPerStage"}) {
+            NYql::TDqConfiguration configuration(strict);
+            NYql::TProjectSettings settings;
+            settings.AddPragma(name, "invalid");
+            if (strict && TStringBuf(name) != "dq.Unknown") {
+                UNIT_ASSERT_EXCEPTION(configuration.Init(NYql::TGatewaysConfig().GetDq(),
+                    [](const auto&) { return true; }, settings), NYql::TErrorException);
+            } else {
+                configuration.Init(NYql::TGatewaysConfig().GetDq(), [](const auto&) { return true; }, settings);
+                if (TStringBuf(name) == "dq.Unknown") {
+                    UNIT_ASSERT(!configuration.AcceptsProjectSetting(settings.Pragmas.front()));
+                }
+            }
+        }
+    }
 }
 }
 

@@ -139,6 +139,14 @@ void AddFatalMessageToTaskResult(NProto::TTaskResult* taskResult, const TString&
 
 namespace {
 
+TProjectSettings ConvertProjectSettings(const NProto::TTaskData& taskData) {
+    TProjectSettings settings;
+    for (const auto& pragma : taskData.GetProject().GetSettings().GetPragmas()) {
+        settings.AddPragma(pragma.GetName(), TVector<TString>(pragma.GetValue().begin(), pragma.GetValue().end()));
+    }
+    return settings;
+}
+
 const size_t MAX_RESULT_LIMIT = 15 << 20; // 15Mb. MongoDB has 16Mb limit for one document
 constexpr TStringBuf AST_TOO_LARGE =
     "(\n"
@@ -509,6 +517,8 @@ public:
         } else {
             ExtAddRemoteLayersProvider(programFactory, baseLayerProvider);
         }
+
+        programFactory->SetProjectSettings(ConvertProjectSettings(*TaskData));
 
         for (ui8 i = 0; i < (HiddenMode != EHiddenMode::Disable ? 2 : 1); i++) {
             bool isHidden = i == 1;
@@ -1733,6 +1743,7 @@ private:
 
     NSQLTranslation::TTranslationSettings GetSqlTranslationSettings() const {
         NSQLTranslation::TTranslationSettings settings;
+        settings.ProjectSettings = ConvertProjectSettings(*TaskData);
         settings.ClusterMapping = Clusters;
         settings.ClusterPathPrefixes = ClusterPathPrefixes;
         if (DefaultTranslationCluster) {
@@ -2213,7 +2224,7 @@ struct TYqlRunnableTaskFactory::TImpl {
         return DqCoordinator;
     }
 
-    void InitGateways(TTaskDataPtr taskData, const NProto::TFunctionRegistryData* data) {
+    void InitGateways(TTaskDataPtr taskData, const NProto::TFunctionRegistryData* data, const TQContext& qContext) {
         const bool disableAnonymousAccess = (Affiliation != NProto::EStaffAffiliation::YANDEX);
 
         DataProvidersInit.push_back(GetPgDataProviderInitializer());
@@ -2341,10 +2352,13 @@ struct TYqlRunnableTaskFactory::TImpl {
         SqlFlags = SampleSQLFlags(GatewaysConfig, taskData);
         ExtAddTranslators(ExecutorConfig.GetSparkParserPort(), TranslatorsRegistry);
 
-        InitModuleResolver(data);
+        const auto projectSettings = qContext.CanRead()
+            ? ProjectSettingsFromQContext(qContext)
+            : taskData ? ConvertProjectSettings(*taskData) : TProjectSettings{};
+        InitModuleResolver(data, projectSettings);
     }
 
-    void InitModuleResolver(const NProto::TFunctionRegistryData* data) {
+    void InitModuleResolver(const NProto::TFunctionRegistryData* data, const TProjectSettings& projectSettings) {
         LoadYqlDefaultMounts(UserData);
         ExtUserMounts(UserData);
 
@@ -2376,13 +2390,15 @@ struct TYqlRunnableTaskFactory::TImpl {
         );
 
         TModulesTable modules;
-        if (CompileLibraries(translators, UserData, LibrariesContext, modules)) {
+        if (CompileLibraries(translators, UserData, LibrariesContext, modules, /*optimize*/ true, projectSettings)) {
             ModuleResolver = std::make_shared<TModuleResolver>(translators, std::move(modules),
                 LibrariesContext.NextUniqueId, Clusters, sqlFlags);
         } else {
             ythrow yexception() << "Libraries compilation error: "
                 << LibrariesContext.IssueManager.GetIssues().ToString();
         }
+
+        ModuleResolver->SetProjectSettings(std::make_shared<const TProjectSettings>(projectSettings));
 
         // it is safe to Link mount files
         if (!ModuleResolver->Link(LibrariesContext)) {
@@ -2619,8 +2635,8 @@ TYqlRunnableTaskFactory::~TYqlRunnableTaskFactory()
 {
 }
 
-void TYqlRunnableTaskFactory::InitGateways(TTaskDataPtr taskData, const NProto::TFunctionRegistryData* data) {
-    Impl_->InitGateways(taskData, data);
+void TYqlRunnableTaskFactory::InitGateways(TTaskDataPtr taskData, const NProto::TFunctionRegistryData* data, const TQContext& qContext) {
+    Impl_->InitGateways(taskData, data, qContext);
 }
 
 void TYqlRunnableTaskFactory::SetUserAffiliation(NProto::EStaffAffiliation affiliation) {
