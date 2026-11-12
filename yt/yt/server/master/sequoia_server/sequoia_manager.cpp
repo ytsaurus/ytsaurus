@@ -276,6 +276,8 @@ private:
         SequoiaTransactionFeatures_.Store(TSequoiaTransactionFeatures{
             .UseSharedWriteLocksForCypressTransactions = config->UseSharedWriteLocksForCypressTransactions,
             .CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator = config->CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator,
+            .UseCoarseGrainedOrderingTags = config->UseCoarseGrainedOrderingTags,
+            .UseFineGrainedOrderingTags = config->UseFineGrainedOrderingTags,
         });
     }
 };

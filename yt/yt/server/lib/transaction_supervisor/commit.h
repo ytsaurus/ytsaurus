@@ -64,7 +64,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorPrepareMode, CoordinatorPrepareMode);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
-    DEFINE_BYREF_RO_PROPERTY(TStrongOrderingTagsMap, StrongOrderingTags);
+    DEFINE_BYREF_RO_PROPERTY(TCellIdToStrongOrderingTagList, StrongOrderingTags);
 
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
@@ -92,7 +92,7 @@ public:
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TStrongOrderingTagsMap strongOrderingTags,
+        TCellIdToStrongOrderingTagList strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds = {});
@@ -109,6 +109,10 @@ public:
 
     bool IsStronglyOrderedForCell(TCellId cellId) const;
     std::vector<std::string> GetStrongOrderingTagsForCell(TCellId cellId) const;
+
+    // Unfortunately, new tags can appear during the phase one of the commit, and they need
+    // to be saved.
+    void AddStrongOrderingTagsForCell(const THashSet<std::string>& tags, TCellId cellId);
 
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();

@@ -852,7 +852,7 @@ private:
             // COMPAT(h0pless): Remove this flag after 26.1.
             auto stronglyOrdered = request->strongly_ordered();
 
-            TStrongOrderingTagsMap strongOrderingTags;
+            TCellIdToStrongOrderingTagList strongOrderingTags;
             for (const auto& entry : request->strong_ordering_tags_map()) {
                 auto cellId = FromProto<TCellId>(entry.cell_id());
                 EmplaceOrCrash(strongOrderingTags, cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags()));
@@ -1205,6 +1205,8 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto commitTimestamp = request->commit_timestamp();
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
+
+            // Safe to remove after 26.3.
             auto stronglyOrdered = request->strongly_ordered();
 
             context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v@%v, StronglyOrdered: %v",
@@ -1240,6 +1242,8 @@ private:
             ValidatePeer(EPeerKind::Leader);
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+            // Safe to remove after 26.3.
             auto stronglyOrdered = request->strongly_ordered();
 
             context->SetRequestInfo("TransactionId: %v, StronglyOrdered: %v",
@@ -1425,7 +1429,7 @@ private:
         bool inheritCommitTimestamp,
         ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TStrongOrderingTagsMap strongOrderingTags,
+        TCellIdToStrongOrderingTagList strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         TMutationId mutationId,
         const TAuthenticationIdentity& identity,
@@ -1782,7 +1786,7 @@ private:
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
         auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
 
-        TStrongOrderingTagsMap strongOrderingTags;
+        TCellIdToStrongOrderingTagList strongOrderingTags;
         for (const auto& entry : request->strong_ordering_tags_map()) {
             auto cellId = FromProto<TCellId>(entry.cell_id());
             EmplaceOrCrash(strongOrderingTags, cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags()));
@@ -1813,7 +1817,7 @@ private:
 
             YT_LOG_ALERT_AND_THROW_UNLESS(
                 StrongOrderingManager_.IsUniqueClockSource(prepareTimestampClusterTag),
-                "Clocks for strong ordered transactions are not unique (TransactionId: %v, "
+                "Clocks for strongly ordered transactions are not unique (TransactionId: %v, "
                 "PrepareTimestampClusterTag: %v, ExpectedClusterTag: %v)",
                 transactionId,
                 prepareTimestampClusterTag,
@@ -1878,6 +1882,9 @@ private:
             return;
         }
 
+        commit->AddStrongOrderingTagsForCell(
+            TransactionManager_->GenerateStrongOrderingTags(transactionId),
+            SelfCellId_);
         if (commit->IsStronglyOrderedForCell(SelfCellId_)) {
             // Technically, transaction should be registered before attempting to run prepare,
             // and unregistered iff prepare fails. But since it all hapens in one mutation
@@ -1886,7 +1893,7 @@ private:
                 transactionId,
                 prepareTimestamp,
                 /*isCoordinator*/ true,
-                strongOrderingTags[SelfCellId_]);
+                commit->GetStrongOrderingTagsForCell(SelfCellId_));
         }
 
         ChangeCommitPersistentState(commit, ECommitState::Prepare);
@@ -2163,7 +2170,7 @@ private:
         if (!strongOrderingTags.empty()) {
             YT_LOG_ALERT_AND_THROW_UNLESS(
                 StrongOrderingManager_.IsUniqueClockSource(prepareTimestampClusterTag),
-                "Clocks for strong ordered transactions are not unique (TransactionId: %v, "
+                "Clocks for strongly ordered transactions are not unique (TransactionId: %v, "
                 "PrepareTimestampClusterTag: %v, ExpectedClusterTag: %v)",
                 transactionId,
                 prepareTimestampClusterTag,
@@ -2191,7 +2198,13 @@ private:
             THROW_ERROR WrapHydraError(ex);
         }
 
+        std::ranges::move(
+            TransactionManager_->GenerateStrongOrderingTags(transactionId),
+            std::back_inserter(strongOrderingTags));
+
         if (!strongOrderingTags.empty()) {
+            SortUnique(strongOrderingTags);
+
             StrongOrderingManager_.OnCommitPrepare(
                 transactionId,
                 prepareTimestamp,
@@ -2236,7 +2249,7 @@ private:
 
         YT_LOG_ALERT_AND_THROW_UNLESS(
             StrongOrderingManager_.IsUniqueClockSource(commitTimestampClusterTag),
-            "Clocks for strong ordered transactions are not unique (TransactionId: %v, "
+            "Clocks for strongly ordered transactions are not unique (TransactionId: %v, "
             "CommitTimestampClusterTag: %v, ExpectedClusterTag: %v)",
             transactionId,
             commitTimestampClusterTag,
@@ -2266,12 +2279,11 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
         auto commitTimestampClusterTag = FromProto<TClusterTag>(request->commit_timestamp_cluster_tag());
-        auto stronglyOrdered = request->strongly_ordered();
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
-        if (stronglyOrdered) {
+        if (StrongOrderingManager_.IsTransactionPresent(transactionId)) {
             auto state = InvokeAndWrapHydraException(
                 &ITransactionManager::GetTransactionStateOrThrow,
                 TransactionManager_,
@@ -2292,7 +2304,7 @@ private:
 
             YT_LOG_ALERT_AND_THROW_UNLESS(
                 StrongOrderingManager_.IsUniqueClockSource(commitTimestampClusterTag),
-                "Clocks for strong ordered transactions are not unique (TransactionId: %v, "
+                "Clocks for strongly ordered transactions are not unique (TransactionId: %v, "
                 "CommitTimestampClusterTag: %v, ExpectedClusterTag: %v)",
                 transactionId,
                 commitTimestampClusterTag,
@@ -2370,11 +2382,10 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto stronglyOrdered = request->strongly_ordered();
-
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
+        auto stronglyOrdered = StrongOrderingManager_.IsTransactionPresent(transactionId);
         if (stronglyOrdered) {
             auto state = InvokeAndWrapHydraException(
                 &ITransactionManager::GetTransactionStateOrThrow,
@@ -2404,7 +2415,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_EVENT(
                 Logger(),
-                stronglyOrdered ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Debug,
+                stronglyOrdered ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Debug,
                 ex,
                 "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -2458,7 +2469,7 @@ private:
         bool inheritCommitTimestamp,
         ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TStrongOrderingTagsMap strongOrderingTags,
+        TCellIdToStrongOrderingTagList strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds)
@@ -2494,7 +2505,7 @@ private:
         bool inheritCommitTimestamp,
         ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TStrongOrderingTagsMap strongOrderingTags,
+        TCellIdToStrongOrderingTagList strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity)
     {

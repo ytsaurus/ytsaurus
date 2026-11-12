@@ -133,6 +133,11 @@ public:
         return OKFuture;
     }
 
+    THashSet<std::string> GenerateStrongOrderingTags(TTransactionId /*transactionId*/) override
+    {
+        return {};
+    }
+
     void PrepareTransactionCommit(
         TTransactionId transactionId,
         const TTransactionPrepareOptions& options) override

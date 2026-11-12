@@ -220,6 +220,8 @@ def get_dynamic_master_config():
             "wrap_object_service_execute_into_sequoia_transaction": True,
             "enable_sequoia_revisions": True,
             "enable_prelock_tracker": True,
+            "use_coarse_grained_ordering_tags": False,
+            "use_fine_grained_ordering_tags": True,
         },
 
         "cell_master": {

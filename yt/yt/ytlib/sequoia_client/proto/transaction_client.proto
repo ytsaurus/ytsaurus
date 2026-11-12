@@ -70,6 +70,8 @@ message TSequoiaTransactionFeatures
 {
     optional bool use_shared_write_locks_for_cypress_transactions = 1 [default = true];
     optional bool coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator = 2 [default = false];
+    optional bool use_coarse_grained_ordering_tags = 3 [default = true];
+    optional bool use_fine_grained_ordering_tags = 4 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

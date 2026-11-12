@@ -59,27 +59,35 @@ DEFINE_ENUM(EGroundUpdateQueue,
 
 namespace NRecords {
 
-struct TAcls;
+#define FOR_EACH_RECORD(record) \
+    record(Acls) \
+    record(PathToNodeId) \
+    record(NodeIdToPath) \
+    record(ChildNode) \
+    record(ChunkReplicas) \
+    record(LocationReplicas) \
+    record(UnapprovedChunkReplicas) \
+    record(Transaction) \
+    record(TransactionDescendant) \
+    record(TransactionReplica) \
+    record(DependentTransaction) \
+    record(DoomedTransaction) \
+    record(NodeFork) \
+    record(PathFork) \
+    record(ChildFork) \
+    record(NodeSnapshot) \
+    record(SequoiaResponseKeeper)
 
-struct TPathToNodeId;
-struct TNodeIdToPath;
-struct TChildNode;
+#define DECLARE_RECORD_AND_KEY(recordName) \
+    struct T##recordName; \
+    struct T##recordName##Key;
 
-struct TChunkReplicas;
-struct TLocationReplicas;
-struct TUnapprovedChunkReplicas;
+FOR_EACH_RECORD(DECLARE_RECORD_AND_KEY)
+#undef DECLARE_RECORD_AND_KEY
+#undef FOR_EACH_RECORD
 
-struct TTransaction;
-struct TTransactionDescendant;
-struct TTransactionReplica;
-struct TDependentTransaction;
-
-struct TNodeFork;
-struct TPathFork;
-struct TChildFork;
-struct TNodeSnapshot;
-
-struct TSequoiaResponseKeeper;
+// Chunk refresh queue has no key.
+struct TChunkRefreshQueue;
 
 } // namespace NRecords
 
@@ -126,6 +134,14 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EForkKind,
     ((Tombstone)    (1))
     ((Snapshot)     (2))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStrongOrderingTags
+{
+    THashSet<std::string> UniversalTags;
+    THashMap<NObjectClient::TCellTag, THashSet<std::string>> CellTagToTags;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

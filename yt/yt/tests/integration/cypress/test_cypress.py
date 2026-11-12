@@ -58,6 +58,48 @@ class TestCypressRootCreationTime(YTEnvSetup):
         assert creation_time == get("//@creation_time")
 
 
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestCypressConfig(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_CELLS = 1
+    NUM_NODES = 0
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    @authors("h0pless")
+    def test_strong_ordering_tags_config(self):
+        initial_config = get("//sys/@config/sequoia_manager")
+
+        # Expected initial configuration.
+        assert not get("//sys/@config/sequoia_manager/use_coarse_grained_ordering_tags")
+        assert get("//sys/@config/sequoia_manager/use_fine_grained_ordering_tags")
+
+        try:
+            # Both true.
+            set("//sys/@config/sequoia_manager/use_coarse_grained_ordering_tags", True)
+            # Inverted.
+            set("//sys/@config/sequoia_manager/use_fine_grained_ordering_tags", False)
+            # Both false.
+            with raises_yt_error("Cannot disable both coarse and fine grained strong ordering tags"):
+                set("//sys/@config/sequoia_manager/use_coarse_grained_ordering_tags", False)
+
+            # Default is "true" and it's not serialized.
+            assert not exists("//sys/@config/sequoia_manager/use_coarse_grained_ordering_tags")
+        finally:
+            set("//sys/@config/sequoia_manager", initial_config)
+
+
+##################################################################
+
+
 @pytest.mark.enabled_multidaemon
 class TestCypress(YTEnvSetup):
     ENABLE_MULTIDAEMON = True

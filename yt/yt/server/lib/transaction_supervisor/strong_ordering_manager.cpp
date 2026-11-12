@@ -116,6 +116,11 @@ TCommitInfos TStrongOrderingManager::OnCommitAbort(
     return UnregisterTransaction(transactionId, isCoordinator);
 }
 
+bool TStrongOrderingManager::IsTransactionPresent(TTransactionId transactionId) const
+{
+    return TransactionIdToTransactionInfo_.contains(transactionId);
+}
+
 // This is extra validation measure. Can be removed down the line.
 void TStrongOrderingManager::PromoteLastCommitTimestamp(
     TTransactionId transactionId,
@@ -634,14 +639,15 @@ TCommitInfos TStrongOrderingManager::RecordCommitTimestamp(
     // - Missing on the participant, then it's unusual, but it can happen
     //   if ReadyToCommit request arrived after Commit or Abort and the
     //   transaction was already removed from the strong ordering manager.
-    // - In a wrong state on the participant, then the same logic applies,
-    //   but to a lesser extent, since the transaction was not flushed yet.
+    //   Additionally the transaction might not be strongly ordered on the
+    //   participant, and thus not registered here at all.
+    // - In a wrong state on the participant, then the same logic applies.
     if (!ValidateCommitState(
         transactionId,
         {ECommitState::Prepare},
         /*actionOnMissingTransaction*/ isCoordinator
             ? EActionOnValidationFailure::Crash
-            : EActionOnValidationFailure::Throw,
+            : EActionOnValidationFailure::Skip,
         /*actionOnUnexpectedState*/ isCoordinator
             ? EActionOnValidationFailure::Crash
             : EActionOnValidationFailure::Skip))

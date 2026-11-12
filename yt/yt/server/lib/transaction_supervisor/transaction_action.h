@@ -20,17 +20,21 @@ struct ITransactionActionState
 template <class TTransaction, class TProto, class TState>
 struct TTypedTransactionActionDescriptor
 {
-    template <class... TArgs>
+    template <class TReturnType, class... TArgs>
     using THandler = std::conditional_t<
         std::is_same_v<TState, void>,
-        TCallback<void(TTransaction*, TProto*, TArgs...)>,
-        TCallback<void(TTransaction*, TProto*, TState*, TArgs...)>
+        TCallback<TReturnType(TTransaction*, TProto*, TArgs...)>,
+        TCallback<TReturnType(TTransaction*, TProto*, TState*, TArgs...)>
     >;
 
-    THandler<const TTransactionPrepareOptions&> Prepare;
-    THandler<const TTransactionCommitOptions&> Commit;
-    THandler<const TTransactionAbortOptions&> Abort;
-    THandler<> Serialize;
+    template <class... TArgs>
+    using TVoidHandler = THandler<void, TArgs...>;
+
+    THandler<THashSet<std::string>> GenerateStrongOrderingTags;
+    TVoidHandler<const TTransactionPrepareOptions&> Prepare;
+    TVoidHandler<const TTransactionCommitOptions&> Commit;
+    TVoidHandler<const TTransactionAbortOptions&> Abort;
+    TVoidHandler<> Serialize;
 
     static std::string GetType();
 };
@@ -49,6 +53,7 @@ public:
     using IActionState = ITransactionActionState<TSaveContext, TLoadContext>;
     std::unique_ptr<IActionState> CreateState() const;
 
+    THashSet<std::string> GenerateStrongOrderingTags(TTransaction* transaction, TStringBuf value, IActionState* state) const;
     void Prepare(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionPrepareOptions& options) const;
     void Commit(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionCommitOptions& options) const;
     void Abort(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionAbortOptions& options) const;
@@ -59,17 +64,22 @@ public:
 private:
     const std::function<std::unique_ptr<IActionState>()> CreateState_;
 
-    template <class... TArgs>
-    using THandler = TCallback<void(
+    template <class TReturnType, class... TArgs>
+    using THandler = TCallback<TReturnType(
         TTransaction* transaction,
         TStringBuf value,
         IActionState* state,
         TArgs...)
     >;
-    const THandler<const TTransactionPrepareOptions&> Prepare_;
-    const THandler<const TTransactionCommitOptions&> Commit_;
-    const THandler<const TTransactionAbortOptions&> Abort_;
-    const THandler<> Serialize_;
+
+    template <class... TArgs>
+    using TVoidHandler = THandler<void, TArgs...>;
+
+    const THandler<THashSet<std::string>> GenerateStrongOrderingTags_;
+    const TVoidHandler<const TTransactionPrepareOptions&> Prepare_;
+    const TVoidHandler<const TTransactionCommitOptions&> Commit_;
+    const TVoidHandler<const TTransactionAbortOptions&> Abort_;
+    const TVoidHandler<> Serialize_;
 };
 
 template <class TSaveContext, class TLoadContext>

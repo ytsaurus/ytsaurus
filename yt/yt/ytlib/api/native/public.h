@@ -11,6 +11,9 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Ground update queue ordering tag is not strictly necessary, but having it
+// makes it easier to debug.
+extern const std::string GroundUpdateQueueOrderingTag;
 extern const std::string SequoiaCypressOrderingTag;
 extern const std::string SequoiaReplicasOrderingTag;
 

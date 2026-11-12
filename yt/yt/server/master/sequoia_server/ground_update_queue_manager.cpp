@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.pb.h>
 
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
+
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -426,7 +428,10 @@ private:
         Y_UNUSED(WaitFor(Bootstrap_
             ->GetSequoiaConnection()
             ->CreateClient(NRpc::GetRootAuthenticationIdentity())
-            ->StartTransaction(ESequoiaTransactionType::GroundUpdateQueueFlush)
+            ->StartTransaction(
+                ESequoiaTransactionType::GroundUpdateQueueFlush,
+                /*options*/ {},
+                TSequoiaTransactionOptions{.Features = Bootstrap_->GetSequoiaManager()->GetSequoiaTransactionFeatures()})
             .Apply(BIND([queue, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto& queueState = QueueStates_[queue];
 
@@ -489,7 +494,15 @@ private:
                     NTransactionClient::MakeTransactionActionData(request));
 
                 transaction->AddBarrierTags({NApi::NNative::SequoiaCypressOrderingTag});
-                transaction->AddStrongOrderingTags({NApi::NNative::SequoiaCypressOrderingTag});
+
+                const auto& features = transaction->GetFeatures();
+                if (features.UseCoarseGrainedOrderingTags.value_or(true)) {
+                    transaction->AddStrongOrderingTags({NApi::NNative::SequoiaCypressOrderingTag});
+                }
+                if (features.UseFineGrainedOrderingTags.value_or(false)) {
+                    transaction->AddStrongOrderingTags({NApi::NNative::GroundUpdateQueueOrderingTag});
+                }
+
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,

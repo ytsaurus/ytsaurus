@@ -605,6 +605,9 @@ public:
         // Coordinator: TReqCommitCypressTransaction, late prepare
         // Participant: TReqCommitTransaction, commit only
         RegisterTransactionActionHandlers<NProto::TReqCommitCypressTransaction>({
+            .GenerateStrongOrderingTags = BIND_NO_PROPAGATE(
+                &TTransactionManager::GenerateStrongOrderingTagsCommitCypressTransactionInSequoia,
+                Unretained(this)),
             .Prepare = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraPrepareCommitCypressTransactionInSequoia,
                 Unretained(this)),
@@ -615,6 +618,9 @@ public:
         // TODO(kvk1920): consider renaming TReqCommitTransaction ->
         // TReqCommitForeignTransaction.
         RegisterTransactionActionHandlers<NProto::TReqCommitTransaction>({
+            .GenerateStrongOrderingTags = BIND_NO_PROPAGATE(
+                &TTransactionManager::GenerateStrongOrderingTagsCommitTransactionInSequoia,
+                Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraCommitCommitForeignTransactionInSequoia,
                 Unretained(this)),
@@ -2044,6 +2050,22 @@ public:
             transaction->GetId());
     }
 
+    THashSet<std::string> GenerateStrongOrderingTags(TTransactionId transactionId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_DEBUG("Cannot fetch strong ordering tags; no such Sequoia transaction (TransactionId: %v, CellTag: %v)",
+                transactionId,
+                Bootstrap_->GetCellTag());
+
+            return {};
+        }
+
+        return TTransactionManagerBase::GenerateStrongOrderingTags(transaction);
+    }
+
     void CommitTransaction(
         TTransactionId transactionId,
         const TTransactionCommitOptions& options,
@@ -2978,6 +3000,38 @@ private:
         PrepareTransactionCommit(transactionId, options);
     }
 
+    THashSet<std::string> GenerateStrongOrderingTagsForTransactionCommit(auto* request)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        if (!config->SequoiaManager->UseFineGrainedOrderingTags) {
+            return {};
+        }
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
+
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            return {};
+        }
+
+        THashSet<std::string> tags;
+        for (auto& branchedNode : transaction->BranchedNodes()) {
+            tags.insert(ToString(branchedNode->GetId()));
+        }
+
+        return tags;
+    }
+
+    THashSet<std::string> GenerateStrongOrderingTagsCommitTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitTransaction* request)
+    {
+        return GenerateStrongOrderingTagsForTransactionCommit(request);
+    }
+
     void HydraCommitCommitForeignTransactionInSequoia(
         TTransaction* /*sequoiaTransaction*/,
         NProto::TReqCommitTransaction* request,
@@ -3066,6 +3120,13 @@ private:
 
             throw;
         }
+    }
+
+    THashSet<std::string> GenerateStrongOrderingTagsCommitCypressTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitCypressTransaction* request)
+    {
+        return GenerateStrongOrderingTagsForTransactionCommit(request);
     }
 
     void HydraCommitCommitCypressTransactionInSequoia(

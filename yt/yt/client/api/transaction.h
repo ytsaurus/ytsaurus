@@ -70,7 +70,7 @@ struct TTransactionCommitOptions
 
     //! Transactions that have intersecting ordering tags are committed in the order of
     //! their commit timestamps.
-    TStrongOrderingTagsMap StrongOrderingTags = {};
+    TCellIdToStrongOrderingTagSet StrongOrderingTags = {};
 };
 
 struct TTransactionCommitResult
