@@ -64,6 +64,8 @@ static const TYPath BundleAttributeMuteTabletCellsCheck("mute_tablet_cells_check
 static const std::string SensorTagInstanceSize = "instance_size";
 
 static constexpr int DefaultMaxSize = 1'000'000;
+static constexpr i64 DefaultValueListMaxSize = 32 * 1024 * 1024;
+static const std::string ValueAttributeName = "value";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1332,26 +1334,41 @@ private:
             .DynamicConfig = GetDynamicConfig(),
         };
 
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
-            inputState.Zones = CypressList<TZoneInfo>(transaction, GetZonesPath()).Result;
-        }
+        auto loadStartTime = TInstant::Now();
+        const auto& parseInvoker = Bootstrap_->GetClient()->GetConnection()->GetInvoker();
 
-        std::vector<std::pair<std::string, TError>> unparsedEntries;
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles") {
-            auto listResult = CypressList<TBundleInfo>(
-                transaction,
-                TabletCellBundlesPath,
-                /*timeout*/ std::nullopt,
-                /*failOnError*/ false);
-            inputState.Bundles = std::move(listResult.Result);
-            unparsedEntries = std::move(listResult.UnparsedEntries);
-        }
+        auto zonesFuture = CypressListAsync<TZoneInfo>(transaction, GetZonesPath(), parseInvoker);
+        auto bundlesFuture = CypressListAsync<TBundleInfo>(
+            transaction,
+            TabletCellBundlesPath,
+            parseInvoker,
+            /*timeout*/ std::nullopt,
+            /*failOnError*/ false);
+        auto bundleStatesFuture = CypressListAsync<TBundleControllerState>(
+            transaction,
+            GetBundlesStatePath(),
+            parseInvoker);
+        auto tabletNodesFuture = CypressListAsync<TTabletNodeInfo>(transaction, TabletNodesPath, parseInvoker);
+        auto tabletCellsFuture = CypressListAsync<TTabletCellInfo>(transaction, TabletCellsPath, parseInvoker);
+        auto rpcProxiesFuture = CypressGetAsync<TRpcProxyInfo>(transaction, RpcProxiesPath, parseInvoker);
+        auto systemAccountsFuture = CypressListAsync<TSystemAccount>(transaction, BundleSystemQuotasPath, parseInvoker);
 
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles_state") {
-            inputState.BundleStates = CypressList<TBundleControllerState>(transaction, GetBundlesStatePath()).Result;
-        }
+        inputState.RootSystemAccount = GetRootSystemAccount(transaction);
+        inputState.BundlesDynamicConfig = GetBundlesDynamicConfig(transaction);
+        inputState.SysConfig = GetSystemConfig(transaction);
 
-        for (const auto& [bundle, error] : unparsedEntries) {
+        inputState.Zones = WaitFor(zonesFuture).ValueOrThrow().Result;
+
+        auto bundles = WaitFor(bundlesFuture).ValueOrThrow();
+        inputState.Bundles = std::move(bundles.Result);
+
+        inputState.BundleStates = WaitFor(bundleStatesFuture).ValueOrThrow().Result;
+        inputState.TabletNodes = WaitFor(tabletNodesFuture).ValueOrThrow().Result;
+        inputState.TabletCells = WaitFor(tabletCellsFuture).ValueOrThrow().Result;
+        inputState.RpcProxies = WaitFor(rpcProxiesFuture).ValueOrThrow();
+        inputState.SystemAccounts = WaitFor(systemAccountsFuture).ValueOrThrow().Result;
+
+        for (const auto& [bundle, error] : bundles.UnparsedEntries) {
             inputState.BundleStates.erase(bundle);
 
             YT_TLOG_DEBUG("Error parsing bundle configuration")
@@ -1364,45 +1381,21 @@ private:
                 .Description = "Error parsing bundle configuration: " + error.GetMessage()});
         }
 
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_nodes") {
-            inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath).Result;
-        }
-
         if (inputState.DynamicConfig->UseDataNodeRacks) {
-            YT_PROFILE_TIMING("/bundle_controller/load_timings/data_nodes") {
-                OverrideTabletNodeRacksFromDataNodes(transaction, &inputState.TabletNodes);
-            }
-        }
-
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cells") {
-            inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath).Result;
-        }
-
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/rpc_proxies") {
-            inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
-        }
-
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/bundle_system_quotas") {
-            inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath).Result;
-        }
-
-        YT_PROFILE_TIMING("/bundle_controller/load_timings/system_quotas_parent_account") {
-            inputState.RootSystemAccount = GetRootSystemAccount(transaction);
+            OverrideTabletNodeRacksFromDataNodes(transaction, &inputState.TabletNodes);
         }
 
         inputState.AllocationRequests = LoadHulkRequests<TAllocationRequest>(
             transaction,
             {Config_->HulkAllocationsPath, Config_->HulkAllocationsHistoryPath},
-            GetAliveAllocationsId(inputState));
+            GetAliveAllocationsId(inputState),
+            parseInvoker);
 
         inputState.DeallocationRequests = LoadHulkRequests<TDeallocationRequest>(
             transaction,
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
-            GetAliveDeallocationsId(inputState));
-
-        inputState.BundlesDynamicConfig = GetBundlesDynamicConfig(transaction);
-
-        inputState.SysConfig = GetSystemConfig(transaction);
+            GetAliveDeallocationsId(inputState),
+            parseInvoker);
 
         YT_TLOG_DEBUG("Bundle controller input state loaded")
             .With("ZoneCount", inputState.Zones.size())
@@ -1413,7 +1406,8 @@ private:
             .With("NodeAllocationRequestCount", inputState.AllocationRequests.size())
             .With("NodeDeallocationRequestCount", inputState.DeallocationRequests.size())
             .With("RpcProxyCount", inputState.RpcProxies.size())
-            .With("SystemAccounts", inputState.SystemAccounts.size());
+            .With("SystemAccounts", inputState.SystemAccounts.size())
+            .With("LoadTime", TInstant::Now() - loadStartTime);
 
         return inputState;
     }
@@ -1504,11 +1498,7 @@ private:
     };
 
     template <class TEntryInfo>
-    static TListResult<TEntryInfo> CypressList(
-        const IClientBasePtr& transaction,
-        const TYPath& path,
-        std::optional<TDuration> timeout = {},
-        bool failOnError = true)
+    static TListNodeOptions MakeListNodeOptions()
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
@@ -1516,12 +1506,24 @@ private:
         auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
         options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
-        if (timeout) {
-            options.Timeout = timeout;
-        }
+        return options;
+    }
 
-        auto yson = WaitFor(transaction->ListNode(path, options))
-            .ValueOrThrow();
+    template <class TEntryInfo>
+    static TGetNodeOptions MakeGetNodeOptions()
+    {
+        TGetNodeOptions options;
+        options.MaxSize = DefaultMaxSize;
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
+
+        return options;
+    }
+
+    template <class TEntryInfo>
+    static TListResult<TEntryInfo> ParseListNode(const TYPath& path, const TYsonString& yson, bool failOnError)
+    {
         auto entryList = ConvertTo<IListNodePtr>(yson);
 
         if (entryList->Attributes().Get("incomplete", false)) {
@@ -1554,16 +1556,8 @@ private:
     }
 
     template <class TEntryInfo>
-    static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TYPath& path)
+    static TIndexedEntries<TEntryInfo> ParseMapNode(const TYPath& path, const TYsonString& yson)
     {
-        TGetNodeOptions options;
-        options.MaxSize = DefaultMaxSize;
-
-        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
-        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
-
-        auto yson = WaitFor(transaction->GetNode(path, options))
-            .ValueOrThrow();
         auto entryMap = ConvertTo<IMapNodePtr>(yson);
 
         if (entryMap->Attributes().Get("incomplete", false)) {
@@ -1579,6 +1573,109 @@ private:
         }
 
         return result;
+    }
+
+    template <class TEntryInfo>
+    static TListResult<TEntryInfo> CypressList(
+        const IClientBasePtr& transaction,
+        const TYPath& path,
+        std::optional<TDuration> timeout = {},
+        bool failOnError = true)
+    {
+        auto options = MakeListNodeOptions<TEntryInfo>();
+        if (timeout) {
+            options.Timeout = timeout;
+        }
+
+        auto yson = WaitFor(transaction->ListNode(path, options))
+            .ValueOrThrow();
+        return ParseListNode<TEntryInfo>(path, yson, failOnError);
+    }
+
+    template <class TEntryInfo>
+    static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TYPath& path)
+    {
+        auto yson = WaitFor(transaction->GetNode(path, MakeGetNodeOptions<TEntryInfo>()))
+            .ValueOrThrow();
+        return ParseMapNode<TEntryInfo>(path, yson);
+    }
+
+    template <class TEntryInfo>
+    static TFuture<TListResult<TEntryInfo>> CypressListAsync(
+        const IClientBasePtr& client,
+        const TYPath& path,
+        const IInvokerPtr& parseInvoker,
+        std::optional<TDuration> timeout = {},
+        bool failOnError = true)
+    {
+        auto options = MakeListNodeOptions<TEntryInfo>();
+        if (timeout) {
+            options.Timeout = timeout;
+        }
+
+        return client->ListNode(path, options).Apply(
+            BIND([path, failOnError] (const TErrorOr<TYsonString>& ysonOrError) {
+                return ParseListNode<TEntryInfo>(path, ysonOrError.ValueOrThrow(), failOnError);
+            }).AsyncVia(parseInvoker));
+    }
+
+    template <class TEntryInfo>
+    static TFuture<TIndexedEntries<TEntryInfo>> CypressGetAsync(
+        const ITransactionPtr& transaction,
+        const TYPath& path,
+        const IInvokerPtr& parseInvoker)
+    {
+        return transaction->GetNode(path, MakeGetNodeOptions<TEntryInfo>()).Apply(
+            BIND([path] (const TErrorOr<TYsonString>& ysonOrError) {
+                return ParseMapNode<TEntryInfo>(path, ysonOrError.ValueOrThrow());
+            }).AsyncVia(parseInvoker));
+    }
+
+    template <class TEntryInfo>
+    struct TValueListNodeLoadResult
+    {
+        TIndexedEntries<TEntryInfo> Entries;
+        bool Incomplete = false;
+    };
+
+    template <class TEntryInfo>
+    static TFuture<TValueListNodeLoadResult<TEntryInfo>> CypressListWithValuesAsync(
+        const IClientBasePtr& client,
+        const TYPath& path,
+        const IInvokerPtr& parseInvoker)
+    {
+        TListNodeOptions options;
+        options.MaxSize = DefaultValueListMaxSize;
+        options.Attributes = TAttributeFilter(std::vector<IAttributeDictionary::TKey>{ValueAttributeName});
+
+        return client->ListNode(path, options).Apply(
+            BIND([path] (const TErrorOr<TYsonString>& ysonOrError) {
+                auto entryList = ConvertTo<IListNodePtr>(ysonOrError.ValueOrThrow());
+
+                TValueListNodeLoadResult<TEntryInfo> result;
+                result.Incomplete = entryList->Attributes().Get("incomplete", false);
+
+                for (const auto& entry : entryList->GetChildren()) {
+                    if (entry->GetType() != ENodeType::String) {
+                        THROW_ERROR_EXCEPTION("Unexpected entry type")
+                            .With("parent_path", path)
+                            .With("expected_type", ENodeType::String)
+                            .With("actual_type", entry->GetType());
+                    }
+
+                    const auto& name = entry->AsString()->GetValue();
+                    auto value = entry->Attributes().FindYson(ValueAttributeName);
+                    if (!value) {
+                        THROW_ERROR_EXCEPTION("Entry value is missing in the cypress list response")
+                            .With("parent_path", path)
+                            .With("entry_name", name);
+                    }
+
+                    result.Entries[name] = ConvertTo<TIntrusivePtr<TEntryInfo>>(value);
+                }
+
+                return result;
+            }).AsyncVia(parseInvoker));
     }
 
     template <class TEntryInfoPtr>
@@ -1902,12 +1999,38 @@ private:
     static TIndexedEntries<TEntryInfo> LoadHulkRequests(
         const ITransactionPtr& transaction,
         const std::vector<TYPath>& basePaths,
-        const std::vector<std::string>& requests)
+        const std::vector<std::string>& requests,
+        const IInvokerPtr& parseInvoker)
     {
         TIndexedEntries<TEntryInfo> results;
         using TEntryInfoPtr = TIntrusivePtr<TEntryInfo>;
 
-        for (const auto& requestId : requests) {
+        THashSet<std::string> pendingIds(requests.begin(), requests.end());
+        if (pendingIds.empty()) {
+            return results;
+        }
+
+        try {
+            auto loadedRequests = WaitFor(CypressListWithValuesAsync<TEntryInfo>(transaction, basePaths.front(), parseInvoker))
+                .ValueOrThrow();
+
+            if (loadedRequests.Incomplete) {
+                YT_TLOG_WARNING("Non-archived hulk requests were cut off by the response size limit")
+                    .With("Path", basePaths.front());
+            }
+
+            for (auto& [requestId, request] : loadedRequests.Entries) {
+                if (pendingIds.erase(requestId) > 0) {
+                    results[requestId] = request;
+                }
+            }
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to load non-archived hulk requests in bulk")
+                .With("Path", basePaths.front())
+                .With(ex);
+        }
+
+        for (const auto& requestId : pendingIds) {
             auto request = LoadHulkRequest<TEntryInfoPtr>(transaction, basePaths, requestId);
             if (request) {
                 results[requestId] = request;
