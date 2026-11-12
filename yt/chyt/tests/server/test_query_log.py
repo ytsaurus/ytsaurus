@@ -1,7 +1,7 @@
 from base import ClickHouseTestBase, Clique, enable_sequoia, with_tablet_cell
 
 from yt_commands import (authors, abort_transaction, create, exists, lock, read_table, start_transaction,
-                         sync_unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
+                         sync_unmount_table, unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
 
 from yt.common import wait, update
 
@@ -232,7 +232,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: get(table_path + "/@tablet_state") == "mounted")
             assert not read_table(table_path)
 
-            sync_unmount_table(table_path)
+            unmount_table(table_path)
 
             result = clique.make_query(
                 'select a from "//tmp/t" order by a',
