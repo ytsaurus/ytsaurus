@@ -507,6 +507,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         config = {
             "analysis_period": 1 * 1000,
+            "max_operation_age": 1000 * 1000,
             "min_archivation_retry_sleep_delay": 1 * 1000,
             "max_archivation_retry_sleep_delay": 2 * 1000,
             "max_removal_sleep_delay": 1 * 1000,
@@ -537,6 +538,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         run_test_vanilla(events_on_fs().wait_event_cmd("should_remove_operations", timeout=timedelta(seconds=1000)))
 
         wait(lambda: submitted.get() == 2.0)
+        update_scheduler_config("operations_cleaner/max_operation_age", 0)
         wait(lambda: archive_pending.get() == 2.0)
 
         events_on_fs().notify_event("should_archive_operations")
