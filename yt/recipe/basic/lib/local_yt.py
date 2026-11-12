@@ -24,8 +24,26 @@ _DEFAULT_CONFIG = {
 }
 
 
-def _merge(base, patch):
-    return always_merger.merge(copy.deepcopy(base), patch)
+def _merge_cluster_config(base, patch):
+    """Deep-merge cluster configs, matching component patches by component name."""
+    base = copy.deepcopy(base)
+    patch = copy.deepcopy(patch)
+    if isinstance(base.get("components"), list) and isinstance(patch.get("components"), list):
+        component_patches = patch.pop("components")
+        if not component_patches:
+            # An explicit empty list disables all components for this cluster.
+            base["components"] = []
+        else:
+            # Patch existing components by name, preserving the other services.
+            components = base["components"]
+            for component_patch in component_patches:
+                name = component_patch.get("name")
+                component = next((item for item in components if name is not None and item.get("name") == name), None)
+                if component is None:
+                    components.append(component_patch)
+                else:
+                    always_merger.merge(component, component_patch)
+    return always_merger.merge(base, patch)
 
 
 def start(
@@ -36,33 +54,33 @@ def start(
     cluster_config_patches=None,
     config_patches=None,
     work_dir=None,
-    with_query_tracker=False
 ):
     """start a local yt clusters group"""
 
     config = default_config
     if config_patches is not None:
         for config_patch in config_patches:
-            config = _merge(config, config_patch)
+            config = _merge_cluster_config(config, config_patch)
 
     cluster_configs = {x: config for x in cluster_names}
     if cluster_config_patches is not None:
         for cluster_name, patch in cluster_config_patches.items():
-            cluster_configs[cluster_name] = _merge(cluster_configs[cluster_name], patch)
+            cluster_configs[cluster_name] = _merge_cluster_config(cluster_configs[cluster_name], patch)
 
-    if with_query_tracker:
-        yqla_path = yatest.common.runtime.work_path("yql_agent_artifacts")
-        for index, cluster_name in enumerate(sorted(cluster_configs, reverse=True)):
-            # Add yqla resource for yql-agent.
-            if "components" in cluster_configs[cluster_name]:
-                for index, component in enumerate(cluster_configs[cluster_name]["components"]):
-                    if "name" not in component or component["name"] != "yql-agent":
-                        continue
+    for cluster_name in sorted(cluster_configs, reverse=True):
+        for component in cluster_configs[cluster_name].get("components", []):
+            if component.get("name") != "yql-agent":
+                continue
 
-                    if "config" not in component:
-                        cluster_configs[cluster_name]["components"][index]["config"] = {}
-                    cluster_configs[cluster_name]["components"][index]["config"]["path"] = yqla_path
-                    cluster_configs[cluster_name]["components"][index]["config"]["artifacts_path"] = yqla_path
+            yqla_path = yatest.common.runtime.work_path("yql_agent_artifacts")
+            component_config = component.setdefault("config", {})
+            component_config.setdefault("path", yqla_path)
+            component_config.setdefault("artifacts_path", yqla_path)
+            component_config.setdefault("enable_qtworker", True)
+            if component_config["enable_qtworker"]:
+                component_config.setdefault("qtworker_path", os.path.join(yqla_path, "qtworker"))
+                component_config.setdefault("qtworker_udf_resolver_path", os.path.join(yqla_path, "udf_resolver"))
+                component_config.setdefault("qtworker_udf_dep_stub_path", os.path.join(yqla_path, "libyql_udf_dep_stub.so"))
 
     clusters = {}
     for index, cluster_name in enumerate(sorted(cluster_configs, reverse=True)):

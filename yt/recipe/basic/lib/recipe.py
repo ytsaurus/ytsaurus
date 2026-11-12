@@ -27,8 +27,6 @@ def start(yt_cluster_factory, args, work_dir=None):
     parser.add_argument("--cleanup-working-directory", action="store_true", default=False,
                         help="clean working directory before recipe start")
     parser.add_argument("--package-dir", help="where to take YT binaries from", default="yt/packages/latest")
-    parser.add_argument("--with-query-tracker", action="store_true", default=False,
-                        help="run recipe with query tracker")
 
     parsed_args, _ = parser.parse_known_args(args)
 
@@ -42,7 +40,6 @@ def start(yt_cluster_factory, args, work_dir=None):
         config_patches=parsed_args.config_patches,
         cluster_config_patches=parsed_args.cluster_config_patches,
         work_dir=work_dir,
-        with_query_tracker=parsed_args.with_query_tracker,
     )
     dump_yt_instances(instances)
 
