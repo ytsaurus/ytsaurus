@@ -36,6 +36,20 @@ bool TryCollapseRequest(TIORequest* collapsed, const TIORequest& current)
     return true;
 }
 
+bool AreRequestsCompatible(const TReadRequest& lhs, const TReadRequest& rhs)
+{
+    if (lhs.Handle != rhs.Handle ||
+        lhs.FairShareSlotId != rhs.FairShareSlotId ||
+        lhs.FairShareState.has_value() != rhs.FairShareState.has_value())
+    {
+        return false;
+    }
+
+    return !lhs.FairShareState ||
+        (lhs.FairShareState->IOConsumed == rhs.FairShareState->IOConsumed &&
+         lhs.FairShareState->IOFairShareWeight == rhs.FairShareState->IOFairShareWeight);
+}
+
 } // namespace
 
 class TReadRequestCombiner
@@ -87,7 +101,7 @@ public:
         {
             TIORequest collapsed;
             for (const auto& current : ioRequests) {
-                if (requests[collapsed.Index].Handle != requests[current.Index].Handle ||
+                if (!AreRequestsCompatible(requests[collapsed.Index], requests[current.Index]) ||
                     !TryCollapseRequest(&collapsed, current))
                 {
                     totalSize += collapsed.Size;
@@ -111,7 +125,7 @@ public:
                 if (!collapsed) {
                     collapsed = current;
                 } else if (
-                    requests[collapsed->Index].Handle != requests[current.Index].Handle ||
+                    !AreRequestsCompatible(requests[collapsed->Index], requests[current.Index]) ||
                     !TryCollapseRequest(&collapsed.value(), current))
                 {
                     auto resultBuffer = buffer.Slice(
@@ -166,14 +180,15 @@ public:
             return {};
         }
 
-        auto it = std::partition_point(
+        bool noOverlap = std::all_of(
             OutputRefs_.begin(),
             OutputRefs_.end(),
-            [&] (const TSharedRef& outBuffer) {
-                return outBuffer.Begin() + outBuffer.Size() <= bufferTail.Begin();
+            [&] (const TSharedRef& outputBuffer) {
+                return outputBuffer.End() <= bufferTail.Begin() ||
+                    outputBuffer.Begin() >= bufferTail.End();
             });
 
-        if (it == OutputRefs_.end() || it->Begin() >= bufferTail.Begin() + bufferTail.Size()) {
+        if (noOverlap) {
             return {};
         }
 
