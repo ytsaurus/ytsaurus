@@ -1360,7 +1360,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
     switch (Host_->GetSpec()->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
-            descriptor->State = EInputChunkState::Waiting;
+            MarkInputChunkWaiting(descriptor);
             Host_->OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Input chunk %v is unavailable",
                 chunkId));
             break;
@@ -1397,19 +1397,23 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
             break;
         }
 
-        case EUnavailableChunkAction::Wait: {
-            descriptor->State = EInputChunkState::Waiting;
-            for (auto& inputStripe : descriptor->InputStripes) {
-                if (inputStripe->WaitingChunkCount == 0) {
-                    inputStripe->Task->GetChunkPoolInput()->Suspend(inputStripe->Cookie);
-                }
-                ++inputStripe->WaitingChunkCount;
-            }
+        case EUnavailableChunkAction::Wait:
+            MarkInputChunkWaiting(descriptor);
             break;
-        }
 
         default:
             YT_ABORT();
+    }
+}
+
+void TInputManager::MarkInputChunkWaiting(TInputChunkDescriptor* descriptor)
+{
+    descriptor->State = EInputChunkState::Waiting;
+    for (const auto& inputStripe : descriptor->InputStripes) {
+        if (inputStripe->WaitingChunkCount == 0) {
+            inputStripe->Task->GetChunkPoolInput()->Suspend(inputStripe->Cookie);
+        }
+        ++inputStripe->WaitingChunkCount;
     }
 }
 
