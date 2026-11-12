@@ -43,26 +43,29 @@ bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 
 TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 {
-    return New<TExecNodeDescriptor>(
-        Id_,
-        GetAddresses(),
-        NodeDescriptor_.GetDataCenter(),
-        IOWeight_,
-        MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,
-        ResourceUsage_,
-        ResourceLimits_,
-        DiskResources_,
-        Tags_,
-        InfinibandCluster_,
-        SchedulingOptions_);
+    return DoBuildExecDescriptor(/*backgroundInvoker*/ nullptr);
 }
 
 TExecNodeDescriptorPtr TExecNode::BuildExecDescriptorWithOffloadedDtor(IInvokerPtr backgroundInvoker) const
 {
     YT_VERIFY(backgroundInvoker);
 
-    return NewWithOffloadedDtor<TExecNodeDescriptor>(
-        std::move(backgroundInvoker),
+    return DoBuildExecDescriptor(std::move(backgroundInvoker));
+}
+
+TExecNodeDescriptorPtr TExecNode::DoBuildExecDescriptor(IInvokerPtr backgroundInvoker) const
+{
+    auto createDescriptor = [&backgroundInvoker] (auto&&... args) {
+        if (backgroundInvoker) {
+            return NewWithOffloadedDtor<TExecNodeDescriptor>(
+                std::move(backgroundInvoker),
+                std::forward<decltype(args)>(args)...);
+        }
+
+        return New<TExecNodeDescriptor>(std::forward<decltype(args)>(args)...);
+    };
+
+    return createDescriptor(
         Id_,
         GetAddresses(),
         NodeDescriptor_.GetDataCenter(),
