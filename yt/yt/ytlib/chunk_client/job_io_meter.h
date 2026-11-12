@@ -81,6 +81,14 @@ void SetRequestIoFairShareWeight(
     const TClientChunkOptions& options,
     std::optional<double> configuredWeight);
 
+//! Forwards the upstream I/O fair-share snapshot when present; otherwise uses
+//! the local job I/O meter and the configured weight.
+template <class TRequestPtr>
+void SetRequestReadIoFairShareState(
+    const TRequestPtr& req,
+    const TClientChunkReadOptions& options,
+    std::optional<double> configuredWeight);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
