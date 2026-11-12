@@ -6,6 +6,8 @@ Kotlin-код во Flow выполняется тем же [Java SDK](../../flow
 
 [Примеры на Kotlin]({{source-root}}/yt/yt/flow/examples/kotlin)
 
+Для общих объектов процесса используйте [Java API ресурсов companion](../../flow/java/resources.md): `FlowResource`, регистрацию фабрик и `RuntimeContext.getResource`. В Kotlin действуют те же правила жизненного цикла и привязки в спецификации.
+
 ## Как Kotlin работает во Flow {#architecture}
 
 Kotlin-компьютейшены исполняются через механизм [компаньонов](../../flow/concepts/glossary.md#companion): [воркер](../../flow/concepts/glossary.md#worker) запускает JVM-процесс с вашим кодом и обменивается с ним сообщениями по gRPC. Спека использует тот же Java-компаньон, что и Java, а параметр `main_class` обязателен всегда.

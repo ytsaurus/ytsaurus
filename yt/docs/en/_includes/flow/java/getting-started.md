@@ -6,6 +6,8 @@ Java and Kotlin computation support in Flow is implemented through the [companio
 
 [Examples]({{source-root}}/yt/yt/flow/examples/java)
 
+For objects shared by jobs in one JVM, see [Companion resources](../../../flow/java/resources.md): registration, resource wiring and lifecycle rules also apply to Kotlin.
+
 ## Application architecture {#architecture}
 
 Any Flow pipeline consists of three components:

@@ -6,6 +6,8 @@ Kotlin code in Flow runs on the same [Java SDK](../../flow/java/getting-started.
 
 [Kotlin examples]({{source-root}}/yt/yt/flow/examples/kotlin)
 
+For process-shared objects, use the [Java companion resource API](../../flow/java/resources.md), including `FlowResource`, factory registration and `RuntimeContext.getResource`. Kotlin uses the same lifecycle and spec bindings.
+
 ## How Kotlin runs in Flow {#architecture}
 
 Kotlin computations run through the [companion](../../flow/concepts/glossary.md#companion) mechanism: the [worker](../../flow/concepts/glossary.md#worker) spawns a JVM process with your code and exchanges messages with it over gRPC. The pipeline spec uses the same Java companion as Java, and `main_class` is always required.

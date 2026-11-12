@@ -6,6 +6,8 @@
 
 [Примеры]({{source-root}}/yt/yt/flow/examples/python)
 
+Объекты, общие для джобов одного процесса Python, описаны в статье [Ресурсы companion](../../../flow/python/resources.md). Обработчикам также доступны [общие HTTP-клиенты](../../../flow/python/http-client.md).
+
 ## Архитектура приложения {#architecture}
 
 Любой [пайплайн](../../../flow/concepts/glossary.md#pipeline) Flow состоит из трёх составных частей:

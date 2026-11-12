@@ -1,5 +1,7 @@
 # Resources
 
+This page describes resources loaded in the Flow process. To host a resource in a separate C++ companion, use [companion resource registration and access](companion.md#resources-and-http) together with the worker-side `TCompanionResource` proxy.
+
 A resource is an object shared by all jobs in one Flow process. A computation can use a resource
 to access an external-system client, reference data, a model, or another object that would be
 expensive to create for every message.

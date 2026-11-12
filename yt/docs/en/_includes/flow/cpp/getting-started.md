@@ -4,6 +4,8 @@ In this section, you’ll learn step by step how to implement your first [pipeli
 
 ## Prerequisites
 
+This guide builds user code into the worker. To host process functions in a separate executable, see [Running C++ process functions in a companion](../../../flow/cpp/companion.md).
+
 - Check out the [repository]({{source-root}}).
 - Set up `ya make` (the build system).
 - Familiarize yourself with the [basic concepts](../../../flow/concepts/glossary.md) of Flow.

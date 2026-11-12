@@ -1,5 +1,7 @@
 # Process function in {{product-name}} Flow (C++)
 
+Process functions can also run in a separate worker-managed process. See [Running C++ process functions in a companion](../../../flow/cpp/companion.md) for registration, build dependencies, resource access and worker wiring.
+
 ## Why you need it
 
 Implement new C++ user logic only as a process function. Direct inheritance from `TTransformComputation`, `TSwiftMapComputation`, `TSwiftOrderedSourceComputation`, or `TTransformOrderedSourceComputation` is a low-level API for framework and legacy maintenance, not an authoring model for new user computations. Such logic is tightly coupled with the `Computation` object, inherits dozens of protected methods, and can only be constructed from a fully built `TComputationContext`, so it’s nearly impossible to test in isolation with unit tests.

@@ -6,6 +6,8 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 [Исходный код flow-spring-boot-starter]({{source-root}}/yt/java/flow/flow-spring-boot-starter)
 
+Для регистрации ресурсов companion создайте bean `ResourceProvider`: его `getResourceClasses()` сопоставляет явные имена реализаций с фабриками. Каждая фабрика должна возвращать новый ресурс, даже если сам провайдер — singleton. Правила жизненного цикла и именования описаны в разделе [Ресурсы companion: Spring Boot и Kotlin](../../../flow/java/resources.md#spring-and-kotlin).
+
 ## Подключение
 
 Для подключения Spring Boot Starter необходимо добавить зависимость `flow-spring-boot-starter` в проект.
@@ -299,9 +301,9 @@ Spring Boot Starter автоматически создаёт следующие
 
 | Бин | Условие создания | Описание |
 |-----|-------------------|----------|
-| `PipelineContext` | Есть аннотированный бин (`@FlowComputation`/`@FlowSourceComputation`) или `ComputationProvider` | Контекст пайплайна с зарегистрированными объектами `Computation` и стримами |
+| `PipelineContext` | Есть аннотированный бин (`@FlowComputation`/`@FlowSourceComputation`), `ComputationProvider` или `ResourceProvider` | Контекст пайплайна с зарегистрированными объектами `Computation` и стримами |
 | `FlowRunnerBootstrap` | Режим runner-а | Запускает пайплайн и завершает процесс кодом возврата `flow_server` |
-| `CompanionExecutionConfig` | Режим компаньона и есть аннотированный бин или `ComputationProvider` | Конфигурация gRPC-сервера (порт) |
+| `CompanionExecutionConfig` | Режим компаньона и есть аннотированный бин, `ComputationProvider` или `ResourceProvider` | Конфигурация gRPC-сервера (порт) |
 | `GrpcServerExecution` | Режим компаньона и есть `PipelineContext` | Управление gRPC-сервером |
 | `FlowCompanionLifecycle` | Режим компаньона и есть `GrpcServerExecution` | Управление жизненным циклом сервера |
 
@@ -313,7 +315,7 @@ Spring Boot Starter автоматически создаёт следующие
 
 Чтобы в режиме runner-а не создавались остальные бины приложения, starter выставляет значения по умолчанию `spring.main.web-application-type=none`, `spring.main.keep-alive=false` и `spring.main.lazy-initialization=true`. Все три можно переопределить в конфигурации приложения. В контекст, созданный тестовым фреймворком, эти значения не попадают вовсе — тесты сохраняют обычную семантику Spring.
 
-Условие активации автоконфигурации описано в `OnFlowComponentsCondition`: starter включается, если в контексте есть хотя бы один бин `ComputationProvider` либо бин, помеченный `@FlowComputation` или `@FlowSourceComputation`. Режим выбирается по `YT_FLOW_MODE`. Свойство `flow.run-mode` (`Worker` или `runner`, без учёта регистра) предназначено для тестов, которые не могут выставить переменную среды в своей JVM: оно действует, только когда `YT_FLOW_MODE` не задана. Если переменная задана и противоречит свойству, старт контекста падает с ошибкой — забытое в `application.yml` свойство не может переназначить роль процесса. На значения `spring.main.*` свойство не влияет: они выставляются раньше, когда окружение ещё собирается, и определяются только переменной `YT_FLOW_MODE`.
+Условие активации автоконфигурации описано в `OnFlowComponentsCondition`: starter включается, если в контексте есть хотя бы один бин `ComputationProvider` или `ResourceProvider` либо бин, помеченный `@FlowComputation` или `@FlowSourceComputation`. Режим выбирается по `YT_FLOW_MODE`. Свойство `flow.run-mode` (`Worker` или `runner`, без учёта регистра) предназначено для тестов, которые не могут выставить переменную среды в своей JVM: оно действует, только когда `YT_FLOW_MODE` не задана. Если переменная задана и противоречит свойству, старт контекста падает с ошибкой — забытое в `application.yml` свойство не может переназначить роль процесса. На значения `spring.main.*` свойство не влияет: они выставляются раньше, когда окружение ещё собирается, и определяются только переменной `YT_FLOW_MODE`.
 
 Стримы и компьютейшены собираются только из текущего контекста: бины, объявленные в родительском контексте (`SpringApplicationBuilder.parent(...)`), в спеку и в компаньон не попадают.
 

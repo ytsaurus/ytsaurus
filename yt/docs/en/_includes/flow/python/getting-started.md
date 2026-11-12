@@ -6,6 +6,8 @@ You implement Python computations in Flow through the [companion](../../../flow/
 
 [Examples]({{source-root}}/yt/yt/flow/examples/python)
 
+For objects shared by jobs in one Python process, see [Companion resources](../../../flow/python/resources.md). Processing callbacks also have access to [shared HTTP clients](../../../flow/python/http-client.md).
+
 ## Application architecture {#architecture}
 
 Any Flow [pipeline](../../../flow/concepts/glossary.md#pipeline) consists of three components:

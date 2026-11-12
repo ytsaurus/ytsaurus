@@ -3,6 +3,10 @@ items:
     href: getting-started.md
   - name: Computation
     href: computation.md
+  - name: Companion resources
+    href: resources.md
+  - name: Shared HTTP clients
+    href: http-client.md
   - name: The distribute flag
     href: distribute.md
   - name: Working with state

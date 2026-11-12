@@ -7,6 +7,8 @@ items:
     href: state.md
   - name: Resources
     href: resources.md
+  - name: Running in a companion
+    href: companion.md
   - name: Testing
     href: testing.md
   - name: Process function
