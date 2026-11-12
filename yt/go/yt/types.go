@@ -73,18 +73,22 @@ var (
 type OperationState string
 
 var (
-	StateRunning       OperationState = "running"
-	StatePending       OperationState = "pending"
-	StateCompleted     OperationState = "completed"
-	StateFailed        OperationState = "failed"
-	StateAborted       OperationState = "aborted"
-	StateReviving      OperationState = "reviving"
-	StateInitializing  OperationState = "initializing"
-	StatePreparing     OperationState = "preparing"
-	StateMaterializing OperationState = "materializing"
-	StateCompleting    OperationState = "completing"
-	StateAborting      OperationState = "aborting"
-	StateFailing       OperationState = "failing"
+	StateStarting           OperationState = "starting"
+	StateOrphaned           OperationState = "orphaned"
+	StateWaitingForAgent    OperationState = "waiting_for_agent"
+	StateRunning            OperationState = "running"
+	StatePending            OperationState = "pending"
+	StateCompleted          OperationState = "completed"
+	StateFailed             OperationState = "failed"
+	StateAborted            OperationState = "aborted"
+	StateReviving           OperationState = "reviving"
+	StateInitializing       OperationState = "initializing"
+	StateReviveInitializing OperationState = "revive_initializing"
+	StatePreparing          OperationState = "preparing"
+	StateMaterializing      OperationState = "materializing"
+	StateCompleting         OperationState = "completing"
+	StateAborting           OperationState = "aborting"
+	StateFailing            OperationState = "failing"
 )
 
 func (o OperationState) IsFinished() bool {

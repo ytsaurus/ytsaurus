@@ -12,10 +12,11 @@ import (
 )
 
 type File struct {
-	FileName            string `yson:"file_name,attr,omitempty"`
-	Format              any    `yson:"format,attr,omitempty"`
-	Executable          bool   `yson:"executable,attr,omitempty"`
-	BypassArtifactCache bool   `yson:"bypass_artifact_cache,attr,omitempty"`
+	FileName            string     `yson:"file_name,attr,omitempty"`
+	Format              any        `yson:"format,attr,omitempty"`
+	Executable          bool       `yson:"executable,attr,omitempty"`
+	BypassArtifactCache bool       `yson:"bypass_artifact_cache,attr,omitempty"`
+	OriginalPath        ypath.Path `yson:"original_path,attr,omitempty"`
 
 	CypressPath ypath.Path `yson:",value"`
 }
