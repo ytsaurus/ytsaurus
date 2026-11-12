@@ -11,7 +11,8 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job, get_operation,
     get_singular_chunk_id, check_all_stderrs, make_random_string,
     create_test_tables, assert_statistics, extract_statistic_v2, sync_create_cells,
-    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
+    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics,
+    update_scheduler_config)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
@@ -3148,13 +3149,6 @@ print(json.dumps(input))
 
     @authors("apollo1321")
     def test_fail_tactics_with_chunk_scraper(self):
-        """
-        This test ensures that unavailable input chunk is not added to chunk scraper if
-        unavailable_chunk_tactics is set to fail. Otherwise internal invariants may be
-        violated, because when this chunk is found, `Resume` is called without preceding
-        `Suspend` call.
-        """
-
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
 
@@ -3199,6 +3193,47 @@ print(json.dumps(input))
         time.sleep(5)
 
         set_nodes_banned(replicas, False)
+
+        with raises_yt_error(f"Input chunk {chunk_id} is unavailable"):
+            op.track()
+
+    @authors("apollo1321")
+    def test_fail_tactics_with_chunk_available_again(self):
+        skip_if_component_old(self.Env, (26, 3), "controller-agent")
+
+        update_scheduler_config(
+            "testing_options/finish_operation_transition_delay",
+            {"duration": 20000, "type": "async"})
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+
+        write_table("<append=%true>//tmp/t_in", [{"col": "1"}])
+        skipped_chunk_id = get_first_chunk_id("//tmp/t_in")
+        set_nodes_banned(get(f"#{skipped_chunk_id}/@stored_replicas"), True)
+
+        write_table("<append=%true>//tmp/t_in", [{"col": "2"}])
+        chunk_id = get("//tmp/t_in/@chunk_ids/1")
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            spec={
+                "unavailable_chunk_strategy": "skip",
+                "unavailable_chunk_tactics": "fail",
+            },
+            track=False,
+        )
+        wait_breakpoint(op)
+
+        unavailable_chunks_path = op.get_orchid_path() + "/unavailable_input_chunks/<local>"
+
+        set_nodes_banned(replicas, True)
+        wait(lambda: op.get_state() == "failing")
+
+        set_nodes_banned(replicas, False)
+        wait(lambda: get(unavailable_chunks_path) == [skipped_chunk_id])
 
         with raises_yt_error(f"Input chunk {chunk_id} is unavailable"):
             op.track()
