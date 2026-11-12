@@ -83,6 +83,7 @@ namespace NYql {
 
         // Pinger
         TString DieOnFileAbsence; // see YQL-14099
+        ui16 MonitoringPort = 0;
 
         // Cleaner
         TMaybe<int> KeepFirst;

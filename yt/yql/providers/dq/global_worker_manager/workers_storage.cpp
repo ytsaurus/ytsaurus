@@ -1164,6 +1164,7 @@ void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) con
         node->SetClusterName(workerInfo->ClusterName);
         node->SetAddress(workerInfo->Address);
         node->SetPort(workerInfo->Port);
+        node->SetMonitoringPort(workerInfo->MonitoringPort);
         node->SetEpoch(workerInfo->Epoch);
         node->SetStopping(workerInfo->Stopping);
         node->SetStartTime(workerInfo->StartTime);

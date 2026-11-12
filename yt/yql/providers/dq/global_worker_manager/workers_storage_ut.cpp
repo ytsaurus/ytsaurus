@@ -1014,6 +1014,32 @@ Y_UNIT_TEST_SUITE(WorkersBenchmark) {
         }
     }
 
+    Y_UNIT_TEST(MonitoringPortIsReportedInClusterStatus) {
+        for (const auto monitoringPort : {TMaybe<ui32>{}, TMaybe<ui32>{0}, TMaybe<ui32>{31004}}) {
+            TWorkersStorage storage(1, new TSensorsGroup, new TSensorsGroup);
+            storage.Clear();
+
+            TGUID guid;
+            CreateGuid(&guid);
+            Yql::DqsProto::RegisterNodeRequest request;
+            request.SetCapacity(1);
+            request.SetPort(12345);
+            request.AddKnownNodes(1);
+            if (monitoringPort) {
+                request.SetMonitoringPort(*monitoringPort);
+            }
+            storage.CreateOrUpdate(100, guid, request);
+            storage.CreateOrUpdate(100, guid, request);
+
+            Yql::DqsProto::ClusterStatusResponse response;
+            storage.ClusterStatus(&response);
+
+            UNIT_ASSERT_VALUES_EQUAL(response.WorkerSize(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(response.GetWorker(0).GetMonitoringPort(), monitoringPort.GetOrElse(0));
+            UNIT_ASSERT_VALUES_EQUAL(response.GetWorker(0).GetPort(), 12345);
+        }
+    }
+
     Y_UNIT_TEST(RssIsReportedInClusterStatus) {
         TWorkersStorage storage(1, new TSensorsGroup, new TSensorsGroup);
         storage.Clear();

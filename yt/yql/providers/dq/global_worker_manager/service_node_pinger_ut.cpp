@@ -10,6 +10,7 @@
 #include <contrib/libs/grpc/include/grpcpp/server_builder.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/threading/future/future.h>
 
 #include <util/folder/tempdir.h>
 #include <util/generic/hash_set.h>
@@ -21,13 +22,16 @@ namespace NYql {
 
         class TDownloadListService: public Yql::DqsProto::DqService::Service {
         public:
-            grpc::Status RegisterNode(grpc::ServerContext*, const Yql::DqsProto::RegisterNodeRequest*,
+            grpc::Status RegisterNode(grpc::ServerContext*, const Yql::DqsProto::RegisterNodeRequest* request,
                                       Yql::DqsProto::RegisterNodeResponse* response) override {
+                Request.TrySetValue(*request);
                 *response = Response;
                 return grpc::Status::OK;
             }
 
             Yql::DqsProto::RegisterNodeResponse Response;
+            NThreading::TPromise<Yql::DqsProto::RegisterNodeRequest> Request =
+                NThreading::NewPromise<Yql::DqsProto::RegisterNodeRequest>();
         };
 
         class TPingerCoordinator: public TTestCoordinationHelper {
@@ -59,6 +63,36 @@ namespace NYql {
         };
 
         using TExpectedReads = THashMap<TString, THashMap<TString, TString>>;
+
+        void CheckMonitoringPort(TMaybe<ui16> monitoringPort) {
+            using namespace NActors;
+            TDownloadListService service;
+            int port = 0;
+            grpc::ServerBuilder builder;
+            builder.AddListeningPort("localhost:0", grpc::InsecureServerCredentials(), &port);
+            builder.RegisterService(&service);
+            auto server = builder.BuildAndStart();
+            UNIT_ASSERT(server);
+            UNIT_ASSERT(port);
+
+            TTestActorRuntimeBase runtime(1, true);
+            runtime.Initialize();
+            auto coordinator = MakeIntrusive<TPingerCoordinator>(
+                runtime.GetNodeId(0), THashMap<TString, TActorId>{});
+            TResourceManagerOptions options;
+            if (monitoringPort) {
+                options.MonitoringPort = *monitoringPort;
+            }
+            auto resolver = CreateStaticResolver({TStringBuilder() << "localhost:" << port});
+            runtime.Register(CreateServiceNodePinger(runtime.GetNodeId(0), "localhost", 12345,
+                                                     "worker_node", {}, resolver, coordinator, options));
+
+            const auto request = service.Request.GetFuture();
+            UNIT_ASSERT_C(request.Wait(TDuration::Seconds(10)), "Worker registration timed out");
+            UNIT_ASSERT_VALUES_EQUAL(request.GetValueSync().GetMonitoringPort(), monitoringPort.GetOrElse(0));
+            UNIT_ASSERT_VALUES_EQUAL(request.GetValueSync().GetPort(), 12345);
+            server->Shutdown();
+        }
 
         void CheckDownloads(const Yql::DqsProto::RegisterNodeResponse& response, TExpectedReads expectedReads) {
             using namespace NActors;
@@ -173,6 +207,18 @@ namespace NYql {
     } // namespace
 
     Y_UNIT_TEST_SUITE(TServiceNodePingerTest) {
+        Y_UNIT_TEST(ReportsMonitoringPort) {
+            CheckMonitoringPort(31004);
+        }
+
+        Y_UNIT_TEST(ReportsDisabledMonitoringPort) {
+            CheckMonitoringPort(0);
+        }
+
+        Y_UNIT_TEST(DefaultsToDisabledMonitoringPort) {
+            CheckMonitoringPort({});
+        }
+
         Y_UNIT_TEST(PrefersGroupsOverLegacyList) {
             CheckGroupedDownloads();
         }

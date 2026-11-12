@@ -237,6 +237,7 @@ private:
         req.SetCapabilities(Yql::DqsProto::RegisterNodeRequest::ECAP_RUNEXE | Options.Capabilities);
         req.SetNodeId(NodeId);
         req.SetPort(Port);
+        req.SetMonitoringPort(Options.MonitoringPort);
         req.SetRole(Role);
         req.SetAddress(Address);
         req.SetRevision(Revision);
