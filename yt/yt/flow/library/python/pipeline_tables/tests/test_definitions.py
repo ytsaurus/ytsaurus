@@ -10,6 +10,7 @@ from yt.yt.flow.library.python.pipeline_tables.definitions import _DEFINITIONS
 from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
 from yt.yt.flow.library.python.pipeline_tables.definitions import _RESOURCE_KEY
 from yt.yt.flow.library.python.pipeline_tables.presets import PIPELINE_NODES_PRESET
+from yt.yt.flow.library.python.pipeline_tables.presets import PIPELINE_TABLES_PRESET
 
 
 def test_source_tree_fallback_matches_resource(monkeypatch, tmp_path):
@@ -81,3 +82,28 @@ def test_resource_builds_independent_full_and_legacy_views():
     full_mount_config["row_merger_type"] = "changed"
     assert raw_mount_config["row_merger_type"] == original_row_merger
     full_mount_config["row_merger_type"] = original_row_merger
+
+
+def test_failed_messages_schema_and_preset():
+    assert set(PIPELINE_TABLES_PRESET) == set(PIPELINE_TABLES)
+    schema = PIPELINE_TABLES["failed_messages"]["schema"]
+    assert [column["name"] for column in schema if "sort_order" in column] == [
+        "computation_id",
+        "stream_id",
+        "key",
+        "message_id",
+    ]
+    assert all(column["sort_order"] == "ascending" for column in schema[:4])
+    column_types = {column["name"]: column["type"] for column in schema}
+    assert column_types["key"] == "any"
+    assert column_types["stream_spec_id"] == "int64"
+    assert "schema" not in column_types
+    assert column_types["flow_core_version"] == "string"
+    assert column_types["replay_at"] == "uint64"
+    assert column_types["replay_attempts"] == "uint64"
+    assert "replayed_at" not in column_types
+    preset = PIPELINE_TABLES_PRESET["failed_messages"]
+    assert preset["$merge_presets"] == ["builtin:pipeline_sorted_table_preset"]
+    attributes = preset["clusters"]["_all_data_clusters"]["attributes"]
+    assert attributes["dynamic"]
+    assert "max_data_ttl" not in attributes.get("mount_config", {})

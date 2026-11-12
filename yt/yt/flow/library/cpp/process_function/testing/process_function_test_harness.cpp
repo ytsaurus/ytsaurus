@@ -61,6 +61,11 @@ const std::vector<TRecordingOutputCollector::TRecordedTimer>& TProcessFunctionTe
     return Output_->GetTimers();
 }
 
+const std::vector<TFailedMessage>& TProcessFunctionTestHarness::GetFailedMessages() const
+{
+    return Output_->GetFailedMessages();
+}
+
 const IRuntimeContextPtr& TProcessFunctionTestHarness::GetContext() const
 {
     return Context_;

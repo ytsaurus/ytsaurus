@@ -568,6 +568,11 @@ private:
             "Process function graph output collector was used outside its Process invocation");
     }
 
+    void DoAddFailedMessage(const TInputMessageConstPtr& /*message*/, const TError& /*reason*/) override
+    {
+        THROW_ERROR_EXCEPTION("Failed message capture is not supported inside a process function graph");
+    }
+
     void DoAddMessage(TMessage&& message, TAddMessageOptions options) override
     {
         auto graph = LockGraph();

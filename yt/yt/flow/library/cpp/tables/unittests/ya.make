@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    failed_messages_ut.cpp
     transaction_manager_ut.cpp
 )
 

@@ -619,6 +619,44 @@ TEST(TProcessFunctionTest, EpochUniqueSeqNoThrowsWhenNotPublished)
         "was not published for this epoch");
 }
 
+TEST(TProcessFunctionTest, HarnessRecordsFailedMessagesPerEpoch)
+{
+    class TFailingFunction
+        : public IProcessFunction
+    {
+    public:
+        void ProcessMessage(
+            const TInputMessageConstPtr& message,
+            const IOutputCollectorPtr& output,
+            const IRuntimeContextPtr& /*context*/) override
+        {
+            output->AddFailedMessage(message, TError("Invalid input"));
+        }
+    };
+
+    TTestStateEnvironment environment;
+    TProcessFunctionTestHarness harness(environment, New<TFailingFunction>());
+    auto schema = New<TTableSchema>();
+    std::vector<TInputMessageConstPtr> messages{
+        MakeTestMessage("input", MakeKey<ui64>(1), schema),
+        MakeTestMessage("input", MakeKey<ui64>(2), schema),
+    };
+
+    EXPECT_TRUE(harness.GetFailedMessages().empty());
+    harness.RunEpoch(messages);
+    const auto& failures = harness.GetFailedMessages();
+    ASSERT_EQ(std::ssize(failures), std::ssize(messages));
+    for (int index = 0; index < std::ssize(messages); ++index) {
+        EXPECT_EQ(failures[index].Message, messages[index]);
+        EXPECT_EQ(failures[index].Reason.GetMessage(), "Invalid input");
+    }
+    EXPECT_TRUE(harness.GetMessages().empty());
+    EXPECT_TRUE(harness.GetTimers().empty());
+
+    harness.RunEpoch(std::vector<TInputMessageConstPtr>{});
+    EXPECT_TRUE(harness.GetFailedMessages().empty());
+}
+
 TEST(TProcessFunctionTest, OutputCollectorStampsParents)
 {
     auto output = New<TRecordingOutputCollector>();

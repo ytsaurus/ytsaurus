@@ -31,6 +31,7 @@ struct TJobContext
     IPartitionBufferStatePtr PartitionBufferState;
 
     std::string WorkerAddress;
+    TFlowCoreTarget FlowCoreTarget;
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;
     NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache;

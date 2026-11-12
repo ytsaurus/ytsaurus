@@ -763,6 +763,14 @@ void TResourceSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFailureHandlerSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPipelineSpec::Register(TRegistrar registrar)
 {
     // Keep unrecognized fields so they survive the round-trip through the struct;
@@ -783,6 +791,8 @@ void TPipelineSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
+    registrar.Parameter("failure_handler", &TThis::FailureHandler)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* spec) {
         ValidatePipelineDeclarationIds(spec);

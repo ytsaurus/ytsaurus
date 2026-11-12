@@ -59,6 +59,7 @@ target_link_options(yt-flow-library-cpp-tables-unittests PRIVATE
 )
 
 target_sources(yt-flow-library-cpp-tables-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/failed_messages_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/transaction_manager_ut.cpp
 )
 

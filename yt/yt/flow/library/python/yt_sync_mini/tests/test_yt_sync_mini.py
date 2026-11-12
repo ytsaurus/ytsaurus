@@ -8,8 +8,9 @@ This test creates a pipeline via ``client.create("pipeline", ...)``
 catalogue and cpp agree on:
 
 * The set of inner table paths, recursively below intermediate directories.
-  The known prebuilt ytserver resource 13574877676 lacks the log tables;
-  only that resource is exempt from checking their presence.
+  The known prebuilt ytserver resources 13574877676 and 14153084700 lack
+  the log tables and failed_messages, respectively; only those resources
+  are exempt from checking the corresponding tables' presence.
 * The column schema of each table, including canonical logical types.
 * Schema strictness and the unique-key flag.
 
@@ -44,6 +45,7 @@ LOG_TABLE_PATHS = {
 }
 TABLE_NODE_TYPES = {"table", "replicated_table", "chaos_replicated_table"}
 PREBUILT_YTSERVER_WITHOUT_LOG_TABLES = "13574877676"
+PREBUILT_YTSERVER_WITHOUT_FAILED_MESSAGES = "14153084700"
 
 
 def _tables_missing_from_prebuilt_ytserver(definition, server_binary):
@@ -51,8 +53,11 @@ def _tables_missing_from_prebuilt_ytserver(definition, server_binary):
         return set()
     with open(definition) as source:
         resource = re.search(r"FROM_SANDBOX\(\s*(?:FILE\s+)?(\d+)\b", source.read())
-    if resource and resource[1] == PREBUILT_YTSERVER_WITHOUT_LOG_TABLES:
-        return LOG_TABLE_PATHS
+    if resource:
+        if resource[1] == PREBUILT_YTSERVER_WITHOUT_LOG_TABLES:
+            return LOG_TABLE_PATHS
+        if resource[1] == PREBUILT_YTSERVER_WITHOUT_FAILED_MESSAGES:
+            return {"failed_messages"}
     return set()
 
 
@@ -60,13 +65,20 @@ def _tables_missing_from_prebuilt_ytserver(definition, server_binary):
     "resource,definition_exists,binary_exists,expected",
     [
         (PREBUILT_YTSERVER_WITHOUT_LOG_TABLES, True, True, LOG_TABLE_PATHS),
+        (PREBUILT_YTSERVER_WITHOUT_FAILED_MESSAGES, True, True, {"failed_messages"}),
         ("13970901195", True, True, set()),
         (PREBUILT_YTSERVER_WITHOUT_LOG_TABLES, True, False, set()),
         (PREBUILT_YTSERVER_WITHOUT_LOG_TABLES, False, True, set()),
     ],
-    ids=["known_prebuilt", "updated_resource", "source_build", "no_internal_package"],
+    ids=[
+        "prebuilt_without_logs",
+        "prebuilt_without_failed_messages",
+        "updated_resource",
+        "source_build",
+        "no_internal_package",
+    ],
 )
-def test_prebuilt_log_table_exemption(tmp_path, resource, definition_exists, binary_exists, expected):
+def test_prebuilt_table_exemptions(tmp_path, resource, definition_exists, binary_exists, expected):
     definition = tmp_path / "ya.make"
     server_binary = tmp_path / "ytserver-all"
     if definition_exists:

@@ -699,6 +699,7 @@ struct TExecutionSpecVersions
     TVersion DynamicPipelineSpecVersion;
 
     TVersion LayoutVersion;
+    TVersion FlowCoreTargetVersion;
 
     TVersion StreamSpecStorageStateVersion;
 

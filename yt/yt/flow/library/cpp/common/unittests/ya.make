@@ -60,4 +60,5 @@ END()
 RECURSE(
     binary_checksum_override
     mock
+    output_collector
 )

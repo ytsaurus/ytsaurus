@@ -87,6 +87,8 @@ private:
     //! Per-key indexes of the timer groups opened by #KeyedTimerGroup.
     THashMap<TKey, size_t> KeyedGroupIndex_;
 
+    void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason) override;
+
     DECLARE_NEW_FRIEND()
 };
 

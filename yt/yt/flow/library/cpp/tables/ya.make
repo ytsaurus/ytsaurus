@@ -7,6 +7,7 @@ SRCS(
     compact_output_messages.cpp
     compact_partition_output_messages.cpp
     context.cpp
+    failed_messages.cpp
     input_messages.cpp
     key_states.cpp
     key_visitor_states.cpp

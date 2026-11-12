@@ -61,6 +61,8 @@
 #include <util/generic/scope.h>
 #include <util/string/join.h>
 
+#include <algorithm>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
@@ -522,10 +524,12 @@ std::vector<TStreamId> TComputationBase::BuildTopologicalStreamOrder(TComputatio
 TRootOutputCollector::TRootOutputCollector(
     TComputationSpecPtr spec,
     IMetaSetterPtr metaSetter,
-    bool supportsDistribute)
+    bool supportsDistribute,
+    EFailureHandlerMode failureHandlerMode)
     : Spec_(std::move(spec))
     , MetaSetter_(std::move(metaSetter))
     , SupportsDistribute_(supportsDistribute)
+    , FailureHandlerMode_(failureHandlerMode)
 { }
 
 IOutputCollectorPtr TRootOutputCollector::SetParents(
@@ -567,6 +571,14 @@ void TRootOutputCollector::AddTimer(TTimer&& timer, const TMessageParentsConstPt
     Result_.OutputTimersParentMessageIds.push_back(std::move(setterResult.ActualParentMessageIds));
 }
 
+void TRootOutputCollector::AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(FailureHandlerMode_ != EFailureHandlerMode::Unsupported, "Failed message capture is supported only by transform computations");
+    THROW_ERROR_EXCEPTION_UNLESS(FailureHandlerMode_ == EFailureHandlerMode::Enabled, "Failure handler is disabled in the pipeline spec");
+
+    Result_.FailedMessages.push_back({message, reason});
+}
+
 TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
 {
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
@@ -594,6 +606,11 @@ IOutputCollectorPtr TOutputCollector::SetParents(
 void TOutputCollector::DoAddMessage(TMessage&& message, TAddMessageOptions options)
 {
     RootCollector_->AddMessage(std::move(message), Parents_, options.MessageIdSuffix, options.Distribute);
+}
+
+void TOutputCollector::DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason)
+{
+    RootCollector_->AddFailedMessage(message, reason);
 }
 
 void TOutputCollector::AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp)

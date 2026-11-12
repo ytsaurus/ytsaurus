@@ -1193,6 +1193,9 @@ void TExecutionSpecVersions::Register(TRegistrar registrar)
     registrar.Parameter("layout_version", &TThis::LayoutVersion)
         .Default();
 
+    registrar.Parameter("flow_core_target_version", &TThis::FlowCoreTargetVersion)
+        .Default();
+
     registrar.Parameter("stream_spec_storage_state_version", &TThis::StreamSpecStorageStateVersion)
         .Default();
 
@@ -1214,6 +1217,7 @@ TExecutionSpecVersionsPtr BuildExecutionSpecVersions(const TExecutionSpecPtr& ex
     versions->ExtendedPipelineSpecVersion = executionSpec->ExtendedPipelineSpec->GetVersion();
     versions->DynamicPipelineSpecVersion = executionSpec->DynamicPipelineSpec->GetVersion();
     versions->LayoutVersion = executionSpec->Layout->GetVersion();
+    versions->FlowCoreTargetVersion = executionSpec->FlowCoreTarget->GetVersion();
     versions->StreamSpecStorageStateVersion = executionSpec->StreamSpecStorageState->GetVersion();
     versions->InputStreamsTraverseVersion = executionSpec->InputStreamsTraverse->GetVersion();
     versions->WatermarkStateVersion = executionSpec->WatermarkState->GetVersion();
@@ -1234,6 +1238,7 @@ std::pair<TExecutionSpecPtr, std::vector<TPersistedStateStorageRow<std::string>>
     FLOW_VIEW_PREPARE_UPDATE(PipelineSpec);
     FLOW_VIEW_PREPARE_UPDATE(ExtendedPipelineSpec);
     FLOW_VIEW_PREPARE_UPDATE(DynamicPipelineSpec);
+    FLOW_VIEW_PREPARE_UPDATE(FlowCoreTarget);
     FLOW_VIEW_PREPARE_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_PREPARE_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_PREPARE_UPDATE(WatermarkState);
@@ -1264,6 +1269,7 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
     FLOW_VIEW_APPLY_UPDATE(PipelineSpec);
     FLOW_VIEW_APPLY_UPDATE(ExtendedPipelineSpec);
     FLOW_VIEW_APPLY_UPDATE(DynamicPipelineSpec);
+    FLOW_VIEW_APPLY_UPDATE(FlowCoreTarget);
     FLOW_VIEW_APPLY_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_APPLY_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_APPLY_UPDATE(WatermarkState);

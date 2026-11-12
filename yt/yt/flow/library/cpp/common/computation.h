@@ -48,6 +48,8 @@ DEFINE_REFCOUNTED_TYPE(ITimerPageCatalogue);
 struct TComputationContextBase
 {
     TComputationSpecPtr ComputationSpec;
+    bool FailureHandlerEnabled = false;
+    TFlowCoreTarget FlowCoreTarget;
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;
     TPartitionPtr Partition;

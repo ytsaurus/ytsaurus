@@ -33,6 +33,7 @@ target_sources(library-cpp-tables PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/compact_output_messages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/compact_partition_output_messages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/failed_messages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/input_messages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/key_states.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/key_visitor_states.cpp

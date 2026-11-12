@@ -75,6 +75,11 @@ void TGroupingOutputCollector::DoAddMessage(TMessage&& message, TAddMessageOptio
     group.MessageIdSuffixes.push_back(std::move(options.MessageIdSuffix));
 }
 
+void TGroupingOutputCollector::DoAddFailedMessage(const TInputMessageConstPtr& /*message*/, const TError& /*reason*/)
+{
+    THROW_ERROR_EXCEPTION("Failed message capture is not supported by companion process functions");
+}
+
 void TGroupingOutputCollector::AddTimer(
     TSystemTimestamp triggerTimestamp,
     std::optional<TSystemTimestamp> eventTimestamp)

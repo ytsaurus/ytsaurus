@@ -14,6 +14,7 @@ struct TJobSpec
     : public NYTree::TYsonStruct
 {
     TComputationSpecPtr ComputationSpec;
+    bool FailureHandlerEnabled = false;
     TExtendedComputationSpecPtr ExtendedComputationSpec;
 
     TJobPtr Job;
