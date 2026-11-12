@@ -1,5 +1,6 @@
 #pragma once
 
+#include "read_state.h"
 #include "source_public.h"
 #include "source_spec.h"
 
@@ -129,12 +130,19 @@ protected:
     const NLogging::TLogger Logger;
 
 private:
+    struct TPendingPlannedRead
+    {
+        i64 BeginOffset{};
+        i64 EndOffset{};
+        TDynamicTableSourcePartitionSpecPtr Spec;
+    };
+
     IStatusErrorStatePtr ReadErrorState_;
     NApi::IClientPtr Client_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler_;
 
-    std::atomic<i64> PersistedOffsetExclusive_;
-    std::vector<std::pair<i64, TSystemTimestamp>> PendingPlannedTimestamps_;
+    std::atomic<i64> PersistedOffsetExclusive_ = -1;
+    std::vector<TPendingPlannedRead> PendingPlannedReads_;
     TFuture<NApi::ITableReaderPtr> ReaderFuture_;
     i64 CurrentOffset_ = 0;
 
@@ -144,6 +152,8 @@ private:
 DEFINE_REFCOUNTED_TYPE(TSource);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TLegacyReadRanges = THashMap<TRangeId, std::pair<i64, i64>>;
 
 struct TSourceControllerTable
     : public virtual NYTree::TYsonStruct
@@ -161,16 +171,17 @@ struct TSourceControllerTable
     // Position of this table's directory name within its (Era, EventTimestamp) group.
     i64 EventOrdinal{};
 
-    std::optional<TInstant> PlannedStartTime;
-    TDuration PlannedReadDuration;
-    i64 PlannedProcessedRows{};
-    THashMap<TRangeId, TSystemTimestamp> PlannedRangeTimestamps;
+    TTableReadStatePtr ReadState;
 
-    i64 DistributedRows{};
+    // COMPAT(mikari): keep old progress in sync for rollback.
+    i64 LegacyDistributedRows{};
+    TLegacyReadRanges LegacyDistributingRanges;
 
-    THashMap<TRangeId, std::pair<i64, i64>> DistributingRanges; // rangeId -> (rangeBegin, rangeEnd).
-
-    TSystemTimestamp GetPlannedTimestamp(i64 rowIndex) const;
+    void SetLimit(i64 limit, TSystemTimestamp now);
+    bool CanSchedule() const;
+    void ScheduleRange(TRangeId rangeId, i64 maxRowCount, double plannedRowsPerSecond);
+    bool FinishRange(TRangeId rangeId);
+    void SkipRemainingRows();
 
     i64 GetNotDistributedRows() const;
 
@@ -179,14 +190,29 @@ struct TSourceControllerTable
     std::tuple<i64, TSystemTimestamp, i64> GetOrderingKey() const; // Era, EventTimestamp, EventOrdinal
     std::tuple<i64, TSystemTimestamp, TSystemTimestamp, std::string> GetV1OrderingKey() const;
 
-    void SkipRemainingRows();
-
     REGISTER_YSON_STRUCT(TSourceControllerTable);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSourceControllerTable);
+
+i64 CalculateRemainingRowCount(
+    const TSourceControllerTable& table,
+    const THashMap<TRangeId, i64>& committedOffsets);
+
+bool IsReadFinished(const TSourceControllerTable& table);
+
+bool HasUnreportedRanges(
+    const TTableReadState& state,
+    const THashMap<TRangeId, i64>& committedOffsets);
+
+TSystemTimestamp CalculateFutureTimestamp(
+    const TSourceControllerTable& table,
+    const THashMap<TRangeId, i64>& committedOffsets,
+    TSystemTimestamp now);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TClusterProgress
     : public NYTree::TYsonStruct
@@ -308,35 +334,24 @@ public:
         bool isIdle,
         const std::optional<TDuration>& idleWatermarkDelay);
 
-    static void InitializePlannedTimestamps(
-        const TDynamicTableSourceParametersPtr& dynamicParameters,
-        const TSourceControllerTablePtr& table,
-        TInstant now);
-
-    static void ReplanRemainingReads(
-        const TDynamicTableSourceParametersPtr& dynamicParameters,
-        const TSourceControllerTablePtr& table,
-        TInstant now);
-
-    static TSystemTimestamp GetFuturePlannedTimestamp(
-        const TSourceControllerTablePtr& table,
-        TSystemTimestamp now);
-
     static double GetDesiredRowsPerSecond(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
-        const TSourceControllerTablePtr& distributingTable);
-
-    static i64 GetRemainingTableRows(
-        const TSourceControllerTablePtr& distributingTable,
-        const THashMap<TRangeId, i64>& committedOffsetsExclusive);
+        const TSourceControllerTable* distributingTable);
 
     static THashMap<TRangeId, NYTree::IMapNodePtr> DoDistributing(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
         double desiredRangeRowsPerSecond,
         const THashMap<TRangeId, i64>& committedOffsetsExclusive,
-        // Table with not distributed range. DistributedRows and DistributingRanges are modified inplace.
         const TSourceControllerTablePtr& distributingTable,
-        std::function<TRangeId()> rangeIdGenerator);
+        std::function<TRangeId()> rangeIdGenerator,
+        bool usePlannedTimestamps,
+        TSystemTimestamp now);
+
+    static THashMap<TRangeId, NYTree::IMapNodePtr> BuildPartitionSpecs(
+        const TSourceControllerTablePtr& table,
+        double totalRowsPerSecond,
+        double rangeRowsPerSecond,
+        bool usePlannedTimestamps);
 
     static void FilterTables(
         std::vector<TSourceControllerTablePtr>& tables,
@@ -350,7 +365,7 @@ public:
 
     static double GetDesiredRangeRowsPerSecond(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
-        const TSourceControllerTablePtr& distributingTable);
+        const TSourceControllerTable* distributingTable);
 
     static TSystemTimestamp ExtractTimestamp(
         const NYTree::INodePtr& node,
@@ -407,8 +422,7 @@ public:
         TSourceControllerState* state,
         const std::vector<TSourceControllerTablePtr>& tables,
         const NLogging::TLogger& publicLogger,
-        EMigrationMode mode = EMigrationMode::V2,
-        std::function<void(const TSourceControllerTablePtr&)> onTableStarted = {});
+        EMigrationMode mode = EMigrationMode::V2);
 
     static bool ApplyRestartInstantLogic(
         TSourceControllerState* state,
@@ -446,7 +460,7 @@ public:
         const TSourceControllerTablePtr& current,
         const TSourceControllerTablePtr& serving,
         const TSourceControllerTablePtr& resumeFrom,
-        TInstant now,
+        TSystemTimestamp now,
         const TDynamicTableSourceParametersPtr& dynamicParameters);
 
     static std::optional<TFailoverDecision> DecideFailover(
@@ -454,7 +468,7 @@ public:
         const TSourceControllerTablePtr& servingReplica,
         const THashMap<std::string, TSourceControllerTablePtr>& stash,
         const NLogging::TLogger& publicLogger,
-        TInstant now,
+        TSystemTimestamp now,
         const TDynamicTableSourceParametersPtr& dynamicParameters);
 
     static void StashRangesForCleanup(
@@ -527,6 +541,12 @@ private:
 
 std::pair<i64, i64> GetRowIndexRange(const NYPath::TRichYPath& path);
 void SetRowIndexRange(NYPath::TRichYPath& path, i64 lower, i64 upper);
+
+TSystemTimestamp ComputePlannedTimestamp(
+    i64 rowIndex,
+    std::pair<i64, i64> rowIndexRange,
+    TSystemTimestamp plannedTimestamp,
+    TDuration plannedReadDuration);
 
 // Compares path & cluster.
 bool IsOneTable(NYPath::TRichYPath& a, NYPath::TRichYPath& b);

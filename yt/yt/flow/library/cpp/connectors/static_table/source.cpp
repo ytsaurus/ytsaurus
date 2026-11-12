@@ -42,6 +42,7 @@
 #include <util/generic/hash_set.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 
 namespace NYT::NFlow::NStaticTableConnector {
@@ -126,6 +127,23 @@ void SetRowIndexRange(TRichYPath& path, i64 lower, i64 upper)
     path.SetRanges({remainedRange});
 }
 
+TSystemTimestamp ComputePlannedTimestamp(
+    i64 rowIndex,
+    std::pair<i64, i64> rowIndexRange,
+    TSystemTimestamp plannedTimestamp,
+    TDuration plannedReadDuration)
+{
+    auto [begin, end] = rowIndexRange;
+    if (begin == end) {
+        return TSystemTimestamp(plannedTimestamp.Underlying() + plannedReadDuration.Seconds());
+    }
+
+    auto offset = std::clamp(rowIndex, begin, end) - begin;
+    auto offsetSeconds = static_cast<ui64>(
+        static_cast<__int128>(plannedReadDuration.Seconds()) * offset / (end - begin));
+    return TSystemTimestamp(plannedTimestamp.Underlying() + offsetSeconds);
+}
+
 bool IsOneTable(TRichYPath& a, TRichYPath& b)
 {
     return a.GetCluster() == b.GetCluster() && a.GetPath() == b.GetPath();
@@ -176,8 +194,7 @@ TSource::TSource(
                 .With("newDynamicPartitionSpec", ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
             if (previousDynamicPartitionSpec) {
                 YT_VERIFY(newDynamicPartitionSpec->Table.GetPath() == previousDynamicPartitionSpec->Table.GetPath());
-                YT_VERIFY(newDynamicPartitionSpec->PlannedTimestamp.has_value() == previousDynamicPartitionSpec->PlannedTimestamp.has_value());
-                if (!newDynamicPartitionSpec->PlannedTimestamp) {
+                if (!newDynamicPartitionSpec->UsePlannedTimestamps && !previousDynamicPartitionSpec->UsePlannedTimestamps) {
                     YT_VERIFY(newDynamicPartitionSpec->EventTimestamp == previousDynamicPartitionSpec->EventTimestamp);
                     YT_VERIFY(newDynamicPartitionSpec->SystemTimestamp == previousDynamicPartitionSpec->SystemTimestamp);
                 }
@@ -205,8 +222,8 @@ void TSource::DoTerminate()
 void TSource::DoReportPersistedOffset(TOffset offsetExclusive)
 {
     PersistedOffsetExclusive_.store(OffsetToInt(offsetExclusive));
-    EraseIf(PendingPlannedTimestamps_, [&] (const auto& pending) {
-        return pending.first <= OffsetToInt(offsetExclusive);
+    EraseIf(PendingPlannedReads_, [&] (const auto& pending) {
+        return pending.EndOffset <= OffsetToInt(offsetExclusive);
     });
     auto [minOffsetInclusive, maxOffsetExclusive] = GetRowIndexRange(GetDynamicPartitionSpec()->Table);
     UpdatePartitionInfo(
@@ -219,9 +236,22 @@ void TSource::DoReportPersistedOffset(TOffset offsetExclusive)
 
 void TSource::AdjustInflight(const TInflightStreamTraverseDataPtr& inflight)
 {
-    if (auto timestamp = GetDynamicPartitionSpec()->PlannedTimestamp) {
-        // Already read batches retain their timestamps across a live replan until persisted.
-        for (const auto& [offset, pendingTimestamp] : PendingPlannedTimestamps_) {
+    const auto& spec = GetDynamicPartitionSpec();
+    auto [begin, end] = GetRowIndexRange(spec->Table);
+    auto persistedOffset = std::clamp(PersistedOffsetExclusive_.load(), begin, end);
+    if (spec->UsePlannedTimestamps) {
+        std::optional<TSystemTimestamp> timestamp = ComputePlannedTimestamp(
+            persistedOffset,
+            {begin, end},
+            spec->PlannedTimestamp,
+            spec->PlannedReadDuration);
+        // Already read rows retain their plan across a live replan until persisted.
+        for (const auto& pending : PendingPlannedReads_) {
+            auto pendingTimestamp = ComputePlannedTimestamp(
+                std::max(PersistedOffsetExclusive_.load(), pending.BeginOffset),
+                GetRowIndexRange(pending.Spec->Table),
+                pending.Spec->PlannedTimestamp,
+                pending.Spec->PlannedReadDuration);
             timestamp = std::min(*timestamp, pendingTimestamp);
         }
         inflight->MinSystemTimestamp = inflight->Empty ? std::nullopt : timestamp;
@@ -585,14 +615,24 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             .CreateTimestamp = dynamicSourcePartitionSpec->EventTimestamp,
             .Payloads = {std::move(payload)},
             .PayloadSchema = payloadSchema};
+        if (dynamicSourcePartitionSpec->UsePlannedTimestamps) {
+            auto timestamp = ComputePlannedTimestamp(
+                rowOffset,
+                {minOffsetInclusive, maxOffsetExclusive},
+                dynamicSourcePartitionSpec->PlannedTimestamp,
+                dynamicSourcePartitionSpec->PlannedReadDuration);
+            record.WriteTimestamp = timestamp;
+            record.CreateTimestamp = timestamp;
+        }
+
         records.push_back(std::move(record));
     }
 
-    if (auto timestamp = dynamicSourcePartitionSpec->PlannedTimestamp) {
-        if (!PendingPlannedTimestamps_.empty() && PendingPlannedTimestamps_.back().second == *timestamp) {
-            PendingPlannedTimestamps_.back().first = CurrentOffset_;
+    if (dynamicSourcePartitionSpec->UsePlannedTimestamps) {
+        if (!PendingPlannedReads_.empty() && PendingPlannedReads_.back().Spec == dynamicSourcePartitionSpec) {
+            PendingPlannedReads_.back().EndOffset = CurrentOffset_;
         } else {
-            PendingPlannedTimestamps_.emplace_back(CurrentOffset_, *timestamp);
+            PendingPlannedReads_.push_back({nextOffset, CurrentOffset_, dynamicSourcePartitionSpec});
         }
     }
     return MakeFuture(std::move(records));
@@ -605,9 +645,78 @@ bool TSource::IsFinite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSourceControllerTable::SetLimit(i64 limit, TSystemTimestamp now)
+{
+    YT_VERIFY(limit >= 0);
+    const auto freeSlotCount = ReadState->NextRowIndex < RowCount
+        ? std::max<i64>(0, limit - std::ssize(ReadState->Ranges))
+        : 0;
+    while (std::ssize(ReadState->FreeSlotTimestamps) > freeSlotCount) {
+        ReadState->FreeSlotTimestamps.erase(std::prev(ReadState->FreeSlotTimestamps.end()));
+    }
+    while (std::ssize(ReadState->FreeSlotTimestamps) < freeSlotCount) {
+        ReadState->FreeSlotTimestamps.insert(now);
+    }
+}
+
+bool TSourceControllerTable::CanSchedule() const
+{
+    return !ReadState->FreeSlotTimestamps.empty();
+}
+
+void TSourceControllerTable::ScheduleRange(TRangeId rangeId, i64 maxRowCount, double plannedRowsPerSecond)
+{
+    YT_VERIFY(maxRowCount > 0 && plannedRowsPerSecond > 0);
+    YT_VERIFY(ReadState->NextRowIndex < RowCount);
+    YT_VERIFY(!ReadState->FreeSlotTimestamps.empty());
+    YT_VERIFY(!ReadState->Ranges.contains(rangeId));
+
+    auto slotIt = ReadState->FreeSlotTimestamps.begin();
+    auto rowCount = std::min(maxRowCount, RowCount - ReadState->NextRowIndex);
+    TReadRange range;
+    range.BeginRowIndex = ReadState->NextRowIndex;
+    range.EndRowIndex = ReadState->NextRowIndex + rowCount;
+    range.PlannedTimestamp = *slotIt;
+    range.PlannedReadDuration = TDuration::Seconds(std::ceil(rowCount / plannedRowsPerSecond));
+    ReadState->Ranges.emplace(rangeId, range);
+    ReadState->NextRowIndex = range.EndRowIndex;
+    LegacyDistributedRows = range.EndRowIndex;
+    LegacyDistributingRanges.emplace(rangeId, std::pair(range.BeginRowIndex, range.EndRowIndex));
+    ReadState->FreeSlotTimestamps.erase(slotIt);
+    if (ReadState->NextRowIndex == RowCount) {
+        ReadState->FreeSlotTimestamps.clear();
+    }
+}
+
+bool TSourceControllerTable::FinishRange(TRangeId rangeId)
+{
+    auto rangeIt = ReadState->Ranges.find(rangeId);
+    if (rangeIt == ReadState->Ranges.end()) {
+        return false;
+    }
+    auto nextTimestamp = rangeIt->second.GetPlannedEndTimestamp();
+    ReadState->Ranges.erase(rangeIt);
+    LegacyDistributingRanges.erase(rangeId);
+    if (ReadState->NextRowIndex < RowCount) {
+        ReadState->FreeSlotTimestamps.insert(nextTimestamp);
+    }
+    return true;
+}
+
+void TSourceControllerTable::SkipRemainingRows()
+{
+    ReadState->NextRowIndex = RowCount;
+    LegacyDistributedRows = RowCount;
+    ReadState->FreeSlotTimestamps.clear();
+    for (auto& [rangeId, range] : ReadState->Ranges) {
+        range.BeginRowIndex = range.EndRowIndex;
+        GetOrCrash(LegacyDistributingRanges, rangeId).first = range.EndRowIndex;
+    }
+}
+
 i64 TSourceControllerTable::GetNotDistributedRows() const
 {
-    return RowCount - DistributedRows;
+    return RowCount - ReadState->NextRowIndex;
 }
 
 std::tuple<i64, TSystemTimestamp, i64> TSourceControllerTable::GetOrderingKey() const
@@ -624,21 +733,6 @@ std::string TSourceControllerTable::GetName() const
 {
     auto path = Path.Attributes().Find<NYPath::TYPath>("original_path").value_or(Path.GetPath());
     return NYPath::DirNameAndBaseName(path).second;
-}
-
-void TSourceControllerTable::SkipRemainingRows()
-{
-    // Mark all rows as distributed.
-    DistributedRows = RowCount;
-    // Make every range empty. It is imitation of trimming every partition range to nothing.
-    for (auto& [rangeId, range] : DistributingRanges) {
-        range.first = range.second;
-    }
-}
-
-TSystemTimestamp TSourceControllerTable::GetPlannedTimestamp(i64 rowIndex) const
-{
-    return TSystemTimestamp((*PlannedStartTime + PlannedReadDuration * (static_cast<double>(rowIndex - PlannedProcessedRows) / RowCount)).Seconds());
 }
 
 void TSourceControllerTable::Register(TRegistrar registrar)
@@ -664,19 +758,83 @@ void TSourceControllerTable::Register(TRegistrar registrar)
     registrar.Parameter("event_ordinal", &TThis::EventOrdinal)
         .Default(0);
 
-    registrar.Parameter("planned_start_time", &TThis::PlannedStartTime)
-        .Default();
-    registrar.Parameter("planned_read_duration", &TThis::PlannedReadDuration)
-        .Default();
-    registrar.Parameter("planned_processed_rows", &TThis::PlannedProcessedRows)
+    registrar.Parameter("read_state", &TThis::ReadState)
+        .DefaultNew();
+
+    registrar.Parameter("distributed_rows", &TThis::LegacyDistributedRows)
         .Default(0);
-    registrar.Parameter("planned_range_timestamps", &TThis::PlannedRangeTimestamps)
+    registrar.Parameter("distributing_ranges", &TThis::LegacyDistributingRanges)
         .Default();
 
-    registrar.Parameter("distributed_rows", &TThis::DistributedRows)
-        .Default(0);
-    registrar.Parameter("distributing_ranges", &TThis::DistributingRanges)
-        .Default();
+    registrar.Postprocessor([] (TThis* table) {
+        // COMPAT(mikari): trunk has no per-row plan; preserve its progress.
+        if (!table->IsSet("read_state")) {
+            table->ReadState = New<TTableReadState>();
+            table->ReadState->NextRowIndex = table->LegacyDistributedRows;
+            auto timestamp = table->SystemTimestamp != ZeroSystemTimestamp
+                ? table->SystemTimestamp
+                : TSystemTimestamp(TInstant::Now().Seconds());
+            for (const auto& [rangeId, bounds] : table->LegacyDistributingRanges) {
+                TReadRange range;
+                range.BeginRowIndex = bounds.first;
+                range.EndRowIndex = bounds.second;
+                range.PlannedTimestamp = timestamp;
+                table->ReadState->Ranges.emplace(rangeId, range);
+            }
+        }
+
+        table->LegacyDistributedRows = table->ReadState->NextRowIndex;
+        table->LegacyDistributingRanges.clear();
+        for (const auto& [rangeId, range] : table->ReadState->Ranges) {
+            table->LegacyDistributingRanges.emplace(rangeId, std::pair(range.BeginRowIndex, range.EndRowIndex));
+        }
+    });
+}
+
+i64 CalculateRemainingRowCount(
+    const TSourceControllerTable& table,
+    const THashMap<TRangeId, i64>& committedOffsets)
+{
+    auto rows = table.GetNotDistributedRows();
+    for (const auto& [rangeId, range] : table.ReadState->Ranges) {
+        auto offset = std::max(range.BeginRowIndex, GetOrDefault(committedOffsets, rangeId, i64(-1)));
+        rows += std::max<i64>(0, range.EndRowIndex - offset);
+    }
+    return rows;
+}
+
+bool IsReadFinished(const TSourceControllerTable& table)
+{
+    return table.GetNotDistributedRows() == 0 && table.ReadState->Ranges.empty();
+}
+
+bool HasUnreportedRanges(
+    const TTableReadState& state,
+    const THashMap<TRangeId, i64>& committedOffsets)
+{
+    return AnyOf(state.Ranges, [&] (const auto& range) {
+        return !committedOffsets.contains(range.first);
+    });
+}
+
+TSystemTimestamp CalculateFutureTimestamp(
+    const TSourceControllerTable& table,
+    const THashMap<TRangeId, i64>& committedOffsets,
+    TSystemTimestamp now)
+{
+    auto timestamp = now;
+    for (const auto& [rangeId, range] : table.ReadState->Ranges) {
+        if (!committedOffsets.contains(rangeId)) {
+            timestamp = std::min(timestamp, range.PlannedTimestamp);
+        }
+        if (table.GetNotDistributedRows() > 0) {
+            timestamp = std::min(timestamp, range.GetPlannedEndTimestamp());
+        }
+    }
+    if (!table.ReadState->FreeSlotTimestamps.empty()) {
+        timestamp = std::min(timestamp, *table.ReadState->FreeSlotTimestamps.begin());
+    }
+    return timestamp;
 }
 
 void TClusterProgress::Register(TRegistrar registrar)
@@ -764,6 +922,9 @@ void TSourceController::Init(IInitContextPtr initContext)
     initContext->InitClient<TSourceControllerState>(State_, "v0");
     const bool isNativeV2Source = GetContext()->SourceSpec->SourceClassName != TypeName<TSource>();
     InitializeMigrationState(State_.Get(), isNativeV2Source);
+    for (const auto& table : State_->PendingCleanupTables) {
+        table->SkipRemainingRows();
+    }
 }
 
 void TSourceController::Sync()
@@ -1264,7 +1425,7 @@ TListedTables TSourceController::GetSingleClusterTables(
 
 void TSourceController::StashRangesForCleanup(TSourceControllerState* state, const TSourceControllerTablePtr& table)
 {
-    if (table->DistributingRanges.empty()) {
+    if (table->ReadState->Ranges.empty()) {
         return;
     }
     auto snapshot = NYTree::CloneYsonStruct(table);
@@ -1315,12 +1476,7 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
 
     const auto mode = *state->Mode;
     auto updateState = [&] {
-        UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger, mode, [&] (const TSourceControllerTablePtr& table) {
-            if (GetParameters()->UsePlannedTimestamps) {
-                auto now = WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
-                InitializePlannedTimestamps(GetDynamicParameters(), table, TInstant::Seconds(now.Underlying()));
-            }
-        });
+        UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger, mode);
     };
     if (mode != EMigrationMode::V2) {
         if (state->Inited) {
@@ -1388,9 +1544,9 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
     }
 
     auto serving = FindReplicaServingCurrentTable(listed.Tables, current->GetName());
-    auto now = serving && current->PlannedStartTime
-        ? TInstant::Seconds(WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow().Underlying())
-        : TInstant::Zero();
+    auto now = serving
+        ? WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow()
+        : ZeroSystemTimestamp;
 
     if (serving &&
         serving->Path.GetCluster() == current->Path.GetCluster() &&
@@ -1426,7 +1582,7 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
         .With("EventTimestamp", current->EventTimestamp)
         .With("FromCluster", decision->StashedCluster)
         .With("ToCluster", toCluster)
-        .With("ResumedDistributedRows", newTable->DistributedRows)
+        .With("ResumedDistributedRows", newTable->ReadState->NextRowIndex)
         .With("RowCount", newTable->RowCount);
 
     state->DistributingTable = newTable;
@@ -1483,7 +1639,7 @@ TSourceControllerTablePtr TSourceController::MakeFailoverTable(
     const TSourceControllerTablePtr& current,
     const TSourceControllerTablePtr& serving,
     const TSourceControllerTablePtr& resumeFrom,
-    TInstant now,
+    TSystemTimestamp now,
     const TDynamicTableSourceParametersPtr& dynamicParameters)
 {
     auto newTable = resumeFrom
@@ -1497,9 +1653,19 @@ TSourceControllerTablePtr TSourceController::MakeFailoverTable(
     newTable->Era = current->Era;
     newTable->EventTimestamp = current->EventTimestamp;
     newTable->EventOrdinal = current->EventOrdinal;
-    newTable->PlannedStartTime = current->PlannedStartTime;
-    if (newTable->PlannedStartTime) {
-        ReplanRemainingReads(dynamicParameters, newTable, now);
+    newTable->ReadState->FreeSlotTimestamps.clear();
+    if (!newTable->ReadState->Ranges.empty()) {
+        auto rangeRate = GetDesiredRangeRowsPerSecond(dynamicParameters, newTable.Get());
+        auto totalRate = std::min(
+            GetDesiredRowsPerSecond(dynamicParameters, newTable.Get()),
+            rangeRate * dynamicParameters->MaxPartitionCount);
+        auto rangeCount = std::min<i64>(dynamicParameters->MaxPartitionCount, std::ceil(totalRate / rangeRate));
+        auto rowsPerSecond = std::min(rangeRate, totalRate / std::max(rangeCount, std::ssize(newTable->ReadState->Ranges)));
+        for (auto& [rangeId, range] : newTable->ReadState->Ranges) {
+            range.PlannedTimestamp = now;
+            range.PlannedReadDuration = TDuration::Seconds(std::ceil(
+                (range.EndRowIndex - range.BeginRowIndex) / rowsPerSecond));
+        }
     }
 
     auto maxSystemTimestamp = std::max({
@@ -1517,7 +1683,7 @@ std::optional<TFailoverDecision> TSourceController::DecideFailover(
     const TSourceControllerTablePtr& servingReplica,
     const THashMap<std::string, TSourceControllerTablePtr>& stash,
     const TLogger& publicLogger,
-    TInstant now,
+    TSystemTimestamp now,
     const TDynamicTableSourceParametersPtr& dynamicParameters)
 {
     if (!servingReplica ||
@@ -1617,8 +1783,7 @@ void TSourceController::UpdateControllerState(
     TSourceControllerState* state,
     const std::vector<TSourceControllerTablePtr>& tables,
     const TLogger& publicLogger,
-    EMigrationMode mode,
-    std::function<void(const TSourceControllerTablePtr&)> onTableStarted)
+    EMigrationMode mode)
 {
     if (state->EraStartInstant == TInstant::Zero()) {
         state->EraStartInstant = TInstant::Now();
@@ -1659,9 +1824,6 @@ void TSourceController::UpdateControllerState(
 
     bool needStartNewTable = (it != tables.end() && state->DistributionFinished);
     if (needStartNewTable) {
-        if (onTableStarted) {
-            onTableStarted(*it);
-        }
         state->DistributingTable = *it;
         state->DistributingTable->Era = state->Era;
         state->DistributionFinished = false;
@@ -1781,7 +1943,7 @@ bool TSourceController::CheckDistributingTable()
 
 double TSourceController::GetDesiredRangeRowsPerSecond(
     const TDynamicTableSourceParametersPtr& dynamicParameters,
-    const TSourceControllerTablePtr& distributingTable)
+    const TSourceControllerTable* distributingTable)
 {
     double estimatedRowByteSize = std::max(1.0, static_cast<double>(distributingTable->ByteSize) / distributingTable->RowCount);
     return std::min<double>(
@@ -1791,24 +1953,29 @@ double TSourceController::GetDesiredRangeRowsPerSecond(
 
 void TSourceController::ProcessPartitionStatuses(const THashMap<TKey, TExtendedSourcePartitionStatusPtr>& statuses)
 {
-    const auto& distributingTable = State_->DistributingTable;
     for (const auto& [key, status] : statuses) {
         YT_VERIFY(status->PartitionState != EPartitionState::Interrupting);
         auto rangeId = ExtractRangeId(key);
         if (status->PartitionState == EPartitionState::Completed) {
-            distributingTable->DistributingRanges.erase(rangeId);
-            distributingTable->PlannedRangeTimestamps.erase(rangeId);
             CommittedOffsetsExclusive_.erase(rangeId);
-            for (const auto& cleanupTable : State_->PendingCleanupTables) {
-                cleanupTable->DistributingRanges.erase(rangeId);
-                cleanupTable->PlannedRangeTimestamps.erase(rangeId);
-            }
         } else {
             CommittedOffsetsExclusive_[rangeId] = ConvertTo<TPartitionStatusPtr>(status->PartitionStatus)->CommittedOffsetExclusive;
         }
     }
+
+    for (const auto& [key, status] : statuses) {
+        if (status->PartitionState != EPartitionState::Completed) {
+            continue;
+        }
+        auto rangeId = ExtractRangeId(key);
+        State_->DistributingTable->FinishRange(rangeId);
+        for (const auto& table : State_->PendingCleanupTables) {
+            table->FinishRange(rangeId);
+        }
+    }
+
     EraseIf(State_->PendingCleanupTables, [] (const TSourceControllerTablePtr& table) {
-        return table->DistributingRanges.empty();
+        return IsReadFinished(*table);
     });
 }
 
@@ -1823,7 +1990,7 @@ void TSourceController::CheckDistributionFinished()
         state->DistributionFinished = true;
         return;
     }
-    if (distributingTable->GetNotDistributedRows() != 0 || !distributingTable->DistributingRanges.empty()) {
+    if (!IsReadFinished(*distributingTable)) {
         return;
     }
 
@@ -1846,59 +2013,9 @@ void TSourceController::CheckDistributionFinished()
         .With("Table", distributingTable->Path);
 }
 
-void TSourceController::InitializePlannedTimestamps(
-    const TDynamicTableSourceParametersPtr& dynamicParameters,
-    const TSourceControllerTablePtr& table,
-    TInstant now)
-{
-    if (table->PlannedStartTime || table->DistributedRows != 0 || table->RowCount == 0) {
-        return;
-    }
-
-    ReplanRemainingReads(dynamicParameters, table, now);
-}
-
-void TSourceController::ReplanRemainingReads(
-    const TDynamicTableSourceParametersPtr& dynamicParameters,
-    const TSourceControllerTablePtr& table,
-    TInstant now)
-{
-    auto rangeRate = GetDesiredRangeRowsPerSecond(dynamicParameters, table);
-    auto totalRate = std::min(GetDesiredRowsPerSecond(dynamicParameters, table),
-        rangeRate * dynamicParameters->MaxPartitionCount);
-    THROW_ERROR_EXCEPTION_UNLESS(totalRate > 0 && rangeRate > 0, "Planned read rate must be positive");
-    auto duration = TDuration::Seconds(table->RowCount / totalRate);
-    THROW_ERROR_EXCEPTION_UNLESS(duration > TDuration::Zero(), "Planned read duration must be positive");
-    table->PlannedStartTime = now;
-    table->PlannedReadDuration = duration;
-    table->PlannedProcessedRows = table->DistributedRows;
-    std::vector<std::pair<i64, TRangeId>> ranges;
-    for (const auto& [rangeId, range] : table->DistributingRanges) {
-        table->PlannedProcessedRows -= range.second - range.first;
-        ranges.emplace_back(range.first, rangeId);
-    }
-    Sort(ranges);
-    table->PlannedRangeTimestamps.clear();
-    auto plannedRow = table->PlannedProcessedRows;
-    for (const auto& [rangeBegin, rangeId] : ranges) {
-        table->PlannedRangeTimestamps[rangeId] = table->GetPlannedTimestamp(plannedRow);
-        plannedRow += GetOrCrash(table->DistributingRanges, rangeId).second - rangeBegin;
-    }
-}
-
-TSystemTimestamp TSourceController::GetFuturePlannedTimestamp(
-    const TSourceControllerTablePtr& table,
-    TSystemTimestamp now)
-{
-    if (table->PlannedStartTime && table->GetNotDistributedRows() > 0) {
-        return table->GetPlannedTimestamp(table->DistributedRows);
-    }
-    return now;
-}
-
 double TSourceController::GetDesiredRowsPerSecond(
     const TDynamicTableSourceParametersPtr& dynamicParameters,
-    const TSourceControllerTablePtr& distributingTable)
+    const TSourceControllerTable* distributingTable)
 {
     double estimatedRowByteSize = std::max(1.0, static_cast<double>(distributingTable->ByteSize) / distributingTable->RowCount);
     return std::min<double>({
@@ -1910,71 +2027,60 @@ double TSourceController::GetDesiredRowsPerSecond(
     });
 }
 
-i64 TSourceController::GetRemainingTableRows(
-    const TSourceControllerTablePtr& distributingTable,
-    const THashMap<TRangeId, i64>& committedOffsetsExclusive)
-{
-    i64 rows = distributingTable->GetNotDistributedRows();
-    for (const auto& [rangeId, range] : distributingTable->DistributingRanges) {
-        const auto& [rangeBeginInclusive, rangeEndExclusive] = range;
-        i64 localRemainingRows = rangeEndExclusive - std::max<i64>(rangeBeginInclusive, GetOrDefault(committedOffsetsExclusive, rangeId, -1));
-        rows += std::max<i64>(0, localRemainingRows);
-    }
-    return rows;
-}
-
 THashMap<TRangeId, IMapNodePtr> TSourceController::DoDistributing(
     const TDynamicTableSourceParametersPtr& dynamicParameters,
     double desiredRangeRowsPerSecond,
     const THashMap<TRangeId, i64>& committedOffsetsExclusive,
     const TSourceControllerTablePtr& distributingTable,
-    std::function<TRangeId()> rangeIdGenerator)
+    std::function<TRangeId()> rangeIdGenerator,
+    bool usePlannedTimestamps,
+    TSystemTimestamp now)
 {
     THROW_ERROR_EXCEPTION_IF(desiredRangeRowsPerSecond == 0, "Can not do partitioning with zero desired partition rows per second");
-
-    double desiredRowsPerSecond = GetDesiredRowsPerSecond(dynamicParameters, distributingTable);
-    // Apply indirect limitation.
-    desiredRowsPerSecond = std::min(desiredRowsPerSecond, desiredRangeRowsPerSecond * dynamicParameters->MaxPartitionCount);
-
-    const i64 desiredRangeCount = std::min<i64>(dynamicParameters->MaxPartitionCount, std::ceil(desiredRowsPerSecond / desiredRangeRowsPerSecond));
-
-    // Correct desiredRangeProcessTime if table can be processed faster than dynamicParameters->DesiredPartitionProcessTime.
-    // Correction can be made once for one table.
-    const auto desiredRangeProcessTimeSeconds = std::min(
-        dynamicParameters->DesiredPartitionProcessTime.SecondsFloat(),
-        GetRemainingTableRows(distributingTable, committedOffsetsExclusive) / desiredRowsPerSecond);
-
-    auto& distributingRanges = distributingTable->DistributingRanges;
-
-    while (distributingTable->GetNotDistributedRows() > 0 && std::ssize(distributingRanges) < desiredRangeCount) {
-        const i64 rows = std::max<i64>(1, desiredRangeRowsPerSecond * desiredRangeProcessTimeSeconds);
-        const i64 newDistributedRows = std::min(distributingTable->DistributedRows + rows, distributingTable->RowCount);
-        auto rangeId = rangeIdGenerator();
-        if (distributingTable->PlannedStartTime) {
-            distributingTable->PlannedRangeTimestamps[rangeId] = distributingTable->GetPlannedTimestamp(distributingTable->DistributedRows);
-        }
-        distributingRanges[rangeId] = {distributingTable->DistributedRows, newDistributedRows};
-        distributingTable->DistributedRows = newDistributedRows;
-    }
-
-    if (distributingRanges.empty()) {
+    if (distributingTable->RowCount == 0) {
         return {};
     }
 
-    double rangeRowsPerSecond = desiredRowsPerSecond / distributingRanges.size();
+    double desiredRowsPerSecond = std::min(
+        GetDesiredRowsPerSecond(dynamicParameters, distributingTable.Get()),
+        desiredRangeRowsPerSecond * dynamicParameters->MaxPartitionCount);
+    const i64 desiredRangeCount = std::min<i64>(dynamicParameters->MaxPartitionCount, std::ceil(desiredRowsPerSecond / desiredRangeRowsPerSecond));
+
+    const auto desiredRangeProcessTimeSeconds = std::min(
+        dynamicParameters->DesiredPartitionProcessTime.SecondsFloat(),
+        CalculateRemainingRowCount(*distributingTable, committedOffsetsExclusive) / desiredRowsPerSecond);
+
+    distributingTable->SetLimit(desiredRangeCount, now);
+    const i64 rows = std::max<i64>(1, desiredRangeRowsPerSecond * desiredRangeProcessTimeSeconds);
+    auto plannedRowsPerSecond = std::min(desiredRangeRowsPerSecond, desiredRowsPerSecond / desiredRangeCount);
+    while (distributingTable->CanSchedule()) {
+        distributingTable->ScheduleRange(rangeIdGenerator(), rows, plannedRowsPerSecond);
+    }
+    return BuildPartitionSpecs(distributingTable, desiredRowsPerSecond, desiredRangeRowsPerSecond, usePlannedTimestamps);
+}
+
+THashMap<TRangeId, IMapNodePtr> TSourceController::BuildPartitionSpecs(
+    const TSourceControllerTablePtr& table,
+    double totalRowsPerSecond,
+    double rangeRowsPerSecond,
+    bool usePlannedTimestamps)
+{
+    const auto& ranges = table->ReadState->Ranges;
     THashMap<TRangeId, IMapNodePtr> result;
-    for (const auto& [rangeId, range] : distributingRanges) {
+    for (const auto& [rangeId, range] : ranges) {
         auto spec = New<TDynamicTableSourcePartitionSpec>();
-        spec->Table = distributingTable->Path;
-        SetRowIndexRange(spec->Table, range.first, range.second);
-        spec->EventTimestamp = distributingTable->EventTimestamp;
-        spec->SystemTimestamp = distributingTable->SystemTimestamp;
-        if (distributingTable->PlannedStartTime) {
-            spec->PlannedTimestamp = GetOrCrash(distributingTable->PlannedRangeTimestamps, rangeId);
-            spec->EventTimestamp = *spec->PlannedTimestamp;
-            spec->SystemTimestamp = *spec->PlannedTimestamp;
+        spec->Table = table->Path;
+        SetRowIndexRange(spec->Table, range.BeginRowIndex, range.EndRowIndex);
+        spec->EventTimestamp = table->EventTimestamp;
+        spec->SystemTimestamp = table->SystemTimestamp;
+        spec->PlannedTimestamp = range.PlannedTimestamp;
+        spec->PlannedReadDuration = range.PlannedReadDuration;
+        spec->UsePlannedTimestamps = usePlannedTimestamps;
+        if (usePlannedTimestamps) {
+            spec->EventTimestamp = range.PlannedTimestamp;
+            spec->SystemTimestamp = range.PlannedTimestamp;
         }
-        spec->RowsPerSecond = std::min(rangeRowsPerSecond, desiredRangeRowsPerSecond);
+        spec->RowsPerSecond = std::min(totalRowsPerSecond / ranges.size(), rangeRowsPerSecond);
         result[rangeId] = ConvertTo<IMapNodePtr>(spec);
     }
     return result;
@@ -2014,24 +2120,30 @@ std::optional<THashMap<TKey, IMapNodePtr>> TSourceController::ListKeys()
         return TRangeId(GetContext()->TimeProvider->GenerateSeqNo());
     };
 
+    auto now = WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false))
+        .ValueOrThrow();
     THashMap<TKey, IMapNodePtr> result;
-    auto emit = [&] (const TSourceControllerTablePtr& table, const THashMap<TRangeId, i64>& committedOffsets) {
-        auto specs = DoDistributing(
-            GetDynamicParameters(),
-            GetDesiredRangeRowsPerSecond(GetDynamicParameters(), table),
-            committedOffsets,
-            table,
-            rangeIdGenerator);
+    auto emit = [&] (const THashMap<TRangeId, IMapNodePtr>& specs) {
         for (const auto& [rangeId, spec] : specs) {
             result[GenerateRangeKey(rangeId)] = spec;
         }
     };
-
-    emit(distributingTable, CommittedOffsetsExclusive_);
+    emit(DoDistributing(
+        GetDynamicParameters(),
+        GetDesiredRangeRowsPerSecond(GetDynamicParameters(), distributingTable.Get()),
+        CommittedOffsetsExclusive_,
+        distributingTable,
+        rangeIdGenerator,
+        GetParameters()->UsePlannedTimestamps,
+        now));
 
     // Emit abandoned ranges so their partitions Complete and reclaim source key state.
-    for (const auto& cleanupTable : State_->PendingCleanupTables) {
-        emit(cleanupTable, /*committedOffsets*/ {});
+    for (const auto& table : State_->PendingCleanupTables) {
+        auto rangeRate = GetDesiredRangeRowsPerSecond(GetDynamicParameters(), table.Get());
+        auto totalRate = std::min(
+            GetDesiredRowsPerSecond(GetDynamicParameters(), table.Get()),
+            rangeRate * GetDynamicParameters()->MaxPartitionCount);
+        emit(BuildPartitionSpecs(table, totalRate, rangeRate, GetParameters()->UsePlannedTimestamps));
     }
     return result;
 }
@@ -2040,32 +2152,51 @@ std::optional<TStreamTraverseDataPtr> TSourceController::GetFutureKeysStreamTrav
 {
     const auto& distributingTable = State_->DistributingTable;
     i64 notDistributedCount = distributingTable->GetNotDistributedRows() + State_->PendingCount;
+    auto hasUnreportedRanges = [&] (const TSourceControllerTablePtr& table) {
+        return HasUnreportedRanges(*table->ReadState, CommittedOffsetsExclusive_);
+    };
+    bool hasUnreported = hasUnreportedRanges(distributingTable);
+    for (const auto& table : State_->PendingCleanupTables) {
+        hasUnreported |= hasUnreportedRanges(table);
+    }
+
     bool noFuturePartitions = GetParameters()->Finite && State_->Inited && notDistributedCount == 0 &&
-        State_->PendingCleanupTables.empty() && State_->ClusterProgress->ByCluster.empty();
-
-    auto now = NConcurrency::WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
-
-    bool isIdle = (State_->Inited && notDistributedCount == 0);
-    auto eventWatermark = CalculateEventWatermark(
-        distributingTable->EventTimestamp,
-        now,
-        isIdle,
-        GetParameters()->IdleWatermarkDelay);
+        !hasUnreported && State_->PendingCleanupTables.empty() && State_->ClusterProgress->ByCluster.empty();
+    auto now = WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false))
+        .ValueOrThrow();
+    bool isIdle = State_->Inited && notDistributedCount == 0 && !hasUnreported;
 
     auto sourceStream = New<TStreamTraverseData>();
     sourceStream->Epoch = -1; // Will be fixed in universal controller.
     sourceStream->State = noFuturePartitions ? EStreamState::Completed : EStreamState::Drained;
     sourceStream->SystemWatermark = isIdle ? now : distributingTable->SystemTimestamp;
-    sourceStream->EventWatermark = eventWatermark;
-    if (distributingTable->PlannedStartTime || (GetParameters()->UsePlannedTimestamps && distributingTable->RowCount == 0)) {
-        auto plannedTimestamp = GetFuturePlannedTimestamp(distributingTable, now);
+    sourceStream->EventWatermark = CalculateEventWatermark(
+        distributingTable->EventTimestamp,
+        now,
+        isIdle,
+        GetParameters()->IdleWatermarkDelay);
+    if (GetParameters()->UsePlannedTimestamps) {
+        auto plannedTimestamp = CalculateFutureTimestamp(*distributingTable, CommittedOffsetsExclusive_, now);
+        for (const auto& table : State_->PendingCleanupTables) {
+            plannedTimestamp = std::min(plannedTimestamp, CalculateFutureTimestamp(*table, CommittedOffsetsExclusive_, now));
+        }
         sourceStream->SystemWatermark = plannedTimestamp;
         sourceStream->EventWatermark = plannedTimestamp;
+    } else {
+        for (const auto& table : State_->PendingCleanupTables) {
+            if (hasUnreportedRanges(table)) {
+                sourceStream->SystemWatermark = std::min(sourceStream->SystemWatermark, table->SystemTimestamp);
+                sourceStream->EventWatermark = std::min(sourceStream->EventWatermark, table->EventTimestamp);
+            }
+        }
     }
-    auto infightMetrics = sourceStream->InflightMetrics;
-    infightMetrics->Count = notDistributedCount;
-    double notDistributedRatio = static_cast<double>(distributingTable->GetNotDistributedRows()) / distributingTable->RowCount;
-    infightMetrics->ByteSize = notDistributedRatio * distributingTable->ByteSize + State_->PendingBytes;
+
+    auto inflightMetrics = sourceStream->InflightMetrics;
+    inflightMetrics->Count = notDistributedCount;
+    double notDistributedRatio = distributingTable->RowCount > 0
+        ? static_cast<double>(distributingTable->GetNotDistributedRows()) / distributingTable->RowCount
+        : 0;
+    inflightMetrics->ByteSize = notDistributedRatio * distributingTable->ByteSize + State_->PendingBytes;
 
     return sourceStream;
 }

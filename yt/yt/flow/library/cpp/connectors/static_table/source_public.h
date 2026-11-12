@@ -11,6 +11,8 @@ namespace NYT::NFlow::NStaticTableConnector {
 
 class TSourceController;
 
+DECLARE_REFCOUNTED_STRUCT(TTableReadState);
+
 DEFINE_ENUM(EMigrationMode,
     ((V1)       (0))
     ((Draining) (1))

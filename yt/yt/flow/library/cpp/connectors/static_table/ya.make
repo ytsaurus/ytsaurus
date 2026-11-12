@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     arrival_order_table_sink.cpp
+    read_state.cpp
     source.cpp
     source_spec.cpp
     spec.cpp

@@ -119,9 +119,11 @@ void TDynamicTableSourceParameters::Register(TRegistrar registrar)
         .Default(TDuration::Hours(1));
 
     registrar.Parameter("max_rows_per_second", &TThis::MaxRowsPerSecond)
-        .Default(1e12);
+        .Default(1e12)
+        .GreaterThan(0);
     registrar.Parameter("max_bytes_per_second", &TThis::MaxBytesPerSecond)
-        .Default(1e12);
+        .Default(1e12)
+        .GreaterThan(0);
 
     registrar.Parameter("min_event_timestamp", &TThis::MinEventTimestamp)
         .Default();
@@ -165,6 +167,10 @@ void TDynamicTableSourcePartitionSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("planned_timestamp", &TThis::PlannedTimestamp)
         .Default();
+    registrar.Parameter("planned_read_duration", &TThis::PlannedReadDuration)
+        .Default();
+    registrar.Parameter("use_planned_timestamps", &TThis::UsePlannedTimestamps)
+        .Default(false);
 
     registrar.Parameter("rows_per_second", &TThis::RowsPerSecond)
         .Default(1.0);
