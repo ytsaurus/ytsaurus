@@ -26,6 +26,7 @@
 #include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
 #include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
 
+#include <yt/yt/flow/library/cpp/misc/counter.h>
 #include <yt/yt/flow/library/cpp/misc/remedian_splitter.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -667,8 +668,8 @@ private:
     const IInvokerPtr MetricsInvoker_;
     TKeyHeavyHittersCounterPtr GlobalHeavyHittersCounter_;
     THashMap<TStreamId, TKeyHeavyHittersCounterPtr> StreamHeavyHittersCounters_;
-    TEmaCounter<double, 1> GlobalInputBytesCounter_;
-    THashMap<TStreamId, TEmaCounter<double, 1>> StreamInputBytesCounters_;
+    TSimpleEmaCounter GlobalInputBytesCounter_;
+    THashMap<TStreamId, TSimpleEmaCounter> StreamInputBytesCounters_;
     std::optional<TRemedianSplitter<TKey>> RemedianSplitter_;
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TNodeInputMetricsPtr JobInputMetrics_;
@@ -742,9 +743,9 @@ private:
         i64 totalBytes = 0;
         for (const auto& [streamId, streamState] : streamStates) {
             totalBytes += streamState.Bytes;
-            GetOrCrash(StreamInputBytesCounters_, streamId).Update(streamState.Bytes, now);
+            GetOrCrash(StreamInputBytesCounters_, streamId).Inc(streamState.Bytes, now);
         }
-        GlobalInputBytesCounter_.Update(totalBytes, now);
+        GlobalInputBytesCounter_.Inc(totalBytes, now);
 
         std::vector<TKey> allKeys;
         for (const auto& [streamId, streamState] : streamStates) {
@@ -758,7 +759,7 @@ private:
         auto inputMetrics = New<TNodeInputMetrics>();
         auto globalStats = GlobalHeavyHittersCounter_->GetStatistics(now);
         inputMetrics->Global.MessagesPerSecond = globalStats.Total;
-        inputMetrics->Global.BytesPerSecond = GlobalInputBytesCounter_.GetRate(0).value_or(0);
+        inputMetrics->Global.BytesPerSecond = GlobalInputBytesCounter_.GetDecayedRate().value_or(0);
         for (const auto& [key, fraction] : globalStats.Fractions) {
             inputMetrics->Global.HeavyHitters.emplace_back(fraction, key);
         }
@@ -781,7 +782,7 @@ private:
             }
         }
         for (const auto& [streamId, counter] : StreamInputBytesCounters_) {
-            inputMetrics->Streams[streamId].BytesPerSecond = counter.GetRate(0).value_or(0);
+            inputMetrics->Streams[streamId].BytesPerSecond = counter.GetDecayedRate().value_or(0);
         }
 
         {
@@ -886,18 +887,18 @@ private:
         return counters;
     }
 
-    static TEmaCounter<double, 1> CreateGlobalInputBytesCounter(const TComputationSpecPtr& spec)
+    static TSimpleEmaCounter CreateGlobalInputBytesCounter(const TComputationSpecPtr& spec)
     {
         // Use the same window as for messages counter (embedded in heavy hitters counter).
-        return TEmaCounter<double, 1>({spec->HeavyHitters.Window});
+        return TSimpleEmaCounter(spec->HeavyHitters.Window);
     }
 
-    static THashMap<TStreamId, TEmaCounter<double, 1>> CreateStreamInputBytesCounters(const TComputationSpecPtr& spec)
+    static THashMap<TStreamId, TSimpleEmaCounter> CreateStreamInputBytesCounters(const TComputationSpecPtr& spec)
     {
-        THashMap<TStreamId, TEmaCounter<double, 1>> counters;
+        THashMap<TStreamId, TSimpleEmaCounter> counters;
         for (const auto& streamId : spec->InputStreamIds) {
             // Use the same window as for messages counter (embedded in heavy hitters counter).
-            counters.emplace(streamId, TEmaCounter<double, 1>({spec->HeavyHitters.Window}));
+            counters.emplace(streamId, TSimpleEmaCounter(spec->HeavyHitters.Window));
         }
         return counters;
     }

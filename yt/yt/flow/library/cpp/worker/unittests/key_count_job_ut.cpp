@@ -1,3 +1,4 @@
+#include <yt/yt/flow/library/cpp/worker/input_buffer.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_spec.h>
 
@@ -6,11 +7,14 @@
 #include <yt/yt/flow/library/cpp/common/computation.h>
 #include <yt/yt/flow/library/cpp/common/computation_statistics.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -143,6 +147,37 @@ public:
 
 YT_FLOW_DEFINE_COMPUTATION(TRunningKeySnapshotComputation);
 
+class TInputBytesComputation
+    : public TTerminalKeySnapshotComputation
+{
+public:
+    using TTerminalKeySnapshotComputation::TTerminalKeySnapshotComputation;
+
+    void Run(const IComputationRunContextPtr& context) override
+    {
+        for (int batchIndex = 0; batchIndex < 2; ++batchIndex) {
+            while (WaitFor(context->GetNextBatch({TStreamId("input")})).ValueOrThrow().empty()) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+            }
+
+            if (batchIndex == 0) {
+                Probe_->Started.Set();
+            }
+        }
+
+        WaitFor(Probe_->Finish.ToFuture()).ThrowOnError();
+    }
+
+    TComputationStatusPtr GetStatus() override
+    {
+        auto status = New<TComputationStatus>();
+        status->NodeTraverse = New<TNodeTraverseData>();
+        return status;
+    }
+};
+
+YT_FLOW_DEFINE_COMPUTATION(TInputBytesComputation);
+
 class TKeyCountJobTest
     : public ::testing::Test
 {
@@ -169,7 +204,7 @@ protected:
         GetActiveKeySnapshotProbe().store(nullptr);
     }
 
-    void Start(std::string className, bool enable = true)
+    void Start(std::string className, bool enable = true, bool input = false)
     {
         auto jobContext = New<TJobContext>();
         jobContext->ControlSerializedInvoker = Queue_->GetInvoker();
@@ -182,6 +217,14 @@ protected:
         auto spec = New<TJobSpec>();
         spec->ComputationSpec = New<TComputationSpec>();
         spec->ComputationSpec->ComputationClassName = std::move(className);
+        TJobStreamLimitUsageStates streamLimits;
+        if (input) {
+            const TStreamId streamId("input");
+            spec->ComputationSpec->InputStreamIds.insert(streamId);
+            spec->ComputationSpec->HeavyHitters.Window = TDuration::MilliSeconds(10);
+            Dynamic_->DynamicComputationSpec->BatchDuration = TDuration::Zero();
+            streamLimits.Input.emplace(streamId, New<TStreamLimitUsageState>());
+        }
         Probe_.Enable = enable;
         spec->Partition = New<TPartition>();
         spec->Partition->PartitionId = TPartitionId(TGuid::Create());
@@ -190,7 +233,7 @@ protected:
         spec->Job = New<TJob>();
         spec->Job->JobId = TJobId(TGuid::Create());
         spec->Job->PartitionId = spec->Partition->PartitionId;
-        Job_ = CreateJob(jobContext, {}, 1, spec, Dynamic_, New<TToPartitionTraverseData>(), New<TWatermarkState>());
+        Job_ = CreateJob(jobContext, std::move(streamLimits), 1, spec, Dynamic_, New<TToPartitionTraverseData>(), New<TWatermarkState>());
         WaitFor(Job_->Start()).ThrowOnError();
     }
 
@@ -264,6 +307,61 @@ TEST_F(TKeyCountJobTest, EveryRunningStatusReportsKeys)
     auto finished = WaitForFinished();
     ASSERT_TRUE(finished->IsFinished);
     EXPECT_EQ(finished->ObservedKeys, first->ObservedKeys);
+}
+
+TEST_F(TKeyCountJobTest, EqualSizedInputBatchesHavePositiveByteRate)
+{
+    const TStreamId streamId("input");
+    Start(TypeName<TInputBytesComputation>(), /*enable*/ false, /*input*/ true);
+    Job_->UpdateMessageTransferingInfo(New<TMessageTransferingInfo>());
+    auto schema = New<NTableClient::TTableSchema>();
+    auto connectionId = TGuid::Create();
+    i64 firstByteSize = 0;
+    auto addMessage = [&] (int index) {
+        TMessageBuilder builder(streamId, schema);
+        builder.SetMessageId(TMessageId(Format("msg-%v", index)));
+        builder.SetSystemTimestamp(TSystemTimestamp(100 + index));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(100 + index));
+        builder.SetEventTimestamp(TSystemTimestamp(100 + index));
+        auto message = New<TInputMessage>(builder.Finish(), MakeKey("key"));
+        ASSERT_GT(message->ByteSize, 0);
+        if (index == 1) {
+            firstByteSize = message->ByteSize;
+        } else {
+            ASSERT_EQ(message->ByteSize, firstByteSize);
+        }
+        WaitFor(Job_->GetInputBuffer()->AddMessages(connectionId, {std::move(message)}, {})).ThrowOnError();
+    };
+
+    addMessage(1);
+    WaitFor(Probe_.Started.ToFuture()).ThrowOnError();
+    bool firstBatchRegistered = false;
+    for (int iteration = 0; iteration < 100; ++iteration) {
+        auto status = WaitFor(Job_->GetStatus()).ValueOrThrow();
+        ASSERT_TRUE(status->Error.IsOK()) << ToString(status->Error);
+        if (status->InputMetrics && status->InputMetrics->Streams.contains(streamId)) {
+            firstBatchRegistered = true;
+            break;
+        }
+        WaitForDuration(TDuration::MilliSeconds(10));
+    }
+    ASSERT_TRUE(firstBatchRegistered);
+    WaitForDuration(TDuration::MilliSeconds(20));
+    addMessage(2);
+
+    TNodeInputMetricsPtr metrics;
+    for (int iteration = 0; iteration < 100; ++iteration) {
+        auto status = WaitFor(Job_->GetStatus()).ValueOrThrow();
+        ASSERT_TRUE(status->Error.IsOK()) << ToString(status->Error);
+        metrics = status->InputMetrics;
+        if (metrics && metrics->Global.BytesPerSecond > 0) {
+            break;
+        }
+        WaitForDuration(TDuration::MilliSeconds(10));
+    }
+    ASSERT_TRUE(metrics);
+    EXPECT_GT(metrics->Global.BytesPerSecond, 0);
+    EXPECT_GT(GetOrCrash(metrics->Streams, streamId).BytesPerSecond, 0);
 }
 
 TEST_F(TKeyCountJobTest, DisabledComputationOmitsKeys)
