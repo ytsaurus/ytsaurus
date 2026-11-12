@@ -271,12 +271,6 @@ class TestGetOperation(_TestGetOperationBase):
         self.clean_build_time(res_get_operation_new)
         assert res_get_operation_new["brief_progress"] != {"ivan": "ivanov"}
 
-        # NB(bystrovserg): We do not write Cypress progress to archive anymore.
-        # assert res_get_operation_new["progress"] != {
-        #     "semen": "semenych",
-        #     "semenych": "gorbunkov",
-        # }
-
     @authors("ignat")
     @pytest.mark.parametrize("annotations", [{}, {"foo": "abc"}])
     def test_attributes(self, annotations):

@@ -873,8 +873,7 @@ private:
             ValidateYson(briefProgress, GetYsonNestingLevelLimit());
 
             if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
-                // While the operation is running, we only attempt to write brief progress to the archive.
-                // Once the operation finishes, persist brief progress in Cypress to ensure it is always available.
+                // Keep final brief progress available to readers without an archive lookup.
                 if (controller->IsFinished()) {
                     hasSubrequests = true;
 

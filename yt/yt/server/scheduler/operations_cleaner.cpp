@@ -1298,14 +1298,14 @@ private:
             return;
         }
 
-        // NB(bystrovserg): Try to fill missing progress from the archive for operations whose request lacks them.
+        // NB(bystrovserg): Try to fill missing progress from the archive for operations whose request lacks it.
         std::vector<TArchiveOperationRequest> missing;
         for (auto operationId : operationIds) {
             const auto& request = GetRequest(operationId);
 
-            // NB(bystrovserg): Operations that fail during initialization do not have any progress anyway
-            // so we do not mark them as incomplete.
             bool hasMissingProgress = !request.Progress || !request.BriefProgress;
+            // NB(bystrovserg): Operations that fail during initialization have no progress,
+            // so we do not mark them as incomplete.
             if (hasMissingProgress && NDetail::HasOperationReachedRunningState(request.Events)) {
                 missing.push_back(request);
             }

@@ -150,7 +150,7 @@ private:
 
         TDuration ScheduleAllocationExecDurationEstimate;
 
-        TCpuInstant ScheduleAllocationBackoffDeadline = {};
+        NProfiling::TCpuInstant ScheduleAllocationBackoffDeadline = 0;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
