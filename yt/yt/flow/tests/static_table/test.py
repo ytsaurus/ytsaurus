@@ -254,7 +254,7 @@ class Test(FlowTestBase):
             pipeline_config["dynamic_spec"]["computations"]["reader"]["source_streams"]["table"]["parameters"].update(
                 {
                     "desired_partition_rows_per_second": EVENT_COUNT / 8,
-                    "desired_partition_process_time": 2000,
+                    "desired_partition_process_time": 4000,
                     "max_partition_count": 2,
                 }
             )
@@ -331,9 +331,9 @@ class Test(FlowTestBase):
             assert [row["data"] for row in output] == [row["data"] for row in self.first_input_table.expected_output]
             start = output[0]["event_time"]
             assert start >= before_start
-            rows_per_range = EVENT_COUNT // 4
+            rows_per_range = EVENT_COUNT // 2
             assert [row["event_time"] for row in output] == [
-                start + index // rows_per_range for index in range(EVENT_COUNT)
+                start + 4 * (index % rows_per_range) // rows_per_range for index in range(EVENT_COUNT)
             ]
 
     @pytest.mark.authors(["pechatnov"])

@@ -868,7 +868,7 @@ class Test(FlowTestBase):
         with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}) as federation:
             wait(lambda: len(self.get_output()) > 0, timeout=180)
             initial = self.get_source_controller_state()["distributing_table"]
-            initial_start = initial["planned_start_time"]
+            initial_schedule = initial["read_state"]
             initial_timestamp = min(row["event_time"] for row in self.get_output())
             wait(lambda: self.get_processing_watermark() >= initial_timestamp, timeout=180)
             before_restart_watermark = self.get_processing_watermark()
@@ -876,9 +876,9 @@ class Test(FlowTestBase):
             federation.controllers[0].restart()
             federation.workers[0].restart()
             restored = self.wait_source_state(
-                lambda state: state["distributing_table"]["planned_start_time"] == initial_start
+                lambda state: state["distributing_table"]["read_state"] == initial_schedule
             )["distributing_table"]
-            assert restored["planned_range_timestamps"] == initial["planned_range_timestamps"]
+            assert restored["read_state"] == initial_schedule
             assert self.get_processing_watermark() >= before_restart_watermark
 
             self.prepare_input_table_on(replica_client, replica)
@@ -888,7 +888,8 @@ class Test(FlowTestBase):
             switched = self.wait_source_state(
                 lambda state: state["distributing_table"]["path"].attributes["cluster"] == replica_cluster
             )["distributing_table"]
-            assert switched["planned_start_time"] != initial_start
+            assert all(plan["planned_timestamp"] >= switch_time for plan in switched["read_state"]["ranges"].values())
+            assert all(timestamp >= switch_time for timestamp in switched["read_state"]["free_slot_timestamps"])
             wait(lambda: any(row["data"].startswith("payload_replica_") for row in self.get_output()), timeout=180)
             assert all(
                 row["event_time"] >= switch_time
@@ -903,7 +904,8 @@ class Test(FlowTestBase):
             resumed = self.wait_source_state(
                 lambda state: state["distributing_table"]["path"].attributes["cluster"] == "primary"
             )["distributing_table"]
-            assert resumed["planned_start_time"] != initial_start
+            assert all(plan["planned_timestamp"] >= return_time for plan in resumed["read_state"]["ranges"].values())
+            assert all(timestamp >= return_time for timestamp in resumed["read_state"]["free_slot_timestamps"])
             wait(
                 lambda: any(
                     row["data"].startswith("payload_first_") and row["event_time"] >= return_time
