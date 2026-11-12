@@ -292,7 +292,8 @@ void BecomeLeaderAndProcessList(
     TActorId rmActor,
     TActorId ytActor,
     const TVector<NYT::TNode>& entries,
-    ui32 epoch = 1)
+    ui32 epoch = 1,
+    const TString& leaderTransaction = {})
 {
     if (epoch == 1) {
         // Wait for TEvBootstrap so YtWrapper is set before TEvBecomeLeader is processed.
@@ -304,7 +305,10 @@ void BecomeLeaderAndProcessList(
     }
 
     runtime.Send(new IEventHandle(rmActor, ytActor,
-        new TEvBecomeLeader(epoch, "0-0-0-1", "{}")));
+        new TEvBecomeLeader(
+            epoch,
+            leaderTransaction.empty() ? "0-0-0-" + ToString(epoch) : leaderTransaction,
+            "{}")));
 
     // GrabEdgeEvent dispatches until TEvListNode arrives at ytActor.
     auto listNodeEv = runtime.GrabEdgeEvent<TEvListNode>(ytActor, TDuration::Seconds(5));
@@ -325,7 +329,8 @@ ui64 TriggerDropAndGetRemoveRequestId(
     TTestActorRuntimeBase& runtime,
     TActorId ytActor,
     const TString& operationId = {},
-    int watcherCount = 1)
+    int watcherCount = 1,
+    const TString& expectedTransaction = {})
 {
     TActorId watcherActor;
     ui64 getOperationRequestId = 0;
@@ -355,8 +360,43 @@ ui64 TriggerDropAndGetRemoveRequestId(
 
     auto removeEv = runtime.GrabEdgeEvent<TEvRemoveNode>(ytActor, TDuration::Seconds(5));
     UNIT_ASSERT_C(removeEv, "Expected TEvRemoveNode after operation drop");
+    if (!expectedTransaction.empty()) {
+        const auto& prerequisites = std::get<1>(*removeEv->Get()).PrerequisiteTransactionIds;
+        UNIT_ASSERT_VALUES_EQUAL(1, prerequisites.size());
+        UNIT_ASSERT_VALUES_EQUAL(
+            expectedTransaction,
+            ToString(prerequisites.front()));
+    }
     return removeEv->Get()->RequestId;
 }
+
+struct TLeaderEpochTestRuntime
+{
+    TTestActorRuntimeBase Runtime;
+    TActorId YtActor;
+    TActorId CoordActor;
+    TActorId RmActor;
+    TResourceManagerOptions Options = MakeTestOptions();
+
+    TLeaderEpochTestRuntime(int maxJobs = 2, TDuration tickInterval = TDuration::Max())
+    {
+        if (tickInterval != TDuration::Max()) {
+            Runtime.SetScheduledEventFilter(AllowScheduledEvents);
+        }
+        Runtime.Initialize();
+        SetupLogging(Runtime);
+        YtActor = Runtime.AllocateEdgeActor();
+        CoordActor = Runtime.AllocateEdgeActor();
+        Options.YtBackend.SetMinNodeId(700);
+        Options.YtBackend.SetMaxNodeId(700 + maxJobs);
+        Options.YtBackend.SetMaxJobs(maxJobs);
+        Options.YtBackend.SetJobsPerOperation(2);
+        Options.TickInterval = tickInterval;
+        RmActor = Runtime.Register(CreateResourceManager(
+            Options, MakeIntrusive<TMockCoordinator>(YtActor, CoordActor)));
+        Runtime.EnableScheduleForActor(RmActor);
+    }
+};
 
 } // anonymous namespace
 
@@ -945,249 +985,279 @@ Y_UNIT_TEST_SUITE(OnListOperationsTest) {
     }
 
     Y_UNIT_TEST(StaleStartResponseDoesNotBlockNextLeaderEpoch) {
-        TTestActorRuntimeBase runtime;
-        runtime.Initialize();
-        SetupLogging(runtime);
+        for (bool directReelection : {false, true}) {
+            TTestActorRuntimeBase runtime;
+            runtime.Initialize();
+            SetupLogging(runtime);
 
-        TActorId ytActor = runtime.AllocateEdgeActor();
-        TActorId coordActor = runtime.AllocateEdgeActor();
+            TActorId ytActor = runtime.AllocateEdgeActor();
+            TActorId coordActor = runtime.AllocateEdgeActor();
 
-        TResourceManagerOptions opts = MakeTestOptions();
-        opts.YtBackend.SetMinNodeId(700);
-        opts.YtBackend.SetMaxNodeId(704);
-        opts.YtBackend.SetMaxJobs(4);
-        opts.YtBackend.SetJobsPerOperation(2);
+            TResourceManagerOptions opts = MakeTestOptions();
+            opts.YtBackend.SetMinNodeId(700);
+            opts.YtBackend.SetMaxNodeId(704);
+            opts.YtBackend.SetMaxJobs(4);
+            opts.YtBackend.SetJobsPerOperation(2);
 
-        auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
-        TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
-        runtime.EnableScheduleForActor(rmActor);
+            auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
+            TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
+            runtime.EnableScheduleForActor(rmActor);
 
-        BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {});
+            BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {});
 
-        NYT::TErrorOr<TString> emptyList(NYT::NodeToYsonString(NYT::TNode::CreateList()));
-        runtime.Send(new IEventHandle(
-            rmActor,
-            coordActor,
-            new TEvListNodeResponse(/*requestId*/ 0, emptyList)));
+            NYT::TErrorOr<TString> emptyList(NYT::NodeToYsonString(NYT::TNode::CreateList()));
+            runtime.Send(new IEventHandle(
+                rmActor,
+                coordActor,
+                new TEvListNodeResponse(/*requestId*/ 0, emptyList)));
 
-        ui64 createRequestId = 0;
-        TString staleMutationId;
-        int epochOneOperationCreateCount = 0;
-        const auto epochOneEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
-        for (const auto& event : epochOneEvents) {
-            if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
-                continue;
+            ui64 createRequestId = 0;
+            TString staleMutationId;
+            int epochOneOperationCreateCount = 0;
+            const auto epochOneEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
+            for (const auto& event : epochOneEvents) {
+                if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
+                    continue;
+                }
+
+                const auto* createNode = event->Get<TEvCreateNode>();
+                if (createNode->RequestId == static_cast<ui64>(-1)) {
+                    continue;
+                }
+
+                ++epochOneOperationCreateCount;
+                const auto currentNodeIds = std::get<2>(*createNode).Attributes->Get<TVector<ui32>>(
+                    NCommonAttrs::ACTOR_NODEID_ATTR);
+                if (currentNodeIds != TVector<ui32>({700, 701})) {
+                    UNIT_ASSERT_VALUES_EQUAL(TVector<ui32>({702, 703}), currentNodeIds);
+                    continue;
+                }
+
+                createRequestId = createNode->RequestId;
+                staleMutationId = std::get<2>(*createNode).Attributes->Get<TString>("yql_mutation_id");
+            }
+            UNIT_ASSERT_VALUES_EQUAL(2, epochOneOperationCreateCount);
+            UNIT_ASSERT_UNEQUAL(0, createRequestId);
+
+            NYT::TErrorOr<NYT::NCypressClient::TNodeId> createResult(
+                NYT::NCypressClient::TNodeId::FromString(
+                    "11111111-22222222-33333333-44444444"));
+            runtime.Send(new IEventHandle(
+                rmActor,
+                ytActor,
+                new TEvCreateNodeResponse(createRequestId, createResult)));
+
+            auto startOperationEv = runtime.GrabEdgeEvent<TEvStartOperation>(
+                ytActor,
+                TDuration::Seconds(5));
+            UNIT_ASSERT_C(startOperationEv, "Expected start request in the first leader epoch");
+
+            if (!directReelection) {
+                runtime.Send(new IEventHandle(
+                    rmActor,
+                    ytActor,
+                    new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
             }
 
-            const auto* createNode = event->Get<TEvCreateNode>();
-            if (createNode->RequestId == static_cast<ui64>(-1)) {
-                continue;
-            }
+            BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
+                MakeOperationEntry(staleMutationId, {700, 701}),
+            }, /*epoch*/ 2);
 
-            ++epochOneOperationCreateCount;
-            const auto currentNodeIds = std::get<2>(*createNode).Attributes->Get<TVector<ui32>>(
-                NCommonAttrs::ACTOR_NODEID_ATTR);
-            if (currentNodeIds != TVector<ui32>({700, 701})) {
-                UNIT_ASSERT_VALUES_EQUAL(TVector<ui32>({702, 703}), currentNodeIds);
-                continue;
-            }
+            NYT::TErrorOr<NYT::NScheduler::TOperationId> staleStartResult(
+                NYT::NScheduler::TOperationId(
+                    NYT::TGuid::FromString("55555555-66666666-77777777-88888888")));
+            runtime.Send(new IEventHandle(
+                rmActor,
+                ytActor,
+                new TEvStartOperationResponse(
+                    startOperationEv->Get()->RequestId,
+                    staleStartResult)));
 
-            createRequestId = createNode->RequestId;
-            staleMutationId = std::get<2>(*createNode).Attributes->Get<TString>("yql_mutation_id");
+            runtime.Send(new IEventHandle(
+                rmActor,
+                coordActor,
+                new TEvListNodeResponse(/*requestId*/ 0, emptyList)));
+
+            int operationCreateCount = 0;
+            const auto epochTwoEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
+            for (const auto& event : epochTwoEvents) {
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvSetNode::EventType);
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvGetOperation::EventType);
+
+                if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
+                    continue;
+                }
+
+                const auto* createNode = event->Get<TEvCreateNode>();
+                if (createNode->RequestId == static_cast<ui64>(-1)) {
+                    continue;
+                }
+
+                ++operationCreateCount;
+                UNIT_ASSERT_VALUES_EQUAL(
+                    TVector<ui32>({702, 703}),
+                    std::get<2>(*createNode).Attributes->Get<TVector<ui32>>(
+                        NCommonAttrs::ACTOR_NODEID_ATTR));
+            }
+            UNIT_ASSERT_VALUES_EQUAL(1, operationCreateCount);
+            UNIT_ASSERT_VALUES_EQUAL(2,
+                GetResourceManagerCounter(opts, "quarantined_claim_count")->Val());
         }
-        UNIT_ASSERT_VALUES_EQUAL(2, epochOneOperationCreateCount);
-        UNIT_ASSERT_UNEQUAL(0, createRequestId);
-
-        NYT::TErrorOr<NYT::NCypressClient::TNodeId> createResult(
-            NYT::NCypressClient::TNodeId::FromString(
-                "11111111-22222222-33333333-44444444"));
-        runtime.Send(new IEventHandle(
-            rmActor,
-            ytActor,
-            new TEvCreateNodeResponse(createRequestId, createResult)));
-
-        auto startOperationEv = runtime.GrabEdgeEvent<TEvStartOperation>(
-            ytActor,
-            TDuration::Seconds(5));
-        UNIT_ASSERT_C(startOperationEv, "Expected start request in the first leader epoch");
-
-        runtime.Send(new IEventHandle(
-            rmActor,
-            ytActor,
-            new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
-
-        BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
-            MakeOperationEntry(staleMutationId, {700, 701}),
-        }, /*epoch*/ 2);
-
-        NYT::TErrorOr<NYT::NScheduler::TOperationId> staleStartResult(
-            NYT::NScheduler::TOperationId(
-                NYT::TGuid::FromString("55555555-66666666-77777777-88888888")));
-        runtime.Send(new IEventHandle(
-            rmActor,
-            ytActor,
-            new TEvStartOperationResponse(
-                startOperationEv->Get()->RequestId,
-                staleStartResult)));
-
-        runtime.Send(new IEventHandle(
-            rmActor,
-            coordActor,
-            new TEvListNodeResponse(/*requestId*/ 0, emptyList)));
-
-        int operationCreateCount = 0;
-        const auto epochTwoEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
-        for (const auto& event : epochTwoEvents) {
-            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvSetNode::EventType);
-            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvGetOperation::EventType);
-
-            if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
-                continue;
-            }
-
-            const auto* createNode = event->Get<TEvCreateNode>();
-            if (createNode->RequestId == static_cast<ui64>(-1)) {
-                continue;
-            }
-
-            ++operationCreateCount;
-            UNIT_ASSERT_VALUES_EQUAL(
-                TVector<ui32>({702, 703}),
-                std::get<2>(*createNode).Attributes->Get<TVector<ui32>>(
-                    NCommonAttrs::ACTOR_NODEID_ATTR));
-        }
-        UNIT_ASSERT_VALUES_EQUAL(1, operationCreateCount);
     }
 
     Y_UNIT_TEST(StaleClaimReconciliationResponseIsIgnored) {
-        TTestActorRuntimeBase runtime;
-        runtime.Initialize();
-        SetupLogging(runtime);
+        for (bool directReelection : {false, true}) {
+            TTestActorRuntimeBase runtime;
+            runtime.Initialize();
+            SetupLogging(runtime);
 
-        const TActorId ytActor = runtime.AllocateEdgeActor();
-        const TActorId coordActor = runtime.AllocateEdgeActor();
+            const TActorId ytActor = runtime.AllocateEdgeActor();
+            const TActorId coordActor = runtime.AllocateEdgeActor();
 
-        auto opts = MakeTestOptions();
-        opts.YtBackend.SetMinNodeId(700);
-        opts.YtBackend.SetMaxNodeId(704);
-        opts.YtBackend.SetMaxJobs(4);
-        opts.YtBackend.SetJobsPerOperation(2);
+            auto opts = MakeTestOptions();
+            opts.YtBackend.SetMinNodeId(700);
+            opts.YtBackend.SetMaxNodeId(704);
+            opts.YtBackend.SetMaxJobs(4);
+            opts.YtBackend.SetJobsPerOperation(2);
 
-        auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
-        const TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
-        runtime.EnableScheduleForActor(rmActor);
+            auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
+            const TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
+            runtime.EnableScheduleForActor(rmActor);
 
-        const TString mutationId = "aabbccdd-11223344-aabbccdd-11223344";
-        const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
-        auto incompleteEntry = MakeOperationEntry(mutationId, {}, operationId);
-        incompleteEntry.Attributes()[NCommonAttrs::OPERATIONSIZE_ATTR] = i64{2};
-        BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {incompleteEntry});
+            const TString mutationId = "aabbccdd-11223344-aabbccdd-11223344";
+            const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+            auto incompleteEntry = MakeOperationEntry(mutationId, {}, operationId);
+            incompleteEntry.Attributes()[NCommonAttrs::OPERATIONSIZE_ATTR] = i64{2};
+            BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {incompleteEntry});
 
-        auto staleRequest = runtime.GrabEdgeEvent<TEvGetOperation>(ytActor, TDuration::Seconds(5));
-        UNIT_ASSERT(staleRequest);
+            auto staleRequest = runtime.GrabEdgeEvent<TEvGetOperation>(ytActor, TDuration::Seconds(5));
+            UNIT_ASSERT(staleRequest);
 
-        runtime.Send(new IEventHandle(
-            rmActor,
-            ytActor,
-            new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
-        BecomeLeaderAndProcessList(
-            runtime,
-            rmActor,
-            ytActor,
-            {MakeOperationEntry(mutationId, {700, 701})},
-            /*epoch*/ 2);
+            if (!directReelection) {
+                runtime.Send(new IEventHandle(
+                    rmActor,
+                    ytActor,
+                    new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
+            }
+            BecomeLeaderAndProcessList(
+                runtime,
+                rmActor,
+                ytActor,
+                {incompleteEntry},
+                /*epoch*/ 2);
+            auto currentRequest = runtime.GrabEdgeEvent<TEvGetOperation>(ytActor, TDuration::Seconds(5));
+            UNIT_ASSERT(currentRequest);
+            UNIT_ASSERT_UNEQUAL(staleRequest->Get()->RequestId, currentRequest->Get()->RequestId);
 
-        runtime.Send(new IEventHandle(
-            rmActor,
-            TActorId(ytActor.NodeId(), "actorsystem"),
-            new TEvGetOperationResponse(
-                staleRequest->Get()->RequestId,
-                MakeProvidedSpecResponse({702, 703}))));
+            runtime.Send(new IEventHandle(
+                rmActor,
+                TActorId(ytActor.NodeId(), "actorsystem"),
+                new TEvGetOperationResponse(
+                    staleRequest->Get()->RequestId,
+                    MakeProvidedSpecResponse({702, 703}))));
 
-        UNIT_ASSERT_VALUES_EQUAL(
-            TVector<TVector<ui32>>({{702, 703}}),
-            TriggerCapacityRefresh(runtime, rmActor, ytActor, coordActor));
-        UNIT_ASSERT_VALUES_EQUAL(
-            0,
-            GetResourceManagerCounter(opts, "incomplete_quarantined_claim_record_count")->Val());
+            runtime.Send(new IEventHandle(rmActor, coordActor, MakeListResponse({})));
+            UNIT_ASSERT(runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId()).empty());
+            runtime.Send(new IEventHandle(
+                rmActor,
+                TActorId(ytActor.NodeId(), "actorsystem"),
+                new TEvGetOperationResponse(
+                    currentRequest->Get()->RequestId,
+                    MakeProvidedSpecResponse({700, 701}))));
+            auto watcher = runtime.GrabEdgeEvent<TEvGetOperation>(ytActor, TDuration::Seconds(5));
+            UNIT_ASSERT(watcher);
+            UNIT_ASSERT_UNEQUAL(rmActor, watcher->Sender);
+            UNIT_ASSERT_VALUES_EQUAL(operationId, ToString(std::get<0>(*watcher->Get())));
+
+            UNIT_ASSERT_VALUES_EQUAL(
+                TVector<TVector<ui32>>({{702, 703}}),
+                TriggerCapacityRefresh(runtime, rmActor, ytActor, coordActor));
+            UNIT_ASSERT_VALUES_EQUAL(
+                0,
+                GetResourceManagerCounter(opts, "incomplete_quarantined_claim_record_count")->Val());
+        }
     }
 
     Y_UNIT_TEST(StaleWatcherCallbackDoesNotDropReAdoptedOperation) {
-        TTestActorRuntimeBase runtime;
-        runtime.Initialize();
-        SetupLogging(runtime);
+        for (bool directReelection : {false, true}) {
+            TTestActorRuntimeBase runtime;
+            runtime.Initialize();
+            SetupLogging(runtime);
 
-        TActorId ytActor = runtime.AllocateEdgeActor();
-        TActorId coordActor = runtime.AllocateEdgeActor();
+            TActorId ytActor = runtime.AllocateEdgeActor();
+            TActorId coordActor = runtime.AllocateEdgeActor();
 
-        TResourceManagerOptions opts = MakeTestOptions();
-        opts.YtBackend.SetMinNodeId(700);
-        opts.YtBackend.SetMaxNodeId(702);
-        opts.YtBackend.SetMaxJobs(2);
-        opts.YtBackend.SetJobsPerOperation(2);
+            TResourceManagerOptions opts = MakeTestOptions();
+            opts.YtBackend.SetMinNodeId(700);
+            opts.YtBackend.SetMaxNodeId(702);
+            opts.YtBackend.SetMaxJobs(2);
+            opts.YtBackend.SetJobsPerOperation(2);
 
-        auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
-        TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
-        runtime.EnableScheduleForActor(rmActor);
+            auto coord = MakeIntrusive<TMockCoordinator>(ytActor, coordActor);
+            TActorId rmActor = runtime.Register(CreateResourceManager(opts, coord));
+            runtime.EnableScheduleForActor(rmActor);
 
-        const TString mutationId = "c79c6e67-af6adb7a-14765135-8d84dc5";
-        const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+            const TString mutationId = "c79c6e67-af6adb7a-14765135-8d84dc5";
+            const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
 
-        BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
-            MakeOperationEntry(mutationId, {700, 701}, operationId),
-        });
+            BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
+                MakeOperationEntry(mutationId, {700, 701}, operationId),
+            });
 
-        auto oldGetOperationEv = runtime.GrabEdgeEvent<TEvGetOperation>(
-            ytActor,
-            TDuration::Seconds(5));
-        UNIT_ASSERT_C(oldGetOperationEv, "Expected watcher in the first leader epoch");
-        const TActorId oldWatcher = oldGetOperationEv->Sender;
+            auto oldGetOperationEv = runtime.GrabEdgeEvent<TEvGetOperation>(
+                ytActor,
+                TDuration::Seconds(5));
+            UNIT_ASSERT_C(oldGetOperationEv, "Expected watcher in the first leader epoch");
+            const TActorId oldWatcher = oldGetOperationEv->Sender;
 
-        NYT::TErrorOr<TString> resolveError(
-            NYT::TError(NYT::NYTree::EErrorCode::ResolveError, "operation not found"));
-        runtime.Send(new IEventHandle(
-            oldWatcher,
-            ytActor,
-            new TEvGetOperationResponse(oldGetOperationEv->Get()->RequestId, resolveError)));
-        runtime.GrabEdgeEvent<TEvPrintJobStderr>(ytActor, TDuration::Seconds(5));
+            NYT::TErrorOr<TString> resolveError(
+                NYT::TError(NYT::NYTree::EErrorCode::ResolveError, "operation not found"));
+            runtime.Send(new IEventHandle(
+                oldWatcher,
+                ytActor,
+                new TEvGetOperationResponse(oldGetOperationEv->Get()->RequestId, resolveError)));
+            runtime.GrabEdgeEvent<TEvPrintJobStderr>(ytActor, TDuration::Seconds(5));
 
-        auto staleWatcherEvents = runtime.CaptureMailboxEvents(rmActor.Hint(), rmActor.NodeId());
-        UNIT_ASSERT_VALUES_EQUAL(1, staleWatcherEvents.size());
-        UNIT_ASSERT_VALUES_EQUAL(oldWatcher, staleWatcherEvents.front()->Sender);
+            auto staleWatcherEvents = runtime.CaptureMailboxEvents(rmActor.Hint(), rmActor.NodeId());
+            UNIT_ASSERT_VALUES_EQUAL(1, staleWatcherEvents.size());
+            UNIT_ASSERT_VALUES_EQUAL(oldWatcher, staleWatcherEvents.front()->Sender);
 
-        runtime.Send(new IEventHandle(
-            rmActor,
-            ytActor,
-            new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
-        BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
-            MakeOperationEntry(mutationId, {700, 701}, operationId),
-        }, /*epoch*/ 2);
+            if (!directReelection) {
+                runtime.Send(new IEventHandle(
+                    rmActor,
+                    ytActor,
+                    new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
+            }
+            BecomeLeaderAndProcessList(runtime, rmActor, ytActor, {
+                MakeOperationEntry(mutationId, {700, 701}, operationId),
+            }, /*epoch*/ 2);
 
-        auto currentGetOperationEv = runtime.GrabEdgeEvent<TEvGetOperation>(
-            ytActor,
-            TDuration::Seconds(5));
-        UNIT_ASSERT_C(currentGetOperationEv, "Expected watcher in the second leader epoch");
-        UNIT_ASSERT_UNEQUAL(oldWatcher, currentGetOperationEv->Sender);
+            auto currentGetOperationEv = runtime.GrabEdgeEvent<TEvGetOperation>(
+                ytActor,
+                TDuration::Seconds(5));
+            UNIT_ASSERT_C(currentGetOperationEv, "Expected watcher in the second leader epoch");
+            UNIT_ASSERT_UNEQUAL(oldWatcher, currentGetOperationEv->Sender);
 
-        runtime.PushMailboxEventsFront(rmActor.Hint(), rmActor.NodeId(), staleWatcherEvents);
-        NActors::TDispatchOptions dispatchOptions;
-        dispatchOptions.FinalEvents.emplace_back([oldWatcher] (IEventHandle& event) {
-            return event.Sender == oldWatcher;
-        });
-        runtime.DispatchEvents(dispatchOptions);
+            runtime.PushMailboxEventsFront(rmActor.Hint(), rmActor.NodeId(), staleWatcherEvents);
+            NActors::TDispatchOptions dispatchOptions;
+            dispatchOptions.FinalEvents.emplace_back([oldWatcher] (IEventHandle& event) {
+                return event.Sender == oldWatcher;
+            });
+            runtime.DispatchEvents(dispatchOptions);
 
-        const auto staleCallbackEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
-        for (const auto& event : staleCallbackEvents) {
-            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvRemoveNode::EventType);
+            const auto staleCallbackEvents = runtime.CaptureMailboxEvents(ytActor.Hint(), ytActor.NodeId());
+            for (const auto& event : staleCallbackEvents) {
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvRemoveNode::EventType);
+            }
+
+            runtime.Send(new IEventHandle(
+                currentGetOperationEv->Sender,
+                ytActor,
+                new TEvGetOperationResponse(currentGetOperationEv->Get()->RequestId, resolveError)));
+            runtime.GrabEdgeEvent<TEvPrintJobStderr>(ytActor, TDuration::Seconds(5));
+            auto removeEv = runtime.GrabEdgeEvent<TEvRemoveNode>(ytActor, TDuration::Seconds(5));
+            UNIT_ASSERT_C(removeEv, "Expected current watcher callback to remove the operation");
         }
-
-        runtime.Send(new IEventHandle(
-            currentGetOperationEv->Sender,
-            ytActor,
-            new TEvGetOperationResponse(currentGetOperationEv->Get()->RequestId, resolveError)));
-        runtime.GrabEdgeEvent<TEvPrintJobStderr>(ytActor, TDuration::Seconds(5));
-        auto removeEv = runtime.GrabEdgeEvent<TEvRemoveNode>(ytActor, TDuration::Seconds(5));
-        UNIT_ASSERT_C(removeEv, "Expected current watcher callback to remove the operation");
     }
 
     Y_UNIT_TEST(OperationIdWriteRetriesWithinLeaderEpoch) {
@@ -1743,14 +1813,6 @@ Y_UNIT_TEST_SUITE(DeferredNodeIdReleaseTest) {
             "Removing one owner must not make node IDs available while another owner claims them");
     }
 
-    // Verifies the core invariant of the fix: node_ids must NOT be released until
-    // the coordinator node is confirmed removed from Cypress (TEvRemoveNode response).
-    //
-    // Strategy: make [632,633] the ONLY available node_ids (MinNodeId=632, MaxNodeId=634).
-    // After dropping the running operation, trigger MaybeStartOperations while TEvRemoveNode
-    // is still pending (no response sent yet).
-    //   - New code: [632,633] are blocked → MaybeStartOperations gets empty nodes → no TEvCreateNode
-    //   - Old code: [632,633] are freed immediately → MaybeStartOperations allocates them → TEvCreateNode
     Y_UNIT_TEST(NodeIdsBlockedBeforeRemoveConfirmation) {
         TTestActorRuntimeBase runtime;
         runtime.Initialize();
@@ -1774,45 +1836,9 @@ Y_UNIT_TEST_SUITE(DeferredNodeIdReleaseTest) {
                                "2460ea77-5ba6a63-3f403e8-55cde5f5"),
         });
 
-        // Drop operation — TEvRemoveNode is sent but we do NOT respond to it yet.
-        // In new code: [632,633] stay allocated (blocked) until response arrives.
-        // In old code: [632,633] are freed immediately.
         TriggerDropAndGetRemoveRequestId(runtime, ytActor);
-
-        // Trigger MaybeStartOperations by simulating a ListWorkers response from coordActor.
-        // Leader state handles TEvListNodeResponse via OnListResponse → MaybeStartOperations.
-        //
-        // runtime.Send is synchronous: OnListResponse runs inside Send, but events SENT BY
-        // the handler (TEvCreateNode) are queued in the actor mailbox, not dispatched yet.
-        // We need an explicit DispatchEvents to flush that mailbox; if the queue is empty
-        // (new code — IDs blocked), TEmptyEventQueueException is thrown.
-        bool createNodeSent = false;
-        runtime.SetObserverFunc([&](TAutoPtr<IEventHandle>& ev) {
-            if (ev->GetTypeRewrite() == TEvCreateNode::EventType &&
-                ev->GetRecipientRewrite() == ytActor) {
-                createNodeSent = true;
-            }
-            return TTestActorRuntimeBase::EEventAction::PROCESS;
-        });
-
-        NYT::TErrorOr<TString> emptyList(NYT::NodeToYsonString(NYT::TNode::CreateList()));
-        runtime.Send(new IEventHandle(rmActor, coordActor,
-            new TEvListNodeResponse(/*requestId=*/0, emptyList)));
-
-        // Flush one event from the mailbox:
-        //   old code: TEvCreateNode is queued → dispatched → observer fires → createNodeSent=true
-        //   new code: mailbox is empty → TEmptyEventQueueException → createNodeSent stays false
-        NActors::TDispatchOptions flushOpts;
-        flushOpts.FinalEvents.emplace_back(TEvCreateNode::EventType, 1);
-        try {
-            runtime.DispatchEvents(flushOpts);
-        } catch (const NActors::TEmptyEventQueueException&) {
-            // Expected in new code: IDs are blocked, no TEvCreateNode was queued.
-        }
-
-        runtime.SetObserverFunc(TTestActorRuntimeBase::DefaultObserverFunc);
-
-        UNIT_ASSERT_C(!createNodeSent,
+        UNIT_ASSERT_C(
+            TriggerCapacityRefresh(runtime, rmActor, ytActor, coordActor).empty(),
             "node_ids [632,633] must be blocked while TEvRemoveNode response is pending");
     }
 
@@ -1941,5 +1967,282 @@ Y_UNIT_TEST_SUITE(DeferredNodeIdReleaseTest) {
                     NCommonAttrs::ACTOR_NODEID_ATTR));
         }
         UNIT_ASSERT_VALUES_EQUAL(1, operationCreateCount);
+    }
+
+}
+
+Y_UNIT_TEST_SUITE(LeaderEpochTest) {
+    Y_UNIT_TEST(RecreatedLockEpochRestartsRecoveryWithNewTransaction) {
+        for (bool directReelection : {false, true}) {
+            TLeaderEpochTestRuntime env(/*maxJobs*/ 4);
+            NActors::TDispatchOptions bootstrap;
+            bootstrap.FinalEvents.emplace_back(TEvents::TSystem::Bootstrap, 1);
+            env.Runtime.DispatchEvents(bootstrap);
+
+            const TString liveOwner = "aabbccdd-11223344-aabbccdd-11223344";
+            const TString terminalOwner = "c79c6e67-af6adb7a-14765135-8d84dc5";
+            const TString liveOperation = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+            const TString terminalOperation = "3571fb88-5ba6a63-3f403e8-aabbccdd";
+            const TVector<NYT::TNode> entries = {
+                MakeOperationEntry(liveOwner, {700, 701}, liveOperation),
+                MakeOperationEntry(terminalOwner, {702, 703}, terminalOperation),
+            };
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+                new TEvBecomeLeader(/*leaderEpoch*/ 22, "0-0-0-22", "{}")));
+            const auto initialRequests = env.Runtime.CaptureMailboxEvents(
+                env.YtActor.Hint(), env.YtActor.NodeId());
+            UNIT_ASSERT_VALUES_EQUAL(1, initialRequests.size());
+            UNIT_ASSERT_VALUES_EQUAL(TEvListNode::EventType, initialRequests.front()->GetTypeRewrite());
+            env.Runtime.Send(new IEventHandle(
+                env.RmActor,
+                TActorId(env.YtActor.NodeId(), "actorsystem"),
+                MakeListResponse(entries, initialRequests.front()->Get<TEvListNode>()->RequestId)));
+            const auto initialWatchers = env.Runtime.CaptureMailboxEvents(
+                env.YtActor.Hint(), env.YtActor.NodeId());
+            UNIT_ASSERT_VALUES_EQUAL(2, initialWatchers.size());
+            for (const auto& event : initialWatchers) {
+                UNIT_ASSERT_VALUES_EQUAL(TEvGetOperation::EventType, event->GetTypeRewrite());
+            }
+            UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+
+            if (!directReelection) {
+                env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+                    new TEvBecomeFollower("{\"yql_actor_node_id\"=0u}")));
+            }
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+                new TEvBecomeLeader(/*leaderEpoch*/ 1, "0-0-0-1", "{}")));
+            const auto recoveryRequests = env.Runtime.CaptureMailboxEvents(
+                env.YtActor.Hint(), env.YtActor.NodeId());
+            UNIT_ASSERT_VALUES_EQUAL_C(1, recoveryRequests.size(),
+                "A new transaction must restart recovery even if the lock epoch decreases");
+            UNIT_ASSERT_VALUES_EQUAL(TEvListNode::EventType, recoveryRequests.front()->GetTypeRewrite());
+            env.Runtime.Send(new IEventHandle(
+                env.RmActor,
+                TActorId(env.YtActor.NodeId(), "actorsystem"),
+                MakeListResponse(entries, recoveryRequests.front()->Get<TEvListNode>()->RequestId)));
+            const auto removeRequestId = TriggerDropAndGetRemoveRequestId(
+                env.Runtime, env.YtActor, terminalOperation, /*watcherCount*/ 2, "0-0-0-1");
+            UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+                new TEvRemoveNodeResponse(removeRequestId, NYT::TErrorOr<void>())));
+            UNIT_ASSERT_VALUES_EQUAL(
+                TVector<TVector<ui32>>({{702, 703}}),
+                TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor));
+            UNIT_ASSERT_VALUES_EQUAL(0, GetResourceManagerCounter(env.Options, "overlapping_claim_count")->Val());
+        }
+    }
+
+    Y_UNIT_TEST(ReelectionRestoresCapacityAndKeepsLiveOperation) {
+        TLeaderEpochTestRuntime env(/*maxJobs*/ 4);
+
+        const TString liveOwner = "aabbccdd-11223344-aabbccdd-11223344";
+        const TString deadOwner = "c79c6e67-af6adb7a-14765135-8d84dc5";
+        const TString liveOperation = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+        const TString deadOperation = "3571fb88-5ba6a63-3f403e8-aabbccdd";
+        const TVector<NYT::TNode> entries = {
+            MakeOperationEntry(liveOwner, {700, 701}, liveOperation),
+            MakeOperationEntry(deadOwner, {702, 703}, deadOperation),
+        };
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, entries);
+        const auto oldRemove = TriggerDropAndGetRemoveRequestId(
+            env.Runtime, env.YtActor, deadOperation, /*watcherCount*/ 2, "0-0-0-1");
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvRemoveNodeResponse(
+            oldRemove, NYT::TErrorOr<void>(NYT::TError("Old transaction expired")))));
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+            new TEvBecomeLeader(/*leaderEpoch*/ 2, "0-0-0-2", "{}")));
+        const auto reelectionEvents = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+        UNIT_ASSERT_VALUES_EQUAL_C(1, reelectionEvents.size(),
+            "A new leader epoch must request operation recovery without an intervening follower");
+        UNIT_ASSERT_VALUES_EQUAL(TEvListNode::EventType, reelectionEvents.front()->GetTypeRewrite());
+        env.Runtime.Send(new IEventHandle(
+            env.RmActor,
+            TActorId(env.YtActor.NodeId(), "actorsystem"),
+            MakeListResponse(entries, reelectionEvents.front()->Get<TEvListNode>()->RequestId)));
+        const auto newRemove = TriggerDropAndGetRemoveRequestId(
+            env.Runtime, env.YtActor, deadOperation, /*watcherCount*/ 2, "0-0-0-2");
+        UNIT_ASSERT_UNEQUAL(oldRemove, newRemove);
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+            new TEvRemoveNodeResponse(newRemove, NYT::TErrorOr<void>())));
+        UNIT_ASSERT_VALUES_EQUAL(
+            TVector<TVector<ui32>>({{702, 703}}),
+            TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor));
+        UNIT_ASSERT_VALUES_EQUAL(0, GetResourceManagerCounter(env.Options, "overlapping_claim_count")->Val());
+    }
+
+    Y_UNIT_TEST(ReelectionDuringListIgnoresOldResponse) {
+        TLeaderEpochTestRuntime env;
+        NActors::TDispatchOptions bootstrap;
+        bootstrap.FinalEvents.emplace_back(TEvents::TSystem::Bootstrap, 1);
+        env.Runtime.DispatchEvents(bootstrap);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvBecomeLeader(1, "0-0-0-1", "{}")));
+        auto oldList = env.Runtime.GrabEdgeEvent<TEvListNode>(env.YtActor, TDuration::Seconds(5));
+        UNIT_ASSERT(oldList);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvBecomeLeader(2, "0-0-0-2", "{}")));
+        auto newList = env.Runtime.GrabEdgeEvent<TEvListNode>(env.YtActor, TDuration::Seconds(5));
+        UNIT_ASSERT(newList);
+        UNIT_ASSERT_UNEQUAL(oldList->Get()->RequestId, newList->Get()->RequestId);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, MakeListResponse({}, oldList->Get()->RequestId)));
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.CoordActor, MakeListResponse({})));
+        UNIT_ASSERT(env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId()).empty());
+
+        const TString owner = "aabbccdd-11223344-aabbccdd-11223344";
+        const TString operation = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, MakeListResponse(
+            {MakeOperationEntry(owner, {700, 701}, operation)}, newList->Get()->RequestId)));
+        auto watcher = env.Runtime.GrabEdgeEvent<TEvGetOperation>(env.YtActor, TDuration::Seconds(5));
+        UNIT_ASSERT(watcher);
+        UNIT_ASSERT_VALUES_EQUAL(operation, ToString(std::get<0>(*watcher->Get())));
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+    }
+
+    Y_UNIT_TEST(StaleRemoveDoesNotReleaseRecoveredClaim) {
+        TLeaderEpochTestRuntime env;
+        const TVector<NYT::TNode> entries = {MakeOperationEntry(
+            "aabbccdd-11223344-aabbccdd-11223344", {700, 701}, "2460ea77-5ba6a63-3f403e8-55cde5f5")};
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, entries);
+        const auto oldRemove = TriggerDropAndGetRemoveRequestId(env.Runtime, env.YtActor);
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, entries, /*epoch*/ 2);
+        const auto newRemove = TriggerDropAndGetRemoveRequestId(env.Runtime, env.YtActor);
+        UNIT_ASSERT_UNEQUAL(oldRemove, newRemove);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+            new TEvRemoveNodeResponse(oldRemove, NYT::TErrorOr<void>())));
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor,
+            new TEvRemoveNodeResponse(newRemove, NYT::TErrorOr<void>())));
+        UNIT_ASSERT_VALUES_EQUAL(TVector<TVector<ui32>>({{700, 701}}),
+            TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor));
+    }
+
+    Y_UNIT_TEST(StaleCreateResponseDoesNotStartOperation) {
+        TLeaderEpochTestRuntime env;
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, {});
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.CoordActor, MakeListResponse({})));
+        int metadataCreateCount = 0;
+        ui64 requestId = 0;
+        TString owner;
+        const auto creates = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+        for (const auto& event : creates) {
+            if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
+                continue;
+            }
+            const auto* create = event->Get<TEvCreateNode>();
+            if (create->RequestId != static_cast<ui64>(-1)) {
+                ++metadataCreateCount;
+                requestId = create->RequestId;
+                owner = std::get<2>(*create).Attributes->Get<TString>("yql_mutation_id");
+            }
+        }
+        UNIT_ASSERT_VALUES_EQUAL(1, metadataCreateCount);
+        UNIT_ASSERT_UNEQUAL(0, requestId);
+        const auto nodeResult = NYT::TErrorOr<NYT::NCypressClient::TNodeId>(
+            NYT::NCypressClient::TNodeId::FromString("11111111-22222222-33333333-44444444"));
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, {
+            MakeOperationEntry(owner, {700, 701}),
+        }, /*epoch*/ 2);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvCreateNodeResponse(requestId, nodeResult)));
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvTick()));
+        const auto events = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+        for (const auto& event : events) {
+            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvStartOperation::EventType);
+            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvSetNode::EventType);
+            UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvGetOperation::EventType);
+        }
+        UNIT_ASSERT_VALUES_EQUAL(0, GetResourceManagerCounter(env.Options, "pending_operation_id_update_count")->Val());
+        UNIT_ASSERT_VALUES_EQUAL(2,
+            GetResourceManagerCounter(env.Options, "quarantined_claim_count")->Val());
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+    }
+
+    Y_UNIT_TEST(StaleIdWriteResponseIsIgnored) {
+        for (bool lateWriteSucceeded : {false, true}) {
+            TLeaderEpochTestRuntime env;
+            BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, {});
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.CoordActor, MakeListResponse({})));
+            int metadataCreateCount = 0;
+            ui64 requestId = 0;
+            TString owner;
+            const auto creates = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+            for (const auto& event : creates) {
+                if (event->GetTypeRewrite() != TEvCreateNode::EventType) {
+                    continue;
+                }
+                const auto* create = event->Get<TEvCreateNode>();
+                if (create->RequestId != static_cast<ui64>(-1)) {
+                    ++metadataCreateCount;
+                    requestId = create->RequestId;
+                    owner = std::get<2>(*create).Attributes->Get<TString>("yql_mutation_id");
+                }
+            }
+            UNIT_ASSERT_VALUES_EQUAL(1, metadataCreateCount);
+            UNIT_ASSERT_UNEQUAL(0, requestId);
+            const auto nodeResult = NYT::TErrorOr<NYT::NCypressClient::TNodeId>(
+                NYT::NCypressClient::TNodeId::FromString("11111111-22222222-33333333-44444444"));
+            const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvCreateNodeResponse(requestId, nodeResult)));
+            auto start = env.Runtime.GrabEdgeEvent<TEvStartOperation>(env.YtActor, TDuration::Seconds(5));
+            UNIT_ASSERT(start);
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvStartOperationResponse(
+                start->Get()->RequestId, NYT::TErrorOr<NYT::NScheduler::TOperationId>(
+                    NYT::NScheduler::TOperationId(NYT::TGuid::FromString(operationId))))));
+            auto set = env.Runtime.GrabEdgeEvent<TEvSetNode>(env.YtActor, TDuration::Seconds(5));
+            UNIT_ASSERT(set);
+            requestId = set->Get()->RequestId;
+            UNIT_ASSERT(env.Runtime.GrabEdgeEvent<TEvGetOperation>(env.YtActor, TDuration::Seconds(5)));
+            BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, {
+                MakeOperationEntry(owner, {700, 701}, operationId),
+            }, /*epoch*/ 2);
+            UNIT_ASSERT(env.Runtime.GrabEdgeEvent<TEvGetOperation>(env.YtActor, TDuration::Seconds(5)));
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvSetNodeResponse(
+                requestId,
+                lateWriteSucceeded ? NYT::TErrorOr<void>() :
+                    NYT::TErrorOr<void>(NYT::TError("Late write failure")))));
+            env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvTick()));
+            const auto events = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+            for (const auto& event : events) {
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvStartOperation::EventType);
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvSetNode::EventType);
+                UNIT_ASSERT_UNEQUAL(event->GetTypeRewrite(), TEvGetOperation::EventType);
+            }
+            UNIT_ASSERT_VALUES_EQUAL(0, GetResourceManagerCounter(env.Options, "pending_operation_id_update_count")->Val());
+            UNIT_ASSERT_VALUES_EQUAL(0,
+                GetResourceManagerCounter(env.Options, "quarantined_claim_count")->Val());
+            UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+        }
+    }
+
+    Y_UNIT_TEST(LateTickKeepsSinglePollingTimer) {
+        TLeaderEpochTestRuntime env(/*maxJobs*/ 2, TDuration::Seconds(1));
+        BecomeLeaderAndProcessList(env.Runtime, env.RmActor, env.YtActor, {});
+        env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvBecomeLeader(2, "0-0-0-2", "{}")));
+        auto pendingList = env.Runtime.GrabEdgeEvent<TEvListNode>(env.YtActor, TDuration::Seconds(5));
+        UNIT_ASSERT(pendingList);
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvTick()));
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.CoordActor, MakeListResponse({})));
+        UNIT_ASSERT(env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId()).empty());
+        UNIT_ASSERT(env.Runtime.CaptureMailboxEvents(env.CoordActor.Hint(), env.CoordActor.NodeId()).empty());
+
+        const TString owner = "aabbccdd-11223344-aabbccdd-11223344";
+        const TString operationId = "2460ea77-5ba6a63-3f403e8-55cde5f5";
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, MakeListResponse(
+            {MakeOperationEntry(owner, {700, 701}, operationId)}, pendingList->Get()->RequestId)));
+        const auto watchers = env.Runtime.CaptureMailboxEvents(env.YtActor.Hint(), env.YtActor.NodeId());
+        UNIT_ASSERT_VALUES_EQUAL(1, watchers.size());
+        UNIT_ASSERT_VALUES_EQUAL(TEvGetOperation::EventType, watchers.front()->GetTypeRewrite());
+        env.Runtime.Send(new IEventHandle(env.RmActor, env.YtActor, new TEvTick()));
+        const auto immediatePolls = env.Runtime.CaptureMailboxEvents(env.CoordActor.Hint(), env.CoordActor.NodeId());
+        UNIT_ASSERT_VALUES_EQUAL(1, immediatePolls.size());
+        UNIT_ASSERT_VALUES_EQUAL(TEvListNode::EventType, immediatePolls.front()->GetTypeRewrite());
+        UNIT_ASSERT(TriggerCapacityRefresh(env.Runtime, env.RmActor, env.YtActor, env.CoordActor).empty());
+
+        for (int interval = 0; interval < 2; ++interval) {
+            env.Runtime.SimulateSleep(env.Options.TickInterval + TDuration::MilliSeconds(1));
+            const auto polls = env.Runtime.CaptureMailboxEvents(env.CoordActor.Hint(), env.CoordActor.NodeId());
+            UNIT_ASSERT_VALUES_EQUAL(1, polls.size());
+            UNIT_ASSERT_VALUES_EQUAL(TEvListNode::EventType, polls.front()->GetTypeRewrite());
+        }
     }
 }
