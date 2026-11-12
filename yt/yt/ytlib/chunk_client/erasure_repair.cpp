@@ -209,7 +209,7 @@ private:
             Readers_.front(),
             ReadBlocksOptions_.ClientOptions))
             .ValueOrThrow();
-        auto placementExt = GetProtoExtension<NProto::TErasurePlacementExt>(placementMeta->extensions());
+        auto placementExt = GetPlacementExtOrThrow(DecodeChunkId(Readers_.front()->GetChunkId()).Id, placementMeta);
         ProcessPlacementExt(placementExt);
 
         // Prepare erasure part readers.
