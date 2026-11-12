@@ -16,6 +16,7 @@ from yt.test_helpers import assert_items_equal
 
 import random
 import builtins
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import pytest
@@ -1963,7 +1964,15 @@ class TestReadInOrder(ClickHouseTestBase):
         rows = self._create_table_for_read_in_order(table_path)
         row_count = len(rows)
 
-        with Clique(instance_count, disable_logging=True, export_query_log=True, config_patch=self._get_read_in_order_config_patch(instance_count)) as clique:
+        with Clique(
+            instance_count,
+            disable_logging=True,
+            export_query_log=True,
+            config_patch={
+                "clickhouse": {"settings": {"max_concurrent_queries_for_user": 20}},
+                **self._get_read_in_order_config_patch(instance_count),
+            },
+        ) as clique:
             log_table = clique.query_log_table_path
             expected_read_in_order_modes = {}
 
@@ -1984,7 +1993,12 @@ class TestReadInOrder(ClickHouseTestBase):
                     for sort_description in secondary_sort_descriptions
                 ), f"Secondary sort description ({secondary_sort_descriptions}) differs from expected {explain_message}"
 
-            def run_query(query, read_in_order_mode, settings=None, coordinator_sort_description=None, secondary_sort_description=None):
+            def _run(query, read_in_order_mode, settings=None, coordinator_sort_description=None, secondary_sort_description=None):
+                """Runs EXPLAIN and the query itself, returning everything needed for main-thread assertions.
+
+                The returned dict is fed to |_check_sort_description| on the main thread; this function itself performs
+                no assertions and mutates no shared state, so it is safe to call from a worker thread.
+                """
                 query_settings = {"chyt.execution.input_streams_per_secondary_query": 8}
                 query_settings.update(settings or {})
 
@@ -1995,14 +2009,20 @@ class TestReadInOrder(ClickHouseTestBase):
                     row["explain"]
                     for row in clique.make_query(f"EXPLAIN PLAN sorting=1, distributed=1 {query}", settings=query_settings)
                 ]
-                _check_sort_description(query, explain, coordinator_sort_description, secondary_sort_description)
 
-                return self._register_query_check(
-                    expected_read_in_order_modes, clique, query,
-                    expected_read_in_order_mode=read_in_order_mode, query_settings=query_settings
-                )
+                result, query_id = self.make_query(clique, query, settings=query_settings)
 
-            def check_query(order_by, read_in_order_mode, where_sql=None, where=None, limit=None, offset=0, settings=None, prewhere=False):
+                return {
+                    "query": query,
+                    "read_in_order_mode": read_in_order_mode,
+                    "query_id": query_id,
+                    "result": result,
+                    "explain": explain,
+                    "coordinator_sort_description": coordinator_sort_description,
+                    "secondary_sort_description": secondary_sort_description,
+                }
+
+            def _build_and_run(order_by, read_in_order_mode, where_sql=None, where=None, limit=None, offset=0, settings=None, prewhere=False):
                 query = f'select * from "{table_path}"'
                 if where_sql is not None:
                     query += f' {"prewhere" if prewhere else "where"} {where_sql}'
@@ -2011,128 +2031,162 @@ class TestReadInOrder(ClickHouseTestBase):
                     query += f" limit {limit}"
                 if offset:
                     query += f" offset {offset}"
-                result = run_query(
+                run = _run(
                     query, read_in_order_mode, settings,
                     coordinator_sort_description=order_by if read_in_order_mode != "none" else None,
                     secondary_sort_description=order_by if read_in_order_mode == "forward" else None)
                 limit = limit if limit else settings["limit"]
-                self._check_ordered_result(result, rows, order_by, where=where, limit=limit, offset=offset)
+                return {"run": run, "order_by": order_by, "where": where, "limit": limit, "offset": offset}
 
-            asc_cols = [(column, False) for column in self.KEY_COLUMNS]
-            desc_cols = [(column, True) for column in self.KEY_COLUMNS]
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                def build_and_run(*args, **kwargs):
+                    runs.append(executor.submit(_build_and_run, *args, **kwargs))
 
-            # Forward reads.
-            for limit in [1, 5, 10, 11, 37, row_count - 1, row_count, row_count + 1, 10000]:
-                check_query(asc_cols[:1], "forward", limit=limit)
-            check_query(asc_cols[:2], "forward", limit=23)
-            check_query(asc_cols, "forward", limit=10000)
-            check_query(asc_cols, "forward", limit=15, offset=42)
-            check_query(asc_cols, "forward", limit=10000, offset=row_count - 3)
-            check_query(asc_cols, "forward", where_sql="value % 3 = 0", where=lambda row: row["value"] % 3 == 0, limit=30)
-            check_query(asc_cols[:2], "forward", where_sql="k1 between 3 and 6", where=lambda row: 3 <= row["k1"] <= 6, limit=50)
-            check_query(asc_cols[:1], "forward", where_sql="k3 = 'c'", where=lambda row: row["k3"] == "c", limit=25, prewhere=True)
-            check_query(asc_cols, "forward", where_sql="k2 = 4 and value > 50", where=lambda row: row["k2"] == 4 and row["value"] > 50, limit=10000)
-            check_query(asc_cols, "forward", where_sql="value < 0", where=lambda row: row["value"] < 0, limit=10)
-            # LIMIT set via settings instead of the query itself.
-            check_query(asc_cols, "forward", settings={"limit": 17})
-            check_query(asc_cols, "forward", limit=row_count - 5, settings={"chyt.execution.input_streams_per_secondary_query": 1})
+                def run(*args, **kwargs):
+                    future = executor.submit(_run, *args, **kwargs)
+                    runs.append(future)
+                    return future
 
-            # Backward reads.
-            for limit in [1, 10, 37, row_count, 10000]:
-                check_query(desc_cols[:1], "backward", limit=limit)
-            check_query(desc_cols, "backward", limit=10000)
-            check_query(desc_cols, "backward", limit=9, offset=100)
-            check_query(desc_cols[:2], "backward", where_sql="value % 2 = 1", where=lambda row: row["value"] % 2 == 1, limit=40)
+                runs = []
+                expected_results = {}
 
-            # Mixed directions are not optimized, but still must be sorted.
-            check_query([("k1", False), ("k2", True)], "none", limit=50)
-            check_query([("k1", True), ("k2", False), ("k3", True)], "none", limit=10000)
+                asc_cols = [(column, False) for column in self.KEY_COLUMNS]
+                desc_cols = [(column, True) for column in self.KEY_COLUMNS]
 
-            # Positional arguments.
-            result = run_query(f'select k1, k2, k3, value from "{table_path}" order by 1, 2, 3 limit 31', "forward",
-                               coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
-            assert result == [{column: row[column] for column in ["k1", "k2", "k3", "value"]} for row in rows[:31]]
-            result = run_query(f'select k3, k2, k1, value from "{table_path}" order by k1, k2, k3 limit 31', "forward",
-                               coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
-            assert result == [{column: row[column] for column in ["k3", "k2", "k1", "value"]} for row in rows[:31]]
+                # Forward reads.
+                for limit in [1, 5, 10, 11, 37, row_count - 1, row_count, row_count + 1, 10000]:
+                    build_and_run(asc_cols[:1], "forward", limit=limit)
+                build_and_run(asc_cols[:2], "forward", limit=23)
+                build_and_run(asc_cols, "forward", limit=10000)
+                build_and_run(asc_cols, "forward", limit=15, offset=42)
+                build_and_run(asc_cols, "forward", limit=10000, offset=row_count - 3)
+                build_and_run(asc_cols, "forward", where_sql="value % 3 = 0", where=lambda row: row["value"] % 3 == 0, limit=30)
+                build_and_run(asc_cols[:2], "forward", where_sql="k1 between 3 and 6", where=lambda row: 3 <= row["k1"] <= 6, limit=50)
+                build_and_run(asc_cols[:1], "forward", where_sql="k3 = 'c'", where=lambda row: row["k3"] == "c", limit=25, prewhere=True)
+                build_and_run(asc_cols, "forward", where_sql="k2 = 4 and value > 50", where=lambda row: row["k2"] == 4 and row["value"] > 50, limit=10000)
+                build_and_run(asc_cols, "forward", where_sql="value < 0", where=lambda row: row["value"] < 0, limit=10)
+                # LIMIT set via settings instead of the query itself.
+                build_and_run(asc_cols, "forward", settings={"limit": 17})
+                build_and_run(asc_cols, "forward", limit=row_count - 5, settings={"chyt.execution.input_streams_per_secondary_query": 1})
 
-            # Selecting only a part of the sorting key. The coordinator is able to merge streams only by the longest
-            # prefix of the sorting key that is present in the output, but the result must be sorted by the whole key anyway.
-            # Secondary nodes still read data sorted by the whole key.
-            for columns in [["value"], ["k1", "value"], ["k1", "k2", "value"], ["k3", "k1", "value"], ["k1", "k3", "value"], ["k2", "k3", "value"]]:
-                for limit in [50, 10000]:
-                    result = run_query(
-                        f'select {", ".join(columns)} from "{table_path}" order by k1, k2, k3 limit {limit}', "forward",
-                        coordinator_sort_description=self._get_coordinator_sort_description(asc_cols, columns),
-                        secondary_sort_description=asc_cols)
-                    assert result == [{column: row[column] for column in columns} for row in rows[:limit]]
+                # Backward reads.
+                for limit in [1, 10, 37, row_count, 10000]:
+                    build_and_run(desc_cols[:1], "backward", limit=limit)
+                build_and_run(desc_cols, "backward", limit=10000)
+                build_and_run(desc_cols, "backward", limit=9, offset=100)
+                build_and_run(desc_cols[:2], "backward", where_sql="value % 2 = 1", where=lambda row: row["value"] % 2 == 1, limit=40)
 
-                    result = run_query(
-                        f'select {", ".join(columns)} from "{table_path}" order by k1 desc, k2 desc, k3 desc limit {limit}', "backward",
-                        coordinator_sort_description=self._get_coordinator_sort_description(desc_cols, columns))
-                    assert result == [{column: row[column] for column in columns} for row in rows[::-1][:limit]]
+                # Mixed directions are not optimized, but still must be sorted.
+                build_and_run([("k1", False), ("k2", True)], "none", limit=50)
+                build_and_run([("k1", True), ("k2", False), ("k3", True)], "none", limit=10000)
 
-            result = run_query(f'select payload from "{table_path}" where value % 5 = 0 order by k1, k2, k3 limit 10000', "forward",
-                               secondary_sort_description=asc_cols)
-            assert result == [{"payload": row["payload"]} for row in rows if row["value"] % 5 == 0]
+                # Positional arguments.
+                future = run(f'select k1, k2, k3, value from "{table_path}" order by 1, 2, 3 limit 31', "forward",
+                             coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
+                expected_results[future] = [{column: row[column] for column in ["k1", "k2", "k3", "value"]} for row in rows[:31]]
+                future = run(f'select k3, k2, k1, value from "{table_path}" order by k1, k2, k3 limit 31', "forward",
+                             coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
+                expected_results[future] = [{column: row[column] for column in ["k3", "k2", "k1", "value"]} for row in rows[:31]]
 
-            # Aliases. Sort columns are matched against the output columns by name, so the coordinator
-            # doesn't get a sort description for aliased columns. Secondary nodes are not affected by that.
-            result = run_query(f'select k1 as x, k2 as y, value from "{table_path}" order by x, y, k3 limit 10000', "forward",
-                               secondary_sort_description=asc_cols)
-            assert result == [{"x": row["k1"], "y": row["k2"], "value": row["value"]} for row in rows]
+                # Selecting only a part of the sorting key. The coordinator is able to merge streams only by the longest
+                # prefix of the sorting key that is present in the output, but the result must be sorted by the whole key anyway.
+                # Secondary nodes still read data sorted by the whole key.
+                for columns in [["value"], ["k1", "value"], ["k1", "k2", "value"], ["k3", "k1", "value"], ["k1", "k3", "value"], ["k2", "k3", "value"]]:
+                    for limit in [50, 10000]:
+                        future = run(
+                            f'select {", ".join(columns)} from "{table_path}" order by k1, k2, k3 limit {limit}', "forward",
+                            coordinator_sort_description=self._get_coordinator_sort_description(asc_cols, columns),
+                            secondary_sort_description=asc_cols)
+                        expected_results[future] = [{column: row[column] for column in columns} for row in rows[:limit]]
 
-            result = run_query(f'select k2 as k1, k1 as k2, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
-            assert result == [
-                {"k1": row["k1"], "k2": row["k2"], "k3": row["k3"], "value": row["value"]}
-                for row in sorted(rows, key=lambda x: (x["k2"], x["k1"], x["k3"]))
-            ]
-            # Here ORDER BY k2, k1 means ORDER BY k2, k2, which is not a prefix of the sorting key.
-            result = run_query(f'select k2 as k1, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
-            assert [(row["k1"], row["k3"]) for row in result] == sorted((row["k2"], row["k3"]) for row in rows)
-            assert sorted(row["value"] for row in result) == sorted(row["value"] for row in rows)
+                        future = run(
+                            f'select {", ".join(columns)} from "{table_path}" order by k1 desc, k2 desc, k3 desc limit {limit}', "backward",
+                            coordinator_sort_description=self._get_coordinator_sort_description(desc_cols, columns))
+                        expected_results[future] = [{column: row[column] for column in columns} for row in rows[::-1][:limit]]
 
-            # With the distinct read optimization secondary nodes don't read rows in key order, so they don't get a sort description.
-            distinct_settings = {"chyt.execution.enable_distinct_read_optimization": 1}
-            for limit in [3, 100]:
-                result = run_query(f'select distinct k1 from "{table_path}" order by k1 limit {limit}', "forward", settings=distinct_settings,
-                                   coordinator_sort_description=asc_cols[:1])
-                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
-                result = run_query(f'select distinct k1 from "{table_path}" order by k1, k2, k3 limit {limit}', "forward", settings=distinct_settings,
-                                   coordinator_sort_description=asc_cols[:1])
-                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
-                result = run_query(f'select distinct k1 from "{table_path}" order by k1 desc limit {limit}', "backward", settings=distinct_settings,
-                                   coordinator_sort_description=desc_cols[:1])
-                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows), reverse=True)[:limit]]
-            result = run_query(f'select distinct k3 from "{table_path}" where k1 = 3 order by k3 limit 100', "none", settings=distinct_settings)
-            assert result == [{"k3": k3} for k3 in sorted(builtins.set(row["k3"] for row in rows if row["k1"] == 3))]
+                future = run(f'select payload from "{table_path}" where value % 5 = 0 order by k1, k2, k3 limit 10000', "forward",
+                             secondary_sort_description=asc_cols)
+                expected_results[future] = [{"payload": row["payload"]} for row in rows if row["value"] % 5 == 0]
 
-            # Randomized queries.
-            rng = random.Random(1470 + instance_count)
-            filters = [
-                (None, None),
-                ("value % 3 = 0", lambda row: row["value"] % 3 == 0),
-                ("value % 7 != 1", lambda row: row["value"] % 7 != 1),
-                ("k1 between 2 and 7", lambda row: 2 <= row["k1"] <= 7),
-                ("k1 = 5", lambda row: row["k1"] == 5),
-                ("k2 >= 3", lambda row: row["k2"] >= 3),
-                ("k3 in ('a', 'e')", lambda row: row["k3"] in ("a", "e")),
-                ("k1 > 4 and k3 != 'b'", lambda row: row["k1"] > 4 and row["k3"] != "b"),
-            ]
-            for _ in range(40):
-                prefix_length = rng.randint(1, len(self.KEY_COLUMNS))
-                descending = rng.choice([False, True])
-                order_by = [(column, descending) for column in self.KEY_COLUMNS[:prefix_length]]
-                where_sql, where = rng.choice(filters)
-                check_query(
-                    order_by,
-                    "backward" if descending else "forward",
-                    where_sql=where_sql,
-                    where=where,
-                    limit=rng.choice([1, 2, 7, 10, 19, 50, 133, 10000]),
-                    offset=rng.choice([0, 0, 0, 3, 25]),
-                    settings={"chyt.execution.input_streams_per_secondary_query": rng.choice([1, 2, 3, 8, 64])},
-                    prewhere=where_sql is not None and rng.choice([False, True]))
+                # Aliases. Sort columns are matched against the output columns by name, so the coordinator
+                # doesn't get a sort description for aliased columns. Secondary nodes are not affected by that.
+                future = run(f'select k1 as x, k2 as y, value from "{table_path}" order by x, y, k3 limit 10000', "forward",
+                             secondary_sort_description=asc_cols)
+                expected_results[future] = [{"x": row["k1"], "y": row["k2"], "value": row["value"]} for row in rows]
+
+                future = run(f'select k2 as k1, k1 as k2, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
+                expected_results[future] = [
+                    {"k1": row["k1"], "k2": row["k2"], "k3": row["k3"], "value": row["value"]}
+                    for row in sorted(rows, key=lambda x: (x["k2"], x["k1"], x["k3"]))
+                ]
+                # Here ORDER BY k2, k1 means ORDER BY k2, k2, which is not a prefix of the sorting key.
+                future = run(f'select k2 as k1, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
+                expected_results[future] = "check_k1_k3_value"
+
+                # With the distinct read optimization secondary nodes don't read rows in key order, so they don't get a sort description.
+                distinct_settings = {"chyt.execution.enable_distinct_read_optimization": 1}
+                for limit in [3, 100]:
+                    future = run(f'select distinct k1 from "{table_path}" order by k1 limit {limit}', "forward", settings=distinct_settings,
+                                 coordinator_sort_description=asc_cols[:1])
+                    expected_results[future] = [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
+                    future = run(f'select distinct k1 from "{table_path}" order by k1, k2, k3 limit {limit}', "forward", settings=distinct_settings,
+                                 coordinator_sort_description=asc_cols[:1])
+                    expected_results[future] = [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
+                    future = run(f'select distinct k1 from "{table_path}" order by k1 desc limit {limit}', "backward", settings=distinct_settings,
+                                 coordinator_sort_description=desc_cols[:1])
+                    expected_results[future] = [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows), reverse=True)[:limit]]
+                future = run(f'select distinct k3 from "{table_path}" where k1 = 3 order by k3 limit 100', "none", settings=distinct_settings)
+                expected_results[future] = [{"k3": k3} for k3 in sorted(builtins.set(row["k3"] for row in rows if row["k1"] == 3))]
+
+                # Randomized queries.
+                rng = random.Random(1470 + instance_count)
+                filters = [
+                    (None, None),
+                    ("value % 3 = 0", lambda row: row["value"] % 3 == 0),
+                    ("value % 7 != 1", lambda row: row["value"] % 7 != 1),
+                    ("k1 between 2 and 7", lambda row: 2 <= row["k1"] <= 7),
+                    ("k1 = 5", lambda row: row["k1"] == 5),
+                    ("k2 >= 3", lambda row: row["k2"] >= 3),
+                    ("k3 in ('a', 'e')", lambda row: row["k3"] in ("a", "e")),
+                    ("k1 > 4 and k3 != 'b'", lambda row: row["k1"] > 4 and row["k3"] != "b"),
+                ]
+                for _ in range(40):
+                    prefix_length = rng.randint(1, len(self.KEY_COLUMNS))
+                    descending = rng.choice([False, True])
+                    order_by = [(column, descending) for column in self.KEY_COLUMNS[:prefix_length]]
+                    where_sql, where = rng.choice(filters)
+                    build_and_run(
+                        order_by,
+                        "backward" if descending else "forward",
+                        where_sql=where_sql,
+                        where=where,
+                        limit=rng.choice([1, 2, 7, 10, 19, 50, 133, 10000]),
+                        offset=rng.choice([0, 0, 0, 3, 25]),
+                        settings={"chyt.execution.input_streams_per_secondary_query": rng.choice([1, 2, 3, 8, 64])},
+                        prewhere=where_sql is not None and rng.choice([False, True]))
+
+                # Collect all results on the main thread: register expected read-in-order modes and verify results.
+                for future in runs:
+                    outcome = future.result()
+                    run = outcome["run"] if "run" in outcome else outcome
+                    _check_sort_description(
+                        run["query"], run["explain"],
+                        run["coordinator_sort_description"], run["secondary_sort_description"])
+
+                    if "run" in outcome:
+                        self._check_ordered_result(
+                            run["result"], rows,
+                            outcome["order_by"], where=outcome["where"], limit=outcome["limit"], offset=outcome["offset"])
+                    else:
+                        result = outcome["result"]
+                        expected = expected_results[future]
+                        if expected == "check_k1_k3_value":
+                            assert [(row["k1"], row["k3"]) for row in result] == sorted((row["k2"], row["k3"]) for row in rows)
+                            assert sorted(row["value"] for row in result) == sorted(row["value"] for row in rows)
+                        else:
+                            assert result == expected
+
+                    expected_read_in_order_modes[run["query_id"]] = (run["query"], run["read_in_order_mode"])
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
