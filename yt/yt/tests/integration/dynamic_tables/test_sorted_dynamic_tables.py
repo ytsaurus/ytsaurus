@@ -1789,8 +1789,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError, match="Cell {} has no assigned peers".format(cell_id)):
             lookup_rows("//tmp/t", [{"key": 1}])
 
-    @authors("gryzlov-ad")
-    def test_watermark_basic(self):
+    @authors("gryzlov-ad", "sabdenovch")
+    @pytest.mark.parametrize("merger", ["watermark", "new"])
+    def test_watermark_basic(self, merger):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1804,7 +1805,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 "max_data_ttl": 0,
                 "min_data_versions": 0,
                 "max_data_versions": 0,
-                "row_merger_type": "watermark",
+                "row_merger_type": merger,
                 "auto_compaction_period": 1,
             },
         )
@@ -1839,8 +1840,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         wait(lambda: select_rows(query) == [empty_watermark_row])
 
-    @authors("gryzlov-ad")
-    def test_watermark_wrong_schema(self):
+    @authors("gryzlov-ad", "sabdenovch")
+    @pytest.mark.parametrize("merger", ["watermark", "new"])
+    def test_watermark_wrong_schema(self, merger):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1855,7 +1857,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 "max_data_ttl": 5000,
                 "min_data_versions": 0,
                 "max_data_versions": 1,
-                "row_merger_type": "watermark",
+                "row_merger_type": merger,
                 "auto_compaction_period": 1,
                 "merge_rows_on_flush": True,
             },

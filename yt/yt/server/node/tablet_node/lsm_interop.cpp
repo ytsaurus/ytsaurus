@@ -35,6 +35,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/tablet_client/watermark_runtime_data.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 namespace NYT::NTabletNode {
@@ -43,6 +45,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,6 +227,8 @@ private:
     {
         const auto& storeManager = tablet->GetStoreManager();
 
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+
         auto lsmTablet = New<NLsm::TTablet>();
         lsmTablet->SetId(tablet->GetId());
         lsmTablet->TablePath() = tablet->GetTablePath();
@@ -256,6 +262,20 @@ private:
             auto tableSchema = tablet->GetTableSchema();
             lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
             lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
+
+            if (mountConfig->RowMergerType == ERowMergerType::Watermark) {
+                lsmTablet->SetHasWatermarks(true);
+            } else if (mountConfig->RowMergerType == ERowMergerType::New && tablet->CustomRuntimeData()) {
+                try {
+                    auto customRuntimeDataMap = ConvertTo<IMapNodePtr>(tablet->CustomRuntimeData());
+                    auto watermarkConfig = customRuntimeDataMap->FindChildValue<TWatermarkRuntimeDataConfig>(CustomRuntimeDataWatermarkKey);
+                    auto backgroundDeletePredicate = customRuntimeDataMap->FindChildValue<std::string>(BackgroundDeletePredicateKey);
+                    lsmTablet->SetHasWatermarks(watermarkConfig.has_value() || backgroundDeletePredicate.has_value());
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Failed to prepare watermark runtime data")
+                        .With(TError(ex));
+                }
+            }
         } else {
             lsmTablet->Stores().reserve(tablet->StoreIdMap().size());
             for (const auto& [id, store] : tablet->StoreIdMap()) {

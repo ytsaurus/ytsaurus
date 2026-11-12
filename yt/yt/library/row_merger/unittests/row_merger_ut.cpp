@@ -690,6 +690,14 @@ public:
             .EndMap();
     }
 
+    TYsonString CreateBackgroundDeletePredicateRuntimeData(TStringBuf predicate)
+    {
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item(BackgroundDeletePredicateKey).Value(predicate)
+            .EndMap();
+    }
+
 protected:
     const TRowBufferPtr MergedRowBuffer_ = New<TRowBuffer>();
 };
@@ -2668,7 +2676,7 @@ TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
     EXPECT_FALSE(merger->BuildMergedRow());
 }
 
-TEST_F(TVersionedRowMergerTest, WatermarkBasic)
+TEST_P(TVersionedRowMergerTest, WatermarkBasic)
 {
     auto baseWatermarkDataConfig = TWatermarkRuntimeDataConfig();
     baseWatermarkDataConfig.ColumnName = "watermark";
@@ -2684,11 +2692,11 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
         auto row = BuildVersionedRow(
             "<id=0> 0",
-            "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
+            "<id=1;ts=10> 5u; <id=1;ts=15> 10u; <id=1;ts=20> 11u;"
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11u");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2700,11 +2708,11 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
         auto row = BuildVersionedRow(
             "<id=0> 0",
-            "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
+            "<id=1;ts=10> 5u; <id=1;ts=15> 10u; <id=1;ts=20> 11u;"
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11u");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2716,11 +2724,11 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
         auto row = BuildVersionedRow(
             "<id=0> 0",
-            "<id=1;ts=10> 5; <id=1;ts=20> 10; <id=1;ts=15> 11;"
+            "<id=1;ts=10> 5u; <id=1;ts=20> 10u; <id=1;ts=15> 11u;"
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 10");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 10u");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2732,20 +2740,24 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
         auto row = BuildVersionedRow(
             "<id=0> 0",
-            "<id=1;ts=30> 5; <id=1;ts=20> 10; <id=1;ts=15> 11;"
+            "<id=1;ts=30> 5u; <id=1;ts=20> 10u; <id=1;ts=15> 11u;"
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=30> 5");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=30> 5u");
         expectedRows.push_back(expectedRow);
     }
 
+    auto retentionConfig = GetRetentionConfig();
+    retentionConfig->MinDataVersions = 0;
+    retentionConfig->MaxDataVersions = 1;
+
     for (int index = 0; index < std::ssize(watermarkDataConfigs); ++index) {
         auto merger = GetTypicalMerger(
-            ERowMergerType::Watermark,
-            nullptr,
-            1000_ts,
-            NullTimestamp,
+            GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+            retentionConfig,
+            /*currentTimestamp*/ TimestampFromUnixTime(1000),
+            /*majorTimestamp*/ TimestampFromUnixTime(900),
             GetTypicalWatermarkSchema(),
             TColumnFilter(),
             false,
@@ -2759,14 +2771,14 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
     }
 }
 
-TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
+TEST_P(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
 {
     auto invalidRuntimeData = TYsonString(Format("{ %v = {column_name=l; watermark=\"11\"} }", CustomRuntimeDataWatermarkKey));
     auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
         nullptr,
-        1000_ts,
-        NullTimestamp,
+        /*currentTimestamp*/ 1000_ts,
+        /*majorTimestamp*/ 900_ts,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2775,7 +2787,7 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
 
     auto row = BuildVersionedRow(
         "<id=0> 0",
-        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=1;ts=10> 5u; <id=1;ts=15> 10u; <id=1;ts=20> 12u;"
         "<id=2;ts=15> 42; <id=2;ts=13> 52");
     merger->AddPartialRow(row);
 
@@ -2785,16 +2797,21 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
-TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
+TEST_P(TVersionedRowMergerTest, WatermarkFullClear)
 {
     auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
     watermarkDataConfig.ColumnName = "watermark";
     watermarkDataConfig.Watermark = 13;
+    auto retentionConfig = GetRetentionConfig();
+    retentionConfig->MinDataTtl = TDuration::Zero();
+    retentionConfig->MaxDataTtl = TDuration::Max();
+    retentionConfig->MinDataVersions = 0;
+    retentionConfig->MaxDataVersions = 1;
     auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
-        nullptr,
-        1000_ts,
-        NullTimestamp,
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+        retentionConfig,
+        /*currentTimestamp*/ 1000_ts,
+        /*majorTimestamp*/ 900_ts,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2803,14 +2820,14 @@ TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
 
     auto row = BuildVersionedRow(
         "<id=0> 0",
-        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=1;ts=10> 5u; <id=1;ts=15> 10u; <id=1;ts=20> 12u;"
         "<id=2;ts=15> 42; <id=2;ts=13> 52");
     merger->AddPartialRow(row);
 
     EXPECT_FALSE(merger->BuildMergedRow());
 }
 
-TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
+TEST_P(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
@@ -2821,10 +2838,10 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
     watermarkDataConfig.ColumnName = "watermark";
     watermarkDataConfig.Watermark = 12;
     auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
         config,
-        TimestampFromUnixTime(10),
-        NullTimestamp,
+        /*currentTimestamp*/ TimestampFromUnixTime(10),
+        /*majorTimestamp*/ TimestampFromUnixTime(9),
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2835,7 +2852,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
     auto row = BuildVersionedRow(
         "<id=0> 0",
         Format(
-            "<id=1;ts=%v> 5; <id=1;ts=%v> 10; <id=1;ts=%v> 12;"
+            "<id=1;ts=%v> 5u; <id=1;ts=%v> 10u; <id=1;ts=%v> 12u;"
             "<id=2;ts=%v> 42; <id=2;ts=%v> 52",
             TimestampFromUnixTime(1),
             TimestampFromUnixTime(3),
@@ -2847,7 +2864,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
     auto expectedRow = BuildVersionedRow(
         "<id=0> 0",
         Format(
-            "<id=1;ts=%v> 12; <id=2;ts=%v> 52",
+            "<id=1;ts=%v> 12u; <id=2;ts=%v> 52",
             TimestampFromUnixTime(4),
             TimestampFromUnixTime(4)));
 
@@ -2856,7 +2873,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
-TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
+TEST_P(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
@@ -2867,10 +2884,10 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
     watermarkDataConfig.ColumnName = "watermark";
     watermarkDataConfig.Watermark = 100;
     auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
         config,
-        TimestampFromUnixTime(8),
-        NullTimestamp,
+        /*currentTimestamp*/ TimestampFromUnixTime(8),
+        /*majorTimestamp*/ TimestampFromUnixTime(7),
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2878,6 +2895,8 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
         CreateWatermarkRuntimeData(watermarkDataConfig));
 
     // According to watermark all rows should be deleted, but MinDataTtl prevents it.
+    // NB(sabdenovch): New versioned row merger effectively blocks deletions by
+    // MinDataTtl + MaxDataTtl, test parameters are adjusted for that.
     auto row = BuildVersionedRow(
         "<id=0> 0",
         Format(
@@ -2903,16 +2922,16 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
-TEST_F(TVersionedRowMergerTest, WatermarkKeyColumn)
+TEST_P(TVersionedRowMergerTest, WatermarkKeyColumn)
 {
     auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
     watermarkDataConfig.ColumnName = "watermark";
     watermarkDataConfig.Watermark = 11;
     auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
         nullptr,
-        1000_ts,
-        NullTimestamp,
+        /*currentTimestamp*/ 1000_ts,
+        /*majorTimestamp*/ 900_ts,
         GetKeyWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2920,14 +2939,14 @@ TEST_F(TVersionedRowMergerTest, WatermarkKeyColumn)
         CreateWatermarkRuntimeData(watermarkDataConfig));
 
     auto row1 = BuildVersionedRow(
-        "<id=0> 0",
+        "<id=0> 0u",
         "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
         "<id=1;ts=30> 5; <id=2;ts=150000> 10;");
     auto row2 = BuildVersionedRow(
-        "<id=0> 11",
+        "<id=0> 11u",
         "<id=1;ts=10> 5; <id=2;ts=150000> 10;");
     auto row3 = BuildVersionedRow(
-        "<id=0> 12",
+        "<id=0> 12u",
         "<id=1;ts=10> 5; <id=2;ts=150000> 10;");
 
     {
@@ -2951,6 +2970,132 @@ TEST_F(TVersionedRowMergerTest, WatermarkKeyColumn)
             TIdentityComparableVersionedRow{row3},
             TIdentityComparableVersionedRow{merger->BuildMergedRow()});
     }
+}
+
+TEST_P(TVersionedRowMergerTest, WatermarkEvaluatedOnKeyColumns)
+{
+    auto versionedRow = BuildVersionedRow(
+        "<id=0> 70",
+        "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;"
+        "<id=2;ts=250> 42; <id=2;ts=150> 52; <id=2;ts=50> 62");
+
+    // Time has not come yet.
+    {
+        auto merger = GetTypicalMerger(
+            GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+            /*retentionConfig*/ nullptr,
+            /*currentTimestamp*/ TimestampFromUnixTime(60),
+            /*majorTimestamp*/ TimestampFromUnixTime(55),
+            GetTypicalSchema(),
+            TColumnFilter(),
+            /*mergeRowsOnFlush*/ false,
+            /*mergeDeletionsOnFlush*/ false,
+            CreateBackgroundDeletePredicateRuntimeData("k < {__timestamp}"));
+        merger->AddPartialRow(versionedRow);
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{versionedRow},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    // Time has come.
+    {
+        auto merger = GetTypicalMerger(
+            GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+            /*retentionConfig*/ nullptr,
+            /*currentTimestamp*/ TimestampFromUnixTime(80),
+            /*majorTimestamp*/ TimestampFromUnixTime(75),
+            GetTypicalSchema(),
+            TColumnFilter(),
+            /*mergeRowsOnFlush*/ false,
+            /*mergeDeletionsOnFlush*/ false,
+            CreateBackgroundDeletePredicateRuntimeData("k < {__timestamp}"));
+        merger->AddPartialRow(versionedRow);
+
+        EXPECT_FALSE(static_cast<bool>(merger->BuildMergedRow()));
+    }
+}
+
+TEST_P(TVersionedRowMergerTest, WatermarkEvaluatedOnValueColumn)
+{
+    auto initialVersionedRow = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=200> 20; <id=1;ts=100> 10;"
+        "<id=2;ts=150> 52; <id=2;ts=50> 62");
+
+    auto retentionConfig = GetRetentionConfig();
+    retentionConfig->MinDataTtl = TDuration::Zero();
+    retentionConfig->MaxDataTtl = TDuration::Max();
+    retentionConfig->MinDataVersions = 0;
+    retentionConfig->MaxDataVersions = 1;
+
+    // Trimmed.
+    {
+        auto merger = GetTypicalMerger(
+            GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+            retentionConfig,
+            /*currentTimestamp*/ TimestampFromUnixTime(15),
+            /*majorTimestamp*/ TimestampFromUnixTime(14),
+            GetTypicalSchema(),
+            TColumnFilter(),
+            /*mergeRowsOnFlush*/ false,
+            /*mergeDeletionsOnFlush*/ false,
+            CreateBackgroundDeletePredicateRuntimeData("k + l < {__timestamp}"));
+        merger->AddPartialRow(initialVersionedRow);
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=200> 20;"
+                "<id=2;ts=150> 52;")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    // Fully deleted.
+    {
+        auto merger = GetTypicalMerger(
+            GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+            retentionConfig,
+            /*currentTimestamp*/ TimestampFromUnixTime(400),
+            /*majorTimestamp*/ TimestampFromUnixTime(399),
+            GetTypicalSchema(),
+            TColumnFilter(),
+            /*mergeRowsOnFlush*/ false,
+            /*mergeDeletionsOnFlush*/ false,
+            CreateBackgroundDeletePredicateRuntimeData("k + l < {__timestamp}"));
+        merger->AddPartialRow(initialVersionedRow);
+
+        EXPECT_FALSE(static_cast<bool>(merger->BuildMergedRow()));
+    }
+}
+
+TEST_P(TVersionedRowMergerTest, WatermarkEvaluatedOnAggrColumn)
+{
+    auto uncaringRetentionConfig = GetRetentionConfig();
+    uncaringRetentionConfig->MinDataTtl = TDuration::Zero();
+    uncaringRetentionConfig->MinDataVersions = 0;
+    auto merger = GetTypicalMerger(
+        GetParam() == ERowMergerType::Legacy ? ERowMergerType::Watermark : ERowMergerType::New,
+        uncaringRetentionConfig,
+        /*currentTimestamp*/ TimestampFromUnixTime(400),
+        /*majorTimestamp*/ 3000_ts,
+        GetAggregateSumSchema(),
+        TColumnFilter(),
+        /*mergeRowsOnFlush*/ false,
+        /*mergeDeletionsOnFlush*/ false,
+        CreateBackgroundDeletePredicateRuntimeData("n = 0"));
+
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=3;ts=100;aggregate=true> 30;"));
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=3;ts=200;aggregate=true> -20;"));
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=3;ts=300;aggregate=true> -10;"));
+
+    EXPECT_FALSE(static_cast<bool>(merger->BuildMergedRow()));
 }
 
 INSTANTIATE_TEST_SUITE_P(
