@@ -1,0 +1,30 @@
+schema: gena-review
+
+verification: required
+
+ship:
+    enabled: false
+
+review_rules:
+  - paths:
+      - yt/docs/**
+    instructions:
+      - path: yt/docs/ai/artifacts/review/style.md
+      - path: yt/docs/ai/artifacts/review/facts.md
+      - path: yt/docs/ai/artifacts/review/ru-en.md
+      - path: yt/docs/AGENTS.md
+      - path: yt/docs/ai/artifacts/reference/writing-rules.md
+      - path: yt/docs/ai/artifacts/reference/glossary.md
+      - path: yt/docs/ai/artifacts/reference/target-audience.md
+      - path: yt/docs/ai/artifacts/codebase/codebase-map.md
+      - path: docs/yateam/infradocs/guide/structure/headers.md
+      - path: docs/yateam/infradocs/guide/structure/links.md
+      - path: docs/yateam/infradocs/guide/structure/footnotes.md
+      - path: docs/yateam/infradocs/guide/words/general.md
+      - path: docs/yateam/infradocs/guide/words/professionals.md
+      - path: docs/yateam/infradocs/guide/words/interface.md
+      - path: docs/yateam/infradocs/guide/words/terms.md
+      - path: docs/yateam/infradocs/guide/typography.md
+      - path: docs/yateam/infradocs/guide/code.md
+      - path: docs/yateam/infradocs/guide/tables.md
+

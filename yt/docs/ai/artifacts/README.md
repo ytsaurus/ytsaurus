@@ -11,6 +11,7 @@
 | `reference/` | Проектные правила и опорные сведения для работы с текстом | [Правила оформления](reference/writing-rules.md), [целевая аудитория](reference/target-audience.md), [глоссарий](reference/glossary.md) |
 | `codebase/` | Карта реализации YT и данные для проверки её актуальности | [Карта кодовой базы](codebase/codebase-map.md), [инвентарь каталогов](codebase/codebase-map-inventory.json) |
 | `skills/` | Инструкции по выполнению конкретных задач | [Проверка сборки документации](skills/validate-doc-build/SKILL.md) |
+| `review/` | Инструкции и ручной пилот Gena Review в PR | [Подключение и проверка](review/README.md), [оформление](review/style.md), [факты](review/facts.md), [RU/EN](review/ru-en.md) |
 
 Общий скилл написания документации `infradocs-yfm-writer` находится в `ai/artifacts/skills/teams/infradocs/infradocs-yfm-writer` и подключается через [AI Suite](../../aisuite.yaml). Особенности YT остаются в материалах этого каталога и правилах проекта. Ссылки на доступные скиллы и условия их использования перечислены в [инструкциях проекта](../../AGENTS.md).
 
