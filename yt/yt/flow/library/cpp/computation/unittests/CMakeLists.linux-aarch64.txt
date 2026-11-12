@@ -92,6 +92,7 @@ target_sources(yt-flow-library-cpp-computation-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/state_client_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/state_providers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/swift_map_validation_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/swift_map_computation_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/paged_timer_store_differential_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/paged_timer_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/timer_page_catalogue_ut.cpp

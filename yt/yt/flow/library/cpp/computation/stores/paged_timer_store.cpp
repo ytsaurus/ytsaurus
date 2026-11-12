@@ -1854,12 +1854,16 @@ private:
         }
         auto& page = *location.Page;
 
+        // A duplicate in a page that is not resident rewrites its row; the count of the page is
+        // reconciled when the page is loaded.
         if (page.Resident) {
             i64 bytes = location.Family->Data.GetByteSize();
             if (!location.Family->Data.Insert(timer)) {
-                THROW_ERROR_EXCEPTION("Timer %v of stream %Qv is registered twice",
-                    timer.MessageId,
-                    timer.StreamId);
+                // A Swift computation adds the timer again when the upstream replays its committed input.
+                YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer is already registered")
+                    .With("MessageId", timer.MessageId)
+                    .With("StreamId", timer.StreamId);
+                return;
             }
             page.Resident->Add(timer, PageKind);
             page.Resident->ByteSize += location.Family->Data.GetByteSize() - bytes;

@@ -118,6 +118,19 @@ protected:
         return GetOrCrash(store->BuildInflight(), TimerStreamId);
     }
 
+    std::vector<std::pair<NTables::ITimers::TTableKey, TTimer>> LoadAll(
+        const NTables::TInMemoryTimersPtr& table,
+        const TTimerStoreContextPtr& context)
+    {
+        return WaitFor(table->LoadAll({
+                .ComputationId = ComputationId,
+                .LowerKey = context->Partition->LowerKey,
+                .ExactKey = context->Partition->SourceKey,
+                .UpperKey = context->Partition->UpperKey,
+                       }))
+            .ValueOrThrow();
+    }
+
     i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
     {
         registry->ProcessRegistrations();
@@ -341,6 +354,22 @@ TEST_F(TTimerStoreTest, RegisterIncreasesCount)
 
     store->Register({timer2});
     EXPECT_EQ(store->GetInMemoryCount(), 2);
+}
+
+TEST_F(TTimerStoreTest, RegisterSkipsRegisteredTimer)
+{
+    auto context = MakeContext();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+
+    auto timer = MakeTimer("timer", /*triggerTimestamp*/ 100);
+    store->Register({timer});
+    // A replay of the input message of a Swift computation adds the timer with the same id once more.
+    store->Register({timer});
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+
+    store->Unregister({New<TInputTimer>(TTimer(timer))});
+    EXPECT_TRUE(store->IsEmpty());
 }
 
 TEST_F(TTimerStoreTest, UnregisterDecreasesCount)
@@ -913,6 +942,199 @@ TEST_F(TTimerStoreTest, ExtractedTimerIsNotDeduplicated)
 
     // Step 4: Both timers must survive — timer1 was already extracted, timer2 is new.
     EXPECT_EQ(store->GetInMemoryCount(), 2);
+}
+
+TEST_F(TTimerStoreTest, TimerHasSystemTimestampAsAlignmentBeforeAndAfterRestore)
+{
+    auto table = New<NTables::TInMemoryTimers>();
+    auto context = MakeContext(table);
+    context->Partition->LowerKey = MakeKey();
+    context->Partition->UpperKey = MaxKey();
+    context->Partition->SourceKey = MakeKey();
+    auto timer = MakeTimer("timer", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100);
+    timer.AlignmentTimestamp = TSystemTimestamp(95);
+
+    auto takeAlignmentTimestamp = [&] (const ITimerStorePtr& store) {
+        SetWatermark(store, /*timestamp*/ 100);
+        auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+        YT_VERIFY(batch.size() == 1);
+        return batch[0]->AlignmentTimestamp;
+    };
+    {
+        auto store = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(store->Init()).ThrowOnError();
+        store->Register({timer});
+        store->Sync(/*tx*/ nullptr);
+        // The timers table does not keep the alignment timestamp.
+        EXPECT_EQ(takeAlignmentTimestamp(store), TSystemTimestamp(100));
+    }
+
+    auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(restoredStore->Init()).ThrowOnError();
+    EXPECT_EQ(takeAlignmentTimestamp(restoredStore), TSystemTimestamp(100));
+}
+
+TEST_F(TTimerStoreTest, PersistedTimerUnregisteredAndRegisteredAgainInOneEpochIsKept)
+{
+    auto table = New<NTables::TInMemoryTimers>();
+    auto context = MakeContext(table);
+    context->Partition->LowerKey = MakeKey();
+    context->Partition->UpperKey = MaxKey();
+    context->Partition->SourceKey = MakeKey();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+
+    store->Register({MakeTimer("timer", /*triggerTimestamp*/ 50)});
+    store->Sync(/*tx*/ nullptr);
+    ASSERT_EQ(std::ssize(LoadAll(table, context)), 1);
+
+    SetWatermark(store, /*timestamp*/ 100);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    store->Unregister(batch);
+    // A replay of the input message of a Swift computation adds the timer again in the same epoch.
+    store->Register({MakeTimer("timer", /*triggerTimestamp*/ 50)});
+    store->Sync(/*tx*/ nullptr);
+
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    EXPECT_EQ(std::ssize(LoadAll(table, context)), 1);
+}
+
+TEST_F(TTimerStoreTest, RestoreKeepsEqualTimersOneOfWhichWasTaken)
+{
+    for (bool bothTaken : {false, true}) {
+        SCOPED_TRACE(bothTaken ? "BothTaken" : "OneTaken");
+        auto table = New<NTables::TInMemoryTimers>();
+        auto context = MakeContext(table, ETimeType::SystemTime, /*deduplicateEqualTimestamps*/ true);
+        context->Partition->LowerKey = MakeKey();
+        context->Partition->UpperKey = MaxKey();
+        context->Partition->SourceKey = MakeKey();
+        {
+            auto store = CreateTimerStore(context, MakeDynamicContext());
+            WaitFor(store->Init()).ThrowOnError();
+            store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100, /*eventTimestamp*/ 20)});
+            SetWatermark(store, /*timestamp*/ 100);
+            // The taken timer stays registered: its caller acknowledges it later.
+            ASSERT_EQ(std::ssize(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB)), 1);
+            store->Register({MakeTimer("timer-2", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 200, /*eventTimestamp*/ 10)});
+            if (bothTaken) {
+                SetWatermark(store, /*timestamp*/ 100);
+                ASSERT_EQ(std::ssize(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB)), 1);
+            }
+            store->Sync(/*tx*/ nullptr);
+        }
+        ASSERT_EQ(std::ssize(LoadAll(table, context)), 2);
+
+        // A restart forgets what the callers did with the taken timers, so both fire again.
+        auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(restoredStore->Init()).ThrowOnError();
+        EXPECT_EQ(restoredStore->GetInMemoryCount(), 2);
+        SetWatermark(restoredStore, /*timestamp*/ 100);
+        auto batch = restoredStore->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+        ASSERT_EQ(std::ssize(batch), 2);
+        restoredStore->Unregister(batch);
+        restoredStore->Sync(/*tx*/ nullptr);
+        EXPECT_TRUE(LoadAll(table, context).empty());
+    }
+}
+
+TEST_F(TTimerStoreTest, RestoredEqualTimerDeduplicatesNewTimerOnceTheOtherIsTaken)
+{
+    auto table = New<NTables::TInMemoryTimers>();
+    auto context = MakeContext(table, ETimeType::SystemTime, /*deduplicateEqualTimestamps*/ true);
+    context->Partition->LowerKey = MakeKey();
+    context->Partition->UpperKey = MaxKey();
+    context->Partition->SourceKey = MakeKey();
+    {
+        auto store = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(store->Init()).ThrowOnError();
+        store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100, /*eventTimestamp*/ 20)});
+        SetWatermark(store, /*timestamp*/ 100);
+        ASSERT_EQ(std::ssize(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB)), 1);
+        store->Register({MakeTimer("timer-2", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 200, /*eventTimestamp*/ 10)});
+        store->Sync(/*tx*/ nullptr);
+    }
+
+    auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(restoredStore->Init()).ThrowOnError();
+    SetWatermark(restoredStore, /*timestamp*/ 100);
+    auto takenBatch = restoredStore->GetNextBatch({TimerStreamId}, /*maxRows*/ 1, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(takenBatch), 1);
+
+    // The restored timer that is still pending gives way to a new equal timer with an earlier event
+    // timestamp, as a registered timer does.
+    restoredStore->Register({MakeTimer("timer-3", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 300, /*eventTimestamp*/ 5)});
+    EXPECT_EQ(restoredStore->GetInMemoryCount(), 2);
+    SetWatermark(restoredStore, /*timestamp*/ 100);
+    auto batch = restoredStore->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-3"));
+
+    restoredStore->Unregister(takenBatch);
+    restoredStore->Unregister(batch);
+    restoredStore->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(LoadAll(table, context).empty());
+}
+
+TEST_F(TTimerStoreTest, DeduplicatedTimerUnregisteredThroughAnotherObjectStaysUnregistered)
+{
+    auto context = MakeContext(/*table*/ nullptr, ETimeType::SystemTime, /*deduplicateEqualTimestamps*/ true);
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    auto lateTimer = MakeTimer("timer-late", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100, /*eventTimestamp*/ 20);
+    auto earlyTimer = MakeTimer("timer-early", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100, /*eventTimestamp*/ 10);
+    store->Register({lateTimer, earlyTimer});
+
+    store->Unregister({New<TInputTimer>(TTimer(lateTimer))});
+
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    SetWatermark(store, /*timestamp*/ 100);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-early"));
+}
+
+TEST_F(TTimerStoreTest, RestoredTimerEvictedAndRegisteredAgainInOneEpochIsDeduplicated)
+{
+    for (bool registerAgainFirst : {false, true}) {
+        SCOPED_TRACE(registerAgainFirst ? "RegisterAgainFirst" : "EvictFirst");
+        auto table = New<NTables::TInMemoryTimers>();
+        auto context = MakeContext(table, ETimeType::SystemTime, /*deduplicateEqualTimestamps*/ true);
+        context->Partition->LowerKey = MakeKey();
+        context->Partition->UpperKey = MaxKey();
+        context->Partition->SourceKey = MakeKey();
+        auto makeLateTimer = [&] {
+            return MakeTimer("timer-late", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 100, /*eventTimestamp*/ 20);
+        };
+        {
+            auto store = CreateTimerStore(context, MakeDynamicContext());
+            WaitFor(store->Init()).ThrowOnError();
+            store->Register({makeLateTimer()});
+            store->Sync(/*tx*/ nullptr);
+        }
+
+        auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(restoredStore->Init()).ThrowOnError();
+        auto earlyTimer = MakeTimer("timer-early", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 200, /*eventTimestamp*/ 10);
+        // A replayed input registers the restored timer again, before or after the equal timer that evicts it.
+        if (registerAgainFirst) {
+            restoredStore->Register({makeLateTimer()});
+            restoredStore->Register({earlyTimer});
+        } else {
+            restoredStore->Register({earlyTimer});
+            restoredStore->Register({makeLateTimer()});
+        }
+        restoredStore->Sync(/*tx*/ nullptr);
+
+        EXPECT_EQ(restoredStore->GetInMemoryCount(), 1);
+        auto persisted = LoadAll(table, context);
+        ASSERT_EQ(std::ssize(persisted), 1);
+        EXPECT_EQ(persisted[0].second.MessageId, TMessageId("timer-early"));
+        SetWatermark(restoredStore, /*timestamp*/ 100);
+        auto batch = restoredStore->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+        ASSERT_EQ(std::ssize(batch), 1);
+        EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-early"));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

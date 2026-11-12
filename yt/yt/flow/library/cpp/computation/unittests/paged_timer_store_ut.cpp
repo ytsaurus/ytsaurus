@@ -722,6 +722,24 @@ TEST_F(TPagedTimerStoreTest, RestartLoadsPersistedTimers)
     EXPECT_TRUE(LoadPages().empty());
 }
 
+TEST_F(TPagedTimerStoreTest, RegisteringTimerTwiceKeepsOneCopy)
+{
+    auto store = CreateStore(MakeContext(0, 100, /*deduplicateEqualTimestamps*/ false));
+    Iterate(store, /*watermark*/ 0, {MakeTimer("timer", 5, 100)});
+    ASSERT_EQ(store->GetCount(), 1);
+    ASSERT_EQ(store->GetInMemoryCount(), 1);
+
+    // A Swift computation adds the timer again when the upstream replays its committed input.
+    EXPECT_NO_THROW(Iterate(store, /*watermark*/ 0, {MakeTimer("timer", 5, 100)}));
+    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    EXPECT_EQ(Tables_->GetRowCount(), 1);
+
+    EXPECT_EQ(Ids(Iterate(store, /*watermark*/ 100)), std::vector<std::string>{"timer"});
+    EXPECT_TRUE(store->IsEmpty());
+    EXPECT_EQ(Tables_->GetRowCount(), 0);
+}
+
 TEST_F(TPagedTimerStoreTest, DeduplicationUsesResidentSlots)
 {
     auto store = CreateStore(MakeContext(0, 100, /*deduplicateEqualTimestamps*/ true));
