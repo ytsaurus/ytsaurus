@@ -1582,13 +1582,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         nodesToCopy,
         options.Mode);
 
-    // Select returns sorted entries and destination subtree cannot include source subtree.
-    // Thus to check that subtrees don't overlap it's enough to check source root with
-    // first and last elements of the destination subtree.
-    if (options.Mode == ENodeCloneMode::Move &&
-        (removedNodes.empty() ||
-         sourceRootPath < removedNodes.front().Path ||
-         removedNodes.back().Path < sourceRootPath))
+    // The removed subtree's root comes first in mangled-path order.
+    // Check containment explicitly since real-path order differs.
+    const bool sourceRemovedWithDestination =
+        !removedNodes.empty() &&
+        (sourceRootPath == removedNodes.front().Path ||
+         IsAncestorPath(removedNodes.front().Path, sourceRootPath));
+    if (options.Mode == ENodeCloneMode::Move && !sourceRemovedWithDestination)
     {
         auto sourceParentId = resolvedSource->ParentId;
         // Since source is not a scion (because they cannot be copied) it has at
