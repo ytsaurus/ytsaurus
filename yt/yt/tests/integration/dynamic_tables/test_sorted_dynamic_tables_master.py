@@ -1117,6 +1117,7 @@ class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyResha
 
 class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 4
     NUM_NODES = 2
 
     DELTA_NODE_CONFIG = {
@@ -1143,6 +1144,16 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
                 return {"bundle_limit": 1000, "regular_relative_limit": rate / 1000}
             case "flush":
                 return {"bundle_limit": 1000, "flush_relative_limit": rate / 1000}
+            case "bundle_config_bundle":
+                return {
+                    "regular_relative_limit": 1.,
+                    "bundles": {"default": {"bundle_limit": rate}},
+                }
+            case "bundle_config_regular":
+                return {
+                    "bundle_limit": 1000,
+                    "bundles": {"default": {"regular_relative_limit": rate / 1000}},
+                }
             case _:
                 assert False
 
@@ -1180,7 +1191,7 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     @pytest.mark.parametrize("cell_count", [1, 4])
-    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular"])
+    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular", "bundle_config_bundle", "bundle_config_regular"])
     @pytest.mark.parametrize("with_hunks", [False, True])
     def test_compaction_throttling(self, bottleneck, cell_count, with_hunks):
         sync_create_cells(cell_count)

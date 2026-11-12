@@ -145,6 +145,21 @@ void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStoresUpdateBundleThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bundle_limit", &TThis::BundleLimit)
+        .GreaterThanOrEqual(0)
+        .Default();
+    registrar.Parameter("flush_relative_limit", &TThis::FlushRelativeLimit)
+        .InRange(0.0, 1.0)
+        .Default();
+    registrar.Parameter("regular_relative_limit", &TThis::RegularRelativeLimit)
+        .InRange(0.0, 1.0)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("throttler", &TThis::Throttler)
@@ -158,6 +173,8 @@ void TStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
     registrar.Parameter("regular_relative_limit", &TThis::RegularRelativeLimit)
         .Default(0.7)
         .InRange(0.0, 1.0);
+    registrar.Parameter("bundles", &TThis::Bundles)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->Throttler->Limit) {

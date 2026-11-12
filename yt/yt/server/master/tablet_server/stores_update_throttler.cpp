@@ -61,13 +61,12 @@ public:
     {
         Throttler_->Reconfigure(newConfig->Throttler);
 
-        if (Config_->Throttler->Period != newConfig->Throttler->Period ||
-            Config_->BundleLimit != newConfig->BundleLimit ||
-            Config_->FlushRelativeLimit != newConfig->FlushRelativeLimit ||
-            Config_->RegularRelativeLimit != newConfig->RegularRelativeLimit)
-        {
-            for (const auto& [bundleName, bundleThrottler] : BundleThrottlers_) {
-                bundleThrottler->Reconfigure(newConfig);
+        for (const auto& [bundleName, bundleThrottler] : BundleThrottlers_) {
+            auto newLimits = GetBundleLimits(newConfig, bundleName);
+            if (Config_->Throttler->Period != newConfig->Throttler->Period ||
+                GetBundleLimits(Config_, bundleName) != newLimits)
+            {
+                bundleThrottler->Reconfigure(newConfig, newLimits);
             }
         }
 
@@ -75,6 +74,15 @@ public:
     }
 
 private:
+    struct TBundleLimits
+    {
+        int BundleLimit;
+        double FlushRelativeLimit;
+        double RegularRelativeLimit;
+
+        bool operator==(const TBundleLimits&) const = default;
+    };
+
     struct TBundleThrottler final
     {
         const IReconfigurableThroughputThrottlerPtr Throttler;
@@ -83,6 +91,7 @@ private:
 
         TBundleThrottler(
             const TStoresUpdateThrottlerConfigPtr& config,
+            const TBundleLimits& limits,
             const TProfiler& profiler,
             const TLogger& logger)
             : Throttler(CreateNamedReconfigurableThroughputThrottler(
@@ -101,10 +110,10 @@ private:
                 logger,
                 profiler.WithPrefix("/by_reason").WithTag("reason", "regular")))
         {
-            Reconfigure(config);
+            Reconfigure(config, limits);
         }
 
-        void Reconfigure(const TStoresUpdateThrottlerConfigPtr& config)
+        void Reconfigure(const TStoresUpdateThrottlerConfigPtr& config, const TBundleLimits& limits)
         {
             auto reconfigure = [&] (const IReconfigurableThroughputThrottlerPtr& throttler, double throttlerLimit) {
                 auto throttlerConfig = CloneYsonStruct(config->Throttler);
@@ -112,10 +121,10 @@ private:
                 throttler->Reconfigure(std::move(throttlerConfig));
             };
 
-            int limit = config->BundleLimit;
+            int limit = limits.BundleLimit;
             reconfigure(Throttler, limit);
-            reconfigure(FlushThrottler, std::ceil(config->FlushRelativeLimit * limit));
-            reconfigure(RegularThrottler, std::ceil(config->RegularRelativeLimit * limit));
+            reconfigure(FlushThrottler, std::ceil(limits.FlushRelativeLimit * limit));
+            reconfigure(RegularThrottler, std::ceil(limits.RegularRelativeLimit * limit));
         }
     };
 
@@ -126,6 +135,26 @@ private:
     TStoresUpdateThrottlerConfigPtr Config_;
     // TODO(alexelexa): Drop throttlers of destroyed bundles.
     THashMap<std::string, TBundleThrottlerPtr> BundleThrottlers_;
+
+    static TBundleLimits GetBundleLimits(
+        const TStoresUpdateThrottlerConfigPtr& config,
+        const std::string& bundleName)
+    {
+        TBundleLimits limits{
+            .BundleLimit = config->BundleLimit,
+            .FlushRelativeLimit = config->FlushRelativeLimit,
+            .RegularRelativeLimit = config->RegularRelativeLimit,
+        };
+
+        if (auto it = config->Bundles.find(bundleName); it != config->Bundles.end()) {
+            const auto& bundleConfig = it->second;
+            limits.BundleLimit = bundleConfig->BundleLimit.value_or(limits.BundleLimit);
+            limits.FlushRelativeLimit = bundleConfig->FlushRelativeLimit.value_or(limits.FlushRelativeLimit);
+            limits.RegularRelativeLimit = bundleConfig->RegularRelativeLimit.value_or(limits.RegularRelativeLimit);
+        }
+
+        return limits;
+    }
 
     std::vector<IReconfigurableThroughputThrottlerPtr> GetThrottlers(
         const std::string& bundleName,
@@ -142,6 +171,7 @@ private:
                 bundleName,
                 New<TBundleThrottler>(
                     Config_,
+                    GetBundleLimits(Config_, bundleName),
                     Profiler_
                         .WithPrefix("/bundle")
                         .WithTag("tablet_cell_bundle", bundleName),

@@ -160,6 +160,22 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStoresUpdateBundleThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> BundleLimit;
+    std::optional<double> FlushRelativeLimit;
+    std::optional<double> RegularRelativeLimit;
+
+    REGISTER_YSON_STRUCT(TStoresUpdateBundleThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoresUpdateBundleThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStoresUpdateThrottlerConfig
     : public NYTree::TYsonStruct
 {
@@ -169,6 +185,8 @@ struct TStoresUpdateThrottlerConfig
     double FlushRelativeLimit;
     //! Relative limit for all tablet store update reasons except flushes.
     double RegularRelativeLimit;
+
+    THashMap<std::string, TStoresUpdateBundleThrottlerConfigPtr> Bundles;
 
     REGISTER_YSON_STRUCT(TStoresUpdateThrottlerConfig);
 
