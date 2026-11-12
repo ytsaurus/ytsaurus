@@ -63,12 +63,20 @@ private:
     void DoPrepare(const IComputationRunContextPtr& context) final;
     void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) override;
     TSystemTimestamp GetInputSystemWatermark();
+    //! Marks |messageId|, an input of epoch |epochIndex|, persisted.
+    void PersistInput(const TMessageId& messageId, i64 epochIndex);
 
     void ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages) override;
 
     // Accumulates input message IDs that have been fully distributed (all outputs delivered).
     // Flushed via context->MarkPersisted() before Commit() and in ProcessDistributedMessages().
     std::vector<TMessageId> PersistedInputMessageIds_;
+    // The epoch being processed.
+    i64 EpochIndex_ = 0;
+    // Whether the current epoch registers timers; if so, its inputs are persisted only after the commit.
+    bool EpochRegistersTimers_ = false;
+    // Inputs of the current epoch that wait for its commit.
+    std::vector<TMessageId> UncommittedInputMessageIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

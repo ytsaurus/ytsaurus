@@ -27,6 +27,8 @@
 #include <util/digest/multi.h>
 #include <util/generic/hash.h>
 
+#include <ranges>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,7 +216,7 @@ public:
         TriggerTimers();
     }
 
-    void RegisterTimerKeyIndex(const TInputTimerConstPtr& timer)
+    void RegisterTimerKeyIndex(const TInputTimerConstPtr& timer, bool restored)
     {
         if (!GetOrCrash(Context_->TimerSpecs, timer->StreamId)->DeduplicateEqualTimestamps) {
             return;
@@ -223,6 +225,11 @@ public:
         auto [it, emplaced] = TimerDeduplicationState_.emplace(timer);
 
         if (emplaced) {
+            return;
+        }
+        // Both equal timers were persisted, since one was taken before the other was registered.
+        if (restored) {
+            RestoredEqualTimers_[*it].push_back(timer);
             return;
         }
 
@@ -243,10 +250,30 @@ public:
         // during extract in GetNextBatch), do nothing.
         // Do not check DeduplicateEqualTimestamps, because erasing from empty map is cheap and no-op.
         auto it = TimerDeduplicationState_.find(timer);
-        if (it == TimerDeduplicationState_.end() || (*it)->MessageId != timer->MessageId) {
+        if (it == TimerDeduplicationState_.end()) {
+            return;
+        }
+        auto restoredIt = RestoredEqualTimers_.find(timer);
+        if ((*it)->MessageId != timer->MessageId) {
+            if (restoredIt != RestoredEqualTimers_.end()) {
+                std::erase_if(restoredIt->second, [&] (const TInputTimerConstPtr& restoredTimer) {
+                    return restoredTimer->MessageId == timer->MessageId;
+                });
+                if (restoredIt->second.empty()) {
+                    RestoredEqualTimers_.erase(restoredIt);
+                }
+            }
             return;
         }
         TimerDeduplicationState_.erase(it);
+        if (restoredIt != RestoredEqualTimers_.end()) {
+            // A restored equal timer is still pending, so it deduplicates the timers registered from now on.
+            TimerDeduplicationState_.emplace(std::move(restoredIt->second.back()));
+            restoredIt->second.pop_back();
+            if (restoredIt->second.empty()) {
+                RestoredEqualTimers_.erase(restoredIt);
+            }
+        }
     }
 
     void Register(std::vector<TTimer>&& timers) override
@@ -262,13 +289,22 @@ public:
                     timer.StreamId);
             }
 
+            if (!restored) {
+                // Same as for a restored timer, since the timers table does not keep the alignment timestamp.
+                timer.AlignmentTimestamp = timer.SystemTimestamp;
+            }
             auto inputTimer = New<TInputTimer>(std::move(timer), Context_->KeySchema);
             if (restored) {
                 InflightStore_->Restore(inputTimer);
-            } else {
-                InflightStore_->Register(inputTimer);
+            } else if (!InflightStore_->TryRegister(inputTimer)) {
+                // A Swift computation adds the timer again when the upstream replays its committed input.
+                YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer is already registered")
+                    .With("MessageId", inputTimer->MessageId)
+                    .With("StreamId", inputTimer->StreamId);
+                continue;
             }
 
+            Deduplicated_.erase(inputTimer);
             SortedTimers_[inputTimer->StreamId].insert(inputTimer);
 
             YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer was registered")
@@ -276,7 +312,7 @@ public:
                 .With("StreamId", inputTimer->StreamId);
             ModificationQueue_.emplace_back(inputTimer, true);
 
-            RegisterTimerKeyIndex(inputTimer);
+            RegisterTimerKeyIndex(inputTimer, restored);
         }
         InflightStore_->SyncCounters();
     }
@@ -463,10 +499,19 @@ private:
 
     // Used only if deduplication is enabled.
     absl::flat_hash_set<TInputTimerConstPtr, TMessageHashMapOpsByStreamAndKeyAndTriggerTs, TMessageHashMapOpsByStreamAndKeyAndTriggerTs> TimerDeduplicationState_;
+    //! Restored timers that are equal to a timer of #TimerDeduplicationState_ and are not taken yet.
+    absl::flat_hash_map<
+        TInputTimerConstPtr,
+        std::vector<TInputTimerConstPtr>,
+        TMessageHashMapOpsByStreamAndKeyAndTriggerTs,
+        TMessageHashMapOpsByStreamAndKeyAndTriggerTs>
+        RestoredEqualTimers_;
 
     THashMap<TStreamId, TSortedByTriggerTimestampTimerSet> SortedTimers_;
     THashMap<TStreamId, TSortedByTriggerTimestampTimerSet> TriggeredTimers_;
 
+    // The timers the deduplication unregistered in the epoch, by id: a caller may unregister such a timer through
+    // another object. A timer registered again loses the mark, so its own deduplication still unregisters it.
     TTimerSet Deduplicated_;
     std::deque<std::pair<TInputTimerConstPtr, bool>> ModificationQueue_;
 
@@ -522,23 +567,35 @@ private:
         }
     }
 
+    //! Folds the journal of the epoch to the last entry of every timer: the state its row must end up in.
     void DeduplicateModificationQueue()
     {
-        absl::flat_hash_map<TInputTimerConstPtr, bool, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId> finalState;
-        for (const auto& [timer, state] : ModificationQueue_) {
-            if (!finalState.contains(timer)) {
-                finalState[timer] = state;
-            } else {
-                YT_VERIFY(finalState[timer] == true);
-                YT_VERIFY(state == false);
-                finalState.erase(timer);
+        struct TJournalState
+        {
+            bool FirstAdd;
+            bool LastAdd;
+        };
+
+        absl::flat_hash_map<TInputTimerConstPtr, TJournalState, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId> states;
+        for (const auto& [timer, add] : ModificationQueue_) {
+            auto [it, inserted] = states.try_emplace(timer, TJournalState{.FirstAdd = add, .LastAdd = add});
+            if (!inserted) {
+                it->second.LastAdd = add;
             }
         }
+        // A timer added and erased in one epoch never reaches the table; a persisted timer erased and
+        // added again, e.g. by a replayed input, is rewritten.
         std::deque<std::pair<TInputTimerConstPtr, bool>> filteredModificationQueue;
-        for (const auto& [timer, state] : ModificationQueue_) {
-            if (auto iter = finalState.find(timer); iter != finalState.end() && iter->second == state) {
-                filteredModificationQueue.push_back({timer, state});
+        for (const auto& entry : std::ranges::reverse_view(ModificationQueue_)) {
+            auto stateIt = states.find(entry.first);
+            if (stateIt == states.end()) {
+                continue;
             }
+            const auto& state = stateIt->second;
+            if (!(state.FirstAdd && !state.LastAdd)) {
+                filteredModificationQueue.push_front(entry);
+            }
+            states.erase(stateIt);
         }
         ModificationQueue_ = std::move(filteredModificationQueue);
     }

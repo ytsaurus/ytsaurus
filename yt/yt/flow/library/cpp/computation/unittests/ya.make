@@ -30,6 +30,7 @@ SRCS(
     state_client_ut.cpp
     state_providers_ut.cpp
     swift_map_validation_ut.cpp
+    swift_map_computation_ut.cpp
     paged_timer_store_differential_ut.cpp
     paged_timer_store_ut.cpp
     timer_page_catalogue_ut.cpp
