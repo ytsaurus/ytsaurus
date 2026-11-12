@@ -20,7 +20,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTableId, TableId);
     DEFINE_BYVAL_RW_PROPERTY(TTableId, IndexTableId);
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagSet, ExternalCellTags);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, Predicate);
     DEFINE_BYREF_RW_PROPERTY(std::optional<NTabletClient::TUnfoldedColumns>, UnfoldedColumns);
     DEFINE_BYVAL_RW_PROPERTY(ETableToIndexCorrespondence, TableToIndexCorrespondence, ETableToIndexCorrespondence::Invalid);

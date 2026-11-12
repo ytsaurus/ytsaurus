@@ -16,6 +16,7 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
@@ -86,10 +87,16 @@ private:
                     .Value(secondaryIndex->GetIndexTableId());
                 return true;
 
-            case EInternedAttributeKey::IndexTablePath:
+            case EInternedAttributeKey::IndexTablePath: {
+                auto* indexTable = tableManager->FindTableNode(secondaryIndex->GetIndexTableId());
+
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()), /*transaction*/nullptr));
+                    .Value(
+                        indexTable
+                            ? cypressManager->GetNodePath(indexTable, /*transaction*/ nullptr)
+                            : FromObjectId(secondaryIndex->GetIndexTableId()));
                 return true;
+            }
 
             case EInternedAttributeKey::Kind:
                 BuildYsonFluently(consumer)
@@ -142,18 +149,23 @@ private:
         switch (key) {
             case EInternedAttributeKey::TableToIndexCorrespondence: {
                 const auto& tableManager = Bootstrap_->GetTableManager();
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-                auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
+                auto tableId = secondaryIndex->GetTableId();
 
-                YT_TLOG_ALERT_IF(!IsObjectAlive(table), "Failed to find indexed table of secondary index")
-                    .With("TableId", secondaryIndex->GetTableId())
-                    .With("IndexId", secondaryIndex->GetId());
+                if (CellTagFromId(tableId) == multicellManager->GetCellTag()) {
+                    auto* table = tableManager->FindTableNode(tableId);
 
-                THROW_ERROR_EXCEPTION_IF(!IsObjectAlive(table), "Failed to find table %v of secondary index %v",
-                    secondaryIndex->GetTableId(),
-                    secondaryIndex->GetId());
+                    YT_TLOG_ALERT_IF(!IsObjectAlive(table), "Failed to find indexed table of secondary index")
+                        .With("TableId", tableId)
+                        .With("IndexId", secondaryIndex->GetId());
 
-                table->ValidateAllTabletsUnmounted("Indexed table must be unmounted before index correspondence is changed");
+                    THROW_ERROR_EXCEPTION_IF(!IsObjectAlive(table), "Failed to find table %v of secondary index %v",
+                        tableId,
+                        secondaryIndex->GetId());
+
+                    table->ValidateAllTabletsUnmounted("Indexed table must be unmounted before index correspondence is changed");
+                }
 
                 auto newCorrespondence = ConvertTo<ETableToIndexCorrespondence>(value);
 

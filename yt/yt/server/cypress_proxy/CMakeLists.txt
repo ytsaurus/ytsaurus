@@ -45,6 +45,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   server-lib-rpc_proxy
   server-lib-security_server
   server-lib-sequoia
+  server-lib-table_server
   server-lib-cross_cluster_replicated_state
 )
 

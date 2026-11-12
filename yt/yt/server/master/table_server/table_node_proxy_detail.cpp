@@ -1165,9 +1165,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .DoMapFor(
                     trunkTable->SecondaryIndices(),
                     [&] (auto fluent, TSecondaryIndex* secondaryIndex) {
-                        auto indexPath = cypressManager->GetNodePath(
-                            tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()),
-                            GetTransaction());
+                        auto* indexTable = tableManager->FindTableNode(secondaryIndex->GetIndexTableId());
+                        auto indexPath = indexTable
+                            ? cypressManager->GetNodePath(indexTable, GetTransaction())
+                            : FromObjectId(secondaryIndex->GetIndexTableId());
                         auto kind = secondaryIndex->GetKind();
 
                         fluent
@@ -1204,9 +1205,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             const auto& tableManager = Bootstrap_->GetTableManager();
 
             auto secondaryIndex = trunkTable->GetIndexTo();
-            auto tablePath = cypressManager->GetNodePath(
-                tableManager->GetTableNodeOrThrow(secondaryIndex->GetTableId()),
-                GetTransaction());
+            auto* indexedTable = tableManager->FindTableNode(secondaryIndex->GetTableId());
+            auto tablePath = indexedTable
+                ? cypressManager->GetNodePath(indexedTable, GetTransaction())
+                : FromObjectId(secondaryIndex->GetTableId());
             auto kind = secondaryIndex->GetKind();
 
             BuildYsonFluently(consumer)
@@ -2601,6 +2603,42 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             *oldTableSchema,
             *newTableSchema,
             dynamic);
+
+        if (table->IsDynamic()) {
+            if (auto index = table->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION_IF(table->IsSequoia(),
+                    "Alter of index table %v with secondary index %v is not supported at the moment in Sequoia",
+                    table->GetId(),
+                    index->GetId());
+
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
+                ValidateIndexSchema(
+                    index->GetKind(),
+                    *indexTableSchema,
+                    *newTableSchema,
+                    index->Predicate(),
+                    index->EvaluatedColumnsSchema(),
+                    index->UnfoldedColumns());
+            }
+
+            for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
+                THROW_ERROR_EXCEPTION_IF(table->IsSequoia(),
+                    "Alter of indexed table %v with secondary index %v is not supported at the moment in Sequoia",
+                    table->GetId(),
+                    index->GetId());
+
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
+                ValidateIndexSchema(
+                    index->GetKind(),
+                    *newTableSchema,
+                    *indexTableSchema,
+                    index->Predicate(),
+                    index->EvaluatedColumnsSchema(),
+                    index->UnfoldedColumns());
+            }
+        }
 
         if (options.Dynamic) {
             if (*options.Dynamic) {

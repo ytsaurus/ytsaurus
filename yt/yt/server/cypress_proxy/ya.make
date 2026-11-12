@@ -52,6 +52,7 @@ PEERDIR(
     yt/yt/server/lib/rpc_proxy
     yt/yt/server/lib/security_server
     yt/yt/server/lib/sequoia
+    yt/yt/server/lib/table_server
     yt/yt/server/lib/cross_cluster_replicated_state
 )
 

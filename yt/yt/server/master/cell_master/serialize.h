@@ -244,6 +244,7 @@ DEFINE_ENUM(EMasterReign,
     ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
+    ((SequoiaSecondaryIndices)                                      (3401))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

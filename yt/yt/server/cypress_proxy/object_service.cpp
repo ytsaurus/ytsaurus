@@ -555,23 +555,35 @@ private:
                 }
             }
 
-            // If this is a rootstock creation request then don't bother master
-            // with it.
-            if (subrequest.RequestHeader->method() != "Create") {
-                continue;
-            }
+            if (subrequest.RequestHeader->method() == "CreateObject") {
+                auto context = CreateSequoiaServiceContext(subrequest.RequestMessage);
+                auto reqCreateObject = TryParseReqCreateObject(context);
+                if (!reqCreateObject) {
+                    // Parse failure.
+                    subrequest.Target = ERequestTarget::None;
+                    ReplyOnSubrequest(index, context->GetResponseMessage());
+                    continue;
+                }
 
-            auto context = CreateSequoiaServiceContext(subrequest.RequestMessage);
-            auto reqCreate = TryParseReqCreate(context);
-            if (!reqCreate) {
-                // Parse failure.
-                subrequest.Target = ERequestTarget::None;
-                ReplyOnSubrequest(index, context->GetResponseMessage());
-                continue;
-            }
+                if (reqCreateObject->Type == EObjectType::SecondaryIndex) {
+                    auto tableId = reqCreateObject->ExplicitAttributes->Get<TObjectId>("table_id", NullObjectId);
+                    if (IsSequoiaId(tableId)) {
+                        subrequest.Target = ERequestTarget::Sequoia;
+                    }
+                }
+            } else if (subrequest.RequestHeader->method() == "Create") {
+                auto context = CreateSequoiaServiceContext(subrequest.RequestMessage);
+                auto reqCreate = TryParseReqCreate(context);
+                if (!reqCreate) {
+                    // Parse failure.
+                    subrequest.Target = ERequestTarget::None;
+                    ReplyOnSubrequest(index, context->GetResponseMessage());
+                    continue;
+                }
 
-            if (reqCreate->Type == EObjectType::Rootstock) {
-                subrequest.Target = ERequestTarget::Sequoia;
+                if (reqCreate->Type == EObjectType::Rootstock) {
+                    subrequest.Target = ERequestTarget::Sequoia;
+                }
             }
         }
     }

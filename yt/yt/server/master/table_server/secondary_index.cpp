@@ -45,7 +45,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, TableId_);
     Save(context, IndexTableId_);
     Save(context, Kind_);
-    Save(context, ExternalCellTag_);
+    Save(context, ExternalCellTags_);
     Save(context, Predicate_);
     Save(context, UnfoldedColumns_);
     Save(context, TableToIndexCorrespondence_);
@@ -60,7 +60,14 @@ void TSecondaryIndex::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, IndexTableId_);
     Load(context, Kind_);
-    Load(context, ExternalCellTag_);
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SequoiaSecondaryIndices) {
+        Load(context, ExternalCellTags_);
+    } else if (auto cellTag = Load<TCellTag>(context); cellTag != NotReplicatedCellTagSentinel) {
+        ExternalCellTags_ = {cellTag};
+    }
+
     Load(context, Predicate_);
 
     // COMPAT(sabdenovch)

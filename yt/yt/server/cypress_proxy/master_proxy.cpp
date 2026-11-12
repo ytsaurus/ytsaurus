@@ -7,10 +7,14 @@
 
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
+#include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
+#include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/cypress_client/public.h>
 
@@ -48,11 +52,13 @@ public:
     using TNodeProxyBase::TNodeProxyBase;
 
 protected:
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObject);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeCopyPrerequisites);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeNode);
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
+        DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeCopyPrerequisites);
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeNode);
 
@@ -70,6 +76,66 @@ protected:
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
     }
 };
+
+DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, CreateObject)
+{
+    auto type = FromProto<EObjectType>(request->type());
+    if (type != EObjectType::SecondaryIndex) {
+        InvokeResult_ = TForwardToMasterPayload{};
+        return;
+    }
+
+    context->AnnotateRequest()
+        .With("Type", type);
+
+    THROW_ERROR_EXCEPTION_IF(SequoiaSession_->GetCurrentCypressTransactionId(),
+        "Cannot create secondary index within a transaction");
+
+    auto attributes = request->has_object_attributes()
+        ? NYTree::FromProto(request->object_attributes())
+        : nullptr;
+
+    THROW_ERROR_EXCEPTION_UNLESS(attributes, "Attributes missing during secondary index creation");
+
+    auto tableId = attributes->Get<TTableId>("table_id");
+    auto indexTableId = attributes->Get<TTableId>("index_table_id");
+    auto tableCellTag = CellTagFromId(tableId);
+    auto indexTableCellTag = CellTagFromId(indexTableId);
+
+    SequoiaSession_->AcquireCypressLockInSequoia(
+        tableId,
+        ELockMode::Exclusive);
+
+    SequoiaSession_->AcquireCypressLockInSequoia(
+        indexTableId,
+        ELockMode::Exclusive);
+
+    const auto& transaction = SequoiaSession_->SequoiaTransaction();
+
+    auto hintId = transaction->GenerateObjectId(type, tableCellTag, /*sequoia*/ true);
+
+    NTableServer::NProto::TReqCreateSecondaryIndex req;
+    ToProto(req.mutable_object_attributes(), *attributes);
+    ToProto(req.mutable_hint_id(), hintId);
+
+    // Secondary index is instantiated on indexed table native cell (1) and
+    // index table native cell (2), creation is replicated to
+    // the indexed table external cell (3) and from that point
+    // changes to the object and its removal are replicated from (1) to (2) and (3).
+    transaction->AddTransactionAction(
+        tableCellTag,
+        NTransactionClient::MakeTransactionActionData(req));
+    if (tableCellTag != indexTableCellTag) {
+        transaction->AddTransactionAction(
+            indexTableCellTag,
+            NTransactionClient::MakeTransactionActionData(req));
+    }
+
+    // We totally rely on master accepting the hint here.
+    ToProto(response->mutable_object_id(), hintId);
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(tableId), /*commitSession*/ true);
+}
 
 DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
 {

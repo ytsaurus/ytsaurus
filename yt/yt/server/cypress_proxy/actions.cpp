@@ -674,6 +674,7 @@ void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& opt
     protoOptions->set_preserve_expiration_time(options.PreserveExpirationTime);
     protoOptions->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
     protoOptions->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
+    protoOptions->set_allow_secondary_index_abandonment(options.AllowSecondaryIndexAbandonment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
