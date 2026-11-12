@@ -8865,6 +8865,96 @@ TEST_F(TQueryEvaluateTest, UniqAggregate)
         EExecutionBackend::Native);
 }
 
+TEST_F(TQueryEvaluateTest, RunningSum)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    auto source = TSource{
+        "a=1",
+        "a=1",
+        "a=2",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"s", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1;s=1",
+        "a=1;s=2",
+        "a=2;s=4",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend("a, running_sum(a) as s FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, RunningUniq)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    auto source = TSource{
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=1",
+        "a=2",
+        "a=4",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"u", EValueType::Uint64},
+    });
+
+    auto result = YsonToRows({
+        "a=1;u=1u",
+        "a=2;u=2u",
+        "a=3;u=3u",
+        "a=1;u=3u",
+        "a=2;u=3u",
+        "a=4;u=4u",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "a, running_uniq(a) as u FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, RunningDifference)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    auto source = TSource{
+        "a=1",
+        "a=3",
+        "a=10",
+        "a=7",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"d", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1;d=0",
+        "a=3;d=2",
+        "a=10;d=7",
+        "a=7;d=-3",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend("a, running_difference(a) as d FROM [//t]", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, CardinalityOrderedTotalsWithThreeSplits)
 {
     auto split = MakeSplit({

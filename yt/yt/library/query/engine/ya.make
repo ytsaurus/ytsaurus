@@ -613,6 +613,15 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/running.cpp
+    NAME running
+    SYMBOLS
+        running_sum
+        running_uniq
+        running_difference
+)
+
+LLVM_BC(
     udf/yson_string_to_any.cpp
     NAME yson_string_to_any
     SYMBOLS

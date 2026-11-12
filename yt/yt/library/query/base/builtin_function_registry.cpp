@@ -343,6 +343,72 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         }
     }
 
+    {
+        const TTypeParameter summable = 0;
+        auto sumConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        sumConstraints[summable] = {
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+        };
+
+        builder->RegisterFunction(
+            "running_sum",
+            "running_sum",
+            sumConstraints,
+            {summable},
+            /*repeatedArgType*/ EValueType::Null,
+            summable,
+            "running",
+            ECallingConvention::UnversionedValue,
+            /*useFunctionContext*/ true);
+    }
+
+    {
+        const TTypeParameter anyValue = 0;
+        auto uniqConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        uniqConstraints[anyValue] = {
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::Any,
+        };
+
+        builder->RegisterFunction(
+            "running_uniq",
+            "running_uniq",
+            uniqConstraints,
+            {anyValue},
+            /*repeatedArgType*/ EValueType::Null,
+            EValueType::Uint64,
+            "running",
+            ECallingConvention::UnversionedValue,
+            /*useFunctionContext*/ true);
+    }
+
+    {
+        const TTypeParameter differencable = 0;
+        auto differenceConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+        differenceConstraints[differencable] = {
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+        };
+
+        builder->RegisterFunction(
+            "running_difference",
+            "running_difference",
+            differenceConstraints,
+            {differencable},
+            /*repeatedArgType*/ EValueType::Null,
+            differencable,
+            "running",
+            ECallingConvention::UnversionedValue,
+            /*useFunctionContext*/ true);
+    }
+
     builder->RegisterAggregate(
         "array_agg",
         {},
