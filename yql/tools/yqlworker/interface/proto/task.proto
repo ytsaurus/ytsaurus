@@ -118,8 +118,17 @@ message TUserAuthData {
     optional bytes QueryIdentityToken = 3;
 }
 
+message TProjectSettings {
+    message TPragma {
+        optional string Name = 1;     // e.g. "yt.StaticPool"
+        repeated string Value = 2;    // multi-value
+    }
+    repeated TPragma Pragmas = 1;
+}
+
 message TProjectData {
     optional string AbcServiceSlug = 1;
+    optional TProjectSettings Settings = 2;
 }
 
 message TGrant {

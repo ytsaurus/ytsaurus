@@ -7,6 +7,7 @@ SRCS(
 
 PEERDIR(
     library/cpp/yson/node
+    yql/essentials/core/qplayer/storage/memory
     yql/essentials/public/udf/service/stub
     yql/essentials/sql/pg
     yql/tools/yqlworker/executor/common/tasks
