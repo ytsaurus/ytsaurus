@@ -5,7 +5,7 @@ from yt_commands import (
     abort_transaction, commit_transaction, wait, raises_yt_error, ls, create_user,
     create_account, get_account_disk_space_limit,
     set_account_disk_space_limit, get_account_disk_space, get_chunks, get,
-    run_test_vanilla, with_breakpoint, wait_breakpoint, release_breakpoint, set
+    run_test_vanilla, with_breakpoint, wait_breakpoint, release_breakpoint, set, get_cell_tag
 )
 
 from yt_type_helpers import make_schema
@@ -971,6 +971,52 @@ class TestShuffleService(YTEnvSetup):
                     read_shuffle_data(shuffle_handle, partition_index=1, driver=driver)
             finally:
                 driver.terminate()
+
+
+class TestShuffleServiceMulticell(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_DRIVER_CONFIG = TestShuffleService.DELTA_RPC_DRIVER_CONFIG
+    DELTA_RPC_PROXY_CONFIG = TestShuffleService.DELTA_RPC_PROXY_CONFIG
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    @authors("apollo1321")
+    def test_pull_based_chunks_on_chunk_host_cells(self):
+        chunk_host_cell_tags = {11, 12}
+
+        parent_transaction = start_transaction(timeout=60000)
+        chunks_before = builtins.set(get_chunks())
+
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=2,
+            parent_transaction_id=parent_transaction)
+
+        shuffle_transaction = parser.loads(shuffle_handle["payload"].encode())["transaction_id"]
+        assert get_cell_tag(shuffle_transaction) not in chunk_host_cell_tags
+
+        rows = [{"key": key, "value": key} for key in range(2)]
+        write_shuffle_data(shuffle_handle, "key", rows)
+
+        chunks = [chunk for chunk in get_chunks() if chunk not in chunks_before]
+        assert len(chunks) > 0
+        for chunk in chunks:
+            assert get_cell_tag(chunk) in chunk_host_cell_tags
+
+        for partition in range(2):
+            assert read_shuffle_data(shuffle_handle, partition) == [rows[partition]]
+
+        commit_transaction(parent_transaction)
 
 
 @pytest.mark.parametrize("use_push_based_shuffle", [False, True])
