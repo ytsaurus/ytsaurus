@@ -1128,33 +1128,27 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		return err
 	}
 
-	previousOpletInfo := oplet.persistentState.OpletInfo
-	operationStarted := false
-	defer func() {
-		if !operationStarted {
-			oplet.persistentState.OpletInfo = previousOpletInfo
-		}
-	}()
-
-	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
+	prepared, err := oplet.c.Prepare(ctx, oplet)
 	if err != nil {
 		oplet.setError(err)
 		return err
 	}
 
+	spec := prepared.Spec
+
 	// Extend our own annotations and description by controller's annotation and description.
 	strawberryAnnotations := oplet.OpAnnotations()
 	for k, v := range strawberryAnnotations {
-		annotations[k] = v
+		prepared.Annotations[k] = v
 	}
 	strawberryDescription := oplet.OpDescription()
 	for k, v := range strawberryDescription {
-		description[k] = v
+		prepared.Description[k] = v
 	}
 
 	// TODO(gudqeit): move speclet patching to a separate method.
-	spec["annotations"] = annotations
-	spec["description"] = description
+	spec["annotations"] = prepared.Annotations
+	spec["description"] = prepared.Description
 
 	if oplet.agentInfo.UseFamilyPrefixInOpAlias {
 		spec["alias"] = "*" + oplet.c.Family() + OpAliasFamilyDelimiter + oplet.alias
@@ -1230,7 +1224,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	}
 
 	var ytClientForOpStart yt.Client
-	if runAsUser {
+	if prepared.RunAsUser {
 		ytClientForOpStart, err = oplet.getUserClient()
 		if err != nil {
 			oplet.setError(err)
@@ -1264,7 +1258,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.ClearExceedingFailedJobsLimitFailure()
 	}
 
-	operationStarted = true
+	oplet.persistentState.OpletInfo = prepared.OpletInfo
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpJobCount = jobCount
 

@@ -36,9 +36,8 @@ func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *str
 	return !bytes.Equal(snapshot, current), nil
 }
 
-func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	map[string]any, map[string]any, map[string]any, bool, error) {
-	return nil, nil, nil, false, yterrors.Err(
+func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (*strawberry.PrepareResult, error) {
+	return nil, yterrors.Err(
 		"starting oplets is not supported for deprecated strawberry family \"livy\"")
 }
 

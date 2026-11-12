@@ -118,7 +118,7 @@ func TestHTTPAPILivyIsDeprecated(t *testing.T) {
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	controller := livy.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, c.Proxy, nil)
-	_, _, _, _, err = controller.Prepare(env.Ctx, nil)
+	_, err = controller.Prepare(env.Ctx, nil)
 	require.ErrorContains(t, err, "deprecated")
 
 	legacyAPI := api.NewAPI(env.YT, api.APIConfig{

@@ -9,16 +9,19 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
+type PrepareResult struct {
+	Spec        map[string]any
+	Description map[string]any
+	Annotations map[string]any
+	OpletInfo   yson.RawValue
+	RunAsUser   bool
+}
+
 // Controller encapsulates particular application business logic, in particular:
 // how operations should be started, which files to bring with them, how to check liveness, etc.
 type Controller interface {
-	// Prepare builds all necessary operation spec fields.
-	Prepare(ctx context.Context, oplet *Oplet) (
-		spec map[string]any,
-		description map[string]any,
-		annotation map[string]any,
-		runAsUser bool,
-		err error)
+	// Prepare builds operation spec fields and metadata without changing persistent state.
+	Prepare(ctx context.Context, oplet *Oplet) (*PrepareResult, error)
 
 	// Family returns short lowercase_with_underscore identifier which is included to all vanilla
 	// operation annotations started by this strawberry controller. This allows efficient operation

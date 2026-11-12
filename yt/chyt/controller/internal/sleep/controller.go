@@ -26,25 +26,24 @@ type controllerSnapshot struct {
 	ControllerParameter string `yson:"controller_parameter,omitempty"`
 }
 
-func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
-	err = nil
-	spec = map[string]any{
+func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (*strawberry.PrepareResult, error) {
+	result := &strawberry.PrepareResult{}
+	result.Spec = map[string]any{
 		"tasks": map[string]any{
 			"main": map[string]any{
 				"command":   "sleep 10000",
 				"job_count": 1,
 			},
 		}}
-	description = map[string]any{
+	result.Description = map[string]any{
 		"sleeper_foo": "I am sleeper, look at me!",
 	}
-	annotations = map[string]any{
+	result.Annotations = map[string]any{
 		"sleeper_bar":          "Actually I'd like to wake up :)",
 		"controller_parameter": c.controllerParameter,
 	}
-	runAsUser = false
-	return
+	result.RunAsUser = false
+	return result, nil
 }
 
 func (c Controller) Family() string {
