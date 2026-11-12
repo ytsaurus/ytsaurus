@@ -5,6 +5,8 @@
 #include "message.h"
 #include "timer.h"
 
+#include <yt/yt/core/misc/error.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <optional>
@@ -53,6 +55,14 @@ struct TAddMessageOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFailedMessage
+{
+    TInputMessageConstPtr Message;
+    TError Reason;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Sink for messages and timers produced by a computation's (or process function's)
 //! processing logic. The worker backs it with TRootOutputCollector / TOutputCollector
 //! (see library/cpp/computation); tests back it with a recording implementation.
@@ -68,6 +78,11 @@ struct IOutputCollector
     void AddMessage(TMessage&& message, TAddMessageOptions options = {});
     void AddMessage(TMessage&& message, bool distribute);
 
+    //! Saves the selected input message and its failure in the current epoch.
+    //! Requires an enabled failure handler and a native transform computation host.
+    //! Does not undo previously emitted output, timers, or state changes.
+    void AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason);
+
     virtual void AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) = 0;
     virtual void AddTimer(const TStreamId& streamId, TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) = 0;
     virtual void AddTimer(TTimer&& timer) = 0;
@@ -76,6 +91,7 @@ private:
     //! For a source computation, |options.Distribute| = false keeps the message out of the
     //! downstream output while still letting it advance the watermark. Other computations drop it.
     virtual void DoAddMessage(TMessage&& message, TAddMessageOptions options) = 0;
+    virtual void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason);
 };
 
 DEFINE_REFCOUNTED_TYPE(IOutputCollector);

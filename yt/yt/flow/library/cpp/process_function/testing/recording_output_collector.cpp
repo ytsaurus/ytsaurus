@@ -46,6 +46,16 @@ void TRecordingOutputCollector::DoAddMessage(TMessage&& message, TAddMessageOpti
     });
 }
 
+void TRecordingOutputCollector::DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason)
+{
+    Sink_->FailedMessages.push_back({message, reason});
+}
+
+const std::vector<TFailedMessage>& TRecordingOutputCollector::GetFailedMessages() const
+{
+    return Sink_->FailedMessages;
+}
+
 void TRecordingOutputCollector::AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp)
 {
     Sink_->Timers.push_back(TRecordedTimer{

@@ -11,6 +11,7 @@ RECURSE(
     dyntable_leases
     epoch_seqno_sync
     external_joiner
+    failed_messages
     flow_execute
     ipv4_support
     keep_order_mode

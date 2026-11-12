@@ -463,6 +463,29 @@ TFlowViewPtr CreateSyncedFlowView()
     return New<TFlowView>();
 }
 
+TEST(TFlowCoreTargetTest, FollowsExecutionSpecUpdates)
+{
+    auto controllerSpec = New<TExecutionSpec>();
+    auto workerSpec = New<TExecutionSpec>();
+    auto synchronize = [&] {
+        auto versions = ConvertTo<TExecutionSpecVersionsPtr>(ConvertToYsonString(BuildExecutionSpecVersions(workerSpec)));
+        auto [update, rows] = PrepareExecutionSpecUpdate(controllerSpec, versions);
+        update = ConvertTo<TExecutionSpecPtr>(ConvertToYsonString(update));
+        workerSpec = ApplyExecutionSpecUpdate(workerSpec, update, rows);
+    };
+
+    for (const auto& target : {"first-core-target", "second-core-target", ""}) {
+        controllerSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(target), TestVersionProvider());
+        synchronize();
+        EXPECT_EQ(workerSpec->FlowCoreTarget->GetValue(), controllerSpec->FlowCoreTarget->GetValue());
+        EXPECT_EQ(workerSpec->FlowCoreTarget->GetVersion(), controllerSpec->FlowCoreTarget->GetVersion());
+
+        synchronize();
+        EXPECT_EQ(workerSpec->FlowCoreTarget->GetValue(), controllerSpec->FlowCoreTarget->GetValue());
+        EXPECT_EQ(workerSpec->FlowCoreTarget->GetVersion(), controllerSpec->FlowCoreTarget->GetVersion());
+    }
+}
+
 TEST(TFlowCoreTargetTest, EmptyTargetPasses)
 {
     auto flowView = CreateSyncedFlowView();

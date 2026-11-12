@@ -14,6 +14,13 @@
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_client.h>
+
+#include <yt/yt/flow/library/cpp/native_client/public.h>
+
+#include <yt/yt/flow/library/cpp/tables/context.h>
+#include <yt/yt/flow/library/cpp/tables/failed_messages.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NFlow {
@@ -62,7 +69,28 @@ TTransformComputation::TTransformComputation(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)
     : TUniversalComputationBase(std::move(context), std::move(dynamicContext))
+    , FailedMessages_(CreateFailedMessages())
 { }
+
+NTables::TFailedMessagesPtr TTransformComputation::CreateFailedMessages()
+{
+    if (GetPartitionState() != EPartitionState::Executing || !GetContext()->FailureHandlerEnabled) {
+        return nullptr;
+    }
+
+    auto tableContext = New<NTables::TContext>();
+    tableContext->Client = GetRetryableClient()->WithErrorComponent(std::string(FailedMessagesTableName));
+    tableContext->PipelinePath = GetContext()->PipelinePath;
+    tableContext->LoadThroughputThrottler = GetContext()->LoadThroughputThrottler;
+    tableContext->Logger = Logger;
+    tableContext->Profiler = GetContext()->Profiler.WithPrefix("/tables");
+    tableContext->Tag = Format("%s:%s", GetContext()->Partition->ComputationId, FailedMessagesTableName);
+    return New<NTables::TFailedMessages>(
+        std::move(tableContext),
+        GetContext()->StreamSpecStorage->GetStreamSpecs(),
+        GetContext()->Job->WorkerAddress,
+        GetContext()->FlowCoreTarget);
+}
 
 void TTransformComputation::DoPrepare(const IComputationRunContextPtr& context)
 {
@@ -161,7 +189,10 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             RegisterInputBeforeProcessing(unprocessedInputs, inputTimers, inputVisits);
             auto inputContext = New<TInputContext>(unprocessedInputs, inputTimers, inputVisits);
             auto metaSetter = CreateUniqueMetaSetter(GetSpec(), uniqueSeqNo, now, EventTimestampAssigner_);
-            auto outputCollector = New<TRootOutputCollector>(GetSpec(), metaSetter);
+            auto failureHandlerMode = GetContext()->FailureHandlerEnabled
+                ? TRootOutputCollector::EFailureHandlerMode::Enabled
+                : TRootOutputCollector::EFailureHandlerMode::Disabled;
+            auto outputCollector = New<TRootOutputCollector>(GetSpec(), metaSetter, /*supportsDistribute*/ false, failureHandlerMode);
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             processResult = outputCollector->CollectResult();
@@ -201,6 +232,16 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Sync"));
             DoSync(tx);
+            if (!processResult.FailedMessages.empty()) {
+                YT_VERIFY(FailedMessages_);
+
+                FailedMessages_->Write(
+                    tx,
+                    GetContext()->Partition->ComputationId,
+                    GetContext()->Partition->PartitionId,
+                    now,
+                    processResult.FailedMessages);
+            }
             YT_TLOG_INFO("Transaction prepared");
         }
         Commit(context, tx);

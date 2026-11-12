@@ -737,6 +737,20 @@ bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFailureHandlerSpec
+    : public NYTree::TYsonStruct
+{
+    bool Enabled = false;
+
+    REGISTER_YSON_STRUCT(TFailureHandlerSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFailureHandlerSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPipelineSpec
     : public NYTree::TYsonStruct
 {
@@ -748,6 +762,8 @@ struct TPipelineSpec
     THashMap<TComputationId, TComputationSpecPtr> Computations;
     THashMap<TResourceId, TResourceSpecPtr> Resources;
     THashMap<TStreamId, TStreamSpecPtr> Streams;
+
+    TFailureHandlerSpecPtr FailureHandler;
 
     REGISTER_YSON_STRUCT(TPipelineSpec);
 

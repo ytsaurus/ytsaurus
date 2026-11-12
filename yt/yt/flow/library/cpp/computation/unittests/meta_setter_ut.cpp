@@ -82,6 +82,63 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TSwiftMergeMetaSetterTest, FailedMessageCaptureRequiresEnabledHandler)
+{
+    auto parent = MakeParent("p1", /*systemTimestamp*/ 100, /*eventTimestamp*/ 90, /*alignmentTimestamp*/ 95);
+    auto unsupported = New<TRootOutputCollector>(MakeSpec(), MakeDeterministicSetter());
+    EXPECT_THROW(unsupported->SetParents({parent}, {}, {})->AddFailedMessage(parent, TError("bad")), TErrorException);
+    auto disabled = New<TRootOutputCollector>(
+        MakeSpec(),
+        MakeDeterministicSetter(),
+        /*supportsDistribute*/ false,
+        TRootOutputCollector::EFailureHandlerMode::Disabled);
+    EXPECT_THROW(disabled->SetParents({parent}, {}, {})->AddFailedMessage(parent, TError("bad")), TErrorException);
+    auto enabled = New<TRootOutputCollector>(
+        MakeSpec(),
+        MakeDeterministicSetter(),
+        /*supportsDistribute*/ false,
+        TRootOutputCollector::EFailureHandlerMode::Enabled);
+    auto output = enabled->SetParents({parent}, {}, {});
+    EXPECT_THROW(output->AddFailedMessage(nullptr, TError("bad")), TErrorException);
+    output->AddFailedMessage(parent, TError("invalid value"));
+    auto result = enabled->CollectResult();
+    ASSERT_EQ(result.FailedMessages.size(), 1u);
+    EXPECT_EQ(result.FailedMessages[0].Message, parent);
+    EXPECT_EQ(result.FailedMessages[0].Reason.GetMessage(), "invalid value");
+    EXPECT_TRUE(result.OutputMessages.empty());
+    EXPECT_TRUE(enabled->CollectResult().FailedMessages.empty());
+}
+
+TEST_F(TSwiftMergeMetaSetterTest, BatchFailedMessageCaptureDoesNotDependOnCollectorParents)
+{
+    constexpr int InputCount = 1'000;
+    std::vector<TInputMessageConstPtr> parents;
+    parents.reserve(InputCount);
+    for (int index = 0; index < InputCount; ++index) {
+        parents.push_back(MakeParent(
+            std::to_string(index),
+            /*systemTimestamp*/ 100,
+            /*eventTimestamp*/ 90,
+            /*alignmentTimestamp*/ 95));
+    }
+
+    auto root = New<TRootOutputCollector>(
+        MakeSpec(),
+        MakeDeterministicSetter(),
+        /*supportsDistribute*/ false,
+        TRootOutputCollector::EFailureHandlerMode::Enabled);
+    auto output = root->SetParents({}, {}, {});
+    for (const auto& parent : parents) {
+        output->AddFailedMessage(parent, TError("Invalid value"));
+    }
+
+    auto result = root->CollectResult();
+    ASSERT_EQ(std::ssize(result.FailedMessages), InputCount);
+    for (int index = 0; index < InputCount; ++index) {
+        EXPECT_EQ(result.FailedMessages[index].Message, parents[index]);
+    }
+}
+
 TEST_F(TSwiftMergeMetaSetterTest, SingleParentInheritsIdAndTimestamps)
 {
     auto setter = MakeSetter();

@@ -682,6 +682,7 @@ private:
 
         auto jobContext = New<TJobContext>();
         jobContext->WorkerAddress = Context_->WorkerNodeInfo->RpcAddress;
+        jobContext->FlowCoreTarget = ExecutionSpec_->FlowCoreTarget->GetValue();
         jobContext->ClientsCache = Context_->ClientsCache;
         jobContext->PipelinePath = Context_->PipelinePath;
         jobContext->EvaluatorCache = EvaluatorCache_;
@@ -845,6 +846,7 @@ private:
         const auto& partition = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId);
         auto jobSpec = New<TJobSpec>();
         jobSpec->ComputationSpec = GetOrCrash(ExecutionSpec_->PipelineSpec->GetValue()->Computations, partition->ComputationId);
+        jobSpec->FailureHandlerEnabled = ExecutionSpec_->PipelineSpec->GetValue()->FailureHandler->Enabled;
         jobSpec->ExtendedComputationSpec = GetOrCrash(ExecutionSpec_->ExtendedPipelineSpec->GetValue()->Computations, partition->ComputationId);
         jobSpec->Job = job;
         jobSpec->Partition = partition;

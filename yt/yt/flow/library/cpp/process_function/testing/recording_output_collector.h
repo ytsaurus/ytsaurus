@@ -41,6 +41,7 @@ public:
     {
         std::vector<TRecordedMessage> Messages;
         std::vector<TRecordedTimer> Timers;
+        std::vector<TFailedMessage> FailedMessages;
     };
 
     using TSinkPtr = TIntrusivePtr<TSink>;
@@ -60,12 +61,15 @@ public:
 
     const std::vector<TRecordedMessage>& GetMessages() const;
     const std::vector<TRecordedTimer>& GetTimers() const;
+    const std::vector<TFailedMessage>& GetFailedMessages() const;
 
 private:
     void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
 
     const TSinkPtr Sink_;
     const std::vector<TMessageId> ParentIds_;
+
+    void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRecordingOutputCollector)

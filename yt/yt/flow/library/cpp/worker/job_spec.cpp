@@ -10,6 +10,8 @@ namespace NYT::NFlow::NWorker {
 void TJobSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("computation_spec", &TThis::ComputationSpec);
+    registrar.Parameter("failure_handler_enabled", &TThis::FailureHandlerEnabled)
+        .Default(false);
     registrar.Parameter("extended_computation_spec", &TThis::ExtendedComputationSpec);
 
     registrar.Parameter("job", &TThis::Job);

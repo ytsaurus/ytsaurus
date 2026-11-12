@@ -13,6 +13,7 @@ namespace NYT::NFlow::NTables {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TInternalState);
+DECLARE_REFCOUNTED_CLASS(TFailedMessages);
 DECLARE_REFCOUNTED_STRUCT(TContext);
 
 DECLARE_REFCOUNTED_STRUCT(IPartitionStates);

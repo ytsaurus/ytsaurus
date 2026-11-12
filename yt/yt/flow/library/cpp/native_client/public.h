@@ -29,6 +29,7 @@ inline std::string BuildVanillaOperationAlias(const NYPath::TRichYPath& pipeline
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline constexpr TStringBuf FailedMessagesTableName = "failed_messages";
 inline constexpr TStringBuf InputMessagesTableName = "input_messages";
 inline constexpr TStringBuf CompactInputMessagesTableName = "compact_input_messages";
 inline constexpr TStringBuf CompactPartitionOutputMessagesTableName = "compact_partition_output_messages";

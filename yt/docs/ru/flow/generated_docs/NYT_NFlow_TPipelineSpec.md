@@ -26,5 +26,8 @@
 || `streams` | **Тип**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
 **Значение по умолчанию**: `{}`
 Именованное перечисление всех потоков данных. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
+|| `failure_handler` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TFailureHandlerSpec](./all_yson_structs#NYT_NFlow_TFailureHandlerSpec)`>`
+**Значение по умолчанию**: `{}`
+Явное сохранение проблемных сообщений в таблицу failed_messages пайплайна. ||
 |#
 

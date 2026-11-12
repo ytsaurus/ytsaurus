@@ -250,6 +250,8 @@
 
 {% include [_](./NYT_NFlow_TExternalStateManagerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TFailureHandlerSpec.md) %}
+
 {% include [_](./NYT_NFlow_TFetcherInJoinerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFileProviderId.md) %}

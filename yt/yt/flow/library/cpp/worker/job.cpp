@@ -805,6 +805,8 @@ private:
     {
         auto computationContext = New<TComputationContext>();
         computationContext->ComputationSpec = jobSpec->ComputationSpec;
+        computationContext->FailureHandlerEnabled = jobSpec->FailureHandlerEnabled;
+        computationContext->FlowCoreTarget = jobContext->FlowCoreTarget;
         computationContext->ClientsCache = jobContext->ClientsCache;
         computationContext->PipelinePath = jobContext->PipelinePath;
         computationContext->Partition = jobSpec->Partition;

@@ -1,0 +1,63 @@
+{
+    spec = {
+        failure_handler = { enabled = %true; };
+        computations = {
+            reader = {
+                computation_class_name = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                output_stream_ids = [input];
+                source_streams = {
+                    queue = {
+                        source_class_name = "NYT::NFlow::TQueueSource";
+                        parameters = { finite = %false; };
+                    };
+                };
+                watermark_strategy = {
+                    event_timestamp_assigner = { column = "event_timestamp"; };
+                };
+            };
+            capture = {
+                computation_class_name = "NYT::NFlow::TProcessFunctionComputation";
+                processing_function = "NYT::NFlow::NFailedMessagesTest::TCaptureFunction";
+                group_by_schema = [
+                    {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true;};
+                    {name = key; type = uint64;};
+                ];
+                input_stream_ids = [input];
+                output_stream_ids = [output];
+                sinks = {
+                    queue = {
+                        sink_class_name = "NYT::NFlow::TSyncQueueSink";
+                        input_stream_ids = [output];
+                        parameters = {};
+                    };
+                };
+            };
+        };
+        streams = {
+            input = {
+                schema = [
+                    {name = event_id; type = int64;};
+                    {name = key; type = uint64;};
+                    {name = value; type = int64;};
+                    {name = event_timestamp; type = uint64;};
+                ];
+            };
+            output = {
+                schema = [
+                    {name = event_id; type = int64;};
+                    {name = key; type = uint64;};
+                    {name = value; type = int64;};
+                    {name = event_timestamp; type = uint64;};
+                ];
+            };
+        };
+    };
+    dynamic_spec = {
+        computations = {
+            capture = {
+                batch_duration = 100;
+                parameters = { desired_partition_count = 2; };
+            };
+        };
+    };
+}

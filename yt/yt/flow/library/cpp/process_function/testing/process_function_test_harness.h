@@ -18,7 +18,7 @@ namespace NYT::NFlow::NTesting {
 //! Drives a process function through whole epochs the way the worker does, so a test can exercise
 //! any function granularity without rebuilding the epoch loop. Runs Init once; each RunEpoch
 //! preloads state, processes the input, runs the end-of-epoch sync and commits. Captures the
-//! latest epoch's emitted messages and timers for assertions.
+//! latest epoch's emitted messages, timers, and failed inputs for assertions.
 class TProcessFunctionTestHarness
 {
 public:
@@ -64,6 +64,8 @@ public:
     const std::vector<TRecordingOutputCollector::TRecordedMessage>& GetMessages() const;
     //! Timers emitted during the most recent epoch.
     const std::vector<TRecordingOutputCollector::TRecordedTimer>& GetTimers() const;
+    //! Failed inputs captured during the most recent epoch.
+    const std::vector<TFailedMessage>& GetFailedMessages() const;
 
     const IRuntimeContextPtr& GetContext() const;
 

@@ -98,6 +98,14 @@ PIPELINE_TABLES_PRESET = {
             },
         },
     },
+    "failed_messages": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": deepcopy(_PIPELINE_TABLE_DEFINITIONS["failed_messages"]["attributes"]),
+            },
+        },
+    },
     "timers": {
         "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
         "clusters": {

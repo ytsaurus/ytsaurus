@@ -4,6 +4,8 @@
 
 #include "computation_base.h"
 
+#include <yt/yt/flow/library/cpp/tables/public.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +62,10 @@ protected:
     void DoPrepare(const IComputationRunContextPtr& context) override;
 
 private:
+    const NTables::TFailedMessagesPtr FailedMessages_;
+
+    NTables::TFailedMessagesPtr CreateFailedMessages();
+
     void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) override;
 
     void ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages) override;

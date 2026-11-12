@@ -75,6 +75,18 @@ void IOutputCollector::AddMessage(TMessage&& message, bool distribute)
     DoAddMessage(std::move(message), TAddMessageOptions{.Distribute = distribute});
 }
 
+void IOutputCollector::AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(message, "Failed message must not be null");
+
+    DoAddFailedMessage(message, reason);
+}
+
+void IOutputCollector::DoAddFailedMessage(const TInputMessageConstPtr& /*message*/, const TError& /*reason*/)
+{
+    THROW_ERROR_EXCEPTION("Failed message capture is not supported by this output collector");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

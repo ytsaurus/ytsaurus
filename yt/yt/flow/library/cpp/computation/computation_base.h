@@ -51,6 +51,8 @@
 
 #include <library/cpp/iterator/concatenate.h>
 
+#include <util/generic/hash_set.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,6 +224,8 @@ class TRootOutputCollector
     : public TRefCounted
 {
 public:
+    using EFailureHandlerMode = NFlow::EFailureHandlerMode;
+
     struct TTransformResult
     {
         std::vector<TMessage> OutputMessages;
@@ -231,12 +235,14 @@ public:
         std::vector<TTimer> OutputTimers;
         std::vector<TMessageParentsConstPtr> OutputTimersParentMessageIds;
         TLineageDelta LineageDelta;
+        std::vector<TFailedMessage> FailedMessages;
     };
 
     TRootOutputCollector(
         TComputationSpecPtr spec,
         IMetaSetterPtr metaSetter,
-        bool supportsDistribute = false);
+        bool supportsDistribute = false,
+        EFailureHandlerMode failureHandlerMode = EFailureHandlerMode::Unsupported);
 
     [[nodiscard]] IOutputCollectorPtr SetParents(
         const std::vector<TInputMessageConstPtr>& messages,
@@ -249,6 +255,7 @@ public:
         const TOutputMessageIdSuffix& messageIdSuffix,
         bool distribute);
     void AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents);
+    void AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason);
 
     TTransformResult CollectResult();
 
@@ -257,6 +264,7 @@ private:
     const IMetaSetterPtr MetaSetter_;
     //! Whether messages with |distribute| = false remain available for watermark handling.
     const bool SupportsDistribute_;
+    const EFailureHandlerMode FailureHandlerMode_;
     TLineageAccumulator LineageAccumulator_;
     TTransformResult Result_;
 };
@@ -280,10 +288,11 @@ public:
     void AddTimer(TTimer&& timer) override;
 
 private:
-    void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
-
     const TRootOutputCollectorPtr RootCollector_;
     const TMessageParentsConstPtr Parents_;
+
+    void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
+    void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

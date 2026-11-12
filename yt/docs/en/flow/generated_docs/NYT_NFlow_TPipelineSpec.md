@@ -26,5 +26,8 @@ A named enumeration of all resources. Keys must match `[0-9A-Za-z_-]+`. ||
 || `streams` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
 **Default value**: `{}`
 A named enumeration of all data streams. Keys must match `[0-9A-Za-z_-]+`. ||
+|| `failure_handler` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TFailureHandlerSpec](./all_yson_structs#NYT_NFlow_TFailureHandlerSpec)`>`
+**Default value**: `{}`
+Explicit failed-message capture into the pipeline failed_messages table. ||
 |#
 

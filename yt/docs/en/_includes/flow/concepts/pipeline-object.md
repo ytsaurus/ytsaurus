@@ -16,6 +16,7 @@ In {{product-name}}, a *pipeline* is a special Cypress object of type `pipeline`
 | --- | --- |
 | `input_messages` | Index of input messages for [transform computations](../../../flow/concepts/computation.md#ttransformcomputation), used for deduplication. |
 | `compact_input_messages` | Compact index of input messages. It’s used by default for all computations, except when `experimental_enable_non_uint_key` is enabled; the behavior is overridden by the `use_compact_input_messages` parameter in [TComputationSpec](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TComputationSpec). |
+| `failed_messages` | Failed messages explicitly saved with [`AddFailedMessage`](../../../flow/concepts/failed-messages.md) so that processing can continue for other messages. |
 | `compact_output_messages` | Not used. |
 | `compact_partition_output_messages` | Output messages of transform computations, physically grouped by partitions and chunked by `stream_id` / `chunk_id` for optimal reading. |
 | `states` | User and service [states](../../../flow/concepts/stateful.md) stored by [key](../../../flow/concepts/glossary.md#key). |

@@ -19,6 +19,8 @@ items:
     href: key_visitor.md
   - name: Processing guarantees
     href: guarantees.md
+  - name: Saving failed messages
+    href: failed-messages.md
   - name: Message ordering
     href: ordering.md
   - name: Autoscaler

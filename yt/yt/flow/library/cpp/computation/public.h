@@ -59,6 +59,12 @@ DEFINE_ENUM(EProcessingMode,
     ((AtLeastOnceConsistent)    (1))
 );
 
+DEFINE_ENUM(EFailureHandlerMode,
+    ((Unsupported) (0))
+    ((Disabled)    (1))
+    ((Enabled)     (2))
+);
+
 DECLARE_REFCOUNTED_STRUCT(TUniversalComputationControllerState);
 DECLARE_REFCOUNTED_STRUCT(TUniversalComputationControllerPartitioningState);
 DECLARE_REFCOUNTED_CLASS(TUniversalComputationController);

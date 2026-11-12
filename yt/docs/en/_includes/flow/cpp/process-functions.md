@@ -86,6 +86,10 @@ In `Process` (`IBatchProcessFunction`) and `ProcessKey`, the `output` doesn’t 
 
 The `Distribute` field in `TAddMessageOptions` mirrors the `OutputCollector` semantics in `Computation`: for source, a message with `Distribute = false` isn’t published but is still considered when evaluating the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks); for other `Computation` types, such a message is simply discarded.
 
+### Saving failed messages {#failed-messages}
+
+See [Saving failed messages](../../../flow/concepts/failed-messages.md).
+
 ### Message ID suffixes in Swift {#message-id-suffixes}
 
 In Swift mode, you can select the derived message ID suffix in `TAddMessageOptions`:
@@ -330,6 +334,8 @@ The `library/cpp/process_function/testing` library provides a ready-made set of 
 - `entity_builders.h` — `MakeTestMessage`, `MakeTestRawMessage`, `MakeTestTimer`, `MakeTestVisit`.
 - `TProcessFunctionGraphTestHarness` — runs a [process function graph](#function-graph-testing) across epochs.
 - `TProcessFunctionTestHarness` — runs the function across epochs like a worker does: it wraps the function as batch (via `WrapAsBatch`, so per-element, whole-batch, and per-key forms all work the same way, and timers and visits are dispatched alongside messages), calls `Init` once, and for each `RunEpoch(...)` it preloads the state, processes the input, executes the end-of-epoch `Sync` for `ISyncProcessFunction`, and commits the state. You can access the last epoch’s messages and timers via `GetMessages()` / `GetTimers()`.
+
+`GetFailedMessages()` on `TRecordingOutputCollector` and `TProcessFunctionTestHarness` returns the inputs captured by `AddFailedMessage()`, together with their errors. The harness returns only the failures from the most recent epoch.
 
 The umbrella header `process_function/testing/unittest.h` includes all the listed utilities; in a test, you only need to include it instead of the individual harness headers.
 
