@@ -7,6 +7,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +18,8 @@ struct TTabletRequestBatcherOptions
     std::optional<i64> MaxRowsPerBatch;
     std::optional<i64> MaxDataWeightPerBatch;
     std::optional<i64> MaxRowsPerTablet;
+
+    IMemoryUsageTrackerPtr MemoryUsageTracker;
 };
 
 struct TUnversionedSubmittedRow
@@ -49,7 +53,9 @@ struct ITabletRequestBatcher
         // COMPAT(ponasenko-rs)
         bool HasSharedWriteLocks = false;
 
-        void Materialize(NCompression::ECodec codec);
+        void Materialize(
+            NCompression::ECodec codec,
+            const IMemoryUsageTrackerPtr& memoryUsageTracker = nullptr);
     };
     struct TBatchesAndMergedRows
     {
