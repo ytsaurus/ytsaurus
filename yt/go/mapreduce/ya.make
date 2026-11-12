@@ -7,6 +7,7 @@ SRCS(
     client_options.go
     crypto.go
     debug.go
+    file_locks.go
     io.go
     job.go
     job_state.go
@@ -42,6 +43,7 @@ GO_TEST_SRCS(
     client_test.go
     io_test.go
     main_test.go
+    prepare_test.go
     reader_test.go
     reduce_reader_test.go
 )

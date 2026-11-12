@@ -25,6 +25,8 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
+const uploadedFilesRemoveTimeout = time.Minute
+
 type prepareAction func(ctx context.Context, p *prepare) error
 
 // prepare holds state for all actions required to start operation.
@@ -40,12 +42,21 @@ type prepare struct {
 	spec    *spec.Spec
 	actions []prepareAction
 
-	jobStatePaths []ypath.Path
+	uploadedFiles []ypath.Path
+	fileLocks     operationFileLocks
 }
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
 	return func(ctx context.Context, p *prepare) error {
-		doUpload := func() error {
+		var failedUploads []ypath.Path
+		doUpload := func() (err error) {
+			if err := p.fileLocks.begin(ctx); err != nil {
+				return err
+			}
+
+			uploadCtx, cancel := p.fileLocks.contextUntilFinished(ctx)
+			defer cancel()
+
 			b, err := encodeJob(state)
 			if err != nil {
 				return backoff.Permanent(err)
@@ -63,18 +74,25 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 			id := guid.New().String()
 			tmpPath := jobStateDir.Child(id[:2]).Child(id)
 
-			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+			_, err = p.mr.yc.CreateNode(uploadCtx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+			// A failed create may have succeeded without returning its response.
+			p.uploadedFiles = append(p.uploadedFiles, tmpPath)
+			defer func() {
+				if err != nil {
+					failedUploads = append(failedUploads, tmpPath)
+				}
+			}()
 			if err != nil {
 				return err
 			}
-			p.jobStatePaths = append(p.jobStatePaths, tmpPath)
 
-			w, err := p.mr.yc.WriteFile(ctx, tmpPath, nil)
+			w, err := p.mr.yc.WriteFile(uploadCtx, tmpPath, nil)
 			if err != nil {
 				return err
 			}
 
 			if _, err = w.Write(ct); err != nil {
+				_ = w.Close()
 				return err
 			}
 
@@ -82,17 +100,26 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 				return err
 			}
 
-			(*userScript).FilePaths = append((*userScript).FilePaths, spec.File{
-				FileName:    "job-state",
-				CypressPath: tmpPath,
-				Executable:  false,
-			})
+			file, err := p.fileLocks.lock(uploadCtx, spec.File{FileName: "job-state", CypressPath: tmpPath})
+			if err != nil {
+				return err
+			}
+			userScript.FilePaths = append(userScript.FilePaths, file)
 
 			return nil
 		}
 
-		return backoff.Retry(doUpload,
-			backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
+		err := p.fileLocks.retry(ctx, nil, doUpload)
+		if err == nil && len(failedUploads) > 0 {
+			cleanupCtx, cancel := context.WithTimeout(ctx, uploadedFilesRemoveTimeout)
+			cleanupCtx, cancelOnFinished := p.fileLocks.contextUntilFinished(cleanupCtx)
+			for _, path := range failedUploads {
+				_ = p.mr.yc.RemoveNode(cleanupCtx, path, &yt.RemoveNodeOptions{Force: true})
+			}
+			cancelOnFinished()
+			cancel()
+		}
+		return err
 	}
 }
 
@@ -394,16 +421,20 @@ func (p *prepare) prepare(opts []OperationOption) error {
 	return nil
 }
 
-func (p *prepare) removeJobState() {
-	for _, path := range p.jobStatePaths {
-		_ = p.mr.yc.RemoveNode(p.ctx, path, &yt.RemoveNodeOptions{Force: true})
+func (p *prepare) removeUploadedFiles() {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ctx), uploadedFilesRemoveTimeout)
+	defer cancel()
+
+	for _, path := range p.uploadedFiles {
+		_ = p.mr.yc.RemoveNode(ctx, path, &yt.RemoveNodeOptions{Force: true})
 	}
 }
 
 func (p *prepare) start(opts []OperationOption) (op *operation, err error) {
 	defer func() {
 		if err != nil {
-			p.removeJobState()
+			p.fileLocks.abort()
+			p.removeUploadedFiles()
 		}
 	}()
 
@@ -424,6 +455,9 @@ func (p *prepare) start(opts []OperationOption) (op *operation, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileLocks.releaseAfterStart(p.ctx, *id)
+
 	return &operation{yc: p.mr.yc, ctx: p.ctx, opID: *id}, nil
 }
 

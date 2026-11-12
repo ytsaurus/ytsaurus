@@ -34,6 +34,10 @@ func (mr *client) prepare(spec *spec.Spec) *prepare {
 		mr:   mr,
 		spec: spec.Clone(),
 		ctx:  mr.ctx,
+		fileLocks: operationFileLocks{
+			yc:       mr.yc,
+			parentTx: mr.tx,
+		},
 	}
 }
 
