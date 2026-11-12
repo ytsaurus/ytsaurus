@@ -5078,7 +5078,12 @@ class TestChaosSpecial(ChaosTestBase):
 
     @authors("ashishkin")
     def test_chaos_table_remove_column(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+        cell_id, _, _ = map_in_parallel(lambda create_cells: create_cells(), [
+            lambda: self._sync_create_chaos_bundle_and_cell(name="chaos_bundle"),
+            lambda: sync_create_cells(1, driver=remote_driver0),
+            lambda: sync_create_cells(1, driver=remote_driver1),
+        ])
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
 
         # create chaos tables federation
@@ -5104,13 +5109,12 @@ class TestChaosSpecial(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
-        self._create_replica_tables(replicas, replica_ids, schema=schema)
+        self._create_replica_tables(replicas, replica_ids, schema=schema, create_tablet_cells=False)
 
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-        _validate_schema(schema, "//tmp/t", driver=remote_driver0)
-        _validate_schema(schema, "//tmp/q", driver=remote_driver0)
-        _validate_schema(schema, "//tmp/t", driver=remote_driver1)
-        _validate_schema(schema, "//tmp/q", driver=remote_driver1)
+        map_in_parallel(
+            lambda replica: _validate_schema(schema, replica["replica_path"], get_driver(cluster=replica["cluster_name"])),
+            replicas,
+        )
 
         card_id = get("//tmp/crt/@replication_card_id")
         self._sync_replication_era(card_id, replicas)
@@ -5157,21 +5161,26 @@ class TestChaosSpecial(ChaosTestBase):
         new_replica_ids = [None] * len(new_replicas)
 
         # create queue replicas
-        for i, r in enumerate(new_replicas):
-            if r["content_type"] == "data":
-                continue
+        queue_indexes = [i for i, replica in enumerate(new_replicas) if replica["content_type"] == "queue"]
+        for i in queue_indexes:
             new_replica_ids[i] = self._create_chaos_table_replica(new_replicas[i], table_path="//tmp/crt")
-            self._create_replica_tables([new_replicas[i]], [new_replica_ids[i]], schema=new_schema)
-            _validate_schema(new_schema, "//tmp/q.new", get_driver(cluster=r["cluster_name"]))
+        self._create_replica_tables(
+            [new_replicas[i] for i in queue_indexes],
+            [new_replica_ids[i] for i in queue_indexes],
+            schema=new_schema,
+            create_tablet_cells=False,
+        )
 
-        def _remove_replica(replica_id, driver):
+        map_in_parallel(
+            lambda replica: _validate_schema(new_schema, replica["replica_path"], get_driver(cluster=replica["cluster_name"])),
+            (new_replicas[i] for i in queue_indexes),
+        )
+
+        def _remove_replica(replica_id, replica_path, driver):
             alter_table_replica(replica_id, enabled=False, driver=driver)
             wait(lambda: get(f"#{replica_id}/@state", driver=driver) == "disabled")
             remove(f"#{replica_id}", driver=driver)
-
-        def _remove_table(path, driver):
-            sync_unmount_table(path, driver=driver)
-            remove(path, driver=driver)
+            remove(replica_path, driver=driver)
 
         def _get_replica_indexes(cluster_name, replicas):
             data_replica_index = -1
@@ -5222,10 +5231,10 @@ class TestChaosSpecial(ChaosTestBase):
             _validate_schema(new_schema, "//tmp/t.new", driver=driver)
 
             # remove old replicas and tables
-            for i in (data_replica_index, queue_replica_index):
-                _remove_replica(replica_ids[i], driver)
-            for t in ("//tmp/t", "//tmp/q"):
-                _remove_table(t, driver)
+            map_in_parallel(
+                lambda i: _remove_replica(replica_ids[i], replicas[i]["replica_path"], driver),
+                (data_replica_index, queue_replica_index),
+            )
 
             # check old data is present in new data replica
             _check_read_replica(values0, "//tmp/t.new", driver, new_schema)
