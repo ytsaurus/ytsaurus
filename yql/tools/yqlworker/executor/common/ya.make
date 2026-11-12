@@ -6,6 +6,8 @@ SRCS(
     task_progress_merger.cpp
     udf_library_meta_task.cpp
     udf_snapshot_handler_task.cpp
+    runnable_tasks.cpp
+    task.cpp
 )
 
 PEERDIR(

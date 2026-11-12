@@ -4,6 +4,10 @@ PEERDIR(
     yql/essentials/utils/log/proto
 )
 
+SRCS(
+    interface.cpp
+)
+
 IF (NOT OPENSOURCE)
     SRCS(
         provider_load.cpp

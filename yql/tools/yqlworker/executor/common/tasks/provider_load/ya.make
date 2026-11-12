@@ -2,6 +2,7 @@ YQL_LIBRARY()
 
 SRCS(
     interface.h
+    interface.cpp
 )
 
 PEERDIR(

@@ -1,5 +1,9 @@
 YQL_LIBRARY()
 
+SRCS(
+    task_executor.cpp
+)
+
 PEERDIR(
     yql/tools/yqlworker/executor/inproc
 )

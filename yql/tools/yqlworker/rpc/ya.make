@@ -5,6 +5,8 @@ SRCS(
     inspector_client_msgbus.cpp
     worker_server.cpp
     worker_server_msgbus.cpp
+    inspector_protocol.cpp
+    worker_protocol.cpp
 )
 
 PEERDIR(
