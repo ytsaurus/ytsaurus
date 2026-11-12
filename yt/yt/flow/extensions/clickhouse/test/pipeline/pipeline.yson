@@ -31,6 +31,12 @@
                     {name = "category"; type = "string"; required = %true;};
                     {name = "code"; type = "string"; required = %true;};
                     {name = "note"; type = "string"; required = %false;};
+                    {name = "advertiser_tokens"; type_v3 = {type_name = "list"; item = "string";};};
+                    {name = "clicks"; type = "uint64"; required = %true;};
+                    {name = "impressions"; type = "uint64"; required = %true;};
+                    {name = "cost"; type = "uint64"; required = %true;};
+                    {name = "bid"; type = "uint64"; required = %true;};
+                    {name = "impressions_in_top"; type = "uint64"; required = %true;};
                 ];
             };
         };

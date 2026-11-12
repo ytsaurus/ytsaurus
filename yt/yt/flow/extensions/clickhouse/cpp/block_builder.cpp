@@ -4,6 +4,9 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
+#include <contrib/libs/clickhouse-cpp/clickhouse/columns/array.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/bool.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/date.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/factory.h>
@@ -15,9 +18,18 @@
 #include <util/generic/hash.h>
 #include <util/string/cast.h>
 
+#include <util/system/compiler.h>
+
+Y_PRAGMA_DIAGNOSTIC_PUSH
+Y_PRAGMA_NO_DEPRECATED
+#include <contrib/libs/clickhouse-cpp/clickhouse/types/type_parser.h>
+Y_PRAGMA_DIAGNOSTIC_POP
+
 namespace NYT::NFlow {
 
 using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +104,10 @@ bool IsStringLike(EClickHouseBaseType base)
 
 bool StreamTypeMatches(const TClickHouseColumnType& type, const TLogicalTypePtr& actual)
 {
+    if (type.StringArray) {
+        return *actual == *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+    }
+
     std::vector<ESimpleLogicalValueType> accepted{PrimarySimpleType(type.Base)};
     if (IsStringLike(type.Base)) {
         accepted.push_back(ESimpleLogicalValueType::Utf8);
@@ -147,6 +163,10 @@ clickhouse::ColumnRef MakeScalarColumn(const TClickHouseColumnType& type)
 
 clickhouse::ColumnRef MakeColumn(const TClickHouseColumnType& type)
 {
+    if (type.StringArray) {
+        return std::make_shared<clickhouse::ColumnArrayT<clickhouse::ColumnString>>();
+    }
+
     if (type.LowCardinality) {
         if (type.Nullable) {
             THROW_ERROR_EXCEPTION("LowCardinality(Nullable) columns are not supported by the ClickHouse sink");
@@ -227,6 +247,17 @@ void AppendValue(
     const TClickHouseColumnType& type,
     const TUnversionedValue& value)
 {
+    if (type.StringArray) {
+        if (value.Type != EValueType::Composite) {
+            THROW_ERROR_EXCEPTION("Expected a list value for ClickHouse Array(String), got %Qlv",
+                value.Type);
+        }
+
+        auto items = ConvertTo<std::vector<std::string>>(TYsonStringBuf(value.AsStringBuf()));
+        column->As<clickhouse::ColumnArrayT<clickhouse::ColumnString>>()->Append(items);
+        return;
+    }
+
     if (type.LowCardinality) {
         auto stringValue = value.AsStringBuf();
         if (type.Base == EClickHouseBaseType::FixedString) {
@@ -251,7 +282,27 @@ void AppendValue(
 
 TClickHouseColumnType ParseClickHouseType(std::string_view type)
 {
+    if (type == "Array(String)") {
+        return {.Base = EClickHouseBaseType::String, .StringArray = true};
+    }
+
     if (type.starts_with("SimpleAggregateFunction(")) {
+        const auto* typeAst = clickhouse::ParseTypeName(std::string(type));
+        if (typeAst &&
+            typeAst->meta == clickhouse::TypeAst::SimpleAggregateFunction &&
+            typeAst->elements.size() == 2)
+        {
+            const auto& valueType = typeAst->elements.back();
+            if (valueType.meta == clickhouse::TypeAst::Array &&
+                valueType.elements.size() == 1 &&
+                valueType.elements.front().meta == clickhouse::TypeAst::Terminal &&
+                valueType.elements.front().code == clickhouse::Type::String &&
+                valueType.elements.front().elements.empty())
+            {
+                return {.Base = EClickHouseBaseType::String, .StringArray = true, .RequiresInputFunction = true};
+            }
+        }
+
         const auto column = clickhouse::CreateColumnByType(std::string(type));
         if (!column) {
             THROW_ERROR_EXCEPTION("Unsupported ClickHouse column type %Qv", type);

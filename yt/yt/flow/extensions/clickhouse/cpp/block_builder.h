@@ -43,6 +43,8 @@ struct TClickHouseColumnType
     bool Nullable = false;
     bool LowCardinality = false;
     std::optional<int> FixedStringLength;
+    bool StringArray = false;
+    bool RequiresInputFunction = false;
 };
 
 TClickHouseColumnType ParseClickHouseType(std::string_view type);

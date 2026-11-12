@@ -241,6 +241,7 @@ public class UnversionedValue implements YTreeConvertible {
             case BOOLEAN:
                 return value.equals(other.value);
             case STRING:
+            case COMPOSITE:
             case ANY:
                 return Arrays.equals((byte[]) value, (byte[]) other.value);
             default:

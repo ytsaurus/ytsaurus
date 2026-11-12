@@ -165,13 +165,11 @@ public:
         NLogging::TLogger logger,
         std::optional<TClickHouseWriterTestHooks> testHooks = std::nullopt);
 
-    void Connect();
+    std::vector<TResolvedColumn> Connect(const NTableClient::TTableSchemaPtr& streamSchema);
     void Reconfigure(TDynamicCommonClickHouseSinkParametersPtr dynamicParameters);
 
     const std::vector<TClickHouseShard>& GetShards() const;
     std::vector<std::string> GetShardTargetIdentityFingerprints() const;
-    const std::vector<TClickHouseTableColumn>& GetTableColumns() const;
-    void SetResolvedColumns(std::vector<TResolvedColumn> columns);
 
     void Run(TWeakPtr<TRefCounted> owner);
 
@@ -207,8 +205,7 @@ private:
     std::vector<TShardConnection> Connections_;
     std::vector<std::vector<TClickHouseTargetMetadata>> EndpointMetadata_;
     TDynamicCommonClickHouseSinkParametersPtr AppliedConnectionDynamicParameters_;
-    std::vector<TClickHouseTableColumn> TableColumns_;
-    std::vector<TResolvedColumn> ResolvedColumns_;
+    bool RequiresInputFunction_ = false;
     std::map<int, TClickHouseShardErrors> ActiveShardErrors_;
 
     NLogging::TLogger MakeShardLogger(int shardIndex) const;
@@ -220,7 +217,7 @@ private:
         const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
     std::optional<TDuration> QueryDedupWindow(int shardIndex, bool asyncInsert);
     void ApplyConnectionDynamicParameters(const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
-    void ValidateTarget(int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
+    void ValidateTarget(int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters, bool asyncInsert);
     void SetShardError(int shardIndex, EClickHouseShardErrorPhase phase, TError error);
     void ClearShardError(int shardIndex, EClickHouseShardErrorPhase phase);
     void PublishShardErrors();
@@ -240,7 +237,7 @@ public:
         TCommonClickHouseSinkParametersPtr parameters,
         TDynamicCommonClickHouseSinkParametersPtr dynamicParameters,
         IStatusProfilerPtr statusProfiler,
-        std::vector<NTableClient::TTableSchemaPtr> streamSchemas,
+        NTableClient::TTableSchemaPtr streamSchema,
         NLogging::TLogger logger);
 
     ~TCommonClickHouseSink() override;
@@ -265,7 +262,7 @@ private:
     const TCommonClickHouseSinkParametersPtr Parameters_;
     TAtomicIntrusivePtr<TDynamicCommonClickHouseSinkParameters> DynamicParameters_;
     const IStatusErrorStatePtr ErrorState_;
-    const std::vector<NTableClient::TTableSchemaPtr> StreamSchemas_;
+    const NTableClient::TTableSchemaPtr StreamSchema_;
 
     std::optional<TClickHouseBlockBuilder> BlockBuilder_;
     std::optional<TClickHouseShardRouter> Router_;
@@ -382,9 +379,10 @@ std::string BuildDedupToken(const std::vector<TOutputMessageConstPtr>& messages)
 std::string BuildInsertHeader(
     const std::string& database,
     const std::string& table,
-    const std::vector<TResolvedColumn>& columns,
+    const clickhouse::Block& block,
     bool asyncInsert,
-    const std::optional<std::string>& dedupToken);
+    const std::optional<std::string>& dedupToken,
+    bool useInputFunction = false);
 
 bool IsBlockDeduplicatingEngine(const std::string& engine);
 

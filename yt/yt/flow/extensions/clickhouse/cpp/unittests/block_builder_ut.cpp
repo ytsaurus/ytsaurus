@@ -11,7 +11,9 @@
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <contrib/libs/clickhouse-cpp/clickhouse/columns/array.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/bool.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/date.h>
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/lowcardinality.h>
@@ -130,8 +132,86 @@ TEST(TClickHouseBlockBuilderTest, SimpleAggregateFunctionScalar)
     auto block = TClickHouseBlockBuilder(columns).Build({message});
     EXPECT_EQ(block[0]->As<clickhouse::ColumnUInt64>()->At(0), 42u);
     EXPECT_EQ(ParseClickHouseType("SimpleAggregateFunction(sum, Int64)").Base, EClickHouseBaseType::Int64);
-    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupUniqArrayArray, Array(String))"), std::exception);
 }
+
+class TClickHouseStringArrayTest
+    : public testing::TestWithParam<std::string>
+{ };
+
+TEST_P(TClickHouseStringArrayTest, BuildsLists)
+{
+    auto listType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto schema = New<TTableSchema>(std::vector{TColumnSchema("tokens", listType)});
+    auto specStorage = MakeStreamSpecStorage(schema);
+    auto first = MakeMessage(specStorage, schema, 0, [] (TPayloadBuilder& payload) {
+        payload.SetValue(MakeUnversionedCompositeValue(R"(["a";"b"])"), "tokens");
+    });
+    auto empty = MakeMessage(specStorage, schema, 1, [] (TPayloadBuilder& payload) {
+        payload.SetValue(MakeUnversionedCompositeValue("[]"), "tokens");
+    });
+    auto last = MakeMessage(specStorage, schema, 2, [] (TPayloadBuilder& payload) {
+        payload.SetValue(MakeUnversionedCompositeValue(R"(["c"])"), "tokens");
+    });
+    auto special = MakeMessage(specStorage, schema, 3, [] (TPayloadBuilder& payload) {
+        payload.SetValue(MakeUnversionedCompositeValue(R"(["";"a";"a";"quote\"slash\\";"nul\x00";"токен"])"), "tokens");
+    });
+    auto scalarSchema = New<TTableSchema>(std::vector{Required("tokens", ESimpleLogicalValueType::String)});
+    auto optionalSchema = New<TTableSchema>(std::vector{TColumnSchema("tokens", OptionalLogicalType(listType))});
+    std::vector<TClickHouseTableColumn> tableColumns{
+        {.Name = "tokens", .Type = GetParam(), .DefaultKind = ""},
+    };
+    EXPECT_THROW(ResolveColumns(tableColumns, scalarSchema), std::exception);
+    EXPECT_THROW(ResolveColumns(tableColumns, optionalSchema), std::exception);
+    for (const auto& elementType : {
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)),
+            SimpleLogicalType(ESimpleLogicalValueType::Utf8),
+         }) {
+        auto unsupportedSchema = New<TTableSchema>(std::vector{
+            TColumnSchema("tokens", ListLogicalType(elementType)),
+        });
+        EXPECT_THROW(ResolveColumns(tableColumns, unsupportedSchema), std::exception);
+    }
+
+    auto columns = ResolveColumns(tableColumns, schema);
+    EXPECT_TRUE(columns[0].Type.StringArray);
+    EXPECT_EQ(columns[0].Type.RequiresInputFunction, GetParam() != "Array(String)");
+    auto block = TClickHouseBlockBuilder(columns).Build({first, empty, last, special});
+    auto array = block[0]->As<clickhouse::ColumnArray>();
+    ASSERT_EQ(array->Size(), 4u);
+    auto firstRow = array->GetAsColumn(0)->As<clickhouse::ColumnString>();
+    ASSERT_EQ(firstRow->Size(), 2u);
+    EXPECT_EQ(firstRow->At(0), "a");
+    EXPECT_EQ(firstRow->At(1), "b");
+    EXPECT_EQ(array->GetAsColumn(1)->Size(), 0u);
+    auto lastRow = array->GetAsColumn(2)->As<clickhouse::ColumnString>();
+    ASSERT_EQ(lastRow->Size(), 1u);
+    EXPECT_EQ(lastRow->At(0), "c");
+    auto specialRow = array->GetAsColumn(3)->As<clickhouse::ColumnString>();
+    const std::vector<std::string> expected{"", "a", "a", "quote\"slash\\", std::string("nul\0", 4), "токен"};
+    ASSERT_EQ(specialRow->Size(), expected.size());
+    for (int index = 0; index < std::ssize(expected); ++index) {
+        EXPECT_EQ(specialRow->At(index), expected[index]);
+    }
+
+    const bool useInputFunction = columns[0].Type.RequiresInputFunction;
+    auto header = BuildInsertHeader("db", "tbl", block, !useInputFunction, "token", useInputFunction);
+    if (useInputFunction) {
+        EXPECT_THAT(header, testing::HasSubstr("async_insert=0"));
+        EXPECT_THAT(header, testing::HasSubstr("input('`tokens` Array(String)') FORMAT Native"));
+    } else {
+        EXPECT_THAT(header, testing::HasSubstr("async_insert=1"));
+        EXPECT_THAT(header, testing::HasSubstr("wait_for_async_insert=1 VALUES"));
+        EXPECT_EQ(header.find("input("), std::string::npos);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PlainAndAggregate,
+    TClickHouseStringArrayTest,
+    testing::Values(
+        "Array(String)",
+        "SimpleAggregateFunction(groupUniqArrayArray, Array(String))",
+        "SimpleAggregateFunction(groupArrayArray, Array(String))"));
 
 TEST(TClickHouseTypeParserTest, FixedString)
 {
@@ -151,6 +231,15 @@ TEST(TClickHouseTypeParserTest, RejectsUnsupported)
     EXPECT_THROW(ParseClickHouseType("Decimal(10, 2)"), std::exception);
     EXPECT_THROW(ParseClickHouseType("DateTime64(3)"), std::exception);
     EXPECT_THROW(ParseClickHouseType("Array(Int64)"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("Array(Nullable(String))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("Nullable(Array(String))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("LowCardinality(Array(String))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("Array(Array(String))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupArrayArray, Array(Int64))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupArrayArray, Array(Nullable(String)))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupArrayArray, Nullable(Array(String)))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupArrayArray, Array(String, String))"), std::exception);
+    EXPECT_THROW(ParseClickHouseType("SimpleAggregateFunction(groupArrayArray, Array(String(1)))"), std::exception);
     EXPECT_THROW(ParseClickHouseType("LowCardinality(Int64)"), std::exception);
 }
 
@@ -421,12 +510,11 @@ TEST(TClickHouseDedupTokenTest, MaxMessageIdRegardlessOfOrder)
 
 TEST(TClickHouseInsertHeaderTest, SettingsBeforeValues)
 {
-    std::vector<TResolvedColumn> columns{
-        Col("a", EClickHouseBaseType::Int64),
-        Col("b", EClickHouseBaseType::String),
-    };
+    clickhouse::Block block;
+    block.AppendColumn("a", std::make_shared<clickhouse::ColumnInt64>());
+    block.AppendColumn("b", std::make_shared<clickhouse::ColumnString>());
 
-    auto header = BuildInsertHeader("db", "tbl", columns, /*asyncInsert*/ false, "tok-123");
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ false, "tok-123");
     EXPECT_EQ(
         header,
         "INSERT INTO `db`.`tbl` (`a`,`b`) SETTINGS insert_deduplication_token='tok-123' VALUES");
@@ -434,36 +522,60 @@ TEST(TClickHouseInsertHeaderTest, SettingsBeforeValues)
 
 TEST(TClickHouseInsertHeaderTest, AsyncInsertAddsSettings)
 {
-    std::vector<TResolvedColumn> columns{Col("a", EClickHouseBaseType::Int64)};
+    clickhouse::Block block;
+    block.AppendColumn("a", std::make_shared<clickhouse::ColumnInt64>());
 
-    auto header = BuildInsertHeader("db", "tbl", columns, /*asyncInsert*/ true, "tok");
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ true, "tok");
     EXPECT_EQ(
         header,
         "INSERT INTO `db`.`tbl` (`a`) SETTINGS insert_deduplication_token='tok', "
         "async_insert=1, async_insert_deduplicate=1, wait_for_async_insert=1 VALUES");
 }
 
+TEST(TClickHouseInsertHeaderTest, InputFunctionUsesWireTypesAndDisablesAsync)
+{
+    clickhouse::Block block;
+    block.AppendColumn("impressions", std::make_shared<clickhouse::ColumnUInt64>());
+    block.AppendColumn("advertiser_tokens", std::make_shared<clickhouse::ColumnArray>(std::make_shared<clickhouse::ColumnString>()));
+
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ true, "tok", /*useInputFunction*/ true);
+    EXPECT_EQ(
+        header,
+        "INSERT INTO `db`.`tbl` (`impressions`,`advertiser_tokens`) SETTINGS "
+        "insert_deduplication_token='tok', async_insert=0 "
+        "SELECT * FROM input('`impressions` UInt64,`advertiser_tokens` Array(String)') FORMAT Native");
+
+    auto headerWithoutToken = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ true, std::nullopt, /*useInputFunction*/ true);
+    EXPECT_EQ(
+        headerWithoutToken,
+        "INSERT INTO `db`.`tbl` (`impressions`,`advertiser_tokens`) SETTINGS async_insert=0 "
+        "SELECT * FROM input('`impressions` UInt64,`advertiser_tokens` Array(String)') FORMAT Native");
+}
+
 TEST(TClickHouseInsertHeaderTest, EscapesQuoteInToken)
 {
-    std::vector<TResolvedColumn> columns{Col("a", EClickHouseBaseType::Int64)};
+    clickhouse::Block block;
+    block.AppendColumn("a", std::make_shared<clickhouse::ColumnInt64>());
 
-    auto header = BuildInsertHeader("db", "tbl", columns, /*asyncInsert*/ false, "a'b");
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ false, "a'b");
     EXPECT_NE(header.find("insert_deduplication_token='a\\'b'"), std::string::npos);
 }
 
 TEST(TClickHouseInsertHeaderTest, NoTokenOmitsSettings)
 {
-    std::vector<TResolvedColumn> columns{Col("a", EClickHouseBaseType::Int64)};
+    clickhouse::Block block;
+    block.AppendColumn("a", std::make_shared<clickhouse::ColumnInt64>());
 
-    auto header = BuildInsertHeader("db", "tbl", columns, /*asyncInsert*/ false, std::nullopt);
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ false, std::nullopt);
     EXPECT_EQ(header, "INSERT INTO `db`.`tbl` (`a`) VALUES");
 }
 
 TEST(TClickHouseInsertHeaderTest, AsyncInsertWithoutTokenHasNoDedup)
 {
-    std::vector<TResolvedColumn> columns{Col("a", EClickHouseBaseType::Int64)};
+    clickhouse::Block block;
+    block.AppendColumn("a", std::make_shared<clickhouse::ColumnInt64>());
 
-    auto header = BuildInsertHeader("db", "tbl", columns, /*asyncInsert*/ true, std::nullopt);
+    auto header = BuildInsertHeader("db", "tbl", block, /*asyncInsert*/ true, std::nullopt);
     EXPECT_EQ(
         header,
         "INSERT INTO `db`.`tbl` (`a`) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES");

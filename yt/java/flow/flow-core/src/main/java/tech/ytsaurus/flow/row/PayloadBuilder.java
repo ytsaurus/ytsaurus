@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
-import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.internal.row.UnversionedValueHelper;
@@ -47,14 +46,14 @@ public class PayloadBuilder {
         if (columnIdx == -1) {
             throw new IllegalArgumentException("Column %s not found in schema".formatted(columnName));
         }
-        ColumnSchema columnSchema = schema.getColumnSchema(columnIdx);
+        ColumnValueType columnType = schema.getColumnSchema(columnIdx).getWireType();
         // Convert value to acceptable by UnversionedValue.
-        Object convertedValue = UnversionedValueHelper.convertValueTo(value, columnSchema.getType());
+        Object convertedValue = UnversionedValueHelper.convertValueTo(value, columnType);
         // A null value is stored as a NULL-typed value, since UnversionedValue forbids a null
         // payload for any other column type.
         UnversionedValue unversionedValue = convertedValue == null
                 ? new UnversionedValue(columnIdx, ColumnValueType.NULL, false, null)
-                : new UnversionedValue(columnIdx, columnSchema.getType(), false, convertedValue);
+                : new UnversionedValue(columnIdx, columnType, false, convertedValue);
         values.set(columnIdx, unversionedValue);
         return this;
     }

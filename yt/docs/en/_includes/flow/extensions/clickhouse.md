@@ -27,7 +27,7 @@ Exactly-once relies on ClickHouse block deduplication by the `insert_deduplicati
 
 Each sink instance creates its writer session lazily on the first write and keeps it until the instance stops. When the session starts, the sink connects to all configured endpoints and validates their metadata. Each endpoint must be reachable. Within a shard, all endpoints must have the same engine and the same complete ordered schema `(name, type, default_kind, default_expression)`; the schemas of different shards must also match. For `Replicated*MergeTree`, the sink verifies the logical identity of the table: `zookeeper_name` and `zookeeper_path` must match, while `replica_name` may differ between replicas. The check is performed for every delivery guarantee level.
 
-Dynamic reconfiguration does not repeat the complete endpoint metadata validation. A `write_timeout` change recreates the clients and checks the deduplication window again. Changes to `replay_horizon` or `async_insert` update the corresponding deduplication-window check. After changing the target table, pause and start the pipeline so that new sink instances read and validate its current engine, schema, and replication identity.
+Dynamic reconfiguration does not repeat the complete endpoint metadata validation. A `write_timeout` change recreates the clients and checks the deduplication window again. Changes to `replay_horizon` or the insert mode update the deduplication-window check. After changing the target table, pause and start the pipeline so that new sink instances read and validate its current engine, schema, and replication identity.
 
 More than one host within a shard is rejected for a plain `MergeTree` or `SharedMergeTree`: the sink cannot prove that the hosts expose the same logical table. A `shard_hosts` mapping with one host per shard is accepted. A single-host `SharedMergeTree` is supported. For a single-host plain `MergeTree`, a warning is issued about the need to configure `non_replicated_deduplication_window`.
 
@@ -35,7 +35,7 @@ More than one host within a shard is rejected for a plain `MergeTree` or `Shared
 
 The deduplication window is finite. ClickHouse bounds it separately by block count in `replicated_deduplication_window` and by time in `replicated_deduplication_window_seconds`; asynchronous inserts use `replicated_deduplication_window_seconds_for_async_inserts` for the time bound. These server settings can vary by ClickHouse version and configuration. A replay that arrives after its token has been evicted is inserted again, so exactly-once holds only if the replay reaches ClickHouse before eviction.
 
-The `replay_horizon` parameter sets an upper bound on the replay lag. When the writer session starts, the sink compares it with the server-side `replicated_deduplication_window_seconds`, or, with `async_insert = true`, with `replicated_deduplication_window_seconds_for_async_inserts`. If the selected window is shorter, the sink writes a structured warning to the worker log with the attributes `Database`, `Table`, `DedupWindowSetting`, `ReplayHorizon`, and `DedupWindow`. The per-table value of the window cannot be read through the native client, so when creating the table, set the corresponding time window with a margin relative to `replay_horizon`.
+The `replay_horizon` parameter sets an upper bound on the replay lag. When the writer session starts, the sink compares it with the server default `replicated_deduplication_window_seconds`, or, when the sink enables asynchronous inserts, with `replicated_deduplication_window_seconds_for_async_inserts`. If the selected window is shorter, the sink writes a structured warning to the worker log with the attributes `Database`, `Table`, `DedupWindowSetting`, `ReplayHorizon`, and `DedupWindow`. When creating the table, set the corresponding time window with a margin relative to `replay_horizon`.
 
 ## Sharding {#sharding}
 
@@ -133,9 +133,13 @@ The list of columns, their types, and their order are **inferred automatically**
 || `Date` | `date` ||
 || `DateTime` | `datetime` ||
 || `Nullable(T)` | the optional (`optional`) yson type corresponding to `T` ||
+|| `Array(String)` | non-optional `list<string>` ||
+|| `SimpleAggregateFunction(F, Array(String))` | non-optional `list<string>` (the sink writes the batch synchronously) ||
 |#
 
-Not supported: `Decimal`, `DateTime64`, `Enum`, `UUID`, `IPv4`/`IPv6`, `Array`/`Tuple`/`Map`, and any composite / yson types. A column of an unsupported type is allowed in the table only if the stream does not write it (its `DEFAULT` is applied then).
+`F` denotes an aggregate function accepted by ClickHouse for this column type. String arrays require a non-optional list with non-optional `string` elements. Other array types, optional lists and optional elements are not supported.
+
+Not supported: `Decimal`, `DateTime64`, `Enum`, `UUID`, `IPv4`/`IPv6`, other `Array` types, `Tuple`/`Map`, and other composite / yson types. A column of an unsupported type is allowed in the table only if the stream does not write it (its `DEFAULT` is applied then).
 
 ## Parameters {#parameters}
 
@@ -169,7 +173,9 @@ Dynamic spec parameters of `TAtLeastOnceClickHouseSink`:
 
 ### The async_insert option {#async-insert}
 
-`async_insert` is a dynamic parameter. When it is enabled, all sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching sinks with the exactly-once guarantee additionally pass the deduplication token and emit `async_insert_deduplicate=1`; the at-least-once sink does not pass a deduplication token and does not set `async_insert_deduplicate`.
+`async_insert` is a dynamic parameter. When the sink enables asynchronous inserts, all sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching sinks with the exactly-once guarantee additionally pass the deduplication token and emit `async_insert_deduplicate=1`; the at-least-once sink does not pass a deduplication token and does not set `async_insert_deduplicate`.
+
+When a written column has type `SimpleAggregateFunction(F, Array(String))`, the sink uses `input()` with explicit `async_insert=0`. Setting `async_insert=true` in this mode blocks writes and reports a configuration error in the writing status. The check runs after target schema introspection and also applies to dynamic parameter updates. Set `async_insert=false` to resume the pending request without restarting the job. Ordinary `Array(String)` columns support asynchronous inserts unless another written column requires `input()`.
 
 - `async_insert_deduplicate=1` is required for exactly-once (with the default `0` there is no deduplication).
 - `wait_for_async_insert=1` lets the sink learn about an insert error before the outbox advances.

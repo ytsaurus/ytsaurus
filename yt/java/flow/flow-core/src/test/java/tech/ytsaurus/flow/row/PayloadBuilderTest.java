@@ -3,10 +3,14 @@ package tech.ytsaurus.flow.row;
 import org.junit.jupiter.api.Test;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.row.codec.ProtoWirePayloadCodec;
 import tech.ytsaurus.flow.test.TTestMessage;
 import tech.ytsaurus.typeinfo.TiType;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class PayloadBuilderTest {
 
@@ -49,6 +53,52 @@ class PayloadBuilderTest {
     }
 
     @Test
+    public void testCompositeListRoundTrip() {
+        var schema = TableSchema.builder()
+                .addValue("tokens", TiType.list(TiType.string()))
+                .build();
+        var tokens = new String[]{"a", "b"};
+        var payload = new PayloadBuilder(schema).set("tokens", tokens).finish();
+
+        var codec = ProtoWirePayloadCodec.INSTANCE.codecFor(schema);
+        var decoded = codec.decode(codec.encode(payload));
+
+        assertEquals(ColumnValueType.COMPOSITE, payload.getRow().getValues().get(0).getType());
+        assertEquals(ColumnValueType.COMPOSITE, decoded.getRow().getValues().get(0).getType());
+        assertArrayEquals(tokens, decoded.get("tokens", String[].class));
+    }
+
+    @Test
+    public void testCompositeListEquality() {
+        var schema = TableSchema.builder()
+                .addValue("tokens", TiType.list(TiType.string()))
+                .build();
+        var first = new PayloadBuilder(schema).set("tokens", new String[]{"a"}).finish();
+        var same = new PayloadBuilder(schema).set("tokens", new String[]{"a"}).finish();
+        var different = new PayloadBuilder(schema).set("tokens", new String[]{"b"}).finish();
+
+        assertEquals(ColumnValueType.COMPOSITE, first.getRow().getValues().get(0).getType());
+        assertEquals(first, same);
+        assertEquals(first.hashCode(), same.hashCode());
+        assertNotEquals(first, different);
+        assertNotEquals(different, first);
+    }
+
+    @Test
+    public void testNullOptionalList() {
+        var schema = TableSchema.builder()
+                .addValue("tokens", TiType.optional(TiType.list(TiType.string())))
+                .build();
+        var payload = new PayloadBuilder(schema)
+                .set("tokens", new String[]{"a"})
+                .set("tokens", null)
+                .finish();
+
+        assertEquals(ColumnValueType.NULL, payload.getRow().getValues().get(0).getType());
+        assertNull(payload.get("tokens", String[].class));
+    }
+
+    @Test
     public void testProtoAnyField() {
         var message = TTestMessage.newBuilder()
                 .setId("1")
@@ -66,6 +116,7 @@ class PayloadBuilderTest {
                 .set("id", "1")
                 .set("value", message)
                 .finish();
+        assertEquals(ColumnValueType.ANY, payload.getRow().getValues().get(1).getType());
         assertEquals(message, payload.get("value", TTestMessage.class));
         assertEquals("1", payload.get("id", String.class));
     }

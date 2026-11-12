@@ -96,15 +96,11 @@ std::vector<std::vector<std::string>> QueryMetadataRows(
     return rows;
 }
 
-std::vector<NTableClient::TTableSchemaPtr> CollectInputStreamSchemas(
+NTableClient::TTableSchemaPtr GetInputStreamSchema(
     const TSinkContextPtr& context,
     const TSinkSpecPtr& spec)
 {
-    std::vector<NTableClient::TTableSchemaPtr> schemas;
-    for (const auto& streamId : spec->InputStreamIds) {
-        schemas.push_back(context->StreamSpecStorage->GetSchema(streamId));
-    }
-    return schemas;
+    return context->StreamSpecStorage->GetSchema(*spec->InputStreamIds.begin());
 }
 
 } // namespace
@@ -331,19 +327,20 @@ EClickHouseFailureAction GetClickHouseFailureAction(
 std::string BuildInsertHeader(
     const std::string& database,
     const std::string& table,
-    const std::vector<TResolvedColumn>& columns,
+    const clickhouse::Block& block,
     bool asyncInsert,
-    const std::optional<std::string>& dedupToken)
+    const std::optional<std::string>& dedupToken,
+    bool useInputFunction)
 {
     TStringBuilder builder;
     builder.AppendFormat("INSERT INTO %v.%v (",
         QuoteIdentifier(database),
         QuoteIdentifier(table));
-    for (int columnIndex = 0; columnIndex < std::ssize(columns); ++columnIndex) {
-        if (columnIndex > 0) {
+    for (const auto& column : block) {
+        if (column.ColumnIndex() > 0) {
             builder.AppendChar(',');
         }
-        builder.AppendString(QuoteIdentifier(columns[columnIndex].Name));
+        builder.AppendString(QuoteIdentifier(column.Name()));
     }
     builder.AppendChar(')');
 
@@ -351,7 +348,9 @@ std::string BuildInsertHeader(
     if (dedupToken) {
         settings.push_back("insert_deduplication_token=" + QuoteLiteral(*dedupToken));
     }
-    if (asyncInsert) {
+    if (useInputFunction) {
+        settings.push_back("async_insert=0");
+    } else if (asyncInsert) {
         settings.push_back("async_insert=1");
         if (dedupToken) {
             settings.push_back("async_insert_deduplicate=1");
@@ -363,7 +362,19 @@ std::string BuildInsertHeader(
         builder.AppendString(settings[settingIndex]);
     }
 
-    builder.AppendString(" VALUES");
+    if (useInputFunction) {
+        TStringBuilder structure;
+        for (const auto& column : block) {
+            if (column.ColumnIndex() > 0) {
+                structure.AppendChar(',');
+            }
+            structure.AppendFormat("%v %v", QuoteIdentifier(column.Name()), column.Type()->GetName());
+        }
+        builder.AppendFormat(" SELECT * FROM input(%v) FORMAT Native", QuoteLiteral(structure.Flush()));
+    } else {
+        builder.AppendString(" VALUES");
+    }
+
     return builder.Flush();
 }
 
@@ -734,7 +745,6 @@ void TClickHouseWriter::IntrospectEndpoints(
             .With(std::move(validationErrors));
     }
     EndpointMetadata_ = std::move(metadata);
-    TableColumns_ = EndpointMetadata_.front().front().Columns;
 }
 
 TFuture<void> TClickHouseWriter::Write(
@@ -785,7 +795,8 @@ std::optional<TDuration> TClickHouseWriter::QueryDedupWindow(int shardIndex, boo
 
 void TClickHouseWriter::ValidateTarget(
     int shardIndex,
-    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters,
+    bool asyncInsert)
 {
     const auto& shard = Shards_[shardIndex];
     auto& connection = Connections_[shardIndex];
@@ -795,7 +806,7 @@ void TClickHouseWriter::ValidateTarget(
     const auto& engine = EndpointMetadata_[shardIndex].front().Engine;
     std::optional<TDuration> dedupWindow;
     if (IsBlockDeduplicatingEngine(engine)) {
-        dedupWindow = QueryDedupWindow(shardIndex, dynamicParameters->AsyncInsert);
+        dedupWindow = QueryDedupWindow(shardIndex, asyncInsert);
     }
     connection.TargetEngine = engine;
     connection.TargetDedupWindow = dedupWindow;
@@ -803,7 +814,7 @@ void TClickHouseWriter::ValidateTarget(
         WarnIfDedupWindowBelowReplayHorizon(
             connection.TargetDedupWindow,
             dynamicParameters->ReplayHorizon,
-            GetClickHouseDedupWindowSettingName(dynamicParameters->AsyncInsert),
+            GetClickHouseDedupWindowSettingName(asyncInsert),
             shard.Database,
             shard.Table,
             shardLogger);
@@ -837,15 +848,12 @@ void TClickHouseWriter::ApplyConnectionDynamicParameters(
     const bool replayHorizonChanged =
         !AppliedConnectionDynamicParameters_ ||
         AppliedConnectionDynamicParameters_->ReplayHorizon != dynamicParameters->ReplayHorizon;
+    const bool asyncInsert = dynamicParameters->AsyncInsert && !RequiresInputFunction_;
     const bool asyncInsertChanged =
         !AppliedConnectionDynamicParameters_ ||
-        AppliedConnectionDynamicParameters_->AsyncInsert != dynamicParameters->AsyncInsert;
+        (!RequiresInputFunction_ && AppliedConnectionDynamicParameters_->AsyncInsert != asyncInsert);
 
     try {
-        if (EndpointMetadata_.empty() && (!TestHooks_ || TestHooks_->QueryEndpointMetadata)) {
-            IntrospectEndpoints(dynamicParameters);
-        }
-
         std::vector<TError> configurationErrors;
         for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
             auto& connection = Connections_[shardIndex];
@@ -858,18 +866,18 @@ void TClickHouseWriter::ApplyConnectionDynamicParameters(
                     connection.Client = std::make_unique<clickhouse::Client>(
                         MakeClientOptions(*Parameters_, Shards_[shardIndex], dynamicParameters->WriteTimeout));
                     connection.ReconnectBeforeInsert = false;
-                    ValidateTarget(shardIndex, dynamicParameters);
+                    ValidateTarget(shardIndex, dynamicParameters, asyncInsert);
                 } else if (
                     (replayHorizonChanged || asyncInsertChanged) &&
                     IsBlockDeduplicatingEngine(*connection.TargetEngine))
                 {
                     if (asyncInsertChanged) {
-                        connection.TargetDedupWindow = QueryDedupWindow(shardIndex, dynamicParameters->AsyncInsert);
+                        connection.TargetDedupWindow = QueryDedupWindow(shardIndex, asyncInsert);
                     }
                     WarnIfDedupWindowBelowReplayHorizon(
                         connection.TargetDedupWindow,
                         dynamicParameters->ReplayHorizon,
-                        GetClickHouseDedupWindowSettingName(dynamicParameters->AsyncInsert),
+                        GetClickHouseDedupWindowSettingName(asyncInsert),
                         Shards_[shardIndex].Database,
                         Shards_[shardIndex].Table,
                         MakeShardLogger(shardIndex));
@@ -900,10 +908,19 @@ void TClickHouseWriter::ApplyConnectionDynamicParameters(
     }
 }
 
-void TClickHouseWriter::Connect()
+std::vector<TResolvedColumn> TClickHouseWriter::Connect(const NTableClient::TTableSchemaPtr& streamSchema)
 {
     auto dynamicParameters = DynamicParameters_.Acquire();
+    if (EndpointMetadata_.empty()) {
+        IntrospectEndpoints(dynamicParameters);
+    }
+
+    auto resolved = ResolveColumns(EndpointMetadata_.front().front().Columns, streamSchema);
+    RequiresInputFunction_ = std::ranges::any_of(resolved, [] (const auto& column) {
+        return column.Type.RequiresInputFunction;
+    });
     ApplyConnectionDynamicParameters(dynamicParameters);
+    return resolved;
 }
 
 const std::vector<TClickHouseShard>& TClickHouseWriter::GetShards() const
@@ -923,16 +940,6 @@ std::vector<std::string> TClickHouseWriter::GetShardTargetIdentityFingerprints()
             EndpointMetadata_[shardIndex].front().ReplicationIdentity));
     }
     return result;
-}
-
-const std::vector<TClickHouseTableColumn>& TClickHouseWriter::GetTableColumns() const
-{
-    return TableColumns_;
-}
-
-void TClickHouseWriter::SetResolvedColumns(std::vector<TResolvedColumn> columns)
-{
-    ResolvedColumns_ = std::move(columns);
 }
 
 void TClickHouseWriter::ResetConnection(int shardIndex)
@@ -957,9 +964,10 @@ void TClickHouseWriter::Insert(const TWriteRequest& request, int shardWriteIndex
     auto header = BuildInsertHeader(
         shard.Database,
         shard.Table,
-        ResolvedColumns_,
+        shardWrite.Block,
         asyncInsert,
-        shardWrite.DedupToken);
+        shardWrite.DedupToken,
+        RequiresInputFunction_);
     auto& client = Connections_[shardWrite.ShardIndex].Client;
     client->BeginInsert(header);
     client->SendInsertBlock(shardWrite.Block);
@@ -982,11 +990,21 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
             continue;
         }
 
-        const auto dynamicParameters = DynamicParameters_.Acquire();
-        const auto requestOptions = MakeClickHouseRequestOptions(*dynamicParameters);
+        TDynamicCommonClickHouseSinkParametersPtr dynamicParameters;
         bool configured = false;
         while (!configured && owner.Lock()) {
+            dynamicParameters = DynamicParameters_.Acquire();
             try {
+                if (RequiresInputFunction_ && dynamicParameters->AsyncInsert) {
+                    auto error = TError("ClickHouse aggregate string arrays require async_insert=false")
+                        .With("database", Parameters_->Database)
+                        .With("table", Parameters_->Table);
+                    for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
+                        SetShardError(shardIndex, EClickHouseShardErrorPhase::Configuration, error);
+                    }
+                    error.ThrowOnError();
+                }
+
                 ApplyConnectionDynamicParameters(dynamicParameters);
                 configured = true;
             } catch (const std::exception& ex) {
@@ -1000,6 +1018,7 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
             continue;
         }
 
+        const auto requestOptions = MakeClickHouseRequestOptions(*dynamicParameters);
         TClickHouseAttemptState attemptState;
         while (request.NextShardIndex < std::ssize(request.ShardWrites) && owner.Lock()) {
             const int shardIndex = request.ShardWrites[request.NextShardIndex].ShardIndex;
@@ -1091,15 +1110,15 @@ TCommonClickHouseSink::TCommonClickHouseSink(
     TCommonClickHouseSinkParametersPtr parameters,
     TDynamicCommonClickHouseSinkParametersPtr dynamicParameters,
     IStatusProfilerPtr statusProfiler,
-    std::vector<NTableClient::TTableSchemaPtr> streamSchemas,
+    NTableClient::TTableSchemaPtr streamSchema,
     NLogging::TLogger logger)
     : Logger(MakeSinkLogger(logger, *parameters))
     , Parameters_(std::move(parameters))
     , DynamicParameters_(std::move(dynamicParameters))
     , ErrorState_(statusProfiler->ErrorState("/writing"))
-    , StreamSchemas_(std::move(streamSchemas))
+    , StreamSchema_(std::move(streamSchema))
 {
-    ValidateShardingKeyColumns(Parameters_->ShardingKeyColumns, StreamSchemas_);
+    ValidateShardingKeyColumns(Parameters_->ShardingKeyColumns, {StreamSchema_});
 }
 
 // Defined out of line because #TWriterSession is incomplete in the header.
@@ -1126,32 +1145,15 @@ TError TCommonClickHouseSink::TryStartSession()
             ErrorState_,
             Logger);
 
-        WaitFor(BIND(&TClickHouseWriter::Connect, session->Writer)
+        auto resolved = WaitFor(BIND(&TClickHouseWriter::Connect, session->Writer, StreamSchema_)
                 .AsyncVia(session->ActionQueue->GetInvoker())
                 .Run())
-            .ThrowOnError();
-
-        std::vector<TResolvedColumn> resolved;
-        std::vector<std::string> resolvedNames;
-        for (const auto& schema : StreamSchemas_) {
-            auto columns = ResolveColumns(session->Writer->GetTableColumns(), schema);
-            std::vector<std::string> names;
-            for (const auto& column : columns) {
-                names.push_back(column.Name);
-            }
-            if (resolved.empty()) {
-                resolved = std::move(columns);
-                resolvedNames = std::move(names);
-            } else if (names != resolvedNames) {
-                THROW_ERROR_EXCEPTION("Input streams resolve to different ClickHouse column sets");
-            }
-        }
-        session->Writer->SetResolvedColumns(resolved);
+            .ValueOrThrow();
         BlockBuilder_.emplace(std::move(resolved));
         Router_.emplace(
             session->Writer->GetShards(),
             Parameters_->ShardingKeyColumns,
-            StreamSchemas_);
+            std::vector{StreamSchema_});
 
         // #Connect() yields while the new session is not published, so reapply the latest parameters.
         session->Writer->Reconfigure(DynamicParameters_.Acquire());
@@ -1215,7 +1217,7 @@ TClickHouseBatchingSinkBase::TClickHouseBatchingSinkBase(
         GetParameters(),
         GetDynamicParameters(),
         GetContext()->StatusProfiler,
-        CollectInputStreamSchemas(GetContext(), GetSpec()),
+        GetInputStreamSchema(GetContext(), GetSpec()),
         TOrderedBatchingAsyncSinkBase::Logger)
 {
     SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
@@ -1302,7 +1304,7 @@ TAtLeastOnceClickHouseSink::TAtLeastOnceClickHouseSink(
         GetParameters(),
         GetDynamicParameters(),
         GetContext()->StatusProfiler,
-        CollectInputStreamSchemas(GetContext(), GetSpec()),
+        GetInputStreamSchema(GetContext(), GetSpec()),
         TSyncSinkBase::Logger)
 {
     SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
