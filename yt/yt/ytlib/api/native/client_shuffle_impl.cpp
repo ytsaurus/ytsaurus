@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -401,28 +403,42 @@ TFuture<IRowBatchWriterPtr> CreatePullBasedShuffleWriterImpl(
     tableWriterOptions->MediumName = handle->Medium;
     tableWriterOptions->CompressionCodec = handle->Codec;
 
-    auto writer = CreatePartitionMultiChunkWriter(
-        writerConfig,
-        std::move(tableWriterOptions),
-        std::move(nameTable),
-        std::move(schema),
-        client,
-        /*localHostName*/ "",
-        CellTagFromId(handle->TransactionId),
-        handle->TransactionId,
-        NullTableSchemaId,
-        NullChunkListId,
-        std::move(partitioner),
-        /*dataSink*/ {},
-        /*writeBlocksOptions*/ {});
+    auto connection = client->GetNativeConnection();
+    return connection->GetMasterCellDirectorySynchronizer()->RecentSync()
+        .Apply(BIND([
+            client,
+            connection,
+            handle = std::move(handle),
+            writerConfig = std::move(writerConfig),
+            tableWriterOptions = std::move(tableWriterOptions),
+            nameTable = std::move(nameTable),
+            schema = std::move(schema),
+            partitioner = std::move(partitioner),
+            logicalWriterIndex,
+            overwriteExistingWriterData = options.OverwriteExistingWriterData
+        ] () mutable -> IRowBatchWriterPtr {
+            auto writer = CreatePartitionMultiChunkWriter(
+                std::move(writerConfig),
+                std::move(tableWriterOptions),
+                std::move(nameTable),
+                std::move(schema),
+                client,
+                /*localHostName*/ "",
+                connection->GetRandomMasterCellTagWithRoleOrThrow(NCellMasterClient::EMasterCellRole::ChunkHost),
+                handle->TransactionId,
+                NullTableSchemaId,
+                NullChunkListId,
+                std::move(partitioner),
+                /*dataSink*/ {},
+                /*writeBlocksOptions*/ {});
 
-    return MakeFuture(New<TPullBasedShuffleWriter>(
-        std::move(writer),
-        client->GetNativeConnection(),
-        std::move(handle),
-        logicalWriterIndex,
-        options.OverwriteExistingWriterData))
-        .As<IRowBatchWriterPtr>();
+            return New<TPullBasedShuffleWriter>(
+                std::move(writer),
+                std::move(connection),
+                std::move(handle),
+                logicalWriterIndex,
+                overwriteExistingWriterData);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
