@@ -436,6 +436,42 @@ class TestSequoiaInternals(YTEnvSetup):
             "//tmp/dst/d",
         ]
 
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_force_move_from_descendant_with_snapshot_lock(self, finish_tx):
+        create("map_node", "//tmp/d/a", recursive=True)
+        source_id = create("table", "//tmp/d/a/c")
+        content = [{"x": 42}]
+        write_table("//tmp/d/a/c", content)
+        create("map_node", "//tmp/d/a-b")
+
+        tx = start_transaction()
+        lock("//tmp/d/a/c", mode="snapshot", tx=tx)
+
+        move("//tmp/d/a/c", "//tmp/d", force=True)
+
+        assert read_table("//tmp/d") == content
+        assert read_table(f"#{source_id}", tx=tx) == content
+        assert select_paths_from_ground() == ["//tmp", "//tmp/d"]
+
+        finish_tx(tx)
+
+        assert read_table("//tmp/d") == content
+
+    @authors("aleksandra-zh")
+    def test_force_move_from_similar_path(self):
+        create("map_node", "//tmp/d/z", recursive=True)
+        source_path = "//tmp/d-x"
+        create("table", source_path)
+        content = [{"x": 42}]
+        write_table(source_path, content)
+
+        move(source_path, "//tmp/d", force=True)
+
+        assert not exists(source_path)
+        assert read_table("//tmp/d") == content
+        assert select_paths_from_ground() == ["//tmp", "//tmp/d"]
+
     @authors("kvk1920")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
     def test_copy_force_overlapping_2(self, copy_mode):
