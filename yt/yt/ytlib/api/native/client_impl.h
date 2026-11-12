@@ -119,6 +119,7 @@ public:
     const IConnectionPtr& GetNativeConnection() override;
     const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() override;
     const TClientCounters& GetCounters() const override;
+    const IMemoryUsageTrackerPtr& GetHeavyRequestMemoryUsageTracker() const override;
     NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
     NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() override;
 

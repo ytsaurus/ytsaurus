@@ -88,6 +88,7 @@ public:
                 .MaxRowsPerBatch = Config_->MaxRowsPerWriteRequest,
                 .MaxDataWeightPerBatch = Config_->MaxDataWeightPerWriteRequest,
                 .MaxRowsPerTablet = maxRowsPerTablet,
+                .MemoryUsageTracker = Client_->GetHeavyRequestMemoryUsageTracker(),
             },
             TableInfo_->Schemas[ETableSchemaKind::Primary],
             std::move(columnEvaluator));
@@ -155,7 +156,7 @@ public:
 
         if (retryIndex == 0) {
             for (const auto& batch : Batches_) {
-                batch->Materialize(Config_->WriteRowsRequestCodec);
+                batch->Materialize(Config_->WriteRowsRequestCodec, Client_->GetHeavyRequestMemoryUsageTracker());
             }
         }
 
