@@ -4,3 +4,4 @@ IF (NOT GCC AND NOT OS_DARWIN)
         dummy_logger
     )
 ENDIF()
+
