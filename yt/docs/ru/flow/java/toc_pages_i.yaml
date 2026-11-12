@@ -3,6 +3,8 @@ items:
     href: getting-started.md
   - name: Computation
     href: computation.md
+  - name: Ресурсы companion
+    href: resources.md
   - name: Флаг distribute
     href: distribute.md
   - name: Typed Streams

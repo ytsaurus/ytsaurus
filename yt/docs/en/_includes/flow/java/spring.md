@@ -6,6 +6,8 @@ One `@SpringBootApplication` class serves both roles: `YT_FLOW_MODE` selects the
 
 [Source code for flow-spring-boot-starter]({{source-root}}/yt/java/flow/flow-spring-boot-starter)
 
+To register companion resources, provide a `ResourceProvider` bean whose `getResourceClasses()` maps explicit implementation names to factories. Each factory must return a fresh resource, including when the provider itself is a singleton. See [Companion resources: Spring Boot and Kotlin](../../../flow/java/resources.md#spring-and-kotlin) for lifecycle and naming rules.
+
 ## Connecting
 
 To connect the Spring Boot Starter, you need to add the `flow-spring-boot-starter` dependency to your project.
@@ -301,9 +303,9 @@ The Spring Boot Starter automatically creates these beans:
 
 | Bean | Creation condition | Description |
 |-----|-------------------|----------|
-| `PipelineContext` | An annotated bean (`@FlowComputation`/`@FlowSourceComputation`) or a `ComputationProvider` exists | Pipeline context with registered `Computation` objects and streams |
+| `PipelineContext` | An annotated bean (`@FlowComputation`/`@FlowSourceComputation`), a `ComputationProvider`, or a `ResourceProvider` exists | Pipeline context with registered `Computation` objects and streams |
 | `FlowRunnerBootstrap` | Runner mode | Starts the pipeline and exits with the `flow_server` return code |
-| `CompanionExecutionConfig` | Companion mode with an annotated bean or `ComputationProvider` | gRPC server configuration (port) |
+| `CompanionExecutionConfig` | Companion mode with an annotated bean, `ComputationProvider`, or `ResourceProvider` | gRPC server configuration (port) |
 | `GrpcServerExecution` | Companion mode with a `PipelineContext` | Manages the gRPC server |
 | `FlowCompanionLifecycle` | Companion mode with a `GrpcServerExecution` | Manages the server lifecycle |
 
@@ -311,7 +313,7 @@ The Spring Boot Starter automatically creates these beans:
 
 Neither the gRPC nor the monitoring server starts in runner mode. Their configuration arrives from the worker through `YT_FLOW_COMPANION_CONFIG` and does not exist outside the companion. To avoid eagerly starting unrelated application beans, the starter defaults to `spring.main.web-application-type=none`, `spring.main.keep-alive=false`, and `spring.main.lazy-initialization=true` in runner mode. You can override these settings; test contexts keep normal Spring behavior.
 
-`OnFlowComponentsCondition` enables the starter when the context has a `ComputationProvider` bean or a bean annotated with `@FlowComputation` or `@FlowSourceComputation`. `YT_FLOW_MODE` chooses the role. For tests that cannot set an environment variable in their JVM, `flow.run-mode` accepts `Worker` or `runner`, ignoring case, only when `YT_FLOW_MODE` is unset. If both are set and disagree, context startup fails. `flow.run-mode` does not control `spring.main.*`: those settings are selected earlier from `YT_FLOW_MODE`.
+`OnFlowComponentsCondition` enables the starter when the context has a `ComputationProvider` or `ResourceProvider` bean or a bean annotated with `@FlowComputation` or `@FlowSourceComputation`. `YT_FLOW_MODE` chooses the role. For tests that cannot set an environment variable in their JVM, `flow.run-mode` accepts `Worker` or `runner`, ignoring case, only when `YT_FLOW_MODE` is unset. If both are set and disagree, context startup fails. `flow.run-mode` does not control `spring.main.*`: those settings are selected earlier from `YT_FLOW_MODE`.
 
 Streams and computations are collected only from the current context; beans in a `SpringApplicationBuilder.parent(...)` context do not enter the spec or companion.
 

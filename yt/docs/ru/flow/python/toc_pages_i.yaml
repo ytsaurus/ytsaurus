@@ -3,6 +3,10 @@ items:
     href: getting-started.md
   - name: Computation
     href: computation.md
+  - name: Ресурсы companion
+    href: resources.md
+  - name: Общие HTTP-клиенты
+    href: http-client.md
   - name: Флаг distribute
     href: distribute.md
   - name: Работа со стейтами

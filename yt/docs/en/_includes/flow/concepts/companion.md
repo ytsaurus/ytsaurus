@@ -114,13 +114,47 @@ A process function in a companion can take the HTTP clients from `IRuntimeInitCo
 Limitations of the first version of the C++ companion:
 
 - sync process functions aren’t supported (the companion protocol has no Sync phase);
-- static [resources](../../../flow/concepts/glossary.md#resource), distributed throttlers, and the epoch timestamp (`GetCurrentTimestamp`) aren’t available;
+- distributed throttlers and the epoch timestamp (`GetCurrentTimestamp`) aren’t available;
 - `GetStreamSpecs()->ComputeKey()` can’t compute a key when `group_by_schema` has computed columns: a companion doesn’t evaluate expressions. The key arrives with the message — use `message->Key`;
 - external states are supported only as `TSimpleExternalState`;
 - output timers can only reference the key of one of the parent entities of the batch;
-- the companion runs as a single multithreaded process (`companion_process_count` is 0 or 1).
+- the companion runs as a single multithreaded process.
 
 For an example, see `yt/yt/flow/examples/cpp/companion_word_count`.
+
+For registration, build dependencies and worker wiring, see [Running C++ process functions in a companion](../../../flow/cpp/companion.md). [Companion-hosted resources](#companion-resources) are available through `GetStaticResource`; resources that exist only in the worker are not transferred automatically.
+
+### Companion resource wiring {#companion-resources}
+
+A companion-hosted resource is an object created inside the companion and shared by the jobs served by that process. The worker holds a proxy and sends lifecycle commands to it. Resource APIs are documented for [Python](../../../flow/python/resources.md), [Java and Kotlin](../../../flow/java/resources.md), and [C++](../../../flow/cpp/companion.md#resources-and-http).
+
+Three names serve different purposes:
+
+#|
+|| **Name** | **Where it is used** ||
+|| Implementation name | `parameters.companion_resource_class` selects a factory registered in the companion. ||
+|| Resource id | A key in `spec.resources` identifies one resource in the pipeline. Several ids can use one implementation. ||
+|| Alias | A dependency or computation requirement can expose the resource under `alias`. Without an alias, lookup uses the resource id. ||
+|#
+
+After registering the implementation in your language SDK, connect it in the spec:
+
+1. Configure the companion manager according to the language's getting-started guide.
+1. Add the resource to `spec.resources` with `resource_class_name = "NYT::NFlow::NCompanion::TCompanionResource"`. Set `parameters.companion_resource_class` to the registered implementation name, and put your static parameters in the same `parameters` map.
+1. In the resource's `dependencies`, require the manager on the worker under alias `CompanionManager`. Set `worker = %true` and `controller = %false`. If its resource id is already `CompanionManager`, no explicit alias is needed.
+1. Declare any other companion-hosted dependencies in that map, also with worker-only requirements. Their aliases are local to the resource's dependency context. Flow initializes dependencies before dependents.
+1. In the computation's `required_resource_ids`, require both the manager and the hosted resource on the worker (`worker = %true`, `controller = %false`). The manager must be exposed as `CompanionManager`; the hosted resource's alias is the name used by user code.
+1. Put dynamic resource parameters in `dynamic_spec.resources.<resource_id>.parameters`. Flow delivers updates to the resource lifecycle; changing static configuration follows the [pipeline configuration rules](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
+
+See the maintained [Python]({{source-root}}/yt/yt/flow/tests/companion/resource/python/pipeline.yson), [JVM]({{source-root}}/yt/yt/flow/tests/companion/resource/java/companion/src/main/resources/pipeline.yson) and [C++]({{source-root}}/yt/yt/flow/tests/companion/resource/cpp/pipeline.yson) specs. They distinguish the resource id `greeting`, computation alias `greeting_view`, and dependency-local alias `dependency`.
+
+#### Initialization and recovery {#companion-resource-failures}
+
+The worker proxy's `parameters.init_backoff` controls retries during initial loading. An unregistered resource class, an unsupported resource command or a stale resource incarnation fails that loading attempt without the transient-error retry loop. For an unknown class, compare `companion_resource_class` with the registration in the actual companion executable.
+
+`parameters.keep_alive_interval` controls periodic idempotent initialization. It must be positive. Repeated initialization of an unchanged live instance does not call its factory or `load` again. Periodic initialization can retry a failed reconfiguration and rebuild resources after a companion process restart. If a dependency instance changes, a dependent resource can be recreated with the updated binding.
+
+Batches carry exact resource-instance and configuration references. A missing or stale reference prevents that batch from entering user code; the worker can initialize the graph and retry. This mechanism does not synchronize the mutable state of a resource already held by a batch. Follow the language-specific lifecycle and concurrency rules.
 
 ### Types of Computations for working with companions {#computation-types}
 

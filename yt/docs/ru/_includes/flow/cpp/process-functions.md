@@ -1,5 +1,7 @@
 # Process function в {{product-name}} Flow (C++)
 
+Process-функции также могут работать в отдельном процессе под управлением воркера. Регистрация, сборочные зависимости, доступ к ресурсам и подключение к воркеру описаны в статье [Запуск C++ process-функций в companion](../../../flow/cpp/companion.md).
+
 ## Зачем это нужно
 
 Новую пользовательскую логику на C++ реализуйте только как process function. Прямое наследование от `TTransformComputation`, `TSwiftMapComputation`, `TSwiftOrderedSourceComputation` или `TTransformOrderedSourceComputation` — low-level API для фреймворка и сопровождения legacy-кода, а не способ создания новых пользовательских компьютейшенов. Такая логика «вплетена» в объект `Computation`, наследует десятки protected-методов и конструируется только из полностью собранного `TComputationContext`, поэтому её практически невозможно покрыть юнит-тестами в изоляции.
