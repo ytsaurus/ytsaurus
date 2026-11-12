@@ -407,6 +407,13 @@ public:
         TRange<NObjectClient::TObjectId> objectIds,
         std::optional<ETreeScope> scope = {}) const;
 
+    //! Locks rows in "node_id_to_path" Sequoia table.
+    //! Keep in mind that should you call this method, you take it upon yourself
+    //! to lock the node and/or check the preexisting locks on master.
+    void AcquireCypressLockInSequoia(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::ELockMode mode);
+
 private:
     IBootstrap* const Bootstrap_;
     const TCypressTransactionAncestry CypressTransactionAncestry_;
@@ -474,10 +481,6 @@ private:
 
     TFuture<TSubtree> DoFetchSubtree(NSequoiaClient::TAbsolutePathBuf path);
 
-    // Locks rows in "node_id_to_path" Sequoia table.
-    void AcquireCypressLockInSequoia(
-        NCypressClient::TNodeId nodeId,
-        NCypressClient::ELockMode mode);
     void ProcessAcquiredCypressLocksInSequoia();
 
     DECLARE_NEW_FRIEND()

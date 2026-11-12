@@ -34,6 +34,7 @@ struct TCopyOptions
     bool PreserveExpirationTime = false;
     bool PreserveExpirationTimeout = false;
     bool PessimisticQuotaCheck = false;
+    bool AllowSecondaryIndexAbandonment = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

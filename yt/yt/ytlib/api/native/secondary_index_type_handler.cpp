@@ -46,7 +46,7 @@ public:
         auto evaluatedColumnsSchema = attributes->Find<TTableSchemaPtr>("evaluated_columns_schema");
 
         NApi::TGetNodeOptions getNodeOptions;
-        getNodeOptions.Attributes = {"id", "schema"};
+        getNodeOptions.Attributes = {"id", "schema", "schema_id", "external_cell_tag"};
         getNodeOptions.ReadFrom = EMasterChannelKind::Cache;
 
         auto tablesMetadata = WaitFor(AllSucceeded(std::vector{
@@ -66,6 +66,11 @@ public:
 
         auto tableType = TypeFromId(tableId);
 
+        THROW_ERROR_EXCEPTION_UNLESS(IsSequoiaId(tableId) == IsSequoiaId(indexTableId),
+            "Cannot bind table and index table from different metadata trees (TableIsSequoia: %v, IndexTableIsSequoia: %v)",
+            IsSequoiaId(tableId),
+            IsSequoiaId(indexTableId));
+
         if (tableType != TypeFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table type mismatch")
                 .With("table_type", tableType)
@@ -81,11 +86,12 @@ public:
             THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
         }
 
-        auto cellTag = CellTagFromId(tableId);
-        if (cellTag != CellTagFromId(indexTableId)) {
+        auto tableCellTag = CellTagFromId(tableId);
+        auto indexTableCellTag = CellTagFromId(indexTableId);
+        if (!IsSequoiaId(tableId) && tableCellTag != indexTableCellTag) {
             THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
-                .With("table_cell_tag", cellTag)
-                .With("index_table_cell_tag", CellTagFromId(indexTableId));
+                .With("table_cell_tag", tableCellTag)
+                .With("index_table_cell_tag", indexTableCellTag);
         }
 
         auto getUnfoldedColumns = [&] {
@@ -117,9 +123,18 @@ public:
         attributes->Set("table_id", tableId);
         attributes->Set("index_table_id", indexTableId);
 
+        if (IsSequoiaId(tableId)) {
+            TGetNodeOptions getNodeOptions;
+
+            attributes->Set("table_schema_id", tableNode->Attributes().Get<TMasterTableSchemaId>("schema_id"));
+            attributes->Set("index_table_schema_id", indexTableNode->Attributes().Get<TMasterTableSchemaId>("schema_id"));
+
+            attributes->Set("table_external_cell_tag", tableNode->Attributes().Get<TCellTag>("external_cell_tag"));
+        }
+
         return Client_->CreateObjectImpl(
             type,
-            cellTag,
+            tableCellTag,
             *attributes,
             options);
     }

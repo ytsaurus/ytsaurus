@@ -4,6 +4,8 @@ import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
 import "yt/server/lib/tablet_server/proto/tablet_manager.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -60,6 +62,14 @@ message TReqImportMasterTableSchema
 message TReqUnimportMasterTableSchema
 {
     required NYT.NProto.TGuid schema_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateSecondaryIndex
+{
+    required NYT.NYTree.NProto.TAttributeDictionary object_attributes = 1;
+    required NYT.NProto.TGuid hint_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,6 +12,8 @@ from yt_commands import (
     sorted_dicts, raises_yt_error,
 )
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt.test_helpers import assert_items_equal
 
 from yt_chaos_test_base import ChaosTestBase
@@ -103,6 +105,14 @@ def prepend_hash(schema):
 class TAny:
     def __eq__(self, other):
         return True
+
+
+class Multi:
+    def __init__(self, *args):
+        self.multi = args
+
+    def __eq__(self, other):
+        return any(other == x for x in self.multi)
 
 
 ##################################################################
@@ -425,11 +435,11 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         assert get(f"#{index_id}/@table_id") == table_id
         assert get(f"#{index_id}/@table_path") == "//tmp/table"
         assert get(f"#{index_id}/@index_table_id") == index_table_id
-        assert get(f"#{index_id}/@index_table_path") == "//tmp/secondary"
+        assert get(f"#{index_id}/@index_table_path") == Multi("//tmp/secondary", f"#{index_table_id}")
 
         assert get("//tmp/table/@secondary_indices") == {
             index_id: {
-                "index_path": "//tmp/secondary",
+                "index_path": Multi("//tmp/secondary", f"#{index_table_id}"),
                 "kind": "full_sync",
                 "table_to_index_correspondence": "bijective"
             }
@@ -437,7 +447,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         assert get("//tmp/secondary/@index_to") == {
             "index_id": index_id,
-            "table_path": "//tmp/table",
+            "table_path": Multi("//tmp/table", f"#{table_id}"),
             "kind": "full_sync",
             "table_to_index_correspondence": "bijective",
         }
@@ -454,7 +464,8 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         remove(f"#{index_id}")
 
         assert not exists("//tmp/table/@secondary_indices")
-        assert not exists("//tmp/secondary/@index_to")
+        # In Sequoia the deletion arrives to index table cell via Hive.
+        wait(lambda: not exists("//tmp/secondary/@index_to"))
         wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
@@ -462,10 +473,10 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         _, _, index_id, _ = self._create_basic_tables()
 
         remove("//tmp/table")
+        assert not exists(f"#{index_id}")
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
+            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1 + i)))
         assert not exists("//tmp/secondary/@index_to")
-        wait(lambda: not exists(f"#{index_id}"))
-        if self.NUM_SECONDARY_MASTER_CELLS:
-            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
     def test_delete_index_table(self):
@@ -473,9 +484,9 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         remove("//tmp/secondary")
         assert not exists("//tmp/table/@secondary_indices")
-        wait(lambda: not exists(f"#{index_id}"))
-        if self.NUM_SECONDARY_MASTER_CELLS:
-            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
+        assert not exists(f"#{index_id}")
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
+            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1 + i)))
 
     @authors("sabdenovch")
     def test_illegal_create_on_mounted(self):
@@ -490,7 +501,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_predicate_and_locks(self):
         schema = deepcopy(PRIMARY_SCHEMA + [{"name": "predicatedValue", "type": "int64", "lock": "someLock"}])
-        self._create_table("//tmp/table", schema)
+        table_id = self._create_table("//tmp/table", schema)
         self._create_table("//tmp/index", INDEX_ON_VALUE_SCHEMA)
 
         with raises_yt_error():
@@ -498,10 +509,24 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         schema[2]["lock"] = "someLock"
         schema[3]["lock"] = "someLock"
+        prev_schema_id = get("//tmp/table/@schema_id")
         alter_table("//tmp/table", schema=schema)
-        index_id, _ = self._create_secondary_index("//tmp/table", "//tmp/index", "full_sync", predicate="predicatedValue >= 0")
 
-        assert get(f"#{index_id}/@predicate") == "predicatedValue >= 0"
+        # Hive so slow.
+        external_drivers = []
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
+            # Workaround for cypress proxy miss when using cell-specific driver.
+            try:
+                does_exist = exists(f"#{table_id}", driver=get_driver(i + 1))
+            except YtError:
+                does_exist = False
+            if does_exist:
+                external_drivers.append(i + 1)
+        for index in external_drivers:
+            wait(lambda: prev_schema_id != get(f"#{table_id}/@schema_id", driver=get_driver(index)))
+
+        self._create_secondary_index("//tmp/table", "//tmp/index", "full_sync", predicate="predicatedValue >= 0")
+        assert get("//tmp/index/@index_to/predicate") == "predicatedValue >= 0"
 
     @authors("sabdenovch")
     @pytest.mark.parametrize("kind_and_schemas", (
@@ -527,6 +552,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             UNIQUE_VALUE_INDEX_SCHEMA + [{"name": "keyC", "type": "int64"}],
         ),
     ))
+    @not_implemented_in_sequoia
     def test_alter_extra_key_order(self, kind_and_schemas):
         self._create_basic_tables(
             table_schema=kind_and_schemas[1],
@@ -541,6 +567,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         alter_table("//tmp/table", schema=kind_and_schemas[2])
 
     @authors("sabdenovch")
+    @not_implemented_in_sequoia
     def test_alter_extra_value_order(self):
         self._create_basic_tables()
 
@@ -562,9 +589,10 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         copy("//tmp/table", "//tmp/table_copy", allow_secondary_index_abandonment=True)
         assert not exists("//tmp/table_copy/@secondary_indices")
         copy("//tmp/secondary", "//tmp/secondary_copy", allow_secondary_index_abandonment=True)
-        assert not exists("//tmp/secondary_copy/@index_to")
+        wait(lambda: not exists("//tmp/secondary_copy/@index_to"))
 
     @authors("sabdenovch")
+    @not_implemented_in_sequoia
     def test_move_within_cypress_cell(self):
         if self.NUM_REMOTE_CLUSTERS:
             pytest.skip("Replicated tables are not movable")
@@ -1871,3 +1899,52 @@ class TestChaosMetadata(TestSecondaryIndexChaosBase):
             err[0].contains_text("migrating") or \
             err[0].contains_text("Replication card is not in \"normal\" state") or \
             err[0].contains_text("Replication card has been migrated")
+
+
+##################################################################
+
+
+class TestSecondaryIndexSequoiaBase(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "chunk_host"]},
+        "12": {"roles": ["sequoia_node_host", "chunk_host"]},
+    }
+
+
+##################################################################
+
+
+class TestSecondaryIndexMasterSequoia(TestSecondaryIndexSequoiaBase, TestSecondaryIndexMaster):
+    @authors("sabdenovch")
+    def test_delete_index_table(self):
+        _, _, index_id, _ = self._create_basic_tables()
+        same_cell = get("//tmp/table/@native_cell_tag") == get("//tmp/secondary/@native_cell_tag")
+
+        remove("//tmp/secondary")
+        if same_cell:
+            assert not exists(f"#{index_id}")
+        else:
+            # Secondary index object survives the removal of index table.
+            assert exists(f"#{index_id}")
+            # Should not crash.
+            remove(f"#{index_id}")
+
+
+##################################################################
+
+
+class TestSecondaryIndexModificationsSequoia(TestSecondaryIndexSequoiaBase, TestSecondaryIndexModifications):
+    pass
+
+##################################################################
+
+
+class TestSecondaryIndexSelectSequoia(TestSecondaryIndexSequoiaBase, TestSecondaryIndexSelect):
+    pass

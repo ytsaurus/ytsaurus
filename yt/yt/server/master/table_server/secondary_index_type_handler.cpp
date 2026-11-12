@@ -65,48 +65,7 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto kind = attributes->GetAndRemove<ESecondaryIndexKind>(
-            EInternedAttributeKey::Kind.Unintern(),
-            ESecondaryIndexKind::FullSync);
-        auto tableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::TableId.Unintern());
-        auto indexTableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::IndexTableId.Unintern());
-        auto predicate = attributes->FindAndRemove<std::string>(EInternedAttributeKey::Predicate.Unintern());
-
-        auto getUnfoldedColumns = [&] {
-            if (auto unfoldedColumn = attributes->FindAndRemove<std::string>("unfolded_column")) {
-                attributes->Remove("unfolded_table_column");
-                attributes->Remove("unfolded_index_column");
-                return TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
-            } else {
-                return TUnfoldedColumns(
-                    attributes->GetAndRemove<std::string>("unfolded_table_column"),
-                    attributes->GetAndRemove<std::string>("unfolded_index_column"));
-            }
-        };
-        auto unfoldedColumns = kind == ESecondaryIndexKind::Unfolding
-            ? std::optional(getUnfoldedColumns())
-            : std::nullopt;
-
-        auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(
-            EInternedAttributeKey::EvaluatedColumnsSchema.Unintern());
-
-        auto [table, indexTable] = Bootstrap_->GetTableManager()->ValidateSecondaryIndexCreationAndGetTables(
-            kind,
-            tableId,
-            indexTableId,
-            predicate,
-            unfoldedColumns,
-            evaluatedColumns);
-
-        return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
-            hintId,
-            kind,
-            table,
-            indexTable,
-            indexTableId,
-            std::move(predicate),
-            std::move(unfoldedColumns),
-            std::move(evaluatedColumns));
+        return Bootstrap_->GetTableManager()->ValidateAndCreateSecondaryIndex(hintId, attributes);
     }
 
 private:
@@ -142,10 +101,7 @@ private:
 
     TCellTagSet DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
     {
-        auto cellTag = secondaryIndex->GetExternalCellTag();
-        return cellTag == NObjectClient::NotReplicatedCellTagSentinel
-            ? EmptyCellTags()
-            : TCellTagSet{cellTag};
+        return secondaryIndex->ExternalCellTags();
     }
 
     TAccessControlDescriptor* DoFindAcd(TSecondaryIndex* secondaryIndex) override

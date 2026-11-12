@@ -45,6 +45,8 @@ using namespace NYPath;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NObjectClient::NProto::TReqCreateObject;
+using NObjectClient::NProto::TRspCreateObject;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,6 +542,38 @@ std::optional<TParsedReqCreate> TryParseReqCreate(const ISequoiaServiceContextPt
     }
 }
 
+std::optional<TParsedReqCreate> TryParseReqCreateObject(const ISequoiaServiceContextPtr& context)
+{
+    YT_VERIFY(context->GetRequestHeader().method() == "CreateObject");
+
+    auto typedContext = New<NRpc::TGenericTypedServiceContext<
+        IServiceContext,
+        TServiceContextWrapper,
+        TReqCreateObject,
+        TRspCreateObject>>(
+        context,
+        THandlerInvocationOptions{});
+
+    // NB: This replies to underlying context on error.
+    if (!typedContext->DeserializeRequest()) {
+        return std::nullopt;
+    }
+
+    const auto& request = typedContext->Request();
+
+    try {
+        return TParsedReqCreate{
+            .Type = FromProto<EObjectType>(request.type()),
+            .ExplicitAttributes = request.has_object_attributes()
+                ? NYTree::FromProto(request.object_attributes())
+                : CreateEphemeralAttributes(),
+        };
+    } catch (const std::exception& ex) {
+        typedContext->Reply(ex);
+        return std::nullopt;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConsumeAttributes(NYson::IAsyncYsonConsumer* consumer, const IAttributeDictionaryPtr& attributes)
@@ -565,6 +599,7 @@ void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
     options->PreserveExpirationTime = protoOptions.preserve_expiration_time();
     options->PreserveExpirationTimeout = protoOptions.preserve_expiration_timeout();
     options->PessimisticQuotaCheck = protoOptions.pessimistic_quota_check();
+    options->AllowSecondaryIndexAbandonment = protoOptions.allow_secondary_index_abandonment();
 }
 
 void FromProto(
