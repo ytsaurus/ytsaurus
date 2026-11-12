@@ -1,7 +1,12 @@
 #include "versioned_row_merger.h"
 #include "nested_row_merger.h"
 
+#include <yt/yt/library/query/base/ast.h>
+#include <yt/yt/library/query/base/ast_visitors.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -37,6 +42,226 @@ template <class T>
 i64 GetVectorBytesCapacity(const std::vector<T>& vector)
 {
     return vector.capacity() * sizeof(T);
+}
+
+struct TWatermarkRuntimeData
+{
+    TExpressionEvaluatorPtr ExpressionEvaluator;
+    TTableSchemaPtr TableSchema;
+    std::optional<int> ValueColumnId;
+    bool ValueColumnIsAggregate = false;
+};
+
+class TWatermarkExpressionHelperVisitor
+    : public NAst::TAstVisitor<TWatermarkExpressionHelperVisitor>
+{
+public:
+    TWatermarkExpressionHelperVisitor(
+        const TTableSchema& tableSchema,
+        TWatermarkRuntimeData* watermarkRuntimeData)
+        : TableSchema_(tableSchema)
+        , WatermarkRuntimeData_(watermarkRuntimeData)
+    {
+        YT_VERIFY(!WatermarkRuntimeData_->ValueColumnId.has_value());
+    }
+
+    void OnReference(const NAst::TReferenceExpression* referenceExpr)
+    {
+        auto columnIndex = TableSchema_.GetColumnIndexOrThrow(referenceExpr->Reference.ColumnName);
+        const auto& column = TableSchema_.Columns()[columnIndex];
+        if (!column.SortOrder().has_value()) {
+            if (!WatermarkRuntimeData_->ValueColumnId.has_value()) {
+                WatermarkRuntimeData_->ValueColumnId = columnIndex;
+                WatermarkRuntimeData_->ValueColumnIsAggregate = column.Aggregate().has_value();
+            } else if (*WatermarkRuntimeData_->ValueColumnId != columnIndex) {
+                THROW_ERROR_EXCEPTION("Not more than one value column may be referenced in watermark expression, got %Qv and %Qv",
+                    column.Name(),
+                    TableSchema_.Columns()[*WatermarkRuntimeData_->ValueColumnId].Name());
+            }
+        }
+    }
+
+private:
+    const TTableSchema& TableSchema_;
+    TWatermarkRuntimeData* const WatermarkRuntimeData_;
+};
+
+std::optional<TWatermarkRuntimeData> TryParseWatermarkRuntimeData(
+    const NYson::TYsonString& customRuntimeData,
+    const TTableSchemaPtr& tableSchema,
+    TTimestamp compactionTimestamp,
+    bool isCompaction)
+{
+    if (!customRuntimeData || !isCompaction) {
+        return std::nullopt;
+    }
+
+    try {
+        std::optional<TWatermarkRuntimeData> watermarkRuntimeData = TWatermarkRuntimeData{
+            .TableSchema = tableSchema,
+        };
+
+        auto customRuntimeDataMap = ConvertTo<IMapNodePtr>(customRuntimeData);
+        auto watermarkRuntimeDataConfig = customRuntimeDataMap->FindChildValue<TWatermarkRuntimeDataConfig>(CustomRuntimeDataWatermarkKey);
+        // Will take priority if both are specified.
+        auto backgroundDeletePredicate = customRuntimeDataMap->FindChildValue<std::string>(BackgroundDeletePredicateKey);
+
+        std::unique_ptr<TParsedSource> parsedSource;
+
+        if (backgroundDeletePredicate) {
+            const auto& expression = *backgroundDeletePredicate;
+
+            auto placeholderValues = Format("{\"__timestamp\"=%v}", UnixTimeFromTimestamp(compactionTimestamp));
+
+            parsedSource = ParseSource(
+                expression,
+                EParseMode::Expression,
+                NYson::TYsonStringBuf(placeholderValues));
+
+            TWatermarkExpressionHelperVisitor(*tableSchema, &*watermarkRuntimeData)
+                .Visit(std::get<NAst::TExpressionPtr>(parsedSource->AstHead.Ast));
+        } else if (watermarkRuntimeDataConfig) {
+            auto columnSchema = tableSchema->GetColumnOrThrow(watermarkRuntimeDataConfig->ColumnName);
+
+            THROW_ERROR_EXCEPTION_UNLESS(columnSchema.GetWireType() == EValueType::Uint64,
+                "Unexpected type for watermark %Qv: expected %Qlv, got %Qlv",
+                columnSchema.Name(),
+                EValueType::Uint64,
+                columnSchema.GetWireType());
+
+            auto columnReference = NAst::FormatId(watermarkRuntimeDataConfig->ColumnName);
+
+            auto expression = Format(
+                "%v %v %vu and %v is not null",
+                columnReference,
+                GetWatermarkComparisonOperatorTextForm(watermarkRuntimeDataConfig->ComparisonOperator),
+                watermarkRuntimeDataConfig->Watermark,
+                columnReference);
+
+            parsedSource = ParseSource(expression, EParseMode::Expression);
+
+            if (!columnSchema.SortOrder().has_value()) {
+                int index = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig->ColumnName);
+                watermarkRuntimeData->ValueColumnId = index;
+                watermarkRuntimeData->ValueColumnIsAggregate = tableSchema->Columns()[index].Aggregate().has_value();
+            }
+        } else {
+            return std::nullopt;
+        }
+
+        auto logicalExpressionType = PrepareExpression(
+            *parsedSource,
+            *tableSchema,
+            GetBuiltinTypeInferrers())->LogicalType;
+        auto wireExpressionType = GetWireType(logicalExpressionType);
+
+        THROW_ERROR_EXCEPTION_UNLESS(wireExpressionType == EValueType::Boolean,
+            "Unexpected type for watermark expression %Qv: expected %Qlv, got %Qlv",
+            parsedSource->Source,
+            EValueType::Boolean,
+            wireExpressionType);
+
+        // A typical compilation runs for several milliseconds, acceptable for compaction tasks.
+        // TODO(sabdenovch): Fix expression evaluator cache and pass it here.
+        watermarkRuntimeData->ExpressionEvaluator = TExpressionEvaluator::Create(
+            *parsedSource,
+            watermarkRuntimeData->TableSchema,
+            GetBuiltinTypeInferrers(),
+            GetBuiltinFunctionProfilers());
+
+        YT_TLOG_DEBUG("Successfully parsed watermark")
+            .With("Source", parsedSource->Source)
+            .With("ValueColumnId", watermarkRuntimeData->ValueColumnId)
+            .With("ValueColumnIsAggregate", watermarkRuntimeData->ValueColumnIsAggregate);
+
+        return watermarkRuntimeData;
+
+    } catch (const std::exception& ex) {
+        YT_TLOG_ERROR("Failed to prepare watermark runtime data")
+            .With(TError(ex));
+
+        return std::nullopt;
+    }
+}
+
+bool MarksForDeletion(const TUnversionedValue& watermarkValue)
+{
+    if (watermarkValue.Type == EValueType::Null) {
+        return false;
+    }
+
+    if (watermarkValue.Type != EValueType::Boolean) [[unlikely]] {
+        YT_TLOG_WARNING("Incorrect watermark value type detected at runtime")
+            .With("Type", watermarkValue.Type)
+            .With("Value", watermarkValue);
+
+        return false;
+    }
+
+    return watermarkValue.Data.Boolean;
+}
+
+std::optional<TTimestamp> ComputeWatermarkTimestamp(
+    const std::optional<TWatermarkRuntimeData>& watermarkRuntimeData,
+    TRange<TUnversionedValue> keys,
+    TRange<TVersionedValue> partialValues,
+    const TColumnEvaluatorPtr& columnEvaluator,
+    const TRowBufferPtr& rowBuffer)
+{
+    if (!watermarkRuntimeData) {
+        return {};
+    }
+
+    int rowLength = watermarkRuntimeData->TableSchema->GetColumnCount();
+    auto row = rowBuffer->AllocateUnversioned(rowLength);
+
+    YT_VERIFY(std::ssize(keys) == watermarkRuntimeData->TableSchema->GetKeyColumnCount());
+
+    memcpy(row.begin(), keys.data(), keys.size() * sizeof(TUnversionedValue));
+
+    for (int index = std::ssize(keys); index < rowLength; ++index) {
+        // TODO(sabdenovch): Poison with sentinel types?
+        row[index] = MakeUnversionedNullValue();
+    }
+
+    if (!watermarkRuntimeData->ValueColumnId.has_value()) {
+        if (MarksForDeletion(watermarkRuntimeData->ExpressionEvaluator->Evaluate(row, rowBuffer))) {
+            return MaxTimestamp;
+        } else {
+            return MinTimestamp;
+        }
+    }
+
+    int valueColumnId = *watermarkRuntimeData->ValueColumnId;
+    auto watermarkTimestamp = MinTimestamp;
+    bool initialized = false;
+
+    for (auto value : partialValues) {
+        YT_ASSERT(value.Id == valueColumnId);
+        YT_ASSERT(value.Timestamp > watermarkTimestamp);
+
+        if (watermarkRuntimeData->ValueColumnIsAggregate &&
+            initialized &&
+            Any(value.Flags & EValueFlags::Aggregate))
+        {
+            columnEvaluator->MergeAggregate(
+                valueColumnId,
+                &row[valueColumnId],
+                value,
+                rowBuffer);
+        } else {
+            row[valueColumnId] = value;
+            initialized = true;
+        }
+
+        auto watermarkValue = watermarkRuntimeData->ExpressionEvaluator->Evaluate(row, rowBuffer);
+
+        if (MarksForDeletion(watermarkValue)) {
+            watermarkTimestamp = value.Timestamp;
+        }
+    }
+
+    return watermarkTimestamp;
 }
 
 } // namespace
@@ -169,8 +394,14 @@ public:
                 }),
             PartialValues_.end());
 
+        auto watermarkTimestamp = ComputeWatermarkTimestamp(
+            WatermarkRuntimeData_,
+            Keys_,
+            GetPartialValuesForWatermark(),
+            ColumnEvaluator_,
+            RowBuffer_);
+
         auto rowMaxDataTtl = ComputeRowMaxDataTtl();
-        auto watermarkTimestamp = ComputeWatermarkTimestamp();
 
         // Scan through input values.
         auto columnIdsBeginIt = ColumnIds_.begin();
@@ -219,7 +450,7 @@ public:
             }
 #endif
 
-            auto retentionBeginIt = Config_ || watermarkTimestamp ? ColumnValues_.end() : ColumnValues_.begin();
+            auto retentionBeginIt = Config_ || WatermarkRuntimeData_.has_value() ? ColumnValues_.end() : ColumnValues_.begin();
 
             // Apply retention config if present.
             if (Config_) {
@@ -244,7 +475,7 @@ public:
                 }
 
                 // Compute retention limit by MaxDataVersions and MaxDataTtl.
-                if (!watermarkTimestamp) {
+                if (!WatermarkRuntimeData_.has_value()) {
                     while (retentionBeginIt != ColumnValues_.begin()) {
                         if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
                             break;
@@ -262,6 +493,16 @@ public:
                 }
             }
 
+            if (watermarkTimestamp) {
+                while (retentionBeginIt != ColumnValues_.begin()) {
+                    if ((retentionBeginIt - 1)->Timestamp <= *watermarkTimestamp) {
+                        break;
+                    }
+
+                    --retentionBeginIt;
+                }
+            }
+
             // For aggregate columns merge values before MajorTimestamp_ and leave other values.
             int id = partialValueIt->Id;
             if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
@@ -273,7 +514,8 @@ public:
                 if (retentionBeginIt > ColumnValues_.begin()) {
                     auto valueIt = retentionBeginIt;
                     while (true) {
-                        if (valueIt->Type == EValueType::TheBottom) {
+                        if (valueIt->Type == EValueType::TheBottom || (watermarkTimestamp.has_value() && valueIt->Timestamp <= *watermarkTimestamp)) {
+                            // Watermark timestamp is functionally a virtual delete tombstone.
                             ++valueIt;
                             break;
                         }
@@ -316,16 +558,6 @@ public:
                         YT_ASSERT((state.Flags & EValueFlags::Aggregate) == initialAggregateFlags);
                         static_cast<TUnversionedValue&>(*retentionBeginIt) = state;
                     }
-                }
-            }
-
-            if (watermarkTimestamp) {
-                while (retentionBeginIt != ColumnValues_.begin()) {
-                    if ((retentionBeginIt - 1)->Timestamp <= *watermarkTimestamp) {
-                        break;
-                    }
-
-                    --retentionBeginIt;
                 }
             }
 
@@ -485,52 +717,6 @@ private:
         return Config_->MaxDataTtl;
     }
 
-    static bool CompareValueWithRuntimeWatermark(const TUnversionedValue& value, const TWatermarkRuntimeData& watermarkRuntimeData)
-    {
-        if (value.Id != watermarkRuntimeData.ColumnIndex || value.Type == EValueType::Null) {
-            return false;
-        }
-
-        switch (watermarkRuntimeData.ComparisonOperator) {
-            case EWatermarkComparisonOperator::Less:
-                return FromUnversionedValue<ui64>(value) < watermarkRuntimeData.Watermark;
-
-            case EWatermarkComparisonOperator::LessEqual:
-                return FromUnversionedValue<ui64>(value) <= watermarkRuntimeData.Watermark;
-
-            case EWatermarkComparisonOperator::Greater:
-                return FromUnversionedValue<ui64>(value) > watermarkRuntimeData.Watermark;
-
-            case EWatermarkComparisonOperator::GreaterEqual:
-                return FromUnversionedValue<ui64>(value) >= watermarkRuntimeData.Watermark;
-
-            default:
-                YT_ABORT();
-        }
-    }
-
-    std::optional<TTimestamp> ComputeWatermarkTimestamp() const
-    {
-        if (!WatermarkRuntimeData_) {
-            return {};
-        }
-
-        for (const auto& key : Keys_) {
-            if (CompareValueWithRuntimeWatermark(key, WatermarkRuntimeData_.value())) {
-                return MaxTimestamp;
-            }
-        }
-
-        TTimestamp watermarkTimestamp = MinTimestamp;
-        for (const auto& value : PartialValues_) {
-            if (CompareValueWithRuntimeWatermark(value, WatermarkRuntimeData_.value())) {
-                watermarkTimestamp = std::max(watermarkTimestamp, value.Timestamp);
-            }
-        }
-
-        return watermarkTimestamp;
-    }
-
     void RecalculateMemoryUsage()
     {
         if (MemoryTrackerGuard_) {
@@ -544,6 +730,35 @@ private:
             MemoryTrackerGuard_.TrySetSize(memoryUsage)
                 .ThrowOnError();
         }
+    }
+
+    TRange<TVersionedValue> GetPartialValuesForWatermark()
+    {
+        if (!WatermarkRuntimeData_.has_value() || !WatermarkRuntimeData_->ValueColumnId.has_value()) {
+            return {};
+        }
+
+        auto id = static_cast<ui16>(*WatermarkRuntimeData_->ValueColumnId);
+
+        auto cmp = [&] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+            auto lhsIndex = ColumnIdToIndex_[lhs.Id];
+            auto rhsIndex = ColumnIdToIndex_[rhs.Id];
+            return std::tie(lhsIndex, lhs.Id, lhs.Timestamp) < std::tie(rhsIndex, rhs.Id, rhs.Timestamp);
+        };
+
+        // Values older than the youngest(largest) delete timestamp are logically deleted anyway.
+        auto begin = std::lower_bound(
+            PartialValues_.begin(),
+            PartialValues_.end(),
+            TVersionedValue({.Id = id}, DeleteTimestamps_.empty() ? MinTimestamp : DeleteTimestamps_.back()),
+            cmp);
+        auto end = std::lower_bound(
+            PartialValues_.begin(),
+            PartialValues_.end(),
+            TVersionedValue({.Id = id}, MajorTimestamp_),
+            cmp);
+
+        return TRange(begin, end);
     }
 };
 
@@ -591,20 +806,21 @@ public:
         int columnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter,
-        // Keep all versions not older (newer or equal to) than all versiones timestamp.
+        // Keep all versions not older (newer or equal to) than all versions timestamp.
         TTimestamp allVersionsTimestamp,
         // Remove versions older than retention timestamp.
         TTimestamp retentionTimestamp,
         // There are no timestamps older than major timestamp in other stores.
-        // Compact aggregate values older than major timestamp timestamp.
+        // Compact aggregate values older than major timestamp.
         TTimestamp majorTimestamp,
         // Timestamp range of all rows are exclusive to current merge session.
-        // FlushMode assumes that timestamp range in store is not intersected with any other for given key range.
+        // FlushMode assumes that timestamp range in store does not intersect with any other for given key range (tablet).
         // Adjacent delete timestamps and aggregates (before allVersionsTimestamp) can be merged.
         // Major timestamp should be zero in flush mode.
         bool flushMode,
         TNestedColumnsSchema nestedColumnsSchema,
-        TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy)
+        TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy,
+        std::optional<TWatermarkRuntimeData> watermarkRuntimeData)
         : RowBuffer_(std::move(rowBuffer))
         , ColumnEvaluator_(std::move(columnEvaluator))
         , AllVersionsTimestamp_(allVersionsTimestamp)
@@ -613,6 +829,7 @@ public:
         , FlushMode_(flushMode)
         , NestedColumnsSchema_(std::move(nestedColumnsSchema))
         , NestedRowDiscardPolicy_(std::move(nestedRowDiscardPolicy))
+        , WatermarkRuntimeData_(std::move(watermarkRuntimeData))
     {
         YT_VERIFY(RetentionTimestamp_ <= AllVersionsTimestamp_);
         YT_VERIFY(MajorTimestamp_ <= AllVersionsTimestamp_);
@@ -734,6 +951,25 @@ public:
         }
 
         auto baseDeleteTimestamp = GetBaseDeleteTimestamp();
+
+        {
+            auto watermarkTimestamp = ComputeWatermarkTimestamp(
+                WatermarkRuntimeData_,
+                Keys_,
+                GetPartialValuesForWatermark(baseDeleteTimestamp),
+                ColumnEvaluator_,
+                RowBuffer_);
+
+            // A timestamp bump is required because new versioned row merger resolves
+            // delete vs write collisions on same timestamp in favor of writes,
+            // unlike the legacy version.
+            if (watermarkTimestamp.has_value()) {
+                baseDeleteTimestamp = std::max(
+                    baseDeleteTimestamp,
+                    TTimestamp(watermarkTimestamp->Underlying() + 1));
+            }
+        }
+
         auto retentionTimestamp = std::max(RetentionTimestamp_, baseDeleteTimestamp);
 
         // Filter write timestamps of filtered out columns.
@@ -1006,6 +1242,7 @@ private:
     const bool FlushMode_;
     const TNestedColumnsSchema NestedColumnsSchema_;
     const TNestedRowDiscardPolicyPtr NestedRowDiscardPolicy_;
+    const std::optional<TWatermarkRuntimeData> WatermarkRuntimeData_;
 
     std::vector<int> ColumnIdToIndex_;
     std::vector<TUnversionedValue> Keys_;
@@ -1161,9 +1398,40 @@ private:
 
         return state;
     }
+
+    TRange<TVersionedValue> GetPartialValuesForWatermark(TTimestamp baseDeleteTimestamp)
+    {
+        if (!WatermarkRuntimeData_ || !WatermarkRuntimeData_->ValueColumnId.has_value()) {
+            return {};
+        }
+
+        auto id = static_cast<ui16>(*WatermarkRuntimeData_->ValueColumnId);
+
+        int columnIndex = ColumnIdToIndex_[id];
+        if (columnIndex < 0) {
+            return {};
+        }
+
+        auto& column = Values_[columnIndex - std::ssize(Keys_)];
+
+        auto range = SortUniqueValuesAndSkipDeletedPrefix(&column, baseDeleteTimestamp);
+
+        auto end = std::lower_bound(
+            range.first,
+            range.second,
+            TVersionedValue({.Id = id}, MajorTimestamp_),
+            [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                return lhs.Timestamp < rhs.Timestamp;
+            });
+
+        return TRange(range.first, end);
+    }
 };
 
-std::pair<TTimestamp, TTimestamp> GetPivotTimestamps(TTimestamp currentTimestamp, TRetentionConfigPtr config)
+std::pair<TTimestamp, TTimestamp> GetPivotTimestamps(
+    TTimestamp currentTimestamp,
+    TRetentionConfigPtr config,
+    bool watermarkPresent)
 {
     if (!config) {
         return {NullTimestamp, NullTimestamp};
@@ -1177,7 +1445,7 @@ std::pair<TTimestamp, TTimestamp> GetPivotTimestamps(TTimestamp currentTimestamp
         : NullTimestamp;
 
     TTimestamp retentionTimestamp;
-    if (config->MinDataVersions > 0) {
+    if (config->MinDataVersions > 0 || watermarkPresent) {
         retentionTimestamp = NullTimestamp;
     } else {
         // Consider config->MaxDataTtl as config->MaxDataTtl + config->MinDataTtl to guarantee stable
@@ -1205,7 +1473,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     TNestedColumnsSchema nestedColumnsSchema,
-    TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy)
+    TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy,
+    std::optional<TWatermarkRuntimeData> watermarkRuntimeData)
 {
     if (config && config->IgnoreMajorTimestamp) {
         mergeRowsOnFlush = true;
@@ -1214,9 +1483,12 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
     // Lookup mode is redundant because behaviour can be achieved with universal retention config.
     // Universal retention config is one with infinity min data TTL.
 
-    auto [retentionTimestamp, allVersionsTimestamp] = GetPivotTimestamps(currentTimestamp, config);
+    auto [retentionTimestamp, allVersionsTimestamp] = GetPivotTimestamps(
+        currentTimestamp,
+        config,
+        watermarkRuntimeData.has_value());
     return std::make_unique<TNewVersionedRowMerger>(
-        rowBuffer,
+        std::move(rowBuffer),
         std::move(columnEvaluator),
         columnCount,
         keyColumnCount,
@@ -1226,7 +1498,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
         std::min(majorTimestamp, allVersionsTimestamp),
         mergeRowsOnFlush,
         std::move(nestedColumnsSchema),
-        std::move(nestedRowDiscardPolicy));
+        std::move(nestedRowDiscardPolicy),
+        std::move(watermarkRuntimeData));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1257,6 +1530,11 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
         THROW_ERROR_EXCEPTION("Nested columns are supported only in new versioned row merger");
     }
 
+    bool isCompaction =
+        majorTimestamp != MinTimestamp &&
+        majorTimestamp != MaxTimestamp &&
+        columnFilter.IsUniversal();
+
     switch (rowMergerType) {
         case ERowMergerType::Legacy:
             return CreateLegacyVersionedRowMerger(
@@ -1273,35 +1551,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 mergeDeletionsOnFlush,
                 std::move(memoryTracker));
 
-        case ERowMergerType::Watermark: {
-            std::optional<TWatermarkRuntimeData> watermarkRuntimeData;
-
-            if (customRuntimeData) {
-                try {
-                    auto customRuntimeDataMap = ConvertTo<IMapNodePtr>(customRuntimeData);
-                    auto watermarkRuntimeDataConfig = customRuntimeDataMap->GetChildValueOrThrow<TWatermarkRuntimeDataConfig>(CustomRuntimeDataWatermarkKey);
-
-                    auto columnSchema = tableSchema->GetColumnOrThrow(watermarkRuntimeDataConfig.ColumnName);
-                    if (!columnSchema.IsOfV1Type(ESimpleLogicalValueType::Uint64)) {
-                        THROW_ERROR_EXCEPTION(
-                            "Unexpected type for watermark column %Qv: expected %Qlv, got %Qlv",
-                            columnSchema.Name(),
-                            EValueType::Uint64,
-                            *columnSchema.LogicalType());
-                    }
-
-                    watermarkRuntimeData = TWatermarkRuntimeData{
-                        .Watermark = watermarkRuntimeDataConfig.Watermark,
-                        .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName),
-                        .ComparisonOperator = watermarkRuntimeDataConfig.ComparisonOperator,
-                    };
-                } catch (const std::exception& ex) {
-                    YT_TLOG_ERROR("Failed to prepare watermark runtime data")
-                        .With(ex);
-                    watermarkRuntimeData = std::nullopt;
-                }
-            }
-
+        case ERowMergerType::Watermark:
             return std::make_unique<TLegacyVersionedRowMerger>(
                 std::move(rowBuffer),
                 tableSchema->GetColumnCount(),
@@ -1314,9 +1564,12 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 mergeRowsOnFlush,
                 useTtlColumn ? tableSchema->GetTtlColumnIndex() : std::nullopt,
                 mergeDeletionsOnFlush,
-                std::move(watermarkRuntimeData),
+                TryParseWatermarkRuntimeData(
+                    customRuntimeData,
+                    tableSchema,
+                    currentTimestamp,
+                    isCompaction),
                 std::move(memoryTracker));
-        }
 
         case ERowMergerType::New:
             return CreateNewVersionedRowMerger(
@@ -1330,7 +1583,12 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 columnEvaluator,
                 mergeRowsOnFlush,
                 std::move(nestedColumnsSchema),
-                std::move(nestedRowDiscardPolicy));
+                std::move(nestedRowDiscardPolicy),
+                TryParseWatermarkRuntimeData(
+                    customRuntimeData,
+                    tableSchema,
+                    currentTimestamp,
+                    isCompaction));
     }
 }
 

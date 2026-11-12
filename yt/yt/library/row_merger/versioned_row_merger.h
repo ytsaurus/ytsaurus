@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/client/tablet_client/public.h>
-
 #include <yt/yt/library/query/base/public.h>
+
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <library/cpp/yt/yson_string/public.h>
 

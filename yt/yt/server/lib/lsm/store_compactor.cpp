@@ -333,7 +333,7 @@ private:
         if (!mountConfig->EnableDiscardingExpiredPartitions ||
             mountConfig->MinDataVersions != 0 ||
             tablet->GetHasTtlColumn() ||
-            mountConfig->RowMergerType == ERowMergerType::Watermark ||
+            tablet->GetHasWatermarks() ||
             mountConfig->ForceZeroMajorTimestamp)
         {
             return {};
