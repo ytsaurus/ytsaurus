@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/concurrency/prioritized_invoker.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NExecNode {
@@ -175,6 +177,10 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
+            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(chunkId, blockIndexes, jobInputCacheOptions);
@@ -223,6 +229,10 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
+            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(
@@ -265,6 +275,10 @@ private:
 
         TClientChunkReadOptions jobInputCacheOptions;
         jobInputCacheOptions.WorkloadDescriptor = workloadDescriptor;
+        jobInputCacheOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
+            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        };
 
         auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTags, extensionTags);
         auto withTimeout = WrapWithTimeout(

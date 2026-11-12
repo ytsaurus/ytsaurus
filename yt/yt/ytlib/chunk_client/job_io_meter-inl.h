@@ -4,6 +4,8 @@
 #include "job_io_meter.h"
 #endif
 
+#include "chunk_reader_options.h"
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,26 @@ void SetRequestIoFairShareWeight(
     if (auto weight = GetEffectiveIoFairShareWeight(configuredWeight, options.JobIoMeter)) {
         req->set_io_fair_share_weight(*weight);
     }
+}
+
+template <class TRequestPtr>
+void SetRequestReadIoFairShareState(
+    const TRequestPtr& req,
+    const TClientChunkReadOptions& options,
+    std::optional<double> configuredWeight)
+{
+    if (const auto& state = options.ForwardedIoFairShareState) {
+        if (state->IoConsumed) {
+            req->set_io_consumed(*state->IoConsumed);
+        }
+        if (state->IoFairShareWeight) {
+            req->set_io_fair_share_weight(*state->IoFairShareWeight);
+        }
+        return;
+    }
+
+    SetRequestIoConsumed(req, options);
+    SetRequestIoFairShareWeight(req, options, configuredWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

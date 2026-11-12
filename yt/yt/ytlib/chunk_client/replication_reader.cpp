@@ -3511,8 +3511,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestIoConsumed(req, SessionOptions_);
-        SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIoFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
@@ -3827,8 +3826,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestIoConsumed(req, SessionOptions_);
-        SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIoFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
@@ -4706,7 +4704,7 @@ public:
 
     TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request, bool hedgingEnabled) override
     {
-        if (!hedgingEnabled && ReaderConfig_->UseReadBlocksBatcher) {
+        if (!hedgingEnabled && ReaderConfig_->UseReadBlocksBatcher && !HasIoFairShareState(request)) {
             return ExecuteRequest<TGetBlocksResult>(request);
         } else {
             // NB: This branch is required to be thread-safe as it is called from hedging session.
@@ -4758,6 +4756,19 @@ private:
 
     THashMap<TPeerId, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
     THashMap<TPeerId, TNodeState<TGetBlocksResult>> GetBlocksStates_;
+
+    bool HasIoFairShareState(const TRequest& request) const
+    {
+        // Keep each job's fair-share state and I/O accounting in its own request.
+        const auto& options = request.Session->SessionOptions_;
+        if (const auto& state = options.ForwardedIoFairShareState) {
+            return state->IoConsumed.has_value() && state->IoFairShareWeight.has_value();
+        }
+
+        return options.JobIoMeter &&
+            options.JobIoMeter->IsEnabled() &&
+            GetEffectiveIoFairShareWeight(ReaderConfig_->IoFairShareWeight, options.JobIoMeter).has_value();
+    }
 
     template <class TResponse>
     TRequestBatch<TResponse> BuildRequestBatch(const TRequest& request)
@@ -4883,8 +4894,7 @@ private:
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_);
-        SetRequestIoFairShareWeight(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIoFairShareState(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
