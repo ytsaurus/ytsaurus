@@ -5,6 +5,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/server/lib/io/huge_page_manager.h>
@@ -818,6 +820,41 @@ TEST_P(TIOEngineTest, DirectIOUnalignedRandomized)
             EXPECT_FALSE(validRequest) << "Unexpected error: " << ex.what();
         }
     }
+}
+
+TEST_P(TIOEngineTest, CoalescesRangesWithinOneRead)
+{
+    auto type = GetIOEngineType();
+    if ((type != EIOEngineType::ThreadPool &&
+        type != EIOEngineType::FairShareThreadPool &&
+        type != EIOEngineType::FairShareHierarchical) ||
+        UseDedicatedAllocations())
+    {
+        GTEST_SKIP();
+    }
+
+    auto engine = CreateIOEngine();
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto data = GenerateRandomBlob(16);
+    WriteFile(fileName, data);
+
+    auto file = WaitForFast(engine->Open({fileName, RdOnly}))
+        .ValueOrThrow();
+    auto response = WaitForFast(engine->Read({
+        {.Handle = file, .Offset = 8, .Size = 8},
+        {.Handle = file, .Offset = 0, .Size = 8},
+        {.Handle = file, .Offset = 4, .Size = 8},
+    }, EWorkloadCategory::Idle, {}))
+        .ValueOrThrow();
+
+    EXPECT_EQ(response.IORequests, 1);
+    EXPECT_EQ(response.PaddedBytes, 3 * static_cast<i64>(GetPageSize()));
+    ASSERT_EQ(response.OutputBuffers.size(), 3UL);
+    EXPECT_TRUE(TRef::AreBitwiseEqual(response.OutputBuffers[0], data.Slice(8, 16)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(response.OutputBuffers[1], data.Slice(0, 8)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(response.OutputBuffers[2], data.Slice(4, 12)));
 }
 
 const char DefaultConfig[] =
