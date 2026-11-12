@@ -3,6 +3,7 @@ YQL_LIBRARY()
 SRCS(
     task_subscriptions.cpp
     worker_core.cpp
+    inspector_status_pusher.cpp
 )
 
 PEERDIR(

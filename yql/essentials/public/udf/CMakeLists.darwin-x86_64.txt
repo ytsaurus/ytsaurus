@@ -49,6 +49,15 @@ target_sources(essentials-public-udf PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_validate.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_value.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_value_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_pg_type_description.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_ptr.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_string_ref.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_terminator.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_type_ops.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_type_size_check.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_ut_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_value_utils.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_version.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_allocator.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_counter.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_data_type.h
