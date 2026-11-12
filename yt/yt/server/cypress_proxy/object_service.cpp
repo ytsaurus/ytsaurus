@@ -104,7 +104,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
-            .SetConcurrencyLimit(10'000)
+            .SetConcurrencyLimit(100'000)
             .SetRequestQueueProvider(RequestQueueProvider_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Mount)
             .SetHeavy(true));
