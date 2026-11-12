@@ -157,6 +157,9 @@ public:
     void SetTags(TBooleanFormulaTags tags);
 
     void BuildAttributes(NYTree::TFluentMap fluent);
+
+private:
+    TExecNodeDescriptorPtr DoBuildExecDescriptor(IInvokerPtr backgroundInvoker) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)
