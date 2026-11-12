@@ -3,10 +3,7 @@ package chyt
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"hash"
 	"maps"
 	"math"
 	"os"
@@ -201,31 +198,6 @@ var clusterConnectionFields = []string{
 	"chyt",
 }
 
-type ysonHashEncoder struct {
-	*yson.Encoder
-	hasher hash.Hash
-}
-
-func (encoder *ysonHashEncoder) Sum() string {
-	return hex.EncodeToString(encoder.hasher.Sum(nil))
-}
-
-func newYsonHashEncoder() ysonHashEncoder {
-	hasher := sha256.New()
-	return ysonHashEncoder{
-		Encoder: yson.NewEncoderWriter(
-			yson.NewWriterConfig(
-				hasher,
-				yson.WriterConfig{
-					Format: yson.FormatBinary,
-					Kind:   yson.StreamListFragment,
-				},
-			),
-		),
-		hasher: hasher,
-	}
-}
-
 func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool, err error) {
 	var clusterConnection map[string]any
 	err = c.ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil)
@@ -237,7 +209,7 @@ func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool,
 		c.l.Error("failed to update cluster connection: cluster connection contains block_cache section")
 		return false, fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
 	}
-	encoder := newYsonHashEncoder()
+	encoder := strawberry.NewYsonHashEncoder()
 	for _, field := range clusterConnectionFields {
 		if value, ok := clusterConnection[field]; ok {
 			if err := encoder.Encode(field); err != nil {
@@ -259,7 +231,7 @@ func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool,
 }
 
 func (c *Controller) updateSecrets() (changed bool, err error) {
-	encoder := newYsonHashEncoder()
+	encoder := strawberry.NewYsonHashEncoder()
 	for _, secret := range slices.Sorted(maps.Keys(c.config.SecureVaultFiles)) {
 		var value []byte
 		if value, err = os.ReadFile(c.config.SecureVaultFiles[secret]); err != nil {

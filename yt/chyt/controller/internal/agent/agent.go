@@ -174,7 +174,6 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 			toAbort = append(toAbort, op.ID)
 			continue
 		}
-		foundAliases[alias] = true
 
 		opID, opState := oplet.OperationInfo()
 		if !oplet.UpToDateWithCypress() {
@@ -182,12 +181,17 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 		}
 
 		if opID != op.ID {
+			if oplet.Active() && !oplet.Broken() && oplet.MatchesNextIncarnation(&op.OperationStatus) {
+				continue
+			}
 			l.Debug("yt operation has unexpected id, aborting it",
 				log.String("alias", alias), log.String("operation_id", op.ID.String()),
 				log.String("expected_id", opID.String()))
 			toAbort = append(toAbort, op.ID)
 			continue
 		}
+
+		foundAliases[alias] = true
 
 		if opState != op.State {
 			oplet.UpdateOpStatus(&op.OperationStatus)

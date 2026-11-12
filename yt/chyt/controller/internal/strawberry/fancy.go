@@ -31,8 +31,10 @@ func operationYsonURL(clusterURL string, opID yt.OperationID) any {
 	return ToYsonURL(operationStringURL(clusterURL, opID))
 }
 
-func (oplet *Oplet) OpAnnotations() map[string]any {
+func (oplet *Oplet) OpAnnotations(startChecksum string) map[string]any {
 	return map[string]any{
+		"strawberry_incarnation":         oplet.NextIncarnationIndex(),
+		"strawberry_start_checksum":      startChecksum,
 		"strawberry_family":              oplet.c.Family(),
 		"strawberry_stage":               oplet.agentInfo.Stage,
 		"strawberry_operation_namespace": oplet.agentInfo.OperationNamespace,
@@ -41,7 +43,6 @@ func (oplet *Oplet) OpAnnotations() map[string]any {
 			"address": oplet.agentInfo.Hostname,
 			// TODO(max42): build Revision, etc.
 		},
-		"strawberry_incarnation":           oplet.NextIncarnationIndex(),
 		"strawberry_previous_operation_id": oplet.persistentState.YTOpID,
 	}
 }
