@@ -4,7 +4,8 @@ from yt_commands import (create, authors, write_table, insert_rows, get, sync_re
 
 from yt_type_helpers import optional_type
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
+from base import (ClickHouseTestBase, ClickHouseTestBaseWithSharedClique, Clique,
+                  QueryFailedError, enable_sequoia, with_tablet_cell)
 
 from helpers import get_disabled_cache_config
 
@@ -2771,7 +2772,7 @@ class TestInferReadRange(ClickHouseTestBase):
             assert_items_equal(res, [{"value": 1}, {"value": 4}])
 
 
-class TestInputFetchingYPath(ClickHouseTestBase):
+class TestInputFetchingYPath(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 2
 
     def _create_table(self):
@@ -2796,30 +2797,29 @@ class TestInputFetchingYPath(ClickHouseTestBase):
 
     @authors("max42", "dakovalkov")
     @pytest.mark.timeout(250)
-    def test_ypath_simple(self):
+    def test_ypath_simple(self, clique):
         self._create_table()
 
-        with Clique(1) as clique:
-            # Simple form.
-            def check_simple(lower_limit, upper_limit):
-                if upper_limit is not None:
-                    range_spec = "{}:{}".format(lower_limit, upper_limit)
-                else:
-                    range_spec = lower_limit
-                table_path = "//tmp/t[{}]".format(range_spec)
-                expected_rows = read_table(table_path)
-                actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
-                assert actual_rows == expected_rows
+        # Simple form.
+        def check_simple(lower_limit, upper_limit):
+            if upper_limit is not None:
+                range_spec = "{}:{}".format(lower_limit, upper_limit)
+            else:
+                range_spec = lower_limit
+            table_path = "//tmp/t[{}]".format(range_spec)
+            expected_rows = read_table(table_path)
+            actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
+            assert actual_rows == expected_rows
 
-            for lower_limit in ("", "#3", "#12", "()", "(0)", '(0, "def")', "(1)", '(1, "def")'):
-                check_simple(lower_limit, None)
-                for upper_limit in ("", "#24", "#15", "()", "(2)", '(2, "ghi")', "(1)", '(1, "ghi")'):
-                    check_simple(lower_limit, upper_limit)
-                    check_simple(upper_limit, lower_limit)
+        for lower_limit in ("", "#3", "#12", "()", "(0)", '(0, "def")', "(1)", '(1, "def")'):
+            check_simple(lower_limit, None)
+            for upper_limit in ("", "#24", "#15", "()", "(2)", '(2, "ghi")', "(1)", '(1, "ghi")'):
+                check_simple(lower_limit, upper_limit)
+                check_simple(upper_limit, lower_limit)
 
     @authors("buyval01")
     @pytest.mark.parametrize("dynamic_ranges", [False, True], ids=["explicit", "dynamic"])
-    def test_ypath_group_by_unordered_ranges(self, dynamic_ranges):
+    def test_ypath_group_by_unordered_ranges(self, clique, dynamic_ranges):
         self._create_table()
 
         if dynamic_ranges:
@@ -2843,70 +2843,68 @@ class TestInputFetchingYPath(ClickHouseTestBase):
         else:
             source = "`//tmp/t[(6),(1)]`"
 
-        with Clique(1) as clique:
-            assert_items_equal(
-                clique.make_query(f"select ki, count() as count from {source} group by ki"),
-                [{"ki": 1, "count": 3}, {"ki": 6, "count": 3}],
-            )
+        assert_items_equal(
+            clique.make_query(f"select ki, count() as count from {source} group by ki"),
+            [{"ki": 1, "count": 3}, {"ki": 6, "count": 3}],
+        )
 
     @authors("max42", "dakovalkov")
     @pytest.mark.timeout(500)
-    def test_ypath_complex(self):
+    def test_ypath_complex(self, clique):
         self._create_table()
 
         yson_max = yson.to_yson_type(None, attributes={"type": "max"})
         yson_min = yson.to_yson_type(None, attributes={"type": "min"})
         yson_null = yson.to_yson_type(None)
 
-        with Clique(1) as clique:
-            # Complex form.
-            def check_complex(lower_limit, upper_limit):
-                if upper_limit is None:
-                    range_spec = {"exact": lower_limit}
-                else:
-                    range_spec = {"lower": lower_limit, "upper": upper_limit}
-                table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text").decode())
-                expected_rows = read_table(table_path)
-                actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
-                assert actual_rows == expected_rows
+        # Complex form.
+        def check_complex(lower_limit, upper_limit):
+            if upper_limit is None:
+                range_spec = {"exact": lower_limit}
+            else:
+                range_spec = {"lower": lower_limit, "upper": upper_limit}
+            table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text").decode())
+            expected_rows = read_table(table_path)
+            actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
+            assert actual_rows == expected_rows
 
-            for lower_limit in (
+        for lower_limit in (
+                {},
+                {"row_index": 3},
+                {"row_index": 12},
+                {"key": []},
+                {"key": [0]},
+                {"key": [0, "def"]},
+                {"key": [1]},
+                {"key": [1, "def"]},
+                {"key": [0, yson_max]},
+                {"key": [0, yson_min]},
+                {"key": [0, yson_null]},
+                {"key": [1, yson_max]},
+                {"key": [1, yson_min]},
+                {"key": [1, yson_null]},
+        ):
+            # Empty exact range is invalid.
+            if lower_limit != {}:
+                check_complex(lower_limit, None)
+            for upper_limit in (
                     {},
-                    {"row_index": 3},
-                    {"row_index": 12},
+                    {"row_index": 24},
+                    {"row_index": 15},
                     {"key": []},
-                    {"key": [0]},
-                    {"key": [0, "def"]},
+                    {"key": [2]},
+                    {"key": [2, "ghi"]},
                     {"key": [1]},
-                    {"key": [1, "def"]},
-                    {"key": [0, yson_max]},
-                    {"key": [0, yson_min]},
-                    {"key": [0, yson_null]},
+                    {"key": [1, "ghi"]},
+                    {"key": [2, yson_max]},
+                    {"key": [2, yson_min]},
+                    {"key": [2, yson_null]},
                     {"key": [1, yson_max]},
                     {"key": [1, yson_min]},
                     {"key": [1, yson_null]},
             ):
-                # Empty exact range is invalid.
-                if lower_limit != {}:
-                    check_complex(lower_limit, None)
-                for upper_limit in (
-                        {},
-                        {"row_index": 24},
-                        {"row_index": 15},
-                        {"key": []},
-                        {"key": [2]},
-                        {"key": [2, "ghi"]},
-                        {"key": [1]},
-                        {"key": [1, "ghi"]},
-                        {"key": [2, yson_max]},
-                        {"key": [2, yson_min]},
-                        {"key": [2, yson_null]},
-                        {"key": [1, yson_max]},
-                        {"key": [1, yson_min]},
-                        {"key": [1, yson_null]},
-                ):
-                    check_complex(lower_limit, upper_limit)
-                    check_complex(upper_limit, lower_limit)
+                check_complex(lower_limit, upper_limit)
+                check_complex(upper_limit, lower_limit)
 
 
 @enable_sequoia
