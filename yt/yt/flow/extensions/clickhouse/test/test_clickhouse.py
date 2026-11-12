@@ -309,6 +309,223 @@ class TestClickHouseSink(FlowTestBase):
         assert len(set(ids)) == EXPECTED_COUNT
         self.verify_auto_derived_columns()
 
+    @pytest.mark.authors(["macsia"])
+    @pytest.mark.parametrize(
+        "sink_class_name",
+        [
+            "NYT::NFlow::TClickHouseBatchingSink",
+            "NYT::NFlow::TShardedClickHouseBatchingSink",
+            "NYT::NFlow::TAtLeastOnceClickHouseSink",
+        ],
+    )
+    @pytest.mark.parametrize(
+        "column_type, async_insert",
+        [
+            ("Array(String)", True),
+            ("SimpleAggregateFunction(groupArrayArray, Array(String))", False),
+        ],
+        ids=["plain_array_async", "aggregate_array_sync"],
+    )
+    def test_string_array_types(self, sink_class_name, column_type, async_insert):
+        run_yt_sync("primary", self.work_yt_path)
+        names = ("a1", "b1")
+        started_at = {}
+        for name in names:
+            client = self.cluster.clients[name]
+            client.execute(f"DROP TABLE IF EXISTS {DATABASE}.{TABLE} SYNC")
+            client.execute(f"""
+                CREATE TABLE {DATABASE}.{TABLE} (
+                    id String,
+                    seq Int64,
+                    advertiser_tokens {column_type}
+                )
+                ENGINE = ReplicatedMergeTree('{self.keeper_path(name)}', '{name}')
+                ORDER BY id
+            """)
+            started_at[name] = client.execute("SELECT toUnixTimestamp64Micro(now64(6))")[0][0]
+
+        sharded = sink_class_name == "NYT::NFlow::TShardedClickHouseBatchingSink"
+        config = self.prepare_pipeline_config(
+            sink_class_name,
+            **self.shard_parameters(sharded),
+            partition_count=1,
+            partition_message_count=32,
+            sink_dynamic_parameters={"async_insert": async_insert},
+        )
+        with self.start_flow_process_federation(pipeline_binary_args={"--config": config}):
+            self.wait_pipeline_state("completed", timeout=300)
+
+        common_tokens = ((), ("a",), ("b", "a"), ("c",))
+        rows = []
+        queries = []
+        for name in names:
+            client = self.cluster.clients[name]
+            rows.extend(client.execute(f"SELECT seq, advertiser_tokens FROM {DATABASE}.{TABLE}"))
+            client.execute("SYSTEM FLUSH LOGS")
+            queries.extend(
+                query
+                for (query,) in client.execute(
+                    """
+                    SELECT query FROM system.query_log
+                    WHERE query_start_time_microseconds >= fromUnixTimestamp64Micro(%(started_at)s)
+                      AND query_kind = 'Insert' AND type = 'QueryFinish'
+                      AND startsWith(query, %(insert_prefix)s)
+                    """,
+                    {
+                        "started_at": started_at[name],
+                        "insert_prefix": f"INSERT INTO `{DATABASE}`.`{TABLE}` (",
+                    },
+                )
+            )
+        assert {seq for seq, _ in rows} == set(range(32)), rows
+        for seq, tokens in rows:
+            assert tokens == [f"fixture-{seq}", *common_tokens[seq // 8 % 4]], (seq, tokens)
+        if sink_class_name != "NYT::NFlow::TAtLeastOnceClickHouseSink":
+            assert len(rows) == 32, rows
+        assert queries
+        for query in queries:
+            if async_insert:
+                assert "async_insert=1" in query, query
+                assert "wait_for_async_insert=1" in query, query
+                assert " VALUES" in query and "input(" not in query, query
+            else:
+                assert "async_insert=0" in query, query
+                assert "input(" in query and " FORMAT Native" in query, query
+
+    @pytest.mark.authors(["macsia"])
+    def test_string_array_merge_and_replay_on_two_shards(self):
+        run_yt_sync("primary", self.work_yt_path)
+        names = ("a1", "b1")
+        clients = {name: self.cluster.clients[name] for name in names}
+        table = f"{DATABASE}.{TABLE}"
+        fault_view = f"{DATABASE}.{TABLE}_fail_after_insert"
+        fault = "flow test: rejected after source insert"
+        started_at = {}
+        for name, client in clients.items():
+            client.execute(f"DROP TABLE IF EXISTS {fault_view} SYNC")
+            client.execute(f"DROP TABLE IF EXISTS {table} SYNC")
+            client.execute(f"""
+                CREATE TABLE {table} (
+                    id String,
+                    category String,
+                    advertiser_tokens SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
+                    clicks UInt64,
+                    impressions UInt64,
+                    cost UInt64,
+                    bid UInt64,
+                    impressions_in_top UInt64
+                )
+                ENGINE = ReplicatedSummingMergeTree('{self.keeper_path(name)}', '{name}',
+                    (advertiser_tokens, clicks, impressions, cost, bid, impressions_in_top))
+                ORDER BY category
+            """)
+            client.execute(f"SYSTEM STOP MERGES {table}")
+            started_at[name] = client.execute("SELECT toUnixTimestamp64Micro(now64(6))")[0][0]
+        clients["b1"].execute(f"""
+            CREATE MATERIALIZED VIEW {fault_view} ENGINE = Null AS
+            SELECT throwIf(impressions > 0, '{fault}') AS failure FROM {table}
+        """)
+
+        config = self.prepare_pipeline_config(
+            "NYT::NFlow::TShardedClickHouseBatchingSink",
+            shard_hosts=self.two_shard_hosts(),
+            sharding_key_columns=["code"],
+            partition_count=1,
+            partition_message_count=EXPECTED_COUNT,
+            sink_dynamic_parameters={"retry_backoff": "30s", "max_rows_per_batch": 50, "async_insert": False},
+        )
+
+        def read_insert_attempts(name):
+            client = clients[name]
+            client.execute("SYSTEM FLUSH LOGS")
+            rows = client.execute(
+                """
+                SELECT query, type = 'QueryFinish', exception,
+                       toUnixTimestamp64Micro(query_start_time_microseconds)
+                FROM system.query_log
+                WHERE query_start_time_microseconds >= fromUnixTimestamp64Micro(%(started_at)s)
+                  AND query_kind = 'Insert' AND position(query, 'insert_deduplication_token=') > 0
+                  AND startsWith(query, %(insert_prefix)s)
+                  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+                """,
+                {"insert_prefix": f"INSERT INTO `{DATABASE}`.`{TABLE}` (", "started_at": started_at[name]},
+            )
+
+            attempts = []
+            for query, ok, exception, timestamp in rows:
+                assert "async_insert=0" in query, query
+                token = re.search(r"insert_deduplication_token='([^']+)'", query).group(1)
+                attempts.append((token, ok, exception, timestamp))
+            return attempts
+
+        def rejected_token():
+            return next(
+                (token for token, _, exception, _ in read_insert_attempts("b1") if fault in exception),
+                None,
+            )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": config},
+            start_watcher_thread=False,
+        ) as federation:
+            wait(lambda: clients["b1"].execute(f"SELECT count() FROM {table}")[0][0], timeout=120)
+            wait(rejected_token, timeout=30, sleep_backoff=1)
+            token_b = rejected_token()
+            batch_token, _, shard = token_b.rpartition(":")
+            assert batch_token and shard == "b", token_b
+            token_a = f"{batch_token}:a"
+            before_restart = read_insert_attempts("a1")
+            assert any(token == token_a and ok for token, ok, _, _ in before_restart), before_restart
+            assert any(batch_token.encode() in bounds for _, bounds in self.undelivered_batch_bounds())
+
+            worker = federation.workers[0]
+            worker.kill()
+            restarted_at = {
+                name: client.execute("SELECT toUnixTimestamp64Micro(now64(6))")[0][0]
+                for name, client in clients.items()
+            }
+            clients["b1"].execute(f"DROP TABLE {fault_view} SYNC")
+            worker.start()
+            self.wait_pipeline_state("completed", timeout=300)
+            assert not self.undelivered_batch_bounds()
+
+        # One random-source partition emits one record per offset, starting at zero.
+        # TTypedReader extracts seq from MessageId and selects code with ShardCodes[(seq / 2) % 2].
+        # Codes 0005 and 0004 route each pair of consecutive records to a and b, respectively.
+        common_tokens = ((), ("a",), ("a", "b"), ("c",))
+        fixture = {name: {"even": [], "odd": []} for name in names}
+        for offset in range(EXPECTED_COUNT):
+            name = names[offset // 2 % len(names)]
+            category = "odd" if offset % 2 else "even"
+            fixture[name][category].append(offset)
+        expected = {}
+        for name, categories in fixture.items():
+            expected[name] = []
+            for category, offsets in categories.items():
+                tokens = {f"fixture-{offset}" for offset in offsets}
+                tokens.update(token for offset in offsets for token in common_tokens[offset // 8 % len(common_tokens)])
+                metrics = tuple(len(offsets) * metric for metric in range(1, 6))
+                expected[name].append((category, sorted(tokens), *metrics))
+        snapshot = f"""
+            SELECT category, arraySort(groupUniqArrayArray(advertiser_tokens)),
+                   sum(clicks), sum(impressions), sum(cost), sum(bid), sum(impressions_in_top)
+            FROM {table} GROUP BY category ORDER BY category
+        """
+        for name, expected_token in (("a1", token_a), ("b1", token_b)):
+            attempts = read_insert_attempts(name)
+            assert any(
+                token == expected_token and ok and timestamp >= restarted_at[name]
+                for token, ok, _, timestamp in attempts
+            ), attempts
+
+            client = clients[name]
+            assert client.execute(snapshot) == expected[name]
+            assert client.execute(f"SELECT count() FROM {table}")[0][0] > len(expected[name])
+            client.execute(f"SYSTEM START MERGES {table}")
+            client.execute(f"OPTIMIZE TABLE {table} FINAL")
+            assert client.execute(snapshot) == expected[name]
+            assert client.execute(f"SELECT count() FROM {table}") == [(len(expected[name]),)]
+
     @pytest.mark.authors(["blinkov"])
     def test_dead_configured_endpoint_rejects_startup(self):
         run_yt_sync("primary", self.work_yt_path)

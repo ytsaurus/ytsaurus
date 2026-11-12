@@ -1,5 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/flow/extensions/clickhouse/cpp/sink.h>
 
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -85,6 +87,13 @@ TClickHouseTargetMetadata MakeReplicatedMetadata(std::string replicaName)
         .ReplicationIdentity = TClickHouseReplicationIdentity{"default", "/tables/events"},
         .ReplicaName = std::move(replicaName),
     };
+}
+
+TTableSchemaPtr MakeMetadataTestSchema()
+{
+    return New<TTableSchema>(std::vector{
+        TColumnSchema("id", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+    });
 }
 
 TEST(TClickHouseMetadataBlockTest, EmptyTerminalIsIgnoredAndMalformedBlocksAreRejected)
@@ -257,6 +266,160 @@ TEST(TClickHouseWriterTest, ReconfigureAffectsOnlyNextRequest)
         {TClickHouseShardWrite{}});
     WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClickHouseArrayWriterTest
+    : public testing::TestWithParam<EWriteGuarantee>
+{ };
+
+TEST_P(TClickHouseArrayWriterTest, InvalidAsyncRecoversWithoutDroppingRequest)
+{
+    for (bool initiallyAsync : {false, true}) {
+        SCOPED_TRACE(initiallyAsync);
+        auto parameters = New<TCommonClickHouseSinkParameters>();
+        parameters->Host = "host";
+        parameters->Table = "events";
+        auto initial = New<TDynamicCommonClickHouseSinkParameters>();
+        initial->AsyncInsert = initiallyAsync;
+        initial->RetryBackoff = TDuration::MilliSeconds(10);
+        auto invalid = New<TDynamicCommonClickHouseSinkParameters>();
+        invalid->AsyncInsert = true;
+        invalid->RetryBackoff = TDuration::MilliSeconds(10);
+        auto corrected = New<TDynamicCommonClickHouseSinkParameters>();
+        corrected->RetryBackoff = TDuration::MilliSeconds(10);
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("tokens", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+            TColumnSchema("plain", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+        });
+        auto profiler = CreateSyncStatusProfiler();
+        std::atomic<int> insertAttempts = 0;
+        auto owner = New<TWriterOwner>();
+        TClickHouseWriterPtr writer;
+        TClickHouseWriterTestHooks hooks{
+            .QueryEndpointMetadata = [] (int, const std::string&) {
+                auto metadata = MakeReplicatedMetadata("replica");
+                metadata.Columns = {
+                    {.Name = "tokens", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
+                    {.Name = "plain", .Type = "Array(String)"},
+                };
+                return metadata;
+            },
+            .ResetConnection = [] (int) {
+            },
+            .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
+            },
+            .Insert = [&] (int, bool asyncInsert) {
+                EXPECT_FALSE(asyncInsert);
+                if (++insertAttempts == 1) {
+                    writer->Reconfigure(invalid);
+                    throw std::system_error(std::make_error_code(std::errc::connection_reset));
+                }
+            },
+        };
+        writer = New<TClickHouseWriter>(
+            parameters,
+            initial,
+            ResolveShards(*parameters),
+            profiler->ErrorState("/writing"),
+            NLogging::TLogger("Test"),
+            std::move(hooks));
+        writer->Connect(schema);
+        if (!initiallyAsync) {
+            writer->Reconfigure(invalid);
+        }
+
+        auto write = writer->Write(GetParam(), {TClickHouseShardWrite{}});
+        auto actionQueue = New<TActionQueue>("ClickHouseArrayWriterTest");
+        auto run = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run();
+        auto deadline = TInstant::Now() + TDuration::Seconds(5);
+        while (profiler->GetStatus().Errors.empty() && !write.IsSet() && TInstant::Now() < deadline) {
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+        }
+        const auto errors = profiler->GetStatus().Errors;
+        EXPECT_TRUE(errors.contains("/writing"));
+        if (errors.contains("/writing")) {
+            EXPECT_THAT(ToString(GetOrCrash(errors, "/writing")), testing::HasSubstr("async_insert=false"));
+        }
+        EXPECT_FALSE(write.IsSet());
+        EXPECT_EQ(insertAttempts.load(), 0);
+
+        writer->Reconfigure(corrected);
+        EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
+        EXPECT_EQ(insertAttempts.load(), 2);
+        EXPECT_TRUE(profiler->GetStatus().Errors.empty());
+
+        auto nextWrite = writer->Write(GetParam(), {TClickHouseShardWrite{}});
+        deadline = TInstant::Now() + TDuration::Seconds(5);
+        while (profiler->GetStatus().Errors.empty() && !nextWrite.IsSet() && TInstant::Now() < deadline) {
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+        }
+        EXPECT_TRUE(profiler->GetStatus().Errors.contains("/writing"));
+        EXPECT_FALSE(nextWrite.IsSet());
+        EXPECT_EQ(insertAttempts.load(), 2);
+
+        owner.Reset();
+        (void)writer->Write(GetParam(), {TClickHouseShardWrite{}});
+        EXPECT_FALSE(WaitFor(nextWrite.WithTimeout(TDuration::Seconds(5))).IsOK());
+        WaitFor(run.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    }
+}
+
+TEST_P(TClickHouseArrayWriterTest, PlainArrayAndOmittedAggregateKeepAsync)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->Host = "host";
+    parameters->Table = "events";
+    auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
+    dynamicParameters->AsyncInsert = true;
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("tokens", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+    std::vector<bool> observedAsync;
+    TClickHouseWriterTestHooks hooks{
+        .QueryEndpointMetadata = [] (int, const std::string&) {
+            auto metadata = MakeReplicatedMetadata("replica");
+            metadata.Columns = {
+                {.Name = "tokens", .Type = "Array(String)"},
+                {.Name = "omitted", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
+            };
+            return metadata;
+        },
+        .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
+        },
+        .Insert = [&] (int, bool asyncInsert) {
+            observedAsync.push_back(asyncInsert);
+        },
+    };
+    auto writer = New<TClickHouseWriter>(
+        parameters,
+        dynamicParameters,
+        ResolveShards(*parameters),
+        CreateSyncStatusProfiler()->ErrorState("/writing"),
+        NLogging::TLogger("Test"),
+        std::move(hooks));
+    writer->Connect(schema);
+    auto owner = New<TWriterOwner>();
+    auto write = writer->Write(GetParam(), {TClickHouseShardWrite{}});
+    auto actionQueue = New<TActionQueue>("ClickHouseArrayWriterTest");
+    auto run = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
+        .AsyncVia(actionQueue->GetInvoker())
+        .Run();
+
+    EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_EQ(observedAsync, std::vector<bool>{true});
+
+    owner.Reset();
+    (void)writer->Write(GetParam(), {TClickHouseShardWrite{}});
+    WaitFor(run.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Guarantees,
+    TClickHouseArrayWriterTest,
+    testing::Values(EWriteGuarantee::ExactlyOnce, EWriteGuarantee::AtLeastOnce));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,8 +658,9 @@ TEST(TClickHouseWriterMetadataTest, VisitsEveryEndpointOnceAndPublishesAtomicall
         profiler->ErrorState("/writing"),
         NLogging::TLogger("Test"),
         std::move(testHooks));
+    const auto schema = MakeMetadataTestSchema();
     mismatchLaterEndpoint = true;
-    EXPECT_THROW(writer->Connect(), std::exception);
+    EXPECT_THROW(writer->Connect(schema), std::exception);
     EXPECT_EQ(
         visits,
         (std::vector<std::pair<int, std::string>>{
@@ -506,11 +670,12 @@ TEST(TClickHouseWriterMetadataTest, VisitsEveryEndpointOnceAndPublishesAtomicall
             {1, "b2"},
         }));
     EXPECT_TRUE(configuredShards.empty());
-    EXPECT_TRUE(writer->GetTableColumns().empty());
 
     mismatchLaterEndpoint = false;
     visits.clear();
-    EXPECT_NO_THROW(writer->Connect());
+    const auto columns = writer->Connect(schema);
+    ASSERT_EQ(columns.size(), 1u);
+    EXPECT_EQ(columns.front().Name, "id");
     EXPECT_EQ(
         visits,
         (std::vector<std::pair<int, std::string>>{
@@ -520,17 +685,17 @@ TEST(TClickHouseWriterMetadataTest, VisitsEveryEndpointOnceAndPublishesAtomicall
             {1, "b2"},
         }));
     EXPECT_EQ(configuredShards, (std::vector<int>{0, 1}));
-    const auto publishedColumns = writer->GetTableColumns();
 
     auto changedDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     changedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
     writer->Reconfigure(changedDynamicParameters);
     failMultipleEndpoints = true;
     visits.clear();
-    EXPECT_NO_THROW(writer->Connect());
+    const auto reconnectedColumns = writer->Connect(schema);
+    ASSERT_EQ(reconnectedColumns.size(), 1u);
+    EXPECT_EQ(reconnectedColumns.front().Name, "id");
     EXPECT_TRUE(visits.empty());
     EXPECT_EQ(configuredShards, (std::vector<int>{0, 1, 0, 1}));
-    EXPECT_EQ(writer->GetTableColumns(), publishedColumns);
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 }
 
@@ -566,15 +731,16 @@ TEST(TClickHouseWriterMetadataTest, ConfigurationRetryReusesPublishedMetadata)
         profiler->ErrorState("/writing"),
         NLogging::TLogger("Test"),
         std::move(testHooks));
+    const auto schema = MakeMetadataTestSchema();
 
-    EXPECT_THROW(writer->Connect(), std::exception);
+    EXPECT_THROW(writer->Connect(schema), std::exception);
     EXPECT_NE(
         ToString(profiler->GetStatus().Errors.at("/writing")).find("configuration-failure-a"),
         std::string::npos);
     EXPECT_EQ(metadataQueries, 3);
 
     phase = 2;
-    EXPECT_NO_THROW(writer->Connect());
+    EXPECT_NO_THROW(writer->Connect(schema));
     EXPECT_EQ(metadataQueries, 3);
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 }
@@ -611,18 +777,19 @@ TEST(TClickHouseWriterMetadataTest, WriteTimeoutReconfigureDoesNotRepeatEndpoint
         CreateSyncStatusProfiler()->ErrorState("/writing"),
         NLogging::TLogger("Test"),
         std::move(testHooks));
+    const auto schema = MakeMetadataTestSchema();
 
-    EXPECT_NO_THROW(writer->Connect());
+    EXPECT_NO_THROW(writer->Connect(schema));
     EXPECT_EQ(metadataQueries, 1);
     EXPECT_EQ(configurationAttempts, 1);
 
     writer->Reconfigure(updatedDynamicParameters);
     failConfiguration = true;
-    EXPECT_THROW(writer->Connect(), std::exception);
+    EXPECT_THROW(writer->Connect(schema), std::exception);
     EXPECT_EQ(metadataQueries, 1);
     EXPECT_EQ(configurationAttempts, 2);
 
-    EXPECT_NO_THROW(writer->Connect());
+    EXPECT_NO_THROW(writer->Connect(schema));
     EXPECT_EQ(metadataQueries, 1);
     EXPECT_EQ(configurationAttempts, 3);
 }
