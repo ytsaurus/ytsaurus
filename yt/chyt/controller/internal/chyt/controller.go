@@ -336,25 +336,25 @@ func (c *Controller) Root() ypath.Path {
 	return c.root
 }
 
-func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
+func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (*strawberry.PrepareResult, error) {
+	result := &strawberry.PrepareResult{}
 	alias := oplet.Alias()
 
-	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
+	result.Description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
-	var opletInfo chytOpletInfo
+	var info chytOpletInfo
 	var filePaths []ypath.Rich
 
 	// Populate resources.
-	err = c.populateResources(&speclet)
+	err := c.populateResources(&speclet)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	err = c.prepareCypressDirectories(ctx, oplet.Alias())
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if speclet.ODBCConfig.EnableOrDefault() {
@@ -372,39 +372,38 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	// Build artifacts if there are no local binaries.
 	if c.config.LocalBinariesDir == nil {
-		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description, &opletInfo)
+		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &result.Description, &info)
 		if err != nil {
-			return
+			return nil, err
 		}
 	} else {
-		opletInfo.CHYTRunningVersion = "LocalVersion"
-		opletInfo.CHYTRunningVersionPath = filepath.Join(*c.config.LocalBinariesDir, "ytserver-clickhouse")
+		info.CHYTRunningVersion = "LocalVersion"
+		info.CHYTRunningVersionPath = filepath.Join(*c.config.LocalBinariesDir, "ytserver-clickhouse")
 	}
 	speclet.logsDir, err = c.prepareLocalLogs(oplet)
 	if err != nil {
-		return nil, nil, nil, false, fmt.Errorf("failed to prepare local logs directory: %w", err)
+		return nil, fmt.Errorf("failed to prepare local logs directory: %w", err)
 	}
 
 	// Build configs.
-	opletInfo.ClusterConnectionDynamicConfigMode = speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault())
+	info.ClusterConnectionDynamicConfigMode = speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault())
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
 	if err != nil {
-		return
+		return nil, err
 	}
-	oplet.SetOpletInfo(opletInfo)
 
 	// Upload odbcinst.ini and odbc.ini as Cypress file artifacts so they land in the job sandbox.
 	if speclet.ODBCConfig.EnableOrDefault() {
 		err = c.appendODBCConfigs(ctx, oplet, &speclet, &filePaths)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 
 	if speclet.JDBCConfig.EnableOrDefault() {
 		err = c.appendJDBCConfig(ctx, oplet, &speclet, &filePaths)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 
@@ -415,7 +414,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		portCount++
 	}
 
-	spec = map[string]any{
+	result.Spec = map[string]any{
 		"tasks": map[string]any{
 			"instances": map[string]any{
 				"command":                            command,
@@ -434,7 +433,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"max_stderr_count":     150,
 		"title":                "CHYT clique *" + alias,
 	}
-	annotations = map[string]any{
+	result.Annotations = map[string]any{
 		"is_clique": true,
 		"expose":    true,
 	}
@@ -456,15 +455,20 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		var runtimePaths runtimePaths
 		runtimePaths, err = c.prepareRuntime(ctx, runtimeSpec, oplet.NextIncarnationIndex())
 		if err != nil {
-			return
+			return nil, err
 		}
-		spec["stderr_table_path"] = runtimePaths.StderrTable
-		spec["core_table_path"] = runtimePaths.CoreTable
+		result.Spec["stderr_table_path"] = runtimePaths.StderrTable
+		result.Spec["core_table_path"] = runtimePaths.CoreTable
 	}
 
-	runAsUser = false
+	result.RunAsUser = false
 
-	return
+	opletInfo, err := yson.Marshal(info)
+	if err != nil {
+		return nil, err
+	}
+	result.OpletInfo = opletInfo
+	return result, nil
 }
 
 func (c *Controller) Family() string {
