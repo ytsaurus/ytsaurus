@@ -2,14 +2,14 @@ package strawberry
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"reflect"
 	"regexp"
 	"text/template"
 
-	"golang.org/x/xerrors"
-
-	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -17,10 +17,36 @@ import (
 )
 
 var (
+	unknownOperationAliasRE   = regexp.MustCompile("^Operation alias is unknown$")
 	noSuchOperationRE         = regexp.MustCompile("[Nn]o such operation")
 	aliasAlreadyUsedRE        = regexp.MustCompile("alias is already used by an operation")
 	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 )
+
+type YsonHashEncoder struct {
+	*yson.Encoder
+	hasher hash.Hash
+}
+
+func (encoder *YsonHashEncoder) Sum() string {
+	return hex.EncodeToString(encoder.hasher.Sum(nil))
+}
+
+func NewYsonHashEncoder() YsonHashEncoder {
+	hasher := sha256.New()
+	return YsonHashEncoder{
+		Encoder: yson.NewEncoderWriter(
+			yson.NewWriterConfig(
+				hasher,
+				yson.WriterConfig{
+					Format: yson.FormatBinary,
+					Kind:   yson.StreamListFragment,
+				},
+			),
+		),
+		hasher: hasher,
+	}
+}
 
 func containsAnyErrorCode(err error, brokenStateSignalErrorCodes []yterrors.ErrorCode) bool {
 	for _, code := range brokenStateSignalErrorCodes {
@@ -60,20 +86,6 @@ func toOperationACL(acl []yt.ACE) []yt.ACE {
 	}
 
 	return result
-}
-
-func extractOpID(err error) yt.OperationID {
-	var ytErr *yterrors.Error
-	if ok := xerrors.As(err, &ytErr); !ok {
-		panic(fmt.Errorf("cannot convert error to YT error: %v", err))
-	}
-	// TODO(max42): there must be a way better to do this...
-	ytErr = ytErr.InnerErrors[0].InnerErrors[0]
-	opID, parseErr := guid.ParseString(ytErr.Attributes["operation_id"].(string))
-	if parseErr != nil {
-		panic(fmt.Errorf("malformed YT operation ID in error attributes: %v", parseErr))
-	}
-	return yt.OperationID(opID)
 }
 
 type FieldDiff struct {
