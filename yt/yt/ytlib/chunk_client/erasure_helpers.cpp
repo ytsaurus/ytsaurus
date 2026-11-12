@@ -633,6 +633,17 @@ TFuture<TRefCountedChunkMetaPtr> GetPlacementMeta(
         std::vector<int>{ TProtoExtensionTag<NProto::TErasurePlacementExt>::Value });
 }
 
+TErasurePlacementExt GetPlacementExtOrThrow(
+    TChunkId chunkId,
+    const TRefCountedChunkMetaPtr& meta)
+{
+    auto placementExt = FindProtoExtension<TErasurePlacementExt>(meta->extensions());
+    if (!placementExt) {
+        THROW_ERROR_EXCEPTION("Chunk %v has no erasure placement extension", chunkId);
+    }
+    return std::move(*placementExt);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(

@@ -173,6 +173,10 @@ TFuture<TRefCountedChunkMetaPtr> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TClientChunkReadOptions& options);
 
+NProto::TErasurePlacementExt GetPlacementExtOrThrow(
+    TChunkId chunkId,
+    const TRefCountedChunkMetaPtr& meta);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDataBlocksPlacementInPart
