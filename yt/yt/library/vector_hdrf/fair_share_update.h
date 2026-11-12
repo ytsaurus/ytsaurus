@@ -260,7 +260,8 @@ private:
     void PrepareFifoPool();
 
     void ReorderFifoChildrenForGuaranteeUtilization(TFairShareUpdateContext* context);
-    std::vector<TElement*> GetReorderedFifoChildrenForGuaranteeUtilization() const;
+    std::vector<TElement*> GetReorderedFifoChildrenForGuaranteeUtilization(
+        const TFairShareUpdateContext* context) const;
 
     double GetMinChildWeight() const;
 
@@ -401,6 +402,7 @@ struct TFairShareUpdateContext
     const TFairShareUpdateOptions Options;
 
     const TJobResources TotalResourceLimits;
+    const TResourceVector AdaptiveEpsilon;
 
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;

@@ -21,6 +21,16 @@ TJobResources TJobResources::Infinite()
     return result;
 }
 
+TJobResources TJobResources::Quantum()
+{
+    TJobResources result;
+#define XX(name, Name) result.Set##Name(1);
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+    result.SetCpu(1.0 / TCpuResource::ScalingFactor);
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EJobResourceType GetDominantResource(

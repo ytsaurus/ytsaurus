@@ -61,6 +61,7 @@ target_link_options(unittester-fair-share-update PRIVATE
 
 target_sources(unittester-fair-share-update PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/resource_vector_ut.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/vector_hdrf/unittests/d630381fc6e0125d8980fd3b6c50ca39.cpp
 )
 

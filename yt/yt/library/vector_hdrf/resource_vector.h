@@ -61,6 +61,10 @@ public:
         double zeroDivByZero = 0.0,
         double oneDivByZero = 0.0);
 
+    //! Computes per-resource max(Epsilon(), 1e-3 * TJobResources::Quantum() / totalLimits).
+    //! Zero total limits yield Epsilon().
+    static TResourceVector ComputeAdaptiveEpsilon(const TJobResources& totalLimits);
+
     static constexpr TResourceVector Epsilon()
     {
         return FromDouble(NVectorHdrf::Epsilon);

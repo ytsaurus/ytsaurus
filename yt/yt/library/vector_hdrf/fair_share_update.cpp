@@ -479,7 +479,7 @@ void TCompositeElement::ReorderFifoChildrenForGuaranteeUtilization(TFairShareUpd
         return;
     }
 
-    auto reorderedChildren = GetReorderedFifoChildrenForGuaranteeUtilization();
+    auto reorderedChildren = GetReorderedFifoChildrenForGuaranteeUtilization(context);
     if (reorderedChildren == SortedChildren_) {
         return;
     }
@@ -503,7 +503,8 @@ void TCompositeElement::ReorderFifoChildrenForGuaranteeUtilization(TFairShareUpd
 
 //! Walks the children in their FIFO order and greedily accepts those fitting into the strong guarantee,
 //! deferring pending gangs that do not fit.
-std::vector<TElement*> TCompositeElement::GetReorderedFifoChildrenForGuaranteeUtilization() const
+std::vector<TElement*> TCompositeElement::GetReorderedFifoChildrenForGuaranteeUtilization(
+    const TFairShareUpdateContext* context) const
 {
     YT_VERIFY(GetMode() == ESchedulingMode::Fifo);
 
@@ -542,7 +543,9 @@ std::vector<TElement*> TCompositeElement::GetReorderedFifoChildrenForGuaranteeUt
 
         // A running gang is never deferred: it is accepted even when it does not fit.
         bool running = child->GetResourceUsageAtUpdate() != TJobResources();
-        bool fits = Dominates(guaranteeShare + TResourceVector::Epsilon(), acceptedDemandShare + limitedDemandShare);
+        bool fits = Dominates(
+            guaranteeShare + context->AdaptiveEpsilon,
+            acceptedDemandShare + limitedDemandShare);
         bool shouldDefer = reorderingStopped || (operation->IsGangLike() && !running && !fits);
 
         if (shouldDefer) {
@@ -1773,6 +1776,7 @@ TFairShareUpdateContext::TFairShareUpdateContext(
     const std::optional<TInstant> previousUpdateTime)
     : Options(options)
     , TotalResourceLimits(totalResourceLimits)
+    , AdaptiveEpsilon(TResourceVector::ComputeAdaptiveEpsilon(TotalResourceLimits))
     , Now(now)
     , PreviousUpdateTime(previousUpdateTime)
 { }
