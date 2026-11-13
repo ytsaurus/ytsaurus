@@ -110,3 +110,14 @@ Static: a change means a stop and a conversion of the timers at the next start. 
 Timer page size (number of timers) for the `paged` store. At least 16. Pages are split and merged gradually under the maintenance budget. Timer rows stay in their family. ||
 |#
 
+
+{% cut "**Additional parameters**" %}
+
+
+#|
+|| `max_local_message_byte_size` | **Type**: `std::optional<long>`
+Raises the output message and string value size limit up to this value for streams consumed only by sinks of this computation. Such a stream cannot be an input of another computation. ||
+|#
+
+
+{% endcut %}

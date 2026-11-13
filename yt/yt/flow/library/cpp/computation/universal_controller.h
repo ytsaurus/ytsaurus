@@ -95,6 +95,11 @@ public:
     void Sync() final;
     void Commit() final;
 
+    TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
+        const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+        const TNodeTraverseDataPtr& currentTraverseData,
+        const TFlowViewPtr& flowView) override;
+
     void UpdateWatermarkState(TWatermarkStatePtr watermarkState) final;
     // thread safe
     TWatermarkStatePtr GetWatermarkState();
@@ -111,7 +116,7 @@ protected:
 
     TNodesByAvailabilityGroupBySource GetNodesByAvailabilityGroupBySource(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
-        const TFlowViewPtr& flowView) final;
+        const TFlowViewPtr& flowView) override;
     std::optional<TNodeTraverseDataPtr> GetFuturePartitionsNodeTraverseData(const TFlowViewPtr& flowView) final;
 
 private:

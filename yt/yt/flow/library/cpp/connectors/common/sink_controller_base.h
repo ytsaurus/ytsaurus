@@ -26,6 +26,7 @@ public:
     void Commit() override;
 
     void UpdateWatermarkState(TWatermarkStatePtr watermarkState) final;
+    void UpdatePartitionStatuses(const TSinkPartitionStatuses& statuses) override;
     TWatermarkStatePtr GetWatermarkState();
 
 protected:

@@ -6,6 +6,7 @@ RECURSE(
     log_parser
     noop
     proto_parser
+    queue_static_table_export
     retryable_async_request
     shuffle
     static_table_join

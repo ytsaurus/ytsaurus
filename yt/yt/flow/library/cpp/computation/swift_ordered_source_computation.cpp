@@ -429,7 +429,10 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
             }
             publishedOutputs += 1;
 
-            auto outputMessage = New<TSwiftOrderedSourceComputationOutputMessage>(std::move(message), GetContext()->StreamSpecStorage);
+            auto outputMessage = New<TSwiftOrderedSourceComputationOutputMessage>(
+                std::move(message),
+                GetContext()->StreamSpecStorage,
+                GetSpec()->MaxLocalMessageByteSize);
             outputMessage->OnDistributedCallback = batchTracker.AddDestination();
             if (outputMessagesSorted && !allOutputMessages.empty()) {
                 outputMessagesSorted = allOutputMessages.back()->MessageId <= outputMessage->MessageId;

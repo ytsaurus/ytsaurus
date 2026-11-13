@@ -7,3 +7,5 @@ items:
     href: clickhouse.md
   - name: Kafka
     href: kafka.md
+  - name: Экспорт в статические таблицы
+    href: static-table-export.md

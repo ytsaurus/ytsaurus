@@ -228,6 +228,16 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TProcessFunctionComputation.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TProcessFunctionSourceComputation.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TProcessFunctionStaticTableExportSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TProcessFunctionSwiftMapComputation.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TProcessFunctionTransformOrderedSourceComputation.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TQueueSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TRandomSource.md) %}
@@ -390,6 +400,16 @@
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TProcessFunctionComputation.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TProcessFunctionSourceComputation.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TProcessFunctionStaticTableExportSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TProcessFunctionSwiftMapComputation.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TProcessFunctionTransformOrderedSourceComputation.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TQueueSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TRandomSource.md) %}
@@ -509,6 +529,8 @@
 {% include [_](./NYT_NTCMalloc_TMemoryProfileRetentionConfig.md) %}
 
 {% include [_](./NYT_NTCMalloc_TTCMallocConfig.md) %}
+
+{% include [_](./NYT_NTableClient_EOptimizeFor.md) %}
 
 {% include [_](./NYT_NTracing_TJaegerTracerConfig.md) %}
 

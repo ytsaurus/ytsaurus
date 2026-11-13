@@ -96,6 +96,8 @@ void TComputationPartitionStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("active_source_status", &TThis::ActiveSourceStatus)
         .Default();
+    registrar.Parameter("sink_statuses", &TThis::SinkStatuses)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

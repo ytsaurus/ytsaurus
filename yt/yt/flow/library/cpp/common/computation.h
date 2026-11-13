@@ -184,6 +184,7 @@ struct TComputationPartitionStatus
     : public NYTree::TYsonStruct
 {
     std::optional<NYTree::IMapNodePtr> ActiveSourceStatus;
+    THashMap<TSinkId, NYTree::IMapNodePtr> SinkStatuses;
 
     REGISTER_YSON_STRUCT(TComputationPartitionStatus);
 

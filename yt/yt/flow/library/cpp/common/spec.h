@@ -658,6 +658,9 @@ struct TComputationSpec
     std::optional<bool> ExperimentalEnableNonUintKey;
     THashSet<TStreamId> InputStreamIds;
     THashSet<TStreamId> OutputStreamIds;
+    //! Output messages up to this size are allowed when every output stream is consumed only by local sinks.
+    //! Only #TSwiftOrderedSourceComputation honors it.
+    std::optional<i64> MaxLocalMessageByteSize;
 
     THashMap<TStreamId, THashSet<TStreamId>> StreamsDependency;
 

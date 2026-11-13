@@ -26,6 +26,14 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> ISink::BuildInflight() const
 void ISink::UpdateWatermarkState(TWatermarkStatePtr /*state*/)
 { }
 
+NYTree::IMapNodePtr ISink::GetPartitionStatus() const
+{
+    return nullptr;
+}
+
+void ISink::BeforeGracefulShutdown()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

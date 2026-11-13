@@ -572,8 +572,8 @@ auto TQueueSourceImpl::UnpackRecord(const TPackedRow& packedRow) -> TRecord
     const auto& row = packedRow.Row;
     auto [payloads, payloadSchema] = UnpackRow(row, packedRow.Schema);
 
-    auto writeTime = TSystemTimestamp(
-        NTransactionClient::UnixTimeFromTimestamp(FromUnversionedValue<NTransactionClient::TTimestamp>(row[packedRow.TimestampColumnId])));
+    const auto timestamp = FromUnversionedValue<NTransactionClient::TTimestamp>(row[packedRow.TimestampColumnId]);
+    auto writeTime = TSystemTimestamp(NTransactionClient::UnixTimeFromTimestamp(timestamp));
 
     std::optional<TFlowQueueMeta> meta;
     if (packedRow.MetaColumnId && GetParameters()->TryParseFlowQueueMeta) {
@@ -601,6 +601,7 @@ auto TQueueSourceImpl::UnpackRecord(const TPackedRow& packedRow) -> TRecord
         .Meta = meta,
         .Payloads = std::move(payloads),
         .PayloadSchema = payloadSchema,
+        .WriteTimeMilliseconds = NTransactionClient::TimestampToInstant(timestamp).first.MilliSeconds(),
     };
 }
 

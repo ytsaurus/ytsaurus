@@ -1,0 +1,72 @@
+{
+    "spec" = {
+        "computations" = {
+            "export" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["rows"];
+                "watermark_strategy" = {
+                    "event_timestamp_assigner" = {"column" = "write_time_ms"; "format" = "milli_seconds"; "limit_by_system_timestamp" = %false;};
+                    "watermark_generator" = {
+                        "use_source_watermark" = %false;
+                        "out_of_orderness_bound" = 0;
+                        "idle_partitions" = {"duration" = "10s"; "max_ratio" = 1.0;};
+                    };
+                    "watermark_alignment" = {"group_name" = "queue-export"; "drift_bound" = "6m";};
+                };
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "try_parse_flow_queue_meta" = %false;
+                            "write_time_column" = "write_time_ms";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "export" = {
+                        "sink_class_name" = "NYT::NFlow::TProcessFunctionStaticTableExportSink";
+                        "input_stream_ids" = ["rows"];
+                        "parameters" = {
+                            "output_directory" = "//path/to/export";
+                            "writer_resource_id" = "ExportWriter";
+                            "window_period" = "5m";
+                            "max_unpublished_window_count" = 8;
+                            "processing_function" = "NYT::NFlow::NExample::TParseLineFunction";
+                            "schema" = [
+                                {"name" = "level"; "type" = "string";};
+                                {"name" = "text"; "type" = "string";};
+                            ];
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "ExportWriter" = {"worker" = %true; "controller" = %false;};
+                };
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {"name" = "line"; "type" = "string";};
+                    {"name" = "$row_index"; "type" = "int64";};
+                    {"name" = "write_time_ms"; "type" = "uint64";};
+                ];
+            };
+        };
+        "resources" = {
+            "ExportWriter" = {
+                "resource_class_name" = "NYT::NFlow::TStaticTableExportWriterResource";
+                "parameters" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "export" = {
+                "batch_duration" = 100;
+            };
+        };
+    };
+}

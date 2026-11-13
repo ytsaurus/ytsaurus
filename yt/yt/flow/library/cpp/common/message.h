@@ -176,7 +176,11 @@ struct TOutputMessage
 {
     i64 ByteSize;
 
-    TOutputMessage(TMessage&& message, const TComputationStreamSpecStoragePtr& specStorage);
+    //! |maxLocalMessageByteSize| permits larger messages for streams consumed only by local sinks.
+    TOutputMessage(
+        TMessage&& message,
+        const TComputationStreamSpecStoragePtr& specStorage,
+        std::optional<i64> maxLocalMessageByteSize = std::nullopt);
 
     const TMessageMeta& GetMeta() const final;
 };

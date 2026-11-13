@@ -275,6 +275,9 @@ struct TNullSinkController
     void UpdateWatermarkState(TWatermarkStatePtr /*watermarkState*/) override
     { }
 
+    void UpdatePartitionStatuses(const TSinkPartitionStatuses& /*statuses*/) override
+    { }
+
     std::optional<i64> GetReceiverChannelCount() override
     {
         return {};
@@ -326,6 +329,27 @@ struct TNullSink
 };
 
 YT_FLOW_DEFINE_SINK(TNullSink);
+
+TEST(TSpecTest, LargeLocalMessagesStayInTheProducerJob)
+{
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R"({
+        computations = {
+            producer = {
+                computation_class_name = "NYT::NFlow::TNullComputation";
+                max_local_message_byte_size = 67108864;
+                output_stream_ids = [out];
+                sinks = {local = {sink_class_name = "NYT::NFlow::TNullSink"; input_stream_ids = [out];};};
+            };
+        };
+        streams = {out = {schema = [];};};
+    })"));
+    EXPECT_NO_THROW(ValidatePipelineSpec(spec));
+    auto consumer = New<TComputationSpec>();
+    consumer->ComputationClassName = "NYT::NFlow::TNullComputation";
+    consumer->InputStreamIds.insert(TStreamId("out"));
+    spec->Computations.emplace(TComputationId("consumer"), consumer);
+    EXPECT_THROW_WITH_SUBSTRING(ValidatePipelineSpec(spec), "cannot be consumed");
+}
 
 struct TNullResource
     : public TResourceLifecycleBase
