@@ -14,6 +14,8 @@
 
 #include <library/cpp/yt/system/atomic_object.h>
 
+#include <algorithm>
+
 namespace NYT::NDiskManager {
 
 using namespace NConcurrency;
@@ -46,6 +48,7 @@ public:
         , DiskInfoProvider_(CreateDiskInfoProvider(
             DiskManagerProxy_,
             config->DiskInfoProvider))
+        , DiskScope_(config->DiskScope)
     {
         CheckerExecutor_->Start();
     }
@@ -79,6 +82,7 @@ private:
     const NYTree::IYPathServicePtr OrchidService_;
     const IDiskManagerProxyPtr DiskManagerProxy_;
     const IDiskInfoProviderPtr DiskInfoProvider_;
+    const TDiskScopeConfigPtr DiskScope_;
 
     TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<std::string> OldDiskIds_;
@@ -109,45 +113,63 @@ private:
 
         auto oldDiskIds = OldDiskIds_;
 
+        const bool hasDiskScope = static_cast<bool>(DiskScope_);
+
+        auto isDiskInScope = [&] (const TDiskInfo& diskInfo) {
+            if (!hasDiskScope) {
+                return true;
+            }
+
+            return std::ranges::any_of(diskInfo.PartitionFsLabels, [&] (const auto& fsLabel) {
+                return DiskScope_->FsLabels.contains(fsLabel);
+            });
+        };
+
         THashSet<std::string> diskIds;
         THashSet<std::string> aliveDiskIds;
-        THashSet<std::string> configDiskIds;
 
         const auto& diskInfos = diskInfosOrError.Value();
         for (const auto& diskInfo : diskInfos) {
-            if (diskInfo.State == EDiskState::OK) {
+            if (diskInfo.State != EDiskState::OK) {
+                continue;
+            }
+
+            diskIds.insert(diskInfo.DiskId);
+            if (isDiskInScope(diskInfo)) {
                 aliveDiskIds.insert(diskInfo.DiskId);
-                diskIds.insert(diskInfo.DiskId);
             }
         }
 
-        for (const auto& diskId : DiskInfoProvider_->GetConfigDiskIds()) {
-            configDiskIds.insert(diskId);
-        }
+        const auto& configDiskIds = hasDiskScope
+            ? DiskScope_->DiskIds
+            : DiskInfoProvider_->GetConfigDiskIds();
 
-        auto checkDisks = [] (const THashSet<std::string>& oldDiskIds, const THashSet<std::string>& newDiskIds) {
-            for (const auto& newDiskId : newDiskIds) {
-                if (!oldDiskIds.contains(newDiskId)) {
-                    return false;
-                }
-            }
+        // Compare disk sets if a scope is configured or both the configured
+        // and previous runtime snapshots are non-empty.
+        // In scoped mode, report a mismatch if disks appear in the scope
+        // but their IDs are missing from the configured snapshot.
+        const bool shouldCheckDiskSets = hasDiskScope || (!oldDiskIds.empty() && !configDiskIds.empty());
 
-            return true;
-        };
+        // Skip runtime-change detection until a non-empty disk snapshot has been observed.
+        const bool runtimeDiskSetChanged = !oldDiskIds.empty() && oldDiskIds != aliveDiskIds;
 
-        if (!oldDiskIds.empty() && !configDiskIds.empty()) {
-            if (!checkDisks(oldDiskIds, aliveDiskIds) ||
-                !checkDisks(aliveDiskIds, oldDiskIds) ||
-                !checkDisks(configDiskIds, diskIds) ||
-                !checkDisks(diskIds, configDiskIds))
-            {
-                YT_TLOG_WARNING("Mismatching disk ids found");
-                DiskIdsMismatchedAlert_.Store(TError(NDiskManager::EErrorCode::DiskIdsMismatched, "Disk ids mismatched")
-                    .With("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
-                    .With("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
-                    .With("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
-                    .With("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end())));
-            }
+        const bool configDiskSetMismatched = configDiskIds != aliveDiskIds;
+
+        if (shouldCheckDiskSets && (runtimeDiskSetChanged || configDiskSetMismatched)) {
+            YT_TLOG_WARNING("Mismatching disk ids found")
+                .With("RuntimeDiskSetChanged", runtimeDiskSetChanged)
+                .With("ConfigDiskSetMismatched", configDiskSetMismatched);
+            DiskIdsMismatchedAlert_.Store(TError(NDiskManager::EErrorCode::DiskIdsMismatched, "Disk ids mismatched")
+                .With("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
+                .With("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
+                .With("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
+                .With("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end()))
+                .With("disk_scope_enabled", hasDiskScope)
+                .With("scoped_disk_fs_labels", hasDiskScope
+                    ? std::vector(DiskScope_->FsLabels.begin(), DiskScope_->FsLabels.end())
+                    : std::vector<std::string>())
+                .With("runtime_disk_set_changed", runtimeDiskSetChanged)
+                .With("config_disk_set_mismatched", configDiskSetMismatched));
         }
 
         OldDiskIds_ = std::move(aliveDiskIds);

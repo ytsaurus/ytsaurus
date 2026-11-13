@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
 struct TDiskInfoProviderConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<std::string> DiskIds;
+    THashSet<std::string> DiskIds;
     std::string YTDiskPrefix;
 
     REGISTER_YSON_STRUCT(TDiskInfoProviderConfig);
@@ -37,6 +37,21 @@ struct TDiskInfoProviderConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskInfoProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskScopeConfig
+    : public NYTree::TYsonStruct
+{
+    THashSet<std::string> FsLabels;
+    THashSet<std::string> DiskIds;
+
+    REGISTER_YSON_STRUCT(TDiskScopeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskScopeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +74,7 @@ struct THotswapManagerConfig
 {
     TDiskManagerProxyConfigPtr DiskManagerProxy;
     TDiskInfoProviderConfigPtr DiskInfoProvider;
+    TDiskScopeConfigPtr DiskScope;
 
     REGISTER_YSON_STRUCT(THotswapManagerConfig);
 
