@@ -25,7 +25,6 @@ SRCS(
     inflight_tracker.cpp
     input_context.cpp
     job_directory.cpp
-    job_proxy_client.cpp
     key.cpp
     lag.cpp
     message_batch.cpp
@@ -44,6 +43,7 @@ SRCS(
     resource_controller.cpp
     resource_manager.cpp
     resource_status.cpp
+    rpc_clients_cache.cpp
     runtime_init_context.cpp
     schema.cpp
     select_literals.cpp

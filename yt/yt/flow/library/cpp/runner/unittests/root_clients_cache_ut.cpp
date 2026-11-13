@@ -2,7 +2,6 @@
 
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 
-#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
@@ -80,7 +79,15 @@ DEFINE_REFCOUNTED_TYPE(TFakeClientsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TRootClientsCacheTest, BuiltInFactory)
+class TRootClientsCacheTest
+    : public ::testing::Test
+{
+private:
+    NTesting::TEnvGuard ClusterGuard_{"YT_FLOW_JOB_PROXY_CLUSTER"};
+    NTesting::TEnvGuard SocketGuard_{"YT_JOB_PROXY_SOCKET_PATH"};
+};
+
+TEST_F(TRootClientsCacheTest, BuiltInFactory)
 {
     auto cache = CreateRootClientsCache(MakeOptions());
 
@@ -88,7 +95,7 @@ TEST(TRootClientsCacheTest, BuiltInFactory)
     EXPECT_TRUE(cache->GetClient("localhost:1"));
 }
 
-TEST(TRootClientsCacheTest, PipelineClusterOfFullUrlMatchesShortName)
+TEST_F(TRootClientsCacheTest, PipelineClusterOfFullUrlMatchesShortName)
 {
     auto client = CreateRootClientsCache(MakeOptions())->GetClient("hahn.yt.yandex.net");
     ASSERT_TRUE(client);
@@ -128,7 +135,7 @@ TEST(TRootClientsCacheTest, PipelineClusterOfFullUrlMatchesShortName)
         "claimed for writing");
 }
 
-TEST(TRootClientsCacheTest, FactoryParametersWithoutFactory)
+TEST_F(TRootClientsCacheTest, FactoryParametersWithoutFactory)
 {
     auto options = MakeOptions();
     options.Parameters = ConvertToNode(TYsonString(TStringBuf("{federation=[a]}")));
@@ -138,7 +145,7 @@ TEST(TRootClientsCacheTest, FactoryParametersWithoutFactory)
         "no root clients cache factory is installed");
 }
 
-TEST(TRootClientsCacheTest, ProxyRoleReachesPerClusterConnection)
+TEST_F(TRootClientsCacheTest, ProxyRoleReachesPerClusterConnection)
 {
     TFactoryGuard guard([] (const TRootClientsCacheOptions& options) -> IClientsCachePtr {
         return New<TFakeClientsCache>(options);
@@ -161,7 +168,7 @@ TEST(TRootClientsCacheTest, ProxyRoleReachesPerClusterConnection)
     EXPECT_FALSE(options.ClientsCacheConfig->DefaultConnection->ProxyRole);
 }
 
-TEST(TRootClientsCacheTest, CustomFactory)
+TEST_F(TRootClientsCacheTest, CustomFactory)
 {
     auto parameters = ConvertToNode(TYsonString(TStringBuf("{federation=[a;b]}")));
 
@@ -181,17 +188,13 @@ TEST(TRootClientsCacheTest, CustomFactory)
     EXPECT_EQ(parameters, fakeCache->Options.Parameters);
 }
 
-TEST(TRootClientsCacheTest, RoutesAllLocalClientsThroughJobProxy)
+TEST_F(TRootClientsCacheTest, RoutesAllLocalClientsThroughJobProxy)
 {
     NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
     NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
     auto options = MakeOptions();
     options.ProxyRole = "flow";
-    auto rootCache = CreateRootClientsCache(options);
-    auto original = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(
-        rootCache->GetClient("localhost")->GetConnection()->GetConfigYson());
-    EXPECT_FALSE(original->ProxyUnixDomainSocket);
-    auto cache = CreateJobProxyClientsCache(std::move(rootCache));
+    auto cache = CreateRootClientsCache(options);
     for (auto cluster : {"localhost", "localhost/explicit"}) {
         auto client = cache->GetClient(cluster);
         auto config = ConvertTo<NApi::NRpcProxy::TConnectionConfigPtr>(client->GetConnection()->GetConfigYson());
@@ -206,16 +209,16 @@ TEST(TRootClientsCacheTest, RoutesAllLocalClientsThroughJobProxy)
     EXPECT_EQ(config->ProxyRole, "explicit");
 }
 
-TEST(TRootClientsCacheTest, RequiresJobProxySocket)
+TEST_F(TRootClientsCacheTest, RequiresJobProxySocket)
 {
     NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
     NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH");
     EXPECT_THROW_WITH_SUBSTRING(
-        CreateJobProxyClientsCache(CreateRootClientsCache(MakeOptions())),
+        CreateRootClientsCache(MakeOptions()),
         "YT_JOB_PROXY_SOCKET_PATH is absent");
 }
 
-TEST(TRootClientsCacheTest, RejectsCustomFactoryWithJobProxy)
+TEST_F(TRootClientsCacheTest, RejectsCustomFactoryWithJobProxy)
 {
     NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "localhost");
     NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
