@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/suspendable_invoker.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -13,6 +14,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
 
 namespace NYT::NFlow {
 namespace {
@@ -29,6 +31,8 @@ protected:
     const TStreamId StreamId = TStreamId("timer");
 
     TActionQueuePtr Queue_ = New<TActionQueue>("Test");
+    //! Runs the apply rounds of the catalogue.
+    ISuspendableInvokerPtr CatalogueInvoker_ = CreateSuspendableInvoker(Queue_->GetInvoker());
     NTables::TInMemoryTimerPagesPtr Tables_ = New<NTables::TInMemoryTimerPages>();
     TTimerPageCataloguePtr Catalogue_;
 
@@ -50,11 +54,25 @@ protected:
             [] {
                 return MakeFuture(NApi::ITransactionPtr());
             },
-            Queue_->GetInvoker(),
+            CatalogueInvoker_,
             NLogging::TLogger("Test"),
             NProfiling::TProfiler(),
             options);
         return Catalogue_;
+    }
+
+    //! Runs |action| while the apply rounds of the catalogue are held: a round reads the tables
+    //! either before |action| or after it.
+    void WithoutApplyRounds(const std::function<void()>& action)
+    {
+        // A round goes on after it completes a synchronization, and the periodic ones come at
+        // any time. A round in progress is held at its next wait, after the table call it waits
+        // for.
+        WaitFor(CatalogueInvoker_->Suspend()).ThrowOnError();
+        auto resume = Finally([this] {
+            CatalogueInvoker_->Resume();
+        });
+        action();
     }
 
     TTimerPageMeta MakePage(ui64 familyId, ui64 beginTimestamp, std::optional<ui64> lower, std::optional<ui64> upper, i64 count = 0)
@@ -335,15 +353,53 @@ TEST_F(TTimerPageCatalogueTest, TrimmedJournalBootstrapsAgain)
     WaitFor(catalogue->Synchronize()).ThrowOnError();
     EXPECT_EQ(catalogue->GetSnapshot().GetPageCount(), 1);
 
-    // A page written to the metadata without a journal entry is only seen by a bootstrap.
-    WritePage(MakePage(2, 21, 10, 20), /*journal*/ false);
-    WritePage(MakePage(3, 31, 20, 30));
-    WritePage(MakePage(4, 41, 30, 40));
-    Tables_->TrimJournal(2);
-    WaitFor(catalogue->Synchronize()).ThrowOnError();
+    // The journal is trimmed past the applied position, which stays after the first entry. A page
+    // written to the metadata without a journal entry is only seen by a bootstrap.
+    WithoutApplyRounds([&] {
+        WritePage(MakePage(2, 21, 10, 20), /*journal*/ false);
+        WritePage(MakePage(3, 31, 20, 30));
+        WritePage(MakePage(4, 41, 30, 40));
+        Tables_->TrimJournal(2);
+    });
+    WaitFor(catalogue->Synchronize().WithTimeout(TDuration::Seconds(30))).ThrowOnError();
     auto snapshot = catalogue->GetSnapshot();
     EXPECT_EQ(snapshot.GetPageCount(), 4);
     EXPECT_TRUE(snapshot.FindPage(TTimerFamilyId(2), ETimerPageKind::Trigger, TSystemTimestamp(21)));
+}
+
+TEST_F(TTimerPageCatalogueTest, TrimNotPastTheAppliedPositionDoesNotBootstrap)
+{
+    // With the collection off, only a bootstrap reads the metadata.
+    auto metadataReads = std::make_shared<std::atomic<int>>(0);
+    Tables_->SetHook([metadataReads] (TStringBuf method) {
+        if (method == "LoadMeta") {
+            ++*metadataReads;
+        }
+    });
+    // The journal is trimmed to its end before the bootstrap, so the applied position starts at
+    // the trim; the round that bootstraps checks the trim again before it applies anything else.
+    WritePage(MakePage(1, 11, 0, 10));
+    WritePage(MakePage(2, 21, 10, 20));
+    Tables_->TrimJournal(2);
+    auto catalogue = CreateCatalogue({.JournalReadLimit = 1});
+    WaitFor(catalogue->Synchronize()).ThrowOnError();
+
+    // The whole journal is applied before the next trim, as a background round may do: no entry
+    // is lost, so no bootstrap reveals the page written to the metadata without a journal entry.
+    WritePage(MakePage(3, 31, 20, 30), /*journal*/ false);
+    WritePage(MakePage(4, 41, 30, 40));
+    WritePage(MakePage(5, 51, 40, 50));
+    WaitFor(catalogue->Synchronize()).ThrowOnError();
+    Tables_->TrimJournal(3);
+    // The entries written after the trim make a round check it before the synchronization
+    // completes: a round that read the row range before the trim applies only one of them.
+    WritePage(MakePage(6, 61, 50, 60));
+    WritePage(MakePage(7, 71, 60, 70));
+    WaitFor(catalogue->Synchronize().WithTimeout(TDuration::Seconds(30))).ThrowOnError();
+
+    auto snapshot = catalogue->GetSnapshot();
+    EXPECT_EQ(Begins(snapshot.GetPages()), (std::vector<ui64>{11, 21, 41, 51, 61, 71}));
+    EXPECT_EQ(metadataReads->load(), 1);
 }
 
 TEST_F(TTimerPageCatalogueTest, TrimToTheEndBootstrapsAgain)
@@ -354,10 +410,12 @@ TEST_F(TTimerPageCatalogueTest, TrimToTheEndBootstrapsAgain)
 
     // Everything after the applied position is trimmed away and nothing follows: a read from
     // there is empty, yet the catalogue must catch up and the synchronization must complete.
-    WritePage(MakePage(2, 21, 10, 20));
-    WritePage(MakePage(3, 31, 20, 30));
-    auto total = WaitFor(Tables_->GetJournalRowRange()).ValueOrThrow().TotalRowCount;
-    Tables_->TrimJournal(total);
+    WithoutApplyRounds([&] {
+        WritePage(MakePage(2, 21, 10, 20));
+        WritePage(MakePage(3, 31, 20, 30));
+        auto total = WaitFor(Tables_->GetJournalRowRange()).ValueOrThrow().TotalRowCount;
+        Tables_->TrimJournal(total);
+    });
     WaitFor(catalogue->Synchronize().WithTimeout(TDuration::Seconds(30))).ThrowOnError();
     EXPECT_EQ(catalogue->GetSnapshot().GetPageCount(), 3);
 }
