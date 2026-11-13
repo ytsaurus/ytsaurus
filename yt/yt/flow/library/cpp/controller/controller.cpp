@@ -1575,7 +1575,7 @@ private:
                                     .With("Version", newFlowView->State->ExecutionSpec->PipelineState->GetVersion());
                                 leader->Commit(newFlowView);
                                 PersistedStateManager_->AdvanceInputMessagesWatermark(newFlowView->State->TraverseData->InputSystemWatermark);
-                                YT_TLOG_INFO("Watermark advanced")
+                                YT_TLOG_INFO("Watermark publication attempts finished")
                                     .With("Version", newFlowView->State->ExecutionSpec->PipelineState->GetVersion());
                                 FlowViewKeeper_->SetStates(newFlowView->State, newFlowView->EphemeralState);
                                 YT_TLOG_INFO("State and ephemeral state updated")

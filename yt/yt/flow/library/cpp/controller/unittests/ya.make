@@ -11,6 +11,7 @@ SRCS(
     controller_ut.cpp
     dyntable_election_manager_ut.cpp
     flow_executor_ut.cpp
+    input_messages_watermark_ut.cpp
     job_manager_ut.cpp
     lineage_aggregator_ut.cpp
     partitioning_ut.cpp
