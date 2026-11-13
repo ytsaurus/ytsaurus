@@ -101,6 +101,8 @@ message TTaskExecutorConfig {
     optional string UdfBridgePath = 34; // Path to udf_bridge executable for out-of-process UDF isolation
     optional TYtTokenResolverConfig YtTokenResolver = 35;
     optional uint32 SparkParserPort = 36; // 0 disables Spark SQL translation
+    repeated string UdfResolverPortoLayers = 37;
+    optional string UdfResolverPortoProxyPath = 38;
 }
 
 message TSolomonAgentConnectionConfig {
