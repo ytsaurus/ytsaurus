@@ -115,6 +115,14 @@ void TTableSourceParameters::Register(TRegistrar registrar)
 
 void TDynamicTableSourceParameters::Register(TRegistrar registrar)
 {
+    registrar.Parameter("catchup_lag_threshold", &TThis::CatchupLagThreshold)
+        .Default(TDuration::Seconds(10))
+        .GreaterThanOrEqual(TDuration::Zero());
+
+    registrar.Parameter("catchup_speedup_multiplier", &TThis::CatchupSpeedupMultiplier)
+        .Default(1.2)
+        .GreaterThanOrEqual(1.0);
+
     registrar.Parameter("desired_table_process_time", &TThis::DesiredTableProcessTime)
         .Default(TDuration::Hours(1));
 
