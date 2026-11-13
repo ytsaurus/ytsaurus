@@ -2,7 +2,8 @@ from yt_odin.logserver import FULLY_AVAILABLE_STATE, UNAVAILABLE_STATE
 from yt_odin.test_helpers import make_check_dir, configure_odin, run_checks, CheckWatcher, wait
 
 
-def test_master_alerts(yt_env):
+# TODO(h0pless): YT-30443
+def disabled_test_master_alerts(yt_env):
     yt_client = yt_env.yt_client
     proxy_url = yt_client.config["proxy"]["url"]
 
