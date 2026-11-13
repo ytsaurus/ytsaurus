@@ -1318,12 +1318,14 @@ Y_UNIT_TEST(CreateTableGeneratedColumnNonYdbProviderVirtualFails) {
 }
 
 Y_UNIT_TEST(AlterTableAddGeneratedColumnNonYdbProviderFails) {
-    auto res = SqlToYql(R"sql(
+    NSQLTranslation::TTranslationSettings settings;
+    settings.LangVer = NYql::NFeature::YtAlterTable.MinLangVer;
+    auto res = SqlToYqlWithSettings(R"sql(
             USE plato;
             ALTER TABLE tbl ADD COLUMN gen Int32 AS (5) STORED;
-        )sql");
+        )sql", settings);
     UNIT_ASSERT(!res.IsOk());
-    UNIT_ASSERT_STRING_CONTAINS(Err2Str(res), "ALTER TABLE is not supported for yt provider");
+    UNIT_ASSERT_STRING_CONTAINS(Err2Str(res), "GENERATED ALWAYS AS columns are supported only for the ydb provider");
 }
 
 Y_UNIT_TEST(CreateTableGeneratedStringFunction) {
@@ -1344,3 +1346,12 @@ Y_UNIT_TEST(CreateTableGeneratedStringFunction) {
 }
 
 } // Y_UNIT_TEST_SUITE(GeneratedColumns)
+
+Y_UNIT_TEST_SUITE(YtAlterTable) {
+Y_UNIT_TEST(AddColumn) {
+    NSQLTranslation::TTranslationSettings settings;
+    settings.LangVer = NYql::NFeature::YtAlterTable.MinLangVer;
+    auto res = SqlToYqlWithSettings("ALTER TABLE plato.foo ADD COLUMN value Uint64;", settings);
+    UNIT_ASSERT_C(res.IsOk(), Err2Str(res));
+}
+} // Y_UNIT_TEST_SUITE(YtAlterTable)

@@ -5475,9 +5475,9 @@ Y_UNIT_TEST(AlterTableAddColumnNotSetEncodingAstCorrect) {
     UNIT_ASSERT_VALUES_EQUAL(0, elementStat[columnEncoding]);
 }
 
-Y_UNIT_TEST(AlterTableYtNotSupported) {
+Y_UNIT_TEST(AlterTableYtUnavailableOnOldLanguageVersion) {
     ExpectFailWithError("ALTER TABLE plato.table ADD COLUMN a int32",
-                        "<main>:1:19: Error: ALTER TABLE is not supported for yt provider.\n");
+                        "<main>:1:19: Error: ALTER TABLE for yt is not available before language version 2026.03\n");
 }
 
 Y_UNIT_TEST(AlterTableCompactIsCorrect) {

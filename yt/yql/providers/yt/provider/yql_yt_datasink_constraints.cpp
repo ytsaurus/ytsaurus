@@ -28,6 +28,7 @@ public:
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtCopy::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtMerge::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
+        AddHandler({TYtAlter::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtMap::idx_Mapper, TYtMap::idx_Mapper>));
         AddHandler({TYtReduce::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtReduce::idx_Reducer, TYtReduce::idx_Reducer>));
         AddHandler({TYtMapReduce::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtMapReduce::idx_Mapper, TYtMapReduce::idx_Reducer>));
@@ -38,6 +39,7 @@ public:
         AddHandler({TYtCreateSymlink::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleCreateSymlink));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtDropSymlink::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
+        AddHandler({TYtAlterTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleCommit));
