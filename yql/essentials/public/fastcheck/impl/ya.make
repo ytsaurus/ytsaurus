@@ -7,7 +7,7 @@ SRCS(
 )
 
 PEERDIR(
-    yql/essentials/public/fastcheck/abi
+    yql/essentials/public/fastcheck/abi/impl
     yql/essentials/public/fastcheck/abi/interface
     yql/essentials/public/fastcheck/abi/serialization
     yql/essentials/public/udf_meta/interface
@@ -16,11 +16,3 @@ PEERDIR(
 GENERATE_ENUM_SERIALIZATION(yql/essentials/public/fastcheck/linter.h)
 
 END()
-
-RECURSE(
-    abi
-)
-
-RECURSE_FOR_TESTS(
-    ut
-)
