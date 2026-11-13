@@ -4422,6 +4422,30 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), acl)
         assert_items_equal(get("//tmp/t3/@acl"), acl)
 
+    @authors("achains")
+    def test_preserve_acl_transaction(self):
+        create("table", "//tmp/t1")
+
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+
+        tx = start_transaction()
+        copy("//tmp/t1", "//tmp/t2", preserve_acl=True, tx=tx)
+        move("//tmp/t1", "//tmp/t3", preserve_acl=True, tx=tx)
+
+        assert not get("//tmp/t2/@inherit_acl", tx=tx)
+        assert not get("//tmp/t3/@inherit_acl", tx=tx)
+        assert_items_equal(get("//tmp/t2/@acl", tx=tx), acl)
+        assert_items_equal(get("//tmp/t3/@acl", tx=tx), acl)
+
+        commit_transaction(tx)
+
+        assert not get("//tmp/t2/@inherit_acl")
+        assert not get("//tmp/t3/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert_items_equal(get("//tmp/t3/@acl"), acl)
+
     @authors("danilalexeev")
     def test_preserve_acl_without_rights(self):
         create_user("u")

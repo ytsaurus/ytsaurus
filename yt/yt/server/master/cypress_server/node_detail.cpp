@@ -487,9 +487,11 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     }
 
     // Copy ACD.
+    // NB: ACD is only present on the trunk version of the node.
     if (factory->ShouldPreserveAcl(mode)) {
-        clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
-        clonedTrunkNode->Acd().SetEntries(sourceNode->Acd().Acl());
+        const auto& sourceAcd = sourceNode->GetTrunkNode()->Acd();
+        clonedTrunkNode->Acd().SetInherit(sourceAcd.Inherit());
+        clonedTrunkNode->Acd().SetEntries(sourceAcd.Acl());
     }
 
     // Copy builtin attributes.
