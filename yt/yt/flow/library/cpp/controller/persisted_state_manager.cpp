@@ -18,6 +18,11 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/cache/cache.h>
+
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/tablet_client/watermark_runtime_data.h>
@@ -675,9 +680,6 @@ public:
         watermarkRuntimeData.Watermark = ConvertTo<ui64>(watermark);
         watermarkRuntimeData.ColumnName = SystemTimestampColumnName;
 
-        TSetNodeOptions setOptions;
-        setOptions.Timeout = Config_->Timeout;
-
         // clang-format off
         auto runtimeData = BuildYsonStringFluently()
             .BeginMap()
@@ -685,23 +687,24 @@ public:
             .EndMap();
         // clang-format on
 
-        auto advanceWatermark = [&] (TStringBuf tableName) {
-            auto tablePath = YPathJoin(Connector_->GetPipelinePath().GetPath(), tableName);
-            WaitFor(
-                Connector_->GetClient()->SetNode(
-                    Format("%v/@%v", tablePath, CustomRuntimeDataAttribute),
-                    runtimeData,
-                    setOptions))
-                .ThrowOnError();
-        };
-
-        advanceWatermark(InputMessagesTableName);
-
-        // Also advance compact_input_messages watermark if any computation uses it.
-        auto compactTablePath = YPathJoin(Connector_->GetPipelinePath().GetPath(), CompactInputMessagesTableName);
-        auto existsResult = WaitFor(Connector_->GetClient()->NodeExists(compactTablePath, {}));
-        if (existsResult.IsOK() && existsResult.Value()) {
-            advanceWatermark(CompactInputMessagesTableName);
+        std::vector<TFuture<void>> updates;
+        for (const auto& tableName : {InputMessagesTableName, CompactInputMessagesTableName}) {
+            updates.push_back(BIND(
+                &TPersistedStateManager::AdvanceTableWatermark,
+                MakeStrong(this),
+                tableName,
+                runtimeData)
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run());
+        }
+        auto results = WaitFor(AllSet(updates))
+            .ValueOrThrow();
+        for (const auto& error : results) {
+            if (!error.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to advance input messages watermark")
+                    .With("Watermark", watermark)
+                    .With(error);
+            }
         }
     }
 
@@ -745,6 +748,75 @@ private:
     const IYTConnectorPtr Connector_;
     const TPersistedStateManagerConfigPtr Config_;
     const TIntrusivePtr<TPersistedStateStorageHandler> PersistedStateStorageHandler_;
+
+    void AdvanceTableWatermark(TStringBuf tableName, const TYsonString& runtimeData)
+    {
+        auto tablePath = YPathJoin(Connector_->GetPipelinePath().GetPath(), tableName);
+        auto client = Connector_->GetClient();
+        TGetNodeOptions getOptions;
+        getOptions.Timeout = Config_->Timeout;
+        getOptions.Attributes = {"type", "replicas"};
+        auto tableResult = WaitFor(client->GetNode(tablePath, getOptions));
+        if (tableName == CompactInputMessagesTableName && tableResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            // Pipelines without compact deduplication can work without this table.
+            return;
+        }
+        auto table = ConvertToNode(tableResult.ValueOrThrow());
+
+        TSetNodeOptions setOptions;
+        setOptions.Timeout = Config_->Timeout;
+        if (table->Attributes().Get<NObjectClient::EObjectType>("type") != NObjectClient::EObjectType::ChaosReplicatedTable) {
+            WaitFor(client->SetNode(
+                Format("%v/@%v", tablePath, CustomRuntimeDataAttribute),
+                runtimeData,
+                setOptions))
+                .ThrowOnError();
+            return;
+        }
+
+        // Chaos only replicates rows; data replicas need their own GC watermark.
+        // Queue replicas trim their replication logs independently of the Flow watermark.
+        // Refetch replicas on every publication to cover additions and moves, including at a fixed watermark.
+        auto clientsCache = Connector_->GetClientsCache();
+        auto replicas = table->Attributes().Get<IMapNodePtr>("replicas");
+        std::vector<TFuture<void>> updates;
+        for (const auto& [replicaId, replicaNode] : replicas->GetChildren()) {
+            auto replica = replicaNode->AsMap();
+            if (replica->GetChildValueOrThrow<ETableReplicaContentType>("content_type") != ETableReplicaContentType::Data) {
+                continue;
+            }
+            auto cluster = replica->GetChildValueOrThrow<std::string>("cluster_name");
+            auto path = replica->GetChildValueOrThrow<TYPath>("replica_path");
+            updates.push_back(BIND([clientsCache, cluster, path, runtimeData, setOptions] {
+                auto replicaClient = clientsCache->GetClient(cluster);
+                WaitFor(replicaClient->SetNode(
+                    Format("%v/@%v", path, CustomRuntimeDataAttribute),
+                    runtimeData,
+                    setOptions))
+                    .ThrowOnError();
+            })
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run()
+                    .Apply(BIND([replicaId, cluster, path] (const TError& error) {
+                        if (!error.IsOK()) {
+                            THROW_ERROR_EXCEPTION("Failed to update watermark on a chaos data replica")
+                                .With(error)
+                                .With("replica_id", replicaId)
+                                .With("cluster", cluster)
+                                .With("path", path);
+                        }
+                    })));
+        }
+        auto results = WaitFor(AllSet(updates))
+            .ValueOrThrow();
+        for (const auto& error : results) {
+            if (!error.IsOK()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to advance input messages replica watermark")
+                    .With("TablePath", tablePath)
+                    .With(error);
+            }
+        }
+    }
 
     TFlowStatePtr RecoverFlowStateWithValidSpecs()
     {
