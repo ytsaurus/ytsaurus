@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +93,8 @@ struct IClient
     virtual const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() = 0;
 
     virtual const TClientCounters& GetCounters() const = 0;
+
+    virtual const IMemoryUsageTrackerPtr& GetHeavyRequestMemoryUsageTracker() const = 0;
 
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() = 0;

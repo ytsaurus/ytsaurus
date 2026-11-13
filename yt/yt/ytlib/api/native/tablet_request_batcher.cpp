@@ -98,7 +98,10 @@ private:
 
         struct TTabletRequestBatcherBufferTag
         { };
-        auto rowBuffer = New<TRowBuffer>(TTabletRequestBatcherBufferTag());
+        auto rowBuffer = New<TRowBuffer>(
+            TTabletRequestBatcherBufferTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_.MemoryUsageTracker);
 
         NRowMerger::TUnversionedRowMerger rowMerger(
             rowBuffer,
@@ -282,10 +285,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ITabletRequestBatcher::TBatch::Materialize(NCompression::ECodec codecType)
+void ITabletRequestBatcher::TBatch::Materialize(
+    NCompression::ECodec codecType,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto* codec = NCompression::GetCodec(codecType);
-    RequestData = codec->Compress(Writer->Finish());
+    auto serializedData = Writer->Finish();
+
+    RequestData = TryTrackMemory(memoryUsageTracker, codec->Compress(std::move(serializedData)))
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,3 +314,4 @@ ITabletRequestBatcherPtr CreateTabletRequestBatcher(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
+

@@ -706,7 +706,10 @@ private:
     struct TNativeTransactionBufferTag
     { };
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNativeTransactionBufferTag());
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(
+        TNativeTransactionBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        Client_->GetHeavyRequestMemoryUsageTracker());
 
     const IInvokerPtr SerializedInvoker_;
 
@@ -1991,7 +1994,10 @@ private:
         const std::vector<TSharedRef>& serializedRows,
         const TPushQueueProducerOptions& options)
     {
-        auto rowBuffer = New<TRowBuffer>(TNativeTransactionBufferTag());
+        auto rowBuffer = New<TRowBuffer>(
+            TNativeTransactionBufferTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Client_->GetHeavyRequestMemoryUsageTracker());
 
         auto data = MergeRefsToRef<TNativeTransactionBufferTag>(serializedRows);
         auto reader = CreateWireProtocolReader(data, std::move(rowBuffer));

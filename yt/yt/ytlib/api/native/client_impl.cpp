@@ -224,6 +224,11 @@ const TClientCounters& TClient::GetCounters() const
     return Counters_;
 }
 
+const IMemoryUsageTrackerPtr& TClient::GetHeavyRequestMemoryUsageTracker() const
+{
+    return HeavyRequestMemoryUsageTracker_;
+}
+
 IFunctionRegistryPtr TClient::GetFunctionRegistry()
 {
     return FunctionRegistry_.Get();
