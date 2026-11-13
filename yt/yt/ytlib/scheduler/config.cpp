@@ -1291,6 +1291,8 @@ void TVolume::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
+    registrar.Parameter("enable_node_layers", &TThis::EnableNodeLayers)
+        .Default(false);
     registrar.Parameter("allow_reusing", &TThis::AllowReusing)
         .Default(false);
 }

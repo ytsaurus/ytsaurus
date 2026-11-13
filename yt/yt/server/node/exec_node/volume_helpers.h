@@ -130,6 +130,9 @@ public:
 
     TLayerArtifactKeysStorage LayerArtifactKeys;
 
+    //! Add node-selected layers to a non-root volume.
+    bool EnableNodeLayers = false;
+
     //! If true, the volume can be reused between sequential jobs within the same allocation.
     bool AllowReusing = false;
 
