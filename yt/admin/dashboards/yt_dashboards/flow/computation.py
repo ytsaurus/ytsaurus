@@ -26,23 +26,35 @@ EPOCH_PART_COLORS = {
     # Waiting new data.
     "Input.Empty": "#00e500",
     "Input.Fetch": "#00ff00",
+    "Input.WaitForBatch": "#66cc00",
     "Input.InjectionDelay": "#b7e500",
     "Input.Throttle": "#4c9900",
-    "CheckDelayedMessages": "#8eb200",
+    "Input.WatermarkAlignment": "#996633",
 
     # Backpressure.
     "Distribute.Start": "#b266b2",
     "Distribute.OutputBufferOverflow": "#730073",
+    "Distribute.BlockedByController": "#993399",
+    "Distribute.DrainingPartitionOutputMessages": "#cc99cc",
 
     # CPU-bound work + user work.
+    "Start": "#e67e22",
+    "Accounting": "#e5a000",
+    "GenerateGlobalUniqueSeqNo": "#cc8800",
+    "Input.ReadWindow": "#e5e500",
+    "Input.Timestamp": "#e68a00",
     "Process": "#ffa500",
     "Sync": "#ffb732",
     "Finish": "#ffc966",
+    "Cleanup": "#ffdb99",
 
     # System IO-bound work.
-    "DeduplicateInput": "#236bb2",
+    "Input.Deduplicate": "#1f5f99",
     "StartTransaction": "#d6eaff",
+    "PreSyncFlush": "#add6ff",
+    "FinalizeTransaction": "#5ca8ef",
     "Commit": "#84c1ff",
+    "PostCommit": "#367fc4",
 }
 
 
@@ -68,13 +80,12 @@ class ComputationCellGenerator:
                 **Input.InjectionDelay** - has input messages but waits for watermark to be advanced because of injection delay logic.
                 **Input.Throttle** - fetched the batch but waiting for distributed throttler quota (rows / bytes) before handing it off to user code.
                 **Input.WatermarkAlignment** - reading is stopped due to watermark misalignment (partition's watermark exceeds the group watermark + drift bound).
-                **CheckDelayedMessages** - checking delayed messages (little CPU-bound work).
                 **Distribute.Start** - scheduling distributing (little CPU-bound work).
                 **Distribute.OutputBufferOverflow** - waiting because of output buffer overflow.
                 **Process** - executing user logic (and may be state loading logic if this is a stateful computation).
                 **Sync** - writing to opened transaction (CPU-bound work).
                 **Finish** - finishing job (little CPU-bound work).
-                **DeduplicateInput** - deduplicating input messages (IO-bound work).
+                **Input.Deduplicate** - deduplicating input messages (IO-bound work).
                 **StartTransaction** - opening transaction (IO-bound work).
                 **Commit** - committing transaction (IO-bound work).
             """),
