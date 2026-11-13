@@ -104,6 +104,9 @@ private:
         // TODO(mikari): better name
         double ByteSizeAlpha{};
 
+        //! Column to materialize the source write time of the message into, in milliseconds.
+        std::optional<std::string> WriteTimeColumn;
+
         REGISTER_YSON_STRUCT(TExtendedParameters);
 
         static void Register(TRegistrar registrar);
@@ -159,6 +162,9 @@ protected:
 
         std::vector<TPayload> Payloads;
         NTableClient::TTableSchemaPtr PayloadSchema;
+
+        //! The write time for #TExtendedParameters::WriteTimeColumn when the source knows it more precisely than #WriteTimestamp.
+        std::optional<ui64> WriteTimeMilliseconds = {};
     };
 
     struct TPartitionInfoUpdate
@@ -196,6 +202,9 @@ protected:
     virtual bool IsFinite();
 
     virtual void AdjustInflight(const TInflightStreamTraverseDataPtr& inflight);
+
+    //! Whether the payloads of the source already contain #TExtendedParameters::WriteTimeColumn.
+    virtual bool MaterializesWriteTimeColumn() const;
 
     // To call from heirs.
 
@@ -255,6 +264,10 @@ private:
     // making InflightOffsets_.back().AlignmentTimestamp unreliable for the "last read" value.
     TSystemTimestamp LastReadAlignmentTimestamp_ = ZeroSystemTimestamp;
 
+    //! The payload schema extended with the write time column, built for #WriteTimeSchemaBase_.
+    NTableClient::TTableSchemaPtr WriteTimeSchema_;
+    NTableClient::TTableSchemaPtr WriteTimeSchemaBase_;
+
     TMutableStateClient<TOrderedSourcePartitionState> State_;
     std::vector<IStatusErrorStatePtr> AvailabilityErrorStates_;
 
@@ -275,6 +288,7 @@ private:
 private:
     void TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclusive, bool confirmed);
     std::vector<TMessageBatch> PrepareMessages(std::vector<TRecord>&& records);
+    void AppendWriteTime(TRecord& record);
     void FlushDelayedPartitionInfoUpdates();
     void TryCollapseOffsetInfo(TOffsetInfos::iterator offsetInfoIt);
     void CleanUpInflightOffsets();

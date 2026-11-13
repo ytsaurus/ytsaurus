@@ -47,6 +47,16 @@ DEFINE_REFCOUNTED_TYPE(TDynamicSinkControllerContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A sink status reported by the current job of a source partition.
+struct TSinkPartitionStatus
+{
+    NYTree::IMapNodePtr Status;
+};
+
+using TSinkPartitionStatuses = THashMap<TKey, TSinkPartitionStatus>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISinkController
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicSinkControllerContext>
@@ -62,6 +72,9 @@ struct ISinkController
     virtual void Commit() = 0;
 
     virtual void UpdateWatermarkState(TWatermarkStatePtr watermarkState) = 0;
+
+    //! Delivers the statuses of fresh healthy jobs, keyed by source partition.
+    virtual void UpdatePartitionStatuses(const TSinkPartitionStatuses& statuses) = 0;
 
     virtual std::optional<i64> GetReceiverChannelCount() = 0;
 };

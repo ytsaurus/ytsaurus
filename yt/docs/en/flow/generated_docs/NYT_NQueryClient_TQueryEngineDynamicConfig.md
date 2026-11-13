@@ -43,5 +43,7 @@ Source: [yt/yt/library/query/engine_api/query_engine_config.h]({{source-root}}/y
  ||
 || `max_subsplits_per_tablet` | **Type**: `std::optional<int>`
  ||
+|| `max_jit_stack_frame_size` | **Type**: `std::optional<int>`
+ ||
 |#
 

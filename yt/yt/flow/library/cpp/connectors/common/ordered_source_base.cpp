@@ -199,6 +199,8 @@ void TOrderedSourceBase::TExtendedParameters::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("byte_size_alpha", &TThis::ByteSizeAlpha)
         .Default(0.05);
+    registrar.Parameter("write_time_column", &TThis::WriteTimeColumn)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -600,6 +602,46 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
                 .AsyncVia(GetCurrentInvoker()));
 }
 
+bool TOrderedSourceBase::MaterializesWriteTimeColumn() const
+{
+    return false;
+}
+
+void TOrderedSourceBase::AppendWriteTime(TRecord& record)
+{
+    const auto& schema = record.PayloadSchema;
+    if (WriteTimeSchemaBase_ != schema) {
+        const auto& column = *GetParameters()->WriteTimeColumn;
+        THROW_ERROR_EXCEPTION_IF(schema->FindColumn(column),
+            "Write time column %Qv is already present in the source schema",
+            column);
+        auto columns = schema->Columns();
+        columns.emplace_back(column, NTableClient::EValueType::Uint64);
+        WriteTimeSchema_ = New<NTableClient::TTableSchema>(std::move(columns), schema->IsStrict(), schema->IsUniqueKeys());
+        WriteTimeSchemaBase_ = schema;
+    }
+    const ui64 writeTime = record.WriteTimeMilliseconds.value_or(record.WriteTimestamp.Underlying() * 1000);
+    const int writeTimeId = schema->GetColumnCount();
+    for (auto& payload : record.Payloads) {
+        const auto row = payload.Underlying().Get();
+        THROW_ERROR_EXCEPTION_UNLESS(static_cast<int>(row.GetCount()) == writeTimeId,
+            "Source row does not match its schema")
+            .With("value_count", row.GetCount())
+            .With("column_count", writeTimeId);
+        size_t stringDataSize = 0;
+        for (const auto& value : row) {
+            if (NTableClient::IsStringLikeType(value.Type)) {
+                stringDataSize += value.Length;
+            }
+        }
+        payload = TPayload(TPayload::TUnderlying(writeTimeId + 1, stringDataSize, [&] (NTableClient::TMutableUnversionedRow mutableRow) {
+            std::copy(row.begin(), row.end(), mutableRow.begin());
+            mutableRow[writeTimeId] = NTableClient::MakeUnversionedUint64Value(writeTime, writeTimeId);
+        }));
+    }
+    record.PayloadSchema = WriteTimeSchema_;
+}
+
 bool TOrderedSourceBase::IsFinite()
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
@@ -821,6 +863,9 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
     auto minWriteTimestamp = InfinitySystemTimestamp;
     for (auto& record : records) {
         minWriteTimestamp = std::min(minWriteTimestamp, record.WriteTimestamp);
+        if (GetParameters()->WriteTimeColumn && !MaterializesWriteTimeColumn() && !record.Payloads.empty()) {
+            AppendWriteTime(record);
+        }
     }
 
     std::vector<ISource::TMessageBatch> parsedMessages;

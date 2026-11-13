@@ -56,6 +56,9 @@ void TSinkControllerBase::UpdateWatermarkState(TWatermarkStatePtr watermarkState
     WatermarkState_ = std::move(watermarkState);
 }
 
+void TSinkControllerBase::UpdatePartitionStatuses(const TSinkPartitionStatuses& /*statuses*/)
+{ }
+
 TWatermarkStatePtr TSinkControllerBase::GetWatermarkState()
 {
     return WatermarkState_.Acquire();

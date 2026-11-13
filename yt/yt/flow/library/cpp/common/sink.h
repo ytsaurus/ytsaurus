@@ -45,6 +45,8 @@ struct TDynamicSinkContext
     : public TRefCounted
 {
     TDynamicSinkSpecPtr DynamicSinkSpec;
+    //! The dynamic spec of the hosting computation, including its draining state.
+    TDynamicComputationSpecPtr DynamicComputationSpec;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSinkContext);
@@ -115,6 +117,13 @@ public:
 
     // Delivers the epoch watermark snapshot; called on creation and before each run iteration.
     virtual void UpdateWatermarkState(TWatermarkStatePtr state);
+
+    // Thread-safe status snapshot delivered to the sink controller with the job heartbeat.
+    virtual NYTree::IMapNodePtr GetPartitionStatus() const;
+
+    // Called on the job fiber after the last epoch of a graceful shutdown has committed.
+    // May wait for external work that a successor job of the partition depends on.
+    virtual void BeforeGracefulShutdown();
 };
 
 DEFINE_REFCOUNTED_TYPE(ISink);

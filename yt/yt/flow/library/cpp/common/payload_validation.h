@@ -11,6 +11,8 @@ struct TValidatePayloadOptions
     bool AllowEmptySchema = false;
     NTableClient::TTableSchemaPtr ExpectedSchema = nullptr;
     bool ValidateValues = true;
+    //! Raises the message and string value size limits for messages that never leave the job.
+    std::optional<i64> MaxLocalMessageByteSize;
 };
 
 TError DoValidatePayload(

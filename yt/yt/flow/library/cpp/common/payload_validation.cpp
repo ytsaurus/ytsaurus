@@ -51,7 +51,16 @@ TError DoValidatePayload(
                 ValidateValueType(value, *schema, index, /*typeAnyAcceptsAllValues*/ false);
             }
             if (options.ValidateValues) {
-                ValidateDataValue(value);
+                if (options.MaxLocalMessageByteSize && value.Type == NTableClient::EValueType::String &&
+                    value.Length > NTableClient::MaxStringValueLength)
+                {
+                    THROW_ERROR_EXCEPTION_IF(static_cast<i64>(value.Length) > *options.MaxLocalMessageByteSize,
+                        "Local string value is too long: length %v, limit %v",
+                        value.Length,
+                        *options.MaxLocalMessageByteSize);
+                } else {
+                    ValidateDataValue(value);
+                }
             }
         } catch (const std::exception& ex) {
             return TError(ex);

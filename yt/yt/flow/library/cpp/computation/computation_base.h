@@ -624,6 +624,14 @@ protected:
     virtual void ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages) = 0;
 
 protected:
+    struct TSinkSnapshot
+        : public TRefCounted
+    {
+        const THashMap<TSinkId, ISinkPtr> Sinks;
+
+        explicit TSinkSnapshot(THashMap<TSinkId, ISinkPtr> sinks);
+    };
+
     const TJobStateManagerPtr StateManager_;
     //! System partition state carrying #TPartitionBufferWarmup: read at start to
     //! seed the buffer manager, refreshed (drift-gated) before every commit.
@@ -636,6 +644,9 @@ protected:
     const ISourcePtr ActiveSource_;
 
     THashMap<TSinkId, ISinkPtr> Sinks_;
+
+    // Heartbeats call GetStatus concurrently with sink initialization.
+    TAtomicIntrusivePtr<TSinkSnapshot> SinkSnapshot_;
 
     const IInputStorePtr InputStore_;
     const ITimerStorePtr TimerStore_;

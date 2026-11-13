@@ -155,6 +155,21 @@ TEST(TMessageTest, ValidateIdIndexEqualityInvariant)
     }
 }
 
+TEST(TMessageTest, ValidateLargeLocalMessage)
+{
+    auto schema = New<TTableSchema>(std::vector{TColumnSchema("data", EValueType::String)});
+    TMessageBuilder builder("stream", schema);
+    builder.Payload().SetValue(MakeUnversionedStringValue(std::string(20_MB, 'a')), "data");
+    builder.SetMessageId(TMessageId("<id>"));
+    builder.SetSystemTimestamp(ValidTs);
+    builder.SetAlignmentTimestamp(ValidTs);
+    builder.SetEventTimestamp(ValidTs);
+    auto message = builder.Finish();
+    EXPECT_THROW(ValidateMessage(message), TErrorException);
+    EXPECT_THROW(ValidateMessage(message, {.MaxLocalMessageByteSize = 19_MB}), TErrorException);
+    EXPECT_NO_THROW(ValidateMessage(message, {.MaxLocalMessageByteSize = 21_MB}));
+}
+
 TEST(TMessageTest, ValidateBigValue)
 {
     auto schema = ConvertTo<NTableClient::TTableSchemaPtr>(TYsonString(TStringBuf(R"""(

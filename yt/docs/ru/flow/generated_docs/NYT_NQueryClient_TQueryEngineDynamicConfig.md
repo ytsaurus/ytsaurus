@@ -43,5 +43,7 @@
  ||
 || `max_subsplits_per_tablet` | **Тип**: `std::optional<int>`
  ||
+|| `max_jit_stack_frame_size` | **Тип**: `std::optional<int>`
+ ||
 |#
 

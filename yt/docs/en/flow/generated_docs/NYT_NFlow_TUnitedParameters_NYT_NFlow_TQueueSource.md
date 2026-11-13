@@ -38,6 +38,8 @@ Period for refreshing the source's auxiliary partition information. A connector 
 || `byte_size_alpha` | **Type**: `double`
 **Default value**: `0.05`
 Exponential smoothing coefficient for the average byte total and message count per offset: larger values make the estimate react to new data faster. ||
+|| `write_time_column` | **Type**: `std::optional<std::string>`
+Column to materialize the source write time of the message into, as `uint64` milliseconds. Required by the static table export. The column is not created unless the parameter is set. ||
 || `update_partition_count_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
 How often the controller should update the partition count in the queue (the controller changes the computation partition count according to the queue partition count). ||

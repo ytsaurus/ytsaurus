@@ -485,6 +485,9 @@ void TComputationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("output_stream_ids", &TThis::OutputStreamIds)
         .Default();
+    registrar.Parameter("max_local_message_byte_size", &TThis::MaxLocalMessageByteSize)
+        .Optional()
+        .InRange(NTableClient::MaxStringValueLength, NTableClient::MaxRowWeightLimit);
 
     registrar.Parameter("streams_dependency", &TThis::StreamsDependency)
         .Default();
@@ -2415,6 +2418,11 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std:
                     streamId,
                     computationId);
             }
+            // Large local messages are never serialized for transfer to another computation.
+            THROW_ERROR_EXCEPTION_IF(GetOrCrash(spec->Computations, GetOrCrash(streamProducers, streamId))->MaxLocalMessageByteSize,
+                "Stream %Qv with large local messages cannot be consumed by computation %Qv",
+                streamId,
+                computationId);
         }
     }
 

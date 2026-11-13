@@ -201,10 +201,11 @@ TError DoValidateMessage(const TMessage& message, const TValidatePayloadOptions&
         return error;
     }
     if (options.ValidateValues) {
-        if (GetMessageByteSize(message) > NTableClient::MaxStringValueLength) {
+        const i64 limit = options.MaxLocalMessageByteSize.value_or(NTableClient::MaxStringValueLength);
+        if (GetMessageByteSize(message) > limit) {
             return TError("Message is too big: size %v, limit %v",
                 GetMessageByteSize(message),
-                NTableClient::MaxStringValueLength);
+                limit);
         }
     }
     return DoValidatePayload("message.Payload", message.Payload, "message.PayloadSchema", message.PayloadSchema, options);
@@ -282,12 +283,15 @@ const TMessageMeta& TOutputMessage::GetMeta() const
     return *this;
 }
 
-TOutputMessage::TOutputMessage(TMessage&& message, const TComputationStreamSpecStoragePtr& specStorage)
+TOutputMessage::TOutputMessage(
+    TMessage&& message,
+    const TComputationStreamSpecStoragePtr& specStorage,
+    std::optional<i64> maxLocalMessageByteSize)
     : TMessage(std::move(message))
     , ByteSize(GetMessageByteSize(*this))
 {
     YT_VERIFY(specStorage);
-    ValidateMessage(*this);
+    ValidateMessage(*this, {.MaxLocalMessageByteSize = maxLocalMessageByteSize});
     const auto expectedSchema = specStorage->GetSchema(StreamId);
     if (PayloadSchema.Get() != expectedSchema.Get() &&
         (!PayloadSchema || !expectedSchema || *PayloadSchema != *expectedSchema))
