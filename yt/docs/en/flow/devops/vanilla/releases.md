@@ -4,6 +4,8 @@
 
 To roll out a new version, change the code or the spec and run the same command again. A vanilla launch uses the make-before-break strategy: the new operation is prepared (the binary is uploaded to the {{product-name}} cache) while the old one keeps running, and then the switchover happens — the old operation finishes and the already prepared new one starts. Downtime is therefore minimal, and you don’t need to stop the pipeline separately before a release.
 
+Each normal launch checks an explicitly configured [operation ACL](security.md#operation-acl) before uploading files or stopping the old operation. A preflight failure leaves the old deployment running. Later submission errors do not automatically restart it.
+
 The way the **old** operation finishes is controlled by the `YT_FLOW_GRACEFUL_UPDATE` environment variable: `1` (the default) drains the old pipeline (`stop`), `0` pauses it (`pause`); after that, the old operation is aborted.
 
 ## Reanimating the operation {#reanimate}
@@ -15,7 +17,31 @@ ya run yt/yt/flow/tools/reanimate_vanilla_operation -- \
     --cluster <cluster> --path //path/to/pipeline
 ```
 
-The tool **refuses to run if the operation is still alive** (so that a second one isn’t started for the same pipeline), and it takes `YT_TOKEN` and the values of the variables listed in `secret_env` from the launch environment again — they aren’t stored in Cypress.
+The tool **refuses to run if the operation alias is still alive on the selected target runtime cluster**, and it takes `YT_TOKEN` and the values of the variables listed in `secret_env` from the launch environment again — they aren’t stored in Cypress.
+
+### Saved ACL and runtime identities {#reanimate-acl}
+
+Reanimation reuses the saved ACL, including an explicit empty list or an absent ACL, without normal-launch preflight. Restore missing subjects on the runtime cluster, then [verify effective access](security.md#operation-acl-verification) after recovery. Use a normal launch to change policy.
+
+The tool defaults to the recorded runtime cluster and proxy role. Before overriding the cluster, confirm that the previous operation has finished. The alias guard checks only the target cluster.
+
+1. Read the original runtime cluster from the manifest. Find the previous operation's immutable `OperationId` in the launcher's `Started vanilla operation` log entry or the operation's UI page. The manifest stores no operation ID.
+2. Query that ID on the original cluster.
+
+   ```bash
+   yt --proxy "<previous_runtime_cluster>" get-operation "<previous_operation_id>" --attribute state --include-runtime --format json
+   ```
+
+   Proceed only for `completed`, `failed`, or `aborted`. If the cluster is unreachable, restore access and verify the state before proceeding.
+3. Submit to the target runtime cluster. Substitute the pipeline cluster and path, target operation cluster, and RPC proxy role.
+
+   ```bash
+   ya run yt/yt/flow/tools/reanimate_vanilla_operation -- \
+       --cluster "<pipeline_cluster>" --path "<pipeline_path>" \
+       --runtime-cluster "<operation_cluster>" --runtime-proxy-role "<runtime_role>"
+   ```
+
+Omit `--runtime-proxy-role` to retain the recorded role. When the target is the pipeline cluster, the tool uses the pipeline client's `--proxy-role`. Runtime group membership and subject tags determine access. Recovery overwrites the manifest and restages cross-cluster files before submission.
 
 ## Hotfix {#hotfix}
 

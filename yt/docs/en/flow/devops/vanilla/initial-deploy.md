@@ -4,6 +4,14 @@ This is the simplest way to run Flow: you don’t need a separate long-running d
 
 ## What you’ll need {#prerequisites}
 
+Create the pipeline root at the configured `path` before launch. It is needed to save the manifest. See [pipeline object setup](../../cpp/examples/wait_click_join.md#yt-sync).
+
+{% if audience == "internal" %}
+
+Use the [YtSync]({{yt-sync-docs}}/) pipeline configuration to provision the root together with the pipeline objects.
+
+{% endif %}
+
 You need a configuration file:
 
 * `pipeline.yson` — [runner config](../../concepts/spec.md#runner-config) with the pipeline spec. For the pipeline to run in a Vanilla operation, it must include a `vanilla` block with `enable = %true` (see [How to enable](#enable)). You don’t need a separate `config.yson` — the node config inside the jobs is built automatically.
@@ -74,6 +82,10 @@ If needed, you can override the resources explicitly:
 For the full list of fields, see [TVanillaConfig](../../generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) and [TVanillaTaskConfig](../../generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig).
 
 When you run it, `flow_server` validates the spec itself, creates a Vanilla operation with two tasks (controller and worker), sets the pipeline spec, and starts it.
+
+## Reader access to the operation {#operation-acl}
+
+If you configure an explicit operation ACL, ensure its subjects exist on the runtime cluster before launch. Choose the policy and check reader access in [Reading operation logs and artifacts](security.md#operation-acl).
 
 ## Additional parameters {#advanced-config}
 

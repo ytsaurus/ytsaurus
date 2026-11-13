@@ -13,13 +13,40 @@
 
 namespace NYT::NFlow {
 
+using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateVanillaOperationAcl(const TSerializableAccessControlList& acl)
+{
+    constexpr auto OperationPermissions = EPermission::Read | EPermission::Manage | EPermission::Administer;
+    for (int aceIndex = 0; aceIndex < std::ssize(acl.Entries); ++aceIndex) {
+        const auto& entry = acl.Entries[aceIndex];
+        try {
+            ValidateAceCorrect(entry);
+            // clang-format off
+            THROW_ERROR_EXCEPTION_IF(Any(entry.Permissions & ~OperationPermissions), "Only %Qlv, %Qlv and %Qlv permissions are allowed in operation ACL, got %Qlv",
+                EPermission::Read,
+                EPermission::Manage,
+                EPermission::Administer,
+                entry.Permissions);
+            // clang-format on
+        } catch (const std::exception& ex) {
+            THROW_ERROR TError("Invalid vanilla operation ACL entry %v", aceIndex)
+                .With("ace_index", aceIndex)
+                .With(TError(ex));
+        }
+    }
+}
+
 IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
 {
+    if (spec.Acl) {
+        ValidateVanillaOperationAcl(*spec.Acl);
+    }
+
     // clang-format off
     auto node = BuildYsonNodeFluently()
         .BeginMap()
@@ -40,6 +67,7 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
             .DoIf(static_cast<bool>(spec.Description), [&] (auto fluent) {
                 fluent.Item("description").Value(spec.Description);
             })
+            .OptionalItem("acl", spec.Acl)
             .Item("annotations").BeginMap()
                 .Item("solomon_resolver_tag").Value(spec.SolomonResolverTag)
                 .Item("solomon_resolver_ports").BeginList()

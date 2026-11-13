@@ -12,12 +12,16 @@
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/not_implemented_client.h>
 #include <yt/yt/client/api/options.h>
 
 #include <yt/yt/client/api/rpc_proxy/config.h>
 
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/cache/config.h>
+
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/logging/config.h>
 
@@ -99,6 +103,68 @@ TEST(TVanillaConfigTest, ExplicitZeroPortCountKeepsFixedPorts)
 
     EXPECT_EQ(config->Controller->PortCount, std::optional<int>(0));
     EXPECT_EQ(config->Worker->PortCount, std::optional<int>(0));
+}
+
+TEST(TVanillaConfigAclTest, OmittedAclStaysUnset)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(R"({pool=test;worker={count=1}})"));
+
+    EXPECT_FALSE(config->Acl);
+}
+
+TEST(TVanillaConfigAclTest, EntityAclStaysUnset)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(R"({pool=test;worker={count=1};acl=#})"));
+
+    EXPECT_FALSE(config->Acl);
+}
+
+TEST(TVanillaConfigAclTest, EmptyAclStaysPresent)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(R"({pool=test;worker={count=1};acl=[]})"));
+
+    ASSERT_TRUE(config->Acl);
+    EXPECT_TRUE(config->Acl->Entries.empty());
+}
+
+TEST(TVanillaConfigAclTest, KeepsExplicitAcl)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(R"({
+        pool=test;
+        worker={count=1};
+        acl=[
+            {action=allow;subjects=["pipeline-operators"];permissions=[read;manage];};
+            {action=deny;subjects=[blocked];permissions=[read];subject_tag_filter="untrusted"};
+        ];
+    })"));
+
+    NSecurityClient::TSerializableAccessControlList expectedAcl;
+    expectedAcl.Entries.emplace_back(
+        NSecurityClient::ESecurityAction::Allow,
+        std::vector<std::string>{"pipeline-operators"},
+        EPermission::Read | EPermission::Manage);
+    expectedAcl.Entries.emplace_back(
+        NSecurityClient::ESecurityAction::Deny,
+        std::vector<std::string>{"blocked"},
+        EPermission::Read);
+    expectedAcl.Entries.back().SubjectTagFilter = MakeBooleanFormula("untrusted");
+
+    ASSERT_TRUE(config->Acl);
+    EXPECT_EQ(*config->Acl, expectedAcl);
+}
+
+TEST(TVanillaConfigAclTest, RejectsMalformedAcl)
+{
+    EXPECT_ANY_THROW(ConvertTo<TVanillaConfigPtr>(
+        TYsonStringBuf(R"({pool=test;worker={count=1};acl=[{action=allow;permissions=[read]}]})")));
+}
+
+TEST(TVanillaConfigAclTest, RejectsNonOperationPermissions)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(
+            R"({pool=test;worker={count=1};acl=[{action=allow;subjects=[writers];permissions=[read;write]}]})")),
+        "permissions are allowed in operation ACL");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,6 +412,180 @@ TEST(TVanillaLauncherClientsTest, PipelineClientUsesTheConfiguredConnection)
     EXPECT_EQ(
         std::vector<std::string>{std::string(PinnedProxyAddress)},
         ConvertTo<std::vector<std::string>>(connectionConfig->GetChildOrThrow("proxy_addresses")));
+}
+
+TEST(TVanillaLauncherAclTest, DisabledLaunchAcquiresNoClient)
+{
+    auto cache = New<TAssertClientsCache>(/*expectedCluster*/ TStringBuf(), MakeCacheWithPinnedProxy());
+    auto config = MakeVanillaConfig("acl=[{action=allow;subjects=[readers];permissions=[read]}]");
+    config->Enable = false;
+
+    auto handle = LaunchInVanillaJob(MakePipelinePath(), /*proxyRole*/ {}, config, cache);
+
+    EXPECT_FALSE(handle.Client);
+}
+
+TEST(TVanillaLauncherAclTest, RejectsInvalidExplicitAclBeforeAnyRequest)
+{
+    auto cache = New<TAssertClientsCache>(PipelineCluster, MakeCacheWithPinnedProxy());
+    auto config = MakeVanillaConfig();
+    config->Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
+        TYsonStringBuf(R"([{action=allow;subjects=[writers];permissions=[read;write]}])"));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(MakePipelinePath(), /*proxyRole*/ {}, config, cache),
+        "permissions are allowed in operation ACL");
+}
+
+class TRecordingAclClient
+    : public NApi::TNotImplementedClient
+{
+public:
+    std::vector<TErrorOr<NApi::TCheckPermissionByAclResult>> PermissionCheckResults;
+
+    std::vector<std::string> Calls;
+    std::vector<std::optional<std::string>> CheckedUsers;
+    std::vector<bool> IgnoredMissingSubjects;
+    std::vector<INodePtr> CheckedAcls;
+
+    TFuture<NApi::TCheckPermissionByAclResult> CheckPermissionByAcl(
+        const std::optional<std::string>& user,
+        EPermission permission,
+        INodePtr acl,
+        const NApi::TCheckPermissionByAclOptions& options) override
+    {
+        auto checkIndex = std::ssize(CheckedUsers);
+        Calls.push_back(Format("CheckPermissionByAcl %lv", permission));
+        CheckedUsers.push_back(user);
+        IgnoredMissingSubjects.push_back(options.IgnoreMissingSubjects);
+        CheckedAcls.push_back(std::move(acl));
+        if (checkIndex >= std::ssize(PermissionCheckResults)) {
+            return MakeFuture<NApi::TCheckPermissionByAclResult>(TError("Unexpected permission check %v", checkIndex));
+        }
+        return MakeFuture(PermissionCheckResults[checkIndex]);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRecordingAclClient)
+
+class TFixedClientsCache
+    : public IClientsCache
+{
+public:
+    std::vector<std::string> RequestedClusterUrls;
+
+    explicit TFixedClientsCache(NApi::IClientPtr client)
+        : Client_(std::move(client))
+    { }
+
+    NApi::IClientPtr GetClient(TStringBuf clusterUrl) override
+    {
+        RequestedClusterUrls.emplace_back(clusterUrl);
+        return Client_;
+    }
+
+private:
+    const NApi::IClientPtr Client_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TFixedClientsCache)
+
+TError LaunchWithRecordingClient(const TIntrusivePtr<TRecordingAclClient>& client, TStringBuf configExtra = {})
+{
+    auto cache = New<TFixedClientsCache>(client);
+    try {
+        LaunchInVanillaJob(MakePipelinePath(), /*proxyRole*/ {}, MakeVanillaConfig(configExtra), cache);
+    } catch (const TErrorException& ex) {
+        EXPECT_EQ(cache->RequestedClusterUrls, (std::vector<std::string>(2, std::string(PipelineCluster))));
+        return ex.Error();
+    }
+    ADD_FAILURE() << "Launch was expected to fail";
+    return {};
+}
+
+void ExpectLaunchSkipsAclChecks(TStringBuf configExtra)
+{
+    auto client = New<TRecordingAclClient>();
+
+    auto error = LaunchWithRecordingClient(client, configExtra);
+
+    EXPECT_EQ(client->Calls, std::vector<std::string>{});
+    EXPECT_THAT(ToString(error), testing::HasSubstr("Not implemented method CreateNode"));
+}
+
+TEST(TVanillaLauncherAclTest, SkipsAclChecksForOmittedAcl)
+{
+    ExpectLaunchSkipsAclChecks(/*configExtra*/ {});
+}
+
+TEST(TVanillaLauncherAclTest, SkipsAclChecksForEntityAcl)
+{
+    ExpectLaunchSkipsAclChecks("acl=#");
+}
+
+TEST(TVanillaLauncherAclTest, SkipsRuntimeAclCheckForEmptyAcl)
+{
+    ExpectLaunchSkipsAclChecks("acl=[]");
+}
+
+TEST(TVanillaLauncherAclTest, ReportsRuntimeAclCheckFailure)
+{
+    auto client = New<TRecordingAclClient>();
+    client->PermissionCheckResults = {
+        NApi::TCheckPermissionByAclResult{.Action = NSecurityClient::ESecurityAction::Allow},
+        TError("Permission check RPC failed"),
+    };
+
+    auto error = LaunchWithRecordingClient(client, "acl=[{action=allow;subjects=[readers];permissions=[read]}]");
+
+    std::vector<std::string> expectedCalls{"CheckPermissionByAcl read", "CheckPermissionByAcl manage"};
+    EXPECT_EQ(client->Calls, expectedCalls);
+    EXPECT_EQ(error.GetMessage(), "Cannot use vanilla operation ACL on runtime cluster \"pipeline-cluster\": ACL check failed");
+    ASSERT_EQ(error.InnerErrors().size(), 1u);
+    EXPECT_THAT(ToString(error.InnerErrors()[0]), testing::HasSubstr("Permission check RPC failed"));
+}
+
+TEST(TVanillaLauncherAclTest, ReportsFirstTenMissingRuntimeSubjects)
+{
+    auto subject = [] (int index) {
+        return Format("subject-%02d", index);
+    };
+    auto client = New<TRecordingAclClient>();
+    client->PermissionCheckResults = {
+        NApi::TCheckPermissionByAclResult{.MissingSubjects = {subject(12), subject(3), subject(1), subject(7)}},
+        NApi::TCheckPermissionByAclResult{.MissingSubjects = {subject(3), subject(11), subject(2), subject(9), subject(5)}},
+        NApi::TCheckPermissionByAclResult{.MissingSubjects = {subject(1), subject(10), subject(4), subject(6), subject(8), subject(12)}},
+    };
+
+    std::string aclSubjects;
+    for (int index = 1; index <= 12; ++index) {
+        aclSubjects += Format("%Qv;", subject(index));
+    }
+    auto aclYson = Format("[{action=allow;subjects=[%v];permissions=[read]}]", aclSubjects);
+
+    auto error = LaunchWithRecordingClient(client, Format("acl=%v", aclYson));
+
+    std::vector<std::string> expectedCalls{
+        "CheckPermissionByAcl read",
+        "CheckPermissionByAcl manage",
+        "CheckPermissionByAcl administer",
+    };
+    EXPECT_EQ(client->Calls, expectedCalls);
+    EXPECT_EQ(client->CheckedUsers, (std::vector<std::optional<std::string>>(3, std::nullopt)));
+    EXPECT_EQ(client->IgnoredMissingSubjects, std::vector<bool>(3, true));
+    auto expectedAcl = ConvertToNode(ConvertTo<NSecurityClient::TSerializableAccessControlList>(TYsonStringBuf(aclYson)));
+    for (const auto& acl : client->CheckedAcls) {
+        EXPECT_TRUE(AreNodesEqual(acl, expectedAcl));
+    }
+
+    std::vector<std::string> reportedSubjects;
+    for (int index = 1; index <= 10; ++index) {
+        reportedSubjects.push_back(subject(index));
+    }
+    EXPECT_EQ(
+        error.GetMessage(),
+        Format("Cannot use vanilla operation ACL on runtime cluster \"pipeline-cluster\": subjects %v do not exist there", reportedSubjects));
+    EXPECT_EQ(error.Attributes().Get<int>("missing_subject_count"), 12);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

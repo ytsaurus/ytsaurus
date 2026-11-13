@@ -45,6 +45,8 @@ Title vanilla-операции. ||
 || `secret_env` | **Тип**: `std::vector<std::string>`
 **Значение по умолчанию**: `[]`
  ||
+|| `acl` | **Тип**: `std::optional<NYT::NSecurityClient::TSerializableAccessControlList>`
+Необязательный ACL операции. Если поле отсутствует или равно `#`, ACL не задаётся и сохраняются стандартные права планировщика. `[]` передаёт явный пустой ACL. Непустой список задаёт всю явную политику со стандартными правами `read`, `manage` и `administer`. ACL пайплайна не переносится. См. [Доступ к операции](../devops/vanilla/security.md#operation-acl). ||
 || `node_config` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
 Произвольный YSON-патч, накладываемый поверх дефолтного `TFlowNodeConfig` внутри vanilla-джоб. ||
 |#
