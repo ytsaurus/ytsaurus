@@ -449,9 +449,9 @@
     ],
     "test.TestDqFile_pg-tpch-q17-default.txt.test[Plan]": [
         {
-            "checksum": "9984f99375be3b15473126ccbc281752",
-            "size": 15017,
-            "uri": "https://{canondata_backend}/212715/f5a13276c0b9e08c99b639a892d38dcda1708a9f/resource.tar.gz#test.test_pg-tpch-q17-default.txt-Plan_/plan.txt"
+            "checksum": "0bd43084974ce81d640cd3cb97b127c2",
+            "size": 15338,
+            "uri": "https://{canondata_backend}/212715/ea89627f5cb6de4bc133bd51d4797c7110994a91/resource.tar.gz#test.TestDqFile_pg-tpch-q17-default.txt.test_Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_pg_duplicated-duplicated_rowspec-.test[Plan]": [
