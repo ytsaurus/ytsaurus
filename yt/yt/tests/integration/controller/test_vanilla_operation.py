@@ -1252,7 +1252,10 @@ wait $child_pid
     @flaky(max_runs=3)  # More details in YT-15821.
     def test_successful_interrupts(self):
         exit_code = 17
-        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
+        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; {}; sleep 100)""".format(
+            exit_code,
+            events_on_fs().breakpoint_cmd("ready_to_complete"),
+        )
 
         op = vanilla(
             track=False,
@@ -1274,13 +1277,10 @@ wait $child_pid
         wait(lambda: op.get_job_count("lost") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
-        wait_breakpoint(op)
         release_breakpoint()
 
-        # Give time to execute second trap command.
-        time.sleep(5)
-
-        self._interrupt(op)
+        job_id, = wait_breakpoint(op, breakpoint_name="ready_to_complete")
+        interrupt_job(job_id, interrupt_timeout=600000)
 
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
         op.track()
