@@ -11,7 +11,7 @@ namespace NYT::NDiskManager   {
 struct IDiskInfoProvider
     : public TRefCounted
 {
-    virtual const std::vector<std::string>& GetConfigDiskIds() = 0;
+    virtual const THashSet<std::string>& GetConfigDiskIds() const = 0;
 
     virtual TFuture<std::vector<TDiskInfo>> GetYTDiskInfos() = 0;
 

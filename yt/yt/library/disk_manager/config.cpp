@@ -14,6 +14,16 @@ void TDiskInfoProviderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDiskScopeConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fs_labels", &TThis::FsLabels)
+        .Default();
+    registrar.Parameter("disk_ids", &TThis::DiskIds)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_manager_address", &TThis::DiskManagerAddress)
@@ -40,6 +50,8 @@ void THotswapManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("disk_info_provider", &TThis::DiskInfoProvider)
         .DefaultNew();
+    registrar.Parameter("disk_scope", &TThis::DiskScope)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

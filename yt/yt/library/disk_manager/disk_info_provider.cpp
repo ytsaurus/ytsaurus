@@ -25,7 +25,7 @@ public:
         , Config_(std::move(config))
     { }
 
-    const std::vector<std::string>& GetConfigDiskIds() final
+    const THashSet<std::string>& GetConfigDiskIds() const final
     {
         return Config_->DiskIds;
     }
