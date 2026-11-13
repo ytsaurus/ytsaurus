@@ -1977,7 +1977,6 @@ struct TYqlRunnableTaskFactory::TImpl {
         YQL_LOG(INFO) << "CreateFuncRegistry over " << udfs.size() << " UDFs ...";
         FuncRegistry = CreateFuncRegistry(udfs);
         YQL_LOG(INFO) << "CreateFuncRegistry complete";
-        TString frozenUdfResolverPath;
 
         TVector<IUrlListerPtr> urlListers = {MakeYtUrlLister(YtClusters)};
         ExtUrlListers(urlListers);
@@ -1988,23 +1987,28 @@ struct TYqlRunnableTaskFactory::TImpl {
                        "File " << executorConfig.GetUdfResolverPath()
                        << " does not exist");
 
-            frozenUdfResolverPath = FreezeFile(executorConfig.GetUdfResolverPath());
+            NCommon::TOutProcUdfResolverOptions udfResolverOptions{
+                .ResolverPath = FreezeFile(executorConfig.GetUdfResolverPath()),
+                .FilterSysCalls = executorConfig.GetUdfResolverFilterSyscalls(),
+            };
+            if (executorConfig.HasUdfResolverUser()) {
+                udfResolverOptions.User = executorConfig.GetUdfResolverUser();
+            }
+            if (executorConfig.HasUdfResolverGroup()) {
+                udfResolverOptions.Group = executorConfig.GetUdfResolverGroup();
+            }
+            if (executorConfig.HasUdfResolverPortoProxyPath()) {
+                auto& portoConfig = udfResolverOptions.PortoConfig.ConstructInPlace();
+                portoConfig.ProxyBinaryPath = executorConfig.GetUdfResolverPortoProxyPath();
+                portoConfig.Layers.assign(executorConfig.GetUdfResolverPortoLayers().begin(), executorConfig.GetUdfResolverPortoLayers().end());
+            }
+            if (const auto& stubPath = executorConfig.GetUdfDependencyStubPath(); !stubPath.empty()) {
+                udfResolverOptions.UdfDependencyStubPath = FreezeFile(stubPath);
+            }
             const bool scanUdfs = executorConfig.GetScanUdfs();
             THoldingFileStorage holdingFileStorage(FileStorage);
             if (scanUdfs) {
-                TString frozenUdfDependencyStubPath = executorConfig.GetUdfDependencyStubPath();
-                if (frozenUdfDependencyStubPath) {
-                    frozenUdfDependencyStubPath = FreezeFile(frozenUdfDependencyStubPath);
-                }
-
-                UdfResolver = NCommon::CreateOutProcUdfResolver(
-                    FuncRegistry.Get(), FileStorage,
-                    frozenUdfResolverPath,
-                    executorConfig.GetUdfResolverUser(),
-                    executorConfig.GetUdfResolverGroup(),
-                    executorConfig.GetUdfResolverFilterSyscalls(),
-                    frozenUdfDependencyStubPath,
-                    udfsWithMd5);
+                UdfResolver = NCommon::CreateOutProcUdfResolver(FuncRegistry.Get(), FileStorage, udfResolverOptions, udfsWithMd5);
 
                 YQL_LOG(INFO) << "Build UdfIndex for " << udfsWithMd5.size() << " UDFs ...";
                 UdfIndex = new TUdfIndex();
@@ -2021,24 +2025,13 @@ struct TYqlRunnableTaskFactory::TImpl {
                     YQL_LOG(INFO) << "System UDFs scanned";
                 } else {
                     YQL_LOG(INFO) << "Load system UDFs into function registry ...";
-                    LoadSystemUdfsIntoFunctionRegistry(frozenUdfResolverPath, executorConfig.GetSystemUdfsDir());
+                    LoadSystemUdfsIntoFunctionRegistry(udfResolverOptions, executorConfig.GetSystemUdfsDir());
                     YQL_LOG(INFO) << "System UDFs are loaded into function registry";
                 }
             }
 
             if (!scanUdfs) {
-                TString frozenUdfDependencyStubPath = executorConfig.GetUdfDependencyStubPath();
-                if (frozenUdfDependencyStubPath) {
-                    frozenUdfDependencyStubPath = FreezeFile(frozenUdfDependencyStubPath);
-                }
-
-                UdfResolver = NCommon::CreateOutProcUdfResolver(
-                    FuncRegistry.Get(), FileStorage,
-                    frozenUdfResolverPath,
-                    executorConfig.GetUdfResolverUser(),
-                    executorConfig.GetUdfResolverGroup(),
-                    executorConfig.GetUdfResolverFilterSyscalls(),
-                    frozenUdfDependencyStubPath);
+                UdfResolver = NCommon::CreateOutProcUdfResolver(FuncRegistry.Get(), FileStorage, std::move(udfResolverOptions));
             }
 
         } else {
@@ -2494,9 +2487,9 @@ private:
         }
     }
 
-    void LoadSystemUdfsIntoFunctionRegistry(const TString& udfResolverPath, const TString& systemUdfsDir) {
+    void LoadSystemUdfsIntoFunctionRegistry(const NCommon::TOutProcUdfResolverOptions& options, const TString& systemUdfsDir) {
         TUdfModulePathsMap systemModules;
-        NCommon::LoadSystemModulePaths(udfResolverPath, systemUdfsDir, &systemModules);
+        NCommon::LoadSystemModulePaths(options, systemUdfsDir, &systemModules);
 
         TUdfModulePathsMap filteredModules;
         for (auto& module : systemModules) {
