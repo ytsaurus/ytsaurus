@@ -2968,9 +2968,28 @@ class YTEnvSetup(object):
         # Resource holders are released asynchronously after a job vanishes, so the
         # resource manager may still report acquired resources right after the active
         # job count drops to zero. Poll instead of checking once.
-        resource_types = ["pending_resources", "acquired_resources"]
+        resource_types = ["pending_resources", "acquired_resources", "releasing_resources"]
+        cleanup_delays_released = False
+
+        def resources_released():
+            nonlocal cleanup_delays_released
+            nonzero = get_nonzero_resources(resource_types)
+            if (not cleanup_delays_released and
+                    any(type == "releasing_resources" for _, type, _ in nonzero) and
+                    not any("node" in components for components in self.ARTIFACT_COMPONENTS.values())):
+                config = yt_commands.get("//sys/cluster_nodes/@config", driver=driver)
+                if not config:
+                    config["%true"] = {}
+                for patch in config.values():
+                    update_inplace(patch, {
+                        "exec_node": {"job_controller": {"testing": {"release_job_cleanup_delays": True}}},
+                    })
+                yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
+                cleanup_delays_released = True
+            return not nonzero
+
         try:
-            wait(lambda: not get_nonzero_resources(resource_types), iter=300)
+            wait(resources_released)
         except WaitFailed:
             nonzero = get_nonzero_resources(resource_types)
             assert not nonzero, "\n".join(
