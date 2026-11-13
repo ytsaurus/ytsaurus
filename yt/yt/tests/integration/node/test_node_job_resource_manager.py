@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, with_breakpoint, wait_breakpoint, release_breakpoint, run_test_vanilla,
-    run_sleeping_vanilla, update_nodes_dynamic_config, ls, get, wait, abort_job)
+    run_sleeping_vanilla, update_nodes_dynamic_config, ls, get, wait, abort_job, set as yt_set)
 
 from yt_helpers import JobCountProfiler, profiler_factory
 
@@ -356,3 +356,90 @@ class TestWaitingAllocationsOnResourceAvailabilityChange(YTEnvSetup):
             self._wait_for_running_allocations(node, allocation_ids)
         finally:
             op.abort()
+
+
+class TestExecNodeMasterCache(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 0
+    NUM_CONTROLLER_AGENTS = 0
+    USE_MASTER_CACHE = True
+
+    DELTA_NODE_FLAVORS = [["exec"]]
+
+    CACHE_CAPACITY = 1024**3
+    SMALL_CACHE_CAPACITY = 1024**2
+    BUDGET_TOLERANCE = 64 * 1024**2
+
+    DELTA_NODE_CONFIG = {
+        "exec_node_is_not_data_node": True,
+        "tablet_node": {"versioned_chunk_meta_cache": {"capacity": 0}},
+        "resource_limits": {
+            "memory": 64 * 1024**3,
+            "memory_limits": {
+                "user_jobs": {"type": "dynamic"},
+                # Stabilize allocator reserves while measuring the cache budget.
+                "footprint": {"type": "static", "value": 16 * 1024**3},
+                "alloc_fragmentation": {"type": "static", "value": 8 * 1024**3},
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "caching_object_service": {"capacity": CACHE_CAPACITY},
+            "tablet_node": {"versioned_chunk_meta_cache": {"capacity": 0}},
+            "resource_limits": {"use_instance_limits_tracker": False},
+            "node_memory_tracker": {"check_per_category_limit_overcommit": True},
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "master_cache_manager": {"peer_count": 1, "update_period": 100},
+        },
+    }
+
+    @authors("pogorelov")
+    def test_small_capacity_releases_job_memory(self):
+        node, = ls("//sys/exec_nodes")
+        orchid = f"//sys/cluster_nodes/{node}/orchid"
+        cache_limit = f"{orchid}/node_resource_manager/memory_limit_per_category/master_cache"
+        job_memory_limit = f"{orchid}/exec_node/job_resource_manager/resource_limits/user_memory"
+        cache_used = profiler_factory().at_node(node).gauge(
+            "cluster_node/memory_usage/used", {"category": "master_cache"})
+
+        wait(lambda: get("//sys/cluster_nodes/@master_cache_nodes") == [node])
+        wait(lambda: get(f"{orchid}/node_resource_manager/total_memory") == 64 * 1024**3)
+        wait(lambda: get(cache_limit) == self.CACHE_CAPACITY)
+        memory_before = get(job_memory_limit)
+
+        path = "//tmp/master_cache_probe"
+        yt_set(path, "before")
+        wait(lambda: (
+            get(path, read_from="cache", expire_after_successful_update_time=60000) == "before" and
+            cache_used.get() > 0))
+
+        update_nodes_dynamic_config({
+            "caching_object_service": {"capacity": self.SMALL_CACHE_CAPACITY},
+        })
+        wait(lambda: get(cache_limit) == self.SMALL_CACHE_CAPACITY)
+        wait(lambda: 0 < cache_used.get() <= self.SMALL_CACHE_CAPACITY)
+        released_memory = self.CACHE_CAPACITY - self.SMALL_CACHE_CAPACITY
+        wait(lambda: (
+            abs(get(job_memory_limit) - memory_before - released_memory) < self.BUDGET_TOLERANCE))
+
+        for value in ("after", "still_forwarding"):
+            yt_set(path, value)
+            assert get(path, read_from="cache", expire_after_successful_update_time=0) == value
+            wait(lambda: 0 < cache_used.get() <= self.SMALL_CACHE_CAPACITY)
+
+        update_nodes_dynamic_config({"caching_object_service": {"capacity": self.CACHE_CAPACITY}})
+        wait(lambda: get(cache_limit) == self.CACHE_CAPACITY)
+        wait(lambda: abs(get(job_memory_limit) - memory_before) < self.BUDGET_TOLERANCE)
+        wait(lambda: (
+            get(
+                path,
+                read_from="cache",
+                expire_after_successful_update_time=60000) == "still_forwarding" and
+            cache_used.get() > 0))
