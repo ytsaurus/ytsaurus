@@ -72,7 +72,7 @@ public:
     void SetPending(i64 value);
     void AddSuspended(i64 value);
     void SetSuspended(i64 value);
-    void AddAborted(i64 value, EAbortReason reason = EAbortReason::Other);
+    void AddAborted(i64 value, EAbortReason reason);
     void AddLost(i64 value);
     void AddInvalidated(i64 value);
     void AddUncategorized(i64 value);

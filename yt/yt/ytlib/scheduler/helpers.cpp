@@ -373,11 +373,6 @@ bool IsSchedulingReason(EAbortReason reason)
     return reason > EAbortReason::SchedulingFirst && reason < EAbortReason::SchedulingLast;
 }
 
-bool IsNonSchedulingReason(EAbortReason reason)
-{
-    return reason < EAbortReason::SchedulingFirst;
-}
-
 bool IsSentinelReason(EAbortReason reason)
 {
     return

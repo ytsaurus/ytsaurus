@@ -108,7 +108,6 @@ bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
 
 bool IsSchedulingReason(EAbortReason reason);
-bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
