@@ -6,7 +6,7 @@ from common import TestQueriesYqlBase, TestUpdateYqlAgentQtWorkerDynamicConfigMi
 from yt.environment.helpers import assert_items_equal
 
 from yt_commands import (abort_transaction, authors, create, create_pool, create_user,
-                         generate_uuid, get, insert_rows, remount_table,
+                         generate_timestamp, generate_uuid, get, insert_rows, remount_table,
                          select_rows, set, sync_compact_table, raises_yt_error, wait,
                          write_table, update_access_control_object_acl)
 
@@ -69,8 +69,58 @@ class TestQTWorkerProgress(test_simple.TestQueriesYqlSimpleBase):
     YQL_QTWORKER = True
     QUERY_TRACKER_DYNAMIC_CONFIG = {"not_indexed_queries_ttl": 2000}
 
-    def _progress_parts(self, query):
-        return list(select_rows(f"* from [//sys/query_tracker/query_progresses] where [query_id] = '{query.id}'"))
+    def _progress_parts(self, query, finished=False, **kwargs):
+        table = "finished_query_progresses" if finished else "active_query_progresses"
+        return list(select_rows(f"* from [//sys/query_tracker/{table}] where [query_id] = '{query.id}'", **kwargs))
+
+    def _assert_progress_parts(self, query, finished=False):
+        timestamp = generate_timestamp()
+        parts = self._progress_parts(query, finished=finished, timestamp=timestamp)
+        progress_parts = [row for row in parts if row["part_name"] == "yql_progress"]
+        main_parts = [row for row in parts if row["part_name"] != "yql_progress"]
+        assert progress_parts
+        assert main_parts
+
+        full = query.get(timestamp=timestamp)["progress"]
+        assert {*full} == {row["part_name"] for row in parts} | {"main_revision", "progress_revision"}
+        assert {*full["yql_progress"]} == {row["subpart_name"] for row in progress_parts}
+        assert all(isinstance(value, dict) for value in full["yql_progress"].values())
+        assert full["progress_revision"] == max(row["revision"] for row in progress_parts)
+        assert full["main_revision"] == max(row["revision"] for row in main_parts)
+
+        def get_progress(**options):
+            return query.get(timestamp=timestamp, progress_options=options)["progress"]
+
+        assert get_progress() == full
+        assert get_progress(progress_parts=[]) == full
+        assert get_progress(after_main_revision=0, after_progress_revision=0) == full
+
+        for selected in (["yql_progress"], ["yql_plan"], ["yql_progress", "yql_plan"]):
+            expected = {name: full[name] for name in selected}
+            if "yql_progress" in selected:
+                expected["progress_revision"] = full["progress_revision"]
+            selected_main_parts = [row for row in main_parts if row["part_name"] in selected]
+            if selected_main_parts:
+                expected["main_revision"] = max(row["revision"] for row in selected_main_parts)
+            assert get_progress(progress_parts=selected) == expected
+
+        assert get_progress(after_main_revision=full["main_revision"] + 1) == {
+            "yql_progress": full["yql_progress"],
+            "progress_revision": full["progress_revision"],
+        }
+        assert get_progress(after_progress_revision=full["progress_revision"] + 1) == {
+            key: value for key, value in full.items() if key not in ("yql_progress", "progress_revision")
+        }
+        assert get_progress(
+            after_main_revision=full["main_revision"] + 1,
+            after_progress_revision=full["progress_revision"] + 1,
+        ) == {}
+
+        # Revision cursors are exclusive and apply independently.
+        assert get_progress(
+            after_main_revision=full["main_revision"],
+            after_progress_revision=full["progress_revision"],
+        ) == {}
 
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
@@ -84,34 +134,67 @@ class TestQTWorkerProgress(test_simple.TestQueriesYqlSimpleBase):
         query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
         wait(lambda: self._exists_pending_stage_in_progress(query))
 
-        parts = self._progress_parts(query)
-        assert len(parts) > 0
-        part_names = {row["part_name"] for row in parts}
-        assert "yql_progress" in part_names
-
-        full = query.get()["progress"]
-        assert part_names <= {*full.keys()}
-
-        filtered = query.get(progress_parts=["yql_progress", "yql_revision"])["progress"]
-        assert {*filtered.keys()} == {"yql_progress", "yql_revision"}
-
-        delta = query.get(min_progress_revision=0)["progress"]
-        assert "yql_progress" in delta
-        assert "yql_revision" in delta
-
-        # Progress is always sent due to lack of revision.
-        only_progress = query.get(min_progress_revision=100000)["progress"]
-        assert "yql_progress" in only_progress
-        assert "yql_revision" not in only_progress
+        assert not self._progress_parts(query, finished=True)
+        self._assert_progress_parts(query)
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
         query.track()
 
-        assert len(self._progress_parts(query)) != 0
+        assert not self._progress_parts(query)
+        self._assert_progress_parts(query, finished=True)
+
+    @authors("mpereskokova")
+    def test_truncation_flags_are_top_level(self, query_tracker, yql_agent):
+        query = self.start_query("yql", "select 1 as result")
+        query.track()
+        original = query.get()["progress"]
+        progress_revision = original.get("progress_revision", 0) + 1
+        main_revision = original.get("main_revision", 0) + 1
+        flags = [
+            "yql_plan_truncated",
+            "yql_statistics_truncated",
+            "yql_progress_truncated",
+            "yql_task_info_truncated",
+            "yql_ast_truncated",
+        ]
+        compressed_true = zstd.ZstdCompressor().compress(yson.dumps(True))
+        insert_rows("//sys/query_tracker/finished_query_progresses", [{
+            "query_id": query.id,
+            "part_name": flag,
+            "subpart_name": "",
+            "revision": progress_revision if flag == "yql_progress_truncated" else main_revision,
+            "part_value": compressed_true,
+        } for flag in flags])
+
+        timestamp = generate_timestamp()
+
+        def get_progress(**options):
+            return query.get(timestamp=timestamp, progress_options=options)["progress"]
+
+        full = get_progress()
+        assert all(full[flag] for flag in flags)
+        assert not any(flag in full.get("yql_progress", {}) for flag in flags)
+        assert full["progress_revision"] == progress_revision
+        assert full["main_revision"] == main_revision
+
+        for flag in flags:
+            revision_key = "progress_revision" if flag == "yql_progress_truncated" else "main_revision"
+            revision = full[revision_key]
+            assert get_progress(progress_parts=[flag]) == {flag: True, revision_key: revision}
+            assert get_progress(progress_parts=[flag], **{f"after_{revision_key}": revision}) == {}
+
+        assert get_progress(
+            after_main_revision=main_revision,
+            after_progress_revision=progress_revision - 1,
+        ) == {"yql_progress_truncated": True, "progress_revision": progress_revision}
+        assert get_progress(
+            progress_parts=flags,
+            after_progress_revision=progress_revision,
+        ) == {flag: True for flag in flags if flag != "yql_progress_truncated"} | {"main_revision": main_revision}
 
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
-    def test_progress_parts_removed_on_detach(self, query_tracker, yql_agent):
+    def test_progress_parts_preserved_on_detach(self, query_tracker, yql_agent):
         create("table", "//tmp/t_detach", attributes={
             "schema": [{"name": "a", "type": "int64"}]
         })
@@ -130,12 +213,13 @@ class TestQTWorkerProgress(test_simple.TestQueriesYqlSimpleBase):
         with raises_yt_error("Query lease was lost; restarting query execution is unsafe"):
             query.track()
         wait(lambda: len(self._progress_parts(query)) == 0)
+        self._assert_progress_parts(query, finished=True)
 
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_progress_ttl(self, query_tracker, yql_agent):
-        set("//sys/query_tracker/query_progresses/@min_data_ttl", 1000)
-        remount_table("//sys/query_tracker/query_progresses")
+        set("//sys/query_tracker/finished_query_progresses/@min_data_ttl", 1000)
+        remount_table("//sys/query_tracker/finished_query_progresses")
 
         create("table", "//tmp/t_ttl", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -151,14 +235,16 @@ class TestQTWorkerProgress(test_simple.TestQueriesYqlSimpleBase):
             settings={"is_indexed": False})
         not_indexed.track()
 
-        assert len(self._progress_parts(indexed)) > 0
-        assert len(self._progress_parts(not_indexed)) > 0
+        assert not self._progress_parts(indexed)
+        assert not self._progress_parts(not_indexed)
+        assert len(self._progress_parts(indexed, finished=True)) > 0
+        assert len(self._progress_parts(not_indexed, finished=True)) > 0
 
         time.sleep(4)  # > row TTL (two seconds)
-        sync_compact_table("//sys/query_tracker/query_progresses")
+        sync_compact_table("//sys/query_tracker/finished_query_progresses")
 
-        assert len(self._progress_parts(indexed)) > 0
-        assert len(self._progress_parts(not_indexed)) == 0
+        assert len(self._progress_parts(indexed, finished=True)) > 0
+        assert len(self._progress_parts(not_indexed, finished=True)) == 0
 
     @authors("mpereskokova")
     def test_get_query_compact_form(self, query_tracker):
@@ -179,18 +265,16 @@ class TestQTWorkerProgress(test_simple.TestQueriesYqlSimpleBase):
         }])
 
         assert get_query(guid)["progress"] == progress
+        assert get_query(guid, progress_options={})["progress"] == progress
 
-        with raises_yt_error() as err:
-            get_query(guid, progress_parts=["yql_plan"])
-        assert err[0].contains_text("stores progress in compact form")
-
-        with raises_yt_error() as err:
-            get_query(guid, min_progress_revision=5)
-        assert err[0].contains_text("stores progress in compact form")
-
-        with raises_yt_error() as err:
-            get_query(guid, progress_parts=["yql_plan"], min_progress_revision=5)
-        assert err[0].contains_text("stores progress in compact form")
+        for options in (
+            {"progress_parts": ["yql_plan"]},
+            {"after_main_revision": 5},
+            {"after_progress_revision": 5},
+            {"progress_parts": ["yql_plan"], "after_main_revision": 5, "after_progress_revision": 5},
+        ):
+            with raises_yt_error("stores progress in compact form"):
+                get_query(guid, progress_options=options)
 
 
 @authors("mpereskokova")

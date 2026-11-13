@@ -60,7 +60,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.AccessControlObjects = partialRecord.AccessControlObjects.value_or(TYsonString(TString("[]")));
     query.State = partialRecord.State;
     query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
-    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : std::string("{}"));
+    query.Progress = partialRecord.Progress ? TYsonString(Decompress(*partialRecord.Progress)) : TYsonString();
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
     query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));

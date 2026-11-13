@@ -25,15 +25,24 @@ public:
 class TProgressMerger : public NYql::NProgressMerger::ITaskProgressMerger {
 public:
     void MergeWith(const NYql::TOperationProgress& progress) override;
-    void MergeWith(const NYql::NProto::TTaskProgress& taskProgress);
+    void MergeWith(const NYql::NProto::TTaskProgress& taskProgress, std::optional<ui32> revision);
     void AbortAllUnfinishedNodes() override;
 
     bool HasChangesSinceLastFlush() const;
+    bool IsTruncated() const;
+    std::optional<ui32> GetTruncationRevision() const;
     TString ToYsonString();
+    THashMap<TString, std::pair<ui32, TString>> GetLatestProgressPartRevisions(
+        std::optional<ui32> afterRevision) const;
 
 private:
     bool HasChanges_ = false;
+    bool ProgressNodeLimitExceededLogged_ = false;
+    std::optional<ui32> TruncationRevision_;
     THashMap<ui32, TNodeProgress> NodesMap_;
+    THashMap<TString, ui32> LatestProgressPartRevisions_;
+
+    void LogProgressNodeLimitExceededOnce(ui32 nodeId);
 };
 
 //////////////////////////////////////////////////////////////////////////////

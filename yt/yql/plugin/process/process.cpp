@@ -180,7 +180,7 @@ TQueryResult TYqlExecutorProcess::Run(
     return ToQueryResult(response.Value()->response());
 }
 
-TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/)
+TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId, TProgressOptions /*progressOptions*/)
 {
     YT_TLOG_INFO("Getting query progress")
         .With("SlotIndex", SlotIndex_)

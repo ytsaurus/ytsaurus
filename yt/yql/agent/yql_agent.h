@@ -3,6 +3,8 @@
 #include "private.h"
 #include "bootstrap.h"
 
+#include <yt/yql/plugin/plugin.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/yql_client/proto/yql_service.pb.h>
@@ -39,7 +41,7 @@ struct IYqlAgent
 
     virtual TFuture<NYqlClient::NProto::TRspGetDeclaredParametersInfo> GetDeclaredParametersInfo(const TString& user, const TString& query, const NYson::TYsonString& settings) = 0;
 
-    virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId, std::optional<ui32> revision) = 0;
+    virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId, NYqlPlugin::TProgressOptions progressOptions) = 0;
 
     virtual NYqlClient::NProto::TRspGetYqlAgentInfo GetYqlAgentInfo() = 0;
 

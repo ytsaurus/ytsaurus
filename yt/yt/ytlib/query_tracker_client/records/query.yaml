@@ -573,6 +573,12 @@ types:
         column_type: String
         sort_order: Ascending
 
+      - cpp_name: SubPartName
+        cpp_type: std::string
+        column_name: subpart_name
+        column_type: String
+        sort_order: Ascending
+
       # Value.
 
       - cpp_name: Revision

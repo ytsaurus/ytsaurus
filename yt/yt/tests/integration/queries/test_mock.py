@@ -399,22 +399,37 @@ class TestQueriesMock(QueriesTestBase):
         assert "tokens" not in self._get_stored_finished_query_settings(q.id)
 
     @authors("mpereskokova")
-    def test_get_query_progress_parts(self, query_tracker):
+    @pytest.mark.parametrize("finished", [False, True])
+    def test_get_query_progress_parts(self, query_tracker, finished):
         q = start_query("mock", "run_forever")
         wait(lambda: q.get_state() == "running")
+
+        if finished:
+            q.abort()
+            with raises_yt_error("Query .* aborted"):
+                q.track()
+
         assert get_query(q.id)["progress"] == {}
+        assert get_query(q.id, progress_options={})["progress"] == {}
+        assert get_query(q.id, attributes=["progress"], progress_options={})["progress"] == {}
 
-        with raises_yt_error() as err:
-            get_query(q.id, progress_parts=["yql_plan"])
-        assert err[0].contains_text("stores progress in compact form")
+        query = get_query(q.id, attributes=["state"], progress_options={})
+        assert query["state"] == ("aborted" if finished else "running")
+        assert "progress" not in query
 
-        with raises_yt_error() as err:
-            get_query(q.id, min_progress_revision=5)
-        assert err[0].contains_text("stores progress in compact form")
+        for options in (
+            {"progress_parts": ["yql_plan"]},
+            {"after_main_revision": 5},
+            {"after_progress_revision": 5},
+            {"progress_parts": ["yql_plan"], "after_main_revision": 5, "after_progress_revision": 5},
+            {"progress_parts": []},
+            {"after_main_revision": 0, "after_progress_revision": 0},
+        ):
+            with raises_yt_error("stores progress in compact form"):
+                get_query(q.id, progress_options=options)
 
-        with raises_yt_error() as err:
-            get_query(q.id, progress_parts=["yql_plan"], min_progress_revision=5)
-        assert err[0].contains_text("stores progress in compact form")
+            with raises_yt_error("Non-empty progress_options require the .*progress.* attribute to be requested"):
+                get_query(q.id, attributes=["state"], progress_options=options)
 
     @authors("tinarsky")
     def test_start_query_retry(self, query_tracker):
@@ -1029,7 +1044,9 @@ class TestGetQueryTrackerInfo(QueriesTestBase):
         'declare_params': True,
         'declare_params_on_proxies': True,
         'tutorials': True,
-        'tutorials_on_proxies': True
+        'tutorials_on_proxies': True,
+        'progress_v2': True,
+        'progress_v2_on_proxies': True,
     }
 
     @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
@@ -1883,7 +1900,9 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
         'new_search': True,
         'not_indexing': True,
         'declare_params': True,
-        'tutorials': True
+        'tutorials': True,
+        'progress_v2': True,
+        'progress_v2_on_proxies': True,
     }
 
 

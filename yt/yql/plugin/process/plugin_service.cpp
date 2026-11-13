@@ -147,7 +147,7 @@ public:
         context->AnnotateRequest()
             .With("QueryId", queryId);
 
-        auto queryProgress = YqlPlugin_->GetProgress(queryId, /*revision*/ std::nullopt);
+        auto queryProgress = YqlPlugin_->GetProgress(queryId, TProgressOptions{});
 
         auto yqlResponse = ToYqlResponse(queryProgress);
 

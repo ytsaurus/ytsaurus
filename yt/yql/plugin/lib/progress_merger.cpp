@@ -1,8 +1,16 @@
 #include "progress_merger.h"
 
-#include <library/cpp/yt/string/format.h>
+#include <yql/essentials/utils/log/log.h>
 
 namespace NYT::NYqlPlugin {
+
+//////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr int MaxProgressNodes = 25'000;
+
+} // namespace
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -81,22 +89,53 @@ void TNodeProgress::Serialize(::NYson::TYsonWriter& writer) const
 
 void TProgressMerger::MergeWith(const NYql::TOperationProgress& progress)
 {
-    auto in = NodesMap_.emplace(progress.Id, progress);
-    if (!in.second) {
-        in.first->second.MergeWith(progress);
+    auto it = NodesMap_.find(progress.Id);
+    if (it == NodesMap_.end()) {
+        if (ssize(NodesMap_) >= MaxProgressNodes) {
+            LogProgressNodeLimitExceededOnce(progress.Id);
+            return;
+        }
+        NodesMap_.emplace(progress.Id, progress);
+    } else {
+        it->second.MergeWith(progress);
     }
     HasChanges_ = true;
 }
 
-void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress)
+void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress, std::optional<ui32> revision)
 {
     for (const auto& node : taskProgress.GetNodes()) {
-        auto in = NodesMap_.emplace(node.GetId(), TNodeProgress(node));
-        bool changed = in.second;
-        if (!changed) {
-            changed |= in.first->second.MergeWith(node);
+        auto it = NodesMap_.find(node.GetId());
+        bool changed = false;
+        if (it == NodesMap_.end()) {
+            if (ssize(NodesMap_) >= MaxProgressNodes) {
+                LogProgressNodeLimitExceededOnce(node.GetId());
+                if (revision && !TruncationRevision_) {
+                    TruncationRevision_ = *revision;
+                }
+                continue;
+            }
+            it = NodesMap_.emplace(node.GetId(), TNodeProgress(node)).first;
+            changed = true;
+        } else {
+            changed = it->second.MergeWith(node);
         }
         HasChanges_ |= changed;
+        if (changed && revision) {
+            LatestProgressPartRevisions_[ToString(node.GetId())] = *revision;
+        }
+    }
+}
+
+void TProgressMerger::LogProgressNodeLimitExceededOnce(ui32 nodeId)
+{
+    if (!ProgressNodeLimitExceededLogged_) {
+        YQL_LOG(WARN)
+            << "Progress node limit reached; ignoring further new nodes and reporting yql_progress_truncated=true "
+            << "(MaxProgressNodes: " << MaxProgressNodes
+            << ", FirstIgnoredNodeId: " << nodeId << ")";
+        ProgressNodeLimitExceededLogged_ = true;
+        HasChanges_ = true;
     }
 }
 
@@ -129,6 +168,33 @@ TString TProgressMerger::ToYsonString()
 bool TProgressMerger::HasChangesSinceLastFlush() const
 {
     return HasChanges_;
+}
+
+bool TProgressMerger::IsTruncated() const
+{
+    return ProgressNodeLimitExceededLogged_;
+}
+
+std::optional<ui32> TProgressMerger::GetTruncationRevision() const
+{
+    return TruncationRevision_;
+}
+
+THashMap<TString, std::pair<ui32, TString>> TProgressMerger::GetLatestProgressPartRevisions(
+    std::optional<ui32> afterRevision) const
+{
+    THashMap<TString, std::pair<ui32, TString>> parts;
+    for (const auto& [nodeId, revision] : LatestProgressPartRevisions_) {
+        if (afterRevision && revision <= *afterRevision) {
+            continue;
+        }
+
+        TStringStream yson;
+        ::NYson::TYsonWriter writer(&yson);
+        NodesMap_.at(FromString<ui32>(nodeId)).Serialize(writer);
+        parts.emplace(nodeId, std::make_pair(revision, yson.Str()));
+    }
+    return parts;
 }
 
 //////////////////////////////////////////////////////////////////////////////

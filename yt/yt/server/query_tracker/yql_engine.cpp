@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_helpers.h>
 
@@ -51,6 +53,28 @@ using namespace NSecurityClient;
 static NLogging::TLogger Logger("YqlEngine");
 
 const std::string DefaultYqlAgentStageName = "production";
+
+namespace {
+
+EProgressPart GetTruncatedProgressPart(EProgressPart part)
+{
+    switch (part) {
+        case EProgressPart::YqlPlan:
+            return EProgressPart::YqlPlanTruncated;
+        case EProgressPart::YqlStatistics:
+            return EProgressPart::YqlStatisticsTruncated;
+        case EProgressPart::YqlProgress:
+            return EProgressPart::YqlProgressTruncated;
+        case EProgressPart::YqlTaskInfo:
+            return EProgressPart::YqlTaskInfoTruncated;
+        case EProgressPart::YqlAst:
+            return EProgressPart::YqlAstTruncated;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,20 +235,27 @@ private:
 
     std::optional<ui32> LastInMemoryProgressRevision_;
     std::optional<ui32> LastSavedProgressRevision_;
-    TYsonString LastSavedYqlProgress_;
-    THashMap<EProgressPart, std::pair<ui32, TYsonString>> ProgressPartsToSave_;
+    std::optional<ui32> ProgressTruncatedRevision_;
+
+    std::optional<ui32> LastInMemoryMainRevision_;
+    std::optional<ui32> LastSavedMainRevision_;
+
+    THashMap<std::string, std::pair<ui32, TYsonString>> ProgressSubPartsToSave_;
+    THashMap<EProgressPart, std::pair<ui32, TYsonString>> MainProgressPartsToSave_;
 
     void OnProgress(const TYqlResponse& rsp)
     {
-        auto optionalRevision = rsp.has_revision() ? std::optional(rsp.revision()) : std::nullopt;
+        auto optionalMainRevision = rsp.has_main_revision() ? std::optional(rsp.main_revision()) : std::nullopt;
+        auto optionalProgressRevision = rsp.has_progress_revision() ? std::optional(rsp.progress_revision()) : std::nullopt;
         auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp, plan);
         auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp, statistics);
         auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp, progress);
+        auto optionalProgressTruncated = rsp.has_progress_truncated() ? std::optional(rsp.progress_truncated()) : std::nullopt;
         auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp, task_info);
         auto optionalAst = rsp.has_ast() ? std::optional(rsp.ast()) : std::nullopt;
 
-        if (!optionalRevision) {
-            const bool hasContent = optionalPlan || optionalStatistics || optionalTaskInfo || optionalAst ||
+        if (!optionalMainRevision && !optionalProgressRevision) {
+            const bool hasContent = optionalPlan || optionalStatistics || optionalTaskInfo || optionalAst || optionalProgressTruncated ||
                 (optionalProgress && optionalProgress->AsStringBuf() != "{}");
             if (hasContent) {
                 auto progress = BuildYsonStringFluently()
@@ -232,6 +263,7 @@ private:
                         .OptionalItem(FormatEnum(EProgressPart::YqlPlan), optionalPlan)
                         .OptionalItem(FormatEnum(EProgressPart::YqlStatistics), optionalStatistics)
                         .OptionalItem(FormatEnum(EProgressPart::YqlProgress), optionalProgress)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlProgressTruncated), optionalProgressTruncated)
                         .OptionalItem(FormatEnum(EProgressPart::YqlTaskInfo), optionalTaskInfo)
                         .OptionalItem(FormatEnum(EProgressPart::YqlAst), optionalAst)
                     .EndMap();
@@ -239,102 +271,144 @@ private:
             }
             return;
         }
-        auto revision = *optionalRevision;
 
-        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToSave;
-        auto convertIfPresent = [&] (EProgressPart part, const auto& value) {
-            if (value) {
-                if (part == EProgressPart::YqlProgress) {
-                    // yql_progress carries no revision of its own; Max makes it pass any min-revision filter.
-                    partsToSave[part] = {Max<ui32>(), ConvertToYsonString(*value)};
-                } else {
-                    partsToSave[part] = {revision, ConvertToYsonString(*value)};
-                }
+        THashMap<std::string, TYsonString> progressSubParts;
+        if (optionalProgressRevision && optionalProgress) {
+            auto progressMap = ConvertToNode(*optionalProgress)->AsMap();
+            for (const auto& [name, value] : progressMap->GetChildren()) {
+                progressSubParts[name] = ConvertToYsonString(value);
             }
-        };
+        }
 
-        convertIfPresent(EProgressPart::YqlProgress, optionalProgress);
-        convertIfPresent(EProgressPart::YqlPlan, optionalPlan);
-        convertIfPresent(EProgressPart::YqlStatistics, optionalStatistics);
-        convertIfPresent(EProgressPart::YqlTaskInfo, optionalTaskInfo);
-        convertIfPresent(EProgressPart::YqlAst, optionalAst);
-        convertIfPresent(EProgressPart::YqlRevision, optionalRevision);
-
-        {
-            auto moveIfPresent = [&] (EProgressPart part) {
-                if (auto it = partsToSave.find(part); it != partsToSave.end()) {
-                    ProgressPartsToSave_[part] = std::move(it->second);
+        THashMap<EProgressPart, TYsonString> mainParts;
+        if (optionalMainRevision) {
+            auto convertIfPresent = [&] (EProgressPart part, const auto& value) {
+                if (value) {
+                    mainParts[part] = ConvertToYsonString(*value);
                 }
             };
+            convertIfPresent(EProgressPart::YqlPlan, optionalPlan);
+            convertIfPresent(EProgressPart::YqlStatistics, optionalStatistics);
+            convertIfPresent(EProgressPart::YqlTaskInfo, optionalTaskInfo);
+            convertIfPresent(EProgressPart::YqlAst, optionalAst);
+        }
 
-            auto guard = Guard(ProgressSpinLock_);
-            moveIfPresent(EProgressPart::YqlProgress);
-
-            if (LastInMemoryProgressRevision_ && revision <= *LastInMemoryProgressRevision_) {
-                return;
+        auto guard = Guard(ProgressSpinLock_);
+        if (optionalProgressRevision &&
+            (!LastInMemoryProgressRevision_ || *optionalProgressRevision > *LastInMemoryProgressRevision_))
+        {
+            for (auto& [name, value] : progressSubParts) {
+                ProgressSubPartsToSave_[name] = {*optionalProgressRevision, std::move(value)};
             }
-            LastInMemoryProgressRevision_ = revision;
+            if (optionalProgressTruncated.value_or(false)) {
+                ProgressTruncatedRevision_ = optionalProgressRevision;
+            }
+            LastInMemoryProgressRevision_ = optionalProgressRevision;
+        }
 
-            moveIfPresent(EProgressPart::YqlPlan);
-            moveIfPresent(EProgressPart::YqlStatistics);
-            moveIfPresent(EProgressPart::YqlTaskInfo);
-            moveIfPresent(EProgressPart::YqlAst);
-            moveIfPresent(EProgressPart::YqlRevision);
+        if (optionalMainRevision &&
+            (!LastInMemoryMainRevision_ || *optionalMainRevision > *LastInMemoryMainRevision_))
+        {
+            for (auto& [part, value] : mainParts) {
+                MainProgressPartsToSave_[part] = {*optionalMainRevision, std::move(value)};
+            }
+            LastInMemoryMainRevision_ = optionalMainRevision;
         }
     }
 
     bool TryWriteProgress() override
     {
         bool inPartsMode;
+        std::optional<ui32> lastInMemoryProgressRevision;
+        std::optional<ui32> lastInMemoryMainRevision;
+        bool progressTruncated = false;
+        THashMap<std::string, std::pair<ui32, TYsonString>> progressSubPartsToSave;
+        THashMap<EProgressPart, std::pair<ui32, TYsonString>> mainPartsToSave;
         {
             auto guard = Guard(ProgressSpinLock_);
-            inPartsMode = LastInMemoryProgressRevision_.has_value();
+            lastInMemoryProgressRevision = LastInMemoryProgressRevision_;
+            lastInMemoryMainRevision = LastInMemoryMainRevision_;
+            inPartsMode = lastInMemoryProgressRevision.has_value() || lastInMemoryMainRevision.has_value();
+            progressTruncated = ProgressTruncatedRevision_ &&
+                (!LastSavedProgressRevision_ || *LastSavedProgressRevision_ < *ProgressTruncatedRevision_);
+
+            for (const auto& [name, revisionWithValue] : ProgressSubPartsToSave_) {
+                if (!LastSavedProgressRevision_ || *LastSavedProgressRevision_ < revisionWithValue.first) {
+                    progressSubPartsToSave[name] = revisionWithValue;
+                }
+            }
+            for (const auto& [part, revisionWithValue] : MainProgressPartsToSave_) {
+                if (!LastSavedMainRevision_ || *LastSavedMainRevision_ < revisionWithValue.first) {
+                    mainPartsToSave[part] = revisionWithValue;
+                }
+            }
         }
         if (!inPartsMode) {
             return TQueryHandlerBase::TryWriteProgress();
         }
 
-        ui32 lastInMemoryProgressRevision = 0;
-        TYsonString lastSavedYqlProgress;
-
-        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToCompressAndSave;
-        {
-            auto guard = Guard(ProgressSpinLock_);
-            lastInMemoryProgressRevision = *LastInMemoryProgressRevision_;
-            lastSavedYqlProgress = LastSavedYqlProgress_;
-
-            for (const auto& [part, revisionWithValue] : ProgressPartsToSave_) {
-                if (part == EProgressPart::YqlProgress) {
-                    // yql_progress carries no revision, so track it by value.
-                    if (LastSavedYqlProgress_ == revisionWithValue.second) {
-                        continue;
-                    }
-                    lastSavedYqlProgress = revisionWithValue.second;
-                } else if (LastSavedProgressRevision_ && *LastSavedProgressRevision_ >= revisionWithValue.first) {
-                    continue;
-                }
-                partsToCompressAndSave[part] = revisionWithValue;
-            }
-        }
-
         std::vector<NTableClient::TUnversionedRow> newRows;
+        newRows.reserve(progressSubPartsToSave.size() + mainPartsToSave.size() * 2 + 1);
         auto rowBuffer = New<NTableClient::TRowBuffer>();
-        for (const auto& [part, revisionWithValue] : partsToCompressAndSave) {
-            auto compressedValue = Compress(revisionWithValue.second.ToString(), MaxDyntableStringSize);
-
+        auto addRow = [&] (const std::string& partName, const std::string& subPartName, ui32 revision, const std::string& value) {
+            auto compressedValue = Compress(value);
+            bool truncated = compressedValue.size() > static_cast<size_t>(MaxDyntableStringSize);
+            if (truncated) {
+                compressedValue = CompressedEmptyMap;
+            }
             NRecords::TQueryProgressPartial newRecord{
-                .Key = {.QueryId = QueryId_, .PartName = FormatEnum(part)},
-                .Revision = revisionWithValue.first,
+                .Key = {
+                    .QueryId = QueryId_,
+                    .PartName = partName,
+                    .SubPartName = subPartName,
+                },
+                .Revision = revision,
                 .PartValue = compressedValue,
             };
             newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, NRecords::TQueryProgressDescriptor::Get()->GetPartialIdMapping()));
+            return truncated;
+        };
+        for (const auto& [name, revisionWithValue] : progressSubPartsToSave) {
+            progressTruncated |= addRow(
+                FormatEnum(EProgressPart::YqlProgress),
+                name,
+                revisionWithValue.first,
+                revisionWithValue.second.ToString());
+        }
+        if (progressTruncated) {
+            addRow(
+                FormatEnum(EProgressPart::YqlProgressTruncated),
+                /*subPartName*/ {},
+                lastInMemoryProgressRevision.value(),
+                ConvertToYsonString(true).ToString());
+        }
+        for (const auto& [part, revisionWithValue] : mainPartsToSave) {
+            auto partName = FormatEnum(part);
+            bool truncated = addRow(partName, /*subPartName*/ {}, revisionWithValue.first, revisionWithValue.second.ToString());
+            if (truncated) {
+                addRow(
+                    FormatEnum(GetTruncatedProgressPart(part)),
+                    /*subPartName*/ {},
+                    revisionWithValue.first,
+                    ConvertToYsonString(true).ToString());
+            }
         }
 
         if (!newRows.empty()) {
             try {
                 auto transaction = StartIncarnationTransaction().first;
+                // Prevent progress writes from racing with incarnation changes or query completion.
+                NRecords::TActiveQueryKey key{.QueryId = QueryId_};
+                std::vector keys{key.ToKey(rowBuffer)};
+                transaction->LockRows(
+                    StateRoot_ + "/active_queries",
+                    NRecords::TActiveQueryDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(keys), rowBuffer),
+                    std::vector<std::string>{"query_tracker"},
+                    NTableClient::ELockType::SharedStrong);
+
                 transaction->WriteRows(
-                    StateRoot_ + "/query_progresses",
+                    StateRoot_ + "/active_query_progresses",
                     NRecords::TQueryProgressDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(newRows), rowBuffer));
 
@@ -344,7 +418,7 @@ private:
                 {
                     auto guard = Guard(ProgressSpinLock_);
                     LastSavedProgressRevision_ = lastInMemoryProgressRevision;
-                    LastSavedYqlProgress_ = lastSavedYqlProgress;
+                    LastSavedMainRevision_ = lastInMemoryMainRevision;
                 }
             } catch (const std::exception& ex) {
                 return OnProgressWriteFailed(ex);
@@ -424,8 +498,11 @@ private:
         ToProto(req->mutable_query_id(), QueryId_);
         {
             auto guard = Guard(ProgressSpinLock_);
+            if (LastInMemoryMainRevision_) {
+                req->mutable_progress_options()->set_main_revision(*LastInMemoryMainRevision_);
+            }
             if (LastInMemoryProgressRevision_) {
-                req->set_revision(*LastInMemoryProgressRevision_);
+                req->mutable_progress_options()->set_progress_revision(*LastInMemoryProgressRevision_);
             }
         }
 
@@ -689,6 +766,227 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct TYqlProgressPart
+{
+    std::optional<TYsonString> Value;
+    ui32 Revision = 0;
+    bool Truncated = false;
+};
+
+std::optional<TYqlProgressPart> GetYqlProgressPart(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const TYPath& tablePath,
+    TTimestamp timestamp,
+    std::optional<ui32> afterProgressRevision,
+    const std::vector<std::string>& progressParts)
+{
+    auto progressPartName = FormatEnum(EProgressPart::YqlProgress);
+    auto progressTruncatedPartName = FormatEnum(EProgressPart::YqlProgressTruncated);
+    bool allPartsRequested = progressParts.empty();
+    bool includeProgress = allPartsRequested || std::find(progressParts.begin(), progressParts.end(), progressPartName) != progressParts.end();
+    bool includeProgressTruncated = allPartsRequested || std::find(progressParts.begin(), progressParts.end(), progressTruncatedPartName) != progressParts.end();
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(tablePath);
+    builder.AddSelectExpression("[part_name]");
+    builder.AddSelectExpression("[subpart_name]");
+    builder.AddSelectExpression("[part_value]");
+    builder.AddSelectExpression("[revision]");
+    builder.AddWhereConjunct("[query_id] = {QueryId}");
+    builder.AddWhereConjunct("[part_name] IN {ProgressParts}");
+
+    auto placeholdersFluentMap = BuildYsonNodeFluently().BeginMap();
+    placeholdersFluentMap.Item("QueryId").Value(queryId);
+    std::vector<std::string> selectedParts;
+    if (includeProgress) {
+        selectedParts.push_back(progressPartName);
+    }
+    if (includeProgressTruncated) {
+        selectedParts.push_back(progressTruncatedPartName);
+    }
+    placeholdersFluentMap.Item("ProgressParts").Value(selectedParts);
+
+    if (afterProgressRevision && *afterProgressRevision > 0) {
+        builder.AddWhereConjunct("[revision] > {AfterProgressRevision}");
+        placeholdersFluentMap.Item("AfterProgressRevision").Value(*afterProgressRevision);
+    }
+
+    TSelectRowsOptions options;
+    options.Timestamp = timestamp;
+    options.PlaceholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
+    auto selectResult = WaitFor(client->SelectRows(builder.Build(), options))
+        .ValueOrThrow();
+    auto parts = NTableClient::ToRecords<NRecords::TQueryProgressPartial>(selectResult.Rowset);
+    if (parts.empty()) {
+        return std::nullopt;
+    }
+
+    ui32 progressRevision = 0;
+    for (const auto& part : parts) {
+        progressRevision = std::max(progressRevision, *part.Revision);
+    }
+
+    bool truncated = false;
+    bool hasProgress = false;
+    auto progress = BuildYsonStringFluently()
+        .BeginMap()
+            .DoFor(parts, [&] (TFluentMap fluent, const NRecords::TQueryProgressPartial& part) {
+                auto value = TYsonString(Decompress(*part.PartValue));
+                if (part.Key.PartName == progressTruncatedPartName) {
+                    truncated = ConvertTo<bool>(ConvertToNode(value));
+                } else if (includeProgress) {
+                    hasProgress = true;
+                    fluent.Item(part.Key.SubPartName).Value(value);
+                }
+            })
+        .EndMap();
+    return TYqlProgressPart{
+        .Value = hasProgress ? std::make_optional(std::move(progress)) : std::nullopt,
+        .Revision = progressRevision,
+        .Truncated = truncated,
+    };
+}
+
+std::vector<NRecords::TQueryProgressPartial> GetYqlMainParts(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const TYPath& tablePath,
+    TTimestamp timestamp,
+    std::optional<ui32> afterMainRevision,
+    const std::vector<std::string>& progressParts)
+{
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(tablePath);
+    builder.AddSelectExpression("[part_name]");
+    builder.AddSelectExpression("[part_value]");
+    builder.AddSelectExpression("[revision]");
+    builder.AddWhereConjunct("[query_id] = {QueryId}");
+    builder.AddWhereConjunct("[part_name] != {YqlProgressPart}");
+    builder.AddWhereConjunct("[part_name] != {ProgressTruncatedPart}");
+
+    auto placeholdersFluentMap = BuildYsonNodeFluently().BeginMap();
+    placeholdersFluentMap.Item("QueryId").Value(queryId);
+    placeholdersFluentMap.Item("YqlProgressPart").Value(FormatEnum(EProgressPart::YqlProgress));
+    placeholdersFluentMap.Item("ProgressTruncatedPart").Value(FormatEnum(EProgressPart::YqlProgressTruncated));
+
+    if (afterMainRevision && *afterMainRevision > 0) {
+        builder.AddWhereConjunct("[revision] > {AfterMainRevision}");
+        placeholdersFluentMap.Item("AfterMainRevision").Value(*afterMainRevision);
+    }
+
+    if (!progressParts.empty()) {
+        builder.AddWhereConjunct("[part_name] IN {ProgressParts}");
+        placeholdersFluentMap.Item("ProgressParts").Value(progressParts);
+    }
+
+    TSelectRowsOptions options;
+    options.Timestamp = timestamp;
+    options.PlaceholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
+    auto selectResult = WaitFor(client->SelectRows(builder.Build(), options))
+        .ValueOrThrow();
+    return NTableClient::ToRecords<NRecords::TQueryProgressPartial>(selectResult.Rowset);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <bool IsActive>
+TYsonString GetYqlProgressFromParts(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const NYPath::TYPath& root,
+    TTimestamp timestamp,
+    const IMapNodePtr& progressOptions)
+{
+    std::optional<ui32> afterMainRevision;
+    std::optional<ui32> afterProgressRevision;
+    std::vector<std::string> progressParts;
+    if (progressOptions) {
+        afterMainRevision = progressOptions->FindChildValue<ui32>("after_main_revision");
+        afterProgressRevision = progressOptions->FindChildValue<ui32>("after_progress_revision");
+        progressParts = progressOptions->GetChildValueOrDefault<std::vector<std::string>>("progress_parts", {});
+    }
+    auto tablePath = root + (IsActive ? "/active_query_progresses" : "/finished_query_progresses");
+
+    auto progressPartName = FormatEnum(EProgressPart::YqlProgress);
+    bool allPartsRequested = progressParts.empty();
+    auto progressTruncatedPartName = FormatEnum(EProgressPart::YqlProgressTruncated);
+    bool progressRequested = allPartsRequested || std::find(progressParts.begin(), progressParts.end(), progressPartName) != progressParts.end();
+    bool progressTruncatedRequested = allPartsRequested || std::find(progressParts.begin(), progressParts.end(), progressTruncatedPartName) != progressParts.end();
+
+    std::optional<TYsonString> progress;
+    std::optional<ui32> progressRevision;
+    bool progressTruncated = false;
+    if (progressRequested || progressTruncatedRequested) {
+        auto progressPart = GetYqlProgressPart(
+            queryId,
+            client,
+            tablePath,
+            timestamp,
+            afterProgressRevision,
+            progressParts);
+        if (progressPart) {
+            if (progressRequested) {
+                progress = std::move(progressPart->Value);
+            }
+            progressRevision = progressPart->Revision;
+            progressTruncated = progressPart->Truncated;
+        }
+        std::erase(progressParts, progressPartName);
+        std::erase(progressParts, progressTruncatedPartName);
+    }
+
+    std::vector<NRecords::TQueryProgressPartial> mainRecords;
+    if (allPartsRequested || !progressParts.empty()) {
+        mainRecords = GetYqlMainParts(
+            queryId,
+            client,
+            tablePath,
+            timestamp,
+            afterMainRevision,
+            progressParts);
+    }
+
+    std::optional<ui32> mainRevision;
+    for (const auto& part : mainRecords) {
+        mainRevision = std::max(mainRevision.value_or(0), *part.Revision);
+    }
+
+    auto writePart = [] (TFluentMap fluent, const NRecords::TQueryProgressPartial& part) {
+        auto value = TYsonString(Decompress(*part.PartValue));
+        fluent.Item(part.Key.PartName).Value(value);
+    };
+    std::optional<bool> progressTruncatedValue = progressTruncatedRequested && progressTruncated ? std::make_optional(true) : std::nullopt;
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .OptionalItem(progressPartName, progress)
+            .OptionalItem("progress_revision", (progressRequested || progressTruncatedRequested) ? progressRevision : std::nullopt)
+            .OptionalItem("main_revision", mainRevision)
+            .OptionalItem(progressTruncatedPartName, progressTruncatedValue)
+            .DoFor(mainRecords, writePart)
+        .EndMap();
+}
+
+template TYsonString GetYqlProgressFromParts<true>(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const NYPath::TYPath& root,
+    TTimestamp timestamp,
+    const IMapNodePtr& progressOptions);
+
+template TYsonString GetYqlProgressFromParts<false>(
+    TQueryId queryId,
+    const IClientPtr& client,
+    const NYPath::TYPath& root,
+    TTimestamp timestamp,
+    const IMapNodePtr& progressOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

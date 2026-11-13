@@ -147,15 +147,22 @@ private:
             ? FromProto<TQueryId>(request->query_id())
             : TQueryId::Create();
 
-        std::optional<ui32> revision = request->has_revision()
-            ? std::make_optional<ui32>(request->revision())
-            : std::nullopt;
+        NYqlPlugin::TProgressOptions progressOptions;
+        if (request->has_progress_options()) {
+            progressOptions.MainRevision = request->progress_options().has_main_revision()
+                ? std::make_optional<ui32>(request->progress_options().main_revision())
+                : std::nullopt;
+            progressOptions.ProgressRevision = request->progress_options().has_progress_revision()
+                ? std::make_optional<ui32>(request->progress_options().progress_revision())
+                : std::nullopt;
+        }
 
         context->AnnotateRequest()
             .With("QueryId", queryId)
-            .With("Revision", revision);
+            .With("ProgressOptions.MainRevision", progressOptions.MainRevision)
+            .With("ProgressOptions.ProgressRevision", progressOptions.ProgressRevision);
 
-        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId, revision));
+        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId, progressOptions));
 
         context->Reply();
     }

@@ -147,50 +147,6 @@ void ThrowAccessDeniedException(
         .With("query_author", queryAuthor);
 }
 
-TYsonString GetQueryProgressFromParts(
-    TQueryId queryId,
-    const IClientPtr& client,
-    const NYPath::TYPath& root,
-    TTimestamp timestamp,
-    const std::vector<std::string>& progressParts,
-    std::optional<ui32> minRevision)
-{
-    NQueryClient::TQueryBuilder builder;
-    auto placeholdersFluentMap = BuildYsonNodeFluently().BeginMap();
-
-    builder.SetSource(root + "/query_progresses");
-    builder.AddSelectExpression("[part_name]");
-    builder.AddSelectExpression("[part_value]");
-
-    builder.AddWhereConjunct("[query_id] = {QueryId}");
-    placeholdersFluentMap.Item("QueryId").Value(queryId);
-
-    if (minRevision && *minRevision > 0) {
-        builder.AddWhereConjunct("[revision] >= {MinRevision}");
-        placeholdersFluentMap.Item("MinRevision").Value(*minRevision);
-    }
-
-    if (!progressParts.empty()) {
-        builder.AddWhereConjunct("[part_name] IN {ProgressParts}");
-        placeholdersFluentMap.Item("ProgressParts").Value(progressParts);
-    }
-
-    auto query = builder.Build();
-    TSelectRowsOptions options;
-    options.Timestamp = timestamp;
-    options.PlaceholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
-    auto selectResult = WaitFor(client->SelectRows(query, options))
-        .ValueOrThrow();
-    auto parts = ToRecords<TQueryProgressPartial>(selectResult.Rowset);
-
-    return BuildYsonStringFluently()
-        .BeginMap()
-            .DoFor(parts, [&] (TFluentMap fluent, const TQueryProgressPartial& part) {
-                fluent.Item(part.Key.PartName).Value(TYsonString(Decompress(*part.PartValue)));
-            })
-        .EndMap();
-}
-
 //! Lookup a query in active_queries and finished_queries tables by query id.
 TQuery LookupQuery(
     TQueryId queryId,
@@ -199,8 +155,7 @@ TQuery LookupQuery(
     std::optional<std::vector<std::string>> lookupKeys,
     TTimestamp timestamp,
     const TLogger& logger,
-    const std::vector<std::string>& progressParts = {},
-    std::optional<ui32> minProgressRevision = std::nullopt)
+    const IMapNodePtr& progressOptions = nullptr)
 {
     bool progressRequested = !lookupKeys ||
         std::find(lookupKeys->begin(), lookupKeys->end(), "progress") != lookupKeys->end();
@@ -258,16 +213,18 @@ TQuery LookupQuery(
             query.Progress == EmptyMap &&
             query.Engine && *query.Engine == EQueryEngine::Yql)
         {
-            query.Progress = GetQueryProgressFromParts(
+            auto getYqlProgressFromParts = isActive
+                ? GetYqlProgressFromParts<true>
+                : GetYqlProgressFromParts<false>;
+            query.Progress = getYqlProgressFromParts(
                 queryId,
                 client,
                 root,
                 timestamp,
-                progressParts,
-                minProgressRevision);
-        } else if (progressRequested && (!progressParts.empty() || minProgressRevision)) {
+                progressOptions);
+        } else if (progressRequested && progressOptions && progressOptions->GetChildCount() > 0) {
             THROW_ERROR_EXCEPTION(
-                "Query %v stores progress in compact form; progress_parts and min_progress_revision are not supported for it",
+                "Query %v stores progress in compact form; progress_options are not supported for it",
                 queryId);
         }
     }
@@ -912,8 +869,7 @@ TQuery TQueryTrackerProxy::GetQuery(
         .With("QueryId", queryId)
         .With("Timestamp", timestamp)
         .With("Attributes", options.Attributes)
-        .With("ProgressParts", options.ProgressParts)
-        .With("MinProgressRevision", options.MinProgressRevision);
+        .With("ProgressOptions", ConvertToYsonString(options.ProgressOptions));
 
     options.Attributes.ValidateKeysOnly();
 
@@ -928,11 +884,10 @@ TQuery TQueryTrackerProxy::GetQuery(
         Logger);
 
     auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys()) : std::nullopt;
-    if ((!options.ProgressParts.empty() || options.MinProgressRevision) &&
-        !options.Attributes.AdmitsKeySlow("progress"))
-    {
+    bool hasProgressOptions = options.ProgressOptions && options.ProgressOptions->GetChildCount() > 0;
+    if (hasProgressOptions && !options.Attributes.AdmitsKeySlow("progress")) {
         THROW_ERROR_EXCEPTION(
-            "Options progress_parts and min_progress_revision require the %Qv attribute to be requested",
+            "Non-empty progress_options require the %Qv attribute to be requested",
             "progress");
     }
 
@@ -943,8 +898,7 @@ TQuery TQueryTrackerProxy::GetQuery(
         lookupKeys,
         timestamp,
         Logger,
-        options.ProgressParts,
-        options.MinProgressRevision);
+        options.ProgressOptions);
 
     if (!lookupKeys || std::find(lookupKeys->begin(), lookupKeys->end(), "access_control_object") != lookupKeys->end()) {
         ConvertAcoToOldFormat(query);
@@ -1214,6 +1168,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
                 .Item("not_indexing").Value(true)
                 .Item("declare_params").Value(true)
                 .Item("tutorials").Value(true)
+                .Item("progress_v2").Value(true)
             .EndMap();
     }
 
