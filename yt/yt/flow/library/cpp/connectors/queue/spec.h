@@ -96,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCommonQueueSinkParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Optional expression-based routing of sync queue-sink rows to tablets via
+//! Optional expression-based routing of queue-sink rows to tablets via
 //! YT's column evaluator (builtins only). Neither expression set => no
 //! $tablet_index is written (today's behavior).
 struct TQueueSinkTabletRoutingParameters
@@ -197,13 +197,6 @@ struct TDynamicAsyncQueueWriterParameters
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicAsyncQueueWriterParameters);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Routing is not supported on async queue sinks yet (tracked by YTFLOW-766). The routing params
-//! are mixed into the async spec only so they are recognized and this rejects them loudly instead
-//! of silently ignoring them.
-void ValidateAsyncSinkTabletRoutingUnsupported(const TQueueSinkTabletRoutingParameters& parameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

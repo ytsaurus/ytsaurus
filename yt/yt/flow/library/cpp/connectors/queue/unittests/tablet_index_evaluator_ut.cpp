@@ -244,22 +244,5 @@ TEST(TGroupMessagesByTabletIndexTest, OrdersTabletsAndPreservesPerTabletOrder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Async queue sinks recognize the routing params (so they are not silently swallowed) but reject
-// them (routing is sync-only for now, YTFLOW-766).
-TEST(TAsyncSinkRoutingRejectionTest, RejectsRoutingParameters)
-{
-    auto parameters = New<TQueueSinkTabletRoutingParameters>();
-    EXPECT_NO_THROW(ValidateAsyncSinkTabletRoutingUnsupported(*parameters));
-
-    parameters->TabletIndexExpression = "farm_hash(data) % 5";
-    EXPECT_THROW(ValidateAsyncSinkTabletRoutingUnsupported(*parameters), std::exception);
-
-    parameters->TabletIndexExpression.reset();
-    parameters->TabletIndexRoutingHashExpression = "farm_hash(data)";
-    EXPECT_THROW(ValidateAsyncSinkTabletRoutingUnsupported(*parameters), std::exception);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 } // namespace NYT::NFlow

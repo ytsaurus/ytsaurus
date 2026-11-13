@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,12 +84,13 @@ class TAsyncQueueWriter
 {
 public:
     using TSessionResult = NApi::TCreateQueueProducerSessionResult;
+    using TRows = TCompactVector<NTableClient::TUnversionedOwningRow, 1>;
 
     struct TRequest
     {
-        NTableClient::TUnversionedOwningRow Row;
+        TRows Rows;
         TClosure OnWritten;
-        TMessageId MessageId;
+        TMessageId LastMessageId;
     };
 
     class TRequestLimiter
@@ -120,9 +123,16 @@ public:
     //! Calls |onWritten| inline on the serialized invoker on success; it must not throw.
     void Write(
         NTableClient::TUnversionedOwningRow row,
-        TMessageId messageId,
+        TMessageId lastMessageId,
         TClosure onWritten);
+    //! Writes |rows| atomically and calls |onWritten| on success on the serialized invoker.
+    void WriteRows(
+        TRows rows,
+        TMessageId lastMessageId,
+        TClosure onWritten);
+    //! Requires a single target cluster; see |HasSingleCluster|.
     TFuture<TMessageId> GetInitialMessageId() const;
+    bool HasSingleCluster() const;
     void Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters);
     void ThrowIfFatalError() const;
 
@@ -202,17 +212,25 @@ protected:
     std::optional<int> FlowMetaColumn_;
     TAsyncQueueWriterPtr Writer_;
     TMessageId LastSeenMessageId_;
+    std::optional<TMessageId> InitialMessageId_;
+    TTabletRouterPtr TabletRouter_;
+    std::optional<int> TabletIndexColumn_;
 
     virtual NTableClient::TNameTablePtr GenerateNameTable() const;
     virtual void WriteMessages(std::vector<TPendingMessage> pending);
     virtual TAsyncQueueWriterPtr CreateWriter() const;
 
+    //! Waits for the producer session once and returns its last committed message id.
+    TMessageId EnsureInitialMessageId();
     bool TryAdmitMessage(
         TPendingMessage& item,
         const std::optional<TMessageId>& initialMessageId = std::nullopt);
 
     TAsyncQueueWriterParametersBasePtr GetWriterParameters() const;
+    TQueueSinkTabletRoutingParametersPtr GetRoutingParameters() const;
     TDynamicAsyncQueueWriterParametersPtr GetDynamicWriterParameters() const;
+
+    i64 GetTabletIndex(const TOutputMessageConstPtr& message) const;
 
     void DoTerminate() override;
 
@@ -220,6 +238,7 @@ private:
     const bool AtMostOnce_;
     const NConcurrency::TAsyncSemaphorePtr QueueSizeSemaphore_;
 
+    IStatusErrorStatePtr TabletRoutingErrorState_;
     TMutableStateClient<TMessageId> AtMostOnceWatermark_;
     std::vector<TPendingMessage> CurrentEpoch_;
 
