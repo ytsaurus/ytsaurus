@@ -214,10 +214,28 @@ TObjectServiceCache::TCache::TCache(
     const NProfiling::TProfiler& profiler)
     : TMemoryTrackingAsyncSlruCacheBase(
         config,
-        std::move(memoryTracker),
+        memoryTracker,
         profiler)
     , Owner_(owner)
+    , MemoryTracker_(std::move(memoryTracker))
 { }
+
+void TObjectServiceCache::TCache::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    auto capacity = config->Capacity.value_or(Config_->Capacity);
+    if (capacity > 0) {
+        // Reserve memory before enabling cache insertions.
+        MemoryTracker_->SetLimit(capacity);
+    }
+
+    TAsyncSlruCacheBase::Reconfigure(config);
+
+    if (capacity == 0) {
+        // Reconfiguration waits for every shard lock, so all acquisitions made
+        // before disabling the cache have finished and their entries are evicted.
+        MemoryTracker_->SetLimit(0);
+    }
+}
 
 bool TObjectServiceCache::TCache::IsResurrectionSupported() const
 {
@@ -228,7 +246,10 @@ void TObjectServiceCache::TCache::OnAdded(const TObjectServiceCacheEntryPtr& ent
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
+    if (GetCapacity() > 0) {
+        TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
+        entry->MemoryAcquired_ = true;
+    }
     if (auto owner = Owner_.Lock()) {
         owner->OnAdded(entry);
     }
@@ -238,7 +259,10 @@ void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& e
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
+    if (entry->MemoryAcquired_) {
+        TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
+        entry->MemoryAcquired_ = false;
+    }
     if (auto owner = Owner_.Lock()) {
         owner->OnRemoved(entry);
     }

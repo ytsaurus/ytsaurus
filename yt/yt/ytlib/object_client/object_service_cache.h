@@ -74,6 +74,9 @@ public:
 private:
     friend class TObjectServiceCache;
 
+    // Accessed under the cache shard lock; entries do not support resurrection.
+    bool MemoryAcquired_ = false;
+
     YT_DECLARE_SPIN_LOCK(TSpinLock, ByteRateAggregatorLock_);
     mutable TAverageAdjustedExponentialMovingAverage ByteRateAggregator_;
 
@@ -168,8 +171,11 @@ private:
             IMemoryUsageTrackerPtr memoryTracker,
             const NProfiling::TProfiler& profiler);
 
+        void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override;
+
     private:
         TWeakPtr<TObjectServiceCache> const Owner_;
+        const IMemoryUsageTrackerPtr MemoryTracker_;
 
         bool IsResurrectionSupported() const override;
         void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
