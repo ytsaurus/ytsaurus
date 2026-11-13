@@ -28,7 +28,6 @@
 #include <util/generic/vector.h>
 #include <util/generic/guid.h>
 #include <util/system/fs.h>
-#include <util/system/hostname.h>
 #include <util/system/getpid.h>
 #include <util/generic/scope.h>
 #include <util/random/shuffle.h>
@@ -931,6 +930,8 @@ private:
         // update leader info (used for leader)
         auto attributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
         UpdateLeaderInfo(attributes);
+        // Report the leader even before its first IsReady request.
+        UpdateLocalCriticalFiles();
 
         YQL_CLOG(INFO, ProviderDq) << "Become leader, epoch=" << CurrentResourceId.Epoch;
         YQL_CLOG(INFO, ProviderDq) << "Leader resolver=" << LeaderHost << ":" << LeaderPort;
@@ -1682,6 +1683,10 @@ private:
             //}
             LocalCriticalFiles->AddFile("unused", f.GetObjectId());
         }
+        UpdateLocalCriticalFiles();
+    }
+
+    void UpdateLocalCriticalFiles() {
         TVector<TFileResource> files;
         LocalCriticalFiles->Walk([&](const TString& objectId) {
             TFileResource r;
@@ -1692,7 +1697,7 @@ private:
         r.SetObjectId(Revision);
         files.push_back(r);
 
-        AllCriticalFiles.Add(TGUID(), SelfId().NodeId(), Revision, Address, Pid, TString(), files);
+        AllCriticalFiles.Add(TGUID(), SelfId().NodeId(), Revision, Coordinator->GetIp(), Pid, TString(), files);
     }
 
     void OnIsReadyForward(TEvIsReady::TPtr& ev, const TActorContext& ctx) {
@@ -1932,7 +1937,6 @@ private:
     TInstant LastCleanTime;
     TDuration CleanInterval = TDuration::Seconds(2);
     bool TerminatingMode = false;
-    const TString Address = HostName();
     const ui32 Pid = GetPID();
 };
 

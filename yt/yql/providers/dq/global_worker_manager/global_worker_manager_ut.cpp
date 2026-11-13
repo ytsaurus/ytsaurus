@@ -235,6 +235,7 @@ public:
     UNIT_TEST(TestTasksAllocation5)
     UNIT_TEST(RejectsNegativeWorkerCapacity)
     UNIT_TEST(RejectsTargetCapacityOverflow)
+    UNIT_TEST(ReportsLeaderBeforeReadiness)
     UNIT_TEST_SUITE_END();
 
     void SetUp() override {
@@ -333,6 +334,21 @@ public:
     void TearDown() override {
         ActorRuntime_.Reset();
         remove("/tmp/test");
+    }
+
+    void ReportsLeaderBeforeReadiness() {
+        const auto sender = ActorRuntime_->AllocateEdgeActor();
+        ActorRuntime_->Send(new IEventHandle(MakeWorkerManagerActorID(NodeId()), sender, new TEvClusterStatus()));
+        const auto response = ActorRuntime_->GrabEdgeEvent<TEvClusterStatusResponse>(sender);
+        const auto& status = response->Get()->Record.GetResponse();
+        UNIT_ASSERT_VALUES_EQUAL(status.ServiceNodeSize(), 1);
+        const auto& leader = status.GetServiceNode(0);
+        UNIT_ASSERT_VALUES_EQUAL(leader.GetGuid(), "0-0-0-0");
+        UNIT_ASSERT_VALUES_EQUAL(leader.GetNodeId(), NodeId());
+        UNIT_ASSERT_VALUES_EQUAL(leader.GetAddress(), "::1");
+        UNIT_ASSERT_VALUES_EQUAL(leader.GetRevision(), status.GetRevision());
+        UNIT_ASSERT_VALUES_EQUAL(leader.FileSize(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(leader.GetFile(0), status.GetRevision());
     }
 
     void TestTasksAllocation1() {
