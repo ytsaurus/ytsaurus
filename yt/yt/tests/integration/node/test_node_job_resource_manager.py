@@ -67,7 +67,9 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "job_controller": {
-                    "test_resource_acquisition_delay": 10000,
+                    "testing": {
+                        "resource_acquisition_delay": 10000,
+                    },
                 },
                 "controller_agent_connector": {
                     "heartbeat_executor": {
@@ -276,7 +278,9 @@ class TestWaitingAllocationsOnResourceAvailabilityChange(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "job_controller": {
-                    "test_resource_acquisition_delay": self.RESOURCE_ACQUISITION_DELAY,
+                    "testing": {
+                        "resource_acquisition_delay": self.RESOURCE_ACQUISITION_DELAY,
+                    },
                 },
             },
             "job_resource_manager": {
