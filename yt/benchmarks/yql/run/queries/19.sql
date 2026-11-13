@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 19; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query19.tpl and seed 1930872976
 select  item.i_brand_id brand_id, item.i_brand brand, item.i_manufact_id, item.i_manufact,
  	sum(ss_ext_sales_price) ext_price
  from date_dim cross join store_sales cross join item cross join customer cross join customer_address cross join store
@@ -7,7 +7,7 @@ select  item.i_brand_id brand_id, item.i_brand brand, item.i_manufact_id, item.i
    and ss_item_sk = i_item_sk
    and i_manager_id=8
    and d_moy=11
-   and d_year=1998
+   and d_year=1999
    and ss_customer_sk = c_customer_sk
    and c_current_addr_sk = ca_address_sk
    and substring(cast(ca_zip as string),0,5) <> substring(cast(s_zip as string),0,5)
@@ -22,5 +22,3 @@ select  item.i_brand_id brand_id, item.i_brand brand, item.i_manufact_id, item.i
          ,item.i_manufact_id
          ,item.i_manufact
 limit 100 ;
-
--- end query 1 in stream 0 using template query19.tpl

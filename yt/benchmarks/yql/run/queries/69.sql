@@ -1,26 +1,26 @@
+-- TPC-DS 4.0.0 query 69; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $bla1 = (select ss_customer_sk customer_sk
           from store_sales cross join date_dim
           where ss_sold_date_sk = d_date_sk and
-                d_year = 2001 and
-                d_moy between 4 and 4+2);
+                d_year = 2002 and
+                d_moy between 1 and 1+2);
 
 $bla2 = ((select ws_bill_customer_sk customer_sk
             from web_sales cross join date_dim
             where
                   ws_sold_date_sk = d_date_sk and
-                  d_year = 2001 and
-                  d_moy between 4 and 4+2)
+                  d_year = 2002 and
+                  d_moy between 1 and 1+2)
         union all
         (select cs_ship_customer_sk customer_sk
             from catalog_sales cross join date_dim
             where
                   cs_sold_date_sk = d_date_sk and
-                  d_year = 2001 and
-                  d_moy between 4 and 4+2)
+                  d_year = 2002 and
+                  d_moy between 1 and 1+2)
         );
 
--- start query 1 in stream 0 using template query69.tpl and seed 797269820
 select
   customer_demographics.cd_gender,
   customer_demographics.cd_marital_status,
@@ -36,7 +36,7 @@ select
   left only join $bla2 bla2 on c.c_customer_sk = bla2.customer_sk
  where
   c.c_current_addr_sk = ca.ca_address_sk and
-  ca_state in ('KY','GA','NM') and
+  ca_state in ('CO','SD','TX') and
   cd_demo_sk = c.c_current_cdemo_sk
  group by customer_demographics.cd_gender,
           customer_demographics.cd_marital_status,
@@ -49,5 +49,3 @@ select
           customer_demographics.cd_purchase_estimate,
           customer_demographics.cd_credit_rating
  limit 100;
-
--- end query 1 in stream 0 using template query69.tpl

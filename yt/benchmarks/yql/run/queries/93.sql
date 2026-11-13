@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 93; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query93.tpl and seed 1200409435
 select  ss_customer_sk
             ,sum(act_sales) sumsales
       from (select ss_item_sk
@@ -11,9 +11,7 @@ select  ss_customer_sk
                                                                and store_returns.sr_ticket_number = store_sales.ss_ticket_number)
                 cross join reason
             where sr_reason_sk = r_reason_sk
-              and r_reason_desc = 'reason 28') t
+              and r_reason_desc = 'No service location in my area') t
       group by ss_customer_sk
       order by sumsales, ss_customer_sk
 limit 100;
-
--- end query 1 in stream 0 using template query93.tpl

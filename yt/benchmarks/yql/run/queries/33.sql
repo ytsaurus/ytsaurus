@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 33; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $ss = (
  select
@@ -12,11 +13,11 @@ $ss = (
   i_manufact_id
 from
  item
-where i_category in ('Electronics'))
+where i_category in ('Jewelry'))
  and     ss_item_sk              = i_item_sk
  and     ss_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 5
+ and     d_year                  = 2001
+ and     d_moy                   = 3
  and     ss_addr_sk              = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_manufact_id);
@@ -34,11 +35,11 @@ $cs = (
   i_manufact_id
 from
  item
-where i_category in ('Electronics'))
+where i_category in ('Jewelry'))
  and     cs_item_sk              = i_item_sk
  and     cs_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 5
+ and     d_year                  = 2001
+ and     d_moy                   = 3
  and     cs_bill_addr_sk         = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_manufact_id);
@@ -56,17 +57,16 @@ $ws = (
   i_manufact_id
 from
  item
-where i_category in ('Electronics'))
+where i_category in ('Jewelry'))
  and     ws_item_sk              = i_item_sk
  and     ws_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 5
+ and     d_year                  = 2001
+ and     d_moy                   = 3
  and     ws_bill_addr_sk         = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_manufact_id);
 
 
--- start query 1 in stream 0 using template query33.tpl and seed 1930872976
 select  i_manufact_id ,sum(total_sales) total_sales
  from  (select * from $ss
         union all
@@ -76,5 +76,3 @@ select  i_manufact_id ,sum(total_sales) total_sales
  group by i_manufact_id
  order by total_sales
 limit 100;
-
--- end query 1 in stream 0 using template query33.tpl

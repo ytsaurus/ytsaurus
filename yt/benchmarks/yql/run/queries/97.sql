@@ -1,10 +1,11 @@
+-- TPC-DS 4.0.0 query 97; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 $ssci = (
     SELECT ss.ss_customer_sk as customer_sk
           ,ss.ss_item_sk as item_sk
     FROM store_sales as ss
     CROSS JOIN date_dim as dd
     WHERE ss.ss_sold_date_sk = dd.d_date_sk
-          AND dd.d_month_seq BETWEEN 1200 AND 1200 + 11
+          AND dd.d_month_seq BETWEEN 1180 AND 1180 + 11
     GROUP BY ss.ss_customer_sk, ss.ss_item_sk
 );
 
@@ -14,7 +15,7 @@ $csci = (
     FROM catalog_sales as cs
     CROSS JOIN date_dim as dd
     WHERE cs.cs_sold_date_sk = dd.d_date_sk
-        AND dd.d_month_seq BETWEEN 1200 AND 1200 + 11
+        AND dd.d_month_seq BETWEEN 1180 AND 1180 + 11
     GROUP BY cs.cs_bill_customer_sk
             ,cs.cs_item_sk
 );

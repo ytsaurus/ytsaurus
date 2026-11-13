@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 24; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $ssales =
 (select customer.c_last_name c_last_name
@@ -10,7 +11,7 @@ $ssales =
       ,item.i_manager_id i_manager_id
       ,item.i_units i_units
       ,item.i_size i_size
-      ,sum(ss_net_paid) netpaid
+      ,sum(ss_sales_price) netpaid
 from store_sales
     cross join store_returns
     cross join store
@@ -25,7 +26,7 @@ where ss_ticket_number = sr_ticket_number
   and c_current_addr_sk = ca_address_sk
   and c_birth_country <> String::AsciiToUpper(ca_country)
   and s_zip = ca_zip
-and S_market_id=8
+and S_market_id=5
 group by customer.c_last_name
         ,customer.c_first_name
         ,store.s_store_name
@@ -39,13 +40,12 @@ group by customer.c_last_name
 
 $avg_netpaid = (select avg(netpaid) from $ssales);
 
--- start query 1 in stream 0 using template query24.tpl and seed 1220860970
 select c_last_name
       ,c_first_name
       ,s_store_name
       ,sum(netpaid) paid
 from $ssales
-where i_color = 'peach'
+where i_color = 'gainsboro'
 group by c_last_name
         ,c_first_name
         ,s_store_name
@@ -60,7 +60,7 @@ select c_last_name
       ,s_store_name
       ,sum(netpaid) paid
 from $ssales
-where i_color = 'saddle'
+where i_color = 'light'
 group by c_last_name
         ,c_first_name
         ,s_store_name
@@ -69,5 +69,3 @@ order by c_last_name
         ,c_first_name
         ,s_store_name
 ;
-
--- end query 1 in stream 0 using template query24.tpl

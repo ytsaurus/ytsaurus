@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 61; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query61.tpl and seed 1930872976
 select  promotions,total,cast(promotions as float)/cast(total as float)*100
 from
   (select sum(ss_ext_sales_price) promotions
@@ -17,10 +17,10 @@ from
    and   ca_address_sk = c_current_addr_sk
    and   ss_item_sk = i_item_sk
    and   ca_gmt_offset = -6
-   and   i_category = 'Jewelry'
+   and   i_category = 'Books'
    and   (p_channel_dmail = 'Y' or p_channel_email = 'Y' or p_channel_tv = 'Y')
-   and   s_gmt_offset = -5
-   and   d_year = 1998
+   and   s_gmt_offset = -6
+   and   d_year = 2000
    and   d_moy  = 11) promotional_sales cross join
   (select sum(ss_ext_sales_price) total
    from  store_sales
@@ -35,11 +35,9 @@ from
    and   ca_address_sk = c_current_addr_sk
    and   ss_item_sk = i_item_sk
    and   ca_gmt_offset = -6
-   and   i_category = 'Jewelry'
-   and   s_gmt_offset = -5
-   and   d_year = 1998
+   and   i_category = 'Books'
+   and   s_gmt_offset = -6
+   and   d_year = 2000
    and   d_moy  = 11) all_sales
 order by promotions, total
 limit 100;
-
--- end query 1 in stream 0 using template query61.tpl

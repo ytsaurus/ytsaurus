@@ -1,4 +1,4 @@
--- start query 1 in stream 0 using template query50.tpl and seed 1819994127
+-- TPC-DS 4.0.0 query 50; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 select
    store.s_store_name
   ,store.s_company_id
@@ -29,7 +29,7 @@ cross join
 cross join
    date_dim as d2
 where
-    d2.d_year = 2001
+    d2.d_year = 2000
 and d2.d_moy  = 8
 and ss_ticket_number = sr_ticket_number
 and ss_item_sk = sr_item_sk
@@ -60,5 +60,4 @@ order by s_store_name
         ,s_zip
 limit 100;
 
--- end query 1 in stream 0 using template query50.tpl
 ;

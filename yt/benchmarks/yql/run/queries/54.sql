@@ -1,8 +1,8 @@
--- start query 1 in stream 0 using template query54.tpl and seed 1930872976
+-- TPC-DS 4.0.0 query 54; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 $d_month_seq_begin = (select distinct d_month_seq+1
-                                 from   date_dim where d_year = 1998 and d_moy = 12);
+                                 from   date_dim where d_year = 1998 and d_moy = 6);
 $d_month_seq_end = (select distinct d_month_seq+3
-                                 from   date_dim where d_year = 1998 and d_moy = 12);
+                                 from   date_dim where d_year = 1998 and d_moy = 6);
 
 $my_customers = (
  select distinct c_customer_sk
@@ -26,10 +26,10 @@ cross join
          customer
  where   sold_date_sk = d_date_sk
          and item_sk = i_item_sk
-         and i_category = 'Women'
-         and i_class = 'maternity'
+         and i_category = 'Jewelry'
+         and i_class = 'rings'
          and c_customer_sk = cs_or_ws_sales.customer_sk
-         and d_moy = 12
+         and d_moy = 6
          and d_year = 1998
  );
 
@@ -65,5 +65,3 @@ cross join
  group by segment
  order by segment, num_customers
  limit 100;
-
--- end query 1 in stream 0 using template query54.tpl

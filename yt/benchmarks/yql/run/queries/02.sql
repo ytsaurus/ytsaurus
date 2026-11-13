@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 2; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $wscs =
  (  select sold_date_sk
@@ -27,7 +28,6 @@ $wswscs =
  -- NB: Must use correlation name in group by
  group by date_dim.d_week_seq);
 
--- start query 1 in stream 0 using template query2.tpl and seed 1819994127
 select d_week_seq1
 -- NB: Use Math::Round
 -- NB: Negate second argument!!!
@@ -64,5 +64,3 @@ select d_week_seq1
         d_year = 2001+1) z
  where d_week_seq1=d_week_seq2-53
  order by d_week_seq1;
-
--- end query 1 in stream 0 using template query2.tpl

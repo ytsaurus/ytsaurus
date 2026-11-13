@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 1; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 -- NB: Used YQL's named expressions instead of ANSI SQL's "with" statement.
 $customer_total_return =
@@ -5,10 +6,10 @@ $customer_total_return =
 (select store_returns.sr_customer_sk as ctr_customer_sk
 ,store_returns.sr_store_sk as ctr_store_sk
 -- NB: renamed "SR_FEE" -> "sr_fee"
-,sum(store_returns.sr_return_amt) as ctr_total_return
+,sum(store_returns.sr_return_amt_inc_tax) as ctr_total_return
 from store_returns cross join date_dim
 where sr_returned_date_sk = d_date_sk
-and d_year =2000
+and d_year =1999
 group by store_returns.sr_customer_sk
 ,store_returns.sr_store_sk);
 
@@ -27,7 +28,7 @@ cross join customer
 join $avg_total_returns ctr2 on ctr1.ctr_store_sk = ctr2.ctr_store_sk
 where ctr_total_return > ctr_avg
 and s_store_sk = ctr1.ctr_store_sk
-and s_state = 'TN'
+and s_state = 'VT'
 and ctr_customer_sk = c_customer_sk
 order by c_customer_id
 limit 100;

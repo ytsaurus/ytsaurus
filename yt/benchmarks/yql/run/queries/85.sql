@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 85; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query85.tpl and seed 622697896
 select  substring(cast(reason.r_reason_desc as string),0,20) bla
        ,avg(ws_quantity) bla2
        ,avg(wr_refunded_cash) bla3
@@ -17,11 +17,11 @@ select  substring(cast(reason.r_reason_desc as string),0,20) bla
    and
    (
     (
-     cd1.cd_marital_status = 'M'
+     cd1.cd_marital_status = 'S'
      and
      cd1.cd_marital_status = cd2.cd_marital_status
      and
-     cd1.cd_education_status = 'Advanced Degree'
+     cd1.cd_education_status = 'Secondary'
      and
      cd1.cd_education_status = cd2.cd_education_status
      and
@@ -29,11 +29,11 @@ select  substring(cast(reason.r_reason_desc as string),0,20) bla
     )
    or
     (
-     cd1.cd_marital_status = 'S'
+     cd1.cd_marital_status = 'U'
      and
      cd1.cd_marital_status = cd2.cd_marital_status
      and
-     cd1.cd_education_status = 'College'
+     cd1.cd_education_status = 'Advanced Degree'
      and
      cd1.cd_education_status = cd2.cd_education_status
      and
@@ -45,7 +45,7 @@ select  substring(cast(reason.r_reason_desc as string),0,20) bla
      and
      cd1.cd_marital_status = cd2.cd_marital_status
      and
-     cd1.cd_education_status = '2 yr Degree'
+     cd1.cd_education_status = '4 yr Degree'
      and
      cd1.cd_education_status = cd2.cd_education_status
      and
@@ -57,21 +57,21 @@ select  substring(cast(reason.r_reason_desc as string),0,20) bla
     (
      ca_country = 'United States'
      and
-     ca_state in ('IN', 'OH', 'NJ')
+     ca_state in ('VA', 'MI', 'ID')
      and ws_net_profit between 100 and 200
     )
     or
     (
      ca_country = 'United States'
      and
-     ca_state in ('WI', 'CT', 'KY')
+     ca_state in ('TX', 'LA', 'KS')
      and ws_net_profit between 150 and 300
     )
     or
     (
      ca_country = 'United States'
      and
-     ca_state in ('LA', 'IA', 'AR')
+     ca_state in ('IA', 'NY', 'NM')
      and ws_net_profit between 50 and 250
     )
    )
@@ -81,5 +81,3 @@ order by bla
         ,bla3
         ,bla4
 limit 100;
-
--- end query 1 in stream 0 using template query85.tpl

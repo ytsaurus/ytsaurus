@@ -1,7 +1,8 @@
+-- TPC-DS 4.0.0 query 58; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $week_seq = (select d_week_seq
                                       from date_dim
-                                      where d_date = Date('2000-01-03'));
+                                      where d_date = Date('1998-04-13'));
 $ss_items =
  (select item.i_item_id item_id
         ,sum(ss_ext_sales_price) ss_item_rev
@@ -38,7 +39,6 @@ $ws_items =
                   where d_week_seq in $week_seq)
   and ws_sold_date_sk   = d_date_sk
  group by item.i_item_id);
--- start query 1 in stream 0 using template query58.tpl and seed 1819994127
   select  ss_items.item_id
        ,ss_item_rev
        ,ss_item_rev/((ss_item_rev+cs_item_rev+ws_item_rev)/3) * 100 ss_dev
@@ -59,5 +59,3 @@ $ws_items =
  order by item_id
          ,ss_item_rev
  limit 100;
-
--- end query 1 in stream 0 using template query58.tpl

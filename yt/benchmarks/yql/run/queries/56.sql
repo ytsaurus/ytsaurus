@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 56; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 $ss = (
  select item.i_item_id as i_item_id,sum(ss_ext_sales_price) total_sales
  from
@@ -8,13 +9,13 @@ $ss = (
  where i_item_id in (select
      i_item_id
 from item
-where item.i_color in ('slate','blanched','burnished'))
+where item.i_color in ('lavender','rose','beige'))
  and     ss_item_sk              = item.i_item_sk
  and     ss_sold_date_sk         = date_dim.d_date_sk
- and     date_dim.d_year                  = 2001
- and     date_dim.d_moy                   = 2
+ and     date_dim.d_year                  = 2000
+ and     date_dim.d_moy                   = 4
  and     ss_addr_sk              = customer_address.ca_address_sk
- and     customer_address.ca_gmt_offset           = -5
+ and     customer_address.ca_gmt_offset           = -6
  group by item.i_item_id);
 
 $cs = (
@@ -28,13 +29,13 @@ $cs = (
          item.i_item_id               in (select
   i_item_id
 from item
-where item.i_color in ('slate','blanched','burnished'))
+where item.i_color in ('lavender','rose','beige'))
  and     cs_item_sk              = item.i_item_sk
  and     cs_sold_date_sk         = date_dim.d_date_sk
- and     date_dim.d_year                  = 2001
- and     date_dim.d_moy                   = 2
+ and     date_dim.d_year                  = 2000
+ and     date_dim.d_moy                   = 4
  and     cs_bill_addr_sk         = customer_address.ca_address_sk
- and     customer_address.ca_gmt_offset           = -5
+ and     customer_address.ca_gmt_offset           = -6
  group by item.i_item_id);
 
 $ws = (
@@ -48,13 +49,13 @@ $ws = (
          item.i_item_id               in (select
   i_item_id
 from item
-where i_color in ('slate','blanched','burnished'))
+where i_color in ('lavender','rose','beige'))
  and     ws_item_sk              = item.i_item_sk
  and     ws_sold_date_sk         = date_dim.d_date_sk
- and     date_dim.d_year                  = 2001
- and     date_dim.d_moy                   = 2
+ and     date_dim.d_year                  = 2000
+ and     date_dim.d_moy                   = 4
  and     ws_bill_addr_sk         = customer_address.ca_address_sk
- and     customer_address.ca_gmt_offset           = -5
+ and     customer_address.ca_gmt_offset           = -6
  group by item.i_item_id);
 
   select  i_item_id ,sum(total_sales) total_sales
@@ -67,5 +68,3 @@ where i_color in ('slate','blanched','burnished'))
  order by total_sales,
           i_item_id
  limit 100;
-
--- end query 1 in stream 0 using template query56.tpl

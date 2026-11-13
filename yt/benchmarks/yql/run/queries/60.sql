@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 60; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $ss = (
  select
@@ -15,8 +16,8 @@ from
 where i_category in ('Music'))
  and     ss_item_sk              = i_item_sk
  and     ss_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 9
+ and     d_year                  = 2001
+ and     d_moy                   = 8
  and     ss_addr_sk              = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_item_id);
@@ -36,8 +37,8 @@ from
 where i_category in ('Music'))
  and     cs_item_sk              = i_item_sk
  and     cs_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 9
+ and     d_year                  = 2001
+ and     d_moy                   = 8
  and     cs_bill_addr_sk         = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_item_id);
@@ -57,12 +58,11 @@ from
 where i_category in ('Music'))
  and     ws_item_sk              = i_item_sk
  and     ws_sold_date_sk         = d_date_sk
- and     d_year                  = 1998
- and     d_moy                   = 9
+ and     d_year                  = 2001
+ and     d_moy                   = 8
  and     ws_bill_addr_sk         = ca_address_sk
  and     ca_gmt_offset           = -5
  group by item.i_item_id);
--- start query 1 in stream 0 using template query60.tpl and seed 1930872976
   select
   i_item_id
 ,sum(total_sales) total_sales
@@ -75,5 +75,3 @@ where i_category in ('Music'))
  order by i_item_id
       ,total_sales
  limit 100;
-
--- end query 1 in stream 0 using template query60.tpl

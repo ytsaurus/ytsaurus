@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 99; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 select
     w_warehouse_name,
     sm.sm_type,
@@ -17,7 +18,7 @@ from
     cross join call_center as cc
     cross join date_dim as d
 where
-    d.d_month_seq between 1200 and 1200 + 11
+    d.d_month_seq between 1206 and 1206 + 11
     and cs.cs_ship_date_sk   = d.d_date_sk
     and cs.cs_warehouse_sk   = w.w_warehouse_sk
     and cs.cs_ship_mode_sk   = sm.sm_ship_mode_sk

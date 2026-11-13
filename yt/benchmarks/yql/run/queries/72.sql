@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 72; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query72.tpl and seed 2031708268
 select  item.i_item_desc
       ,warehouse.w_warehouse_name
       ,d1.d_week_seq
@@ -20,11 +20,9 @@ left join catalog_returns on (catalog_returns.cr_item_sk = catalog_sales.cs_item
 where d1.d_week_seq = d2.d_week_seq
   and inv_quantity_on_hand < cs_quantity
   and cast(d3.d_date as date) > cast(d1.d_date as date) + DateTime::IntervalFromDays(5)
-  and hd_buy_potential = '>10000'
-  and d1.d_year = 1999
+  and hd_buy_potential = '1001-5000'
+  and d1.d_year = 2000
   and cd_marital_status = 'D'
 group by item.i_item_desc,warehouse.w_warehouse_name,d1.d_week_seq
 order by total_cnt desc, item.i_item_desc, warehouse.w_warehouse_name, d1.d_week_seq
 limit 100;
-
--- end query 1 in stream 0 using template query72.tpl

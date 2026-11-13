@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 83; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $sr_items =
  (select item.i_item_id item_id,
@@ -12,7 +13,7 @@ $sr_items =
 	where d_week_seq in
 		(select d_week_seq
 		from date_dim
-	  where d_date in (Date('2000-06-30'), Date('2000-09-27'), Date('2000-11-17'))))
+	  where d_date in (Date('1998-06-09'), Date('1998-08-05'), Date('1998-11-11'))))
  and   sr_returned_date_sk   = d_date_sk
  group by item.i_item_id);
  $cr_items =
@@ -28,7 +29,7 @@ $sr_items =
 	where d_week_seq in
 		(select d_week_seq
 		from date_dim
-	  where d_date in (Date('2000-06-30'), Date('2000-09-27'), Date('2000-11-17'))))
+	  where d_date in (Date('1998-06-09'), Date('1998-08-05'), Date('1998-11-11'))))
  and   cr_returned_date_sk   = d_date_sk
  group by item.i_item_id);
 $wr_items =
@@ -44,10 +45,9 @@ $wr_items =
 	where d_week_seq in
 		(select d_week_seq
 		from date_dim
-		where d_date in (Date('2000-06-30'), Date('2000-09-27'), Date('2000-11-17'))))
+		where d_date in (Date('1998-06-09'), Date('1998-08-05'), Date('1998-11-11'))))
  and   wr_returned_date_sk   = d_date_sk
  group by item.i_item_id);
--- start query 1 in stream 0 using template query83.tpl and seed 1930872976
   select  sr_items.item_id
        ,sr_item_qty
        ,sr_item_qty/(sr_item_qty+cr_item_qty+wr_item_qty)/3.0 * 100 sr_dev
@@ -64,5 +64,3 @@ $wr_items =
  order by sr_items.item_id
          ,sr_item_qty
  limit 100;
-
--- end query 1 in stream 0 using template query83.tpl

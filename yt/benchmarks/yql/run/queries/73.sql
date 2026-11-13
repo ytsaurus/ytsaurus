@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 73; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query73.tpl and seed 1971067816
 select c_last_name
        ,c_first_name
        ,c_salutation
@@ -14,16 +14,14 @@ select c_last_name
     and store_sales.ss_store_sk = store.s_store_sk
     and store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
     and date_dim.d_dom between 1 and 2
-    and (household_demographics.hd_buy_potential = '>10000' or
-         household_demographics.hd_buy_potential = 'Unknown')
+    and (household_demographics.hd_buy_potential = '501-1000' or
+         household_demographics.hd_buy_potential = '5001-10000')
     and household_demographics.hd_vehicle_count > 0
     and case when household_demographics.hd_vehicle_count > 0 then
              household_demographics.hd_dep_count/ household_demographics.hd_vehicle_count else null end > 1
-    and date_dim.d_year in (1999,1999+1,1999+2)
-    and store.s_county in ('Williamson County','Franklin Parish','Bronx County','Orange County')
+    and date_dim.d_year in (1998,1998+1,1998+2)
+    and store.s_county in ('Richland County','Wadena County','Terrell County','Huron County')
     group by store_sales.ss_ticket_number,store_sales.ss_customer_sk) dj cross join customer
     where ss_customer_sk = c_customer_sk
       and cnt between 1 and 5
     order by cnt desc, c_last_name asc;
-
--- end query 1 in stream 0 using template query73.tpl

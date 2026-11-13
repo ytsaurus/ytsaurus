@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 62; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query62.tpl and seed 1819994127
 select
    bla
   ,ship_mode.sm_type
@@ -19,7 +19,7 @@ from
   cross join web_site
   cross join date_dim
 where
-    d_month_seq between 1200 and 1200 + 11
+    d_month_seq between 1185 and 1185 + 11
 and ws_ship_date_sk   = d_date_sk
 and ws_warehouse_sk   = w_warehouse_sk
 and ws_ship_mode_sk   = sm_ship_mode_sk
@@ -32,5 +32,3 @@ order by bla
         ,ship_mode.sm_type
        ,web_site.web_name
 limit 100;
-
--- end query 1 in stream 0 using template query62.tpl

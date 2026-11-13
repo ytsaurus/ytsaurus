@@ -1,6 +1,6 @@
+-- TPC-DS 4.0.0 query 15; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 
--- start query 1 in stream 0 using template query15.tpl and seed 1819994127
 select  customer_address.ca_zip
        ,sum(cs_sales_price)
  from catalog_sales
@@ -14,9 +14,7 @@ select  customer_address.ca_zip
  	      or ca_state in ('CA','WA','GA')
  	      or cs_sales_price > 500)
  	and cs_sold_date_sk = d_date_sk
- 	and d_qoy = 2 and d_year = 2001
+ 	and d_qoy = 1 and d_year = 2002
  group by customer_address.ca_zip
  order by customer_address.ca_zip
  limit 100;
-
--- end query 1 in stream 0 using template query15.tpl

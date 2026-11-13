@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 70; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query70.tpl and seed 1819994127
 select
     sum(ss_net_profit) as total_sum
    ,store.s_state
@@ -14,7 +14,7 @@ select
    cross join date_dim       d1
    cross join store
  where
-    d1.d_month_seq between 1200 and 1200+11
+    d1.d_month_seq between 1188 and 1188+11
  and d1.d_date_sk = ss_sold_date_sk
  and s_store_sk  = ss_store_sk
  and s_state in
@@ -22,7 +22,7 @@ select
                from  (select store.s_state as s_state,
  			    rank() over ( partition by store.s_state order by sum(ss_net_profit) desc) as ranking
                       from   store_sales cross join store cross join date_dim
-                      where  d_month_seq between 1200 and 1200+11
+                      where  d_month_seq between 1188 and 1188+11
  			    and d_date_sk = ss_sold_date_sk
  			    and s_store_sk  = ss_store_sk
                       group by store.s_state
@@ -35,5 +35,3 @@ select
   ,case when lochierarchy = 0 then s_state else null end
   ,rank_within_parent
  limit 100;
-
--- end query 1 in stream 0 using template query70.tpl
