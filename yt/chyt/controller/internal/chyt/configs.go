@@ -200,7 +200,8 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 
 // COMPAT(buyval01): migrate speclet configs and remove alias
 var ytConfigAliases = configAliases{
-	"query_settings": aliases("settings"),
+	"query_settings":    aliases("settings"),
+	"object_repository": aliases("dictionary_repository"),
 }
 
 func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
@@ -318,17 +319,17 @@ func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.O
 		sqlUDFStorage["enabled"] = true
 	}
 
-	if dictConfig, ok := configAsMap["dictionary_repository"]; ok {
-		dictionaryRepository, convertErr := asMapNode(dictConfig)
+	if objectConfig, ok := configAsMap["object_repository"]; ok {
+		objectRepository, convertErr := asMapNode(objectConfig)
 		if convertErr != nil {
-			err = fmt.Errorf("invalid dictionary_repository config: %v", convertErr)
+			err = fmt.Errorf("invalid object_repository config: %v", convertErr)
 			return
 		}
-		if _, ok := dictionaryRepository["root_path"]; ok {
-			err = fmt.Errorf("root_path in dictionary_repository config cannot be set by user")
+		if _, ok := objectRepository["root_path"]; ok {
+			err = fmt.Errorf("root_path in object_repository config cannot be set by user")
 			return
 		} else {
-			dictionaryRepository["root_path"] = c.storageArtifactsDir(oplet.Alias())
+			objectRepository["root_path"] = c.storageArtifactsDir(oplet.Alias())
 		}
 	}
 
