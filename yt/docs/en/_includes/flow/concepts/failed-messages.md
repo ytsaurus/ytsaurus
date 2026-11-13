@@ -38,3 +38,9 @@ Writes to `failed_messages` commit atomically with the epoch's state and outputs
 `AddFailedMessage` does not undo earlier state changes, emitted messages, or timers. Validate the input before these actions if you need to defer them for a failed message.
 
 Currently, the mechanism saves messages for later investigation. Repair and replay will be added separately; Flow cannot automatically return saved messages to processing yet.
+
+## Metrics
+
+The `yt.flow.worker.computation.tables.captured_rows` counter tracks messages accepted for capture into `failed_messages` after removing duplicates within the batch. It increments when preparing the write, before the epoch commits. Transaction retries do not increment it again.
+
+The metric is exported with the `table=failed_messages`, `computation_id`, and `tag=<computation_id>:failed_messages` labels. Monitoring exposes the message capture rate as `yt.flow.worker.computation.tables.captured_rows.rate`.

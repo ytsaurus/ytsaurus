@@ -48,6 +48,9 @@ TFailedMessages::TFailedMessages(
     , WorkerId_(std::move(workerId))
     , FlowCoreTarget_(std::move(flowCoreTarget))
     , TablePath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), FailedMessagesTableName))
+    , CapturedRows_(Context_->Profiler
+            .WithTag("tag", Context_->Tag.value_or(std::string(FailedMessagesTableName)))
+            .Counter("/captured_rows"))
 { }
 
 void TFailedMessages::Write(
@@ -111,6 +114,8 @@ void TFailedMessages::Write(
         builder.AddValue(MakeUnversionedAnyValue(diagnostic.AsStringBuf(), diagnosticField));
         rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
     }
+
+    CapturedRows_.Increment(std::ssize(rows));
 
     // Check every attempt to keep a repeated capture from overwriting an existing failure.
     transaction->Apply(BIND([

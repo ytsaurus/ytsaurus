@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/ypath/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow::NTables {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +37,7 @@ private:
     const std::string WorkerId_;
     const TFlowCoreTarget FlowCoreTarget_;
     const NYPath::TYPath TablePath_;
+    const NProfiling::TCounter CapturedRows_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFailedMessages);
