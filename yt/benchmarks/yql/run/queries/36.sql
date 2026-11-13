@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 36; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query36.tpl and seed 1544728811
 select
     sum(ss_net_profit)/sum(ss_ext_sales_price) as gross_margin
    ,item.i_category
@@ -15,16 +15,14 @@ select
    cross join item
    cross join store
  where
-    d1.d_year = 2001
+    d1.d_year = 2002
  and d1.d_date_sk = ss_sold_date_sk
  and item.i_item_sk  = ss_item_sk
  and s_store_sk  = ss_store_sk
- and s_state = 'TN'
+ and s_state in ('MN', 'TN', 'MI', 'WV', 'NC', 'GA', 'TN', 'OH')
  group by rollup(item.i_category,item.i_class)
  order by
    lochierarchy desc
   ,case when lochierarchy = 0 then item.i_category else null end
   ,rank_within_parent
   limit 100;
-
--- end query 1 in stream 0 using template query36.tpl

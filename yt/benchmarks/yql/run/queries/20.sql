@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 20; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query20.tpl and seed 345591136
 select  item.i_item_id
        ,item.i_item_desc
        ,item.i_category
@@ -12,10 +12,10 @@ select  item.i_item_id
      cross join item
      cross join date_dim
  where cs_item_sk = i_item_sk
-   and i_category in ('Sports', 'Books', 'Home')
+   and i_category in ('Shoes', 'Sports', 'Electronics')
    and cs_sold_date_sk = d_date_sk
- and cast(d_date as date) between cast('1999-02-22' as date)
- 				and (cast('1999-02-22' as date) + DateTime::IntervalFromDays(30))
+ and cast(d_date as date) between cast('1998-05-13' as date)
+ 				and (cast('1998-05-13' as date) + DateTime::IntervalFromDays(30))
  group by item.i_item_id
          ,item.i_item_desc
          ,item.i_category
@@ -27,5 +27,3 @@ select  item.i_item_id
          ,item.i_item_desc
          ,revenueratio
 limit 100;
-
--- end query 1 in stream 0 using template query20.tpl

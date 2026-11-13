@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 98; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 select i.i_item_id
       ,i.i_item_desc
       ,i.i_category
@@ -11,10 +12,10 @@ cross join item as i
 cross join date_dim as d
 where
 	ss.ss_item_sk = i.i_item_sk
-  	and i.i_category in ('Sports', 'Books', 'Home')
+  	and i.i_category in ('Men', 'Music', 'Shoes')
   	and ss.ss_sold_date_sk = d.d_date_sk
-	and cast(d.d_date as Date) between cast('1999-02-22' as Date)
-				               and (cast('1999-02-22' as Date) + DateTime::IntervalFromDays(30))
+	and cast(d.d_date as Date) between cast('2001-03-17' as Date)
+				               and (cast('2001-03-17' as Date) + DateTime::IntervalFromDays(30))
 group by
 	 i.i_item_id
     ,i.i_item_desc
@@ -27,4 +28,3 @@ order by
     ,i.i_item_id
     ,i.i_item_desc
     ,revenueratio;
-

@@ -1,6 +1,6 @@
+-- TPC-DS 4.0.0 query 13; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 
--- start query 1 in stream 0 using template query13.tpl and seed 622697896
 select avg(ss_quantity)
        ,avg(ss_ext_sales_price)
        ,avg(ss_ext_wholesale_cost)
@@ -16,39 +16,37 @@ select avg(ss_quantity)
  and((ss_hdemo_sk=hd_demo_sk
   and cd_demo_sk = ss_cdemo_sk
   and cd_marital_status = 'M'
-  and cd_education_status = 'Advanced Degree'
+  and cd_education_status = 'Unknown'
   and ss_sales_price between 100.00 and 150.00
   and hd_dep_count = 3
      )or
      (ss_hdemo_sk=hd_demo_sk
   and cd_demo_sk = ss_cdemo_sk
-  and cd_marital_status = 'S'
-  and cd_education_status = 'College'
+  and cd_marital_status = 'D'
+  and cd_education_status = '4 yr Degree'
   and ss_sales_price between 50.00 and 100.00
   and hd_dep_count = 1
      ) or
      (ss_hdemo_sk=hd_demo_sk
   and cd_demo_sk = ss_cdemo_sk
   and cd_marital_status = 'W'
-  and cd_education_status = '2 yr Degree'
+  and cd_education_status = 'Primary'
   and ss_sales_price between 150.00 and 200.00
   and hd_dep_count = 1
      ))
  and((ss_addr_sk = ca_address_sk
   and ca_country = 'United States'
-  and ca_state in ('TX', 'OH', 'TX')
+  and ca_state in ('TX', 'NC', 'NE')
   and ss_net_profit between 100 and 200
      ) or
      (ss_addr_sk = ca_address_sk
   and ca_country = 'United States'
-  and ca_state in ('OR', 'NM', 'KY')
+  and ca_state in ('DE', 'CO', 'MN')
   and ss_net_profit between 150 and 300
      ) or
      (ss_addr_sk = ca_address_sk
   and ca_country = 'United States'
-  and ca_state in ('VA', 'TX', 'MS')
+  and ca_state in ('OH', 'AL', 'ND')
   and ss_net_profit between 50 and 250
      ))
 ;
-
--- end query 1 in stream 0 using template query13.tpl

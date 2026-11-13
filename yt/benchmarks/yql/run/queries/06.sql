@@ -1,9 +1,8 @@
--- start query 1 in stream 0 using template query6.tpl and seed 1819994127
-
+-- TPC-DS 4.0.0 query 6; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 $sub1 = (select distinct (d_month_seq)
  	      from date_dim
-               where d_year = 2001
- 	        and d_moy = 1 );
+               where d_year = 2000
+ 	        and d_moy = 6 );
 
 $sub2 = (select AVG(j.i_current_price) as i_current_price, j.i_category as i_category
  	            from item as j
@@ -28,5 +27,3 @@ select  a.ca_state state, count(*) cnt
  having count(*) >= 10
  order by cnt, state
  limit 100;
-
--- end query 1 in stream 0 using template query6.tpl

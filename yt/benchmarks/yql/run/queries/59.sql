@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 59; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $wss =
  (select date_dim.d_week_seq d_week_seq,
@@ -13,7 +14,6 @@ $wss =
  where d_date_sk = ss_sold_date_sk
  group by date_dim.d_week_seq,store_sales.ss_store_sk
  );
--- start query 1 in stream 0 using template query59.tpl and seed 1819994127
   select  s_store_name1,s_store_id1,d_week_seq1
        ,sun_sales1/sun_sales2,mon_sales1/mon_sales2
        ,tue_sales1/tue_sales2,wed_sales1/wed_sales2,thu_sales1/thu_sales2
@@ -27,7 +27,7 @@ $wss =
   from $wss wss cross join store cross join date_dim d
   where d.d_week_seq = wss.d_week_seq and
         ss_store_sk = s_store_sk and
-        d_month_seq between 1212 and 1212 + 11) y cross join
+        d_month_seq between 1182 and 1182 + 11) y cross join
  (select s_store_name s_store_name2,wss.d_week_seq d_week_seq2
         ,s_store_id s_store_id2,sun_sales sun_sales2
         ,mon_sales mon_sales2,tue_sales tue_sales2
@@ -36,10 +36,8 @@ $wss =
   from $wss wss cross join store cross join date_dim d
   where d.d_week_seq = wss.d_week_seq and
         ss_store_sk = s_store_sk and
-        d_month_seq between 1212+ 12 and 1212 + 23) x
+        d_month_seq between 1182+ 12 and 1182 + 23) x
  where s_store_id1=s_store_id2
    and d_week_seq1=d_week_seq2-52
  order by s_store_name1,s_store_id1,d_week_seq1
 limit 100;
-
--- end query 1 in stream 0 using template query59.tpl

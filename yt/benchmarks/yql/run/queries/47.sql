@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 47; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $v1 = (
  select item.i_category i_category, item.i_brand i_brand,
@@ -17,9 +18,9 @@ $v1 = (
        ss_sold_date_sk = d_date_sk and
        ss_store_sk = s_store_sk and
        (
-         d_year = 1999 or
-         ( d_year = 1999-1 and d_moy =12) or
-         ( d_year = 1999+1 and d_moy =1)
+         d_year = 2001 or
+         ( d_year = 2001-1 and d_moy =12) or
+         ( d_year = 2001+1 and d_moy =1)
        )
  group by item.i_category, item.i_brand,
           store.s_store_name, store.s_company_name,
@@ -43,13 +44,10 @@ $v2 = (
        v1.rn = v1_lead.rn - 1);
 
 
--- start query 1 in stream 0 using template query47.tpl and seed 2031708268
 select *
  from $v2
- where  d_year = 1999 and
+ where  d_year = 2001 and
         avg_monthly_sales > 0 and
         case when avg_monthly_sales > 0 then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales else null end > 0.1
- order by sum_sales - avg_monthly_sales
+ order by sum_sales - avg_monthly_sales, sum_sales
  limit 100;
-
--- end query 1 in stream 0 using template query47.tpl

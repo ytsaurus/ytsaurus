@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 71; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query71.tpl and seed 2031708268
 select item.i_brand_id brand_id, item.i_brand brand,time_dim.t_hour,time_dim.t_minute,
  	sum(ext_price) ext_price
  from item cross join (select ws_ext_sales_price as ext_price,
@@ -8,8 +8,8 @@ select item.i_brand_id brand_id, item.i_brand brand,time_dim.t_hour,time_dim.t_m
                         ws_sold_time_sk as time_sk
                  from web_sales cross join date_dim
                  where d_date_sk = ws_sold_date_sk
-                   and d_moy=11
-                   and d_year=1999
+                   and d_moy=12
+                   and d_year=2001
                  union all
                  select cs_ext_sales_price as ext_price,
                         cs_sold_date_sk as sold_date_sk,
@@ -17,8 +17,8 @@ select item.i_brand_id brand_id, item.i_brand brand,time_dim.t_hour,time_dim.t_m
                         cs_sold_time_sk as time_sk
                  from catalog_sales cross join date_dim
                  where d_date_sk = cs_sold_date_sk
-                   and d_moy=11
-                   and d_year=1999
+                   and d_moy=12
+                   and d_year=2001
                  union all
                  select ss_ext_sales_price as ext_price,
                         ss_sold_date_sk as sold_date_sk,
@@ -26,8 +26,8 @@ select item.i_brand_id brand_id, item.i_brand brand,time_dim.t_hour,time_dim.t_m
                         ss_sold_time_sk as time_sk
                  from store_sales cross join date_dim
                  where d_date_sk = ss_sold_date_sk
-                   and d_moy=11
-                   and d_year=1999
+                   and d_moy=12
+                   and d_year=2001
                  ) tmp cross join time_dim
  where
    sold_item_sk = item.i_item_sk
@@ -37,5 +37,3 @@ select item.i_brand_id brand_id, item.i_brand brand,time_dim.t_hour,time_dim.t_m
  group by item.i_brand, item.i_brand_id,time_dim.t_hour,time_dim.t_minute
  order by ext_price desc, brand_id
  ;
-
--- end query 1 in stream 0 using template query71.tpl

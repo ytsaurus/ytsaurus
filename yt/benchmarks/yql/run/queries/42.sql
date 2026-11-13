@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 42; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query42.tpl and seed 1819994127
 select  dt.d_year
  	,item.i_category_id
  	,item.i_category
@@ -11,7 +11,7 @@ select  dt.d_year
  	and store_sales.ss_item_sk = item.i_item_sk
  	and item.i_manager_id = 1
  	and dt.d_moy=11
- 	and dt.d_year=2000
+ 	and dt.d_year=2002
  group by 	dt.d_year
  		,item.i_category_id
  		,item.i_category
@@ -19,5 +19,3 @@ select  dt.d_year
  		,item.i_category_id
  		,item.i_category
 limit 100 ;
-
--- end query 1 in stream 0 using template query42.tpl

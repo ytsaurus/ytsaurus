@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 64; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $cs_ui =
  (select catalog_sales.cs_item_sk cs_item_sk
@@ -65,9 +66,9 @@ $cross_sales =
          hd1.hd_income_band_sk = ib1.ib_income_band_sk and
          hd2.hd_income_band_sk = ib2.ib_income_band_sk and
          cd1.cd_marital_status <> cd2.cd_marital_status and
-         i_color in ('purple', 'burlywood', 'indian', 'spring','floral','medium') and
-         i_current_price between 64 and 64 + 10 and
-         i_current_price between 64 + 1 and 64 + 15
+         i_color in ('coral', 'drab', 'orchid', 'bisque','antique','snow') and
+         i_current_price between 68 and 68 + 10 and
+         i_current_price between 68 + 1 and 68 + 15
 group by item.i_product_name
        ,item.i_item_sk
        ,store.s_store_name
@@ -84,7 +85,6 @@ group by item.i_product_name
        ,d2.d_year
        ,d3.d_year
 );
--- start query 1 in stream 0 using template query64.tpl and seed 1220860970
 select cs1.product_name
      ,cs1.store_name
      ,cs1.store_zip
@@ -108,8 +108,8 @@ select cs1.product_name
      ,cs2.cnt
 from $cross_sales cs1 cross join $cross_sales cs2
 where cs1.item_sk=cs2.item_sk and
-     cs1.syear = 1999 and
-     cs2.syear = 1999 + 1 and
+     cs1.syear = 2000 and
+     cs2.syear = 2000 + 1 and
      cs2.cnt <= cs1.cnt and
      cs1.store_name = cs2.store_name and
      cs1.store_zip = cs2.store_zip
@@ -118,5 +118,3 @@ order by cs1.product_name
        ,cs2.cnt
        ,s11
        ,s21;
-
--- end query 1 in stream 0 using template query64.tpl

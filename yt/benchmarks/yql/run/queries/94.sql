@@ -1,10 +1,10 @@
+-- TPC-DS 4.0.0 query 94; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $bla1 = (select ws_order_number
             from web_sales
               group by ws_order_number
               having COUNT(DISTINCT ws_warehouse_sk) > 1);
 
--- start query 1 in stream 0 using template query94.tpl and seed 2031708268
 select
    count(distinct ws1.ws_order_number) as `order count`
   ,sum(ws_ext_ship_cost) as `total shipping cost`
@@ -17,14 +17,12 @@ from
   left semi join $bla1 bla1 on (ws1.ws_order_number = bla1.ws_order_number)
   left only join web_returns on (ws1.ws_order_number = web_returns.wr_order_number)
 where
-    cast(d_date as date) between cast('1999-02-01' as date) and
-           (cast('1999-02-01' as date) + DateTime::IntervalFromDays(60))
+    cast(d_date as date) between cast('2000-04-01' as date) and
+           (cast('2000-04-01' as date) + DateTime::IntervalFromDays(60))
 and ws1.ws_ship_date_sk = d_date_sk
 and ws1.ws_ship_addr_sk = ca_address_sk
-and ca_state = 'IL'
+and ca_state = 'ND'
 and ws1.ws_web_site_sk = web_site_sk
 and web_company_name = 'pri'
 order by `order count`
 limit 100;
-
--- end query 1 in stream 0 using template query94.tpl

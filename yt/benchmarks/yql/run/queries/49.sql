@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 49; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query49.tpl and seed 1819994127
 $non_unique = (select  channel, item, return_ratio, return_rank, currency_rank from
  (select
  'web' as channel
@@ -31,8 +31,8 @@ $non_unique = (select  channel, item, return_ratio, return_rank, currency_rank f
                          and ws.ws_net_paid > 0
                          and ws.ws_quantity > 0
                          and ws_sold_date_sk = d_date_sk
-                         and d_year = 2001
-                         and d_moy = 12
+                         and d_year = 1999
+                         and d_moy = 11
  		group by ws.ws_item_sk
  	) in_web
  ) web
@@ -74,8 +74,8 @@ $non_unique = (select  channel, item, return_ratio, return_rank, currency_rank f
                          and cs.cs_net_paid > 0
                          and cs.cs_quantity > 0
                          and cs_sold_date_sk = d_date_sk
-                         and d_year = 2001
-                         and d_moy = 12
+                         and d_year = 1999
+                         and d_moy = 11
                  group by cs.cs_item_sk
  	) in_cat
  ) catalog
@@ -113,8 +113,8 @@ $non_unique = (select  channel, item, return_ratio, return_rank, currency_rank f
                          and sts.ss_net_paid > 0
                          and sts.ss_quantity > 0
                          and ss_sold_date_sk = d_date_sk
-                         and d_year = 2001
-                         and d_moy = 12
+                         and d_year = 1999
+                         and d_moy = 11
  		group by sts.ss_item_sk
  	) in_store
  ) store
@@ -135,5 +135,3 @@ select DISTINCT *
 --  ,store.return_ratio as return_ratio
 --  ,store.return_rank as return_rank
 --  ,store.currency_rank as currency_rank
-
--- end query 1 in stream 0 using template query49.tpl

@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 14; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $bla1 = (select iss.i_brand_id brand_id
      ,iss.i_class_id class_id
@@ -65,20 +66,19 @@ $avg_sales =
        where ws_sold_date_sk = d_date_sk
           and d_year between 1999 and 1999 + 2) x);
 
-$week_seq_2001 = (select d_week_seq
+$week_seq_next_year = (select d_week_seq
                      from date_dim
                      where d_year = 1999 + 1
                        and d_moy = 12
-                       and d_dom = 11);
+                       and d_dom = 17);
 
-$week_seq_2000 = (select d_week_seq
+$week_seq_base_year = (select d_week_seq
                      from date_dim
                      where d_year = 1999
                        and d_moy = 12
-                       and d_dom = 11);
+                       and d_dom = 17);
 
 
--- start query 1 in stream 0 using template query14.tpl and seed 1819994127
 
   select  channel, i_brand_id,i_class_id,i_category_id,sum(sales), sum(number_sales)
  from(
@@ -145,7 +145,7 @@ select  this_year.channel ty_channel
  where ss_item_sk in $cross_items
    and ss_item_sk = i_item_sk
    and ss_sold_date_sk = d_date_sk
-   and d_week_seq = $week_seq_2001
+   and d_week_seq = $week_seq_next_year
  group by item.i_brand_id,item.i_class_id,item.i_category_id
  having sum(ss_quantity*ss_list_price) > $avg_sales) this_year cross join
  (select 'store' channel, item.i_brand_id i_brand_id,item.i_class_id i_class_id
@@ -156,7 +156,7 @@ select  this_year.channel ty_channel
  where ss_item_sk in $cross_items
    and ss_item_sk = i_item_sk
    and ss_sold_date_sk = d_date_sk
-   and d_week_seq = $week_seq_2000
+   and d_week_seq = $week_seq_base_year
  group by item.i_brand_id,item.i_class_id,item.i_category_id
  having sum(ss_quantity*ss_list_price) > $avg_sales) last_year
  where this_year.i_brand_id= last_year.i_brand_id
@@ -164,5 +164,3 @@ select  this_year.channel ty_channel
    and this_year.i_category_id = last_year.i_category_id
  order by ty_channel, ty_brand, ty_class, ty_category
  limit 100;
-
--- end query 1 in stream 0 using template query14.tpl

@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 26; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query26.tpl and seed 1930872976
 select  item.i_item_id,
         avg(cs_quantity) agg1,
         avg(cs_list_price) agg2,
@@ -12,11 +12,9 @@ select  item.i_item_id,
        cs_promo_sk = p_promo_sk and
        cd_gender = 'M' and
        cd_marital_status = 'S' and
-       cd_education_status = 'College' and
+       cd_education_status = 'Primary' and
        (p_channel_email = 'N' or p_channel_event = 'N') and
-       d_year = 2000
+       d_year = 1999
  group by item.i_item_id
  order by item.i_item_id
  limit 100;
-
--- end query 1 in stream 0 using template query26.tpl

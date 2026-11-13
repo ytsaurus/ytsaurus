@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 66; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query66.tpl and seed 2042478054
 select
          w_warehouse_name
  	,w_warehouse_sq_ft
@@ -53,7 +53,7 @@ select
  	,warehouse.w_county w_county
  	,warehouse.w_state w_state
  	,warehouse.w_country w_country
- 	,'DHL' || ',' || 'BARIAN' as ship_carriers
+ 	,'BARIAN' || ',' || 'FEDEX' as ship_carriers
        ,date_dim.d_year as year
  	,sum(case when d_moy = 1
  		then ws_ext_sales_price* ws_quantity else 0 end) as jan_sales
@@ -80,29 +80,29 @@ select
  	,sum(case when d_moy = 12
  		then ws_ext_sales_price* ws_quantity else 0 end) as dec_sales
  	,sum(case when d_moy = 1
- 		then ws_net_paid * ws_quantity else 0 end) as jan_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as jan_net
  	,sum(case when d_moy = 2
- 		then ws_net_paid * ws_quantity else 0 end) as feb_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as feb_net
  	,sum(case when d_moy = 3
- 		then ws_net_paid * ws_quantity else 0 end) as mar_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as mar_net
  	,sum(case when d_moy = 4
- 		then ws_net_paid * ws_quantity else 0 end) as apr_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as apr_net
  	,sum(case when d_moy = 5
- 		then ws_net_paid * ws_quantity else 0 end) as may_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as may_net
  	,sum(case when d_moy = 6
- 		then ws_net_paid * ws_quantity else 0 end) as jun_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as jun_net
  	,sum(case when d_moy = 7
- 		then ws_net_paid * ws_quantity else 0 end) as jul_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as jul_net
  	,sum(case when d_moy = 8
- 		then ws_net_paid * ws_quantity else 0 end) as aug_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as aug_net
  	,sum(case when d_moy = 9
- 		then ws_net_paid * ws_quantity else 0 end) as sep_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as sep_net
  	,sum(case when d_moy = 10
- 		then ws_net_paid * ws_quantity else 0 end) as oct_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as oct_net
  	,sum(case when d_moy = 11
- 		then ws_net_paid * ws_quantity else 0 end) as nov_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as nov_net
  	,sum(case when d_moy = 12
- 		then ws_net_paid * ws_quantity else 0 end) as dec_net
+ 		then ws_net_paid_inc_ship * ws_quantity else 0 end) as dec_net
      from
           web_sales
          cross join warehouse
@@ -115,8 +115,8 @@ select
         and ws_sold_time_sk = t_time_sk
  	and ws_ship_mode_sk = sm_ship_mode_sk
         and d_year = 2001
- 	and t_time between 30838 and 30838+28800
- 	and sm_carrier in ('DHL','BARIAN')
+ 	and t_time between 2298 and 2298+28800
+ 	and sm_carrier in ('BARIAN','FEDEX')
      group by
         warehouse.w_warehouse_name
  	,warehouse.w_warehouse_sq_ft
@@ -133,56 +133,56 @@ select
  	,warehouse.w_county w_county
  	,warehouse.w_state w_state
  	,warehouse.w_country w_country
- 	,'DHL' || ',' || 'BARIAN' as ship_carriers
+ 	,'BARIAN' || ',' || 'FEDEX' as ship_carriers
        ,date_dim.d_year as year
  	,sum(case when d_moy = 1
- 		then cs_sales_price* cs_quantity else 0 end) as jan_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as jan_sales
  	,sum(case when d_moy = 2
- 		then cs_sales_price* cs_quantity else 0 end) as feb_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as feb_sales
  	,sum(case when d_moy = 3
- 		then cs_sales_price* cs_quantity else 0 end) as mar_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as mar_sales
  	,sum(case when d_moy = 4
- 		then cs_sales_price* cs_quantity else 0 end) as apr_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as apr_sales
  	,sum(case when d_moy = 5
- 		then cs_sales_price* cs_quantity else 0 end) as may_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as may_sales
  	,sum(case when d_moy = 6
- 		then cs_sales_price* cs_quantity else 0 end) as jun_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as jun_sales
  	,sum(case when d_moy = 7
- 		then cs_sales_price* cs_quantity else 0 end) as jul_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as jul_sales
  	,sum(case when d_moy = 8
- 		then cs_sales_price* cs_quantity else 0 end) as aug_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as aug_sales
  	,sum(case when d_moy = 9
- 		then cs_sales_price* cs_quantity else 0 end) as sep_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as sep_sales
  	,sum(case when d_moy = 10
- 		then cs_sales_price* cs_quantity else 0 end) as oct_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as oct_sales
  	,sum(case when d_moy = 11
- 		then cs_sales_price* cs_quantity else 0 end) as nov_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as nov_sales
  	,sum(case when d_moy = 12
- 		then cs_sales_price* cs_quantity else 0 end) as dec_sales
+ 		then cs_ext_sales_price* cs_quantity else 0 end) as dec_sales
  	,sum(case when d_moy = 1
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as jan_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as jan_net
  	,sum(case when d_moy = 2
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as feb_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as feb_net
  	,sum(case when d_moy = 3
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as mar_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as mar_net
  	,sum(case when d_moy = 4
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as apr_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as apr_net
  	,sum(case when d_moy = 5
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as may_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as may_net
  	,sum(case when d_moy = 6
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as jun_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as jun_net
  	,sum(case when d_moy = 7
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as jul_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as jul_net
  	,sum(case when d_moy = 8
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as aug_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as aug_net
  	,sum(case when d_moy = 9
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as sep_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as sep_net
  	,sum(case when d_moy = 10
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as oct_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as oct_net
  	,sum(case when d_moy = 11
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as nov_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as nov_net
  	,sum(case when d_moy = 12
- 		then cs_net_paid_inc_tax * cs_quantity else 0 end) as dec_net
+ 		then cs_net_paid_inc_ship_tax * cs_quantity else 0 end) as dec_net
      from
           catalog_sales
          cross join warehouse
@@ -195,8 +195,8 @@ select
         and cs_sold_time_sk = t_time_sk
  	and cs_ship_mode_sk = sm_ship_mode_sk
         and d_year = 2001
- 	and t_time between 30838 AND 30838+28800
- 	and sm_carrier in ('DHL','BARIAN')
+ 	and t_time between 2298 AND 2298+28800
+ 	and sm_carrier in ('BARIAN','FEDEX')
      group by
         warehouse.w_warehouse_name
  	,warehouse.w_warehouse_sq_ft
@@ -217,5 +217,3 @@ select
        ,year
  order by w_warehouse_name
  limit 100;
-
--- end query 1 in stream 0 using template query66.tpl

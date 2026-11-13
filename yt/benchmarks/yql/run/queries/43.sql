@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 43; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query43.tpl and seed 1819994127
 select  store.s_store_name, store.s_store_id,
         sum(case when (d_day_name='Sunday') then ss_sales_price else 0.0 end) sun_sales,
         sum(case when (d_day_name='Monday') then ss_sales_price else 0.0 end) mon_sales,
@@ -16,5 +16,3 @@ select  store.s_store_name, store.s_store_id,
  group by store.s_store_name, store.s_store_id
  order by store.s_store_name, store.s_store_id,sun_sales,mon_sales,tue_sales,wed_sales,thu_sales,fri_sales,sat_sales
  limit 100;
-
--- end query 1 in stream 0 using template query43.tpl

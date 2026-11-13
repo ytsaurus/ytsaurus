@@ -1,3 +1,4 @@
+-- TPC-DS 4.0.0 query 23; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
 $blabla = (
     select substring(cast(item.i_item_desc as string),0,30) itemdesc,item.i_item_sk item_sk,date_dim.d_date solddate
@@ -6,7 +7,7 @@ $blabla = (
       cross join item
   where ss_sold_date_sk = d_date_sk
     and ss_item_sk = i_item_sk
-    and d_year in (2000,2000+1,2000+2,2000+3)
+    and d_year in (1998,1998+1,1998+2,1998+3)
 );
 $frequent_ss_items =
  (select itemdesc, item_sk, solddate,count(*) cnt
@@ -22,7 +23,7 @@ $max_store_sales =
             cross join date_dim
         where ss_customer_sk = c_customer_sk
          and ss_sold_date_sk = d_date_sk
-         and d_year in (2000,2000+1,2000+2,2000+3)
+         and d_year in (1998,1998+1,1998+2,1998+3)
         group by customer.c_customer_sk) x);
 
 $best_ss_customer =
@@ -31,15 +32,14 @@ $best_ss_customer =
       cross join customer
   where ss_customer_sk = c_customer_sk
   group by customer.c_customer_sk
-  having sum(ss_quantity*ss_sales_price) > (50/100.0) * $max_store_sales);
+  having sum(ss_quantity*ss_sales_price) > (95/100.0) * $max_store_sales);
 
--- start query 1 in stream 0 using template query23.tpl and seed 2031708268
 select  sum(sales)
  from (select cs_quantity*cs_list_price sales
        from catalog_sales
            cross join date_dim
-       where d_year = 2000
-         and d_moy = 2
+       where d_year = 1998
+         and d_moy = 4
          and cs_sold_date_sk = d_date_sk
          and cs_item_sk in (select item_sk from $frequent_ss_items)
          and cs_bill_customer_sk in (select c_customer_sk from $best_ss_customer)
@@ -47,8 +47,8 @@ select  sum(sales)
       select ws_quantity*ws_list_price sales
        from web_sales
            cross join date_dim
-       where d_year = 2000
-         and d_moy = 2
+       where d_year = 1998
+         and d_moy = 4
          and ws_sold_date_sk = d_date_sk
          and ws_item_sk in (select item_sk from $frequent_ss_items)
          and ws_bill_customer_sk in (select c_customer_sk from $best_ss_customer)) y
@@ -59,8 +59,8 @@ select  c_last_name,c_first_name,sales
         from catalog_sales
             cross join customer
             cross join date_dim
-        where d_year = 2000
-         and d_moy = 2
+        where d_year = 1998
+         and d_moy = 4
          and cs_sold_date_sk = d_date_sk
          and cs_item_sk in (select item_sk from $frequent_ss_items)
          and cs_bill_customer_sk in (select c_customer_sk from $best_ss_customer)
@@ -71,8 +71,8 @@ select  c_last_name,c_first_name,sales
        from web_sales
            cross join customer
            cross join date_dim
-       where d_year = 2000
-         and d_moy = 2
+       where d_year = 1998
+         and d_moy = 4
          and ws_sold_date_sk = d_date_sk
          and ws_item_sk in (select item_sk from $frequent_ss_items)
          and ws_bill_customer_sk in (select c_customer_sk from $best_ss_customer)
@@ -80,5 +80,3 @@ select  c_last_name,c_first_name,sales
        group by customer.c_last_name,customer.c_first_name) y
      order by c_last_name,c_first_name,sales
   limit 100;
-
--- end query 1 in stream 0 using template query23.tpl

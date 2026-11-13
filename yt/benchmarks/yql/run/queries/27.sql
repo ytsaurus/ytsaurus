@@ -1,5 +1,5 @@
+-- TPC-DS 4.0.0 query 27; dsqgen -SCALE 3000 -RNGSEED 19620718 -STREAMS 1.
 -- NB: Subqueries
--- start query 1 in stream 0 using template query27.tpl and seed 2017787633
 select  item.i_item_id,
         store.s_state, grouping(store.s_state) g_state,
         avg(ss_quantity) agg1,
@@ -11,14 +11,12 @@ select  item.i_item_id,
        ss_item_sk = i_item_sk and
        ss_store_sk = s_store_sk and
        ss_cdemo_sk = cd_demo_sk and
-       cd_gender = 'M' and
+       cd_gender = 'F' and
        cd_marital_status = 'S' and
-       cd_education_status = 'College' and
-       d_year = 2002 and
-       s_state = 'TN'
+       cd_education_status = 'Advanced Degree' and
+       d_year = 1999 and
+       s_state in ('TX', 'MI', 'IL', 'MN', 'NM', 'SD')
  group by rollup (item.i_item_id, store.s_state)
  order by item.i_item_id
          ,store.s_state
  limit 100;
-
--- end query 1 in stream 0 using template query27.tpl
