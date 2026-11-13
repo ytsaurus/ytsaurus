@@ -108,6 +108,10 @@ struct TDynamicCypressManagerConfig
     // Instead of iterating over all known locks, check each transaction only once during conflict resolution.
     bool EnableEvenMoreEfficientConflictCheck;
 
+    // Disabling this triggers an alert.
+    // TODO(ivpiskarev): remove after making sure that new behaviour does not cause issues.
+    bool CheckPendingLocksAfterPrelockRelease;
+
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 

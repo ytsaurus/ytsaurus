@@ -520,6 +520,42 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return true;
         }
 
+        case EInternedAttributeKey::AcquirePrelock: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+
+            THROW_ERROR_EXCEPTION_UNLESS(!Transaction_, "Do not set this attribute on non-trunk nodes")
+                .With("attribute_key", key);
+
+            const auto& map = ConvertToNode(value)->AsMap();
+            TTransactionId owningTransactionId = map->GetChildValueOrThrow<TTransactionId>("owning_transaction");
+            std::optional<TTransactionId> lockingTransactionId = map->GetChildValueOrThrow<std::optional<TTransactionId>>("locking_transaction");
+            TLockRequest lockRequest;
+            lockRequest.Mode = map->GetChildValueOrThrow<ELockMode>("lock_mode");
+            if (lockRequest.Mode == ELockMode::Shared && map->FindChild("lock_key")) {
+                lockRequest.Key.Name = map->GetChildValueOrThrow<std::string>("lock_key");
+                lockRequest.Key.Kind = map->GetChildValueOrThrow<ELockKeyKind>("lock_key_kind");
+                THROW_ERROR_EXCEPTION_UNLESS(map->GetChildCount() == 5, "Extra parameters");
+            } else {
+                THROW_ERROR_EXCEPTION_UNLESS(map->GetChildCount() == 3, "Extra parameters");
+            }
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+            TTransaction* owningTransaction = transactionManager->FindTransaction(owningTransactionId);
+            TTransaction* lockingTransaction = lockingTransactionId ? transactionManager->FindTransaction(*lockingTransactionId) : nullptr;
+            THROW_ERROR_EXCEPTION_IF(!owningTransaction, "Cannot find owning transaction");
+            THROW_ERROR_EXCEPTION_IF(!lockingTransaction && lockingTransactionId, "Cannot find locking transaction");
+            THROW_ERROR_EXCEPTION_IF(!lockingTransaction && lockRequest.Mode == ELockMode::Snapshot,
+                "Cannot take snapshot prelock without locking transaction");
+
+            cypressManager->AcquirePrelock(owningTransaction, lockingTransaction, TrunkNode_, lockRequest)
+                .ThrowOnError();
+            return true;
+        }
+
         default:
             break;
     }
@@ -683,6 +719,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorAsync)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AcquirePrelock)
+            .SetPresent(false)
+            .SetWritable(true));
     }
 }
 

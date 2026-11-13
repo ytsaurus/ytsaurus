@@ -16,6 +16,7 @@
     XX(AccountResourceUsageLeaseIds, account_resource_usage_lease_ids) \
     XX(AccountStatistics, account_statistics) \
     XX(Acl, acl) \
+    XX(AcquirePrelock, acquire_prelock) \
     XX(AcquisitionTime, acquisition_time) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
