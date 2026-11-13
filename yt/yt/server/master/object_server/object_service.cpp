@@ -544,16 +544,17 @@ public:
         } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
             return EnqueuedToLocalRead_;
         } else {
-            static_assert("Unexpected workload type for enqueuing/dequeuing execute session");
+            static_assert(false, "Unexpected workload type for enqueuing/dequeuing execute session");
         }
     }
 
-    bool RunAutomatonFast(EUserWorkloadType workloadType)
+    template <EUserWorkloadType WorkloadType>
+    bool RunAutomatonFast()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         try {
-            return GuardedRunAutomatonFast(workloadType);
+            return GuardedRunAutomatonFast<WorkloadType>();
         } catch (const std::exception& ex) {
             Reply(ex);
             return false;
@@ -1596,7 +1597,7 @@ private:
         } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
             subrequestType = EExecutionSessionSubrequestType::LocalRead;
         } else {
-            static_assert("Unexpected workload type for detecting local subrequests");
+            static_assert(false, "Unexpected workload type for detecting local subrequests");
         }
 
         for (int index = 0; index < TotalSubrequestCount_; ++index) {
@@ -1822,7 +1823,8 @@ private:
         }
     }
 
-    bool GuardedRunAutomatonFast(EUserWorkloadType workloadType)
+    template <EUserWorkloadType WorkloadType>
+    bool GuardedRunAutomatonFast()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -1900,7 +1902,7 @@ private:
             RequestQueueSizeIncremented_ = true;
         }
 
-        if (!ThrottleRequests(workloadType)) {
+        if (!ThrottleRequests<WorkloadType>()) {
             return false;
         }
 
@@ -1945,19 +1947,19 @@ private:
         return true;
     }
 
-    bool ThrottleRequests(EUserWorkloadType workloadType)
+    template <EUserWorkloadType WorkloadType>
+    bool ThrottleRequests()
     {
-        switch (workloadType) {
-            case EUserWorkloadType::Write:
-                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
-                    &CurrentAutomatonSubrequestIndex_,
-                    &ThrottledAutomatonSubrequestIndex_);
-            case EUserWorkloadType::Read:
-                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
-                    &CurrentLocalReadSubrequestIndex_,
-                    &ThrottledLocalReadSubrequestIndex_);
-            default:
-                static_assert("Unexpected workload type for throttling requests");
+        if constexpr (WorkloadType == EUserWorkloadType::Write) {
+            return DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
+                &CurrentAutomatonSubrequestIndex_,
+                &ThrottledAutomatonSubrequestIndex_);
+        } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+            return DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
+                &CurrentLocalReadSubrequestIndex_,
+                &ThrottledLocalReadSubrequestIndex_);
+        } else {
+            static_assert(false, "Unexpected workload type for throttling requests");
         }
     }
 
@@ -1965,17 +1967,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        GuardedProcessSubrequests(EUserWorkloadType::Write);
+        GuardedProcessSubrequests<EUserWorkloadType::Write>();
     }
 
     void GuardedRunRead()
     {
         VerifyPersistentStateRead();
 
-        GuardedProcessSubrequests(EUserWorkloadType::Read);
+        GuardedProcessSubrequests<EUserWorkloadType::Read>();
     }
 
-    void GuardedProcessSubrequests(EUserWorkloadType workloadType)
+    template <EUserWorkloadType WorkloadType>
+    void GuardedProcessSubrequests()
     {
         VerifyPersistentStateRead();
 
@@ -1984,25 +1987,15 @@ private:
 
         Owner_->ValidateClusterInitialized();
 
-        auto* currentSubrequestIndex = workloadType == EUserWorkloadType::Write
+        auto* currentSubrequestIndex = WorkloadType == EUserWorkloadType::Write
             ? &CurrentAutomatonSubrequestIndex_
             : &CurrentLocalReadSubrequestIndex_;
 
-        auto filter = workloadType == EUserWorkloadType::Write
-            ? [] (TSubrequest* subrequest) {
-                return subrequest->Type == EExecutionSessionSubrequestType::LocalWrite;
-            }
-            : [] (TSubrequest* subrequest) {
-                return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
-            };
-
-        auto doReschedule = workloadType == EUserWorkloadType::Write
-            ? [] (TExecuteSession* session) {
-                session->Reschedule<EUserWorkloadType::Write>();
-            }
-            : [] (TExecuteSession* session) {
-                session->Reschedule<EUserWorkloadType::Read>();
-            };
+        auto filter = [] (TSubrequest* subrequest) {
+            return WorkloadType == EUserWorkloadType::Write
+                ? subrequest->Type == EExecutionSessionSubrequestType::LocalWrite
+                : subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
+        };
 
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
             // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
@@ -2019,13 +2012,13 @@ private:
                 break;
             }
 
-            if (!ThrottleRequests(workloadType)) {
+            if (!ThrottleRequests<WorkloadType>()) {
                 break;
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
                 YT_TLOG_DEBUG("Yielding thread");
-                doReschedule(this);
+                Reschedule<WorkloadType>();
                 break;
             }
 
@@ -2702,7 +2695,7 @@ void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
     } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
         LocalReadReadySessions_.Enqueue(std::move(session));
     } else {
-        static_assert("Unexpected workload type for enqueuing execute session");
+        static_assert(false, "Unexpected workload type for enqueuing execute session");
     }
 
     if (MinimizeExecuteLatency_.load(std::memory_order::relaxed)) {
@@ -2735,7 +2728,7 @@ void TObjectService::ProcessSessions()
 
         session->OnDequeued<EUserWorkloadType::Write>();
 
-        if (!session->RunAutomatonFast(EUserWorkloadType::Write)) {
+        if (!session->RunAutomatonFast<EUserWorkloadType::Write>()) {
             return;
         }
 
@@ -2748,7 +2741,7 @@ void TObjectService::ProcessSessions()
         session->OnDequeued<EUserWorkloadType::Read>();
 
         // TODO(shakurov): consider introducing RunLocalReadFast.
-        if (!session->RunAutomatonFast(EUserWorkloadType::Read)) {
+        if (!session->RunAutomatonFast<EUserWorkloadType::Read>()) {
             return;
         }
 
