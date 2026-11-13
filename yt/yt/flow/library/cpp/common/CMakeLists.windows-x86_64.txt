@@ -75,7 +75,6 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/inflight_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/input_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_directory.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_proxy_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/lag.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_batch.cpp
@@ -94,6 +93,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_status.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/rpc_clients_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/runtime_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/select_literals.cpp

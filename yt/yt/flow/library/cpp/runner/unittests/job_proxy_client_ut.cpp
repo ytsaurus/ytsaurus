@@ -1,4 +1,5 @@
 #include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
+#include <yt/yt/flow/library/cpp/common/rpc_clients_cache.h>
 
 #include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
 
@@ -85,51 +86,6 @@ TEST(TJobProxyClientTest, RequiresSocketForLocalCluster)
         "YT_JOB_PROXY_SOCKET_PATH is absent");
 }
 
-TEST(TJobProxyClientTest, SharesConnectionAcrossClusterSpellings)
-{
-    auto cacheConfig = New<NClient::NCache::TClientsCacheConfig>();
-    cacheConfig->DefaultConnection = New<NRpcProxy::TConnectionConfig>();
-    auto authOptions = New<NClient::NCache::TClientsCacheAuthenticationOptions>();
-    authOptions->DefaultOptions = TClientOptions::FromToken("short-name-token");
-    authOptions->ClusterOptions["http://hahn.yt.yandex.net"] = TClientOptions::FromToken("url-token");
-    auto cache = NClient::NCache::CreateClientsCache(cacheConfig, authOptions);
-    auto first = cache->GetClient("hahn");
-    auto second = cache->GetClient("http://hahn.yt.yandex.net");
-    ASSERT_NE(first, second);
-
-    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
-    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
-    auto localCache = CreateJobProxyClientsCache(cache);
-    auto firstReader = localCache->GetClient("hahn");
-    auto secondReader = localCache->GetClient("http://hahn.yt.yandex.net");
-    EXPECT_EQ(firstReader, localCache->GetClient("hahn"));
-    EXPECT_EQ(secondReader, localCache->GetClient("http://hahn.yt.yandex.net"));
-    EXPECT_EQ(cache->GetClient("arnold"), localCache->GetClient("arnold"));
-    auto anotherCache = CreateJobProxyClientsCache(cache);
-    EXPECT_NE(firstReader->GetConnection(), anotherCache->GetClient("hahn")->GetConnection());
-    EXPECT_EQ(firstReader->GetConnection(), secondReader->GetConnection());
-    EXPECT_EQ(firstReader->GetOptions().Token, "short-name-token");
-    EXPECT_EQ(secondReader->GetOptions().Token, "url-token");
-}
-
-TEST(TJobProxyClientTest, PreservesDifferentConnectionSettings)
-{
-    auto cacheConfig = New<NClient::NCache::TClientsCacheConfig>();
-    auto config = CloneYsonStruct(cacheConfig->DefaultConnection);
-    config->DefaultTotalStreamingTimeout += TDuration::Seconds(1);
-    cacheConfig->PerClusterConnection["https://hahn.yt.yandex.net"] = config;
-    auto cache = NClient::NCache::CreateClientsCache(cacheConfig, TClientOptions::FromUser("reader"));
-
-    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
-    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
-    auto localCache = CreateJobProxyClientsCache(cache);
-    auto firstReader = localCache->GetClient("hahn");
-    auto secondReader = localCache->GetClient("https://hahn.yt.yandex.net");
-    EXPECT_NE(firstReader->GetConnection(), secondReader->GetConnection());
-    auto readerConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(secondReader->GetConnection()->GetConfigYson());
-    EXPECT_EQ(readerConfig->DefaultTotalStreamingTimeout, config->DefaultTotalStreamingTimeout);
-}
-
 TEST(TJobProxyClientTest, ConnectionInvokerSurvivesOriginalClient)
 {
     auto config = New<NRpcProxy::TConnectionConfig>();
@@ -154,6 +110,149 @@ TEST(TJobProxyClientTest, DoesNotShareDifferentSockets)
     auto firstReader = GetJobProxyClient(client, "hahn", "hahn", "/tmp/first.sock");
     auto secondReader = GetJobProxyClient(client, "hahn", "hahn", "/tmp/second.sock");
     EXPECT_NE(firstReader->GetConnection(), secondReader->GetConnection());
+}
+
+class TRpcClientsCacheTest
+    : public ::testing::Test
+{
+private:
+    NTesting::TEnvGuard ClusterGuard_{"YT_FLOW_JOB_PROXY_CLUSTER"};
+    NTesting::TEnvGuard SocketGuard_{"YT_JOB_PROXY_SOCKET_PATH"};
+};
+
+TEST_F(TRpcClientsCacheTest, SharesLocalConnectionAndPreservesClientOptions)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto config = New<NClient::NCache::TClientsCacheConfig>();
+    config->DefaultConnection->ProxyRole = "heavy";
+    auto cache = NFlow::CreateClientsCache(
+        config,
+        TClientOptions::FromToken("reader-token"));
+    auto first = cache->GetClient("hahn");
+    for (auto cluster : {"hahn", "hahn/explicit", "http://hahn.yt.yandex.net", "https://hahn.yt.yandex.net"}) {
+        auto client = cache->GetClient(cluster);
+        EXPECT_EQ(client, cache->GetClient(cluster));
+        EXPECT_EQ(first->GetConnection(), client->GetConnection());
+        EXPECT_EQ(client->GetOptions().Token, "reader-token");
+        auto connectionConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(client->GetConnection()->GetConfigYson());
+        EXPECT_EQ(connectionConfig->ProxyUnixDomainSocket, "/tmp/job.sock");
+        EXPECT_FALSE(connectionConfig->EnableProxyDiscovery);
+        EXPECT_FALSE(connectionConfig->ProxyRole);
+    }
+    auto remote = cache->GetClient("arnold/explicit");
+    auto connectionConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(remote->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(connectionConfig->ProxyUnixDomainSocket);
+    EXPECT_EQ(connectionConfig->ProxyRole, "explicit");
+    EXPECT_EQ(remote->GetOptions().Token, "reader-token");
+    auto anotherCache = NFlow::CreateClientsCache(config, TClientOptions::FromToken("reader-token"));
+    EXPECT_NE(first->GetConnection(), anotherCache->GetClient("hahn")->GetConnection());
+}
+
+TEST_F(TRpcClientsCacheTest, PreservesPerClusterConfiguration)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto config = New<NClient::NCache::TClientsCacheConfig>();
+    auto localConfig = CloneYsonStruct(config->DefaultConnection);
+    localConfig->DefaultTotalStreamingTimeout += TDuration::Seconds(1);
+    config->PerClusterConnection["http://hahn.yt.yandex.net"] = localConfig;
+    auto httpsConfig = CloneYsonStruct(localConfig);
+    httpsConfig->DefaultTotalStreamingTimeout += TDuration::Seconds(1);
+    config->PerClusterConnection["https://hahn.yt.yandex.net"] = httpsConfig;
+    auto originalConfig = ConvertToNode(config);
+    auto cache = NFlow::CreateClientsCache(config, TClientOptions::FromUser("reader"));
+    auto first = cache->GetClient("hahn");
+    auto second = cache->GetClient("http://hahn.yt.yandex.net/explicit");
+    auto third = cache->GetClient("https://hahn.yt.yandex.net");
+    EXPECT_EQ(first->GetConnection(), second->GetConnection());
+    EXPECT_NE(first->GetConnection(), third->GetConnection());
+    auto firstConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(first->GetConnection()->GetConfigYson());
+    auto thirdConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(third->GetConnection()->GetConfigYson());
+    EXPECT_EQ(firstConfig->DefaultTotalStreamingTimeout, localConfig->DefaultTotalStreamingTimeout);
+    EXPECT_EQ(thirdConfig->DefaultTotalStreamingTimeout, httpsConfig->DefaultTotalStreamingTimeout);
+    EXPECT_TRUE(AreNodesEqual(originalConfig, ConvertToNode(config)));
+}
+
+TEST_F(TRpcClientsCacheTest, SelectsJobProxyBeforeCreatingConnection)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto config = New<NClient::NCache::TClientsCacheConfig>();
+    config->DefaultConnection->ProxyAddresses = std::vector<std::string>{};
+    auto cache = NFlow::CreateClientsCache(config, TClientOptions::FromUser("reader"));
+    EXPECT_TRUE(cache->GetClient("hahn"));
+    EXPECT_THROW_WITH_SUBSTRING(cache->GetClient("arnold"), "\"proxy_addresses\" must not be empty");
+}
+
+TEST_F(TRpcClientsCacheTest, MatchesCoreCacheWithoutJobProxy)
+{
+    auto config = New<NClient::NCache::TClientsCacheConfig>();
+    config->DefaultConnection->ProxyRole = "default";
+    auto perCluster = CloneYsonStruct(config->DefaultConnection);
+    perCluster->ClusterUrl = "localhost:9013";
+    perCluster->DefaultTotalStreamingTimeout += TDuration::Seconds(1);
+    config->PerClusterConnection["http://hahn.yt.yandex.net"] = perCluster;
+    auto options = TClientOptions::FromUser("reader");
+    auto cache = NFlow::CreateClientsCache(config, options);
+    auto coreCache = NClient::NCache::CreateClientsCache(config, options);
+    for (auto cluster : {"hahn", "http://hahn.yt.yandex.net/explicit", "https://hahn.yt.yandex.net", "localhost:9013", "arnold/other"}) {
+        auto client = cache->GetClient(cluster);
+        EXPECT_EQ(client, cache->GetClient(cluster));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(client->GetConnection()->GetConfigYson()),
+            ConvertToNode(coreCache->GetClient(cluster)->GetConnection()->GetConfigYson())));
+        EXPECT_EQ(client->GetOptions().GetAuthenticatedUser(), "reader");
+    }
+}
+
+TEST_F(TRpcClientsCacheTest, ConnectionInvokerSurvivesCache)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto client = NFlow::CreateClientsCache(
+        New<NClient::NCache::TClientsCacheConfig>(),
+        TClientOptions::FromUser("reader"))
+        ->GetClient("hahn");
+    auto result = NConcurrency::WaitFor(BIND([] {
+    })
+            .AsyncVia(client->GetConnection()->GetInvoker())
+            .Run()
+            .WithTimeout(TDuration::Seconds(5)));
+    EXPECT_NO_THROW(result.ThrowOnError());
+}
+
+TEST_F(TRpcClientsCacheTest, RejectsJobProxyRouteWithoutSocket)
+{
+    NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+    EXPECT_THROW_WITH_SUBSTRING(
+        NFlow::CreateClientsCache(New<NClient::NCache::TClientsCacheConfig>(), /*clientOptions*/ {}),
+        "YT_JOB_PROXY_SOCKET_PATH is absent");
+}
+
+TEST_F(TRpcClientsCacheTest, CapturesJobProxyEnvironmentAtCreation)
+{
+    auto config = New<NClient::NCache::TClientsCacheConfig>();
+    auto options = TClientOptions::FromUser("reader");
+    auto directCache = NFlow::CreateClientsCache(config, options);
+    NClient::NCache::IClientsCachePtr jobProxyCache;
+    {
+        NTesting::TEnvGuard clusterGuard("YT_FLOW_JOB_PROXY_CLUSTER", "hahn");
+        NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+        jobProxyCache = NFlow::CreateClientsCache(config, options);
+        auto directConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(directCache->GetClient("hahn")->GetConnection()->GetConfigYson());
+        EXPECT_FALSE(directConfig->ProxyUnixDomainSocket);
+    }
+    auto jobProxyConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(jobProxyCache->GetClient("hahn")->GetConnection()->GetConfigYson());
+    EXPECT_EQ(jobProxyConfig->ProxyUnixDomainSocket, "/tmp/job.sock");
+}
+
+TEST_F(TRpcClientsCacheTest, IgnoresSocketWithoutJobProxyCluster)
+{
+    NTesting::TEnvGuard socketGuard("YT_JOB_PROXY_SOCKET_PATH", "/tmp/job.sock");
+    auto cache = NFlow::CreateClientsCache(New<NClient::NCache::TClientsCacheConfig>(), TClientOptions::FromUser("reader"));
+    auto config = ConvertTo<NRpcProxy::TConnectionConfigPtr>(cache->GetClient("hahn")->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(config->ProxyUnixDomainSocket);
 }
 
 } // namespace

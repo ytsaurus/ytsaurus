@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/flow/library/cpp/common/rpc_clients_cache.h>
+
 #include <yt/yt/client/cache/config.h>
 #include <yt/yt/client/cache/rpc.h>
 
@@ -77,7 +79,7 @@ IClientsCachePtr CreateRootClientsCache(const TRootClientsCacheOptions& options)
         THROW_ERROR_EXCEPTION_IF(patchedOptions.Parameters,
             "Option \"clients_cache_factory\" is set, but no root clients cache factory is installed; "
             "the binary is not linked against an implementation calling SetRootClientsCacheFactory()");
-        return CreateClientsCache(patchedOptions.ClientsCacheConfig, patchedOptions.ClientOptions);
+        return NFlow::CreateClientsCache(patchedOptions.ClientsCacheConfig, patchedOptions.ClientOptions);
     }
 
     THROW_ERROR_EXCEPTION_IF(!GetEnv("YT_FLOW_JOB_PROXY_CLUSTER").empty(),
