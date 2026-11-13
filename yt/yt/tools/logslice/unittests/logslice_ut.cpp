@@ -494,6 +494,17 @@ TEST_F(TLogSliceTest, SliceFindsLinesOutOfOrder)
         }
         return session;
     };
+    auto clockJump = [&] (bool forward) {
+        TLogBlock lines;
+        for (int index = 0; index < 10; ++index) {
+            auto instant = at(index);
+            if (index >= 3 && index <= 6) {
+                instant = forward ? instant + TDuration::Seconds(100) : instant - TDuration::Seconds(100);
+            }
+            lines.push_back({instant, Format("msg-%v", index)});
+        }
+        return blockPerLine(lines);
+    };
 
     struct TCase
     {
@@ -568,6 +579,20 @@ TEST_F(TLogSliceTest, SliceFindsLinesOutOfOrder)
             .From = at(1) + half,
             .To = at(2) + half,
             .Expected = {"msg-2"},
+        },
+        {
+            .Name = "ForwardClockJumpInWholeFileWindow",
+            .Sessions = {clockJump(/*forward*/ true)},
+            .From = at(0) - half,
+            .To = at(9) + half,
+            .Expected = {"msg-0", "msg-1", "msg-2", "msg-7", "msg-8", "msg-9"},
+        },
+        {
+            .Name = "BackwardClockJumpInWholeFileWindow",
+            .Sessions = {clockJump(/*forward*/ false)},
+            .From = at(0) - half,
+            .To = at(9) + half,
+            .Expected = {"msg-0", "msg-1", "msg-2", "msg-7", "msg-8", "msg-9"},
         },
     };
 
