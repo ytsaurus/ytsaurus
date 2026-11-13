@@ -16,7 +16,12 @@ using TCombinedRequest = IReadRequestCombiner::TCombinedRequest;
 static bool operator==(const TReadRequest& lhs, const TReadRequest& rhs)
 {
     return lhs.Offset == rhs.Offset && lhs.Size == rhs.Size &&
-        lhs.Handle == rhs.Handle;
+        lhs.Handle == rhs.Handle &&
+        lhs.FairShareSlotId == rhs.FairShareSlotId &&
+        lhs.FairShareState.has_value() == rhs.FairShareState.has_value() &&
+        (!lhs.FairShareState ||
+            (lhs.FairShareState->IOConsumed == rhs.FairShareState->IOConsumed &&
+             lhs.FairShareState->IOFairShareWeight == rhs.FairShareState->IOFairShareWeight));
 }
 
 static bool operator==(const TCombinedRequest& lhs, const TCombinedRequest& rhs)
@@ -78,7 +83,7 @@ protected:
         };
     }
 
-    void RunTest(
+    std::vector<TSharedRef> RunTest(
         const std::vector<TReadRequest>& input,
         const std::vector<TCombinedRequest>& output)
     {
@@ -96,6 +101,8 @@ protected:
         for (int index = 0; index < std::ssize(outputBuffers); index++) {
             EXPECT_EQ(std::ssize(outputBuffers[index]), input[index].Size);
         }
+
+        return outputBuffers;
     }
 
     const int PageSize = 4096;
@@ -111,6 +118,38 @@ using TReadRequestCombinerTest = TReadRequestCombinerTestBase<false>;
 TEST_F(TReadRequestCombinerTest, CombineEmpty)
 {
     RunTest({}, {});
+}
+
+TEST_F(TReadRequestCombinerTest, CombinesOnlyMatchingFairShareMetadata)
+{
+    for (const auto& handle : {TestHandles[0], TestHandlesDirect[0]}) {
+        std::vector<TReadRequest> requests(5, TReadRequest{
+            .Handle = handle,
+            .Offset = 0,
+            .Size = PageSize,
+            .FairShareSlotId = TGuid(1, 0, 0, 0),
+        });
+        requests[1].FairShareSlotId = TGuid(2, 0, 0, 0);
+        requests[2].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0};
+        requests[3].FairShareState = TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 1.0};
+        requests[4].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 2.0};
+
+        for (int leftIndex = 0; leftIndex < std::ssize(requests); ++leftIndex) {
+            for (int rightIndex = 0; rightIndex < std::ssize(requests); ++rightIndex) {
+                SCOPED_TRACE(::testing::Message()
+                    << handle->IsOpenForDirectIO() << ": " << leftIndex << ", " << rightIndex);
+
+                std::vector<TCombinedRequest> expected{{.ReadRequest = requests[leftIndex]}};
+                if (leftIndex != rightIndex) {
+                    expected.push_back({.ReadRequest = requests[rightIndex]});
+                }
+
+                auto outputBuffers = RunTest({requests[leftIndex], requests[rightIndex]}, expected);
+                ASSERT_EQ(outputBuffers.size(), 2UL);
+                EXPECT_EQ(outputBuffers[0].Begin() == outputBuffers[1].Begin(), leftIndex == rightIndex);
+            }
+        }
+    }
 }
 
 TEST_F(TReadRequestCombinerTest, CombineOneHandleNoDirect)
@@ -207,6 +246,17 @@ TEST_F(TReadRequestCombinerTest, CombineEOFOneHandle)
 
     EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK());
     EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK());
+}
+
+TEST_F(TReadRequestCombinerTest, CombineEOFDifferentFairShareMetadata)
+{
+    auto [combiner, combinedRequests] = Combine({
+        {.Handle = TestHandles[0], .Offset = PageSize, .Size = 512, .FairShareSlotId = TGuid(1, 0, 0, 0)},
+        {.Handle = TestHandles[0], .Offset = 0, .Size = 2 * PageSize, .FairShareSlotId = TGuid(2, 0, 0, 0)},
+    });
+
+    ASSERT_EQ(combinedRequests.size(), 2UL);
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combinedRequests[0].ResultBuffer, PageSize / 2)).IsOK());
 }
 
 TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)

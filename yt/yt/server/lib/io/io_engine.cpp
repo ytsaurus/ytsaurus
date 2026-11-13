@@ -4,6 +4,7 @@
 #include "io_request_slicer.h"
 #include "huge_page_manager.h"
 #include "private.h"
+#include "read_request_combiner.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
@@ -66,6 +67,14 @@ void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TPreparedReadRequests
+{
+    std::vector<TReadRequest> Requests;
+    std::vector<TSharedMutableRef> Buffers;
+    std::vector<TSharedRef> OutputBuffers;
+    i64 PaddedBytes = 0;
+};
 
 TWriteResponse DoWriteAligned(
     const TWriteRequest& request,
@@ -163,6 +172,53 @@ std::vector<TSharedMutableRef> AllocateReadBuffers(
     }
 
     return results;
+}
+
+TPreparedReadRequests PrepareReadRequests(
+    std::vector<TReadRequest> requests,
+    TRefCountedTypeCookie tagCookie,
+    bool useDedicatedAllocations,
+    int directIoBlockSize)
+{
+    TPreparedReadRequests result;
+
+    bool shouldBeAligned = ShouldBeAligned(requests);
+    auto paddingAlignment = shouldBeAligned ? directIoBlockSize : GetPageSize();
+    for (const auto& request : requests) {
+        result.PaddedBytes += GetPaddedSize(request.Offset, request.Size, paddingAlignment);
+    }
+
+    if (requests.size() > 1 &&
+        !useDedicatedAllocations &&
+        (!shouldBeAligned || static_cast<size_t>(directIoBlockSize) == GetPageSize()))
+    {
+        auto requestCombiner = CreateReadRequestCombiner();
+        auto combinedRequests = requestCombiner->Combine(
+            std::move(requests),
+            directIoBlockSize,
+            tagCookie);
+
+        result.Requests.reserve(combinedRequests.size());
+        result.Buffers.reserve(combinedRequests.size());
+        for (auto& combinedRequest : combinedRequests) {
+            result.Requests.push_back(std::move(combinedRequest.ReadRequest));
+            result.Buffers.push_back(std::move(combinedRequest.ResultBuffer));
+        }
+
+        result.OutputBuffers = requestCombiner->ReleaseOutputBuffers();
+    } else {
+        result.Buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations, directIoBlockSize);
+        result.OutputBuffers.reserve(result.Buffers.size());
+        for (int index = 0; index < std::ssize(requests); ++index) {
+            result.OutputBuffers.push_back(UnwrapAlignedBuffer(
+                requests[index],
+                result.Buffers[index],
+                directIoBlockSize));
+        }
+        result.Requests = std::move(requests);
+    }
+
+    return result;
 }
 
 // Request execution path.
@@ -990,25 +1046,18 @@ public:
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
 
         auto config = Config_.Acquire();
+        auto preparedRequests = PrepareReadRequests(
+            std::move(requests),
+            tagCookie,
+            useDedicatedAllocations,
+            config->DirectIOBlockSize);
 
-        i64 paddedBytes = 0;
-        bool shouldBeAligned = ShouldBeAligned(requests);
-
-        for (const auto& request : requests) {
-            if (shouldBeAligned) {
-                paddedBytes += GetPaddedSize(request.Offset, request.Size, config->DirectIOBlockSize);
-            } else {
-                paddedBytes += GetPaddedSize(request.Offset, request.Size, GetPageSize());
-            }
-        }
-
-        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations, config->DirectIOBlockSize);
-
-        for (int index = 0; index < std::ssize(requests); ++index) {
-            auto requestBuffer = buffers[index];
-            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
-
-            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
+        for (int index = 0; index < std::ssize(preparedRequests.Requests); ++index) {
+            for (auto& slice : GetRequestSlicer().Slice(
+                std::move(preparedRequests.Requests[index]),
+                preparedRequests.Buffers[index],
+                config->DirectIOBlockSize))
+            {
                 auto future = BIND([=, this, this_ = MakeStrong(this), category = category, sessionId = sessionId] (
                     const TReadRequest& request,
                     TSharedMutableRef buffer,
@@ -1050,9 +1099,9 @@ public:
         }
 
         TReadResponse response{
-            .PaddedBytes = paddedBytes,
+            .OutputBuffers = std::move(preparedRequests.OutputBuffers),
+            .PaddedBytes = preparedRequests.PaddedBytes,
         };
-        response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
         return AllSucceeded(std::move(futures))
             .Apply(BIND([
@@ -1287,26 +1336,20 @@ public:
         futures.reserve(requests.size());
 
         auto config = Config_.Acquire();
+        auto preparedRequests = PrepareReadRequests(
+            std::move(requests),
+            tagCookie,
+            useDedicatedAllocations,
+            config->DirectIOBlockSize);
 
-        i64 paddedBytes = 0;
-        bool shouldBeAligned = ShouldBeAligned(requests);
-
-        for (const auto& request : requests) {
-            if (shouldBeAligned) {
-                paddedBytes += GetPaddedSize(request.Offset, request.Size, config->DirectIOBlockSize);
-            } else {
-                paddedBytes += GetPaddedSize(request.Offset, request.Size, GetPageSize());
-            }
-        }
-
-        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations, config->DirectIOBlockSize);
         auto guard = Guard(Lock_);
 
-        for (int index = 0; index < std::ssize(requests); ++index) {
-            auto requestBuffer = buffers[index];
-            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
-
-            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
+        for (int index = 0; index < std::ssize(preparedRequests.Requests); ++index) {
+            for (auto& slice : GetRequestSlicer().Slice(
+                std::move(preparedRequests.Requests[index]),
+                preparedRequests.Buffers[index],
+                config->DirectIOBlockSize))
+            {
                 auto slotId = slice.Request.FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
@@ -1370,9 +1413,9 @@ public:
         guard.Release();
 
         TReadResponse response{
-            .PaddedBytes = paddedBytes,
+            .OutputBuffers = std::move(preparedRequests.OutputBuffers),
+            .PaddedBytes = preparedRequests.PaddedBytes,
         };
-        response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
         EventCount_.NotifyAll();
 
