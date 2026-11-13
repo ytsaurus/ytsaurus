@@ -109,3 +109,45 @@ func BenchmarkMarshalRowset(b *testing.B) {
 
 	b.SetBytes(int64(size))
 }
+
+func TestRowsetMarshalComposite(t *testing.T) {
+	for _, length := range []int{0, 1, 7, 8, 9, 15, 16, 17} {
+		t.Run(fmt.Sprintf("length=%d", length), func(t *testing.T) {
+			// The wire layer treats the payload as opaque bytes, not parsed YSON.
+			payload := make([]byte, length)
+			for i := range payload {
+				payload[i] = byte(i + 1)
+			}
+			rows := []Row{
+				{NewUint64(1, 42), NewComposite(2, payload), NewBytes(3, []byte("tail"))},
+				{NewUint64(4, 123)},
+			}
+			encoded, err := MarshalRowset(rows)
+			require.NoError(t, err)
+			decoded, err := UnmarshalRowset(encoded)
+			require.NoError(t, err)
+			require.Equal(t, rows, decoded)
+		})
+	}
+}
+
+func TestRowsetMarshalCompositeWireBytes(t *testing.T) {
+	composite := NewComposite(0x1234, []byte("[1;2;3]"))
+	composite.Aggregate = true
+	encoded, err := MarshalRowset([]Row{
+		{composite},
+		{NewUint64(5, 42)},
+	})
+	require.NoError(t, err)
+	// Hand-written wire bytes deliberately do not use the reader or size helpers.
+	expected := []byte{
+		2, 0, 0, 0, 0, 0, 0, 0, // Row count.
+		1, 0, 0, 0, 0, 0, 0, 0, // First row's value count.
+		0x34, 0x12, 0x12, 1, 7, 0, 0, 0, // ID, composite type, aggregate flag, length.
+		'[', '1', ';', '2', ';', '3', ']', 0, // Payload and one byte of padding.
+		1, 0, 0, 0, 0, 0, 0, 0, // Second row's value count.
+		5, 0, 0x04, 0, 0, 0, 0, 0, // Uint64 value header.
+		42, 0, 0, 0, 0, 0, 0, 0, // Uint64 payload.
+	}
+	require.Equal(t, expected, encoded)
+}
