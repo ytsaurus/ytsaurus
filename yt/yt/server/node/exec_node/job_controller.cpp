@@ -745,7 +745,7 @@ private:
                         .With("IncarnationId", incarnationId);
 
                     auto error = TError(Message)
-                        .With("abort_reason", EAbortReason::Other);
+                        .With("abort_reason", EAbortReason::ControllerAgentDescriptorNotFound);
                     allocation->Abort(error);
                 }
                 continue;
@@ -1353,7 +1353,7 @@ private:
                     YT_TLOG_DEBUG("Requested to remove running job; aborting job")
                         .With("JobId", jobId)
                         .With("JobState", job->GetState());
-                    AbortJob(job, EAbortReason::Other, /*graceful*/ false, /*requestNewJob*/ false);
+                    AbortJob(job, EAbortReason::JobRemovedByControllerAgent, /*graceful*/ false, /*requestNewJob*/ false);
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 }
             } else {
