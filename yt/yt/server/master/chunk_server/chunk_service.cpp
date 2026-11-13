@@ -837,7 +837,7 @@ private:
 
         YT_TLOG_ALERT_IF(
             GetDynamicConfig()->AlertOnChunkServiceExecuteBatch,
-            "Chunk service ExecuteBatch request is recieved")
+            "Chunk service ExecuteBatch request is received")
             .With("RequestId", context->GetRequestId());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
