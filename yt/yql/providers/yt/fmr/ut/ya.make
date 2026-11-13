@@ -4,6 +4,8 @@ SRCS(
     yql_fmr_ut.cpp
 )
 
+GENERATE_ENUM_SERIALIZATION(execution_mode.h)
+
 SIZE(MEDIUM)
 
 PEERDIR(
