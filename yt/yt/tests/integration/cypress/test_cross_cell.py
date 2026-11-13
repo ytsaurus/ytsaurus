@@ -835,32 +835,30 @@ class TestCrossCellCopy(YTEnvSetup):
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
 
-    # Maybe these two tests are redundant, considering the preservable attributes test.
     @authors("shakurov")
     def test_expiration_time(self):
-        expiration_time = str(get_current_time() + timedelta(seconds=3))
         src_path = f"{self.SRC}/table"
         dst_path = f"{self.DST}/table"
-        self.create_table(src_path)
-        set(f"{src_path}/@expiration_time", expiration_time)
-        self.execute_command(src_path, dst_path, preserve_expiration_time=True)
-        wait(
-            lambda: not exists(dst_path),
-            sleep_backoff=0.5,
-            timeout=5)
+        tx = start_transaction()
+        self.create_table(src_path, tx=tx)
+        set(f"{src_path}/@expiration_time", str(get_current_time() - timedelta(seconds=1)), tx=tx)
+        expiration_time = get(f"{src_path}/@expiration_time", tx=tx)
+        self.execute_command(src_path, dst_path, preserve_expiration_time=True, tx=tx)
+        assert get(f"{dst_path}/@expiration_time", tx=tx) == expiration_time
+        commit_transaction(tx)
+        wait(lambda: not exists(dst_path))
 
     @authors("shakurov")
     def test_expiration_timeout(self):
         src_path = f"{self.SRC}/table"
         dst_path = f"{self.DST}/table"
-        self.create_table(src_path)
-        set(f"{src_path}/@expiration_timeout", 3000)
-        self.execute_command(src_path, dst_path, preserve_expiration_timeout=True)
-
-        wait(
-            lambda: not exists(dst_path, suppress_expiration_timeout_renewal=True),
-            sleep_backoff=0.5,
-            timeout=5)
+        tx = start_transaction()
+        self.create_table(src_path, tx=tx)
+        set(f"{src_path}/@expiration_timeout", 0, tx=tx)
+        self.execute_command(src_path, dst_path, preserve_expiration_timeout=True, tx=tx)
+        assert get(f"{dst_path}/@expiration_timeout", tx=tx) == 0
+        commit_transaction(tx)
+        wait(lambda: not exists(dst_path, suppress_expiration_timeout_renewal=True))
 
     @authors("babenko", "theevilbird")
     def test_removed_account(self):
