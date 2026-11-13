@@ -568,9 +568,9 @@
     ],
     "test.TestDqFile_pg-tpch-q22-default.txt.test[Plan]": [
         {
-            "checksum": "fd9265ecf4362aea344aae659f10e617",
-            "size": 13824,
-            "uri": "https://{canondata_backend}/1781765/4a75ddc9f037a74877e1bb0159edb9c6b5389d03/resource.tar.gz#test.test_pg-tpch-q22-default.txt-Plan_/plan.txt"
+            "checksum": "30d8a5010451961bb3494f2f005c78ce",
+            "size": 13931,
+            "uri": "https://{canondata_backend}/1889210/78603757367542b3c119d46efdbcf735059d5903/resource.tar.gz#test.TestDqFile_pg-tpch-q22-default.txt.test_Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_produce-process_trivial_as_struct-default.txt.test[Plan]": [
