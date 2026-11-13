@@ -53,6 +53,54 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 
 {% endnote %}
 
+### Выбор ролей RPC-прокси { #proxy-roles-examples }
+
+Для обычного запуска используйте команду выше без дополнительных параметров ролей. Если роль не задана ни в одном [источнике конфигурации](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources), discovery запрашивает роль `default`. Для такого запуска в кластере должны быть доступны RPC-прокси с этой ролью.
+
+Если нужны другие группы прокси, передайте [параметры ролей](../../../../user-guide/data-processing/spyt/thesaurus/configuration.md#proxy-roles) через `--conf`. Доступные роли уточните у администратора кластера. [Модель подключений](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#proxy-roles) объясняет, какие клиенты используют discovery, а какие могут обращаться через локальный job-прокси.
+
+В шаблонах ниже замените `yt.example.com` адресом своего кластера, а `<остальные параметры приложения>` — параметрами запуска и путём к вашему приложению, как в команде выше. Замените `spark-client` и `spark-cluster` ролями, доступными соответственно с клиентского хоста и из джобов кластера.
+
+#### Явно выбрать роль default { #explicit-default-role }
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode cluster \
+  --conf spark.hadoop.yt.proxyRole=default \
+  <остальные параметры приложения>
+```
+
+Явное `proxyRole=default` переопределяет значение этого параметра из конфигурации релиза и глобальной конфигурации, например `custom` из `//home/spark/conf/global`. Если параметр опустить, продолжит действовать значение из следующего источника по приоритету. Отдельно заданный `clusterProxyRole` сохраняется.
+
+#### Разные роли для клиента и кластера { #separate-proxy-roles }
+
+В этом примере клиент отправки приложения использует роль `spark-client`. При подключении через discovery драйвер и экзекьюторы внутри кластера используют роль `spark-cluster`:
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode cluster \
+  --conf spark.hadoop.yt.proxyRole=spark-client \
+  --conf spark.hadoop.yt.clusterProxyRole=spark-cluster \
+  <остальные параметры приложения>
+```
+
+#### Отдельная роль экзекьюторов в режиме client { #client-mode-proxy-role }
+
+Если экзекьюторам нужна отдельная роль, а драйвер работает на клиентском хосте, передайте обе роли при запуске:
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode client \
+  --conf spark.hadoop.yt.proxyRole=spark-client \
+  --conf spark.hadoop.yt.clusterProxyRole=spark-cluster \
+  <остальные параметры приложения>
+```
+
+В этом режиме отдельную роль экзекьюторов нужно передать через `--conf` или `SparkConf`; причина описана в разделе [«Применение кластерной роли»](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#cluster-proxy-role).
+
 ## Запуск standalone Spark кластера { #standalone }
 
 Данный способ подходит при интенсивном использовании кластера. В данном режиме {{product-name}} выделяет ресурсы под внутренний Standalone Spark кластер, который занимается выполнением расчетов. Для запуска в этом режиме необходимо использовать обёртки над стандартными командами Spark `spark-submit-yt` и `spark-shell-yt`, входящими в состав пакета `ytsaurus-spyt`. Этот режим рекомендуется использовать в следующих случаях:

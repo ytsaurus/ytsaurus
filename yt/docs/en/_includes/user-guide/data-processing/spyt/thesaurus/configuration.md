@@ -2,6 +2,7 @@
 
 This section contains a list of configuration parameters that can be passed when launching Spark tasks. This is done by specifying additional parameters via the `--conf` option of basic Spark commands, such as `spark-submit` and `spark-shell`, as well as {{product-name}} wrappers for them, such as `spark-submit-yt` and `spark-shell-yt`.
 
+[Configuration sources and priority](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources) are described in the direct submit section.
 
 ## Basic options { #main }
 
@@ -90,6 +91,19 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | The period for checking the state of the operation with executors. If the operation is in a final status, the driver will be stopped. | 2.8.0 |
 
 {wide-content title="Options for launching tasks directly"}
+
+## Proxy roles { #proxy-roles }
+
+The parameters specify string names of [RPC proxy roles](../../../../../admin-guide/cluster-access-proxy/index.md#proxy-role) for clients that use discovery. They do not apply to data clients using the local RPC proxy built into the job proxy.
+
+| **Parameter** | **Default value** | **Description** |
+| ------------ | ------------------------- | ------------ |
+| `spark.hadoop.yt.proxyRole` | Not set | The RPC proxy role of the application submission client. Also used inside the cluster if `spark.hadoop.yt.clusterProxyRole` is not set. |
+| `spark.hadoop.yt.clusterProxyRole` | Not set | The RPC proxy role of the driver and executors inside the {{product-name}} cluster. [Applicability restrictions](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#cluster-proxy-role). |
+
+If the role is not set in any of the [configuration sources](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources), discovery requests the `default` role.
+
+For more details, see [how roles are used](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#proxy-roles), [configuration examples](../../../../../user-guide/data-processing/spyt/launch.md#proxy-roles-examples), and [diagnosing `Cannot get rpc proxies`](../../../../../user-guide/data-processing/spyt/problems.md#cannot-get-rpc-proxies).
 
 ## Configuration options for the {{product-name}} Shuffle service { #shuffle }
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
