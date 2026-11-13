@@ -58,6 +58,10 @@ def main():
     "--store-for",
     type=int,
     default=DEFAULT_STORE_FOR,
+    help=(
+        "Retention period in months for 1d tables: older source tables are not processed, "
+        "older output tables are removed."
+    ),
 )
 @click.option(
     "--network-project",
@@ -92,7 +96,10 @@ def main():
     "--keep-1d",
     is_flag=True,
     default=False,
-    help="Keep 1d output tables whose source table no longer exists.",
+    help=(
+        "Keep 1d output tables whose source table no longer exists, "
+        "within the --store-for period if it is set."
+    ),
 )
 def import_access_log_tables(
     cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for,
