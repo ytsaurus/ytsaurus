@@ -38,8 +38,6 @@ target_include_directories(contrib-libs-c-ares PRIVATE
 
 target_link_libraries(contrib-libs-c-ares PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
   contrib-libs-libc_compat
 )
 
@@ -83,7 +81,7 @@ target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_timeout.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_update_servers.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_version.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/atomic.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/atomic.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/dsa/ares_array.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/dsa/ares_htable.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/dsa/ares_htable_asvp.c
@@ -446,6 +444,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_version.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/atomic.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
