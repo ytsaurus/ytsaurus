@@ -591,6 +591,7 @@ public:
         auto req = proxy.CommitMutation();
         req->set_type(request.Type);
         req->set_reign(request.Reign);
+        req->set_causal_dependency(request.CausalDependency.Underlying());
         if (request.MutationId) {
             ToProto(req->mutable_mutation_id(), request.MutationId);
             req->set_retry(request.Retry);
@@ -669,6 +670,11 @@ public:
             return epochContext->ReadOnly;
         }
         return false;
+    }
+
+    TCausalState GetCausalStateOrThrow(std::optional<TCausalTime> causalTime) const override
+    {
+        return DecoratedAutomaton_->GetCausalStateOrThrow(causalTime);
     }
 
     TLogicalTime GetLogicalTime() const override
@@ -1217,6 +1223,7 @@ private:
         {
             TMutationRequest mutationRequest;
             mutationRequest.Reign = request->reign();
+            mutationRequest.CausalDependency = TCausalTime(request->causal_dependency());
             mutationRequest.Type = request->type();
             if (request->has_mutation_id()) {
                 mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());

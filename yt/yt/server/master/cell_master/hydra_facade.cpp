@@ -110,6 +110,7 @@ public:
             .UseFork = true,
             .ResponseKeeper = ResponseKeeper_,
             .Testing = Bootstrap_->GetConfig()->ExposeTestingFacilities,
+            .EnableCausalStateTracking = true,
         };
         if (Config_->DryRun->EnableDryRun) {
             hydraManagerOptions.UseFork = false;

@@ -284,9 +284,26 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCausalStateRegistryConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration EvictionPeriod;
+    TDuration ExpirationTimeout;
+
+    REGISTER_YSON_STRUCT(TCausalStateRegistryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCausalStateRegistryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDistributedHydraManagerConfig
     : public virtual NYTree::TYsonStruct
 {
+    TCausalStateRegistryConfigPtr CausalStateRegistry;
+
     //! Timeout for various control RPC requests.
     TDuration ControlRpcTimeout;
 

@@ -300,6 +300,16 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCausalStateRegistryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("eviction_period", &TThis::EvictionPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("expiration_timeout", &TThis::ExpirationTimeout)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDistributedHydraManagerConfigPtr TDistributedHydraManagerConfig::ApplyDynamic(
     const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const
 {
@@ -367,6 +377,9 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
 
 void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("causal_state_registry", &TThis::CausalStateRegistry)
+        .DefaultNew();
+
     registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
         .Default(TDuration::Seconds(5));
 

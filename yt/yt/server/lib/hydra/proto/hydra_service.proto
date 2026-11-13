@@ -164,6 +164,7 @@ message TReqCommitMutation
     optional NYT.NProto.TGuid mutation_id = 2;
     optional bool retry = 3 [default = false];
     optional int32 reign = 4 [default = 0];
+    optional uint64 causal_dependency = 5;
     // Request data is passed via attachment.
 }
 

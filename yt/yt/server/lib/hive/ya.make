@@ -10,7 +10,6 @@ SRCS(
     helpers.cpp
     hive_manager.cpp
     persistent_mailbox_state_cookie.cpp
-    logical_time_registry.cpp
     mailbox.cpp
 
     proto/hive_manager.proto
