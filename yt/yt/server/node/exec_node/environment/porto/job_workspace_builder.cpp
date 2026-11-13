@@ -74,6 +74,23 @@ private:
 
         auto slot = GetSlot();
         const auto& fsSecretary = Context_.FSSecretary;
+        auto rootVolumeParams = fsSecretary->GetRootVolumeParams();
+
+        if (fsSecretary->GetDockerImage() && !rootVolumeParams) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in Porto job environment"));
+        }
+
+        if (Context_.Job->HasUserJobSpec() &&
+            (!rootVolumeParams ||
+             rootVolumeParams->LayerArtifactKeys.GetAll().empty() ||
+             !Context_.Job->HasRootVolumeLayers()))
+        {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::UserJobWithoutLayers,
+                "User job in Porto environment requires at least one root filesystem layer"));
+        }
 
         THashSet<TArtifactKey> uniqueLayers;
         auto tryInsertLayerKey = [&] (const TArtifactKey& key) {
@@ -83,7 +100,7 @@ private:
         };
 
         if (!fsSecretary->GetRootVolume()) {
-            if (auto rootVolumeParams = fsSecretary->GetRootVolumeParams(); rootVolumeParams) {
+            if (rootVolumeParams) {
                 for (const auto& key : rootVolumeParams->LayerArtifactKeys.GetAll()) {
                     tryInsertLayerKey(key);
                 }
@@ -183,12 +200,6 @@ private:
 
         auto slot = GetSlot();
         auto rootVolumeParams = Context_.FSSecretary->GetRootVolumeParams();
-
-        if (Context_.FSSecretary->GetDockerImage() && !rootVolumeParams) {
-            return MakeFuture(TError(
-                NExecNode::EErrorCode::DockerImagePullingFailed,
-                "External docker image is not supported in Porto job environment"));
-        }
 
         // Check if root volume can be reused from previous job in the allocation.
         if (const auto& existingRootVolume = Context_.FSSecretary->GetRootVolume()) {

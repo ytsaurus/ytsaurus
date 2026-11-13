@@ -23,7 +23,7 @@ from yt_commands import (
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
     heal_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config,
-    remove_default_layer_path, update_scheduler_config,
+    update_scheduler_config,
     get_supported_erasure_codecs)
 
 from yt_operations_archive_helpers import get_job_from_archive
@@ -87,15 +87,15 @@ class TestSandboxPath(YTEnvSetup):
     }
 
     @authors("krasovav")
-    @pytest.mark.parametrize("has_root_fs", [False, True])
-    def test_sandbox_path(self, has_root_fs):
+    def test_sandbox_path(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", {"foo": "bar"})
-
-        if not has_root_fs:
-            # TODO(pogorelov): Remove rootless cases once every job has a root volume.
-            remove_default_layer_path()
+        write_table(
+            "//tmp/t_input",
+            {
+                "foo": "bar",
+            },
+        )
 
         op = map(
             command="[ -d tmpfs ] && findmnt -o FSTYPE -T tmpfs | grep tmpfs >&2",
@@ -1373,8 +1373,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
     @pytest.mark.skip("Disk quota cannot be applied in CI due to running in tmpfs")
     @authors("krasovav")
-    @pytest.mark.parametrize("has_root_volume", [True, False])
-    def test_insufficient_rootfs_for_files(self, has_root_volume):
+    def test_insufficient_rootfs_for_files(self):
         """
         Test that map operation fails when rootfs size is insufficient
         for copying files from file_paths with copy_files=true.
@@ -1386,7 +1385,12 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # Create input and output tables
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", {"foo": "bar"})
+        write_table(
+            "//tmp/t_input",
+            {
+                "foo": "bar",
+            },
+        )
 
         # Create a file that's larger than the rootfs we'll allocate.
         # File size: 20 MB
@@ -1406,9 +1410,6 @@ class TestArtifactCacheBypass(YTEnvSetup):
             },
         }
 
-        if not has_root_volume:
-            remove_default_layer_path()
-
         with raises_yt_error('Failed to build file "large_file" in sandbox "user": disk space limit is too small'):
             map(
                 command="cat",
@@ -1418,11 +1419,16 @@ class TestArtifactCacheBypass(YTEnvSetup):
                     "mapper": {
                         "copy_files": True,
                         "volumes": volumes,
-                        "job_volume_mounts": [{"volume_id": "root", "mount_path": "/"}],
+                        "job_volume_mounts": [
+                            {
+                                "volume_id": "root",
+                                "mount_path": "/",
+                            },
+                        ],
                         "file_paths": ["//tmp/large_file"],
                     },
                     "max_failed_job_count": 1,
-                }
+                },
             )
 
         # Verify that no slot location was disabled.
@@ -1435,8 +1441,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
     @authors("yuryalekseev", "krasovav")
     @pytest.mark.parametrize("volume_type", ["tmpfs", "local_disk"])
-    @pytest.mark.parametrize("has_root_volume", [True, False])
-    def test_insufficient_non_root_volume_for_files(self, has_root_volume, volume_type):
+    def test_insufficient_non_root_volume_for_files(self, volume_type):
         """
         Test that map operation fails when non-root volume size is insufficient
         for copying files from file_paths with copy_files=true.
@@ -1448,7 +1453,12 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # Create input and output tables
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", {"foo": "bar"})
+        write_table(
+            "//tmp/t_input",
+            {
+                "foo": "bar",
+            },
+        )
 
         # Create a file that's larger than the non-root volume we'll allocate.
         # File size: 20 MB
@@ -1469,14 +1479,17 @@ class TestArtifactCacheBypass(YTEnvSetup):
             },
         }
 
-        non_root_path = "/slot/sandbox" if has_root_volume else "/sandbox"
-        job_volume_mounts = [{"volume_id": "non-root", "mount_path": non_root_path}]
-
-        if has_root_volume:
-            volumes["root"] = {}
-            job_volume_mounts.append({"volume_id": "root", "mount_path": "/"})
-        else:
-            remove_default_layer_path()
+        volumes["root"] = {}
+        job_volume_mounts = [
+            {
+                "volume_id": "non-root",
+                "mount_path": "/slot/sandbox",
+            },
+            {
+                "volume_id": "root",
+                "mount_path": "/",
+            },
+        ]
 
         with raises_yt_error(code=yt_error_codes.VolumeSizeLimitExceeded):
             map(
@@ -1491,7 +1504,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
                         "file_paths": ["//tmp/large_file"],
                     },
                     "max_failed_job_count": 1,
-                }
+                },
             )
 
         # Verify that no slot location was disabled.
