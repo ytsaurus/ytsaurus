@@ -242,9 +242,12 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidMergingTabletsWithCumulativeDataWeight)                 (3367))  // akozhikhov
     ((FixHunkTabletValidateReshard)                                 (3368))  // akozhikhov
     ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
+    ((HydraCausalTime_26_2)                                         (3370))  // danilalexeev
+
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
     ((SequoiaSecondaryIndices)                                      (3401))  // sabdenovch
+    ((HydraCausalTime)                                              (3402))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

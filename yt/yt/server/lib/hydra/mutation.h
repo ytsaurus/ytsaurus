@@ -33,6 +33,7 @@ public:
     void SetEpochId(TEpochId epochId);
     void SetTraceContext(NTracing::TTraceContextPtr traceContext);
     void SetCurrentTraceContext();
+    void SetCausalDependency(TCausalTime causalDependency);
 
     const std::string& GetType() const;
     const TSharedRef& GetData() const;

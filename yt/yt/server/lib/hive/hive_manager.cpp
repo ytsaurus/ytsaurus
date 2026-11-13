@@ -5,13 +5,13 @@
 #include "persistent_mailbox_state_cookie.h"
 #include "config.h"
 #include "helpers.h"
-#include "logical_time_registry.h"
 #include "mailbox.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/helpers.h>
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
@@ -173,12 +173,6 @@ public:
             .WithSparse()
             .WithTag("cell_id", ToString(selfCellId))
             .WithTag("cell_tag", ToString(CellTagFromId(selfCellId))))
-        , LogicalTimeRegistry_(New<TLogicalTimeRegistry>(
-            Config_->LogicalTimeRegistry,
-            AutomatonInvoker_,
-            HydraManager_,
-            Profiler_))
-        , LamportClock_(LogicalTimeRegistry_->GetClock())
         , BackgroundInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping)
@@ -606,9 +600,6 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TProfiler Profiler_;
 
-    const TLogicalTimeRegistryPtr LogicalTimeRegistry_;
-    TLogicalTimeRegistry::TLamportClock* const LamportClock_;
-
     const IInvokerPtr BackgroundInvoker_;
 
     IYPathServicePtr OrchidService_;
@@ -733,7 +724,9 @@ private:
         }
 
         response->set_next_transient_incoming_message_id(runtimeData->NextTransientIncomingMessageId);
-        response->set_next_persistent_incoming_message_id(runtimeData->PersistentState->GetNextPersistentIncomingMessageId());
+        auto incomingProgress = runtimeData->PersistentState->GetIncomingMessageProgress();
+        response->set_next_persistent_incoming_message_id(incomingProgress.NextMessageId);
+        response->set_causal_dependency(incomingProgress.CausalTime.Underlying());
 
         return shouldCommit;
     }
@@ -748,7 +741,8 @@ private:
         context->AnnotateRequest()
             .With("SrcCellId", srcCellId)
             .With("DstCellId", SelfCellId_)
-            .WithFormat("MessageIds", "%v-%v", firstMessageId, firstMessageId + messageCount - 1);
+            .WithFormat("MessageIds", "%v-%v", firstMessageId, firstMessageId + messageCount - 1)
+            .With("CausalDependency", request->causal_dependency());
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -792,11 +786,10 @@ private:
                 ->CommitAndLog(Logger));
         }
 
-        auto nextPersistentIncomingMessageId = cellRuntimeData->PersistentState->GetNextPersistentIncomingMessageId();
-        auto nextTransientIncomingMessageId = cellRuntimeData->NextTransientIncomingMessageId;
         context->AnnotateResponse()
-            .With("NextPersistentIncomingMessageId", nextPersistentIncomingMessageId)
-            .With("NextTransientIncomingMessageId", nextTransientIncomingMessageId);
+            .With("NextPersistentIncomingMessageId", response->next_persistent_incoming_message_id())
+            .With("NextTransientIncomingMessageId", response->next_transient_incoming_message_id())
+            .With("CausalDependency", response->causal_dependency());
         context->Reply();
     }
 
@@ -847,20 +840,23 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto requestTime = request->has_logical_time()
-            ? std::optional<TLogicalTime>(request->logical_time())
+        auto causalTime = request->has_causal_time()
+            ? std::optional(TCausalTime(request->causal_time()))
             : std::nullopt;
 
         context->AnnotateRequest()
-            .With("LogicalTime", requestTime);
+            .With("CausalTime", causalTime);
 
-        auto [logicalTime, state] = LogicalTimeRegistry_->GetConsistentState(requestTime);
-        response->set_logical_time(logicalTime.Underlying());
+        ValidatePeer(EPeerKind::Leader);
+
+        auto state = HydraManager_->GetCausalStateOrThrow(causalTime);
+
+        response->set_causal_time(state.CausalTime.Underlying());
         response->set_sequence_number(state.SequenceNumber);
         response->set_segment_id(state.SegmentId);
 
         context->AnnotateResponse()
-            .With("StateLogicalTime", logicalTime)
+            .With("StateCausalTime", state.CausalTime)
             .With("StateSequenceNumber", state.SequenceNumber)
             .With("StateSegmentId", state.SegmentId);
         context->Reply();
@@ -1026,10 +1022,10 @@ private:
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
-        auto logicalTime = LamportClock_->GetTime();
+        auto causalTime = GetCurrentCausalTime();
+
         TReign reign = 0;
         if (mutationContext) {
-            logicalTime = LamportClock_->Tick();
             mutationContext->CombineStateHash(message->Type, message->Data);
 
             // COMPAT(ifsmirnov): ReignInHiveMessages.
@@ -1048,7 +1044,7 @@ private:
             auto messageId = mailbox->GetPersistentState()->AddOutcomingMessage(TOutcomingMessage{
                 .SerializedMessage = message,
                 .TraceContext = traceContext,
-                .Time = logicalTime,
+                .CausalTime = causalTime,
                 .Reign = reign,
             });
 
@@ -1084,7 +1080,7 @@ private:
             .With("DstIds", MakeFormattableView(dstIds, [] (auto* builder, const auto& dstId) {
                 builder->AppendFormat("%v=>%v", dstId.first, dstId.second);
             }))
-            .WithIf(mutationContext, "LogicalTime", logicalTime)
+            .WithIf(mutationContext, "CausalTime", causalTime)
             .WithIf(mutationContext, "SequenceNumber", YT_LAZY(mutationContext->GetSequenceNumber()));
     }
 
@@ -1822,6 +1818,7 @@ private:
 
         i64 messageBytesToPost = 0;
         int messageCountToPost = 0;
+        auto causalDependency = TCausalTime(0);
 
         auto isOverflown = [&] {
             return
@@ -1842,6 +1839,7 @@ private:
                         return false;
                     }
                     envelope.MessagesToPost.push_back(message);
+                    causalDependency = std::max(causalDependency, message.CausalTime);
                     messageBytesToPost += message.SerializedMessage->Data.size();
                     messageCountToPost += 1;
                     return true;
@@ -1916,7 +1914,6 @@ private:
                         message.TraceContext,
                         Config_->SendTracingBaggage);
                 }
-                protoMessage->set_logical_time(message.Time.Underlying());
                 protoMessage->set_reign(message.Reign);
             }
         };
@@ -1925,6 +1922,8 @@ private:
         for (const auto& avenueEnvelope : avenueEnvelopes) {
             fillSubrequest(req->add_avenue_subrequests(), avenueEnvelope);
         }
+
+        req->set_causal_dependency(causalDependency.Underlying());
 
         req->Invoke().Subscribe(
             BIND(
@@ -2022,13 +2021,15 @@ private:
 
         auto nextPersistentIncomingMessageId = rsp.next_persistent_incoming_message_id();
         auto nextTransientIncomingMessageId = rsp.next_transient_incoming_message_id();
+        auto causalDependency = TCausalTime(rsp.causal_dependency());
         YT_TLOG_DEBUG("Outcoming reliable messages posted")
             .With(MakeOutgoingMailboxEndpointsTags(runtimeData->EndpointId))
             .With("NextPersistentIncomingMessageId", nextPersistentIncomingMessageId)
-            .With("NextTransientIncomingMessageId", nextTransientIncomingMessageId);
+            .With("NextTransientIncomingMessageId", nextTransientIncomingMessageId)
+            .With("CausalDependency", causalDependency);
 
         auto outcomingMessageIdRange = runtimeData->PersistentState->GetOutcomingMessageIdRange();
-        if (!HandlePersistentIncomingMessages(runtimeData, outcomingMessageIdRange, nextPersistentIncomingMessageId)) {
+        if (!HandlePersistentIncomingMessages(runtimeData, outcomingMessageIdRange, nextPersistentIncomingMessageId, causalDependency)) {
             return;
         }
         if (!HandleTransientIncomingMessages(runtimeData, outcomingMessageIdRange, nextTransientIncomingMessageId)) {
@@ -2069,26 +2070,32 @@ private:
             .With("DstCellId", dstCellId);
     }
 
-    std::unique_ptr<TMutation> CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
+    std::unique_ptr<TMutation> CreateAcknowledgeMessagesMutation(
+        const NHiveServer::NProto::TReqAcknowledgeMessages& req,
+        TCausalTime causalDependency)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CreateMutation(
+        auto mutation = CreateMutation(
             HydraManager_,
             req,
             &THiveManager::HydraAcknowledgeMessages,
             this);
+        mutation->SetCausalDependency(causalDependency);
+        return mutation;
     }
 
     std::unique_ptr<TMutation> CreatePostMessagesMutation(const NHiveClient::NProto::TReqPostMessages& request)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CreateMutation(
+        auto mutation = CreateMutation(
             HydraManager_,
             request,
             &THiveManager::HydraPostMessages,
             this);
+        mutation->SetCausalDependency(TCausalTime(request.causal_dependency()));
+        return mutation;
     }
 
     std::unique_ptr<TMutation> CreateSendMessagesMutation(const TCtxSendMessagesPtr& context)
@@ -2157,7 +2164,8 @@ private:
     bool HandlePersistentIncomingMessages(
         const TMailboxRuntimeDataPtr& runtimeData,
         const TMessageIdRange& outcomingMessageIdRange,
-        TMessageId nextPersistentIncomingMessageId)
+        TMessageId nextPersistentIncomingMessageId,
+        TCausalTime causalDependency)
     {
         YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
@@ -2181,7 +2189,7 @@ private:
         NHiveServer::NProto::TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), runtimeData->EndpointId);
         req.set_next_persistent_incoming_message_id(nextPersistentIncomingMessageId);
-        YT_UNUSED_FUTURE(CreateAcknowledgeMessagesMutation(req)
+        YT_UNUSED_FUTURE(CreateAcknowledgeMessagesMutation(req, causalDependency)
             ->CommitAndLog(Logger));
 
         return true;
@@ -2247,20 +2255,18 @@ private:
                 ConcatToString(TStringBuf("HiveManager:"), message.type()));
             traceContextGuard.emplace(std::move(traceContext));
         }
-        auto logicalTime = LamportClock_->Tick(TLogicalTime(message.logical_time()));
-
         auto* mutationContext = GetCurrentMutationContext();
         YT_TLOG_DEBUG("Applying reliable incoming message")
             .With(MakeIncomingMailboxEndpointsTags(mailbox->GetEndpointId()))
             .With("MessageId", messageId)
             .With("MutationType", message.type())
             .With("SenderReign", message.reign())
-            .With("LogicalTime", logicalTime)
+            .With("CausalTime", mutationContext->GetCausalTime())
             .With("SequenceNumber", mutationContext->GetSequenceNumber());
 
         ApplyMessage(std::move(message), mailbox->GetEndpointId());
 
-        mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1);
+        mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1, mutationContext->GetCausalTime());
 
         if (!IsRecovery() && mailbox->IsCell()) {
             BackgroundInvoker_->Invoke(
@@ -2511,12 +2517,13 @@ private:
             version == 6 || // COMPAT(ifsmirnov): Avenues.
             version == 7 ||
             version == 8 || // COMPAT(ifsmirnov): Message reign.
+            version == 9 || // COMPAT(danilalexeev): Hydra causal time.
             false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 8;
+        return 9;
     }
 
     void Clear() override
@@ -2526,7 +2533,6 @@ private:
         CellMailboxMap_.Clear();
         AvenueMailboxMap_.Clear();
         UnregisteredCellIds_.clear();
-        LogicalTimeRegistry_->Clear();
 
         RuntimeData_.Store(THiveRuntimeData{});
     }
@@ -2542,7 +2548,6 @@ private:
         CellMailboxMap_.SaveValues(context);
         AvenueMailboxMap_.SaveValues(context);
         Save(context, UnregisteredCellIds_);
-        Save(context, *LamportClock_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -2562,9 +2567,9 @@ private:
             AvenueMailboxMap_.LoadValues(context);
         }
         Load(context, UnregisteredCellIds_);
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() >= 7) {
-            Load(context, *LamportClock_);
+        // COMPAT(danilalexeev): Legacy Lamport clock.
+        if (7 <= context.GetVersion() && context.GetVersion() < 9) {
+            Load<i64>(context);
         }
     }
 
@@ -2573,13 +2578,6 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return std::ssize(UnregisteredCellIds_);
-    }
-
-    TLogicalTime GetLamportTimestamp() const
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        return LamportClock_->GetTime();
     }
 
     IYPathServicePtr CreateOrchidService()
@@ -2596,10 +2594,6 @@ private:
                 ->Via(BackgroundInvoker_))
             ->AddChild("unregistered_cell_count", IYPathService::FromMethod(
                 &THiveManager::GetUnregisteredCellIdCount,
-                MakeWeak(this))
-                ->Via(automatonInvoker))
-            ->AddChild("lamport_timestamp", IYPathService::FromMethod(
-                &THiveManager::GetLamportTimestamp,
                 MakeWeak(this))
                 ->Via(automatonInvoker));
     }

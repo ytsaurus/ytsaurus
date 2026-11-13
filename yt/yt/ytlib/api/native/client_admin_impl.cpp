@@ -51,6 +51,7 @@
 
 #include <yt/yt/core/rpc/helpers.h>
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NApi::NNative {
@@ -194,22 +195,21 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         EAccessControlObject::GetMasterConsistentState,
         EPermission::Use);
 
+    static const auto DefaultTimeout = TDuration::Seconds(30);
+    auto timeout = options.Timeout.value_or(DefaultTimeout);
+    auto deadline = TInstant::Now() + timeout;
+    auto checkDeadline = [&] {
+        if (TInstant::Now() >= deadline) {
+            THROW_ERROR_EXCEPTION(NYT::EErrorCode::Timeout, "Timed out acquiring a consistent master state")
+                .With("timeout", timeout);
+        }
+    };
+
     using TResponseFuture = TFuture<TIntrusivePtr<TTypedClientResponse<NHiveClient::NProto::TRspGetConsistentState>>>;
     struct TGetMasterConsistentStateRequest
     {
         TResponseFuture Future;
         TCellId CellId;
-    };
-
-    auto constructRequest = [&] (IChannelPtr channel, std::optional<i64> logicalTime = {}) {
-        THiveServiceProxy proxy(std::move(channel));
-        auto req = proxy.GetConsistentState();
-        // TODO(nadya02): Set the correct timeout here.
-        req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
-        if (logicalTime) {
-            req->set_logical_time(*logicalTime);
-        }
-        return req;
     };
 
     TCellIdToConsistentStateMap cellIdToConsistentState;
@@ -227,43 +227,33 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         EmplaceOrCrash(channels, cellId, cellDirectory->GetChannelByCellIdOrThrow(cellId));
     }
 
-    i64 logicalTime;
+    std::optional<ui64> causalTime;
     std::queue<TGetMasterConsistentStateRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
+        checkDeadline();
+
         YT_TLOG_INFO("Requesting consistent state")
             .With("CellId", cellId);
-        auto request = constructRequest(channels[cellId], logicalTime);
-        requestQueue.push({request->Invoke(), cellId});
+        THiveServiceProxy proxy(channels[cellId]);
+        auto request = proxy.GetConsistentState();
+        if (causalTime) {
+            request->set_causal_time(*causalTime);
+        }
+        requestQueue.push({request->Invoke().WithDeadline(deadline), cellId});
     };
 
     auto resetState = [&] {
         cellIdToConsistentState.clear();
-        {
-            std::queue<TGetMasterConsistentStateRequest> queue;
-            requestQueue.swap(queue);
-        }
-
-        auto req = constructRequest(channels[primaryCellId]);
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
-        YT_TLOG_INFO("Received consistent state")
-            .With("CellId", primaryCellId)
-            .With("LogicalTime", rsp->logical_time())
-            .With("SequenceNumber", rsp->sequence_number());
-        logicalTime = rsp->logical_time();
-        EmplaceOrCrash(cellIdToConsistentState, primaryCellId, TMasterConsistentState{
-            .SequenceNumber = rsp->sequence_number(),
-            .SegmentId = rsp->segment_id(),
-        });
-
-        for (auto cellId : secondaryCellIds) {
-            enqueueRequest(cellId);
-        }
+        requestQueue = {};
+        causalTime.reset();
+        enqueueRequest(primaryCellId);
     };
 
     resetState();
 
     while (!requestQueue.empty()) {
+        checkDeadline();
+
         auto request = requestQueue.front();
         requestQueue.pop();
 
@@ -279,14 +269,32 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
                 .SequenceNumber = response->sequence_number(),
                 .SegmentId = response->segment_id(),
             });
+            if (!causalTime) {
+                causalTime = response->causal_time();
+                for (auto secondaryCellId : secondaryCellIds) {
+                    enqueueRequest(secondaryCellId);
+                }
+            }
             continue;
         }
-        if (responseOrError.GetCode() == NHiveClient::EErrorCode::TimeEntryNotFound) {
-            YT_TLOG_INFO("Requested time is missing; retrying")
-                .With("CellId", primaryCellId);
-            resetState();
-        } else {
+        auto errorCode = responseOrError.GetCode();
+        if (errorCode != NHydra::EErrorCode::CausalTimeNotReached &&
+            errorCode != NHydra::EErrorCode::CausalTimeNotFound)
+        {
             THROW_ERROR(responseOrError);
+        }
+
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+        if (errorCode == NHydra::EErrorCode::CausalTimeNotReached) {
+            YT_TLOG_INFO("Requested time has not been reached; retrying the same cutoff")
+                .With("CellId", cellId)
+                .With("CausalTime", causalTime);
+            enqueueRequest(cellId);
+        } else {
+            YT_TLOG_INFO("Requested time is no longer retained; restarting acquisition")
+                .With("CellId", cellId)
+                .With("CausalTime", causalTime);
+            resetState();
         }
     }
 

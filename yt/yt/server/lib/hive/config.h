@@ -8,21 +8,6 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLogicalTimeRegistryConfig
-    : public NYTree::TYsonStruct
-{
-    TDuration EvictionPeriod;
-    TDuration ExpirationTimeout;
-
-    REGISTER_YSON_STRUCT(TLogicalTimeRegistryConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TLogicalTimeRegistryConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct THiveManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -68,8 +53,6 @@ struct THiveManagerConfig
 
     //! If true, trace contexts are sent with baggage.
     bool SendTracingBaggage;
-
-    TLogicalTimeRegistryConfigPtr LogicalTimeRegistry;
 
     THashSet<NObjectClient::TCellTag> AllowedForRemovalMasterCellTags;
 

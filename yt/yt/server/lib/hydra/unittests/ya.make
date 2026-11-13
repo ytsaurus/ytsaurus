@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    causal_state_registry_ut.cpp
     checkpointable_stream_ut.cpp
     file_changelog_index_ut.cpp
     hydra_janitor_helpers_ut.cpp

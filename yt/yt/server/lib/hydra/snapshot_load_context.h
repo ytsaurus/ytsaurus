@@ -15,6 +15,8 @@ struct TSnapshotLoadContext
 
     //! Read-only mode from snapshot meta.
     bool ReadOnly;
+
+    TCausalTime CausalTime = TCausalTime(0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

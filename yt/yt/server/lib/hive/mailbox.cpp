@@ -3,6 +3,8 @@
 #include "helpers.h"
 #include "persistent_mailbox_state_cookie.h"
 
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
+
 #include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/yt/core/misc/serialize.h>
@@ -37,7 +39,9 @@ void TPersistentMailboxState::Save(TSaveContext& context) const
     Save(context, outcomingMessages.FirstId);
     Save(context, outcomingMessages.Messages);
 
-    Save(context, GetNextPersistentIncomingMessageId());
+    auto incomingProgress = GetIncomingMessageProgress();
+    Save(context, incomingProgress.NextMessageId);
+    Save(context, incomingProgress.CausalTime);
 }
 
 void TPersistentMailboxState::Load(TLoadContext& context)
@@ -47,16 +51,30 @@ void TPersistentMailboxState::Load(TLoadContext& context)
     TOutcomingMessages outcomingMessages;
     Load(context, outcomingMessages.FirstId);
     Load(context, outcomingMessages.Messages);
-    OutcomingMessages_.Store(std::move(outcomingMessages));
 
-    SetNextPersistentIncomingMessageId(Load<TMessageId>(context));
+    TIncomingMessageProgress incomingProgress;
+    Load(context, incomingProgress.NextMessageId);
+    if (context.GetVersion() >= 9) {
+        Load(context, incomingProgress.CausalTime);
+    } else {
+        // COMPAT(danilalexeev)
+        auto causalTime = GetCurrentSnapshotLoadContext()->CausalTime;
+        for (auto& message : outcomingMessages.Messages) {
+            message.CausalTime = causalTime;
+        }
+        incomingProgress.CausalTime = causalTime;
+    }
+    OutcomingMessages_.Store(std::move(outcomingMessages));
+    IncomingMessageProgress_.Store(std::move(incomingProgress));
 }
 
 TPersistentMailboxStateCookie TPersistentMailboxState::SaveToCookie() const
 {
     return OutcomingMessages_.Read([&] (const auto& outcomingMessages) {
+        auto incomingProgress = GetIncomingMessageProgress();
         return TPersistentMailboxStateCookie{
-            .NextPersistentIncomingMessageId = GetNextPersistentIncomingMessageId(),
+            .NextPersistentIncomingMessageId = incomingProgress.NextMessageId,
+            .IncomingCausalTime = incomingProgress.CausalTime,
             .FirstOutcomingMessageId = outcomingMessages.FirstId,
             .OutcomingMessages = {outcomingMessages.Messages.begin(), outcomingMessages.Messages.end()},
         };
@@ -73,17 +91,28 @@ void TPersistentMailboxState::LoadFromCookie(TPersistentMailboxStateCookie&& coo
         }
     });
 
-    SetNextPersistentIncomingMessageId(cookie.NextPersistentIncomingMessageId);
+    IncomingMessageProgress_.Store(TIncomingMessageProgress{
+        .NextMessageId = cookie.NextPersistentIncomingMessageId,
+        .CausalTime = cookie.IncomingCausalTime,
+    });
 }
 
 TMessageId TPersistentMailboxState::GetNextPersistentIncomingMessageId() const
 {
-    return NextPersistentIncomingMessageId_.load();
+    return GetIncomingMessageProgress().NextMessageId;
 }
 
-void TPersistentMailboxState::SetNextPersistentIncomingMessageId(TMessageId id)
+TIncomingMessageProgress TPersistentMailboxState::GetIncomingMessageProgress() const
 {
-    NextPersistentIncomingMessageId_.store(id);
+    return IncomingMessageProgress_.Load();
+}
+
+void TPersistentMailboxState::SetNextPersistentIncomingMessageId(TMessageId id, TCausalTime causalTime)
+{
+    IncomingMessageProgress_.Transform([&] (auto& progress) {
+        progress.NextMessageId = id;
+        progress.CausalTime = std::max(progress.CausalTime, causalTime);
+    });
 }
 
 TMessageId TPersistentMailboxState::AddOutcomingMessage(TOutcomingMessage message)

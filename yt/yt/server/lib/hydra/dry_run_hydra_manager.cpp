@@ -146,6 +146,7 @@ public:
                 meta.state_hash(),
                 FromProto<TInstant>(meta.timestamp()),
                 TLogicalTime(meta.logical_time()),
+                TCausalTime(meta.has_causal_time() ? meta.causal_time() : meta.sequence_number()),
                 std::move(reader),
                 prepareState);
         WaitFor(loadSnapshotFuture)
@@ -418,6 +419,11 @@ public:
     bool GetReadOnly() const override
     {
         YT_UNIMPLEMENTED();
+    }
+
+    TCausalState GetCausalStateOrThrow(std::optional<TCausalTime> causalTime) const override
+    {
+        return DecoratedAutomaton_->GetCausalStateOrThrow(causalTime);
     }
 
     TLogicalTime GetLogicalTime() const override

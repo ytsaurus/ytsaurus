@@ -104,6 +104,11 @@ void TMutation::SetCurrentTraceContext()
     SetTraceContext(NTracing::TryGetCurrentTraceContext());
 }
 
+void TMutation::SetCausalDependency(TCausalTime causalDependency)
+{
+    Request_.CausalDependency = causalDependency;
+}
+
 const std::string& TMutation::GetType() const
 {
     return Request_.Type;
