@@ -219,6 +219,7 @@ message TVolume
     }
     // If true, the volume can be reused between sequential jobs within the same allocation.
     optional bool allow_reusing = 5 [default = false];
+    optional bool enable_node_layers = 6 [default = false];
 }
 
 message TVolumeMount

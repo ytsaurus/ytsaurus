@@ -8,6 +8,7 @@ from yt_commands import (
     get_job, create_pool,
     get_applied_node_dynamic_config,
     run_test_vanilla, list_jobs, create_network_project,
+    get_allocation_id_from_job_id,
     with_breakpoint, wait_breakpoint, release_breakpoint,
     print_debug, raises_yt_error)
 
@@ -383,6 +384,107 @@ class TestGpuLayer(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == b"SETUP-OUTPUT\n"
+
+
+@authors("pogorelov")
+class TestGpuLayersInVolumes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    NUM_TEST_PARTITIONS = 2
+
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = update(TestGpuLayer.DELTA_NODE_CONFIG, {
+        "exec_node": {"gpu_manager": {"testing": {"test_layers": False}}},
+        "job_resource_manager": {"resource_limits": {"cpu": 1, "user_slots": 1}},
+    })
+    DELTA_DYNAMIC_NODE_CONFIG = update(TestGpuLayer.DELTA_DYNAMIC_NODE_CONFIG, {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {"enable_multiple_jobs": True},
+                    "job_common": {
+                        "job_setup_command": {"path": "/bin/bash"},
+                    },
+                },
+            },
+        },
+    })
+
+    setup_files = TestGpuLayer.setup_files
+
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("volume_type", ["local_disk", "tmpfs"])
+    @pytest.mark.parametrize("enable_gpu_layers, gpu_limit", [(True, 1), (False, 1), (True, 0)])
+    def test_gpu_layers_in_volumes(self, volume_type, enable_gpu_layers, gpu_limit):
+        self.setup_files()
+
+        # In this testing mode the driver layer is fetched once, at node startup.
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        wait(
+            lambda: any(
+                node["resource_limits"]["gpu"] > 0
+                for node in get("//sys/scheduler/orchid/scheduler/nodes").values()
+            ),
+            timeout=INCREASED_TIMEOUT,
+        )
+
+        volumes = {"root": {"layers": [{"path": ROOTFS_LAYER_PATH}]}}
+        mounts = [{"volume_id": "root", "mount_path": "/"}]
+        for volume_id in ("gpu", "plain", "disabled", "gpu_only"):
+            volume = {
+                "disk_request": {"type": volume_type, "disk_space": 16 * 1024 * 1024},
+            }
+            if volume_id != "gpu_only":
+                volume["layers"] = [{"path": "//tmp/layer2"}]
+            if volume_id in ("gpu", "gpu_only"):
+                volume["enable_node_layers"] = True
+            elif volume_id == "disabled":
+                volume["enable_node_layers"] = False
+            volumes[volume_id] = volume
+            mounts.append({"volume_id": volume_id, "mount_path": "/" + volume_id})
+        volumes["gpu"]["allow_reusing"] = True
+
+        checks = [
+            "test -e /gpu/test",
+            "test -e /plain/test",
+            "test -e /disabled/test",
+            "test ! -e /plain/static-bin",
+            "test ! -e /disabled/static-bin",
+        ]
+        if enable_gpu_layers and gpu_limit:
+            checks.extend([
+                "/gpu/static-bin/static-bash -c 'echo GPU' >&2",
+                "/gpu_only/static-bin/static-bash -c 'echo GPU_ONLY' >&2",
+            ])
+        else:
+            checks.extend([
+                "test ! -e /gpu/static-bin",
+                "test ! -e /gpu_only/static-bin",
+            ])
+        checks.append("echo OK >&2")
+
+        op = run_test_vanilla(
+            " && ".join(checks),
+            task_patch={
+                "job_count": 2,
+                "volumes": volumes,
+                "job_volume_mounts": mounts,
+                "enable_gpu_layers": enable_gpu_layers,
+                "gpu_limit": gpu_limit,
+            },
+            spec={"max_failed_job_count": 1, "enable_multiple_jobs_in_allocation": True},
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+        assert get_allocation_id_from_job_id(job_ids[0]) == get_allocation_id_from_job_id(job_ids[1])
+        expected_stderr = b"GPU\nGPU_ONLY\nOK\n" if enable_gpu_layers and gpu_limit else b"OK\n"
+        for job_id in job_ids:
+            assert op.read_stderr(job_id) == expected_stderr
 
 
 @authors("ignat")

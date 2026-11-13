@@ -1160,6 +1160,7 @@ void BuildVolumeSpec(
     }
 
     volumeProto->set_allow_reusing(volume.AllowReusing);
+    volumeProto->set_enable_node_layers(volume.EnableNodeLayers);
     for (const auto& layer : volume.Layers) {
         BuildFileSpec(
             volumeProto->add_layers(),
