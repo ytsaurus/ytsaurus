@@ -4,6 +4,10 @@
 
 #include "engine.h"
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +22,16 @@ private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <bool IsActive>
+NYson::TYsonString GetYqlProgressFromParts(
+    TQueryId queryId,
+    const NApi::IClientPtr& client,
+    const NYPath::TYPath& root,
+    NTableClient::TTimestamp timestamp,
+    const NYTree::IMapNodePtr& progressOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

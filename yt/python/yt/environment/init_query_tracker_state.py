@@ -2006,6 +2006,43 @@ TRANSFORMS[23] = [
     ),
 ]
 
+QUERY_PROGRESS_V24 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("part_name", "string"),
+        ("subpart_name", "string"),
+    ],
+    [
+        ("revision", "uint32"),
+        ("part_value", "string"),
+        ("$ttl", "uint64"),
+    ],
+    optimize_for="scan",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+        "min_data_versions": 0,                     # Required with $ttl
+        "max_data_ttl": 18446744073709551615,       # (Max uint64 - 584'942'417 years) To save data with min_data_version = 0
+    },
+)
+
+TRANSFORMS[24] = [
+    Conversion(
+        "active_query_progresses",
+        table_info=QUERY_PROGRESS_V24,
+    ),
+    Conversion(
+        "finished_query_progresses",
+        table_info=QUERY_PROGRESS_V24,
+    ),
+    Conversion(
+        "query_progresses",
+        operation="remove",
+    ),
+]
+
 
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 

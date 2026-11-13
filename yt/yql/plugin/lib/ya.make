@@ -14,6 +14,7 @@ PEERDIR(
     yql/essentials/core/progress_merger
     yql/essentials/providers/common/proto
     yql/essentials/public/issue
+    yql/essentials/utils/log
     yql/tools/yqlworker/interface/proto
     yql/tools/yqlworker/interface/progress
 )

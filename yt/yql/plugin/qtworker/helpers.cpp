@@ -110,27 +110,51 @@ TString BuildYsonResultList(const NYql::NProto::TTaskResult& result)
 
 TQueryResult TaskResultToYqlResult(
     const NYql::NProto::TTaskResult& result,
-    TString progress,
     const THashMap<EProgressPart, ui32>& latestPartRevisions,
-    std::optional<ui32> revision)
+    const THashMap<TString, std::pair<ui32, TString>>& latestProgressPartRevisions,
+    std::optional<ui32> progressTruncatedRevision,
+    std::optional<ui32> mainRevision,
+    std::optional<ui32> progressRevision)
 {
     auto checkRevision = [&] (EProgressPart part) {
-        if (!revision) {
+        if (!mainRevision) {
             return true;
         }
         auto it = latestPartRevisions.find(part);
-        return it != latestPartRevisions.end() && it->second > *revision;
+        return it != latestPartRevisions.end() && it->second > *mainRevision;
     };
+
+    std::optional<ui32> latestProgressRevision;
+    TString progressAfterRevision = NYTree::BuildYsonStringFluently()
+        .BeginMap()
+            .DoFor(latestProgressPartRevisions, [&] (NYTree::TFluentMap fluent, const auto& part) {
+                const auto& [name, revisionWithValue] = part;
+                const auto& [revision, value] = revisionWithValue;
+                if (!progressRevision || revision > *progressRevision) {
+                    fluent.Item(name).Value(NYson::TYsonStringBuf(value));
+                    latestProgressRevision = std::max(latestProgressRevision.value_or(0), revision);
+                }
+            })
+        .EndMap()
+        .ToString();
+
+    bool hasProgress = latestProgressRevision.has_value();
+    std::optional<bool> progressTruncated;
+    if (progressTruncatedRevision && (!progressRevision || *progressTruncatedRevision > *progressRevision)) {
+        progressTruncated = true;
+        latestProgressRevision = std::max(latestProgressRevision.value_or(0), *progressTruncatedRevision);
+    }
 
     TString ysonResult = BuildYsonResultList(result);
     auto queryResult = TQueryResult{
         .YsonResult = ysonResult ? std::make_optional(ysonResult) : std::nullopt,
         .Plan = result.HasPlan() && checkRevision(EProgressPart::YqlPlan) ? std::make_optional(result.GetPlan()) : std::nullopt,
         .Statistics = result.HasStatistics() && checkRevision(EProgressPart::YqlStatistics) ? std::make_optional(result.GetStatistics()) : std::nullopt,
-        // Progress carries no revision of its own, so it is always sent.
-        .Progress = std::move(progress),
+        .Progress = hasProgress ? std::make_optional(std::move(progressAfterRevision)) : std::nullopt,
+        .ProgressTruncated = progressTruncated,
         .Ast = result.HasAst() && checkRevision(EProgressPart::YqlAst) ? std::make_optional(result.GetAst()) : std::nullopt,
-        .Revision = result.HasRevision() ? std::make_optional(result.GetRevision()) : std::nullopt,
+        .MainRevision = result.HasRevision() ? std::make_optional(result.GetRevision()) : std::nullopt,
+        .ProgressRevision = latestProgressRevision,
     };
 
     if (result.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {

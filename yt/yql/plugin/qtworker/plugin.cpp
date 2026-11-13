@@ -48,9 +48,10 @@ class TTaskEventCallback
 public:
     struct TSnapshot
     {
-        TString Progress;
         NYql::NProto::TTaskResult TaskResult;
         THashMap<EProgressPart, ui32> LatestPartRevisions;
+        THashMap<TString, std::pair<ui32, TString>> LatestProgressPartRevisions;
+        std::optional<ui32> ProgressTruncatedRevision;
     };
 
     ::NThreading::TFuture<void> Notify(const NYql::NProto::TTaskResult& result, ui64 /*sentTime*/) override
@@ -58,7 +59,8 @@ public:
         TGuard guard(Lock_);
         UpdateTaskResultData(TaskResult_, result, &LatestPartRevisions_);
         if (result.HasProgress()) {
-            ProgressMerger_.MergeWith(result.GetProgress());
+            ++ProgressRevision_;
+            ProgressMerger_.MergeWith(result.GetProgress(), ProgressRevision_);
         }
 
         if (IsTaskTerminal(result.GetStatus()) && !IsFinished_) {
@@ -74,18 +76,26 @@ public:
         return DonePromise_.ToFuture();
     }
 
-    TSnapshot GetSnapshot()
+    TSnapshot GetSnapshot(std::optional<ui32> progressRevision = std::nullopt)
     {
         TGuard guard(Lock_);
         return {
-            .Progress = ProgressMerger_.ToYsonString(),
             .TaskResult = TaskResult_,
             .LatestPartRevisions = LatestPartRevisions_,
+            .LatestProgressPartRevisions = ProgressMerger_.GetLatestProgressPartRevisions(progressRevision),
+            .ProgressTruncatedRevision = ProgressMerger_.GetTruncationRevision(),
         };
+    }
+
+    NYql::NProto::TTaskResult GetTaskResult()
+    {
+        TGuard guard(Lock_);
+        return TaskResult_;
     }
 
 private:
     mutable TMutex Lock_;
+    ui32 ProgressRevision_ = 0;
     NYql::NProto::TTaskResult TaskResult_;
     THashMap<EProgressPart, ui32> LatestPartRevisions_;
     NYT::NYqlPlugin::TProgressMerger ProgressMerger_;
@@ -268,7 +278,11 @@ public:
             auto callback = RunTaskToCompletion(queryId, action, std::move(data), /*persist*/ true);
 
             auto snapshot = callback->GetSnapshot();
-            return TaskResultToYqlResult(snapshot.TaskResult, std::move(snapshot.Progress));
+            return TaskResultToYqlResult(
+                snapshot.TaskResult,
+                snapshot.LatestPartRevisions,
+                snapshot.LatestProgressPartRevisions,
+                snapshot.ProgressTruncatedRevision);
         } catch (const NYql::NWorkerApi::TRunTaskError& ex) {
             if (ex.GetReason() == NYql::NWorkerApi::TRunTaskError::EReason::REJECTED) {
                 THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentNotReady, "%v", ex.GetMessage());
@@ -283,9 +297,9 @@ public:
         }
     }
 
-    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) override
+    TQueryResult GetProgress(TQueryId queryId, TProgressOptions progressOptions) override
     {
-        TTaskEventCallback::TSnapshot snapshot;
+        std::shared_ptr<TTaskEventCallback> callback;
 
         {
             TGuard guard(ActiveQueriesLock_);
@@ -295,14 +309,17 @@ public:
                     .YsonError = MessageToYtErrorYson(Format("No progress for query: %v", queryId)),
                 };
             }
-            snapshot = it->second.Callback->GetSnapshot();
+            callback = it->second.Callback;
         }
 
+        auto snapshot = callback->GetSnapshot(progressOptions.ProgressRevision);
         return TaskResultToYqlResult(
             snapshot.TaskResult,
-            std::move(snapshot.Progress),
             snapshot.LatestPartRevisions,
-            revision);
+            snapshot.LatestProgressPartRevisions,
+            snapshot.ProgressTruncatedRevision,
+            progressOptions.MainRevision,
+            progressOptions.ProgressRevision);
     }
 
     TAbortResult Abort(TQueryId queryId) override
@@ -422,7 +439,7 @@ public:
             std::move(data),
             /*persist*/ false);
 
-        auto taskResult = std::move(callback->GetSnapshot().TaskResult);
+        auto taskResult = callback->GetTaskResult();
         if (taskResult.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
             if (taskResult.IssuesSize() > 0) {
                 NYql::TIssues issues;

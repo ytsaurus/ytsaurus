@@ -64,10 +64,12 @@ struct TQueryResult
     std::optional<TString> Plan;
     std::optional<TString> Statistics;
     std::optional<TString> Progress;
+    std::optional<bool> ProgressTruncated;
     std::optional<TString> TaskInfo;
     std::optional<TString> Ast;
 
-    std::optional<ui32> Revision;
+    std::optional<ui32> MainRevision;
+    std::optional<ui32> ProgressRevision;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
@@ -106,6 +108,12 @@ struct TGetDeclaredParametersInfoResult
     std::optional<TString> YsonParameters;
 };
 
+struct TProgressOptions
+{
+    std::optional<ui32> MainRevision;
+    std::optional<ui32> ProgressRevision;
+};
+
 
 //! This interface encapsulates YT <-> YQL integration.
 /*!
@@ -135,7 +143,7 @@ struct IYqlPlugin
         int executeMode,
         NYqlClient::EQueryType queryType) = 0;
 
-    virtual TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) = 0;
+    virtual TQueryResult GetProgress(TQueryId queryId, TProgressOptions progressOptions) = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 

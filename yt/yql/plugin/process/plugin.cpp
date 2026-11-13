@@ -176,7 +176,7 @@ public:
         return result;
     }
 
-    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) override
+    TQueryResult GetProgress(TQueryId queryId, TProgressOptions /*progressOptions*/) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -186,7 +186,7 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
-        return pluginProcess->GetProgress(queryId, /*revision*/ std::nullopt);
+        return pluginProcess->GetProgress(queryId, TProgressOptions{});
     }
 
     TAbortResult Abort(TQueryId queryId) override

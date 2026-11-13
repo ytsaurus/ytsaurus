@@ -24,9 +24,11 @@ void UpdateTaskResultData(
 
 TQueryResult TaskResultToYqlResult(
     const NYql::NProto::TTaskResult& result,
-    TString progressYson,
-    const THashMap<NYqlClient::EProgressPart, ui32>& latestPartRevisions = {},
-    std::optional<ui32> revision = std::nullopt);
+    const THashMap<NYqlClient::EProgressPart, ui32>& latestPartRevisions,
+    const THashMap<TString, std::pair<ui32, TString>>& latestProgressPartRevisions,
+    std::optional<ui32> progressTruncatedRevision,
+    std::optional<ui32> mainRevision = std::nullopt,
+    std::optional<ui32> progressRevision = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

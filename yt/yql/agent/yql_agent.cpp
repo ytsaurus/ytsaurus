@@ -531,30 +531,37 @@ public:
             .Run();
     }
 
-    TRspGetQueryProgress GetQueryProgress(TQueryId queryId, std::optional<ui32> revision) override
+    TRspGetQueryProgress GetQueryProgress(TQueryId queryId, TProgressOptions progressOptions) override
     {
         YT_TLOG_DEBUG("Getting query progress from YQL plugin")
             .With("QueryId", queryId)
-            .With("Revision", revision);
+            .With("ProgressOptions.MainRevision", progressOptions.MainRevision)
+            .With("ProgressOptions.ProgressRevision", progressOptions.ProgressRevision);
 
         TRspGetQueryProgress response;
 
         try {
-            auto result = YqlPlugin_->GetProgress(queryId, revision);
+            auto result = YqlPlugin_->GetProgress(queryId, progressOptions);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;
             }
             YT_TLOG_DEBUG("Successfully got query progress from YQL plugin");
 
-            if (result.Plan || result.Statistics || result.Progress || result.Ast || result.Revision) {
+            if (result.Plan || result.Statistics || result.Progress || result.ProgressTruncated || result.Ast || result.MainRevision || result.ProgressRevision) {
                 TYqlResponse yqlResponse;
                 ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+                if (result.ProgressTruncated) {
+                    yqlResponse.set_progress_truncated(*result.ProgressTruncated);
+                }
                 ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
-                if (result.Revision) {
-                    yqlResponse.set_revision(*result.Revision);
+                if (result.MainRevision) {
+                    yqlResponse.set_main_revision(*result.MainRevision);
+                }
+                if (result.ProgressRevision) {
+                    yqlResponse.set_progress_revision(*result.ProgressRevision);
                 }
                 response.mutable_yql_response()->Swap(&yqlResponse);
             }
@@ -601,6 +608,7 @@ public:
             .BeginMap()
                 .Item("declare_params").Value(true)
                 .Item("yql_runner").Value(true)
+                .Item("progress_v2").Value(Config_->UseQtWorkerYqlPlugin)
             .EndMap();
         response.set_supported_features(supportedFeatures.ToString());
 
@@ -883,11 +891,17 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
             ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
             ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+            if (result.ProgressTruncated) {
+                yqlResponse.set_progress_truncated(*result.ProgressTruncated);
+            }
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             ValidateAndFillYqlResponseField(yqlResponse, result.YsonError, &TYqlResponse::mutable_error);
-            if (result.Revision) {
-                yqlResponse.set_revision(*result.Revision);
+            if (result.MainRevision) {
+                yqlResponse.set_main_revision(*result.MainRevision);
+            }
+            if (result.ProgressRevision) {
+                yqlResponse.set_progress_revision(*result.ProgressRevision);
             }
             if (request.build_rowsets() && result.YsonResult && !result.YsonError) {
                 std::vector<TWireYqlRowset> rowsets;

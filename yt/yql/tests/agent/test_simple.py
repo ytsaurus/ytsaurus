@@ -1979,7 +1979,11 @@ class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
             {
                 "available_yql_versions": ["2025.01",],
                 "default_yql_ui_version": "2025.01",
-                "supported_features": {"declare_params": True, "yql_runner": True},
+                "supported_features": {
+                    "declare_params": True,
+                    "yql_runner": True,
+                    "progress_v2": getattr(self, "YQL_QTWORKER", False),
+                },
             }
 
     @authors("kirsiv40")
@@ -2036,7 +2040,11 @@ class TestGetQueryTrackerInfoWithVisibleYqlVersionBase(TestGetQueryTrackerInfoBa
             {
                 "available_yql_versions": expected_yql_versions,
                 "default_yql_ui_version": "2025.03",
-                "supported_features": {"declare_params": True, "yql_runner": True},
+                "supported_features": {
+                    "declare_params": True,
+                    "yql_runner": True,
+                    "progress_v2": getattr(self, "YQL_QTWORKER", False),
+                },
             }
 
     def _test_visible_versions(self, all_versions):

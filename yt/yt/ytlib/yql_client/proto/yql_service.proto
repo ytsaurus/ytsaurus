@@ -56,7 +56,10 @@ message TYqlResponse
     optional bytes progress = 5; // YSON
     optional bytes ast = 6; // YSON
     optional bytes error = 7; // YSON
-    optional uint32 revision = 8;
+    optional uint32 revision = 8; // deprecated
+    optional uint32 main_revision = 9;
+    optional uint32 progress_revision = 10;
+    optional bool progress_truncated = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +103,14 @@ message TRspAbortQuery
 message TReqGetQueryProgress
 {
     optional NYT.NProto.TGuid query_id = 1;
-    optional uint32 revision = 2;
+    optional uint32 revision = 2; // deprecated
+
+    message TProgressOptions
+    {
+        optional uint32 main_revision = 1;
+        optional uint32 progress_revision = 2;
+    }
+    optional TProgressOptions progress_options = 3;
 }
 
 message TRspGetQueryProgress

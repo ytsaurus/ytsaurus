@@ -27,12 +27,16 @@ YT_DEFINE_ERROR_ENUM(
 );
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EProgressPart,
-    ((YqlPlan)       (0))
-    ((YqlStatistics) (1))
-    ((YqlProgress)   (2))
-    ((YqlTaskInfo)   (3))
-    ((YqlAst)        (4))
-    ((YqlRevision)   (5))
+    ((YqlPlan)                (0))
+    ((YqlStatistics)          (1))
+    ((YqlProgress)            (2))
+    ((YqlTaskInfo)            (3))
+    ((YqlAst)                 (4))
+    ((YqlPlanTruncated)       (5))
+    ((YqlStatisticsTruncated) (6))
+    ((YqlProgressTruncated)   (7))
+    ((YqlTaskInfoTruncated)   (8))
+    ((YqlAstTruncated)        (9))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

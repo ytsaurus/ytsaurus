@@ -850,7 +850,7 @@ public:
         TString progress;
 
         {
-            auto guard = ReaderGuard(ProgressSpinLock_);
+            auto guard = WriterGuard(ProgressSpinLock_);
 
             auto& activeQuery = GetActiveQuery(queryId);
             progress = activeQuery.ProgressMerger.ToYsonString();
@@ -993,9 +993,9 @@ public:
         return result;
     }
 
-    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) noexcept override
+    TQueryResult GetProgress(TQueryId queryId, TProgressOptions /*progressOptions*/) noexcept override
     {
-        auto guard = ReaderGuard(ProgressSpinLock_);
+        auto guard = WriterGuard(ProgressSpinLock_);
         if (auto* activeQuery = GetActiveQueryPtr(queryId)) {
             TQueryResult result;
             if (activeQuery->ProgressMerger.HasChangesSinceLastFlush()) {

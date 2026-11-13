@@ -168,7 +168,8 @@ class TestMigration(QueriesTestBase):
             "finished_queries",
             "finished_query_results",
             "active_queries",
-            "query_progresses",
+            "active_query_progresses",
+            "finished_query_progresses",
             "queries_by_user_and_mutation_id",
         ]
 

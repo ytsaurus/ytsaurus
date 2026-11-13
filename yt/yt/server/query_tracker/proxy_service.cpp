@@ -230,7 +230,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 6);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 7);
         YT_VERIFY(NRpcProxy::NProto::TRspGetQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -249,17 +249,15 @@ private:
             ? FromProto<NTransactionClient::TTimestamp>(rpcRequest.timestamp())
             : NullTimestamp;
 
-        options.ProgressParts = FromProto<std::vector<std::string>>(rpcRequest.progress_parts());
-        if (rpcRequest.has_min_progress_revision()) {
-            options.MinProgressRevision = rpcRequest.min_progress_revision();
-        }
+        options.ProgressOptions = rpcRequest.has_progress_options()
+            ? ConvertToNode(TYsonStringBuf(rpcRequest.progress_options()))->AsMap()
+            : nullptr;
 
         auto user = context->GetAuthenticationIdentity().User;
 
         context->AnnotateRequest()
             .With("QueryId", queryId)
-            .With("ProgressParts", options.ProgressParts)
-            .With("MinProgressRevision", options.MinProgressRevision);
+            .With("ProgressOptions", ConvertToYsonString(options.ProgressOptions));
 
         auto query = QueryTracker_->GetQuery(queryId, options, user);
         ToProto(rpcResponse->mutable_query(), query);
