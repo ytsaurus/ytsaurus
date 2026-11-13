@@ -675,10 +675,22 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if err != nil {
 		return err
 	}
-	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", serverConfig)
+	versionedConfigFilename := fmt.Sprintf("config-%d.yson", oplet.NextIncarnationIndex())
+	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), versionedConfigFilename, serverConfig)
 	if err != nil {
 		return err
 	}
+	runtimeSpec := speclet.RuntimeDataSpecOrDefault(c.root.Child(oplet.Alias()))
+	if err := c.ytc.SetNode(ctx, ytServerClickHouseConfigPath.Path.Attr("expiration_timeout"), runtimeSpec.RuntimeDataExpirationTimeout, nil); err != nil {
+		return err
+	}
+	latestConfigPath := c.artifactDir(oplet.Alias()).Child("config.yson")
+	_, err = c.ytc.LinkNode(ctx, ytServerClickHouseConfigPath.Path, latestConfigPath, &yt.LinkNodeOptions{Force: true})
+	if err != nil {
+		return err
+	}
+	ytServerClickHouseConfigPath.Path = latestConfigPath
+	ytServerClickHouseConfigPath.FileName = "config.yson"
 	*filePaths = append(*filePaths, ytServerClickHouseConfigPath)
 
 	return nil
