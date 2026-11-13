@@ -1284,6 +1284,7 @@ std::vector<TSequoiaTestPrelocksParams> GenerateTestSequoiaPrelocksParams()
     return cases;
 }
 
+// TODO(kvk1920): rewrite this test using direct prelock acquisition requests
 TEST_P(TSequoiaTestPrelocks, Test)
 {
     using namespace NCypressClient;
@@ -1368,10 +1369,6 @@ TEST_P(TSequoiaTestPrelocks, Test)
         auto req = TCypressYPathProxy::Lock(FromObjectId(targetNodeId));
         SetTransactionId(req, tx[GetParam().Transaction]->GetId());
         req->set_mode(ToProto(GetParam().Mode));
-
-        // Waitable flag doesn't matter here since any conflict with prelock has to
-        // be retried.
-        req->set_waitable(true);
 
         if (GetParam().Child) {
             req->set_child_key(*GetParam().Child);
