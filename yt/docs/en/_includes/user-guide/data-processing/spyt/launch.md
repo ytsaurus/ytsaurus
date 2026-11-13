@@ -35,6 +35,54 @@ The usage of other options corresponds to their description in `spark-submit` do
 
 - `--files, --archives` — do not work with local files, you can only use those that have been pre-loaded to Cypress.
 
+### Selecting RPC proxy roles { #proxy-roles-examples }
+
+For a regular launch, use the command above without additional role parameters. If no [configuration source](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources) sets a role, discovery requests `default`. The cluster must have available RPC proxies with that role.
+
+If you need other proxy groups, pass the [role parameters](../../../../user-guide/data-processing/spyt/thesaurus/configuration.md#proxy-roles) via `--conf`. Ask your cluster administrator which roles are available. The [connection model](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#proxy-roles) explains which clients use discovery and which can use the local job proxy.
+
+In the templates below, replace `yt.example.com` with your cluster address and `<other application parameters>` with the launch parameters and application path, as in the command above. Replace `spark-client` and `spark-cluster` with roles accessible from the client host and cluster jobs, respectively.
+
+#### Explicitly select the default role { #explicit-default-role }
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode cluster \
+  --conf spark.hadoop.yt.proxyRole=default \
+  <other application parameters>
+```
+
+An explicit `proxyRole=default` overrides this parameter in the release and global configurations, such as `custom` in `//home/spark/conf/global`. If you omit it, the value from the next source by priority remains in effect. A separately configured `clusterProxyRole` is retained.
+
+#### Different roles for the client and cluster { #separate-proxy-roles }
+
+In this example, the application submission client uses `spark-client`. When connecting through discovery, the driver and executors inside the cluster use `spark-cluster`:
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode cluster \
+  --conf spark.hadoop.yt.proxyRole=spark-client \
+  --conf spark.hadoop.yt.clusterProxyRole=spark-cluster \
+  <other application parameters>
+```
+
+#### A separate executor role in client mode { #client-mode-proxy-role }
+
+If the executors need a separate role while the driver runs on the client host, pass both roles when launching:
+
+```bash
+spark-submit \
+  --master ytsaurus://yt.example.com \
+  --deploy-mode client \
+  --conf spark.hadoop.yt.proxyRole=spark-client \
+  --conf spark.hadoop.yt.clusterProxyRole=spark-cluster \
+  <other application parameters>
+```
+
+In this mode, pass the separate executor role via `--conf` or `SparkConf`. For the reason, see [Applying the cluster role](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#cluster-proxy-role).
+
 ## Launching inner Spark Standalone cluster { #standalone }
 
 This method is applicable for intensive cluster usage. In this mode {{product-name}} allocates resources for inner Spark standalone cluster which is used to launch Spark applications. This mode is recommended in the following cases:

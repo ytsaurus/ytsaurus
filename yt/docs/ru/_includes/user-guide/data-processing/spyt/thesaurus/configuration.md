@@ -2,6 +2,8 @@
 
 В данном разделе приведён список конфигурационных параметров, которые можно передавать при запуске задач на Spark. Для этого используется стандартный способ указания дополнительных параметров через опцию `--conf` основных Spark команд, таких как `spark-submit`, `spark-shell`, а также {{product-name}}-обёрток над ними `spark-submit-yt` и `spark-shell-yt`.
 
+[Источники и приоритет конфигурации](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources) описаны в разделе о прямом сабмите.
+
 ## Основные опции { #main }
 
 Большинство опций доступны начиная с версии 1.23.0, если не указано иное.
@@ -89,6 +91,19 @@
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | Период проверки состояния операции с экзекьюторами. Если эта операция находится в финальном статусе то драйвер будет остановлен | 2.8.0 |
 
 {wide-content title="Опции для запуска задач напрямую"}
+
+## Роли прокси { #proxy-roles }
+
+Параметры задают строковые имена [ролей RPC-прокси](../../../../../admin-guide/cluster-access-proxy/index.md#proxy-role) для клиентов, использующих discovery. К клиентам данных через локальную RPC-прокси, встроенную в job-прокси, эти параметры не применяются.
+
+| **Параметр** | **Значение по умолчанию** | **Описание** |
+| ------------ | ------------------------- | ------------ |
+| `spark.hadoop.yt.proxyRole` | Не задан | Роль RPC-прокси клиента запуска приложения. Используется также внутри кластера, если `spark.hadoop.yt.clusterProxyRole` не задан |
+| `spark.hadoop.yt.clusterProxyRole` | Не задан | Роль RPC-прокси драйвера и экзекьюторов внутри кластера {{product-name}}. [Ограничения применения](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#cluster-proxy-role) |
+
+Если роль не задана ни в одном из [источников конфигурации](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#config-sources), discovery запрашивает роль `default`.
+
+Подробнее: [как используются роли](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#proxy-roles), [примеры настройки](../../../../../user-guide/data-processing/spyt/launch.md#proxy-roles-examples), [диагностика `Cannot get rpc proxies`](../../../../../user-guide/data-processing/spyt/problems.md#cannot-get-rpc-proxies).
 
 ## Опции для конфигурации {{product-name}} Shuffle сервиса { #shuffle }
 
