@@ -80,6 +80,9 @@ DEFINE_REFCOUNTED_TYPE(TTableSourceParameters);
 struct TDynamicTableSourceParameters
     : public TOrderedSourceBase::TDynamicParameters
 {
+    TDuration CatchupLagThreshold;
+    double CatchupSpeedupMultiplier{};
+
     // All the table needs to be read in this time.
     TDuration DesiredTableProcessTime;
 

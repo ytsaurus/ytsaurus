@@ -5,6 +5,12 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
+|| `catchup_lag_threshold` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `10s`
+Allowed read-plan lag before catch-up starts. ||
+|| `catchup_speedup_multiplier` | **Type**: `double`
+**Default value**: `1.2`
+Read speed multiplier when read-plan lag exceeds `catchup_lag_threshold`. ||
 || `desired_table_process_time` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1h`
 The time to read one input table. The main parameter for controlling read speed. ||

@@ -532,13 +532,30 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
     if (offsetLimit.has_value()) {
         maxRowsPerRead = std::min(maxRowsPerRead, *offsetLimit - CurrentOffset_);
     }
-    maxRowsPerRead = Throttler_->TryAcquireAvailable(maxRowsPerRead);
-
-    if (!maxRowsPerRead) {
+    auto acquired = Throttler_->TryAcquireAvailable(maxRowsPerRead);
+    if (!acquired) {
         // Idling on purpose while the reader is ready, so it must not be timed out for that.
         LastReadProgressInstant_ = TInstant::Now();
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
+
+    auto getPlannedTimestamp = [&] (i64 rowOffset) {
+        return ComputePlannedTimestamp(
+            rowOffset,
+            {minOffsetInclusive, maxOffsetExclusive},
+            dynamicSourcePartitionSpec->PlannedTimestamp,
+            dynamicSourcePartitionSpec->PlannedReadDuration);
+    };
+    auto plannedTimestamp = getPlannedTimestamp(CurrentOffset_).Underlying();
+    auto now = TInstant::Now().Seconds();
+    if (dynamicSourcePartitionSpec->PlannedReadDuration != TDuration::Zero() &&
+        now > plannedTimestamp &&
+        now - plannedTimestamp > GetDynamicParameters()->CatchupLagThreshold.Seconds())
+    {
+        acquired = static_cast<i64>(std::min<double>(maxRowsPerRead, acquired * GetDynamicParameters()->CatchupSpeedupMultiplier));
+    }
+
+    maxRowsPerRead = acquired;
 
     auto unversionedRowBatch = reader->Read(TRowBatchReadOptions{
         .MaxRowsPerRead = maxRowsPerRead,
@@ -616,11 +633,7 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             .Payloads = {std::move(payload)},
             .PayloadSchema = payloadSchema};
         if (dynamicSourcePartitionSpec->UsePlannedTimestamps) {
-            auto timestamp = ComputePlannedTimestamp(
-                rowOffset,
-                {minOffsetInclusive, maxOffsetExclusive},
-                dynamicSourcePartitionSpec->PlannedTimestamp,
-                dynamicSourcePartitionSpec->PlannedReadDuration);
+            auto timestamp = getPlannedTimestamp(rowOffset);
             record.WriteTimestamp = timestamp;
             record.CreateTimestamp = timestamp;
         }

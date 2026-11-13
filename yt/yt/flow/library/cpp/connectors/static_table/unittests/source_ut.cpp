@@ -33,6 +33,8 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/library/re2/re2.h>
 
+#include <limits>
+
 namespace NYT::NFlow::NStaticTableConnector {
 namespace {
 
@@ -2547,6 +2549,168 @@ TEST(TStaticTableSourceTest, TimestampLocatorTimezoneValidation)
         ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
             "{attribute=test_timestamp;format=seconds;timezone=\"Europe/Moscow\";}"))),
         NYT::TErrorException);
+}
+
+TEST_F(TStaticTableSourceReaderTest, CatchupReadsOnlyAboveLagThreshold)
+{
+    struct TCase
+    {
+        i64 LagSeconds;
+        TDuration Duration;
+        std::optional<double> Multiplier;
+        int BatchLimit;
+        int ExpectedRows;
+        std::optional<TDuration> LagThreshold;
+    };
+
+    for (bool usePlannedTimestamps : {false, true}) {
+        for (const auto& testCase : std::vector<TCase>{
+                {
+                    .LagSeconds = -3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 6,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = 1.0,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = 1.6,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 8,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = 2.0,
+                    .BatchLimit = 6,
+                    .ExpectedRows = 6,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::numeric_limits<double>::infinity(),
+                    .BatchLimit = 6,
+                    .ExpectedRows = 6,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 3600,
+                    .Duration = TDuration::Zero(),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 5,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 15,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 6,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 45,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 6,
+                    .LagThreshold = std::nullopt,
+                },
+                {
+                    .LagSeconds = 45,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = TDuration::Seconds(60),
+                },
+                {
+                    .LagSeconds = 15,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 5,
+                    .LagThreshold = TDuration::Seconds(30),
+                },
+                {
+                    .LagSeconds = 15,
+                    .Duration = TDuration::Seconds(10),
+                    .Multiplier = std::nullopt,
+                    .BatchLimit = 10,
+                    .ExpectedRows = 6,
+                    .LagThreshold = TDuration::Zero(),
+                },
+             }) {
+            SCOPED_TRACE(Format("Planned: %v, lag: %v, multiplier: %v, batch: %v, duration: %v, threshold: %v",
+                usePlannedTimestamps,
+                testCase.LagSeconds,
+                testCase.Multiplier,
+                testCase.BatchLimit,
+                testCase.Duration,
+                testCase.LagThreshold));
+            auto now = TInstant::Now().Seconds();
+            auto timestamp = TSystemTimestamp(now - testCase.LagSeconds);
+            auto messageTimestamp = usePlannedTimestamps ? std::optional(timestamp) : std::nullopt;
+            auto client = MakeClient({MakeFuture(MakeTableReader({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, OKFuture))});
+            auto source = MakeSource(client, TDuration::Minutes(1), messageTimestamp);
+            auto context = MakeDynamicContext(TDuration::Minutes(1), /*lowerRowIndex*/ 0, messageTimestamp);
+            auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(context->DynamicPartitionSpec);
+            SetRowIndexRange(spec->Table, /*lower*/ 0, /*upper*/ 10);
+            spec->RowsPerSecond = 0.01;
+            spec->PlannedTimestamp = timestamp;
+            spec->PlannedReadDuration = testCase.Duration;
+            context->DynamicPartitionSpec = ConvertTo<IMapNodePtr>(spec);
+            context->DynamicSourceSpec->Parameters->AddChild("throttler_period", ConvertToNode(TDuration::Seconds(500)));
+            if (testCase.Multiplier) {
+                context->DynamicSourceSpec->Parameters->AddChild("catchup_speedup_multiplier", ConvertToNode(*testCase.Multiplier));
+            }
+
+            if (testCase.LagThreshold) {
+                context->DynamicSourceSpec->Parameters->AddChild("catchup_lag_threshold", ConvertToNode(*testCase.LagThreshold));
+            }
+
+            RunInInvoker([&] {
+                source->Reconfigure(context);
+            });
+            BatcherSettings_->MaxRowsPerBatch = TSize(testCase.BatchLimit);
+            std::vector<std::pair<i64, i64>> rows;
+            for (int attempt = 0; attempt < 3 && rows.empty(); ++attempt) {
+                rows = ReadRows(source);
+            }
+
+            EXPECT_EQ(std::ssize(rows), testCase.ExpectedRows);
+            EXPECT_TRUE(ReadRows(source).empty());
+        }
+    }
 }
 
 TEST(TStaticTableSourceTest, CreateThrottlerConfig)
