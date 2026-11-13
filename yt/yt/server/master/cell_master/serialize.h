@@ -243,6 +243,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixHunkTabletValidateReshard)                                 (3368))  // akozhikhov
     ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
     ((HydraCausalTime_26_2)                                         (3370))  // danilalexeev
+    ((FixPreserveAclUnderTransaction)                               (3371))  // achains
 
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
