@@ -192,15 +192,6 @@ void TDynamicAsyncQueueWriterParameters::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateAsyncSinkTabletRoutingUnsupported(const TQueueSinkTabletRoutingParameters& parameters)
-{
-    THROW_ERROR_EXCEPTION_IF(
-        parameters.TabletIndexExpression || parameters.TabletIndexRoutingHashExpression ||
-            parameters.TabletIndexRoutingHashPolicy || parameters.TabletCount,
-        "Tablet routing is not supported on async queue sinks yet (tracked by YTFLOW-766); "
-        "use a sync queue sink");
-}
-
 void TAtMostOnceStrategyParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
@@ -227,7 +218,6 @@ void TAsyncQueueSinkParameters::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Postprocessor([] (TThis* parameters) {
-        ValidateAsyncSinkTabletRoutingUnsupported(*parameters);
         parameters->ValidateClusters();
     });
 }
@@ -257,6 +247,14 @@ void TAsyncMultiClusterQueueSinkParameters::Register(TRegistrar registrar)
 
 void TAsyncMultiClusterQueueSinkParameters::ValidateClusters() const
 {
+    bool unsupportedVerbatimRouting = !QueuePath.GetCluster() && TabletIndexExpression;
+
+    THROW_ERROR_EXCEPTION_IF(unsupportedVerbatimRouting, "\"tablet_index_expression\" is not supported when queue clusters are specified only by \"clusters\"");
+
+    bool requiresExplicitTabletCount = !QueuePath.GetCluster() && TabletIndexRoutingHashExpression && !TabletCount;
+
+    THROW_ERROR_EXCEPTION_IF(requiresExplicitTabletCount, "Tablet routing with multiple queue clusters requires an explicit \"tablet_count\"");
+
     auto getClusters = [] (const NYPath::TRichYPath& path) {
         THashSet<std::string> result;
         if (auto cluster = path.GetCluster()) {

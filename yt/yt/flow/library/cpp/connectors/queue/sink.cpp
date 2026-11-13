@@ -213,8 +213,11 @@ TAsyncQueueWriter::TRequestLimiter::TRequestLimiter(i64 maxCount, i64 maxSize)
 
 void TAsyncQueueWriter::TRequestLimiter::Add(const TRequest& request)
 {
-    ++Count_;
-    Size_ += request.Row.GetSpaceUsed();
+    Count_ += std::ssize(request.Rows);
+
+    for (const auto& row : request.Rows) {
+        Size_ += row.GetSpaceUsed();
+    }
 }
 
 bool TAsyncQueueWriter::TRequestLimiter::IsFull() const
@@ -298,13 +301,25 @@ void TAsyncQueueWriter::Terminate()
 
 void TAsyncQueueWriter::Write(
     NTableClient::TUnversionedOwningRow row,
-    TMessageId messageId,
+    TMessageId lastMessageId,
     TClosure onWritten)
 {
+    TRows rows;
+    rows.push_back(std::move(row));
+    WriteRows(std::move(rows), std::move(lastMessageId), std::move(onWritten));
+}
+
+void TAsyncQueueWriter::WriteRows(
+    TRows rows,
+    TMessageId lastMessageId,
+    TClosure onWritten)
+{
+    YT_VERIFY(!rows.empty());
+
     Requests_->Enqueue(TRequest{
-        .Row = std::move(row),
+        .Rows = std::move(rows),
         .OnWritten = std::move(onWritten),
-        .MessageId = std::move(messageId),
+        .LastMessageId = std::move(lastMessageId),
     });
 }
 
@@ -372,6 +387,11 @@ TFuture<TMessageId> TAsyncQueueWriter::GetInitialMessageId() const
     }));
 }
 
+bool TAsyncQueueWriter::HasSingleCluster() const
+{
+    return std::ssize(Clusters_) == 1;
+}
+
 bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, std::vector<TRequest>* requests)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
@@ -387,17 +407,19 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, std::
         bool commitStarted = false;
         try {
             const auto& session = GetSession(&cluster, producerId);
-            ssize_t firstRowIndex = 0;
-            while (firstRowIndex < std::ssize(*requests) && (*requests)[firstRowIndex].MessageId <= cluster.LastMessageId) {
-                ++firstRowIndex;
+            ssize_t firstRequestIndex = 0;
+            while (firstRequestIndex < std::ssize(*requests) && (*requests)[firstRequestIndex].LastMessageId <= cluster.LastMessageId) {
+                ++firstRequestIndex;
             }
 
-            if (firstRowIndex < std::ssize(*requests)) {
+            if (firstRequestIndex < std::ssize(*requests)) {
                 auto buffer = New<NTableClient::TRowBuffer>();
                 std::vector<NTableClient::TUnversionedRow> rows;
-                rows.reserve(std::ssize(*requests) - firstRowIndex);
-                for (ssize_t index = firstRowIndex; index < std::ssize(*requests); ++index) {
-                    rows.push_back(buffer->CaptureRow((*requests)[index].Row));
+                rows.reserve(std::ssize(*requests) - firstRequestIndex);
+                for (ssize_t requestIndex = firstRequestIndex; requestIndex < std::ssize(*requests); ++requestIndex) {
+                    for (const auto& row : (*requests)[requestIndex].Rows) {
+                        rows.push_back(buffer->CaptureRow(row));
+                    }
                 }
                 auto transaction = NConcurrency::WaitFor(cluster.Client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
                     .ValueOrThrow();
@@ -405,7 +427,7 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, std::
                 options.RequireSyncReplica = Parameters_->RequireSyncReplica;
                 options.SequenceNumber = NQueueClient::TQueueProducerSequenceNumber(cluster.PhysicalSequenceNumber.Underlying() + 1);
                 auto userMeta = New<TQueueProducerUserMeta>();
-                userMeta->LastMessageId = std::string(requests->back().MessageId.Underlying());
+                userMeta->LastMessageId = std::string(requests->back().LastMessageId.Underlying());
                 options.UserMeta = NYTree::ConvertToNode(userMeta);
                 auto pushResult = NConcurrency::WaitFor(transaction->PushQueueProducer(
                     Parameters_->ProducerPath,
@@ -420,13 +442,13 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, std::
                 NConcurrency::WaitFor(transaction->Commit())
                     .ThrowOnError();
                 cluster.PhysicalSequenceNumber = pushResult.LastSequenceNumber;
-                cluster.LastMessageId = requests->back().MessageId;
+                cluster.LastMessageId = requests->back().LastMessageId;
             }
 
             YT_TLOG_INFO("Asynchronously wrote messages to the queue")
                 .With("Cluster", cluster.Name)
                 .With("RequestCount", std::ssize(*requests))
-                .With("SkippedPrefixCount", firstRowIndex);
+                .With("SkippedPrefixCount", firstRequestIndex);
             ErrorState_->ClearError();
             written = true;
             break;
@@ -593,6 +615,7 @@ void TAsyncQueueSink::DoTerminate()
     CurrentEpoch_.clear();
     TerminateWriter();
     NameTable_.Reset();
+    TabletRouter_.Reset();
 }
 
 void TAsyncQueueSink::Init(IInitContextPtr initContext)
@@ -603,6 +626,20 @@ void TAsyncQueueSink::Init(IInitContextPtr initContext)
     }
     NameTable_ = GenerateNameTable();
     auto parameters = GetWriterParameters();
+    TabletIndexColumn_ = IsTabletRoutingEnabled(*GetRoutingParameters())
+        ? NameTable_->FindId(NTableClient::TabletIndexColumnName)
+        : std::nullopt;
+    TabletRouter_ = CreateTabletRouter(
+        *GetRoutingParameters(),
+        parameters->QueuePath,
+        parameters->UpdatePartitionCountPeriod,
+        GetContext()->StreamSpecStorage->GetSchema(*GetSpec()->InputStreamIds.begin()),
+        GetContext(),
+        Logger);
+    if (TabletRouter_) {
+        TabletRoutingErrorState_ = GetContext()->StatusProfiler->ErrorState("/tablet_routing");
+    }
+
     FlowMetaColumn_ = parameters->WriteFlowQueueMeta
         ? NameTable_->FindId(parameters->FlowQueueMetaColumn)
         : std::nullopt;
@@ -657,9 +694,15 @@ void TAsyncQueueSink::Commit()
 
 void TAsyncQueueSink::WriteMessages(std::vector<TPendingMessage> pending)
 {
+    std::optional<TMessageId> initialMessageId;
+    // A committed replay may route to a tablet removed by a queue shrink, so skip it before routing.
+    if (TabletRouter_ && !AtMostOnce_ && Writer_->HasSingleCluster()) {
+        initialMessageId = EnsureInitialMessageId();
+    }
+
     ssize_t sentCount = 0;
     for (auto& item : pending) {
-        if (!TryAdmitMessage(item)) {
+        if (!TryAdmitMessage(item, initialMessageId)) {
             continue;
         }
         auto row = BuildRow(item.Message);
@@ -693,6 +736,49 @@ void TAsyncQueueSink::WriteMessages(std::vector<TPendingMessage> pending)
             .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
             .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
     }
+}
+
+i64 TAsyncQueueSink::GetTabletIndex(const TOutputMessageConstPtr& message) const
+{
+    // Keep the router alive if termination resets it while startup or retry backoff yields.
+    auto router = TabletRouter_;
+    std::optional<TBackoffStrategy> backoffStrategy;
+    bool hadError = false;
+    while (true) {
+        try {
+            router->Start();
+            auto tabletIndex = router->GetTabletIndex(message->Payload);
+
+            if (hadError) {
+                TabletRoutingErrorState_->ClearError();
+            }
+
+            return tabletIndex;
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to evaluate queue tablet routing").With(TError(ex));
+            if (error.FindMatching(NYT::EErrorCode::Canceled)) {
+                throw;
+            }
+
+            TabletRoutingErrorState_->SetError(error);
+            hadError = true;
+
+            YT_TLOG_WARNING("Failed to evaluate queue tablet routing")
+                .With(error);
+        }
+
+        WaitBackoff(&backoffStrategy, GetDynamicWriterParameters()->BackoffDuration);
+    }
+}
+
+TMessageId TAsyncQueueSink::EnsureInitialMessageId()
+{
+    if (!InitialMessageId_) {
+        InitialMessageId_ = NConcurrency::WaitFor(Writer_->GetInitialMessageId())
+            .ValueOrThrow();
+        LastSeenMessageId_ = *InitialMessageId_;
+    }
+    return *InitialMessageId_;
 }
 
 bool TAsyncQueueSink::TryAdmitMessage(
@@ -733,6 +819,10 @@ NTableClient::TNameTablePtr TAsyncQueueSink::GenerateNameTable() const
     if (GetParameters()->WriteFlowQueueMeta) {
         nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
     }
+
+    if (IsTabletRoutingEnabled(*GetRoutingParameters())) {
+        nameTable->RegisterNameOrThrow(NTableClient::TabletIndexColumnName);
+    }
     return nameTable;
 }
 
@@ -752,12 +842,24 @@ NTableClient::TUnversionedOwningRow TAsyncQueueSink::BuildRow(const TOutputMessa
         const auto serializedMeta = NYson::ConvertToYsonString(meta, NYson::EYsonFormat::Binary);
         builder.AddValue(NTableClient::MakeUnversionedAnyValue(serializedMeta.AsStringBuf(), *FlowMetaColumn_));
     }
+
+    if (TabletRouter_) {
+        builder.AddValue(NTableClient::MakeUnversionedInt64Value(
+            GetTabletIndex(message),
+            *TabletIndexColumn_));
+    }
+
     return builder.FinishRow();
 }
 
 TAsyncQueueWriterParametersBasePtr TAsyncQueueSink::GetWriterParameters() const
 {
     return DynamicPointerCast<TAsyncQueueWriterParametersBase>(GetParametersBase());
+}
+
+TQueueSinkTabletRoutingParametersPtr TAsyncQueueSink::GetRoutingParameters() const
+{
+    return DynamicPointerCast<TQueueSinkTabletRoutingParameters>(GetParametersBase());
 }
 
 TDynamicAsyncQueueWriterParametersPtr TAsyncQueueSink::GetDynamicWriterParameters() const

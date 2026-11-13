@@ -433,10 +433,10 @@ class TestQueueConnector(FlowTestBase):
             pytest.param(4, 2, True, id="2c_4w_unstable"),
         ],
     )
-    def test_sharded_write_sync(self, workers_count, controllers_count, problems):
-        # Exercises TSyncQueueSink's single-pass $tablet_index write (payload columns written directly).
+    @pytest.mark.parametrize("sync", [True, False])
+    def test_sharded_write(self, workers_count, controllers_count, problems, sync):
         pipeline_config_path = self.prepare_swift_pipeline_config(
-            True,
+            sync,
             extra_sink_params={
                 "tablet_index_routing_hash_policy": "range",
                 "tablet_index_routing_hash_expression": "farm_hash(data)",

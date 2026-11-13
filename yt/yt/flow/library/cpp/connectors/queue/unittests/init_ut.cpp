@@ -45,6 +45,36 @@ TEST(TAsyncMultiClusterQueueSinkParametersTest, RejectsDuplicateClusters)
         "Duplicate cluster");
 }
 
+TEST(TAsyncMultiClusterQueueSinkParametersTest, RequiresExplicitTabletCountForHashRoutingWithClustersOnly)
+{
+    auto parameters = ConvertToNode(TYsonStringBuf(R"yson({
+        queue_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//queue";
+        producer_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//producer";
+        use_clusters = %true;
+        tablet_index_routing_hash_expression = "farm_hash(data)";
+        tablet_index_routing_hash_policy = modulo;
+    })yson"))
+        ->AsMap();
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TAsyncMultiClusterQueueSinkParametersPtr>(parameters),
+        "requires an explicit \"tablet_count\"");
+
+    parameters->AddChild("tablet_count", ConvertToNode(2));
+    EXPECT_NO_THROW(ConvertTo<TAsyncMultiClusterQueueSinkParametersPtr>(parameters));
+}
+
+TEST(TAsyncMultiClusterQueueSinkParametersTest, RejectsVerbatimRoutingWithClustersOnly)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TAsyncMultiClusterQueueSinkParametersPtr>(TYsonStringBuf(R"({
+            queue_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//queue";
+            producer_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//producer";
+            use_clusters = %true;
+            tablet_index_expression = "shard";
+        })")),
+        "is not supported when queue clusters are specified only by \"clusters\"");
+}
+
 TEST(TAsyncMultiClusterQueueSinkParametersTest, RejectsFlowQueueMetaWithAtMostOnce)
 {
     EXPECT_THROW_WITH_SUBSTRING(
@@ -162,6 +192,15 @@ public:
     {
         auto promise = NewPromise<void>();
         Writer->Write(std::move(row), std::move(messageId), BIND([promise] {
+            promise.Set();
+        }));
+        return promise.ToFuture();
+    }
+
+    TFuture<void> WriteRows(TAsyncQueueWriter::TRows rows, TMessageId lastMessageId)
+    {
+        auto promise = NewPromise<void>();
+        Writer->WriteRows(std::move(rows), std::move(lastMessageId), BIND([promise] {
             promise.Set();
         }));
         return promise.ToFuture();
@@ -765,7 +804,10 @@ TEST(TAsyncQueueSinkTest, RestoresProducerAndFiltersReplayAfterExternalCommit)
     auto client = New<StrictMock<TMockClient>>();
     TQueueWriterTest test("AsyncQueueSinkReplayTest", New<TFixedClientsCache>(client));
     const TStreamId streamId("input");
-    auto schema = New<TTableSchema>(std::vector{TColumnSchema("value", EValueType::Int64)});
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("value", EValueType::Int64),
+        TColumnSchema("shard", EValueType::Uint64),
+    });
     auto streamSpec = New<TStreamSpec>();
     streamSpec->Schema = schema;
     THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>> streamSpecs;
@@ -780,6 +822,10 @@ TEST(TAsyncQueueSinkTest, RestoresProducerAndFiltersReplayAfterExternalCommit)
         parameters = {
             queue_path = "<cluster=test>//queue";
             producer_path = "<cluster=test>//producer";
+            column_filter = [value];
+            tablet_index_routing_hash_expression = "shard";
+            tablet_index_routing_hash_policy = "modulo";
+            tablet_count = 2;
         };
     })"));
     test.Context->Logger = NLogging::TLogger("AsyncQueueSinkReplayTest");
@@ -819,7 +865,10 @@ TEST(TAsyncQueueSinkTest, RestoresProducerAndFiltersReplayAfterExternalCommit)
                 options.UserMeta->AsMap()->GetChildValueOrThrow<std::string>("last_message_id"),
                 pushCount == 1 ? "m2" : "m3");
             for (auto row : rows) {
-                writtenValues.push_back(FromUnversionedValue<i64>(row[0]));
+                auto value = FromUnversionedValue<i64>(row[0]);
+                writtenValues.push_back(value);
+                EXPECT_EQ(row.GetCount(), 2);
+                EXPECT_EQ(FromUnversionedValue<i64>(row[1]), value % 2);
             }
             return MakeFuture(TPushQueueProducerResult{
                 .LastSequenceNumber = NQueueClient::TQueueProducerSequenceNumber(pushCount == 1 ? 2 : 3),
@@ -853,6 +902,7 @@ TEST(TAsyncQueueSinkTest, RestoresProducerAndFiltersReplayAfterExternalCommit)
                 builder.SetAlignmentTimestamp(TSystemTimestamp(1));
                 builder.SetEventTimestamp(TSystemTimestamp(1));
                 builder.Payload().Set<i64>(id, "value");
+                builder.Payload().Set<ui64>(id % 2, "shard");
                 sink->Distribute(
                     New<TOutputMessage>(builder.Finish(), test.Context->StreamSpecStorage),
                     TOnDistributedCallback::FromCallback([callbackCount, allDistributed, messageCount] {
@@ -883,6 +933,98 @@ TEST(TAsyncQueueSinkTest, RestoresProducerAndFiltersReplayAfterExternalCommit)
     ASSERT_EQ(std::ssize(sessionIds), 2);
     EXPECT_EQ(sessionIds[0], sessionIds[1]);
     EXPECT_EQ(writtenValues, (std::vector<i64>{1, 2, 3}));
+}
+
+TEST(TAsyncQueueSinkTest, SkipsCommittedReplayBeforeRoutingAfterQueueShrink)
+{
+    auto client = New<StrictMock<TMockClient>>();
+    TQueueWriterTest test("AsyncQueueSinkShrinkReplayTest", New<TFixedClientsCache>(client));
+    const TStreamId streamId("input");
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("value", EValueType::Int64),
+        TColumnSchema("shard", EValueType::Uint64),
+    });
+    auto streamSpec = New<TStreamSpec>();
+    streamSpec->Schema = schema;
+    THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>> streamSpecs;
+    streamSpecs[streamId][TStreamSpecId(1)] = streamSpec;
+    test.Context->StreamSpecStorage = New<TComputationStreamSpecStorage>(
+        New<TStreamSpecs>(std::move(streamSpecs)),
+        New<TTableSchema>(),
+        /*evaluatorCache*/ nullptr);
+    test.Context->SinkSpec = ConvertTo<TSinkSpecPtr>(TYsonStringBuf(R"({
+        sink_class_name = "NYT::NFlow::TAsyncQueueSink";
+        input_stream_ids = [input];
+        parameters = {
+            queue_path = "<cluster=test>//queue";
+            producer_path = "<cluster=test>//producer";
+            column_filter = [value];
+            tablet_index_expression = "shard";
+        };
+    })"));
+    test.Context->Logger = NLogging::TLogger("AsyncQueueSinkShrinkReplayTest");
+    test.Context->StatusProfiler = test.StatusProfiler;
+    auto dynamicContext = New<TDynamicSinkContext>();
+    dynamicContext->DynamicSinkSpec = ConvertTo<TDynamicSinkSpecPtr>(TYsonStringBuf(R"({
+        parameters = {write_period = "1ms";};
+    })"));
+
+    // m1 was committed to tablet 1 before the queue shrank to one tablet.
+    EXPECT_CALL(*client, CreateQueueProducerSession(_, _, _, _))
+        .WillOnce(Return(MakeFuture(TCreateQueueProducerSessionResult{
+            .SequenceNumber = NQueueClient::TQueueProducerSequenceNumber(0),
+            .Epoch = NQueueClient::TQueueProducerEpoch(1),
+            .UserMeta = ConvertToNode(THashMap<std::string, std::string>{{"last_message_id", "m1"}}),
+        })));
+    EXPECT_CALL(*client, GetNode("//queue/@tablet_count", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(1))));
+    auto transaction = New<StrictMock<TMockTransaction>>();
+    EXPECT_CALL(*client, StartTransaction(_, _))
+        .WillOnce(Return(MakeFuture<ITransactionPtr>(transaction)));
+    EXPECT_CALL(*transaction, PushQueueProducer(_, _, _, _, _, A<TSharedRange<TUnversionedRow>>(), _))
+        .WillOnce(WithArg<5>([&] (TSharedRange<TUnversionedRow> rows) {
+            EXPECT_EQ(rows.Size(), 1u);
+            EXPECT_EQ(FromUnversionedValue<i64>(rows[0][0]), 2);
+            EXPECT_EQ(FromUnversionedValue<i64>(rows[0][1]), 0);
+            return MakeFuture(TPushQueueProducerResult{
+                .LastSequenceNumber = NQueueClient::TQueueProducerSequenceNumber(1),
+                .SkippedRowCount = 0,
+            });
+        }));
+    EXPECT_CALL(*transaction, Commit(_))
+        .WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
+
+    auto sink = New<TAsyncQueueSink>(test.Context, dynamicContext);
+    sink->Init(test.StateManager->CreateContext());
+    auto allDistributed = NewPromise<void>();
+    auto callbackCount = std::make_shared<std::atomic<int>>(0);
+    NConcurrency::WaitFor(BIND([&] {
+        for (int id = 1; id <= 2; ++id) {
+            TMessageBuilder builder(streamId, schema);
+            builder.SetMessageId(TMessageId(Format("m%v", id)));
+            builder.SetSystemTimestamp(TSystemTimestamp(1));
+            builder.SetAlignmentTimestamp(TSystemTimestamp(1));
+            builder.SetEventTimestamp(TSystemTimestamp(1));
+            builder.Payload().Set<i64>(id, "value");
+            builder.Payload().Set<ui64>(id == 1 ? 1 : 0, "shard");
+            sink->Distribute(
+                New<TOutputMessage>(builder.Finish(), test.Context->StreamSpecStorage),
+                TOnDistributedCallback::FromCallback([callbackCount, allDistributed] {
+                    if (++*callbackCount == 2) {
+                        allDistributed.TrySet();
+                    }
+                }));
+        }
+        sink->Sync(nullptr);
+        sink->Commit();
+    }).AsyncVia(test.Queue->GetInvoker())
+            .Run()
+            .WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    NConcurrency::WaitFor(allDistributed.ToFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    EXPECT_EQ(callbackCount->load(), 2);
+    sink.Reset();
 }
 
 TEST(TAsyncQueueWriterTest, ReleasesQueuedRequestsWhenDestroyed)
@@ -1026,8 +1168,13 @@ TEST(TAsyncQueueWriterTest, InitializesSessionAsynchronouslyAndRetriesOneMutatio
         TMessageId());
 }
 
-TEST(TAsyncQueueWriterTest, RefreshesSessionAfterUnknownCommitOutcome)
+class TAsyncQueueWriterReplayTest
+    : public testing::TestWithParam<int>
+{ };
+
+TEST_P(TAsyncQueueWriterReplayTest, RefreshesSessionAfterUnknownCommitOutcome)
 {
+    int rowsPerRequest = GetParam();
     auto client = New<StrictMock<TMockClient>>();
     int sessionCount = 0;
     std::optional<NQueueClient::TQueueProducerSessionId> initialSessionId;
@@ -1050,7 +1197,7 @@ TEST(TAsyncQueueWriterTest, RefreshesSessionAfterUnknownCommitOutcome)
                 EXPECT_TRUE(options.Retry);
             }
             return MakeFuture(TCreateQueueProducerSessionResult{
-                .SequenceNumber = NQueueClient::TQueueProducerSequenceNumber(sessionCount == 1 ? 10 : 12),
+                .SequenceNumber = NQueueClient::TQueueProducerSequenceNumber(sessionCount == 1 ? 10 : 10 + 2 * rowsPerRequest),
                 .Epoch = NQueueClient::TQueueProducerEpoch(7),
                 .UserMeta = ConvertToNode(THashMap<std::string, std::string>{{"last_message_id", sessionCount == 1 ? "m5" : "m7"}}),
             });
@@ -1075,14 +1222,14 @@ TEST(TAsyncQueueWriterTest, RefreshesSessionAfterUnknownCommitOutcome)
             const int call = pushCount++;
             EXPECT_TRUE(options.SequenceNumber);
             if (options.SequenceNumber) {
-                EXPECT_EQ(options.SequenceNumber->Underlying(), call == 1 ? 13 : 11);
+                EXPECT_EQ(options.SequenceNumber->Underlying(), call == 1 ? 11 + 2 * rowsPerRequest : 11);
             }
             EXPECT_EQ(
                 options.UserMeta->AsMap()->GetChildValueOrThrow<std::string>("last_message_id"),
                 call == 1 ? "m8" : "m7");
-            EXPECT_EQ(rows.Size(), call == 1 ? 1 : 2);
+            EXPECT_EQ(rows.Size(), (call == 1 ? 1 : 2) * rowsPerRequest);
             return MakeFuture(TPushQueueProducerResult{
-                .LastSequenceNumber = NQueueClient::TQueueProducerSequenceNumber(call == 1 ? 13 : 12),
+                .LastSequenceNumber = NQueueClient::TQueueProducerSequenceNumber(call == 1 ? 10 + 3 * rowsPerRequest : 10 + 2 * rowsPerRequest),
                 .SkippedRowCount = 0,
             });
         });
@@ -1092,23 +1239,32 @@ TEST(TAsyncQueueWriterTest, RefreshesSessionAfterUnknownCommitOutcome)
 
     TQueueWriterTest test("AsyncQueueWriterMessageIdTest", New<TFixedClientsCache>(client));
     test.Parameters->RequireSyncReplica = true;
-    test.DynamicParameters->MaxRowsPerWrite = 2;
+    test.DynamicParameters->MaxRowsPerWrite = 2 * rowsPerRequest;
     test.InitWriter();
     EXPECT_EQ(
         NConcurrency::WaitFor(test.Writer->GetInitialMessageId())
             .ValueOrThrow(),
         TMessageId("m5"));
-    auto first = test.Write(test.MakeRow(1), TMessageId("m6"));
-    auto second = test.Write(test.MakeRow(2), TMessageId("m7"));
+    auto write = [&] (const char* lastMessageId) {
+        TAsyncQueueWriter::TRows rows;
+        for (int index = 0; index < rowsPerRequest; ++index) {
+            rows.push_back(test.MakeRow(index));
+        }
+        return test.WriteRows(std::move(rows), TMessageId(lastMessageId));
+    };
+    auto first = write("m6");
+    auto second = write("m7");
     NConcurrency::WaitFor(first.WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     NConcurrency::WaitFor(second.WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
-    NConcurrency::WaitFor(test.Write(test.MakeRow(3), TMessageId("m8"))
+    NConcurrency::WaitFor(write("m8")
             .WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     EXPECT_EQ(pushCount, 2);
 }
+
+INSTANTIATE_TEST_SUITE_P(AtomicRows, TAsyncQueueWriterReplayTest, testing::Values(1, 3));
 
 TEST(TAsyncQueueSinkTest, FailsSyncAndCommitAfterProducerIsFenced)
 {

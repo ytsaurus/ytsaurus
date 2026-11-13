@@ -83,6 +83,12 @@ To write messages to a queue in a [sink](../../../flow/concepts/glossary.md#sink
 
 There are two sink options: synchronous (`NYT::NFlow::TSyncQueueSink`) and asynchronous (`NYT::NFlow::TAsyncQueueSink`). Writing to a synchronous sink happens in the main transaction of the [epoch](../../../flow/concepts/glossary.md#epoch). This is efficient, but you can only write to a queue on the main processing cluster. Writing to an asynchronous sink happens after the main epoch transaction, using messages stored in output messages. This is more resource-intensive, but you can write to a queue on any cluster.
 
+### Choosing the output shard
+
+Synchronous and asynchronous sinks support `tablet_index_expression` for an explicit tablet index and `tablet_index_routing_hash_expression` for routing by a key hash. For asynchronous writes, specify the target cluster in `queue_path` and `producer_path`; it may differ from the pipeline cluster.
+
+To preserve an object's event order after a restart, keep its grouping key throughout the processing path, use strict distribution ordering (`distribution_ordering = strict`), and keep the tablet assignment stable. Routing does not order independent sources. Changing the tablet count or routing expression may change the object's assignment; an explicit `tablet_count` avoids automatic remapping after resharding. With `at_most_once_strategy` enabled, order across a job handoff is not guaranteed and messages may be dropped.
+
 ### Parameters for synchronous sink specs
 
 #### Static spec

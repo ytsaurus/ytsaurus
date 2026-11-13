@@ -23,10 +23,10 @@ How often the controller will write heartbeats with meta containing watermarks t
  ||
 || `max_rows_per_write` | **Type**: `long`
 **Default value**: `1000`
- ||
+Soft limit on physical rows per write. An atomic group of routed rows is not split and may exceed this limit. ||
 || `max_bytes_per_write` | **Type**: `long`
 **Default value**: `1048576`
- ||
+Soft limit on bytes per write. An atomic group of routed rows is not split and may exceed this limit. ||
 || `backoff_duration` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1s`
  ||
