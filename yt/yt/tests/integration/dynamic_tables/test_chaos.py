@@ -1376,14 +1376,31 @@ class TestChaos(ChaosTestBase):
         replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         assert len(replica_ids) == 2
 
+        self._create_sorted_table("//tmp/t", upstream_replica_id=replica_ids[0])
+
+        card_attributes = (
+            "era",
+            "coordinator_cell_ids",
+            "replicas",
+            "replication_collocation_id",
+            "replicated_table_options",
+            "collocated_replication_card_ids",
+        )
+        assert builtins.set(card_attributes) <= builtins.set(ls("//tmp/t/@"))
+
         wait(lambda: get("#{0}/@era".format(card_id)) == 1)
 
         assert get("//tmp/crt/@era") == get("#{0}/@era".format(card_id))
         wait(lambda: get("//tmp/crt/@coordinator_cell_ids") == get("#{0}/@coordinator_cell_ids".format(card_id)))
+        for attribute in card_attributes:
+            if attribute != "replicas":
+                assert get("//tmp/t/@" + attribute) == get("//tmp/crt/@" + attribute)
         card = get("#{0}/@".format(card_id))
 
         crt_replicas = get("//tmp/crt/@replicas")
+        table_replicas = get("//tmp/t/@replicas")
         assert len(crt_replicas) == 2
+        assert len(table_replicas) == 2
 
         def _assert_replicas_equal(lhs, rhs):
             return all(lhs[key] == rhs[key] for key in ("cluster_name", "replica_path", "mode", "state", "content_type"))
@@ -1392,7 +1409,8 @@ class TestChaos(ChaosTestBase):
             replica = card["replicas"][replica_id]
             del replica["history"]
             del replica["replication_progress"]
-            _assert_replicas_equal(replica, crt_replicas[replica_id])
+            assert _assert_replicas_equal(replica, crt_replicas[replica_id])
+            assert _assert_replicas_equal(table_replicas[replica_id], crt_replicas[replica_id])
 
     @authors("babenko")
     def test_chaos_replicated_table_replication_card_ownership(self):
@@ -3773,9 +3791,16 @@ class TestChaos(ChaosTestBase):
         })
 
         cards = sorted([card1, card2])
-        for crt in [crt1, crt2]:
+        for crt, table_replicas in [(crt1, replicas1), (crt2, replicas2)]:
             assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
             assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
+
+            replica = table_replicas[0]
+            driver = get_driver(cluster=replica["cluster_name"])
+            path = replica["replica_path"]
+            assert get("{0}/@replication_collocation_id".format(path), driver=driver) == collocation_id
+            assert sorted(get("{0}/@collocated_replication_card_ids".format(path), driver=driver)) == cards
+            assert get("{0}/@replicated_table_options".format(path), driver=driver) == get("{0}/@replicated_table_options".format(crt))
 
         collocation = self._get_chaos_cell_orchid(cell_id, "/chaos_manager/replication_card_collocations/{0}".format(collocation_id))
         assert collocation["state"] == "normal"
