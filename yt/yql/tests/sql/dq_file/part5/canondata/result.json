@@ -412,6 +412,13 @@
             "uri": "https://{canondata_backend}/212715/cf68b4366cedfcd59eab5287d35efc4ecca91dc1/resource.tar.gz#test.test_produce-reduce_multi_in_presort--Plan_/plan.txt"
         }
     ],
+    "test.TestDqFile_ql_filter-exists-.test[Plan]": [
+        {
+            "checksum": "70d6b6cfd9ccab27d159ba4a88d07652",
+            "size": 3705,
+            "uri": "https://{canondata_backend}/1942415/b924a8f7de1141ce4711d00da5cb6f77432b8976/resource.tar.gz#test.TestDqFile_ql_filter-exists-.test_Plan_/plan.txt"
+        }
+    ],
     "test.TestDqFile_ql_filter-integer_bounds-.test[Plan]": [
         {
             "checksum": "53bcb9d7b1a81ca44c9e4143f3a1570f",
