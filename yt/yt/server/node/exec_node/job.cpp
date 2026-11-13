@@ -4149,6 +4149,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
+        error.FindMatching(NExecNode::EErrorCode::UserJobWithoutLayers) ||
         error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::VolumeSizeLimitExceeded) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
@@ -4808,6 +4809,26 @@ bool TJob::HasUserJobSpec() const noexcept
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return HasUserJobSpec_;
+}
+
+bool TJob::HasRootVolumeLayers() const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (!UserJobSpec_) {
+        return false;
+    }
+
+    const auto& volumes = UserJobSpec_->volumes();
+    for (const auto& volumeMount : FSSecretary_->GetJobVolumeMounts()) {
+        if (volumeMount->MountPath != TAbsoluteNormalizedPath("/")) {
+            continue;
+        }
+
+        auto volumeIt = volumes.find(volumeMount->VolumeId);
+        return volumeIt != volumes.end() && !volumeIt->second.layers().empty();
+    }
+    return false;
 }
 
 std::vector<TTmpfsVolumeSpec> TJob::ParseTmpfsVolumeSpecs(

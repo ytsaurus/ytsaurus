@@ -60,6 +60,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NbdServerDisabledOnNode)               (1149))
     ((OverlayLayerPreparationFailed)         (1150))
     ((InvalidNbdDiskRequest)                 (1151))
+    ((UserJobWithoutLayers)                  (1152))
 );
 
 // COMPAT(pogorelov): Remove in 26.3.

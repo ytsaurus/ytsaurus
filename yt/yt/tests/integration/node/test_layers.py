@@ -109,6 +109,270 @@ class TestPortoLayersBase(TestLayersBase):
     }
 
 
+class TestPortoUserJobRootLayers(TestPortoLayersBase):
+    DELTA_NODE_CONFIG = update(
+        TestPortoLayersBase.DELTA_NODE_CONFIG,
+        {
+            "data_node": {
+                "volume_manager": {
+                    "enable_disk_quota": False,
+                },
+            },
+        },
+    )
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        remove_default_layer_path()
+        update_controller_agent_config("system_layer_path", None)
+
+    @authors("pogorelov")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("non_root_layer", [False, True])
+    def test_user_job_without_root_layers_fails(self, non_root_layer):
+        task = {
+            "job_count": 1,
+            "command": "echo USER_CODE_RAN >&2",
+        }
+        if non_root_layer:
+            self.setup_files()
+            task.update(
+                {
+                    "volumes": {
+                        "root": {
+                            "layers": [],
+                        },
+                        "extra": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1",
+                                },
+                            ],
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 16 * 1024 * 1024,
+                            },
+                        },
+                    },
+                    "job_volume_mounts": [
+                        {
+                            "volume_id": "root",
+                            "mount_path": "/",
+                        },
+                        {
+                            "volume_id": "extra",
+                            "mount_path": "/extra",
+                        },
+                    ],
+                },
+            )
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": task,
+                },
+            },
+            track=False,
+        )
+        with raises_yt_error("User job in Porto environment requires at least one root filesystem layer"):
+            op.track()
+        assert op.get_state() == "failed"
+        assert op.get_job_count("failed") == 1
+        assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("layer_source", ["explicit", "image"])
+    def test_user_job_with_one_root_layer(self, layer_source):
+        task = {
+            "job_count": 1,
+            "command": "echo USER_CODE_RAN >&2",
+        }
+        if layer_source == "explicit":
+            task["layer_paths"] = [ROOTFS_LAYER_PATH]
+        else:
+            create(
+                "document",
+                "//tmp/root-image/_tags",
+                recursive=True,
+                attributes={
+                    "value": {
+                        "tag": [ROOTFS_LAYER_PATH],
+                    },
+                },
+            )
+            task["docker_image"] = "tmp/root-image:tag"
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": task,
+                },
+            },
+        )
+        assert op.get_job_count("completed") == 1
+        job_id, = op.list_jobs()
+        assert b"USER_CODE_RAN" in op.read_stderr(job_id)
+
+    @authors("pogorelov")
+    def test_user_job_with_empty_non_root_volume(self):
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "echo NON_ROOT_OK > /extra/probe && cat /extra/probe >&2",
+                        "volumes": {
+                            "root": {
+                                "layers": [
+                                    {
+                                        "path": ROOTFS_LAYER_PATH,
+                                    },
+                                ],
+                            },
+                            "extra": {
+                                "layers": [],
+                                "disk_request": {
+                                    "type": "tmpfs",
+                                    "disk_space": 1024 * 1024,
+                                },
+                            },
+                        },
+                        "job_volume_mounts": [
+                            {
+                                "volume_id": "root",
+                                "mount_path": "/",
+                            },
+                            {
+                                "volume_id": "extra",
+                                "mount_path": "/extra",
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+        assert op.get_job_count("completed") == 1
+        job_id, = op.list_jobs()
+        assert b"NON_ROOT_OK" in op.read_stderr(job_id)
+
+    @authors("pogorelov")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("main_root_has_layers", [False, True])
+    def test_main_job_root_layers_with_sidecar(self, main_root_has_layers):
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "echo MAIN_CODE_RAN >&2",
+                        "volumes": {
+                            "main_root": {
+                                "layers": [
+                                    {
+                                        "path": ROOTFS_LAYER_PATH,
+                                    },
+                                ] if main_root_has_layers else [],
+                            },
+                            "sidecar_root": {
+                                "layers": [] if main_root_has_layers else [
+                                    {
+                                        "path": ROOTFS_LAYER_PATH,
+                                    },
+                                ],
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 64 * 1024 * 1024,
+                                },
+                            },
+                        },
+                        "job_volume_mounts": [
+                            {
+                                "volume_id": "main_root",
+                                "mount_path": "/",
+                            },
+                        ],
+                        "sidecars": {
+                            "sidecar": {
+                                "command": "sleep 1000",
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+            track=False,
+        )
+        if main_root_has_layers:
+            op.track()
+            assert op.get_job_count("completed") == 1
+            job_id, = op.list_jobs()
+            assert b"MAIN_CODE_RAN" in op.read_stderr(job_id)
+        else:
+            with raises_yt_error("User job in Porto environment requires at least one root filesystem layer"):
+                op.track()
+            assert op.get_state() == "failed"
+            assert op.get_job_count("failed") == 1
+            assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    def test_builtin_job_without_layers(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+        write_table(
+            "//tmp/input",
+            [
+                {
+                    "key": 2,
+                },
+                {
+                    "key": 1,
+                },
+            ],
+        )
+        op = sort(in_="//tmp/input", out="//tmp/output", sort_by="key")
+        assert op.get_job_count("completed") > 0
+        assert read_table("//tmp/output") == [
+            {
+                "key": 1,
+            },
+            {
+                "key": 2,
+            },
+        ]
+
+
+class TestSimpleUserJobWithoutLayers(TestLayersBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    @authors("pogorelov")
+    def test_user_job_without_layers(self):
+        remove_default_layer_path()
+        update_controller_agent_config("system_layer_path", None)
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "echo USER_CODE_RAN >&2",
+                    },
+                },
+            },
+        )
+        assert op.get_job_count("completed") == 1
+        job_id, = op.list_jobs()
+        assert b"USER_CODE_RAN" in op.read_stderr(job_id)
+
+
 class TestLayers(TestPortoLayersBase):
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
@@ -676,20 +940,13 @@ class TestPrivateDirectory(TestLayersBase):
     )
 
     @authors("dann239")
-    @pytest.mark.parametrize(
-        ("use_rootfs", "disable_rbind_root_volume"),
-        [(False, False), (True, False), (True, True)],
-    )
-    def test_private_directory(self, use_rootfs, disable_rbind_root_volume):
-        layer_paths = []
-        if use_rootfs:
-            create("file", "//tmp/exec.tar.gz")
-            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-            create("file", "//tmp/rootfs.tar.gz")
-            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-            layer_paths = ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"]
-        else:
-            remove_default_layer_path()
+    @pytest.mark.parametrize("disable_rbind_root_volume", [False, True])
+    def test_private_directory(self, disable_rbind_root_volume):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+        layer_paths = ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"]
 
         create("file", "//tmp/script.py")
         write_file("//tmp/script.py", self._SCRIPT.encode())
@@ -2425,6 +2682,111 @@ class TestNbdDiskBase(YTEnvSetup):
 
 
 ##################################################################
+
+
+class TestPortoMainJobRootLayersWithNbdSidecar(TestNbdDiskBase):
+    NUM_MASTERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_file_replication_factor": 1,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = update(
+        TestNbdDiskBase.DELTA_CONTROLLER_AGENT_CONFIG,
+        {
+            "controller_agent": {
+                "vanilla_operation_options": {
+                    "user_job": {
+                        "journal_nbd": {
+                            "enable": False,
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            "path": _make_random_uds_path(),
+                        },
+                    },
+                },
+                # If the main-root guard is bypassed, fail before importing layers or creating an NBD volume.
+                "slot_manager": {
+                    "volume_manager": {
+                        "throw_on_prepare_layers": True,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    @pytest.mark.timeout(180)
+    def test_nbd_sidecar_layers_do_not_replace_main_root_layers(self):
+        remove_default_layer_path()
+        update_controller_agent_config("system_layer_path", None)
+        op = vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": True,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "echo MAIN_CODE_RAN >&2",
+                        "volumes": {
+                            "main_root": {
+                                "layers": [],
+                            },
+                            "sidecar_root": {
+                                "layers": [
+                                    {
+                                        "path": ROOTFS_LAYER_PATH,
+                                    },
+                                ],
+                                "disk_request": {
+                                    "type": "nbd",
+                                    "medium_name": "ssd_nbd",
+                                    "disk_space": 64 * 1024 * 1024,
+                                    "nbd_disk": {},
+                                },
+                            },
+                        },
+                        "job_volume_mounts": [
+                            {
+                                "volume_id": "main_root",
+                                "mount_path": "/",
+                            },
+                        ],
+                        "sidecars": {
+                            "sidecar": {
+                                "command": "sleep 1000",
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+            track=False,
+        )
+        with raises_yt_error("User job in Porto environment requires at least one root filesystem layer"):
+            op.track()
+        assert op.get_state() == "failed"
+        assert op.get_job_count("failed") == 1
+        assert op.get_job_count("aborted") == 0
 
 
 @authors("yuryalekseev")
