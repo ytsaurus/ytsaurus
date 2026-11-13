@@ -4,6 +4,14 @@
 
 ## Что потребуется {#prerequisites}
 
+До запуска создайте корневой узел пайплайна по настроенному `path`. Он нужен для сохранения манифеста. См. [подготовку объектов пайплайна](../../../../flow/cpp/examples/wait_click_join.md#yt-sync).
+
+{% if audience == "internal" %}
+
+Создавайте корневой узел вместе с объектами пайплайна через конфигурацию пайплайна в [YtSync]({{yt-sync-docs}}/).
+
+{% endif %}
+
 Конфигурационный файл:
 
 * `pipeline.yson` — [runner config](../../../../flow/concepts/spec.md#runner-config) со спекой пайплайна. Чтобы пайплайн запустился в vanilla-операции, в нём должен быть блок `vanilla` с `enable = %true` (см. [Как включить](#enable)). Отдельный `config.yson` не нужен — node config внутри джоб строится автоматически.
@@ -85,6 +93,10 @@ JVM-раннер дополняет параметры JDK и classpath толь
 Полный список полей — в [TVanillaConfig](../../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) и [TVanillaTaskConfig](../../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig).
 
 При запуске `flow_server` сам валидирует спеку, создаёт vanilla-операцию с двумя задачами (controller и worker), устанавливает спеку пайплайна и стартует его.
+
+## Доступ читателей к операции {#operation-acl}
+
+Если вы задаёте явный ACL операции, до запуска убедитесь, что его субъекты существуют на кластере исполнения. Выбор политики и проверка прав читателя описаны в разделе [Чтение логов и артефактов операции](../../../../flow/devops/vanilla/security.md#operation-acl).
 
 ## Дополнительные параметры {#advanced-config}
 

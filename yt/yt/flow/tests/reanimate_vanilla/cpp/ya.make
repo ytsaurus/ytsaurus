@@ -35,7 +35,7 @@ TAG(ya:huge_logs)
 
 # Each vanilla test starts its own local YT; keep its time budget independent of the other cases.
 FORK_SUBTESTS()
-SPLIT_FACTOR(4)
+SPLIT_FACTOR(19)
 
 SIZE(MEDIUM)
 

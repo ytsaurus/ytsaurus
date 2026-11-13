@@ -45,6 +45,8 @@ Aliases for proxy URLs, injected into the flow-server inside the vanilla jobs. |
 || `secret_env` | **Type**: `std::vector<std::string>`
 **Default value**: `[]`
  ||
+|| `acl` | **Type**: `std::optional<NYT::NSecurityClient::TSerializableAccessControlList>`
+Optional operation ACL. Omitted or `#` leaves the ACL unspecified and preserves scheduler defaults. `[]` submits an explicit empty ACL. A nonempty list supplies the complete explicit policy with native `read`, `manage`, and `administer` permissions. Pipeline ACLs are not copied. See [operation access](../devops/vanilla/security.md#operation-acl). ||
 || `node_config` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
 An arbitrary YSON patch applied on top of the default `TFlowNodeConfig` inside the vanilla jobs. ||
 |#

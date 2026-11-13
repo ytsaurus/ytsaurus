@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/client/security_client/acl.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -66,7 +68,10 @@ struct TVanillaSpec
     //! rebuilt from the environment at operation start. Values never enter the spec.
     std::vector<std::string> SecretEnv;
     std::vector<TVanillaTaskSpec> Tasks;
+    std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
 };
+
+void ValidateVanillaOperationAcl(const NSecurityClient::TSerializableAccessControlList& acl);
 
 //! Builds the YT vanilla operation spec node (the same shape `RunVanilla` materialized, assembled
 //! directly so the launcher and reanimate submit it via `StartOperation`). The result carries only

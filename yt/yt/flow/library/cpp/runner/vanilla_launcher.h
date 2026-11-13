@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/cache/public.h>
 
+#include <yt/yt/client/security_client/acl.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/size.h>
@@ -116,6 +118,8 @@ struct TVanillaConfig
     //! the job they are re-exported as plain env vars (e.g. TVM_SECRET for Logbroker/TVM access).
     //! YT_TOKEN need not be listed here — it is always delivered by a separate built-in mechanism.
     std::vector<std::string> SecretEnv;
+
+    std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
 
     //! Optional patch merged on top of the auto-built TFlowNodeConfig.
     //! Useful for tests and edge cases where the default config needs tweaks.

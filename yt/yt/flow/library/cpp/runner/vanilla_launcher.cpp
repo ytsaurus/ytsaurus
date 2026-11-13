@@ -21,6 +21,9 @@
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -47,10 +50,12 @@
 #include <util/stream/file.h>
 
 #include <functional>
+#include <set>
 
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
+using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -144,6 +149,45 @@ void ShutdownPriorVanillaOperation(
         WaitPipelineState(pipelineTarget, pipelinePath, EPipelineState::Paused, waitTimeout);
     }
     WaitFor(opClient->AbortOperation(opIdOrAlias)).ThrowOnError();
+}
+
+constexpr int MaxReportedMissingSubjects = 10;
+
+void PreflightVanillaOperationAcl(
+    const NApi::IClientPtr& runtimeClient,
+    const std::string& runtimeCluster,
+    const TSerializableAccessControlList& acl)
+{
+    if (acl.Entries.empty()) {
+        return;
+    }
+
+    auto aclNode = ConvertToNode(acl);
+    NApi::TCheckPermissionByAclOptions options;
+    options.IgnoreMissingSubjects = true;
+
+    std::set<std::string> missingSubjects;
+    try {
+        for (auto permission : {EPermission::Read, EPermission::Manage, EPermission::Administer}) {
+            auto result = WaitFor(runtimeClient->CheckPermissionByAcl(/*user*/ std::nullopt, permission, aclNode, options))
+                .ValueOrThrow();
+            missingSubjects.insert(result.MissingSubjects.begin(), result.MissingSubjects.end());
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Cannot use vanilla operation ACL on runtime cluster %Qv: ACL check failed",
+            runtimeCluster)
+            .With(TError(ex));
+    }
+
+    if (!missingSubjects.empty()) {
+        std::vector<std::string> reportedSubjects(
+            missingSubjects.begin(),
+            std::next(missingSubjects.begin(), std::min<int>(std::ssize(missingSubjects), MaxReportedMissingSubjects)));
+        THROW_ERROR_EXCEPTION("Cannot use vanilla operation ACL on runtime cluster %Qv: subjects %v do not exist there",
+            runtimeCluster,
+            reportedSubjects)
+            .With("missing_subject_count", missingSubjects.size());
+    }
 }
 
 //! Logging config for a vanilla job: a rotated, zstd-compressed info-level log under the job
@@ -381,6 +425,9 @@ void TVanillaConfig::Register(TRegistrar registrar)
     registrar.Parameter("secret_env", &TThis::SecretEnv)
         .Default();
 
+    registrar.Parameter("acl", &TThis::Acl)
+        .Default();
+
     registrar.Parameter("node_config", &TThis::NodeConfigPatch)
         .Default();
 
@@ -395,6 +442,9 @@ void TVanillaConfig::Register(TRegistrar registrar)
             if (!config->Worker->PortCount) {
                 config->Worker->PortCount = DefaultWorkerPortCount;
             }
+        }
+        if (config->Acl) {
+            ValidateVanillaOperationAcl(*config->Acl);
         }
     });
 }
@@ -502,6 +552,14 @@ TVanillaOperationHandle LaunchInVanillaJob(
     auto pipelineClient = GetClusterClient(clientsCache, pipelineCluster, proxyRole);
     auto runtimeClient = GetClusterClient(clientsCache, runtimeCluster, runtimeProxyRole);
 
+    auto operationAcl = vanillaConfig->Acl;
+    if (operationAcl) {
+        ValidateVanillaOperationAcl(*operationAcl);
+        YT_TLOG_INFO("Using explicit vanilla operation ACL")
+            .With("EntryCount", operationAcl->Entries.size());
+        PreflightVanillaOperationAcl(runtimeClient, runtimeCluster, *operationAcl);
+    }
+
     auto filesDir = GetVanillaFilesDir(pipelinePath.GetPath());
     auto aliasingConfig = BuildProxyUrlAliasingConfig(vanillaConfig->ProxyUrlAliasingRules);
     auto binaryChecksumOverride = GetBinaryChecksumOverride();
@@ -571,7 +629,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
             });
     };
 
-    auto buildSpec = [&] (std::vector<TVanillaTaskSpec> tasks) {
+    auto buildSpec = [&, operationAcl] (std::vector<TVanillaTaskSpec> tasks) {
         TVanillaSpec spec;
         spec.Pool = vanillaConfig->Pool;
         spec.Alias = alias;
@@ -584,6 +642,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
         spec.UsePorto = !vanillaConfig->Controller->Layers.empty() || !vanillaConfig->Worker->Layers.empty();
         spec.SecretEnv = vanillaConfig->SecretEnv;
         spec.Tasks = std::move(tasks);
+        spec.Acl = operationAcl;
         return spec;
     };
 

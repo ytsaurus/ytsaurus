@@ -94,6 +94,48 @@ The pipeline account needs only the permissions without which the pipeline canâ€
 
 Donâ€™t grant broad permissions, such as `root` on the cluster: if they are compromised, they increase the attack surface.
 
+## Reading operation logs and artifacts {#operation-acl}
+
+Operation `read` covers job stderr and other [operation artifacts](../../../user-guide/storage/access-control.md#managing-operations), including job input and live previews. Reading sandbox logs through job shell also requires `manage`. See [Logs](diagnostics/logs.md). Pipeline control and source-table permissions are separate.
+
+### Operation ACL policy {#operation-acl-policy}
+
+For normal runner launches with `vanilla.enable = %true`, `vanilla.acl` is optional:
+
+- Omitted or `#` leaves the operation ACL unspecified and preserves scheduler defaults.
+- `[]` submits an explicit empty ACL.
+- A nonempty list supplies the complete explicit policy with native operation ACL semantics. Supported permissions are `read`, `manage`, and `administer`.
+
+Flow does not copy pipeline ACLs to the operation. The direct `StartFlowVanillaOperation` API omits `acl` and uses scheduler defaults.
+
+Add this field to the existing `vanilla` block. Replace `<runtime_group>` with an existing group on the runtime cluster. Include all intended readers in the explicit list.
+
+```yson
+acl = [{action = allow; subjects = ["<runtime_group>"]; permissions = [read];}];
+```
+
+### Validation and cluster boundaries {#operation-acl-validation}
+
+Explicit ACL subjects must exist on the runtime cluster (`vanilla.runtime_cluster`, or the pipeline cluster by default). Group memberships and subject tags must match the intended policy there.
+
+Normal launch validates an explicitly configured ACL and checks its subjects before uploads, prior-operation shutdown, or manifest writes. An empty ACL needs no subject checks. For `Cannot use vanilla operation ACL on runtime cluster`, fix the reported identities or cluster access and retry. A denial for the launching user is not itself a validation failure.
+
+### Verify a reader's access {#operation-acl-verification}
+
+After launch, use the intended reader's credentials on the operation cluster. Substitute the immutable operation ID from its UI page and the login returned by `whoami`.
+
+```bash
+yt --proxy <operation_cluster> whoami
+yt --proxy <operation_cluster> check-operation-permission \
+    --operation <operation_id> --user <login> --permission read --format json
+```
+
+Expect `action` to be `allow`. Otherwise, check matching denies, runtime group membership, and tags. If allowed but stderr is unavailable, check [log availability](diagnostics/logs.md#finished-jobs).
+
+### ACL lifetime and recovery {#operation-acl-lifetime}
+
+The saved operation spec preserves the configured ACL, including an explicit empty list or an absent ACL. Configuration changes and binary upgrades do not update running operations. A normal relaunch applies the current configuration. `reanimate_vanilla_operation` reuses the saved ACL without normal-launch preflight. Restore missing runtime subjects and [verify access after recovery](releases.md#reanimate-acl). Use a normal launch to change policy.
+
 ## See also
 
 - [Initial deployment](initial-deploy.md)
