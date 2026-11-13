@@ -288,6 +288,9 @@ public:
 
     bool HasUserJobSpec() const noexcept;
 
+    //! Requires the filesystem description to be configured from the job spec.
+    bool HasRootVolumeLayers() const;
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
