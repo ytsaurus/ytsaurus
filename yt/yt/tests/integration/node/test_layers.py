@@ -899,8 +899,8 @@ class TestRootFS(TestLayersBase):
         assert len(job_ids) == 1
 
         job_id = job_ids[0]
-        stderr_bytes = op.read_stderr(job_id)
-        assert stderr_bytes.decode("ascii").strip() == "my_file"
+        # NB: Stderr may lag behind the breakpoint: the node returns it empty until it marks the job running.
+        wait(lambda: op.read_stderr(job_id).decode("ascii").strip() == "my_file")
 
 
 class TestPrivateDirectory(TestLayersBase):
