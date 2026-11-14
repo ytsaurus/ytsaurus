@@ -244,6 +244,7 @@ void TCompanionComputationBaseAdapter<TBase>::PutJobInfoToCompanion()
     putJobRequest->DynamicComputationSpec = this->GetDynamicSpec();
     putJobRequest->JobStreamSpecs = this->GetContext()->StreamSpecStorage->GetStreamSpecs();
     putJobRequest->CompanionResources = GetRequiredCompanionResourceReferences();
+    putJobRequest->PartitionId = this->GetPartitionId();
 
     auto putJobResponse = CompanionClient_->PutJob(
         putJobRequest,
@@ -316,6 +317,10 @@ TIntrusivePtr<TRequestType> TCompanionComputationBaseAdapter<TBase>::CreateCompa
     request->ComputationSpec = this->GetSpec();
     request->DynamicComputationSpec = this->GetDynamicSpec();
     request->JobStreamSpecs = this->GetContext()->StreamSpecStorage->GetStreamSpecs();
+    request->PartitionId = this->GetPartitionId();
+    // The same epoch state the in-process host exposes through its runtime context.
+    request->CurrentTimestamp = this->GetWatermarkState()->GetCurrentTimestamp();
+    request->EpochUniqueSeqNo = this->GetEpochUniqueSeqNo();
     if (companionResources != PublishedCompanionResourceReferences_)
     {
         // A resource-manager recreation has replaced at least one object.

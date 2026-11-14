@@ -74,6 +74,8 @@ public:
 
     const TJobId& GetJobId() const;
     const TComputationId& GetComputationId() const;
+    //! Partition carried by the job info; null when the job info carries none.
+    const std::optional<TPartitionId>& GetPartitionId() const;
 
     //! Exact direct and transitive companion resources required by the job.
     const std::vector<NCompanion::TCompanionResourceInstanceReference>& GetCompanionResources() const;
@@ -118,6 +120,7 @@ private:
     TDynamicComputationSpecPtr DynamicSpec_;
     TStreamSpecsPtr StreamSpecs_;
     std::vector<NCompanion::TCompanionResourceInstanceReference> CompanionResources_;
+    std::optional<TPartitionId> PartitionId_;
 
     THashSet<std::string> InternalStateNames_;
     THashSet<std::string> ExternalStateNames_;

@@ -26,7 +26,8 @@ public:
         std::string prefix = {},
         NProfiling::TProfiler profiler = {},
         TCompanionServerContextPtr serverContext = {},
-        TComputationId computationId = {});
+        TComputationId computationId = {},
+        std::optional<TPartitionId> partitionId = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
         std::function<IStateHolderPtr()> ctor) const override;
@@ -55,7 +56,7 @@ public:
     //! The id of the computation this companion hosts, as carried by the request.
     TComputationId GetComputationId() const override;
 
-    //! Throws because the wire protocol does not identify a partition.
+    //! The partition carried by the job info; throws when the job info carries none.
     TPartitionId GetPartitionId() const override;
 
 protected:
@@ -75,6 +76,7 @@ private:
     //! constructs the context directly.
     const TCompanionServerContextPtr ServerContext_;
     const TComputationId ComputationId_;
+    const std::optional<TPartitionId> PartitionId_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeInitContext);

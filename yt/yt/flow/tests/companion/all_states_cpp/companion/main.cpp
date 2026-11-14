@@ -14,7 +14,22 @@ namespace NYT::NFlow::NCompanionTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Enriches source rows with partition-local sequence numbers and joined metadata.
+//! Fails the batch unless the worker sent the epoch timestamp, and the sequence number when
+//! |requireSeqNo| is set.
+void ValidateEpochState(const IRuntimeContextPtr& context, bool requireSeqNo)
+{
+    THROW_ERROR_EXCEPTION_IF(context->GetCurrentTimestamp() == TSystemTimestamp(0),
+        "Companion received a zero epoch timestamp");
+    if (requireSeqNo) {
+        THROW_ERROR_EXCEPTION_IF(context->GetEpochUniqueSeqNo() == TUniqueSeqNo(0),
+            "Companion received a zero epoch sequence number");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Enriches source rows with partition-local sequence numbers and joined metadata. Requires the
+//! partition id and the epoch timestamp from the worker.
 class TStatefulSourceFunction
     : public IProcessFunction
 {
@@ -23,6 +38,7 @@ public:
     {
         initContext->InitClient(Sequence_, "reader-state");
         initContext->InitExternalStateClient(Metadata_, "/word-metadata");
+        Y_UNUSED(initContext->GetPartitionId());
     }
 
     void ProcessMessage(
@@ -30,6 +46,8 @@ public:
         const IOutputCollectorPtr& output,
         const IRuntimeContextPtr& context) override
     {
+        ValidateEpochState(context, /*requireSeqNo*/ false);
+
         auto sequence = Sequence_.GetState(message);
         ++*sequence;
 
@@ -49,6 +67,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Counts words in internal and external state, then emits first occurrences with joined weights.
+//! Requires the partition id and the epoch timestamp and sequence number from the worker.
 class TWordCountAllStatesFunction
     : public IProcessFunction
 {
@@ -61,6 +80,7 @@ public:
         static const auto ProcessedMessages =
             initContext->GetProfiler().Counter("/processed_message_count");
         ProcessedMessages_ = ProcessedMessages;
+        Y_UNUSED(initContext->GetPartitionId());
     }
 
     void ProcessMessage(
@@ -68,6 +88,7 @@ public:
         const IOutputCollectorPtr& output,
         const IRuntimeContextPtr& context) override
     {
+        ValidateEpochState(context, /*requireSeqNo*/ true);
         ProcessedMessages_.Increment();
 
         auto count = Counter_.GetState(message);

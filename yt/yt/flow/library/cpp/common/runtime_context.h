@@ -38,8 +38,8 @@ struct IRuntimeContext
     //! YT timestamp the controller acquired for the current epoch; trails real time by controller/heartbeat lag.
     virtual TSystemTimestamp GetCurrentTimestamp() const = 0;
     //! Globally unique, strictly increasing number minted from the cluster clock for the current
-    //! epoch — physically a YT timestamp. Throws where none is published: in a companion process
-    //! and in Swift computations.
+    //! epoch — physically a YT timestamp. Throws where none is published: in Swift computations,
+    //! in process or in a companion.
     virtual TUniqueSeqNo GetEpochUniqueSeqNo() const = 0;
 
     virtual const TComputationSpecPtr& GetSpec() const = 0;

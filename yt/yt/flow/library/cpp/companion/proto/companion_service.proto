@@ -99,6 +99,8 @@ message TJobInfo {
     repeated TStream streams = 3;
     // Exact direct and transitive resource instances required by the job.
     repeated TCompanionResourceInstanceReference companion_resources = 4;
+    // Partition the job serves; fixed for the job's lifetime. Always set by the worker.
+    optional NYT.NProto.TGuid partition_id = 5;
 }
 
 message TWatermark
@@ -151,6 +153,11 @@ message TReqProcessBatch
     // Read-only external state joined from another computation's state table.
     // Never written back, so no counterpart field exists in TResponseData.
     repeated TState joined_external_states = 12;
+    // YT timestamp the controller acquired for the current epoch. Always set by the worker.
+    optional uint64 current_timestamp = 13;
+    // Globally unique, strictly increasing number of the current epoch. Absent for
+    // computations that publish none (Swift).
+    optional uint64 epoch_unique_seq_no = 14;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

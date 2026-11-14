@@ -4,6 +4,7 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/process_function.h>
+#include <yt/yt/flow/library/cpp/common/process_function_graph.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/runtime_context.h>
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
@@ -33,6 +34,7 @@
 #include <library/cpp/testing/common/network.h>
 
 #include <util/generic/map.h>
+#include <util/string/subst.h>
 #include <util/system/datetime.h>
 #include <util/system/getpid.h>
 
@@ -182,6 +184,9 @@ public:
         SawNullClientsCache = !context->ClientsCache;
         SawNullInvoker = !context->Invoker;
         SawNullPrimaryClient = !context->RetryableClient;
+        SawComputationSpec = context->ComputationSpec &&
+            context->ComputationSpec->ProcessingFunction ==
+                "NYT::NFlow::NCompanionServer::TUnittestContextConstructorFunction";
         ConstructorContext = context;
         ++ConstructionCount;
     }
@@ -200,6 +205,7 @@ public:
     static bool SawNullClientsCache;
     static bool SawNullInvoker;
     static bool SawNullPrimaryClient;
+    static bool SawComputationSpec;
     static bool SawSameInitContext;
 
 private:
@@ -214,7 +220,36 @@ bool TUnittestContextConstructorFunction::SawNoPartition = false;
 bool TUnittestContextConstructorFunction::SawNullClientsCache = false;
 bool TUnittestContextConstructorFunction::SawNullInvoker = false;
 bool TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+bool TUnittestContextConstructorFunction::SawComputationSpec = false;
 bool TUnittestContextConstructorFunction::SawSameInitContext = false;
+
+//! Records the partition and the epoch state the worker sent.
+class TUnittestEpochProbeFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        PartitionId = initContext->GetPartitionId();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& context) override
+    {
+        CurrentTimestamp = context->GetCurrentTimestamp();
+        EpochUniqueSeqNo = context->GetEpochUniqueSeqNo();
+    }
+
+    static std::optional<TPartitionId> PartitionId;
+    static std::optional<TSystemTimestamp> CurrentTimestamp;
+    static std::optional<TUniqueSeqNo> EpochUniqueSeqNo;
+};
+
+std::optional<TPartitionId> TUnittestEpochProbeFunction::PartitionId;
+std::optional<TSystemTimestamp> TUnittestEpochProbeFunction::CurrentTimestamp;
+std::optional<TUniqueSeqNo> TUnittestEpochProbeFunction::EpochUniqueSeqNo;
 
 class TUnittestClientConstructorFunction
     : public IProcessFunction
@@ -281,6 +316,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestBusyFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestSyncFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestContextConstructorFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestClientConstructorFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestEpochProbeFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -673,6 +709,27 @@ TEST_F(TProcessBatchTest, SyncFunctionRejected)
         testing::HasSubstr("sync process functions are not supported"));
 }
 
+TEST_F(TProcessBatchTest, GraphFunctionRejected)
+{
+    // A class the graph accepts as its host, so only the companion check rejects the spec.
+    auto req = BuildRequest(std::string(ProcessFunctionGraphFunctionName));
+    auto spec = req->job_info().spec();
+    SubstGlobal(spec, "NYT::NFlow::NCompanion::TTransformCompanionComputation", "NYT::NFlow::TProcessFunctionComputation");
+    req->mutable_job_info()->set_spec(spec);
+    AddMessage(req, 1, "m1");
+    auto rspOrError = req->Invoke().BlockingGet();
+    ASSERT_FALSE(rspOrError.IsOK());
+    EXPECT_THAT(
+        ToString(static_cast<const TError&>(rspOrError)),
+        testing::HasSubstr("process function graphs are not supported in companions"));
+
+    // The companion survives the rejected request.
+    auto healthyReq = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+    AddMessage(healthyReq, 1, "m1");
+    auto rsp = healthyReq->Invoke().BlockingGet().ValueOrThrow();
+    EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+}
+
 TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
 {
     TUnittestContextConstructorFunction::ConstructionCount = 0;
@@ -683,6 +740,7 @@ TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
     TUnittestContextConstructorFunction::SawNullClientsCache = false;
     TUnittestContextConstructorFunction::SawNullInvoker = false;
     TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+    TUnittestContextConstructorFunction::SawComputationSpec = false;
     TUnittestContextConstructorFunction::SawSameInitContext = false;
 
     auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestContextConstructorFunction");
@@ -697,7 +755,41 @@ TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullClientsCache);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullInvoker);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullPrimaryClient);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawComputationSpec);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawSameInitContext);
+}
+
+TEST_F(TProcessBatchTest, PartitionAndEpochStateReachProcessFunction)
+{
+    TUnittestEpochProbeFunction::PartitionId.reset();
+    TUnittestEpochProbeFunction::CurrentTimestamp.reset();
+    TUnittestEpochProbeFunction::EpochUniqueSeqNo.reset();
+
+    auto partitionId = TPartitionId(TGuid::Create());
+    {
+        auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestEpochProbeFunction");
+        ToProto(req->mutable_job_info()->mutable_partition_id(), partitionId);
+        req->set_current_timestamp(1'000);
+        req->set_epoch_unique_seq_no(2'000);
+        AddMessage(req, 1, "m1");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+    EXPECT_EQ(TUnittestEpochProbeFunction::PartitionId, partitionId);
+    EXPECT_EQ(TUnittestEpochProbeFunction::CurrentTimestamp, TSystemTimestamp(1'000));
+    EXPECT_EQ(TUnittestEpochProbeFunction::EpochUniqueSeqNo, TUniqueSeqNo(2'000));
+
+    {
+        // The cached job takes the epoch state of every batch.
+        auto req = BuildRequest(std::nullopt);
+        req->set_current_timestamp(3'000);
+        req->set_epoch_unique_seq_no(4'000);
+        AddMessage(req, 2, "m2");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+    EXPECT_EQ(TUnittestEpochProbeFunction::CurrentTimestamp, TSystemTimestamp(3'000));
+    EXPECT_EQ(TUnittestEpochProbeFunction::EpochUniqueSeqNo, TUniqueSeqNo(4'000));
 }
 
 TEST_F(TProcessBatchTest, ClientDependencyIsRejected)

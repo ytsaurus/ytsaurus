@@ -59,6 +59,8 @@ TEST(TCodecTest, ParsesMessagesTimersVisitsWatermarks)
         auto* protoWatermark = request.add_watermarks();
         protoWatermark->set_stream_id("input");
         protoWatermark->set_watermark(123);
+        request.set_current_timestamp(456);
+        request.set_epoch_unique_seq_no(789);
     }
 
     auto input = ParseProcessBatchRequest(request, specs, schema);
@@ -85,6 +87,19 @@ TEST(TCodecTest, ParsesMessagesTimersVisitsWatermarks)
 
     ASSERT_EQ(std::ssize(input.Watermarks), 1);
     EXPECT_EQ(input.Watermarks[TStreamId("input")], TSystemTimestamp(123));
+    EXPECT_EQ(input.CurrentTimestamp, TSystemTimestamp(456));
+    EXPECT_EQ(input.EpochUniqueSeqNo, TUniqueSeqNo(789));
+}
+
+TEST(TCodecTest, EpochStateAbsentFromRequest)
+{
+    auto schema = NTesting::DefaultTestKeySchema();
+    auto specs = MakeStreamSpecs(TStreamId("input"), TStreamSpecId(5), schema);
+
+    auto input = ParseProcessBatchRequest(NProto::NCompanion::TReqProcessBatch(), specs, schema);
+
+    EXPECT_FALSE(input.CurrentTimestamp);
+    EXPECT_FALSE(input.EpochUniqueSeqNo);
 }
 
 TEST(TCodecTest, ParsesStates)

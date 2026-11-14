@@ -96,7 +96,6 @@ public:
     virtual TComputationId GetComputationId() const = 0;
 
     //! Id of the partition this function instance serves; fixed for the instance's lifetime.
-    //! Throws out of process, where the hosting partition is not known.
     virtual TPartitionId GetPartitionId() const = 0;
 
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;

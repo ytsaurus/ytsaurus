@@ -130,6 +130,11 @@ struct TCompanionProcessRequest
     TDynamicComputationSpecPtr DynamicComputationSpec;
     //! Exact direct and transitive resources hosted in the companion.
     std::vector<TCompanionResourceInstanceReference> CompanionResources;
+    //! Partition the job serves; travels in the job info.
+    std::optional<TPartitionId> PartitionId;
+    //! Epoch timestamp and sequence number exposed through the companion runtime context.
+    std::optional<TSystemTimestamp> CurrentTimestamp;
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo;
     // StreamSpecs for JobInfo publishing.
     TStreamSpecsPtr JobStreamSpecs;
     // StreamSpecs for streams overriding at source computations.
@@ -211,6 +216,8 @@ struct TCompanionPutJobRequest
     TStreamSpecsPtr JobStreamSpecs;
     //! Exact direct and transitive resources hosted in the companion.
     std::vector<TCompanionResourceInstanceReference> CompanionResources;
+    //! Partition the job serves.
+    std::optional<TPartitionId> PartitionId;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionPutJobRequest);

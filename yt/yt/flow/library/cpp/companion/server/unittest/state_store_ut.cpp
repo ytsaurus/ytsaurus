@@ -568,7 +568,7 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
         "not available in a companion process");
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetPartitionId()),
-        "not available in a companion process");
+        "was not sent to the companion process");
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetHttpClient()),
         "HTTP client is not available");
@@ -577,11 +577,12 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
         "HTTPS client is not available");
 }
 
-TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
+TEST(TCompanionRuntimeInitContextTest, ServerContextAndJobIdentity)
 {
     auto context = CreateCompanionServerContext(
         New<NCompanion::TCompanionExecutionConfig>(),
         /*invoker*/ nullptr);
+    auto partitionId = TPartitionId(TGuid::Create());
 
     auto initContext = New<TCompanionRuntimeInitContext>(
         MakeStore(),
@@ -591,7 +592,8 @@ TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
         /*prefix*/ std::string(),
         /*profiler*/ NProfiling::TProfiler(),
         context,
-        /*computationId*/ TComputationId("the-computation"));
+        /*computationId*/ TComputationId("the-computation"),
+        /*partitionId*/ partitionId);
 
     EXPECT_EQ(initContext->GetHttpClient(), context->HttpClient);
     EXPECT_EQ(initContext->GetHttpsClient(), context->HttpsClient);
@@ -599,6 +601,8 @@ TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
     EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpsClient(), context->HttpsClient);
     EXPECT_EQ(initContext->GetComputationId(), TComputationId("the-computation"));
     EXPECT_EQ(initContext->WithPrefix("sub")->GetComputationId(), TComputationId("the-computation"));
+    EXPECT_EQ(initContext->GetPartitionId(), partitionId);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetPartitionId(), partitionId);
 
     context->HttpPoller->Shutdown();
 }

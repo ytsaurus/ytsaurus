@@ -15,7 +15,8 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     std::string prefix,
     NProfiling::TProfiler profiler,
     TCompanionServerContextPtr serverContext,
-    TComputationId computationId)
+    TComputationId computationId,
+    std::optional<TPartitionId> partitionId)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
@@ -26,6 +27,7 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     , Profiler_(std::move(profiler))
     , ServerContext_(std::move(serverContext))
     , ComputationId_(std::move(computationId))
+    , PartitionId_(partitionId)
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TCompanionRuntimeInitContext::CreateMutableStateKeyProvider(
@@ -60,7 +62,8 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
         ExtendStateNamePrefix(Prefix_, prefix),
         Profiler_,
         ServerContext_,
-        ComputationId_);
+        ComputationId_,
+        PartitionId_);
 }
 
 const std::string& TCompanionRuntimeInitContext::GetPrefix() const
@@ -114,7 +117,9 @@ TComputationId TCompanionRuntimeInitContext::GetComputationId() const
 
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const
 {
-    THROW_ERROR_EXCEPTION("The partition id is not available in a companion process");
+    THROW_ERROR_EXCEPTION_UNLESS(PartitionId_,
+        "The partition id was not sent to the companion process");
+    return *PartitionId_;
 }
 
 IExternalStateManagerPtr TCompanionRuntimeInitContext::GetExternalStateManagerOrThrow(

@@ -58,13 +58,17 @@ TEST(TJobTest, ParsesJobInfo)
     auto jobId = TJobId(TGuid::Create());
     auto directIncarnationId = TResourceInstanceId(TGuid::Create());
     auto transitiveIncarnationId = TResourceInstanceId(TGuid::Create());
+    auto partitionId = TPartitionId(TGuid::Create());
+    auto jobInfo = BuildJobInfo(directIncarnationId, transitiveIncarnationId);
+    ToProto(jobInfo.mutable_partition_id(), partitionId.Underlying());
     auto job = New<TJob>(
         jobId,
         TComputationId("my_computation"),
-        BuildJobInfo(directIncarnationId, transitiveIncarnationId));
+        jobInfo);
 
     EXPECT_EQ(job->GetJobId(), jobId);
     EXPECT_EQ(job->GetComputationId(), TComputationId("my_computation"));
+    EXPECT_EQ(job->GetPartitionId(), partitionId);
 
     EXPECT_EQ(
         job->GetSpec()->ComputationClassName,
@@ -107,6 +111,8 @@ TEST(TJobTest, EmptyStateDeclarations)
     EXPECT_TRUE(job->GetInternalStateNames().empty());
     EXPECT_TRUE(job->GetExternalStateNames().empty());
     EXPECT_TRUE(job->GetJoinedStateNames().empty());
+    // The job info carries no partition id.
+    EXPECT_FALSE(job->GetPartitionId());
 }
 
 TEST(TStreamSpecCacheTest, ReusesSpecsAcrossBatches)
