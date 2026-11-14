@@ -8,6 +8,7 @@
 #include <yt/yql/providers/dq/config/config.pb.h>
 #include <yt/yql/providers/dq/service/service_node.h>
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
+#include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/yson_string/string.h>
 #include <library/cpp/yt/memory/ref_counted.h>
@@ -73,6 +74,7 @@ private:
     ICoordinationHelper::TPtr Coordinator_;
     THolder<TServiceNode> ServiceNode_;
     IMetricsRegistryPtr MetricsRegistry_;
+    NProfiling::ISensorProducerPtr MetricsProducer_;
     NActors::IActor* StatsCollector_ = nullptr;
 };
 
