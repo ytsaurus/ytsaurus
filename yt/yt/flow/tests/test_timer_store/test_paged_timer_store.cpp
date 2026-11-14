@@ -52,7 +52,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "CppTests");
 
 //! The paged backend against a real YT: the page tables are created from the catalogue
 //! definitions, as the packaged pipeline node may predate them.
-class TTestPagedTimerStore
+class TPagedTimerStoreTest
     : public TDynamicTablesTestBase
 {
 protected:
@@ -300,7 +300,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestPagedTimerStore, FireSplitAndRestart)
+TEST_W(TPagedTimerStoreTest, FireSplitAndRestart)
 {
     auto store = CreateStore(ETimerStoreBackend::Paged);
     EXPECT_TRUE(store->IsEmpty());
@@ -356,7 +356,7 @@ TEST_W(TTestPagedTimerStore, FireSplitAndRestart)
     EXPECT_TRUE(inflight->Empty);
 }
 
-TEST_W(TTestPagedTimerStore, AbortedEpochRestoresRowsAndMetadata)
+TEST_W(TPagedTimerStoreTest, AbortedEpochRestoresRowsAndMetadata)
 {
     auto store = CreateStore(ETimerStoreBackend::Paged);
     std::vector<TTimer> original;
@@ -393,7 +393,7 @@ TEST_W(TTestPagedTimerStore, AbortedEpochRestoresRowsAndMetadata)
     EXPECT_TRUE(store->IsEmpty());
 }
 
-TEST_W(TTestPagedTimerStore, DeduplicationAndReregistration)
+TEST_W(TPagedTimerStoreTest, DeduplicationAndReregistration)
 {
     auto store = CreateStore(ETimerStoreBackend::Paged, /*deduplicate*/ true);
     Iterate(store, 0, {MakeTimer("first", 5, 100, 30), MakeTimer("second", 5, 100, 20)});
@@ -417,7 +417,7 @@ TEST_W(TTestPagedTimerStore, DeduplicationAndReregistration)
     EXPECT_EQ(CountPageRows(), 0);
 }
 
-TEST_W(TTestPagedTimerStore, SplitIntoChildrenAndMergeBack)
+TEST_W(TPagedTimerStoreTest, SplitIntoChildrenAndMergeBack)
 {
     // The parent writes timers on both sides of the split key.
     auto parent = CreateStore(ETimerStoreBackend::Paged);
@@ -463,7 +463,7 @@ TEST_W(TTestPagedTimerStore, SplitIntoChildrenAndMergeBack)
     EXPECT_EQ(CountPageRows(), 0);
 }
 
-TEST_W(TTestPagedTimerStore, ConvertsBetweenBackends)
+TEST_W(TPagedTimerStoreTest, ConvertsBetweenBackends)
 {
     // Timers of the in-memory backend move into pages at the paged init and back at the in-memory init.
     {
@@ -491,7 +491,7 @@ TEST_W(TTestPagedTimerStore, ConvertsBetweenBackends)
     EXPECT_EQ(Ids(inMemory->GetNextBatch({TStreamId(TimerStreamId)}, 10, std::numeric_limits<i64>::max())), (std::vector<std::string>{"c", "b"}));
 }
 
-TEST_W(TTestPagedTimerStore, ConvertsPagesOnDeduplicationModeChange)
+TEST_W(TPagedTimerStoreTest, ConvertsPagesOnDeduplicationModeChange)
 {
     // Without deduplication a slot keeps every timer; turning it on rewrites the pages as
     // slots at the init and keeps the best timer of each slot.

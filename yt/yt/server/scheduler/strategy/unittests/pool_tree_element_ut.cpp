@@ -765,7 +765,7 @@ MATCHER_P2(ResourceVolumeNear, vec, absError, "") {
 
 // Preupdate and postupdate tests.
 
-TEST_F(TPoolTreeElementTest, TestSatisfactionRatio)
+TEST_F(TPoolTreeElementTest, SatisfactionRatio)
 {
     constexpr int OperationCount = 4;
 
@@ -878,7 +878,7 @@ TEST_F(TPoolTreeElementTest, TestSatisfactionRatio)
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestFifoChildrenReorderingForGuaranteeUtilizationIsInherited)
+TEST_F(TPoolTreeElementTest, FifoChildrenReorderingForGuaranteeUtilizationIsInherited)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -929,7 +929,7 @@ TEST_F(TPoolTreeElementTest, TestFifoChildrenReorderingForGuaranteeUtilizationIs
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestResourceLimits)
+TEST_F(TPoolTreeElementTest, ResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -982,7 +982,7 @@ TEST_F(TPoolTreeElementTest, TestResourceLimits)
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestSchedulingTagFilterResourceLimits)
+TEST_F(TPoolTreeElementTest, SchedulingTagFilterResourceLimits)
 {
     TJobResourcesWithQuota nodeResources1;
     nodeResources1.SetUserSlots(2);
@@ -1078,7 +1078,7 @@ TEST_F(TPoolTreeElementTest, TestSchedulingTagFilterResourceLimits)
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestBestAllocationShare)
+TEST_F(TPoolTreeElementTest, BestAllocationShare)
 {
     TJobResourcesWithQuota nodeResourcesA;
     nodeResourcesA.SetUserSlots(10);
@@ -1118,7 +1118,7 @@ TEST_F(TPoolTreeElementTest, TestBestAllocationShare)
     EXPECT_RV_NEAR(fairShare, operationElementX->Attributes().FairShare.Total);
 }
 
-TEST_F(TPoolTreeElementTest, TestOperationCountLimits)
+TEST_F(TPoolTreeElementTest, OperationCountLimits)
 {
     auto strategyHost = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1161,7 +1161,7 @@ TEST_F(TPoolTreeElementTest, TestOperationCountLimits)
     EXPECT_EQ(0, rootElement->LightweightRunningOperationCount());
 }
 
-TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
+TEST_F(TPoolTreeElementTest, IncorrectStatusDueToPrecisionError)
 {
     // Test is based on real circumstances, all resource amounts are not random.
     TJobResourcesWithQuota nodeResources;
@@ -1210,7 +1210,7 @@ TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
     EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus());
 }
 
-TEST_F(TPoolTreeElementTest, TestBelowFairShareAbsoluteTolerance)
+TEST_F(TPoolTreeElementTest, BelowFairShareAbsoluteTolerance)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -1274,7 +1274,7 @@ TEST_F(TPoolTreeElementTest, TestBelowFairShareAbsoluteTolerance)
 
 // Integral volume tests.
 
-TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionSimple)
+TEST_F(TPoolTreeElementTest, VolumeOverflowDistributionSimple)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1311,7 +1311,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionSimple)
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShares)
+TEST_F(TPoolTreeElementTest, VolumeOverflowDistributionWithMinimalVolumeShares)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1355,7 +1355,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShar
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
+TEST_F(TPoolTreeElementTest, VolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1390,7 +1390,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithLimitedAcceptablePool)
+TEST_F(TPoolTreeElementTest, VolumeOverflowDistributionWithLimitedAcceptablePool)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1439,7 +1439,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithLimitedAcceptable
     }
 }
 
-TEST_F(TPoolTreeElementTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
+TEST_F(TPoolTreeElementTest, AccumulatedResourceVolumeRatioBeforeFairShareUpdate)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1449,7 +1449,7 @@ TEST_F(TPoolTreeElementTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUp
     EXPECT_EQ(0.0, relaxedPool->GetAccumulatedResourceRatioVolume());
 }
 
-TEST_F(TPoolTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume)
+TEST_F(TPoolTreeElementTest, PoolCapacityDoesntDecreaseExistingAccumulatedVolume)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1481,7 +1481,7 @@ TEST_F(TPoolTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVo
 
 // Other tests.
 
-TEST_F(TPoolTreeElementTest, TestGetPoolPath)
+TEST_F(TPoolTreeElementTest, GetPoolPath)
 {
     auto strategyHost = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(strategyHost.Get());

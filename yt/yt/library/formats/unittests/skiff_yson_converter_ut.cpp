@@ -114,7 +114,7 @@ std::string ConvertHexToTextYson(
     } while (0)
 
 
-TEST(TYsonSkiffConverterTest, TestSimpleTypes)
+TEST(TYsonSkiffConverterTest, SimpleTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Int8(),
@@ -228,7 +228,7 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         "\"var_int32\", \"var_int64\", \"yson32\", got \"string32\"");
 }
 
-TEST(TYsonSkiffConverterTest, TestYson32)
+TEST(TYsonSkiffConverterTest, Yson32)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Yson(),
@@ -255,7 +255,7 @@ TEST(TYsonSkiffConverterTest, TestYson32)
         "02000000" "0253");
 }
 
-TEST(TYsonSkiffConverterTest, TestOptionalTypes)
+TEST(TYsonSkiffConverterTest, OptionalTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Optional(Int64()),
@@ -358,7 +358,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         "value expected to be nonempty");
 }
 
-TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedVariant8)
+TEST(TYsonSkiffConverterTest, ListTypesAsRepeatedVariant8)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         List(Bool()),
@@ -379,7 +379,7 @@ TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedVariant8)
         "00" "ff" "00" "0001ff" "00" "00010001ff" "ff");
 }
 
-TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedBlockVar)
+TEST(TYsonSkiffConverterTest, ListTypesAsRepeatedBlockVar)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         List(Bool()),
@@ -400,7 +400,7 @@ TEST(TYsonSkiffConverterTest, TestListTypesAsRepeatedBlockVar)
         "02" "00" "02" "020100" "02" "0201020100" "00");
 }
 
-TEST(TYsonSkiffConverterTest, TestListTypesAsMixedWireTypes)
+TEST(TYsonSkiffConverterTest, ListTypesAsMixedWireTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         List(List(Bool())),
@@ -415,7 +415,7 @@ TEST(TYsonSkiffConverterTest, TestListTypesAsMixedWireTypes)
         "02" "ff" "02" "0001ff" "02" "00010001ff" "00");
 }
 
-TEST(TYsonSkiffConverterTest, TestStruct)
+TEST(TYsonSkiffConverterTest, Struct)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Struct(
@@ -429,7 +429,7 @@ TEST(TYsonSkiffConverterTest, TestStruct)
         "04000000" "74727565" "01");
 }
 
-TEST(TYsonSkiffConverterTest, TestSkippedFields)
+TEST(TYsonSkiffConverterTest, SkippedFields)
 {
     std::string skiffString;
     skiffString = ConvertYsonHex(
@@ -481,7 +481,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         "0f000000" "00000000");
 }
 
-TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
+TEST(TYsonSkiffConverterTest, UnknownSkiffFields)
 {
     std::string skiffString;
     skiffString = ConvertYsonHex(
@@ -546,7 +546,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
     }
 }
 
-TEST(TYsonSkiffConverterTest, TestTuple)
+TEST(TYsonSkiffConverterTest, Tuple)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Tuple(String(), Bool()),
@@ -567,7 +567,7 @@ TEST(TYsonSkiffConverterTest, TestTuple)
         "02000000" "00000000" "01" "2a000000" "00000000");
 }
 
-TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
+TEST(TYsonSkiffConverterTest, TupleSkippedFields)
 {
     std::string skiffString;
     skiffString = ConvertYsonHex(
@@ -601,7 +601,7 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
     EXPECT_EQ(skiffString, "0f000000" "00000000"sv);
 }
 
-TEST(TYsonSkiffConverterTest, TestDictAsRepeatedVariant8)
+TEST(TYsonSkiffConverterTest, DictAsRepeatedVariant8)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Dict(String(), Int64()),
@@ -617,7 +617,7 @@ TEST(TYsonSkiffConverterTest, TestDictAsRepeatedVariant8)
         "ff");
 }
 
-TEST(TYsonSkiffConverterTest, TestDictAsRepeatedBlockVar)
+TEST(TYsonSkiffConverterTest, DictAsRepeatedBlockVar)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         Dict(String(), Int64()),
@@ -633,7 +633,7 @@ TEST(TYsonSkiffConverterTest, TestDictAsRepeatedBlockVar)
         "00");
 }
 
-TEST(TYsonSkiffConverterTest, TestRepeatedBlockVarMultiItemBlocks)
+TEST(TYsonSkiffConverterTest, RepeatedBlockVarMultiItemBlocks)
 {
     // The writer emits one-item blocks only, so these inputs cannot round-trip.
     const auto listSkiffSchema = CreateRepeatedBlockVarSchema({CreateSimpleTypeSchema(EWireType::Boolean)});
@@ -663,7 +663,7 @@ TEST(TYsonSkiffConverterTest, TestRepeatedBlockVarMultiItemBlocks)
         "[[\"one\";1;];[\"two\";2;];]");
 }
 
-TEST(TYsonSkiffConverterTest, TestMalformedDict)
+TEST(TYsonSkiffConverterTest, MalformedDict)
 {
     const auto logicalType = Dict(String(), Int64());
     const auto skiffSchema = CreateRepeatedVariant8Schema({
@@ -710,7 +710,7 @@ TEST(TYsonSkiffConverterTest, TestMalformedDict)
         "Wire type \"tuple\" has unexpected child count: expected 2, got 3");
 }
 
-TEST(TYsonSkiffConverterTest, TestTagged)
+TEST(TYsonSkiffConverterTest, Tagged)
 {
     const auto logicalType = Tagged(
         "tag",
@@ -730,7 +730,7 @@ TEST(TYsonSkiffConverterTest, TestTagged)
         "ff");
 }
 
-TEST(TYsonSkiffConverterTest, TestOptionalVariantSimilarity)
+TEST(TYsonSkiffConverterTest, OptionalVariantSimilarity)
 {
     auto logicalType = Optional(
         VariantTuple(Null(), Int64()));
@@ -839,7 +839,7 @@ public:
     }
 };
 
-TEST_P(TYsonSkiffConverterTestVariant, TestVariant)
+TEST_P(TYsonSkiffConverterTestVariant, Variant)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         VariantLogicalType({
@@ -866,7 +866,7 @@ TEST_P(TYsonSkiffConverterTestVariant, TestVariant)
         MakeVariantTagHex(1) + "01");
 }
 
-TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
+TEST_P(TYsonSkiffConverterTestVariant, MalformedVariants)
 {
     auto logicalType = VariantLogicalType({
         Bool(),
@@ -901,7 +901,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYsonSkiffConverterTest, TestAggregateState)
+TEST(TYsonSkiffConverterTest, AggregateState)
 {
     auto sumAggregate = AggregateState(EAggregateFunction::Sum, Int32());
     CHECK_BIDIRECTIONAL_CONVERSION(

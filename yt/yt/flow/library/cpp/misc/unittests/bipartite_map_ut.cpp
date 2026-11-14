@@ -9,7 +9,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestBipartiteMapTest, TBasicTest)
+TEST(TBipartiteMapTest, TBasicTest)
 {
     TBipartiteMap<int, std::string> storage;
 

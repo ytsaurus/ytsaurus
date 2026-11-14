@@ -107,13 +107,13 @@ void NonEmptyColumns(bool strictSchema)
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(TableIo, NonEmptyColumns_Yson)
+TEST(TTableIOTest, NonEmptyColumns_Yson)
 {
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
     NonEmptyColumns(false);
 }
-// TODO(levysotsky): Add TEST(TableIo, NonEmptyColumns_Skiff) when client Skiff reader is ready.
+// TODO(levysotsky): Add TEST(TTableIOTest, NonEmptyColumns_Skiff) when client Skiff reader is ready.
 // See r3614168
 
 void EmptyColumns(bool strictSchema)
@@ -135,13 +135,13 @@ void EmptyColumns(bool strictSchema)
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(TableIo, EmptyColumns_Yson)
+TEST(TTableIOTest, EmptyColumns_Yson)
 {
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
     EmptyColumns(false);
 }
-// TODO(levysotsky): Add TEST(TableIo, EmptyColumns_Skiff) when client Skiff reader is ready.
+// TODO(levysotsky): Add TEST(TTableIOTest, EmptyColumns_Skiff) when client Skiff reader is ready.
 // See r3614168
 
 void MissingColumns()
@@ -162,14 +162,14 @@ void MissingColumns()
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(TableIo, MissingColumns_Yson)
+TEST(TTableIOTest, MissingColumns_Yson)
 {
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
     MissingColumns();
 }
 
-TEST(TableIo, MissingColumns_Skiff)
+TEST(TTableIOTest, MissingColumns_Skiff)
 {
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
@@ -502,29 +502,29 @@ void TestNodeReader(ENodeReaderFormat format, bool strictSchema) {
     EXPECT_THROW(reader->GetRow(), yexception);
 }
 
-TEST(TableIo, NodeReader_Skiff_Strict)
+TEST(TTableIOTest, NodeReader_Skiff_Strict)
 {
     TestNodeReader(ENodeReaderFormat::Skiff, true);
 }
-TEST(TableIo, NodeReader_Skiff_NonStrict)
+TEST(TTableIOTest, NodeReader_Skiff_NonStrict)
 {
     // TODO(levysotsky): Assert an exception here when client Skiff reader is ready.
     // See r3614168
     TestNodeReader(ENodeReaderFormat::Skiff, false);
 }
-TEST(TableIo, NodeReader_Auto_Strict)
+TEST(TTableIOTest, NodeReader_Auto_Strict)
 {
     TestNodeReader(ENodeReaderFormat::Auto, true);
 }
-TEST(TableIo, NodeReader_Auto_NonStrict)
+TEST(TTableIOTest, NodeReader_Auto_NonStrict)
 {
     TestNodeReader(ENodeReaderFormat::Auto, false);
 }
-TEST(TableIo, NodeReader_Yson_Strict)
+TEST(TTableIOTest, NodeReader_Yson_Strict)
 {
     TestNodeReader(ENodeReaderFormat::Yson, true);
 }
-TEST(TableIo, NodeReader_Yson_NonStrict)
+TEST(TTableIOTest, NodeReader_Yson_NonStrict)
 {
     TestNodeReader(ENodeReaderFormat::Yson, false);
 }
@@ -592,12 +592,12 @@ void TestTableReaders()
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(TableIo, Protobuf)
+TEST(TTableIOTest, Protobuf)
 {
     TestTableReaders<TUrlRow>();
 }
 
-TEST(TableIo, ErrorInTableWriter)
+TEST(TTableIOTest, ErrorInTableWriter)
 {
     const TNode DATA = TString(1024, 'a');
     TTestFixture fixture;
@@ -623,7 +623,7 @@ TEST(TableIo, ErrorInTableWriter)
     EXPECT_THROW(writeTable(), TErrorResponse);
 }
 
-TEST(TableIo, ErrorInFinish)
+TEST(TTableIOTest, ErrorInFinish)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -646,7 +646,7 @@ TEST(TableIo, ErrorInFinish)
     EXPECT_THROW(writeMore(), TApiUsageError);
 }
 
-TEST(TableIo, CantWriteAfterFinish)
+TEST(TTableIOTest, CantWriteAfterFinish)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -657,7 +657,7 @@ TEST(TableIo, CantWriteAfterFinish)
     EXPECT_THROW(writer->AddRow(TNode()("value", "a")), TApiUsageError);
 }
 
-TEST(TableIo, HostsSlash)
+TEST(TTableIOTest, HostsSlash)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -689,7 +689,7 @@ TEST(TableIo, HostsSlash)
     EXPECT_EQ(actual, tableData);
 }
 
-TEST(TableIo, EmptyHosts)
+TEST(TTableIOTest, EmptyHosts)
 {
     SKIP_IF_RPC();
 
@@ -731,7 +731,7 @@ TEST(TableIo, EmptyHosts)
     }
 }
 
-TEST(TableIo, ReadErrorInTrailers)
+TEST(TTableIOTest, ReadErrorInTrailers)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -763,7 +763,7 @@ TEST(TableIo, ReadErrorInTrailers)
     EXPECT_THROW(readRemaining(), NYT::TErrorResponse);
 }
 
-TEST(TableIo, TableLockedForWriterLifetime)
+TEST(TTableIOTest, TableLockedForWriterLifetime)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -792,7 +792,7 @@ size_t GetLockCount(IClientBasePtr client, const TString& path)
     return client->Get(path + "/@lock_count").AsUint64();
 }
 
-TEST(TableIo, OptionallyCreateChildTransactionForIO)
+TEST(TTableIOTest, OptionallyCreateChildTransactionForIO)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -838,7 +838,7 @@ TEST(TableIo, OptionallyCreateChildTransactionForIO)
     }
 }
 
-TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
+TEST(TTableIOTest, ReaderTakesLockOnTableIdNotPath)
 {
     SKIP_IF_RPC();
 
@@ -880,7 +880,7 @@ TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
     EXPECT_EQ(rowsRead, numRows);
 }
 
-TEST(TableIo, UnsuccessfulRetries)
+TEST(TTableIOTest, UnsuccessfulRetries)
 {
     SKIP_IF_RPC();
 
@@ -915,7 +915,7 @@ TEST(TableIo, UnsuccessfulRetries)
     }
 }
 
-TEST(TableIo, SuccessfulRetries)
+TEST(TTableIOTest, SuccessfulRetries)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -938,7 +938,7 @@ TEST(TableIo, SuccessfulRetries)
     }
 }
 
-TEST(TableIo, SuccessfulRetriesWithCorrectRangeIndex)
+TEST(TTableIOTest, SuccessfulRetriesWithCorrectRangeIndex)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1005,7 +1005,7 @@ TEST(TableIo, SuccessfulRetriesWithCorrectRangeIndex)
     EXPECT_EQ(reader->IsValid(), false);
 }
 
-TEST(TableIo, TableReaderFromInputStream)
+TEST(TTableIOTest, TableReaderFromInputStream)
 {
     TString input = "{ key1 = [1; 2; 3; value0]; };  {key2 = { key21 = value1; key22 = value2 };}";
     TStringInput stream(input);
@@ -1026,7 +1026,7 @@ TEST(TableIo, TableReaderFromInputStream)
     EXPECT_EQ(expected, got);
 }
 
-TEST(TableIo, SimpleRetrylessWriter)
+TEST(TTableIOTest, SimpleRetrylessWriter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1107,48 +1107,48 @@ void TestCompressionCodec(EEncoding encoding, bool big = false)
     EXPECT_EQ(actual, expectedData);
 }
 
-TEST(TableIo, CompressionCodecIdentitySimple)
+TEST(TTableIOTest, CompressionCodecIdentitySimple)
 {
     TestCompressionCodec(E_IDENTITY);
 }
 
-TEST(TableIo, CompressionCodecGzipSimple)
+TEST(TTableIOTest, CompressionCodecGzipSimple)
 {
     TestCompressionCodec(E_GZIP);
 }
 
-TEST(TableIo, CompressionCodecBrotliSimple)
+TEST(TTableIOTest, CompressionCodecBrotliSimple)
 {
     TestCompressionCodec(E_BROTLI);
 }
 
-TEST(TableIo, CompressionCodecZLz4Simple)
+TEST(TTableIOTest, CompressionCodecZLz4Simple)
 {
     TestCompressionCodec(E_Z_LZ4);
 }
 
-TEST(TableIo, CompressionCodecIdentityLarge)
+TEST(TTableIOTest, CompressionCodecIdentityLarge)
 {
     TestCompressionCodec(E_IDENTITY, true);
 }
 
-TEST(TableIo, CompressionCodecGzipLarge)
+TEST(TTableIOTest, CompressionCodecGzipLarge)
 {
     TestCompressionCodec(E_GZIP, true);
 }
 
-TEST(TableIo, CompressionCodecBrotliLarge)
+TEST(TTableIOTest, CompressionCodecBrotliLarge)
 {
     TestCompressionCodec(E_BROTLI, true);
 }
 
-TEST(TableIo, CompressionCodecZLz4Large)
+TEST(TTableIOTest, CompressionCodecZLz4Large)
 {
     TestCompressionCodec(E_Z_LZ4, true);
 }
 
 
-TEST(TableIo, AbortWriter)
+TEST(TTableIOTest, AbortWriter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1177,7 +1177,7 @@ void TryWriteTable(TTableWriterOptions options)
     writer->Finish();
 }
 
-TEST(TableIo, InvalidWriterOptionsFail)
+TEST(TTableIOTest, InvalidWriterOptionsFail)
 {
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         TryWriteTable(TTableWriterOptions().WriterOptions(
@@ -1211,12 +1211,12 @@ void WriteAutoFlush()
     EXPECT_TRUE(client->Get(workingDir + "/table/@row_count").AsInt64() > 0);
 }
 
-TEST(TableIo, ProtobufWriteAutoflush)
+TEST(TTableIOTest, ProtobufWriteAutoflush)
 {
     WriteAutoFlush<TUrlRow>();
 }
 
-TEST(TableIo, TestFormatHint)
+TEST(TTableIOTest, FormatHint)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1246,7 +1246,7 @@ TEST(TableIo, TestFormatHint)
     }
 }
 
-TEST(TableIo, TestComplexTypeMode)
+TEST(TTableIOTest, ComplexTypeMode)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1313,7 +1313,7 @@ TEST(TableIo, TestComplexTypeMode)
 // Checks we are able to read the whole table even if the connections
 // are aborted after every row. It emulates reading of a huge table
 // during which the server can drop the connections every now and then.
-TEST(TableIo, OptimisticRetries)
+TEST(TTableIOTest, OptimisticRetries)
 {
     SKIP_IF_RPC();
 
@@ -1357,7 +1357,7 @@ TEST(TableIo, OptimisticRetries)
     EXPECT_GE(abortedRequestCount, 10);
 }
 
-TEST(TableIO, NoFinishWithDisabledAutoFinish)
+TEST(TTableIOTest, NoFinishWithDisabledAutoFinish)
 {
     TConfigSaverGuard configGuard;
     TConfig::Get()->TableWriterVersion = ETableWriterVersion::V1;
@@ -1379,7 +1379,7 @@ TEST(TableIO, NoFinishWithDisabledAutoFinish)
     Sleep(TDuration::Seconds(5));
 }
 
-TEST(TableIo, AbortHaltingRead)
+TEST(TTableIOTest, AbortHaltingRead)
 {
     SKIP_IF_DEFAULT_HTTP();
 
@@ -1422,7 +1422,7 @@ TEST(TableIo, AbortHaltingRead)
     EXPECT_LT(rowsRead, nRows);
 }
 
-TEST(TableIo, ReadAfterAbort)
+TEST(TTableIOTest, ReadAfterAbort)
 {
     SKIP_IF_DEFAULT_HTTP();
 
@@ -1445,7 +1445,7 @@ TEST(TableIo, ReadAfterAbort)
     EXPECT_THROW(reader->MoveRow(), TInputStreamAbortedError);
 }
 
-TEST(TableIo, DoubleAbort)
+TEST(TTableIOTest, DoubleAbort)
 {
     SKIP_IF_DEFAULT_HTTP();
 
@@ -1468,7 +1468,7 @@ TEST(TableIo, DoubleAbort)
     reader->Abort(); // Works just fine
 }
 
-TEST(TableIo, NoRetriesOnAbort)
+TEST(TTableIOTest, NoRetriesOnAbort)
 {
     SKIP_IF_DEFAULT_HTTP();
 
@@ -1517,7 +1517,7 @@ TEST(TableIo, NoRetriesOnAbort)
     EXPECT_LT(elapsed, TDuration::Seconds(15));
 }
 
-TEST(TableIo, Aborted)
+TEST(TTableIOTest, Aborted)
 {
     SKIP_IF_DEFAULT_HTTP();
 
@@ -1543,7 +1543,7 @@ TEST(TableIo, Aborted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(BlobTableIo, Simple)
+TEST(TBlobTableIOTest, Simple)
 {
     const std::vector<TString> testDataParts = {
         TString(1024 * 1024 * 4, 'a'),
@@ -1597,7 +1597,7 @@ TEST(BlobTableIo, Simple)
     }
 }
 
-TEST(BlobTableIo, WithOffset)
+TEST(TBlobTableIOTest, WithOffset)
 {
     const std::vector<TString> testDataParts = {
         TString(1024 * 1024 * 4, 'a'),
@@ -1656,7 +1656,7 @@ TEST(BlobTableIo, WithOffset)
     }
 }
 
-TEST(BlobTableIo, WithAbortableHttpResponse)
+TEST(TBlobTableIOTest, WithAbortableHttpResponse)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1725,7 +1725,7 @@ TEST(BlobTableIo, WithAbortableHttpResponse)
     }
 }
 
-TEST(BlobTableIo, WrongPartSize)
+TEST(TBlobTableIOTest, WrongPartSize)
 {
     const std::vector<TString> testDataParts = {
         TString(1024 * 1024 * 4, 'a'),
@@ -1763,7 +1763,7 @@ TEST(BlobTableIo, WrongPartSize)
     EXPECT_THROW(readFile(100500), yexception);
 }
 
-TEST(BlobTableIo, TableReaderReadError_YT_12822) {
+TEST(TBlobTableIOTest, TableReaderReadError_YT_12822) {
     SKIP_IF_RPC();
 
     class TRetryConfigProvider : public IRetryConfigProvider {
@@ -1854,7 +1854,7 @@ void WriteRowAndAssertException(
     EXPECT_THROW(writer->Finish(), TErrorResponse);
 }
 
-TEST(TableIoEnableTypeConversion, AllToStringNode)
+TEST(TTableIOEnableTypeConversionTest, AllToStringNode)
 {
     CheckRowAfterWriting(
         TFormatHints().EnableAllToStringConversion(true),
@@ -1866,7 +1866,7 @@ TEST(TableIoEnableTypeConversion, AllToStringNode)
         TNode()("String", 123));
 }
 
-TEST(TableIoEnableTypeConversion, StringToAllNode)
+TEST(TTableIOEnableTypeConversionTest, StringToAllNode)
 {
     CheckRowAfterWriting(
         TFormatHints().EnableStringToAllConversion(true),
@@ -1878,7 +1878,7 @@ TEST(TableIoEnableTypeConversion, StringToAllNode)
         TNode()("Int64", "-123"));
 }
 
-TEST(TableIoEnableTypeConversion, IntegralTypeNode)
+TEST(TTableIOEnableTypeConversionTest, IntegralTypeNode)
 {
     CheckRowAfterWriting(
         TFormatHints().EnableIntegralTypeConversion(true),
@@ -1890,7 +1890,7 @@ TEST(TableIoEnableTypeConversion, IntegralTypeNode)
         TNode()("Int64", 123u));
 }
 
-TEST(TableIoEnableTypeConversion, IntegralToDoubleNode)
+TEST(TTableIOEnableTypeConversionTest, IntegralToDoubleNode)
 {
     CheckRowAfterWriting(
         TFormatHints().EnableIntegralToDoubleConversion(true),
@@ -1903,7 +1903,7 @@ TEST(TableIoEnableTypeConversion, IntegralToDoubleNode)
 
 }
 
-TEST(TableIoEnableTypeConversion, AllNode)
+TEST(TTableIOEnableTypeConversionTest, AllNode)
 {
     CheckRowAfterWriting(
         TFormatHints().EnableTypeConversion(true),
@@ -1927,7 +1927,7 @@ TString SerializeProto(const Message& row)
     return dataWithLen;
 }
 
-TEST(StreamReaders, Protobuf)
+TEST(TStreamReadersTest, Protobuf)
 {
     TUrlRow row;
     row.set_host("http://www.example.com");
@@ -1949,7 +1949,7 @@ TEST(StreamReaders, Protobuf)
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(StreamReaders, ProtobufMultiTableHetero)
+TEST(TStreamReadersTest, ProtobufMultiTableHetero)
 {
     TUrlRow row1;
     row1.set_host("http://www.example.com");
@@ -2021,7 +2021,7 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
     EXPECT_TRUE(!reader->IsValid());
 }
 
-TEST(StreamReaders, ProtobufMultiTableHomo)
+TEST(TStreamReadersTest, ProtobufMultiTableHomo)
 {
     TUrlRow row;
     row.set_host("http://www.example.com");
@@ -2049,7 +2049,7 @@ TEST(StreamReaders, ProtobufMultiTableHomo)
     }
 }
 
-TEST(StreamReaders, Yson)
+TEST(TStreamReadersTest, Yson)
 {
     auto data = "{x=1;y=2};{x=2;y=3}";
 
@@ -2135,7 +2135,7 @@ INSTANTIATE_TEST_SUITE_P(
         TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ true),
         TNodeReaderParam(ENodeReaderFormat::Skiff, /*StrictSchema*/ true)));
 
-TEST(TTablePartitionFetchDescriptors, ReadPartition)
+TEST(TTablePartitionFetchDescriptorsTest, ReadPartition)
 {
     static const auto partitionCount = 1;
 

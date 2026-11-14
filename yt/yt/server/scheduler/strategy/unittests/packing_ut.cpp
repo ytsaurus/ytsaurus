@@ -31,7 +31,7 @@ class TPackingJobResourcesRatioTest
     : public TPackingTest
 { };
 
-TEST_F(TPackingJobResourcesRatioTest, TestConstructor)
+TEST_F(TPackingJobResourcesRatioTest, Constructor)
 {
     TJobResources resources;
     resources.SetCpu(TCpuResource(40L));
@@ -50,13 +50,13 @@ TEST_F(TPackingJobResourcesRatioTest, TestConstructor)
     EXPECT_NEAR(5e-4, ratio.GetMemoryRatio(), ABS_ERROR);
 }
 
-TEST_F(TPackingJobResourcesRatioTest, TestOnes)
+TEST_F(TPackingJobResourcesRatioTest, Ones)
 {
     EXPECT_NEAR(1, TJobResourcesRatio::Ones().GetCpuRatio(), ABS_ERROR);
     EXPECT_NEAR(1, TJobResourcesRatio::Ones().GetMemoryRatio(), ABS_ERROR);
 }
 
-TEST_F(TPackingJobResourcesRatioTest, TestZeros)
+TEST_F(TPackingJobResourcesRatioTest, Zeros)
 {
     EXPECT_NEAR(0, TJobResourcesRatio::Zeros().GetCpuRatio(), ABS_ERROR);
     EXPECT_NEAR(0, TJobResourcesRatio::Zeros().GetMemoryRatio(), ABS_ERROR);
@@ -86,7 +86,7 @@ protected:
     }
 };
 
-TEST_F(TPackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue)
+TEST_F(TPackingAnglePackingMetricTest, PerfectJobHasZeroMetricValue)
 {
     auto totalResources = CreateResourceVector(TCpuResource(1000L), 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 
@@ -103,7 +103,7 @@ TEST_F(TPackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue)
     EXPECT_NEAR(0, AnglePackingMetric(nodeResourcesSnapshot, jobResources, totalResources), ABS_ERROR);
 }
 
-TEST_F(TPackingAnglePackingMetricTest, TestCompareDifferentAngles)
+TEST_F(TPackingAnglePackingMetricTest, CompareDifferentAngles)
 {
     auto totalResources = CreateResourceVector(TCpuResource(1000L), 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 

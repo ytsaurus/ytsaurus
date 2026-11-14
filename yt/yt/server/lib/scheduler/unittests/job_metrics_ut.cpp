@@ -12,7 +12,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TJobMetricsTest, TestIsEmpty)
+TEST(TJobMetricsTest, IsEmpty)
 {
     TJobMetrics metrics;
     EXPECT_TRUE(metrics.IsEmpty());

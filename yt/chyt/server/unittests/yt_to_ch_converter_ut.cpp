@@ -1383,7 +1383,7 @@ TEST_F(TYTToCHConversionTest, FilterHintTuple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBenchmarkYTToCHConversion
+class TBenchmarkYTToCHConversionTest
     : public ::testing::Test
 {
 public:
@@ -1398,7 +1398,7 @@ protected:
     TConversionSettingsPtr Settings_;
 };
 
-TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
+TEST_F(TBenchmarkYTToCHConversionTest, StringConversionSpeedSmall)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1420,7 +1420,7 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
     }
 }
 
-TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedMedium)
+TEST_F(TBenchmarkYTToCHConversionTest, StringConversionSpeedMedium)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1442,7 +1442,7 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedMedium)
     }
 }
 
-TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedBig)
+TEST_F(TBenchmarkYTToCHConversionTest, StringConversionSpeedBig)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1521,7 +1521,7 @@ TTableSchema MakeDummySchema(const DB::DataTypes& types)
     return TTableSchema(std::move(columnSchemas));
 }
 
-TEST(TTestKeyConversion, TestBasic)
+TEST(TKeyConversionTest, Basic)
 {
     DB::DataTypes dataTypes = {
         std::make_shared<DB::DataTypeInt64>(),
@@ -1568,7 +1568,7 @@ TEST(TTestKeyConversion, TestBasic)
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 1u, std::numeric_limits<DB::Int64>::min()}));
 }
 
-TEST(TTestKeyConversion, TestNulls)
+TEST(TKeyConversionTest, Nulls)
 {
     DB::DataTypes dataTypes = {
         DB::makeNullable(std::make_shared<DB::DataTypeInt64>()),
@@ -1644,7 +1644,7 @@ TEST(TTestKeyConversion, TestNulls)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestKeyConversion, TestLowCardinality)
+TEST(TKeyConversionTest, LowCardinality)
 {
     TTableSchema schema;
 

@@ -11,7 +11,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDockerImageSpecTest, TestDockerImageParser)
+TEST(TDockerImageSpecTest, DockerImageParser)
 {
     auto defaultConfig = New<TDockerRegistryConfig>();
     auto internalConfig = New<TDockerRegistryConfig>();

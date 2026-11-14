@@ -9,7 +9,7 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(Lock, TestNonwaitableLock)
+TEST(TLockTest, NonwaitableLock)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -32,7 +32,7 @@ TEST(Lock, TestNonwaitableLock)
     );
 }
 
-TEST(Lock, TestWaitableOption)
+TEST(TLockTest, WaitableOption)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -53,7 +53,7 @@ TEST(Lock, TestWaitableOption)
     EXPECT_EQ(getLockState(), "acquired");
 }
 
-TEST(Lock, TestWait)
+TEST(TLockTest, Wait)
 {
     TZeroWaitLockPollIntervalGuard g;
 
@@ -72,7 +72,7 @@ TEST(Lock, TestWait)
     lockAcquired.GetValue(TDuration::MilliSeconds(500));
 }
 
-TEST(Lock, TestBrokenWait)
+TEST(TLockTest, BrokenWait)
 {
     TZeroWaitLockPollIntervalGuard g;
 
@@ -93,7 +93,7 @@ TEST(Lock, TestBrokenWait)
     EXPECT_THROW(lockAcquired.GetValue(), TErrorResponse);
 }
 
-TEST(Lock, TestChildKey)
+TEST(TLockTest, ChildKey)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -147,7 +147,7 @@ TEST(Lock, TestChildKey)
     tx2->Set(workingDir + "/map-node/child2", 22);
 }
 
-TEST(Lock, TestAttributeKey)
+TEST(TLockTest, AttributeKey)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -187,7 +187,7 @@ TEST(Lock, TestAttributeKey)
         TErrorResponse);
 }
 
-TEST(Lock, TestGetLockedNodeId)
+TEST(TLockTest, GetLockedNodeId)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -201,7 +201,7 @@ TEST(Lock, TestGetLockedNodeId)
     EXPECT_EQ(lock->GetLockedNodeId(), expectedId);
 }
 
-TEST(Lock, TestUnlock)
+TEST(TLockTest, Unlock)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

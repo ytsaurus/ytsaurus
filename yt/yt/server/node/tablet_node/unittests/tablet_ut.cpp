@@ -51,7 +51,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TOrderedTabletTest, TestValidateTrimmedRowCountPrecedeTimestamp)
+TEST_F(TOrderedTabletTest, ValidateTrimmedRowCountPrecedeTimestamp)
 {
     auto doValidate = [this] (i64 trimmedRowCount, TTimestamp timestamp) {
         ValidateTrimmedRowCountPrecedesTimestamp(Tablet_.get(), trimmedRowCount, timestamp);

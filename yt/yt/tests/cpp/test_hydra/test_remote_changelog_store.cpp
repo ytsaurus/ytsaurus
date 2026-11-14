@@ -197,7 +197,7 @@ protected:
     }
 };
 
-TEST_F(TRemoteChangelogStoreTest, TestReadWrite)
+TEST_F(TRemoteChangelogStoreTest, ReadWrite)
 {
     auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
         .ValueOrThrow();
@@ -226,7 +226,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadWrite)
     CheckChangelog(changelog, /*recordCount*/ 2);
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestTwoConcurrentWritersAreForbidden)
+TEST_F(TRemoteChangelogStoreTest, TwoConcurrentWritersAreForbidden)
 {
     auto createAndLockStore = [this] (TTransactionId prerequisiteTransactionId) {
         auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransactionId);
@@ -252,7 +252,7 @@ TEST_F(TRemoteChangelogStoreTest, TestTwoConcurrentWritersAreForbidden)
     EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 3, /*meta*/ {})).IsOK());
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestTruncate)
+TEST_F(TRemoteChangelogStoreTest, Truncate)
 {
     CreateChangelog(/*changelogIndex*/ 42, /*recordCount*/ 7);
     WaitUntilSealed(/*changelogIndex*/ 42);
@@ -277,7 +277,7 @@ TEST_F(TRemoteChangelogStoreTest, TestTruncate)
     CheckChangelog(changelog, 5);
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestAppend)
+TEST_F(TRemoteChangelogStoreTest, Append)
 {
     CreateChangelog(/*changelogIndex*/ 25, /*recordCount*/ 6);
     WaitUntilSealed(/*changelogIndex*/ 25);
@@ -296,7 +296,7 @@ TEST_F(TRemoteChangelogStoreTest, TestAppend)
     CheckChangelog(changelog, 8);
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestAppendPrerequisiteCheck)
+TEST_F(TRemoteChangelogStoreTest, AppendPrerequisiteCheck)
 {
     CreateChangelog(/*changelogIndex*/ 28, /*recordCount*/ 6);
     WaitUntilSealed(/*changelogIndex*/ 28);
@@ -314,7 +314,7 @@ TEST_F(TRemoteChangelogStoreTest, TestAppendPrerequisiteCheck)
     CheckChangelog(changelog, 6);
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestReadOnlyStore)
+TEST_F(TRemoteChangelogStoreTest, ReadOnlyStore)
 {
     CreateChangelog(/*changelogIndex*/ 42, /*recordCount*/ 6);
     WaitUntilSealed(/*changelogIndex*/ 42);
@@ -330,7 +330,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadOnlyStore)
     CheckChangelog(changelog, 6);
 }
 
-TEST_F(TRemoteChangelogStoreTest, TestPendingMutations)
+TEST_F(TRemoteChangelogStoreTest, PendingMutations)
 {
     Config_->Writer->OpenDelay = TDuration::Seconds(5);
 

@@ -102,7 +102,7 @@ bool CheckRangesAreEquivalent(TRange<std::pair<T, T>> a, TRange<std::pair<T, T>>
     Y_UNREACHABLE();
 }
 
-TEST(TestHelpersTest, Step)
+TEST(THelpersTest, Step)
 {
     auto step = [&] (size_t c, size_t s, size_t t) -> ssize_t {
         auto s1 = ((c * t / s + 1) * s + t - 1) / t - c;
@@ -191,7 +191,7 @@ void TestSplitTablet(
     }
 }
 
-TEST(TestHelpersTest, TestSplitTablet)
+TEST(THelpersTest, SplitTablet)
 {
     {
         std::pair<size_t, size_t> ranges[] = {{17, 42}, {47, 60}, {64, 75}};
@@ -346,7 +346,7 @@ TEST(TestHelpersTest, TestSplitTablet)
     }
 }
 
-TEST(TestHelpersTest, SplitByPivots)
+TEST(THelpersTest, SplitByPivots)
 {
     using TItemIt = const std::pair<int, int>*;
     using TShardIt = const int*;

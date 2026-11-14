@@ -162,7 +162,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDiscoveryServiceTestSuite, TestSimple)
+TEST_F(TDiscoveryServiceTestSuite, Simple)
 {
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId1 = "sample_member1";
@@ -207,7 +207,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
+TEST_F(TDiscoveryServiceTestSuite, ListGroups)
 {
     const TGroupId groupId = "/sample_group";
     const TGroupId subgroupId1 = groupId + "/sub1";
@@ -272,7 +272,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
     WaitForPredicate(BIND(checkNonExistent));
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestGossip)
+TEST_F(TDiscoveryServiceTestSuite, Gossip)
 {
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId = "sample_member";
@@ -300,7 +300,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
     WaitForPredicate(checkMember);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
+TEST_F(TDiscoveryServiceTestSuite, Attributes)
 {
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId = "sample_member";
@@ -353,7 +353,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     WaitForPredicate(checkAttributes2);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestPriority)
+TEST_F(TDiscoveryServiceTestSuite, Priority)
 {
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId = "sample_member";
@@ -418,7 +418,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
     }
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
+TEST_F(TDiscoveryServiceTestSuite, ServerBan)
 {
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId = "sample_member";
@@ -457,7 +457,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     WaitForPredicate(checkListMembers);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestWrongParameters)
+TEST_F(TDiscoveryServiceTestSuite, WrongParameters)
 {
     auto memberClient = CreateMemberClient("incorrect_group_id", "sample_member");
     ASSERT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
@@ -475,7 +475,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestWrongParameters)
     ASSERT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_NestedGroups)
 {
     const std::vector<std::pair<TGroupId, std::string>> testMembers = {
         {"/sample_group", "sample_member_1"},
@@ -542,7 +542,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     }
 }
 
-TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_YPath)
 {
     const TGroupId groupId1 = "/sample_group1";
     const TGroupId groupId2 = "/test/sample_group2";
@@ -789,7 +789,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     }
 }
 
-TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_GroupRemoval)
 {
     const TGroupId groupId1 = "/sample_group1";
     const TMemberId memberId1 = "sample_member1";
@@ -828,7 +828,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     WaitForPredicate(checkMembers);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestLimits)
+TEST_F(TDiscoveryServiceTestSuite, Limits)
 {
     auto addresses = GetDiscoveryServersAddresses();
     for (int i = 0; i < std::ssize(addresses); ++i) {

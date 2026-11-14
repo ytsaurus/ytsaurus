@@ -278,7 +278,7 @@ TEST_P(TUnbufferedFileChangelogTest, ReadWrite)
     }
 }
 
-TEST_P(TUnbufferedFileChangelogTest, TestCorruptedDataFile)
+TEST_P(TUnbufferedFileChangelogTest, CorruptedDataFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
@@ -290,7 +290,7 @@ TEST_P(TUnbufferedFileChangelogTest, TestCorruptedDataFile)
     TestCorruptedDataFile(fileSize + 50000, RecordCount, RecordCount);
 }
 
-TEST_P(TUnbufferedFileChangelogTest, TestCorruptedIndexFile)
+TEST_P(TUnbufferedFileChangelogTest, CorruptedIndexFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
@@ -367,7 +367,7 @@ TEST_P(TUnbufferedFileChangelogTest, TruncateWrite)
     CheckRead(changelog, 0, RecordCount3);
 }
 
-TEST_P(TUnbufferedFileChangelogTest, TestIndexFlushOnClose)
+TEST_P(TUnbufferedFileChangelogTest, IndexFlushOnClose)
 {
     constexpr int RecordCount = 1;
 

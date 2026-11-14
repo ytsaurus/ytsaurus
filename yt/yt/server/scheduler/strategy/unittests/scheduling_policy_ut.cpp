@@ -703,7 +703,7 @@ MATCHER_P2(ResourceVectorNear, vec, absError, "") {
 
 // Schedule allocations tests.
 
-TEST_F(TSchedulingPolicyTest, TestUpdatePreemptibleAllocationsList)
+TEST_F(TSchedulingPolicyTest, UpdatePreemptibleAllocationsList)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -950,7 +950,7 @@ TEST_F(TSchedulingPolicyTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShar
     }
 }
 
-TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
+TEST_F(TSchedulingPolicyTest, SchedulableOperationsOrder)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(100);
@@ -1095,7 +1095,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
     }
 }
 
-TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
+TEST_F(TSchedulingPolicyTest, SchedulableChildSetWithBatchScheduling)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(100);
@@ -1301,7 +1301,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
     }
 }
 
-TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
+TEST_F(TSchedulingPolicyTest, SchedulableChildSetWithoutBatchScheduling)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(100);
@@ -1436,7 +1436,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
     }
 }
 
-TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
+TEST_F(TSchedulingPolicyTest, CollectConsideredSchedulableChildrenPerPool)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
@@ -1688,7 +1688,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
     }
 }
 
-TEST_F(TSchedulingPolicyTest, TestGuaranteePriorityScheduling)
+TEST_F(TSchedulingPolicyTest, GuaranteePriorityScheduling)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
@@ -1791,7 +1791,7 @@ TEST_F(TSchedulingPolicyTest, TestGuaranteePriorityScheduling)
         /*expectedMediumPriorityOperations*/ {operationElementA1, operationElementA2, operationElementB1, operationElementB2});
 }
 
-TEST_F(TSchedulingPolicyTest, TestBuildDynamicAttributesListFromSnapshot)
+TEST_F(TSchedulingPolicyTest, BuildDynamicAttributesListFromSnapshot)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);

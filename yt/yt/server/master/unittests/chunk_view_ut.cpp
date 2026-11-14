@@ -24,7 +24,7 @@ class TChunkViewTest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TChunkViewTest, TestRangesIntersection)
+TEST_F(TChunkViewTest, RangesIntersection)
 {
     const auto K5 = BuildKey("5");
     const auto K6 = BuildKey("6");

@@ -40,7 +40,7 @@ TNode CreateAce(
     return result;
 };
 
-TEST(SecurityClient, TestCheckPermission)
+TEST(TSecurityClientTest, CheckPermission)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -100,7 +100,7 @@ TEST(SecurityClient, TestCheckPermission)
     }
 }
 
-TEST(SecurityClient, TestCheckColumnarPermissions)
+TEST(TSecurityClientTest, CheckColumnarPermissions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

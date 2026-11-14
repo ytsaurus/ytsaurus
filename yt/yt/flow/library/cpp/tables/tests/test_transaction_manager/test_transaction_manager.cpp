@@ -38,7 +38,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestTransactionManager
+class TTransactionManagerTest
     : public ::testing::Test
 {
 protected:
@@ -113,7 +113,7 @@ protected:
 
 // Verifies that CreateTransaction() returns a non-null retryable transaction
 // and CommitTransaction() succeeds on an empty transaction.
-TEST_W(TTestTransactionManager, CreateAndCommitTransaction)
+TEST_W(TTransactionManagerTest, CreateAndCommitTransaction)
 {
     auto context = PrepareTransactionManagerContext();
     auto spec = New<TDynamicRetryableRequestSpec>();
@@ -127,7 +127,7 @@ TEST_W(TTestTransactionManager, CreateAndCommitTransaction)
 }
 
 // Verifies that Cleanup() completes without error.
-TEST_W(TTestTransactionManager, Cleanup)
+TEST_W(TTransactionManagerTest, Cleanup)
 {
     auto context = PrepareTransactionManagerContext();
     auto spec = New<TDynamicRetryableRequestSpec>();

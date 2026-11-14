@@ -641,7 +641,7 @@ protected:
     TSortedDynamicRowKeyComparer LlvmComparer_;
 };
 
-TEST_P(TSortedDynamicRowKeyComparerTest, Test)
+TEST_P(TSortedDynamicRowKeyComparerTest, CompareKeys)
 {
     auto str1 = TStringBuf(std::get<0>(GetParam()));
     auto str2 = TStringBuf(std::get<1>(GetParam()));
@@ -726,7 +726,7 @@ public:
     };
 };
 
-TEST_P(TSingleLockSortedDynamicStoreReserializeConflictTest, Test)
+TEST_P(TSingleLockSortedDynamicStoreReserializeConflictTest, DetectLockConflict)
 {
     auto lockType = std::get<0>(GetParam());
     auto reserialize = std::get<1>(GetParam());

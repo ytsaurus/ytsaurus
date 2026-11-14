@@ -389,7 +389,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TGentleLoaderTest, TestSimple)
+TEST_F(TGentleLoaderTest, Simple)
 {
     IOEngineConfig_.ThreadsCount = 4;
     IOEngineConfig_.ReadLatency = TDuration::MilliSeconds(10);
@@ -403,7 +403,7 @@ TEST_F(TGentleLoaderTest, TestSimple)
     EXPECT_LE(lastResult, 500);
 }
 
-TEST_F(TGentleLoaderTest, TestErrorHandling)
+TEST_F(TGentleLoaderTest, ErrorHandling)
 {
     IOEngineConfig_.ThreadsCount = 4;
     IOEngineConfig_.ReadLatency = TDuration::MilliSeconds(10);
@@ -422,7 +422,7 @@ TEST_F(TGentleLoaderTest, TestErrorHandling)
     EXPECT_LE(lastResult, 600);
 }
 
-TEST_F(TGentleLoaderTest, TestAllFailing)
+TEST_F(TGentleLoaderTest, AllFailing)
 {
     IOEngineConfig_.ThreadsCount = 4;
     IOEngineConfig_.ReadLatency = TDuration::MilliSeconds(10);
@@ -440,7 +440,7 @@ TEST_F(TGentleLoaderTest, TestAllFailing)
     EXPECT_LE(lastResult, 10);
 }
 
-TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
+TEST_F(TGentleLoaderTest, InteractiveOverloaded)
 {
     // Setup high-rate environment.
     IOEngineConfig_.ThreadsCount = 4;
@@ -460,7 +460,7 @@ TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
     EXPECT_LE(lastResult, 10);
 }
 
-TEST_F(TGentleLoaderTest, TestWriteLimit)
+TEST_F(TGentleLoaderTest, WriteLimit)
 {
     GentleLoaderConfig_->MaxWriteRate = GentleLoaderConfig_->PacketSize * 50;
     GentleLoaderConfig_->DefaultReadToWriteRatio =  50; // only writes

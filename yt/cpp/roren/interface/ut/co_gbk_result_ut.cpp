@@ -36,7 +36,7 @@ TCoGbkResult MakeCoGbkResult(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestCoGbkResult, Simple)
+TEST(TCoGbkResultTest, Simple)
 {
     const auto tag1 = TTypeTag<TKV<TString, int>>{"t1"};
     const auto tag2 = TTypeTag<TKV<TString, TString>>{"t2"};
@@ -74,7 +74,7 @@ TEST(TTestCoGbkResult, Simple)
     }
 }
 
-TEST(TTestCoGbkResult, SaveLoad)
+TEST(TCoGbkResultTest, SaveLoad)
 {
     const auto tag1 = TTypeTag<TKV<TString, int>>{"t1"};
     const auto tag2 = TTypeTag<TKV<TString, TString>>{"t2"};
@@ -124,7 +124,7 @@ TEST(TTestCoGbkResult, SaveLoad)
     }
 }
 
-TEST(TTestCoGbkResult, SaveLoadEmpty)
+TEST(TCoGbkResultTest, SaveLoadEmpty)
 {
     auto originalGbk = NPrivate::MakeCoGbkResult(NPrivate::TRawRowHolder{}, {});
 

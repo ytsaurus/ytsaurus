@@ -38,7 +38,7 @@ protected:
     }
 };
 
-TEST_F(TWatermarkGeneratorTest, TestUpdateAheadGenerator)
+TEST_F(TWatermarkGeneratorTest, UpdateAheadGenerator)
 {
     auto makeMessage = [&] (const std::string& messageId, ui64 eventTimestamp) {
         TMessage message;
@@ -111,7 +111,7 @@ TEST_F(TWatermarkGeneratorTest, TestUpdateAheadGenerator)
     }
 }
 
-TEST_F(TWatermarkGeneratorTest, TestOutOfOrderMarkPersisted)
+TEST_F(TWatermarkGeneratorTest, OutOfOrderMarkPersisted)
 {
     // Verify that MarkPersisted called out of order does NOT prematurely advance
     // the persisted watermark. When a non-front entry is persisted, its MaxEventTimestamp

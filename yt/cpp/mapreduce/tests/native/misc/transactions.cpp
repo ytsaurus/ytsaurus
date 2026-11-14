@@ -19,7 +19,7 @@ static TInstant GetLastPingTime(const IClientBasePtr& client, const ITransaction
     return TInstant::ParseIso8601(node.AsString());
 };
 
-TEST(Transactions, TestTitle)
+TEST(TTransactionsTest, Title)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -43,7 +43,7 @@ TEST(Transactions, TestTitle)
     EXPECT_EQ(getTitle(attrTitleTx), "bar");
 }
 
-TEST(Transactions, TestPing)
+TEST(TTransactionsTest, Ping)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -58,7 +58,7 @@ TEST(Transactions, TestPing)
     EXPECT_THROW(transaction->Ping(), TErrorResponse);
 }
 
-TEST(Transactions, TestAutoPing)
+TEST(TTransactionsTest, AutoPing)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -91,7 +91,7 @@ TEST(Transactions, TestAutoPing)
     }
 }
 
-TEST(Transactions, TestDeadline)
+TEST(TTransactionsTest, Deadline)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -108,7 +108,7 @@ TEST(Transactions, TestDeadline)
 
 }
 
-TEST(Transactions, TestDetachAttach)
+TEST(TTransactionsTest, DetachAttach)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -151,7 +151,7 @@ TEST(Transactions, TestDetachAttach)
     EXPECT_TRUE(!client->Exists("#" + GetGuidAsString(transactionId)));
 }
 
-TEST(Transactions, TestPingErrors)
+TEST(TTransactionsTest, PingErrors)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -172,7 +172,7 @@ TEST(Transactions, TestPingErrors)
     EXPECT_TRUE(client->Exists("#" + GetGuidAsString(transactionId)));
 }
 
-TEST(Transactions, TestCommitOptions)
+TEST(TTransactionsTest, CommitOptions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

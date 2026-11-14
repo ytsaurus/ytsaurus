@@ -33,7 +33,7 @@ NHydra::TRevision Increment(NHydra::TRevision revision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TObjectServiceCacheTest, TestStaleResponse)
+TEST(TObjectServiceCacheTest, StaleResponse)
 {
     auto cache = New<TObjectServiceCache>(
         New<TObjectServiceCacheConfig>(),
@@ -127,7 +127,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
     }
 }
 
-TEST(TObjectServiceCacheTest, TestStaleError)
+TEST(TObjectServiceCacheTest, StaleError)
 {
     auto cache = New<TObjectServiceCache>(
         New<TObjectServiceCacheConfig>(),

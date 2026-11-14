@@ -69,7 +69,7 @@ void CreateTestAggregatingTable(const IClientPtr& client, const TYPath& table)
              .Add(TNode()("name", "value")("type", "int64")("aggregate", "sum")))));
 }
 
-TEST(TabletClient, TestMountUnmount)
+TEST(TTabletClientTest, MountUnmount)
 {
     TTabletFixture fixture;
     auto client = fixture.GetClient();
@@ -93,7 +93,7 @@ TEST(TabletClient, TestMountUnmount)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestFreezeUnfreeze)
+TEST(TTabletClientTest, FreezeUnfreeze)
 {
     TTabletFixture fixture;
     auto client = fixture.GetClient();
@@ -114,7 +114,7 @@ TEST(TabletClient, TestFreezeUnfreeze)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestReshard)
+TEST(TTabletClientTest, Reshard)
 {
     SKIP_IF_RPC();
 
@@ -150,7 +150,7 @@ TEST(TabletClient, TestReshard)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestInsertLookupDelete)
+TEST(TTabletClientTest, InsertLookupDelete)
 {
     SKIP_IF_RPC();
 
@@ -189,7 +189,7 @@ TEST(TabletClient, TestInsertLookupDelete)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestTrimRows)
+TEST(TTabletClientTest, TrimRows)
 {
     SKIP_IF_RPC();
 
@@ -228,7 +228,7 @@ TEST(TabletClient, TestTrimRows)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestAtomicityNoneInsert)
+TEST(TTabletClientTest, AtomicityNoneInsert)
 {
     SKIP_IF_RPC();
 
@@ -272,7 +272,7 @@ TEST(TabletClient, TestAtomicityNoneInsert)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestTimeoutType)
+TEST(TTabletClientTest, TimeoutType)
 {
     SKIP_IF_RPC();
 
@@ -308,7 +308,7 @@ TEST(TabletClient, TestTimeoutType)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestUpdateInsert)
+TEST(TTabletClientTest, UpdateInsert)
 {
     SKIP_IF_RPC();
 
@@ -343,7 +343,7 @@ TEST(TabletClient, TestUpdateInsert)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestAggregateInsert)
+TEST(TTabletClientTest, AggregateInsert)
 {
     SKIP_IF_RPC();
 
@@ -378,7 +378,7 @@ TEST(TabletClient, TestAggregateInsert)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestSharedWriteLockType)
+TEST(TTabletClientTest, SharedWriteLockType)
 {
     SKIP_IF_RPC();
 
@@ -427,7 +427,7 @@ TEST(TabletClient, TestSharedWriteLockType)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestVersionedLookup)
+TEST(TTabletClientTest, VersionedLookup)
 {
     SKIP_IF_RPC();
 
@@ -477,7 +477,7 @@ TEST(TabletClient, TestVersionedLookup)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestGetTabletInfos)
+TEST(TTabletClientTest, GetTabletInfos)
 {
     TTabletFixture fixture;
     auto client = fixture.GetClient();
@@ -500,7 +500,7 @@ TEST(TabletClient, TestGetTabletInfos)
     WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
 }
 
-TEST(TabletClient, TestInsertRowsEarlyError)
+TEST(TTabletClientTest, InsertRowsEarlyError)
 {
     SKIP_IF_RPC();
 

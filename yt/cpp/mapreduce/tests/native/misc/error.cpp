@@ -8,7 +8,7 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-TEST(TestErrors, TestErrorParsing)
+TEST(TErrorsTest, ErrorParsing)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

@@ -10,7 +10,7 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(CanonizeYPath, TestOkCanonization)
+TEST(TCanonizeYPathTest, OkCanonization)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -21,7 +21,7 @@ TEST(CanonizeYPath, TestOkCanonization)
     EXPECT_EQ(canonized.Columns_, TColumnNames({"column"}));
 }
 
-TEST(CanonizeYPath, TestBadCanonization)
+TEST(TCanonizeYPathTest, BadCanonization)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

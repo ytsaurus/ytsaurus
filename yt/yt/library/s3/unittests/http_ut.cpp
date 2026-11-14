@@ -19,7 +19,7 @@ const static ICredentialsProviderPtr S3CredentialProvider = CreateStaticCredenti
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TRequestPreparerTest, Test1)
+TEST(TRequestPreparerTest, SignGetObject)
 {
     auto time = TInstant::ParseIso8601("20130524T000000Z");
     THttpRequest request{
@@ -42,7 +42,7 @@ TEST(TRequestPreparerTest, Test1)
         request.Headers["Authorization"]);
 }
 
-TEST(TRequestPreparerTest, Test2)
+TEST(TRequestPreparerTest, SignPutObject)
 {
     auto time = TInstant::ParseIso8601("20130524T000000Z");
     auto payload = TSharedRef::FromString(std::string("Welcome to Amazon S3."));
@@ -70,7 +70,7 @@ TEST(TRequestPreparerTest, Test2)
         request.Headers["Authorization"]);
 }
 
-TEST(TRequestPreparerTest, Test3)
+TEST(TRequestPreparerTest, SignGetBucketLifecycle)
 {
     auto time = TInstant::ParseIso8601("20130524T000000Z");
     THttpRequest request{
@@ -95,7 +95,7 @@ TEST(TRequestPreparerTest, Test3)
         request.Headers["Authorization"]);
 }
 
-TEST(TRequestPreparerTest, Test4)
+TEST(TRequestPreparerTest, SignListObjects)
 {
     auto time = TInstant::ParseIso8601("20130524T000000Z");
     THttpRequest request{

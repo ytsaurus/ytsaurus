@@ -1962,7 +1962,7 @@ TEST_F(TChunkTreeTraversingTest, TraverseHunkTreeAfterDetach)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTraverseWithKeyColumnCount
+class TTraverseWithKeyColumnCountTest
     : public TChunkTreeTraversingTest
     , public ::testing::WithParamInterface<std::tuple<
         int,
@@ -1973,7 +1973,7 @@ class TTraverseWithKeyColumnCount
     >>
 { };
 
-TEST_P(TTraverseWithKeyColumnCount, TestStatic)
+TEST_P(TTraverseWithKeyColumnCountTest, Static)
 {
     const auto& params = GetParam();
     auto keyColumnCount = std::get<0>(params);
@@ -2022,7 +2022,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
     }
 }
 
-TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
+TEST_P(TTraverseWithKeyColumnCountTest, Dynamic)
 {
     const auto& params = GetParam();
     auto keyColumnCount = std::get<0>(params);
@@ -2073,8 +2073,8 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTraverseWithKeyColumnCount,
-    TTraverseWithKeyColumnCount,
+    TTraverseWithKeyColumnCountTest,
+    TTraverseWithKeyColumnCountTest,
     ::testing::Values(
         std::tuple(
             2,

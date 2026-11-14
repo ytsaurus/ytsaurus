@@ -94,7 +94,7 @@ i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, Basic)
+TEST(TInflightStoreTest, Basic)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -154,7 +154,7 @@ TEST(TTestInflightStoreTest, Basic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, RegisteredTotalsCountSuccessfulRegistersOnly)
+TEST(TInflightStoreTest, RegisteredTotalsCountSuccessfulRegistersOnly)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -199,7 +199,7 @@ TEST(TTestInflightStoreTest, RegisteredTotalsCountSuccessfulRegistersOnly)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, TracksReadyLifecycle)
+TEST(TInflightStoreTest, TracksReadyLifecycle)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -239,7 +239,7 @@ TEST(TTestInflightStoreTest, TracksReadyLifecycle)
     EXPECT_EQ(metrics->ReadyCount, 0);
 }
 
-TEST(TTestInflightStoreTest, DuplicateRegistrationAndRemovalDoNotChangeLifecycleState)
+TEST(TInflightStoreTest, DuplicateRegistrationAndRemovalDoNotChangeLifecycleState)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -270,7 +270,7 @@ TEST(TTestInflightStoreTest, DuplicateRegistrationAndRemovalDoNotChangeLifecycle
     EXPECT_EQ(metrics->ReadyCount, 0);
 }
 
-TEST(TTestInflightStoreTest, DirectCompletionReportsProcessedOnlyOnCommit)
+TEST(TInflightStoreTest, DirectCompletionReportsProcessedOnlyOnCommit)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -302,7 +302,7 @@ TEST(TTestInflightStoreTest, DirectCompletionReportsProcessedOnlyOnCommit)
     EXPECT_EQ(ReadCounter(registry, "yt/test/unregistered_count"), 1);
 }
 
-TEST(TTestInflightStoreTest, RestoredOutputIsReady)
+TEST(TInflightStoreTest, RestoredOutputIsReady)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -324,7 +324,7 @@ TEST(TTestInflightStoreTest, RestoredOutputIsReady)
     EXPECT_EQ(metrics->ReadyCount, 1);
 }
 
-TEST(TTestInflightStoreTest, RestoredTimerIsNotReadyUntilOffered)
+TEST(TInflightStoreTest, RestoredTimerIsNotReadyUntilOffered)
 {
     auto spec = New<TWatermarkPercentileSpec>();
     spec->Value = PreciseWatermarkPercentile;
@@ -351,7 +351,7 @@ TEST(TTestInflightStoreTest, RestoredTimerIsNotReadyUntilOffered)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, SyncCountersPushesUsageToBoundStreamLimitUsageStates)
+TEST(TInflightStoreTest, SyncCountersPushesUsageToBoundStreamLimitUsageStates)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -389,7 +389,7 @@ TEST(TTestInflightStoreTest, SyncCountersPushesUsageToBoundStreamLimitUsageState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, Percentile)
+TEST(TInflightStoreTest, Percentile)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -468,7 +468,7 @@ TEST(TTestInflightStoreTest, Percentile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, Delay)
+TEST(TInflightStoreTest, Delay)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -572,7 +572,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, Timer)
+TEST(TInflightStoreTest, Timer)
 {
     // Timers should behave identically to messages for inflight tracking purposes.
     auto spec = New<TWatermarkPercentileSpec>();
@@ -615,7 +615,7 @@ TEST(TTestInflightStoreTest, Timer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, PercentileWithUnregister)
+TEST(TInflightStoreTest, PercentileWithUnregister)
 {
     // Verify that percentile is correctly maintained after unregistrations.
     // This exercises the two-heap rebalancing on removal.
@@ -678,7 +678,7 @@ TEST(TTestInflightStoreTest, PercentileWithUnregister)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, IgnoreInflight)
+TEST(TInflightStoreTest, IgnoreInflight)
 {
     // Percentile == 0 means ignore inflight entirely: GetMinEventTimestamp always returns nullopt.
     const auto schema = New<NTableClient::TTableSchema>(
@@ -715,7 +715,7 @@ TEST(TTestInflightStoreTest, IgnoreInflight)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestInflightStoreTest, BatchInflightsCoverStreamsPercentilesAndDelay)
+TEST(TInflightStoreTest, BatchInflightsCoverStreamsPercentilesAndDelay)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{NTableClient::TColumnSchema("payload", NTableClient::EValueType::String)});
@@ -783,7 +783,7 @@ TEST(TTestInflightStoreTest, BatchInflightsCoverStreamsPercentilesAndDelay)
 
 // Stress test: compare TInflightTracker against TReferenceInflightStore
 // on random sequences of register/unregister operations.
-TEST(TTestInflightStoreTest, StressVsReference)
+TEST(TInflightStoreTest, StressVsReference)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -946,7 +946,7 @@ TEST(TTestInflightStoreTest, StressVsReference)
 // that the skipped-percentile-heaps path produces identical observable behavior for the
 // percentile==100 default — covering insert / GetMin / unregister cycles, including
 // out-of-order unregister.
-TEST(TTestInflightStoreTest, PercentilePreciseSkipsHeaps)
+TEST(TInflightStoreTest, PercentilePreciseSkipsHeaps)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -1001,7 +1001,7 @@ TEST(TTestInflightStoreTest, PercentilePreciseSkipsHeaps)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestMultiInflightStoreTest, TwoStreams)
+TEST(TMultiInflightStoreTest, TwoStreams)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{
@@ -1063,7 +1063,7 @@ TEST(TTestMultiInflightStoreTest, TwoStreams)
 // Exercises the hashmap fallback path of TMultiInflightTracker. With three
 // streams the constructor leaves SmallTrackers_ empty and every ResolveTracker
 // call goes through InflightTrackers_.at(streamId).
-TEST(TTestMultiInflightStoreTest, ThreeStreams)
+TEST(TMultiInflightStoreTest, ThreeStreams)
 {
     const auto schema = New<NTableClient::TTableSchema>(
         std::vector{

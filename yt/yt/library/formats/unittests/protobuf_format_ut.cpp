@@ -693,7 +693,7 @@ TTableSchemaPtr BuildEmbeddedSchema()
     return schema;
 }
 
-TEST(TProtobufFormatTest, TestConfigParsingEmbedded) {
+TEST(TProtobufFormatTest, ConfigParsingEmbedded) {
     auto config = BuildEmbeddedConfig(EComplexTypeMode::Positional, EProtoFormatType::Structured);
     auto schema = BuildEmbeddedSchema();
 
@@ -701,7 +701,7 @@ TEST(TProtobufFormatTest, TestConfigParsingEmbedded) {
         ParseAndValidateConfig(config->Attributes().ToMap(), {schema}));
 }
 
-TEST(TProtobufFormatTest, TestConfigParsing)
+TEST(TProtobufFormatTest, ConfigParsing)
 {
     // Empty config.
     EXPECT_THROW_WITH_SUBSTRING(
@@ -994,7 +994,7 @@ TEST(TProtobufFormatTest, TestConfigParsing)
         "\"field_number\" is required");
 }
 
-TEST(TProtobufFormatTest, TestParseBigZigZag)
+TEST(TProtobufFormatTest, ParseBigZigZag)
 {
     constexpr i32 value = Min<i32>();
     TMessage message;
@@ -1004,7 +1004,7 @@ TEST(TProtobufFormatTest, TestParseBigZigZag)
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int32")), value);
 }
 
-TEST(TProtobufFormatTest, TestParseEnumerationString)
+TEST(TProtobufFormatTest, ParseEnumerationString)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     {
@@ -1033,7 +1033,7 @@ TEST(TProtobufFormatTest, TestParseEnumerationString)
     }
 }
 
-TEST(TProtobufFormatTest, TestParseWrongEnumeration)
+TEST(TProtobufFormatTest, ParseWrongEnumeration)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     TMessage message;
@@ -1042,7 +1042,7 @@ TEST(TProtobufFormatTest, TestParseWrongEnumeration)
     EXPECT_ANY_THROW(ParseRows(message, config));
 }
 
-TEST(TProtobufFormatTest, TestParseEnumerationInt)
+TEST(TProtobufFormatTest, ParseEnumerationInt)
 {
     TCollectingValueConsumer rowCollector;
 
@@ -1103,7 +1103,7 @@ TEST(TProtobufFormatTest, TestParseEnumerationInt)
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(4, "Enum")), 100500);
 }
 
-TEST(TProtobufFormatTest, TestParseRandomGarbage)
+TEST(TProtobufFormatTest, ParseRandomGarbage)
 {
     // Check that we never crash.
 
@@ -1124,7 +1124,7 @@ TEST(TProtobufFormatTest, TestParseRandomGarbage)
     }
 }
 
-TEST(TProtobufFormatTest, TestParseZeroColumns)
+TEST(TProtobufFormatTest, ParseZeroColumns)
 {
     auto config = BuildYsonNodeFluently()
         .BeginMap()
@@ -1156,7 +1156,7 @@ TEST(TProtobufFormatTest, TestParseZeroColumns)
     EXPECT_EQ(static_cast<int>(rowCollector.GetRow(1).GetCount()), 0);
 }
 
-TEST(TProtobufFormatTest, TestWriteEnumerationString)
+TEST(TProtobufFormatTest, WriteEnumerationString)
 {
     auto config = CreateAllFieldsConfig(EProtoFormatType::Structured);
 
@@ -1208,7 +1208,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationString)
     }
 }
 
-TEST(TProtobufFormatTest, TestWriteEnumerationInt)
+TEST(TProtobufFormatTest, WriteEnumerationInt)
 {
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
@@ -1321,7 +1321,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationInt)
 }
 
 
-TEST(TProtobufFormatTest, TestWriteZeroColumns)
+TEST(TProtobufFormatTest, WriteZeroColumns)
 {
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
@@ -1364,7 +1364,7 @@ TEST(TProtobufFormatTest, TestWriteZeroColumns)
     ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
 }
 
-TEST(TProtobufFormatTest, TestTabletIndex)
+TEST(TProtobufFormatTest, TabletIndex)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
         .BeginMap()
@@ -1438,7 +1438,7 @@ TEST(TProtobufFormatTest, TestTabletIndex)
     }
 }
 
-TEST(TProtobufFormatTest, TestContext)
+TEST(TProtobufFormatTest, Context)
 {
     auto config = BuildYsonNodeFluently()
         .BeginMap()
@@ -1940,13 +1940,13 @@ INodePtr CreateConfigWithStructuredMessage(EComplexTypeMode complexTypeMode, EPr
 
 using TProtobufFormatStructuredMessageParameter = std::tuple<EComplexTypeMode, int, EProtoFormatType>;
 
-class TProtobufFormatStructuredMessage
+class TProtobufFormatStructuredMessageTest
     : public ::testing::TestWithParam<TProtobufFormatStructuredMessageParameter>
 { };
 
 INSTANTIATE_TEST_SUITE_P(
     FileDescriptor,
-    TProtobufFormatStructuredMessage,
+    TProtobufFormatStructuredMessageTest,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
         EComplexTypeMode::Positional,
         1,
@@ -1954,7 +1954,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     Positional,
-    TProtobufFormatStructuredMessage,
+    TProtobufFormatStructuredMessageTest,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
         EComplexTypeMode::Positional,
         1,
@@ -1962,7 +1962,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     Named,
-    TProtobufFormatStructuredMessage,
+    TProtobufFormatStructuredMessageTest,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
         EComplexTypeMode::Named,
         1,
@@ -1970,13 +1970,13 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     ManyRows,
-    TProtobufFormatStructuredMessage,
+    TProtobufFormatStructuredMessageTest,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
         EComplexTypeMode::Named,
         30000,
         EProtoFormatType::Structured}));
 
-TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
+TEST_P(TProtobufFormatStructuredMessageTest, EmbeddedWrite)
 {
     auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
 
@@ -2110,7 +2110,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     ASSERT_FALSE(lenvalParser.Next());
 }
 
-TEST_P(TProtobufFormatStructuredMessage, Write)
+TEST_P(TProtobufFormatStructuredMessageTest, Write)
 {
     auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
 
@@ -2530,7 +2530,7 @@ INodePtr SortMapByKey(const INodePtr& node)
     return ConvertTo<INodePtr>(keyValuePairs);
 }
 
-TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
+TEST_P(TProtobufFormatStructuredMessageTest, EmbeddedParse)
 {
     auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
 
@@ -2581,7 +2581,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
     }
 }
 
-TEST_P(TProtobufFormatStructuredMessage, Parse)
+TEST_P(TProtobufFormatStructuredMessageTest, Parse)
 {
     auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
 
@@ -3016,23 +3016,23 @@ INodePtr CreateSeveralTablesConfig(EProtoFormatType protoFormatType)
 
 using TProtobufFormatSeveralTablesParam = std::tuple<EProtoFormatType>;
 
-class TProtobufFormatSeveralTables
+class TProtobufFormatSeveralTablesTest
     : public ::testing::TestWithParam<TProtobufFormatSeveralTablesParam>
 { };
 
 INSTANTIATE_TEST_SUITE_P(
     FileDescriptor,
-    TProtobufFormatSeveralTables,
+    TProtobufFormatSeveralTablesTest,
     ::testing::Values(TProtobufFormatSeveralTablesParam{
         EProtoFormatType::FileDescriptor}));
 
 INSTANTIATE_TEST_SUITE_P(
     Structured,
-    TProtobufFormatSeveralTables,
+    TProtobufFormatSeveralTablesTest,
     ::testing::Values(TProtobufFormatSeveralTablesParam{
         EProtoFormatType::Structured}));
 
-TEST_P(TProtobufFormatSeveralTables, Write)
+TEST_P(TProtobufFormatSeveralTablesTest, Write)
 {
     auto [protoFormatType] = GetParam();
 
@@ -3141,7 +3141,7 @@ TEST_P(TProtobufFormatSeveralTables, Write)
     ASSERT_FALSE(lenvalParser.Next());
 }
 
-TEST_P(TProtobufFormatSeveralTables, Parse)
+TEST_P(TProtobufFormatSeveralTablesTest, Parse)
 {
     auto [protoFormatType] = GetParam();
 
@@ -3767,7 +3767,7 @@ TEST(TProtobufFormatTest, EmbeddedSecondTableBug)
 ////////////////////////////////////////////////////////////////////////////////
 
 using TProtobufFormatAllFieldsParameter = std::tuple<int, EProtoFormatType>;
-class TProtobufFormatAllFields
+class TProtobufFormatAllFieldsTest
     : public ::testing::TestWithParam<TProtobufFormatAllFieldsParameter>
 {
 public:
@@ -3780,25 +3780,25 @@ public:
 
 INSTANTIATE_TEST_SUITE_P(
     Specification,
-    TProtobufFormatAllFields,
+    TProtobufFormatAllFieldsTest,
     ::testing::Values(TProtobufFormatAllFieldsParameter{1, EProtoFormatType::Structured}));
 
 INSTANTIATE_TEST_SUITE_P(
     FileDescriptorLegacy,
-    TProtobufFormatAllFields,
+    TProtobufFormatAllFieldsTest,
     ::testing::Values(TProtobufFormatAllFieldsParameter{1, EProtoFormatType::FileDescriptorLegacy}));
 
 INSTANTIATE_TEST_SUITE_P(
     FileDescriptor,
-    TProtobufFormatAllFields,
+    TProtobufFormatAllFieldsTest,
     ::testing::Values(TProtobufFormatAllFieldsParameter{1, EProtoFormatType::FileDescriptor}));
 
 INSTANTIATE_TEST_SUITE_P(
     ManyRows,
-    TProtobufFormatAllFields,
+    TProtobufFormatAllFieldsTest,
     ::testing::Values(TProtobufFormatAllFieldsParameter{50000, EProtoFormatType::Structured}));
 
-TEST_P(TProtobufFormatAllFields, Writer)
+TEST_P(TProtobufFormatAllFieldsTest, Writer)
 {
     auto [rowCount, protoFormatType] = GetParam();
     auto config = CreateAllFieldsConfig(protoFormatType);
@@ -3994,7 +3994,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     ASSERT_FALSE(lenvalParser.Next());
 }
 
-TEST_P(TProtobufFormatAllFields, Parser)
+TEST_P(TProtobufFormatAllFieldsTest, Parser)
 {
     auto [rowCount, protoFormatType] = GetParam();
 
@@ -4108,7 +4108,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufFormatCompat
+class TProtobufFormatCompatTest
     : public ::testing::Test
 {
 public:
@@ -4298,7 +4298,7 @@ TMessage WriteRow(
     return message;
 }
 
-TEST_F(TProtobufFormatCompat, Write)
+TEST_F(TProtobufFormatCompatTest, Write)
 {
     auto nameTable = TNameTable::FromSchema(*GetLateSchema());
     auto config = GetSecondMiddleConfig();
@@ -4373,7 +4373,7 @@ TEST_F(TProtobufFormatCompat, Write)
     }
 }
 
-TEST_F(TProtobufFormatCompat, Parse)
+TEST_F(TProtobufFormatCompatTest, Parse)
 {
     auto config = GetSecondMiddleConfig();
 
@@ -4427,7 +4427,7 @@ TEST_F(TProtobufFormatCompat, Parse)
     }
 }
 
-TEST_F(TProtobufFormatCompat, ParseWrong)
+TEST_F(TProtobufFormatCompatTest, ParseWrong)
 {
     NYT::TCompatMessage message;
     message.set_f1(42);
@@ -4441,7 +4441,7 @@ TEST_F(TProtobufFormatCompat, ParseWrong)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufFormatEnumCompat
+class TProtobufFormatEnumCompatTest
     : public ::testing::Test
 {
 public:
@@ -4548,7 +4548,7 @@ public:
     }
 };
 
-TEST_F(TProtobufFormatEnumCompat, WriteCanSkipUnknownEnumValues)
+TEST_F(TProtobufFormatEnumCompatTest, WriteCanSkipUnknownEnumValues)
 {
     auto schema = CreateTableSchema();
     auto config = CreateProtobufFormatConfig();
@@ -4585,7 +4585,7 @@ TEST_F(TProtobufFormatEnumCompat, WriteCanSkipUnknownEnumValues)
     EXPECT_EQ(collectRepeated(message.inner().packed_repeated_enum()), std::vector{TEnumCompat::One});
 }
 
-TEST_F(TProtobufFormatEnumCompat, WriteDoesntSkipRequiredFields)
+TEST_F(TProtobufFormatEnumCompatTest, WriteDoesntSkipRequiredFields)
 {
     auto schema = CreateTableSchema();
     auto config = CreateProtobufFormatConfig();
@@ -4604,7 +4604,7 @@ TEST_F(TProtobufFormatEnumCompat, WriteDoesntSkipRequiredFields)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufFormatRuntimeErrors
+class TProtobufFormatRuntimeErrorsTest
     : public ::testing::Test
 {
 public:
@@ -4680,7 +4680,7 @@ public:
     }
 };
 
-TEST_F(TProtobufFormatRuntimeErrors, ParseVariant)
+TEST_F(TProtobufFormatRuntimeErrorsTest, ParseVariant)
 {
     {
         SCOPED_TRACE("Optional variant, all missing");
@@ -4706,7 +4706,7 @@ TEST_F(TProtobufFormatRuntimeErrors, ParseVariant)
     }
 }
 
-TEST_F(TProtobufFormatRuntimeErrors, ParseStruct)
+TEST_F(TProtobufFormatRuntimeErrorsTest, ParseStruct)
 {
     {
         SCOPED_TRACE("Optional submessage missing");

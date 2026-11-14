@@ -43,11 +43,11 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestInputStore
+class TInputStoreTest
     : public TDynamicTablesTestBase
 {
 public:
-    TTestInputStore() = default;
+    TInputStoreTest() = default;
 
 protected:
     void SetUp() override
@@ -139,7 +139,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Verifies the full Register → Sync → Filter cycle against a real YT cluster.
-TEST_W(TTestInputStore, RegisterSyncAndFilter)
+TEST_W(TInputStoreTest, RegisterSyncAndFilter)
 {
     auto context = PrepareInputStoreContext();
     auto store = CreateInputStore(context, New<TDynamicInputStoreSpec>());
@@ -163,7 +163,7 @@ TEST_W(TTestInputStore, RegisterSyncAndFilter)
 
 // Verifies that messages with the same MessageId under different ComputationIds
 // are stored independently — registering one does not affect the other.
-TEST_W(TTestInputStore, SameMessageIdDifferentComputationIdAreIndependent)
+TEST_W(TInputStoreTest, SameMessageIdDifferentComputationIdAreIndependent)
 {
     // Two contexts with different ComputationIds sharing the same pipeline path.
     auto contextA = PrepareInputStoreContext();
@@ -194,7 +194,7 @@ TEST_W(TTestInputStore, SameMessageIdDifferentComputationIdAreIndependent)
 }
 
 // Verifies that Init() loads previously persisted messages and Filter() sees them.
-TEST_W(TTestInputStore, InitAndFilter)
+TEST_W(TInputStoreTest, InitAndFilter)
 {
     auto context = PrepareInputStoreContext();
 

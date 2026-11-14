@@ -355,7 +355,7 @@ void ExecuteNAndCheck(TCrossClusterManualCallbackExecutor& callbackExecutor, int
     YT_VERIFY(!callbackExecutor.ExecuteNext(2, TDuration::Seconds(3)));
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestLoadEmpty)
+TEST_F(TCrossClusterReplicatedStateTest, LoadEmpty)
 {
     auto xConfig = CreateXConfig();
 
@@ -389,7 +389,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadEmpty)
     EXPECT_TRUE(emptyVersionsMap.empty());
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestLoadCreated)
+TEST_F(TCrossClusterReplicatedStateTest, LoadCreated)
 {
     auto xConfig = CreateXConfig();
 
@@ -422,7 +422,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadCreated)
     EXPECT_EQ(versionsMap["empty1"], "0000000000000001;a");
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentCreation)
+TEST_F(TCrossClusterReplicatedStateTest, ConcurrentCreation)
 {
     auto xConfig = CreateXConfig();
 
@@ -460,7 +460,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentCreation)
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 2);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentStores)
+TEST_F(TCrossClusterReplicatedStateTest, ConcurrentStores)
 {
     auto xConfig = CreateXConfig();
 
@@ -540,7 +540,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentStores)
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 8);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestLockAcquisionFailed)
+TEST_F(TCrossClusterReplicatedStateTest, LockAcquisionFailed)
 {
     auto xConfig = CreateXConfig();
     xConfig->UpdateTransactionTimeout = TDuration::Seconds(100);
@@ -579,7 +579,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLockAcquisionFailed)
     EXPECT_EQ(value->AsMap()->FindChild("version_tag")->AsString()->GetValue(), "a");
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestQuorumUnavailable)
+TEST_F(TCrossClusterReplicatedStateTest, QuorumUnavailable)
 {
     SetAcl("//tmp/test1", true);
     SetAcl("//tmp/test2", true);
@@ -599,7 +599,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumUnavailable)
     SetAcl("//tmp/test3", false);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
+TEST_F(TCrossClusterReplicatedStateTest, LoadWrites)
 {
     SetAcl("//tmp/test1", true);
 
@@ -659,7 +659,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
     EXPECT_TRUE(value->AsMap()->FindChild("value")->AsInt64()->GetValue() == 1u);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
+TEST_F(TCrossClusterReplicatedStateTest, QuorumIntersection)
 {
     SetAcl("//tmp/test1", true);
 
@@ -730,7 +730,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
     SetAcl("//tmp/test3", false);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
+TEST_F(TCrossClusterReplicatedStateTest, SingleClusterAvailableOnWrite)
 {
     SetAcl("//tmp/test1", true);
     SetAcl("//tmp/test2", true);
@@ -776,7 +776,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);
 }
 
-TEST_F(TCrossClusterReplicatedStateTest, Test100ConcurrentStores)
+TEST_F(TCrossClusterReplicatedStateTest, StoreConcurrently100Times)
 {
     auto xConfig = CreateXConfig();
 

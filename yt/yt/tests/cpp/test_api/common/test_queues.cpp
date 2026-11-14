@@ -358,7 +358,7 @@ void TConsumerApiTest::SetUpTestCase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
+TEST_P(TConsumerApiTest, AdvanceQueueConsumerViaProxy)
 {
     auto [isMultiConsumer, consumerName, queueName] = GetParam();
 
@@ -434,7 +434,7 @@ using TProducerApiTest = TQueueTestBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TProducerApiTest, TestApi)
+TEST_F(TProducerApiTest, Api)
 {
     TRichYPath producerPath;
     producerPath.SetPath("//tmp/test_producer");
@@ -519,7 +519,7 @@ TEST_F(TProducerApiTest, TestApi)
     ASSERT_EQ(actualSessionRow, expectedSessionRow);
 }
 
-TEST_F(TProducerApiTest, TestProducerClient)
+TEST_F(TProducerApiTest, ProducerClient)
 {
     TRichYPath producerPath;
     producerPath.SetPath("//tmp/producer");
