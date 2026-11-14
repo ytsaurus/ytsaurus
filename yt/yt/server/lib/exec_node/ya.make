@@ -30,3 +30,7 @@ IF (NOT OPENSOURCE)
 ENDIF()
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

@@ -250,7 +250,11 @@ class TestJobProxyCallFailed(YTEnvSetup):
     @authors("pogorelov")
     def test_on_job_proxy_spawned_call_fail(self):
         aborted_job_profiler = JobCountProfiler(
-            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "other"})
+            "aborted", tags={
+                "tree": "default",
+                "job_type": "vanilla",
+                "abort_reason": "job_proxy_supervisor_communication_failed",
+            })
 
         op = run_test_vanilla("sleep 1", job_count=1)
 
