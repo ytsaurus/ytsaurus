@@ -766,6 +766,13 @@ IChunkReaderPtr CreateRemoteReader(
     optionsPerChunk->UseProxyingDataNodeService = chunkSpec.use_proxying_data_node_service();
 
     if (IsErasureChunkId(chunkId)) {
+        if (chunkSpec.striped_erasure()) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::UnsupportedChunkFeature,
+                "Reading striped erasure chunk %v is not supported",
+                chunkId);
+        }
+
         auto erasureCodecId = FromProto<ECodec>(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);

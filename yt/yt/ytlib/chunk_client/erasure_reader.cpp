@@ -184,8 +184,8 @@ private:
             if (!PlacementExtFuture_) {
                 const auto& reader = readers[RandomNumber(readers.size())];
                 PlacementExtFuture_ = GetPlacementMeta(reader, options)
-                    .Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
-                        return GetProtoExtension<NProto::TErasurePlacementExt>(meta->extensions());
+                    .Apply(BIND([chunkId = ChunkId_] (const TRefCountedChunkMetaPtr& meta) {
+                        return GetPlacementExtOrThrow(chunkId, meta);
                     }));
             }
 
@@ -304,7 +304,7 @@ private:
                 const auto& reader = availableReaders[RandomNumber(availableReaders.size())];
                 return GetPlacementMeta(reader, options.ClientOptions)
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
-                        auto placementExt = GetProtoExtension<NProto::TErasurePlacementExt>(meta->extensions());
+                        auto placementExt = GetPlacementExtOrThrow(ChunkId_, meta);
                         return ExecuteErasureRepairingSession(
                             ChunkId_,
                             Codec_,

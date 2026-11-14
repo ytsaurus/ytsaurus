@@ -132,8 +132,10 @@ class TestErasure(TestErasureBase):
         assert get("//tmp/table/@chunk_count") == 0
 
         write_table("//tmp/table", {"b": "hello"})
-        # TODO(gritukan): Striped erasure chunks are not meant to be read.
-        if not enable_striped_erasure:
+        if enable_striped_erasure:
+            with raises_yt_error("Reading striped erasure chunk"):
+                read_table("//tmp/table")
+        else:
             assert read_table("//tmp/table") == [{"b": "hello"}]
         assert get("//tmp/table/@row_count") == 1
 
