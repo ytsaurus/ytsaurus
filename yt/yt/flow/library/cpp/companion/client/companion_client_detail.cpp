@@ -110,6 +110,14 @@ void AddCompanionResourcesToJobInfo(
     }
 }
 
+template <typename TJobInfoPtr>
+void AddPartitionIdToJobInfo(TJobInfoPtr jobInfo, const std::optional<TPartitionId>& partitionId)
+{
+    if (partitionId) {
+        ToProto(jobInfo->mutable_partition_id(), *partitionId);
+    }
+}
+
 template <typename TMutableStatesPtr, typename TStatePayload>
 void AddStatesToRequest(
     TMutableStatesPtr mutableStates,
@@ -227,6 +235,7 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
         AddCompanionResourcesToJobInfo(
             jobInfo,
             companionRequest->CompanionResources);
+        AddPartitionIdToJobInfo(jobInfo, companionRequest->PartitionId);
         YT_TLOG_DEBUG("JobInfo added to process batch request");
     }
 
@@ -271,6 +280,14 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     }
     YT_TLOG_DEBUG("Watermarks added to process batch request")
         .With("Size", request->watermarks_size());
+
+    // Epoch state.
+    if (companionRequest->CurrentTimestamp) {
+        request->set_current_timestamp(companionRequest->CurrentTimestamp->Underlying());
+    }
+    if (companionRequest->EpochUniqueSeqNo) {
+        request->set_epoch_unique_seq_no(companionRequest->EpochUniqueSeqNo->Underlying());
+    }
 
     auto reqReqId = request->request_id();
     // Request itself with retry logic.
@@ -410,6 +427,7 @@ TCompanionPutJobResponsePtr TCompanionClient::PutJob(
     AddCompanionResourcesToJobInfo(
         jobInfo,
         companionRequest->CompanionResources);
+    AddPartitionIdToJobInfo(jobInfo, companionRequest->PartitionId);
     auto responseFuture = ExecuteWithRetry(BIND([request, this_ = MakeStrong(this)] () {
         return request->Invoke();
     }),

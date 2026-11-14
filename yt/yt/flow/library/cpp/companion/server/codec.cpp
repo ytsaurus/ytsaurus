@@ -100,6 +100,13 @@ TBatchInput ParseProcessBatchRequest(
             TSystemTimestamp(protoWatermark.watermark());
     }
 
+    if (request.has_current_timestamp()) {
+        input.CurrentTimestamp = TSystemTimestamp(request.current_timestamp());
+    }
+    if (request.has_epoch_unique_seq_no()) {
+        input.EpochUniqueSeqNo = TUniqueSeqNo(request.epoch_unique_seq_no());
+    }
+
     return input;
 }
 

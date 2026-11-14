@@ -9,6 +9,7 @@
 #include "runtime_init_context.h"
 
 #include <yt/yt/flow/library/cpp/common/input_context.h>
+#include <yt/yt/flow/library/cpp/common/process_function_graph.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -127,6 +128,9 @@ TJob::TJob(
         FromProto(&reference, protoReference);
         CompanionResources_.push_back(std::move(reference));
     }
+    if (jobInfo.has_partition_id()) {
+        PartitionId_ = NYT::FromProto<TPartitionId>(jobInfo.partition_id());
+    }
 
     InternalStateNames_ = ExtractInternalStateNames(Spec_);
     ExternalStateNames_ = ExtractKeys(Spec_->ExternalStateManagers);
@@ -158,6 +162,11 @@ const TJobId& TJob::GetJobId() const
 const TComputationId& TJob::GetComputationId() const
 {
     return ComputationId_;
+}
+
+const std::optional<TPartitionId>& TJob::GetPartitionId() const
+{
+    return PartitionId_;
 }
 
 const TComputationSpecPtr& TJob::GetSpec() const
@@ -249,6 +258,12 @@ bool TJob::EnsureInitialized()
         "Computation %Qv spec does not name a processing function; "
         "the C++ companion hosts process functions only",
         ComputationId_);
+    // Graph host selection never places a graph in a companion; a graph spec here is
+    // malformed wire input, and the graph would dereference the absent retryable client.
+    THROW_ERROR_EXCEPTION_IF(*Spec_->ProcessingFunction == ProcessFunctionGraphFunctionName,
+        "Computation %Qv spec names a process function graph; "
+        "process function graphs are not supported in companions",
+        ComputationId_);
 
     THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs;
     for (const auto& [name, joinerSpec] : Spec_->ExternalStateJoiners) {
@@ -286,9 +301,11 @@ bool TJob::EnsureInitialized()
         /*prefix*/ std::string(),
         Profiler_,
         ServerContext_,
-        ComputationId_);
+        ComputationId_,
+        PartitionId_);
     auto context = New<TProcessFunctionContext>();
     context->InitContext = initContext;
+    context->ComputationSpec = Spec_;
     context->Logger = CompanionServerLogger()
         .WithTag("JobId", JobId_)
         .WithTag("ComputationId", ComputationId_)
@@ -358,9 +375,7 @@ bool TJob::ProcessBatch(
             /*throttlerFactory*/ nullptr,
             RuntimeContext_->GetParametersObject())
         : RuntimeContext_;
-    runtimeContext->RefreshEpochState(
-        BuildWatermarkState(input.Watermarks),
-        DynamicSpec_->ProcessingFunctionParameters);
+    runtimeContext->RefreshBatchState(input, DynamicSpec_->ProcessingFunctionParameters);
 
     auto outputCollector = TGroupingOutputCollector::CreateRoot(
         input.Messages,

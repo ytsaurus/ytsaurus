@@ -24,6 +24,9 @@ struct TBatchInput
     THashMap<std::string, NCompanion::TStateHolder<TPayload>> ExternalStates;
     THashMap<std::string, NCompanion::TStateHolder<TPayload>> JoinedExternalStates;
     THashMap<TStreamId, TSystemTimestamp> Watermarks;
+    //! Epoch state; null when the worker sent none.
+    std::optional<TSystemTimestamp> CurrentTimestamp;
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo;
 };
 
 //! |messageStreamSpecs| must be the specs message payloads were serialized against:
