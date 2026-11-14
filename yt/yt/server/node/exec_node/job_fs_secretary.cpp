@@ -332,6 +332,12 @@ void TJobFSSecretary::AddGpuToppingLayersIfNeeded(const TUserJobSpec* userJobSpe
         Description_->GpuCheckVolumeParams->LayerArtifactKeys.SetVolatileArtifactKeys(toppingLayers);
     }
 
+    for (const auto& volumeParams : Description_->NonRootVolumeParams) {
+        if (volumeParams->EnableNodeLayers) {
+            volumeParams->LayerArtifactKeys.SetVolatileArtifactKeys(toppingLayers);
+        }
+    }
+
     Description_->RootVolumeParams->LayerArtifactKeys.SetVolatileArtifactKeys(std::move(toppingLayers));
 }
 
@@ -537,6 +543,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
             case TProtoVolume::DISK_REQUEST_NOT_SET: {
                 YT_VERIFY(volumeId == jobRootVolumeId);
                 auto localVolumeParams = New<TLocalDiskVolumeParams>(volumeId, userId);
+                localVolumeParams->EnableNodeLayers = protoVolume.enable_node_layers();
                 localVolumeParams->LayerArtifactKeys.AddRegularArtifactKeys(getLayersFromVolume(protoVolume));
 
                 // Without layers there is no root volume to create.
@@ -552,6 +559,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
             case TProtoVolume::kLocalDiskRequest: {
                 const auto& localDiskRequest = protoVolume.local_disk_request();
                 auto localVolumeParams = New<TLocalDiskVolumeParams>(volumeId, userId);
+                localVolumeParams->EnableNodeLayers = protoVolume.enable_node_layers();
 
                 localVolumeParams->Size = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
                 if (localDiskRequest.disk_request().has_inode_count()) {
@@ -588,6 +596,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 TSandboxNbdRootVolumeSpec sandboxNbdSpec;
                 NExecNode::FromProto(&sandboxNbdSpec, nbdDiskRequest);
                 auto nbdVolumeParams = New<TNbdDiskVolumeParams>(volumeId, userId, std::move(sandboxNbdSpec));
+                nbdVolumeParams->EnableNodeLayers = protoVolume.enable_node_layers();
 
                 nbdVolumeParams->LayerArtifactKeys.AddRegularArtifactKeys(getLayersFromVolume(protoVolume));
 
@@ -605,6 +614,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
 
                 tmpfsVolumeParams->AllowReusing = protoVolume.allow_reusing() &&
                     environmentCapabilities.SupportsVolumeReuse;
+                tmpfsVolumeParams->EnableNodeLayers = protoVolume.enable_node_layers();
 
                 tmpfsVolumeParams->LayerArtifactKeys.AddRegularArtifactKeys(getLayersFromVolume(protoVolume));
 
@@ -612,6 +622,10 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 break;
             }
         }
+    }
+
+    if (description->RootVolumeParams) {
+        description->RootVolumeParams->EnableNodeLayers = true;
     }
 }
 

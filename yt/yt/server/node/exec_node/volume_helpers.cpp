@@ -131,6 +131,7 @@ bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
         UserId != other.UserId ||
         Size != other.Size ||
         LayerArtifactKeys != other.LayerArtifactKeys ||
+        EnableNodeLayers != other.EnableNodeLayers ||
         AllowReusing != other.AllowReusing)
     {
         return false;
@@ -149,7 +150,13 @@ bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
 
 void TBaseVolumeParams::Format(TStringBuilderBase* builder) const
 {
-    builder->AppendFormat("UserId: %v, VolumeId: %v, Size: %v, AllowReusing: %v", UserId, VolumeId, Size, AllowReusing);
+    builder->AppendFormat(
+        "UserId: %v, VolumeId: %v, Size: %v, EnableNodeLayers: %v, AllowReusing: %v",
+        UserId,
+        VolumeId,
+        Size,
+        EnableNodeLayers,
+        AllowReusing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
