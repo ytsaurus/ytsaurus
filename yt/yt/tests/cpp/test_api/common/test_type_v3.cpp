@@ -52,7 +52,7 @@ public:
     }
 };
 
-TEST_F(TTypeV3Test, TestCreateStaticTable)
+TEST_F(TTypeV3Test, CreateStaticTable)
 {
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema("key", SimpleLogicalType(ESimpleLogicalValueType::String)),
@@ -145,7 +145,7 @@ void CreateDynamicTable(
         .ThrowOnError();
 }
 
-TEST_F(TTypeV3Test, TestCreateDynamicTable)
+TEST_F(TTypeV3Test, CreateDynamicTable)
 {
     static const TYPath path = "//tmp/dynamic-table";
     auto createKvDynamicTable = [] (const TLogicalTypePtr& keyType, const TLogicalTypePtr& valueType) {
@@ -246,7 +246,7 @@ INSTANTIATE_TEST_SUITE_P(
     PrintOptimizedFor
 );
 
-TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
+TEST_P(TTypeV3TestWithOptimizedFor, Lookup)
 {
     const auto optimizeFor = GetParam();
 
@@ -320,7 +320,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
         }));
 }
 
-TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
+TEST_P(TTypeV3TestWithOptimizedFor, Ordered)
 {
     const auto optimizeFor = GetParam();
     //

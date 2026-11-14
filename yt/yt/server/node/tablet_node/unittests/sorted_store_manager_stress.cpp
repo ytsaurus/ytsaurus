@@ -1150,7 +1150,7 @@ TEST_F(TSortedStoreManagerStressTest, LookupExpectation)
     checkLookup(beforeLateCommitZRequest, keyOnly);
 }
 
-TEST_P(TSortedStoreManagerStressTest, Test)
+TEST_P(TSortedStoreManagerStressTest, RunStress)
 {
     WaitFor(BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
         .AsyncVia(TestQueue_->GetInvoker())

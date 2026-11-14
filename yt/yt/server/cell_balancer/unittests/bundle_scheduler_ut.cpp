@@ -125,7 +125,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTagsFilterManager
+class TNodeTagsFilterManagerTest
     : public TBundleSchedulerTest
 { };
 
@@ -1026,7 +1026,7 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsRemove)
     EXPECT_EQ(3, std::ssize(mutations.CellsToRemove));
 }
 
-TEST_P(TBundleSchedulerTest, TestSpareNodesAllocate)
+TEST_P(TBundleSchedulerTest, SpareNodesAllocate)
 {
     auto input = GenerateInputContext(0);
     auto zoneInfo = input.Zones["default-zone"];
@@ -1043,7 +1043,7 @@ TEST_P(TBundleSchedulerTest, TestSpareNodesAllocate)
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.NewAllocations));
 }
 
-TEST_P(TBundleSchedulerTest, TestSpareNodesDeallocate)
+TEST_P(TBundleSchedulerTest, SpareNodesDeallocate)
 {
     auto input = GenerateInputContext(0);
     auto zoneInfo = input.Zones["default-zone"];
@@ -1627,7 +1627,7 @@ TEST_P(TBundleSchedulerTest, ProxyDeallocationProgressTrackStaledAllocation)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_deallocation");
 }
 
-TEST_P(TBundleSchedulerTest, TestSpareProxiesAllocate)
+TEST_P(TBundleSchedulerTest, SpareProxiesAllocate)
 {
     auto input = GenerateInputContext(0);
     auto zoneInfo = input.Zones["default-zone"];
@@ -1654,7 +1654,7 @@ TEST_P(TBundleSchedulerTest, TestSpareProxiesAllocate)
     EXPECT_EQ(0, std::ssize(index));
 }
 
-TEST_P(TBundleSchedulerTest, TestSpareProxyDeallocate)
+TEST_P(TBundleSchedulerTest, SpareProxyDeallocate)
 {
     auto input = GenerateInputContext(0);
 
@@ -3083,14 +3083,13 @@ TEST_P(TBundleSchedulerTest, DoNotAllocateNodesWithMaintenanceRequests)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: rename just to TProxyRoleManagement
-class TProxyRoleManagement
+class TProxyRoleManagementTest
     : public TBundleSchedulerTest
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
+TEST_P(TProxyRoleManagementTest, BundleProxyRolesAssigned)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3125,7 +3124,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestCustomRedundantDataCenterCount)
+TEST_P(TProxyRoleManagementTest, CustomRedundantDataCenterCount)
 {
     if (GetDataCenterCount() == 1) {
         return;
@@ -3185,7 +3184,7 @@ TEST_P(TProxyRoleManagement, TestCustomRedundantDataCenterCount)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
+TEST_P(TProxyRoleManagementTest, BundleProxyCustomRolesAssigned)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3221,7 +3220,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestBundleProxyBanned)
+TEST_P(TProxyRoleManagementTest, BundleProxyBanned)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3274,7 +3273,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyBanned)
     }
 }
 
-TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
+TEST_P(TProxyRoleManagementTest, BundleProxyRolesWithSpare)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3349,7 +3348,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
+TEST_P(TProxyRoleManagementTest, BundleProxyRolesWentOffline)
 {
     const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
 
@@ -3396,7 +3395,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
+TEST_P(TProxyRoleManagementTest, BundleProxyCustomRolesWithSpare)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3469,7 +3468,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
+TEST_P(TProxyRoleManagementTest, FreeSpareProxiesExhausted)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 4 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
@@ -3508,7 +3507,7 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
+TEST_P(TNodeTagsFilterManagerTest, BundleWithNoTagFilter)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), 5);
     auto dataCenters = GetDataCenters(input);
@@ -3529,7 +3528,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     EXPECT_EQ(mutations.ChangedNodeTagFilters["bigd"], "default-zone/bigd");
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilterIgnoreEmptyAreas)
+TEST_P(TNodeTagsFilterManagerTest, BundleWithNoTagFilterIgnoreEmptyAreas)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), 5);
     auto dataCenters = GetDataCenters(input);
@@ -3549,7 +3548,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilterIgnoreEmptyAreas)
 }
 
 
-TEST_P(TNodeTagsFilterManager, TestDrillsMode)
+TEST_P(TNodeTagsFilterManagerTest, DrillsMode)
 {
     const int SlotCount = 10;
     auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
@@ -3692,7 +3691,7 @@ TEST_P(TNodeTagsFilterManager, TestDrillsMode)
     EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundlesWithHotfixEnabled)
+TEST_P(TNodeTagsFilterManagerTest, BundlesWithHotfixEnabled)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), 5);
     auto dataCenters = GetDataCenters(input);
@@ -3706,7 +3705,7 @@ TEST_P(TNodeTagsFilterManager, TestBundlesWithHotfixEnabled)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "hotfix_mode_is_enabled");
 }
 
-TEST_P(TNodeTagsFilterManager, TestDrillsModeOffToOn)
+TEST_P(TNodeTagsFilterManagerTest, DrillsModeOffToOn)
 {
     const int SlotCount = 10;
     auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
@@ -3762,7 +3761,7 @@ TEST_P(TNodeTagsFilterManager, TestDrillsModeOffToOn)
     EXPECT_TRUE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
+TEST_P(TNodeTagsFilterManagerTest, BundleNodeTagsAssigned)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), 11);
     auto dataCenters = GetDataCenters(input);
@@ -3864,7 +3863,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
 }
 
-TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
+TEST_P(TNodeTagsFilterManagerTest, ExtraBundleNodesReleasement)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), 11);
     auto dataCenters = GetDataCenters(input);
@@ -3983,7 +3982,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
+TEST_P(TNodeTagsFilterManagerTest, BundleNodesWithSpare)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
@@ -4287,7 +4286,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_TRUE(mutations.ChangedStates["bigd"]->BundleNodeAssignments.empty());
 }
 
-TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesAreReleasedProperly)
 {
     if (GetDataCenterCount() != 1) {
         GTEST_SKIP_("This feature is for 1-DC clusters only");
@@ -4313,7 +4312,7 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodeOperationsForRemovedBundle)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodeOperationsForRemovedBundle)
 {
     for (bool releasing : {false, true}) {
         auto input = GenerateInputContext(DefaultNodeCount);
@@ -4357,7 +4356,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodeOperationsForRemovedBundle)
     }
 }
 
-TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)
 {
     const auto nodeCountPerDc = 7;
     const auto initialWriteThreadPoolSize = 6;
@@ -4407,7 +4406,7 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPool
     }
 }
 
-TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedWithOptionOff)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesAreNotAssignedWithOptionOff)
 {
     auto input = GenerateInputContext(3, 5);
     auto& bundleInfo = input.Bundles["bigd"];
@@ -4424,7 +4423,7 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedWithOptionOff)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
 }
 
-TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
+TEST_P(TNodeTagsFilterManagerTest, SeveralBundlesNodesLookingForSpare)
 {
     auto input = GenerateInputContext(0, 5);
     auto& bundleInfo = input.Bundles["bigd"];
@@ -4505,7 +4504,7 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     }
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
+TEST_P(TNodeTagsFilterManagerTest, BundleNodesGracePeriod)
 {
     const bool SetNodeFilterTag = true;
     const int SlotCount = 5;
@@ -4547,7 +4546,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
 }
 
-TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
+TEST_P(TNodeTagsFilterManagerTest, BundleNodesDisabledTabletCells)
 {
     const bool SetNodeFilterTag = true;
     const int SlotCount = 5;
@@ -4586,7 +4585,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesExhausted)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(0, SlotCount);
@@ -4623,7 +4622,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_nodes");
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesOffline)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(0, SlotCount);
@@ -4674,7 +4673,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_nodes");
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesWentOfflineAfterAssigning)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(0, SlotCount);
@@ -4737,7 +4736,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
     }
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesDecommissionedAfterAssigning)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(0, SlotCount);
@@ -4821,7 +4820,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     }
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesWentOfflineDuringAssigning)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(GetDataCenterCount(), SlotCount);
@@ -4927,7 +4926,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     EXPECT_TRUE(mutations.ChangedStates["bigd"]->SpareNodeReleasements.empty());
 }
 
-TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
+TEST_P(TNodeTagsFilterManagerTest, SpareNodesWentOfflineDuringReleasing)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(GetDataCenterCount(), SlotCount);
@@ -5041,7 +5040,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
-TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
+TEST_P(TNodeTagsFilterManagerTest, MultiPeerBundleLookingForSpare)
 {
     auto input = GenerateInputContext(0, 5);
     auto dataCenters = GetDataCenters(input);
@@ -5108,7 +5107,7 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
     }
 }
 
-TEST_P(TNodeTagsFilterManager, ReleasingExtraSpareNodes)
+TEST_P(TNodeTagsFilterManagerTest, ReleasingExtraSpareNodes)
 {
     const int SlotCount = 5;
     auto input = GenerateInputContext(GetDataCenterCount(), SlotCount);
@@ -5166,16 +5165,16 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    TNodeTagsFilterManager,
-    TNodeTagsFilterManager,
+    TNodeTagsFilterManagerTest,
+    TNodeTagsFilterManagerTest,
     ::testing::Values(
         std::tuple(EZoneSetup::Simple, 1),
         std::tuple(EZoneSetup::MultiCluster, 3))
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    TProxyRoleManagement,
-    TProxyRoleManagement,
+    TProxyRoleManagementTest,
+    TProxyRoleManagementTest,
     ::testing::Values(
         std::tuple(EZoneSetup::Simple, 1),
         std::tuple(EZoneSetup::MultiCluster, 3))

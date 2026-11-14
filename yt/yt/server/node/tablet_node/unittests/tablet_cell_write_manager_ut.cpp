@@ -28,7 +28,7 @@ using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestSortedTabletCellWriteManager
+class TSortedTabletCellWriteManagerTest
     : public TTabletCellWriteManagerTestBase
 {
 protected:
@@ -83,9 +83,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteBasic = TTestSortedTabletCellWriteManager;
+using TSortedTabletWriteBasicTest = TSortedTabletCellWriteManagerTest;
 
-TEST_F(TTestSortedTabletWriteBasic, TestSimple)
+TEST_F(TSortedTabletWriteBasicTest, Simple)
 {
     auto versionedTxId = MakeTabletTransactionId(0x40_ts);
 
@@ -132,7 +132,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
     ExpectFullyUnlocked();
 }
 
-TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
+TEST_F(TSortedTabletWriteBasicTest, ConflictWithPrelockedRow)
 {
     auto txId1 = MakeTabletTransactionId(0x10_ts);
 
@@ -153,7 +153,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
     HydraManager()->ApplyAll();
 }
 
-TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
+TEST_F(TSortedTabletWriteBasicTest, ConflictWithLockedRowByLeader)
 {
     auto txId1 = MakeTabletTransactionId(0x10_ts);
 
@@ -173,7 +173,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
         ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
 }
 
-TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
+TEST_F(TSortedTabletWriteBasicTest, ConflictWithLockedRowByFollower)
 {
     auto txId1 = MakeTabletTransactionId(0x10_ts);
 
@@ -193,7 +193,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
         ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
 }
 
-TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteAfterCommit2PC)
+TEST_F(TSortedTabletWriteBasicTest, DelayedWriteAfterCommit2PC)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
@@ -247,7 +247,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteAfterCommit2PC)
     HydraManager()->ApplyAll();
 }
 
-TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
+TEST_F(TSortedTabletWriteBasicTest, DelayedWriteBeforeCommit2PC)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
@@ -327,9 +327,9 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteBarrier = TTestSortedTabletCellWriteManager;
+using TSortedTabletWriteBarrierTest = TSortedTabletCellWriteManagerTest;
 
-TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
+TEST_F(TSortedTabletWriteBarrierTest, WriteBarrierUnversionedPrepared)
 {
     auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
@@ -363,7 +363,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
 }
 
-TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
+TEST_F(TSortedTabletWriteBarrierTest, WriteBarrierUnversionedActive)
 {
     auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
@@ -392,7 +392,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
 }
 
-TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
+TEST_F(TSortedTabletWriteBarrierTest, WriteBarrierUnversionedInFlight)
 {
     auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
@@ -418,9 +418,9 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteSignature = TTestSortedTabletCellWriteManager;
+using TSortedTabletWriteSignatureTest = TSortedTabletCellWriteManagerTest;
 
-TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
+TEST_F(TSortedTabletWriteSignatureTest, SignaturesSuccess)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
@@ -455,7 +455,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
     HydraManager()->ApplyAll();
 }
 
-TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
+TEST_F(TSortedTabletWriteSignatureTest, SignaturesFailure)
 {
     GTEST_SKIP();
     auto txId = MakeTabletTransactionId(0x10_ts);
@@ -481,8 +481,8 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestSortedTabletWriteGenerationSimple
-    : public TTestSortedTabletCellWriteManager
+class TSortedTabletWriteGenerationSimpleTest
+    : public TSortedTabletCellWriteManagerTest
     , public testing::WithParamInterface<TStringBuf>
 { };
 
@@ -508,9 +508,9 @@ constexpr TStringBuf OneBatchExecutionPlans[] = {
     "W0_R_A0_W1_A1",
 };
 
-using TTestSortedTabletWriteGenerationOneBatch = TTestSortedTabletWriteGenerationSimple;
+using TSortedTabletWriteGenerationOneBatchTest = TSortedTabletWriteGenerationSimpleTest;
 
-TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
+TEST_P(TSortedTabletWriteGenerationOneBatchTest, OneBatchRetry)
 {
     const auto& executionPlan = GetParam();
     auto txId = MakeTabletTransactionId(0x10_ts);
@@ -575,7 +575,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
     HydraManager()->ApplyAll();
 }
 
-INSTANTIATE_TEST_SUITE_P(Executions, TTestSortedTabletWriteGenerationOneBatch, testing::ValuesIn(OneBatchExecutionPlans), FormatParameter);
+INSTANTIATE_TEST_SUITE_P(Executions, TSortedTabletWriteGenerationOneBatchTest, testing::ValuesIn(OneBatchExecutionPlans), FormatParameter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -601,9 +601,9 @@ constexpr TStringBuf TwoBatchExecutionPlans[] = {
     "W0a_R_A0_W1b_W0b_R_A1_W1a_A2",
 };
 
-using TTestSortedTabletWriteGenerationTwoBatch = TTestSortedTabletWriteGenerationSimple;
+using TSortedTabletWriteGenerationTwoBatchTest = TSortedTabletWriteGenerationSimpleTest;
 
-TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
+TEST_P(TSortedTabletWriteGenerationTwoBatchTest, TwoBatchRetry)
 {
     const auto& executionPlan = GetParam();
     auto txId = MakeTabletTransactionId(0x10_ts);
@@ -677,11 +677,11 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
     HydraManager()->ApplyAll();
 }
 
-INSTANTIATE_TEST_SUITE_P(Executions, TTestSortedTabletWriteGenerationTwoBatch, testing::ValuesIn(TwoBatchExecutionPlans), FormatParameter);
+INSTANTIATE_TEST_SUITE_P(Executions, TSortedTabletWriteGenerationTwoBatchTest, testing::ValuesIn(TwoBatchExecutionPlans), FormatParameter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestOrderedTabletCellWriteManager
+class TOrderedTabletCellWriteManagerTest
     : public TTabletCellWriteManagerTestBase
 {
 protected:
@@ -731,11 +731,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestOrderedTabletWriteBasic
-    : public TTestOrderedTabletCellWriteManager
+class TOrderedTabletWriteBasicTest
+    : public TOrderedTabletCellWriteManagerTest
 { };
 
-TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
+TEST_F(TOrderedTabletWriteBasicTest, Simple)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
@@ -766,7 +766,7 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
     EXPECT_TRUE(TabletSlot_->GetTotalMutationWaitTime() > TDuration::Zero());
 }
 
-TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
+TEST_F(TOrderedTabletWriteBasicTest, AbortCommittingTransaction)
 {
     GTEST_SKIP();
     auto txId = MakeTabletTransactionId(0x10_ts);

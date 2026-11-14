@@ -34,7 +34,7 @@ protected:
     }
 };
 
-TEST_P(TComputedColumnPredicatePopulationTest, Test)
+TEST_P(TComputedColumnPredicatePopulationTest, PopulatePredicate)
 {
     const auto& [schema, originalPredicate, expectedPredicateWithIn, expectedPredicateWithDnf] = GetParam();
 

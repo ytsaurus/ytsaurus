@@ -201,7 +201,7 @@ TEST_F(TCypressElectionManagerTest, StopLeadingAbortsRpcProxyTransaction)
     AbortCypressTransactions();
 }
 
-TEST_F(TCypressElectionManagerTest, TestElectionManager)
+TEST_F(TCypressElectionManagerTest, ElectionManager)
 {
     auto electionManager = CreateElectionManager("electionManager");
     electionManager->Start();
@@ -239,7 +239,7 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
     EXPECT_EQ(EndCount_, 2);
 }
 
-TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
+TEST_F(TCypressElectionManagerTest, SeveralElectionManagers)
 {
     std::vector<ICypressElectionManagerPtr> electionManagers;
     std::vector<TActionQueuePtr> queues;
@@ -440,7 +440,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 4);
 }
 
-TEST_F(TCypressElectionManagerTest, TestRollingAttributeRemoval)
+TEST_F(TCypressElectionManagerTest, RollingAttributeRemoval)
 {
     std::vector<ICypressElectionManagerPtr> electionManagers;
     std::vector<TActionQueuePtr> queues;
@@ -486,7 +486,7 @@ TEST_F(TCypressElectionManagerTest, TestRollingAttributeRemoval)
     });
 }
 
-TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
+TEST_F(TCypressElectionManagerTest, AbortTransaction)
 {
     for (auto abort : {false, true}) {
         SetUpCounts();
@@ -526,7 +526,7 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
     }
 }
 
-TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
+TEST_F(TCypressElectionManagerTest, AbortTransactionAndChangeLeader)
 {
     for (auto abort : {false, true}) {
         SetUpCounts();

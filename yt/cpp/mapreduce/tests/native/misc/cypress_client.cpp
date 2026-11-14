@@ -32,7 +32,7 @@ T MakeCopy(const T& t) {
     return t;
 }
 
-TEST(CypressClient, TestCreateAllTypes)
+TEST(TCypressClientTest, CreateAllTypes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -64,7 +64,7 @@ TEST(CypressClient, TestCreateAllTypes)
     client->Create("", NT_GROUP, TCreateOptions().Attributes(TNode()("name", "idm-group:100500")));
 }
 
-TEST(CypressClient, TestCreate)
+TEST(TCypressClientTest, Create)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -114,7 +114,7 @@ TEST(CypressClient, TestCreate)
     }
 }
 
-TEST(CypressClient, TestCreateProtobufTable)
+TEST(TCypressClientTest, CreateProtobufTable)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -145,7 +145,7 @@ TEST(CypressClient, TestCreateProtobufTable)
     EXPECT_TRUE(schema.Columns()[2].SortOrder().Empty());
 }
 
-TEST(CypressClient, TestCreateHugeAttribute)
+TEST(TCypressClientTest, CreateHugeAttribute)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -156,7 +156,7 @@ TEST(CypressClient, TestCreateHugeAttribute)
     EXPECT_EQ(client->Get(workingDir + "/table/@huge_attribute").AsString(), hugeAttribute);
 }
 
-TEST(CypressClient, TestRemove)
+TEST(TCypressClientTest, Remove)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -186,7 +186,7 @@ TEST(CypressClient, TestRemove)
     client->Remove(workingDir + "/missing_node", TRemoveOptions().Force(true));
 }
 
-TEST(CypressClient, TestSetGet)
+TEST(TCypressClientTest, SetGet)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -237,7 +237,7 @@ TEST(CypressClient, TestSetGet)
     EXPECT_EQ(nodeWithAttr.GetAttributes().AsMap().at("attr_name"), TNode("attr_value"));
 }
 
-TEST(CypressClient, TestList)
+TEST(TCypressClientTest, List)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -275,7 +275,7 @@ TEST(CypressClient, TestList)
 }
 
 // YT-10354
-TEST(CypressClient, TestListEmptyAttributeFilter)
+TEST(TCypressClientTest, ListEmptyAttributeFilter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -292,7 +292,7 @@ TEST(CypressClient, TestListEmptyAttributeFilter)
         TNode::TListType({"bar", "foo"}));
 }
 
-TEST(CypressClient, TestCopy)
+TEST(TCypressClientTest, Copy)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -303,7 +303,7 @@ TEST(CypressClient, TestCopy)
     EXPECT_EQ(client->Get(workingDir + "/copy_simple"), client->Get(workingDir + "/simple"));
 }
 
-TEST(CypressClient, TestMove)
+TEST(TCypressClientTest, Move)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -316,7 +316,7 @@ TEST(CypressClient, TestMove)
     EXPECT_EQ(client->Exists(workingDir + "/simple"), false);
 }
 
-TEST(CypressClient, TestCopy_PreserveExpirationTime)
+TEST(TCypressClientTest, Copy_PreserveExpirationTime)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -337,7 +337,7 @@ TEST(CypressClient, TestCopy_PreserveExpirationTime)
     EXPECT_THROW(client->Get(workingDir + "/copy_table_false/@expiration_time"), yexception);
 }
 
-TEST(CypressClient, TestMove_PreserveExpirationTime)
+TEST(TCypressClientTest, Move_PreserveExpirationTime)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -359,7 +359,7 @@ TEST(CypressClient, TestMove_PreserveExpirationTime)
     EXPECT_THROW(client->Get(workingDir + "/moved_table_false/@expiration_time"), yexception);
 }
 
-TEST(CypressClient, TestLink)
+TEST(TCypressClientTest, Link)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -380,7 +380,7 @@ TEST(CypressClient, TestLink)
     EXPECT_EQ(client->Get(workingDir + "/table_link&/@target_path"), workingDir + "/table2");
 }
 
-TEST(CypressClient, TestConcatenate)
+TEST(TCypressClientTest, Concatenate)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -435,7 +435,7 @@ TEST(CypressClient, TestConcatenate)
     }
 }
 
-TEST(CypressClient, TestTxConcatenate)
+TEST(TCypressClientTest, TxConcatenate)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -467,7 +467,7 @@ TEST(CypressClient, TestTxConcatenate)
     }
 }
 
-TEST(CypressClient, TestBatchConcatenate)
+TEST(TCypressClientTest, BatchConcatenate)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -486,7 +486,7 @@ TEST(CypressClient, TestBatchConcatenate)
     EXPECT_EQ(reader->ReadAll(), "0\n1\n2\n3\n4\n");
 }
 
-TEST(CypressClient, TestRetries)
+TEST(TCypressClientTest, Retries)
 {
     SKIP_IF_RPC();
 
@@ -507,7 +507,7 @@ TEST(CypressClient, TestRetries)
     }
 }
 
-TEST(CypressClient, TestGetColumnarStatistics)
+TEST(TCypressClientTest, GetColumnarStatistics)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -546,7 +546,7 @@ TEST(CypressClient, TestGetColumnarStatistics)
     EXPECT_TRUE(TInstant::Now() - start < TDuration::Seconds(10));
 }
 
-TEST(CypressClient, TestGetTablePartitions)
+TEST(TCypressClientTest, GetTablePartitions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -574,7 +574,7 @@ TEST(CypressClient, TestGetTablePartitions)
     EXPECT_TRUE(partitions.Partitions[0].TableRanges.size() > 0);
 }
 
-TEST(CypressClient, TestConcurrency) {
+TEST(TCypressClientTest, Concurrency) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -607,7 +607,7 @@ TEST(CypressClient, TestConcurrency) {
     }
 }
 
-TEST(CypressClient, FileCache)
+TEST(TCypressClientTest, FileCache)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -665,7 +665,7 @@ TEST(CypressClient, FileCache)
     }
 }
 
-TEST(CypressClient, AbortableHttpResponse)
+TEST(TCypressClientTest, AbortableHttpResponse)
 {
     SKIP_IF_RPC();
 
@@ -700,7 +700,7 @@ TEST(CypressClient, AbortableHttpResponse)
     }
 }
 
-TEST(CypressClient, TestMultisetAttributes)
+TEST(TCypressClientTest, MultisetAttributes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -726,7 +726,7 @@ TEST(CypressClient, TestMultisetAttributes)
     EXPECT_EQ(tx->Get(workingDir + "/node/@b/d"), TNode("qux"));
 }
 
-TEST(CypressClient, TestPrerequisiteTransactionIds)
+TEST(TCypressClientTest, PrerequisiteTransactionIds)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -748,7 +748,7 @@ TEST(CypressClient, TestPrerequisiteTransactionIds)
         yexception);
 }
 
-TEST(CypressClient, TestPrerequisiteRevisions)
+TEST(TCypressClientTest, PrerequisiteRevisions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

@@ -529,7 +529,7 @@ protected:
     }
 };
 
-TEST_P(TCellBaseBalancerStressTest, TestBalancerEmptyDistribution)
+TEST_P(TCellBaseBalancerStressTest, BalancerEmptyDistribution)
 {
     CellDistribution_.clear();
     for (int i = 0; i < NodesNum_; ++i) {
@@ -538,7 +538,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerEmptyDistribution)
 }
 
 // Emplace full bundles (first bundles first) while possible.
-TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution1)
+TEST_P(TCellBaseBalancerStressTest, BalancerGeneratedDistribution1)
 {
     int initialBundleIdx = 0;
     int initialNodeIdx = 0;
@@ -562,7 +562,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution1)
 }
 
 // Fill all nodes except last 2 with all cells.
-TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution2)
+TEST_P(TCellBaseBalancerStressTest, BalancerGeneratedDistribution2)
 {
     int node = 0;
     int cell = 0;
@@ -587,7 +587,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution2)
     }
 }
 
-TEST_P(TCellBaseBalancerStressTest, TestBalancerRandomDistribution)
+TEST_P(TCellBaseBalancerStressTest, BalancerRandomDistribution)
 {
     std::vector<THashSet<int>> filledNodes(NodesNum_);
     auto checkEmplace = [&] (int cell, int nodeIdx) -> bool {
@@ -628,7 +628,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerRandomDistribution)
     }
 }
 
-TEST_P(TCellBaseBalancerRevokeTest, TestBalancer)
+TEST_P(TCellBaseBalancerRevokeTest, Balancer)
 {
     auto setting = New<TSetting>(GetParam());
     auto balancer = CreateCellBalancer(setting);
@@ -652,7 +652,7 @@ TEST_P(TCellBaseBalancerRevokeTest, TestBalancer)
     setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 }
 
-TEST_P(TCellBaseBalancerTest, TestBalancer)
+TEST_P(TCellBaseBalancerTest, Balancer)
 {
     auto setting = New<TSetting>(GetParam());
     auto balancer = CreateCellBalancer(setting);

@@ -209,14 +209,14 @@ protected:
     }
 };
 
-TEST_P(TMetaAggregatingWriterTest, TestReadAll)
+TEST_P(TMetaAggregatingWriterTest, ReadAll)
 {
     auto reader = CreateReader(/*columnFilter*/ {}, /*readRange*/ {});
     CheckSchemalessResult(Rows_, reader, Schema_->GetKeyColumnCount());
     CheckColumnarStatistics();
 }
 
-TEST_P(TMetaAggregatingWriterTest, TestRange)
+TEST_P(TMetaAggregatingWriterTest, Range)
 {
     const auto& readRange = std::get<2>(GetParam());
     const auto& columnFilter = std::get<3>(GetParam());

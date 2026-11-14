@@ -22,7 +22,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffSchemaParseTest, TestAllowedTypes)
+TEST(TSkiffSchemaParseTest, AllowedTypes)
 {
     EXPECT_EQ(
         "{uint64,}",
@@ -138,7 +138,7 @@ TEST(TSkiffSchemaParseTest, TestAllowedTypes)
                 .EndMap()));
 }
 
-TEST(TSkiffSchemaParseTest, TestRecursiveTypesAreDisallowed)
+TEST(TSkiffSchemaParseTest, RecursiveTypesAreDisallowed)
 {
     try {
         ConvertToSkiffSchemaShortDebugString(
@@ -193,7 +193,7 @@ TEST(TSkiffSchemaParseTest, ComplexWireTypeWithoutChildrenIsDisallowed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffSchemaDescriptionTest, TestDescriptionDerivation)
+TEST(TSkiffSchemaDescriptionTest, DescriptionDerivation)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -254,7 +254,7 @@ TEST(TSkiffSchemaDescriptionTest, MatchesOptionalSingular)
     EXPECT_FALSE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, uint64Schema})));
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestKeySwitchColumn)
+TEST(TSkiffSchemaDescriptionTest, KeySwitchColumn)
 {
     {
         auto schema = CreateTupleSchema({
@@ -280,7 +280,7 @@ TEST(TSkiffSchemaDescriptionTest, TestKeySwitchColumn)
     }
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestDisallowEmptyNames)
+TEST(TSkiffSchemaDescriptionTest, DisallowEmptyNames)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -295,7 +295,7 @@ TEST(TSkiffSchemaDescriptionTest, TestDisallowEmptyNames)
     }
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestWrongRowType)
+TEST(TSkiffSchemaDescriptionTest, WrongRowType)
 {
     auto schema = CreateRepeatedVariant16Schema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -310,7 +310,7 @@ TEST(TSkiffSchemaDescriptionTest, TestWrongRowType)
     }
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsOk)
+TEST(TSkiffSchemaDescriptionTest, OtherColumnsOk)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -323,7 +323,7 @@ TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsOk)
     ASSERT_EQ(tableDescriptionList[0].HasOtherColumns, true);
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsWrongType)
+TEST(TSkiffSchemaDescriptionTest, OtherColumnsWrongType)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -339,7 +339,7 @@ TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsWrongType)
     }
 }
 
-TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsWrongPlace)
+TEST(TSkiffSchemaDescriptionTest, OtherColumnsWrongPlace)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),

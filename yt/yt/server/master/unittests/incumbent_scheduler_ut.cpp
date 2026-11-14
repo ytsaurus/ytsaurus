@@ -42,7 +42,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TIncumbentSchedulerTest, TestScheduleToLeader)
+TEST_F(TIncumbentSchedulerTest, ScheduleToLeader)
 {
     auto config = CreateConfig();
     config->Incumbents[EIncumbentType::ChunkReplicator]->UseFollowers = false;
@@ -57,7 +57,7 @@ TEST_F(TIncumbentSchedulerTest, TestScheduleToLeader)
     }
 }
 
-TEST_F(TIncumbentSchedulerTest, TestScheduleToFollowers)
+TEST_F(TIncumbentSchedulerTest, ScheduleToFollowers)
 {
     auto config = CreateConfig();
     config->Incumbents[EIncumbentType::ChunkReplicator]->UseFollowers = true;
@@ -78,7 +78,7 @@ TEST_F(TIncumbentSchedulerTest, TestScheduleToFollowers)
     }
 }
 
-TEST_F(TIncumbentSchedulerTest, TestOrphanedDistribution)
+TEST_F(TIncumbentSchedulerTest, OrphanedDistribution)
 {
     auto config = CreateConfig();
     config->Incumbents[EIncumbentType::ChunkReplicator]->UseFollowers = true;

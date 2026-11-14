@@ -188,7 +188,7 @@ const IClientPtr TMultiproxyTest::TargetClient_ = TMultiproxyTest::CreateDirectC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TMultiproxyTest, TestReadAccess)
+TEST_F(TMultiproxyTest, ReadAccess)
 {
     TYPath dir = "//home/test-read-access";
     WaitFor(
@@ -213,7 +213,7 @@ TEST_F(TMultiproxyTest, TestReadAccess)
     EXPECT_THROW_THAT(expectToFail(), testing::HasSubstr("Redirecting \"CreateNode\" request to cluster \"target\" is disabled by configuration"));
 }
 
-TEST_F(TMultiproxyTest, TestWriteAccess)
+TEST_F(TMultiproxyTest, WriteAccess)
 {
     TYPath dir = "//home/test-write-access";
     WaitFor(
@@ -238,7 +238,7 @@ TEST_F(TMultiproxyTest, TestWriteAccess)
     EXPECT_EQ(ConvertTo<std::string>(createdPath), dir + "/table2");
 }
 
-TEST_F(TMultiproxyTest, TestNoAccess)
+TEST_F(TMultiproxyTest, NoAccess)
 {
     auto noAccessClient = CreateRedirectingClient("YT_PROXY_TARGET", "read_access");
 
@@ -250,7 +250,7 @@ TEST_F(TMultiproxyTest, TestNoAccess)
     EXPECT_THROW_THAT(expectToFail(), testing::HasSubstr("Redirecting \"ListNode\" request to cluster \"read_access\" is disabled by configuration"));
 }
 
-TEST_F(TMultiproxyTest, TestSelfAccess)
+TEST_F(TMultiproxyTest, SelfAccess)
 {
     EXPECT_EQ(WaitFor(TargetClient_->GetClusterName()).ValueOrThrow(), "target");
 
@@ -261,7 +261,7 @@ TEST_F(TMultiproxyTest, TestSelfAccess)
     EXPECT_EQ(clusterName, "target");
 }
 
-TEST_F(TMultiproxyTest, TestTokens)
+TEST_F(TMultiproxyTest, Tokens)
 {
     CreateUser(TargetClient_, "test-tokens-user");
     auto token = CreateUser(ReadAccessClient_, "test-tokens-user");
@@ -310,7 +310,7 @@ TEST_F(TMultiproxyTest, TestTokens)
     }
 }
 
-TEST_F(TMultiproxyTest, TestRemoteBan)
+TEST_F(TMultiproxyTest, RemoteBan)
 {
     CreateUser(TargetClient_, "test-remote-ban-user");
     auto token = CreateUser(WriteAccessClient_, "test-remote-ban-user");
@@ -329,7 +329,7 @@ TEST_F(TMultiproxyTest, TestRemoteBan)
     }
 }
 
-TEST_F(TMultiproxyTest, TestLocalBan)
+TEST_F(TMultiproxyTest, LocalBan)
 {
     CreateUser(TargetClient_, "test-local-ban-user");
     auto token = CreateUser(WriteAccessClient_, "test-local-ban-user");
@@ -348,7 +348,7 @@ TEST_F(TMultiproxyTest, TestLocalBan)
     }
 }
 
-TEST_F(TMultiproxyTest, TestTypoTargetHostname)
+TEST_F(TMultiproxyTest, TypoTargetHostname)
 {
     auto targetClient = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo");
     auto action = [&] {
@@ -360,7 +360,7 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostname)
         testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
-TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
+TEST_F(TMultiproxyTest, TypoTargetHostName_YT_26910)
 {
     auto targetClient = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo");
     auto action = [&] (const IClientPtr& client) {
@@ -379,7 +379,7 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
         testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
-TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)
+TEST_F(TMultiproxyTest, UserMissingOnTargetCluster)
 {
     auto token = CreateUser(WriteAccessClient_, "test-user-missing-on-target-cluster");
 
@@ -396,7 +396,7 @@ TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)
     }
 }
 
-TEST_F(TMultiproxyTest, TestSignaturesThroughMultiproxy)
+TEST_F(TMultiproxyTest, SignaturesThroughMultiproxy)
 {
     auto tablePath = "//home/test-signatures-through-multiproxy/table";
     WaitFor(TargetClient_->CreateNode(tablePath, EObjectType::Table, {.Recursive = true}))
@@ -415,7 +415,7 @@ TEST_F(TMultiproxyTest, TestSignaturesThroughMultiproxy)
         .ThrowOnError();
 }
 
-TEST_F(TMultiproxyTest, TestSignaturesAreClusterSpecific)
+TEST_F(TMultiproxyTest, SignaturesAreClusterSpecific)
 {
     auto tablePath = "//home/test-signatures-are-cluster-specific/table";
     WaitFor(TargetClient_->CreateNode(tablePath, EObjectType::Table, {.Recursive = true}))

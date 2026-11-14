@@ -188,7 +188,7 @@ struct TControllerUnittestingOptions
     std::vector<int> CachedSystemBlockFlags = {};
 };
 
-class TTestHashTableChunkIndexReadController
+class THashTableChunkIndexReadControllerTest
     : public ::testing::Test
 {
 public:
@@ -346,7 +346,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TTestHashTableChunkIndexReadController, MissingKey1)
+TEST_F(THashTableChunkIndexReadControllerTest, MissingKey1)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -381,7 +381,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey1)
     ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, MissingKey2)
+TEST_F(THashTableChunkIndexReadControllerTest, MissingKey2)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -406,7 +406,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey2)
     ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, MissingKey3)
+TEST_F(THashTableChunkIndexReadControllerTest, MissingKey3)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -435,7 +435,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey3)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, MissingKey4)
+TEST_F(THashTableChunkIndexReadControllerTest, MissingKey4)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -467,7 +467,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey4)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, SimpleLookup)
+TEST_F(THashTableChunkIndexReadControllerTest, SimpleLookup)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -497,7 +497,7 @@ TEST_F(TTestHashTableChunkIndexReadController, SimpleLookup)
     ExpectSchemafulRowsEqual(rows[0], result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, SlotClash)
+TEST_F(THashTableChunkIndexReadControllerTest, SlotClash)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -544,7 +544,7 @@ TEST_F(TTestHashTableChunkIndexReadController, SlotClash)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
+TEST_F(THashTableChunkIndexReadControllerTest, ColumnFilter)
 {
     std::string keyColumns = "<id=0> 0; <id=1> k2";
     std::vector<std::string> valueColumns = {
@@ -609,7 +609,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
+TEST_F(THashTableChunkIndexReadControllerTest, LookupByTimestamp1)
 {
     std::vector<TTimestamp> timestamps = {100_ts, 200_ts};
     std::vector<std::string> values = {
@@ -653,7 +653,7 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
+TEST_F(THashTableChunkIndexReadControllerTest, VersionedLookup)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -685,7 +685,7 @@ TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
     ExpectSchemafulRowsEqual(rows[0], result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema1)
+TEST_F(THashTableChunkIndexReadControllerTest, WidenedSchema1)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -718,7 +718,7 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema1)
     ExpectSchemafulRowsEqual(TVersionedRow(), result[2]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
+TEST_F(THashTableChunkIndexReadControllerTest, WidenedSchema2)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -762,7 +762,7 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
         result[2]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, MultipleSectors)
+TEST_F(THashTableChunkIndexReadControllerTest, MultipleSectors)
 {
     int rowCount = 300;
 
@@ -812,7 +812,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleSectors)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
+TEST_F(THashTableChunkIndexReadControllerTest, FingerprintClash)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -866,7 +866,7 @@ TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
     ExpectSchemafulRowsEqual(rows[1], result[2]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
+TEST_F(THashTableChunkIndexReadControllerTest, LookupByTimestamp2)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -905,7 +905,7 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
     ExpectSchemafulRowsEqual(rows[1], result[1]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
+TEST_F(THashTableChunkIndexReadControllerTest, MultipleBlocks)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1021,7 +1021,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
     }
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, ChecksumMismatch)
+TEST_F(THashTableChunkIndexReadControllerTest, ChecksumMismatch)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1048,7 +1048,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ChecksumMismatch)
         std::exception);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple1)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheSimple1)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1098,7 +1098,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple1)
     ExpectSchemafulRowsEqual(rows[0], result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple2)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheSimple2)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1143,7 +1143,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple2)
     ExpectSchemafulRowsEqual(rows[0], result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty1)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheEmpty1)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1183,7 +1183,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty1)
     ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty2)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheEmpty2)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1218,7 +1218,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty2)
     ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleBlocks)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheMultipleBlocks)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(
@@ -1283,7 +1283,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleBlocks)
     ExpectSchemafulRowsEqual(rows[3], result[3]);
 }
 
-TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleSectors)
+TEST_F(THashTableChunkIndexReadControllerTest, BlockCacheMultipleSectors)
 {
     std::vector<TVersionedOwningRow> rows = {
         YsonToVersionedRow(

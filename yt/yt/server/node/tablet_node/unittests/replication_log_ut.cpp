@@ -19,7 +19,7 @@ using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TReplicationLogTest, TestDeleteMessagesBuilding)
+TEST(TReplicationLogTest, DeleteMessagesBuilding)
 {
     auto rowBuffer = New<TRowBuffer>();
     auto versionedRowBuilder = TVersionedRowBuilder(rowBuffer);

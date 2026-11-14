@@ -296,7 +296,7 @@ std::vector<TBlock> ReadBlocks(
         .ValueOrThrow();
 }
 
-TEST_F(TS3DataTest, TestReplicationReader)
+TEST_F(TS3DataTest, ReplicationReader)
 {
     IChunkWriter::TWriteBlocksOptions writeOptions;
     TWorkloadDescriptor workloadDescriptor;
@@ -324,7 +324,7 @@ TEST_F(TS3DataTest, TestReplicationReader)
     }
 }
 
-TEST_F(TS3DataTest, TestReplicationWriter)
+TEST_F(TS3DataTest, ReplicationWriter)
 {
     auto nativeClient = DynamicPointerCast<NNative::IClient>(Client_);
 

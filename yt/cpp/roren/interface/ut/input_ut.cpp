@@ -6,7 +6,7 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestMultiInput, Simple)
+TEST(TMultiInputTest, Simple)
 {
     auto tag1 = TTypeTag<int>{"t1"};
     auto tag2 = TTypeTag<TString>{"t2"};
@@ -46,7 +46,7 @@ TEST(TTestMultiInput, Simple)
     }
 }
 
-TEST(TTestMultiInput, CoderEmpty)
+TEST(TMultiInputTest, CoderEmpty)
 {
     auto multiInputOriginal = NPrivate::CreateMultiInput({});
 
@@ -62,7 +62,7 @@ TEST(TTestMultiInput, CoderEmpty)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(TTestMultiInput, Coder)
+TEST(TMultiInputTest, Coder)
 {
     auto tag1 = TTypeTag<int>{"t1"};
     auto tag2 = TTypeTag<TString>{"t2"};

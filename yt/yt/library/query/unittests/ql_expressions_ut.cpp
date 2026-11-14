@@ -2413,7 +2413,7 @@ TUnversionedValue GetExpectedRelationResult(EBinaryOp op, EValueType castedType,
     YT_ABORT();
 }
 
-TEST_F(TArithmeticExpressionTest, Test)
+TEST_F(TArithmeticExpressionTest, Evaluate)
 {
     EValueType types[] = {EValueType::Int64, EValueType::Uint64, EValueType::Double};
 

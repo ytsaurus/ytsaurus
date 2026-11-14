@@ -35,11 +35,11 @@ class TXorFilterTestBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TXorFilterCreateDifferentSizeSequentialKeys
+class TXorFilterCreateDifferentSizeSequentialKeysTest
     : public TXorFilterTestBase
 { };
 
-TEST_P(TXorFilterCreateDifferentSizeSequentialKeys, Test)
+TEST_P(TXorFilterCreateDifferentSizeSequentialKeysTest, BuildSequentialKeys)
 {
     auto [maxSize, bitsPerKey] = GetParam();
 
@@ -82,8 +82,8 @@ TEST_P(TXorFilterCreateDifferentSizeSequentialKeys, Test)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TXorFilterCreateDifferentSizeSequentialKeys,
-    TXorFilterCreateDifferentSizeSequentialKeys,
+    TXorFilterCreateDifferentSizeSequentialKeysTest,
+    TXorFilterCreateDifferentSizeSequentialKeysTest,
     ::testing::Values(
         std::tuple(1000, 10),
         std::tuple(5000, 4),
@@ -98,11 +98,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TXorFilterCreateSingleSizeRandomKeys
+class TXorFilterCreateSingleSizeRandomKeysTest
     : public TXorFilterTestBase
 { };
 
-TEST_P(TXorFilterCreateSingleSizeRandomKeys, Test)
+TEST_P(TXorFilterCreateSingleSizeRandomKeysTest, BuildRandomKeys)
 {
     auto [size, bitsPerKey] = GetParam();
     auto keys = GenerateUniqueElements(size);
@@ -118,8 +118,8 @@ TEST_P(TXorFilterCreateSingleSizeRandomKeys, Test)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TXorFilterCreateSingleSizeRandomKeys,
-    TXorFilterCreateSingleSizeRandomKeys,
+    TXorFilterCreateSingleSizeRandomKeysTest,
+    TXorFilterCreateSingleSizeRandomKeysTest,
     ::testing::Values(
         std::tuple(10'000, 8),
         std::tuple(50'000, 8),
@@ -137,12 +137,12 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TXorFilterContainsSingleSize
+class TXorFilterContainsSingleSizeTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple</*size*/ int, /*queryCount*/ int, /*bitsPerKey*/ int>>
 { };
 
-TEST_P(TXorFilterContainsSingleSize, Test)
+TEST_P(TXorFilterContainsSingleSizeTest, EstimateFalsePositiveRate)
 {
     auto [size, queryCount, bitsPerKey] = GetParam();
     auto keys = GenerateUniqueElements(size);
@@ -177,8 +177,8 @@ TEST_P(TXorFilterContainsSingleSize, Test)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TXorFilterContainsSingleSize,
-    TXorFilterContainsSingleSize,
+    TXorFilterContainsSingleSizeTest,
+    TXorFilterContainsSingleSizeTest,
     ::testing::Values(
         std::tuple(1000, 1'000'000, 8),
         std::tuple(10'000, 1'000'000, 8),

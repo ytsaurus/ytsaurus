@@ -45,7 +45,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestKeyStates
+class TKeyStatesTest
     : public ::testing::Test
 {
 protected:
@@ -144,7 +144,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestKeyStates, WriteAndLookup)
+TEST_W(TKeyStatesTest, WriteAndLookup)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -167,7 +167,7 @@ TEST_W(TTestKeyStates, WriteAndLookup)
     ASSERT_TRUE(after != nullptr);
 }
 
-TEST_W(TTestKeyStates, LookupMissing)
+TEST_W(TKeyStatesTest, LookupMissing)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -183,7 +183,7 @@ TEST_W(TTestKeyStates, LookupMissing)
     ASSERT_TRUE(result != nullptr);
 }
 
-TEST_W(TTestKeyStates, WriteAndErase)
+TEST_W(TKeyStatesTest, WriteAndErase)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -215,7 +215,7 @@ TEST_W(TTestKeyStates, WriteAndErase)
 
 // Verifies that Write() with TEraseMutation deletes the row from the table,
 // exercising the TEraseMutation branch in TKeyStates::Write().
-TEST_W(TTestKeyStates, WriteAndEraseViaMutation)
+TEST_W(TKeyStatesTest, WriteAndEraseViaMutation)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -245,7 +245,7 @@ TEST_W(TTestKeyStates, WriteAndEraseViaMutation)
     EXPECT_TRUE(after.empty());
 }
 
-TEST_W(TTestKeyStates, ListAll)
+TEST_W(TKeyStatesTest, ListAll)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -272,7 +272,7 @@ TEST_W(TTestKeyStates, ListAll)
     ASSERT_EQ(std::ssize(result), 2);
 }
 
-TEST_W(TTestKeyStates, ListWithFilter)
+TEST_W(TKeyStatesTest, ListWithFilter)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TKeyStates>(tablesContext, New<TDynamicTableRequestSpec>());

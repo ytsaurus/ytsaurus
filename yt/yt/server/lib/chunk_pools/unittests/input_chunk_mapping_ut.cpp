@@ -280,7 +280,7 @@ TEST_F(TInputChunkMappingTest, SortedValidation)
     EXPECT_THROW(ChunkMapping_->OnStripeRegenerated(42, stripeA2B2), std::exception);
 }
 
-TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
+TEST_F(TInputChunkMappingTest, ChunkSliceLimits)
 {
     InitChunkMapping(EChunkMappingMode::Sorted);
 

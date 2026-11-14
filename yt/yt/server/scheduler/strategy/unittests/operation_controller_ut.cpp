@@ -323,7 +323,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling)
+TEST_F(TOperationControllerTest, ConcurrentScheduleAllocationCallsThrottling)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
@@ -406,7 +406,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
     }
 }
 
-TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThrottling)
+TEST_F(TOperationControllerTest, ConcurrentScheduleAllocationExecDurationThrottling)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Seconds(1);
@@ -521,7 +521,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
     }
 }
 
-TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCallsRegularization)
+TEST_F(TOperationControllerTest, ConcurrentControllerScheduleAllocationCallsRegularization)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
@@ -606,7 +606,7 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
     }
 }
 
-TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
+TEST_F(TOperationControllerTest, ScheduleAllocationTimeout)
 {
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get());

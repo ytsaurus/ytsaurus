@@ -10,7 +10,7 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-TEST(OperationWatch, SimpleOperationWatch)
+TEST(TOperationWatchTest, SimpleOperationWatch)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -40,7 +40,7 @@ TEST(OperationWatch, SimpleOperationWatch)
     EXPECT_TRUE(operation->GetError().Empty());
 }
 
-TEST(OperationWatch, FailedOperationWatch)
+TEST(TOperationWatchTest, FailedOperationWatch)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -106,12 +106,12 @@ void AbortedOperationWatchImpl(bool useOperationAbort)
     EXPECT_TRUE(operation->GetError().Defined());
 }
 
-TEST(OperationWatch, AbortedOperationWatch_ClientAbort)
+TEST(TOperationWatchTest, AbortedOperationWatch_ClientAbort)
 {
     AbortedOperationWatchImpl(false);
 }
 
-TEST(OperationWatch, AbortedOperationWatch_OperationAbort)
+TEST(TOperationWatchTest, AbortedOperationWatch_OperationAbort)
 {
     AbortedOperationWatchImpl(true);
 }
@@ -156,12 +156,12 @@ void CompletedOperationWatchImpl(bool useOperationComplete)
     EXPECT_TRUE(!operation->GetError().Defined());
 }
 
-TEST(OperationWatch, CompletedOperationWatch_ClientComplete)
+TEST(TOperationWatchTest, CompletedOperationWatch_ClientComplete)
 {
     CompletedOperationWatchImpl(false);
 }
 
-TEST(OperationWatch, CompletedOperationWatch_OperationComplete)
+TEST(TOperationWatchTest, CompletedOperationWatch_OperationComplete)
 {
     CompletedOperationWatchImpl(true);
 }
@@ -195,19 +195,19 @@ void TestGetFailedJobInfoImpl(const IClientBasePtr& client, const TYPath& workin
     }
 }
 
-TEST(OperationWatch, GetFailedJobInfo_GlobalClient)
+TEST(TOperationWatchTest, GetFailedJobInfo_GlobalClient)
 {
     TTestFixture fixture;
     TestGetFailedJobInfoImpl(fixture.GetClient(), fixture.GetWorkingDir());
 }
 
-TEST(OperationWatch, GetFailedJobInfo_Transaction)
+TEST(TOperationWatchTest, GetFailedJobInfo_Transaction)
 {
     TTestFixture fixture;
     TestGetFailedJobInfoImpl(fixture.GetClient()->StartTransaction(), fixture.GetWorkingDir());
 }
 
-TEST(OperationWatch, GetBriefProgress)
+TEST(TOperationWatchTest, GetBriefProgress)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -235,7 +235,7 @@ TEST(OperationWatch, GetBriefProgress)
     EXPECT_TRUE(briefProgress->Total > 0);
 }
 
-TEST(OperationWatch, TestHugeFailWithHugeStderr)
+TEST(TOperationWatchTest, HugeFailWithHugeStderr)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

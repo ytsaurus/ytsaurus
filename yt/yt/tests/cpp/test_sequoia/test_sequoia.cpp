@@ -103,7 +103,7 @@ std::string Prettify(TYsonStringBuf yson)
 #define YSON_EXPECT_EQ(lhs, rhs) EXPECT_EQ(Prettify(lhs), Prettify(rhs))
 #define YSON_ASSERT_EQ(lhs, rhs) ASSERT_EQ(Prettify(lhs), Prettify(rhs))
 
-TEST_F(TSequoiaTest, TestScionCreated)
+TEST_F(TSequoiaTest, ScionCreated)
 {
     auto scionId = ConvertTo<TObjectId>(WaitFor(Client_->GetNode("//sequoia/@id"))
         .ValueOrThrow());
@@ -111,7 +111,7 @@ TEST_F(TSequoiaTest, TestScionCreated)
     ASSERT_EQ(TypeFromId(scionId), EObjectType::Scion);
 }
 
-TEST_F(TSequoiaTest, TestCreateMapNode)
+TEST_F(TSequoiaTest, CreateMapNode)
 {
     auto nodeId = WaitFor(Client_->CreateNode(
         "//sequoia/a/b",
@@ -128,7 +128,7 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
     YSON_EXPECT_EQ(TYsonStringBuf("{b = {}}"), rsp);
 }
 
-TEST_F(TSequoiaTest, TestRowLockConflict)
+TEST_F(TSequoiaTest, RowLockConflict)
 {
     constexpr static int ThreadCount = 5;
     constexpr static int RequestCount = 25;
@@ -197,7 +197,7 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
     EXPECT_EQ(createdNodeCount + lockConflictCount + nodeExistsCount, RequestCount);
 }
 
-TEST_F(TSequoiaTest, TestCypressTransactionSimple)
+TEST_F(TSequoiaTest, CypressTransactionSimple)
 {
     auto topmostTx = StartCypressTransaction();
     auto nestedTx = StartCypressTransaction({.ParentId = topmostTx->GetId()});
@@ -237,7 +237,7 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
     auto tx2 = StartCypressTransaction({.ParentId = tx1->GetId(), .AutoAbort = false});
 }
 
-TEST_F(TSequoiaTest, TestConcurrentCommitTx)
+TEST_F(TSequoiaTest, ConcurrentCommitTx)
 {
     constexpr auto ChildCount = 4;
     constexpr auto LevelCount = 4;
@@ -322,7 +322,7 @@ TEST_F(TSequoiaTest, TestConcurrentCommitTx)
         .With("AlreadyAborted", alreadyAborted);
 }
 
-TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
+TEST_F(TSequoiaTest, ParallelWriteActionsWithPrerequisiteTx)
 {
     constexpr static int ThreadCount = 3;
     constexpr static int RequestCount = 20;
@@ -440,7 +440,7 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         .ThrowOnError();
 }
 
-TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
+TEST_F(TSequoiaTest, ParallelReadActionsWithPrerequisiteTx)
 {
     constexpr static int ThreadCount = 3;
     constexpr static int RequestCount = 20;
@@ -574,7 +574,7 @@ TPrerequisiteRevisionConfigPtr GetNodeRevision(const TYPath& path, const IClient
     return prerequisiteRevision;
 }
 
-TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
+TEST_F(TSequoiaTest, ManyCopyReqsWithPrerequisiteRevisionAndOneSet)
 {
     constexpr static int ThreadCount = 3;
     constexpr static int RequestCount = 20;
@@ -665,7 +665,7 @@ TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
         .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
-TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
+TEST_F(TSequoiaTest, ManySetReqsWithPrerequisiteRevision)
 {
     constexpr static int ThreadCount = 3;
     constexpr static int RequestCount = 10;
@@ -751,7 +751,7 @@ TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
         .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
-TEST_F(TSequoiaTest, TestTransactionAbortConflict)
+TEST_F(TSequoiaTest, TransactionAbortConflict)
 {
     std::vector<NApi::ITransactionPtr> transactions;
     std::vector<TTransactionId> transactionIds;
@@ -808,7 +808,7 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
     }
 }
 
-TEST_F(TSequoiaTest, TestTransactionAbortNoStarvation)
+TEST_F(TSequoiaTest, TransactionAbortNoStarvation)
 {
     std::vector<NApi::ITransactionPtr> transactions;
     std::vector<TTransactionId> transactionIds;
@@ -890,7 +890,7 @@ TEST_F(TSequoiaTest, TestTransactionAbortNoStarvation)
         .ThrowOnError();
 }
 
-TEST_F(TSequoiaTest, TestResponseKeeper)
+TEST_F(TSequoiaTest, ResponseKeeper)
 {
     constexpr int ThreadCount = 4;
     constexpr int RequestCount = 20;
@@ -967,7 +967,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     EXPECT_GE(okRequests, RequestCount / 2);
 }
 
-TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
+TEST_F(TSequoiaTest, NodeReplacementAtomicity)
 {
     constexpr auto IterationCount = 20;
 
@@ -1036,7 +1036,7 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
     }
 }
 
-TEST_F(TSequoiaTest, TestLatency)
+TEST_F(TSequoiaTest, Latency)
 {
     WaitFor(Client_->CreateNode("//sequoia/latency", EObjectType::MapNode)).ThrowOnError();
     auto finally = Finally([] {
@@ -1094,7 +1094,7 @@ TEST_F(TSequoiaTest, TestLatency)
         .WithFormat("MeanTime", "%vms", total.MilliSeconds() / AttemptCount);
 }
 
-TEST_F(TSequoiaTest, TestSequoiaPrelockDisable)
+TEST_F(TSequoiaTest, SequoiaPrelockDisable)
 {
     using namespace NCypressClient;
 
@@ -1285,7 +1285,7 @@ std::vector<TSequoiaTestPrelocksParams> GenerateTestSequoiaPrelocksParams()
 }
 
 // TODO(kvk1920): rewrite this test using direct prelock acquisition requests
-TEST_P(TSequoiaTestPrelocks, Test)
+TEST_P(TSequoiaTestPrelocks, ResolveConcurrentNodeReplacement)
 {
     using namespace NCypressClient;
 

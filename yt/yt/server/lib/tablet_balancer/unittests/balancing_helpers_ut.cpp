@@ -461,7 +461,7 @@ void CheckEqual(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestTabletBalancingHelpers
+class TTabletBalancingHelpersTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
@@ -470,11 +470,11 @@ class TTestTabletBalancingHelpers
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignInMemoryTablets
-    : public TTestTabletBalancingHelpers
+class TReassignInMemoryTabletsTest
+    : public TTabletBalancingHelpersTest
 { };
 
-TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
+TEST_P(TReassignInMemoryTabletsTest, SimpleWithSameTablets)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -498,8 +498,8 @@ TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignInMemoryTablets,
-    TTestReassignInMemoryTablets,
+    TReassignInMemoryTabletsTest,
+    TReassignInMemoryTabletsTest,
     ::testing::Values(
         std::tuple(
             "{tables=[{in_memory_mode=uncompressed; tablets=["
@@ -538,11 +538,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignOrdinaryTablets
-    : public TTestTabletBalancingHelpers
+class TReassignOrdinaryTabletsTest
+    : public TTabletBalancingHelpersTest
 { };
 
-TEST_P(TTestReassignOrdinaryTablets, Simple)
+TEST_P(TReassignOrdinaryTabletsTest, Simple)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -601,8 +601,8 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignOrdinaryTablets,
-    TTestReassignOrdinaryTablets,
+    TReassignOrdinaryTabletsTest,
+    TReassignOrdinaryTabletsTest,
     ::testing::Values(
         std::tuple(
             "{tables=[{in_memory_mode=uncompressed; tablets=["
@@ -641,11 +641,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestMergeSplitTabletsOfTable
-    : public TTestTabletBalancingHelpers
+class TMergeSplitTabletsOfTableTest
+    : public TTabletBalancingHelpersTest
 { };
 
-TEST_P(TTestMergeSplitTabletsOfTable, Simple)
+TEST_P(TMergeSplitTabletsOfTableTest, Simple)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -675,8 +675,8 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestMergeSplitTabletsOfTable,
-    TTestMergeSplitTabletsOfTable,
+    TMergeSplitTabletsOfTableTest,
+    TMergeSplitTabletsOfTableTest,
     ::testing::Values(
         std::tuple(
             "{tables=[{in_memory_mode=none; uncompressed_data_size=100; compressed_data_size=100;"
@@ -700,18 +700,18 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestTabletBalancingHelpersWithoutDescriptors
+class TTabletBalancingHelpersWithoutDescriptorsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TStringBuf>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignInMemoryTabletsUniform
-    : public TTestTabletBalancingHelpersWithoutDescriptors
+class TReassignInMemoryTabletsUniformTest
+    : public TTabletBalancingHelpersWithoutDescriptorsTest
 { };
 
-TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
+TEST_P(TReassignInMemoryTabletsUniformTest, Simple)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(params));
@@ -751,8 +751,8 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignInMemoryTabletsUniform,
-    TTestReassignInMemoryTabletsUniform,
+    TReassignInMemoryTabletsUniformTest,
+    TReassignInMemoryTabletsUniformTest,
     ::testing::Values(
         "{tables=[{in_memory_mode=uncompressed; tablets=["
         "{tablet_index=1; cell_index=1;"
@@ -777,11 +777,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignOrdinaryTabletsUniform
-    : public TTestTabletBalancingHelpersWithoutDescriptors
+class TReassignOrdinaryTabletsUniformTest
+    : public TTabletBalancingHelpersWithoutDescriptorsTest
 { };
 
-TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
+TEST_P(TReassignOrdinaryTabletsUniformTest, Simple)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(params));
@@ -821,8 +821,8 @@ TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignOrdinaryTabletsUniform,
-    TTestReassignOrdinaryTabletsUniform,
+    TReassignOrdinaryTabletsUniformTest,
+    TReassignOrdinaryTabletsUniformTest,
     ::testing::Values(
         "{tables=[{in_memory_mode=none; tablets=["
         "{tablet_index=1; cell_index=1;"
@@ -1028,7 +1028,7 @@ TEST_F(TParameterizedBalancingTest, ZeroComponentsRespectDeviationThresholds)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignTabletsParameterized
+class TReassignTabletsParameterizedTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
@@ -1038,7 +1038,7 @@ class TTestReassignTabletsParameterized
         /*cellSizes*/ std::vector<i64>>>
 { };
 
-TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
+TEST_P(TReassignTabletsParameterizedTest, ViaMemorySize)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -1118,7 +1118,7 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
     EXPECT_EQ(cellSizes, expectedSizes);
 }
 
-TEST_P(TTestReassignTabletsParameterized, ZeroPaddedMetrics)
+TEST_P(TReassignTabletsParameterizedTest, ZeroPaddedMetrics)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -1160,8 +1160,8 @@ TEST_P(TTestReassignTabletsParameterized, ZeroPaddedMetrics)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignTabletsParameterized,
-    TTestReassignTabletsParameterized,
+    TReassignTabletsParameterizedTest,
+    TReassignTabletsParameterizedTest,
     ::testing::Values(
         std::tuple( // NO ACTIONS
             "{config={groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}};"
@@ -1378,14 +1378,14 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReassignTabletsParameterizedErrors
+class TReassignTabletsParameterizedErrorsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
         /*errorText*/ std::string>>
 { };
 
-TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
+TEST_P(TReassignTabletsParameterizedErrorsTest, BalancingError)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -1409,7 +1409,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ToString(std::get<1>(params)));
 }
 
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(TTestReassignTabletsParameterizedErrors);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(TReassignTabletsParameterizedErrorsTest);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1435,11 +1435,11 @@ void SortMoveDescriptors(std::vector<TTestMoveDescriptorPtr>* descriptors)
         });
 }
 
-class TTestReassignTabletsParameterizedByNodes
-    : public TTestReassignTabletsParameterized
+class TReassignTabletsParameterizedByNodesTest
+    : public TReassignTabletsParameterizedTest
 { };
 
-TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
+TEST_P(TReassignTabletsParameterizedByNodesTest, ManyNodesWithInMemoryTablets)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -1548,8 +1548,8 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReassignTabletsParameterizedByNodes,
-    TTestReassignTabletsParameterizedByNodes,
+    TReassignTabletsParameterizedByNodesTest,
+    TReassignTabletsParameterizedByNodesTest,
     ::testing::Values(
         std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
@@ -1677,11 +1677,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestMergeSplitTabletsParameterized
-    : public TTestTabletBalancingHelpers
+class TMergeSplitTabletsParameterizedTest
+    : public TTabletBalancingHelpersTest
 { };
 
-TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
+TEST_P(TMergeSplitTabletsParameterizedTest, ViaMemorySize)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -1715,7 +1715,7 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     EXPECT_EQ(expectedDescriptorsIt, expected.end());
 }
 
-TEST_P(TTestMergeSplitTabletsParameterized, MultimetricMatchesScalarSum)
+TEST_P(TMergeSplitTabletsParameterizedTest, MultimetricMatchesScalarSum)
 {
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(GetParam())));
     FillObjectIdsInBundleHolder(bundleHolder);
@@ -1832,8 +1832,8 @@ TEST(TParameterizedResharderTest, DesiredTabletSizeBelowOneByte)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestMergeSplitTabletsParameterized,
-    TTestMergeSplitTabletsParameterized,
+    TMergeSplitTabletsParameterizedTest,
+    TMergeSplitTabletsParameterizedTest,
     ::testing::Values(
         std::tuple( // SPLIT
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
@@ -2016,14 +2016,14 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestMergeSplitTabletsParameterizedErrors
+class TMergeSplitTabletsParameterizedErrorsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
         /*errorText*/ std::string>>
 { };
 
-TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
+TEST_P(TMergeSplitTabletsParameterizedErrorsTest, BalancingError)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -2045,7 +2045,7 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
         ToString(std::get<1>(params)));
 }
 
-TEST_P(TTestMergeSplitTabletsParameterizedErrors, NegativeComponentWithPositiveTotal)
+TEST_P(TMergeSplitTabletsParameterizedErrorsTest, NegativeComponentWithPositiveTotal)
 {
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(GetParam())));
     FillObjectIdsInBundleHolder(bundleHolder);
@@ -2094,8 +2094,8 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, NegativeComponentWithPositiveT
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestMergeSplitTabletsParameterizedErrors,
-    TTestMergeSplitTabletsParameterizedErrors,
+    TMergeSplitTabletsParameterizedErrorsTest,
+    TMergeSplitTabletsParameterizedErrorsTest,
     ::testing::Values(
         std::tuple(
             "{config={groups={default={parameterized={metric=\"-double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
@@ -2117,12 +2117,12 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReshardDescriptorSorting
+class TReshardDescriptorSortingTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::vector<TReshardDescriptor>>
 { };
 
-TEST_P(TTestReshardDescriptorSorting, Sort)
+TEST_P(TReshardDescriptorSortingTest, Sort)
 {
     std::mt19937 generator;
     const auto& expectedDesciptors = GetParam();
@@ -2150,8 +2150,8 @@ TReshardDescriptor CreateSplitDescriptor(int newTabletCount, double maxDeviation
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReshardDescriptorSorting,
-    TTestReshardDescriptorSorting,
+    TReshardDescriptorSortingTest,
+    TReshardDescriptorSortingTest,
     ::testing::Values(
         std::vector<TReshardDescriptor>{CreateMergeDescriptor(1), CreateSplitDescriptor(1)},
         std::vector<TReshardDescriptor>{CreateMergeDescriptor(5), CreateMergeDescriptor(2)},
@@ -2170,14 +2170,14 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReplaceAliases
+class TReplaceAliasesTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*metric*/ std::string,
         /*expectedMetric*/ std::string>>
 { };
 
-TEST_P(TTestReplaceAliases, TestWithoutAliases)
+TEST_P(TReplaceAliasesTest, WithoutAliases)
 {
     const auto& params = GetParam();
     auto metricStr = std::get<0>(params);
@@ -2188,8 +2188,8 @@ TEST_P(TTestReplaceAliases, TestWithoutAliases)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReplaceAliases,
-    TTestReplaceAliases,
+    TReplaceAliasesTest,
+    TReplaceAliasesTest,
     ::testing::Values(
         std::tuple(
             "double([/statistics/memory_size])",

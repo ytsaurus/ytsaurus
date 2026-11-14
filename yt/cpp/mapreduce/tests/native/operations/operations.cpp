@@ -704,17 +704,17 @@ void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
     EXPECT_EQ(actual, expected);
 }
 
-TEST(Operations, RenameColumns_Yson)
+TEST(TOperationsTest, RenameColumns_Yson)
 {
     TestRenameColumns(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, RenameColumns_Skiff)
+TEST(TOperationsTest, RenameColumns_Skiff)
 {
     TestRenameColumns(ENodeReaderFormat::Skiff);
 }
 
-TEST(Operations, IncorrectTableId)
+TEST(TOperationsTest, IncorrectTableId)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -734,7 +734,7 @@ TEST(Operations, IncorrectTableId)
         new TMapperThatWritesToIncorrectTable);
 }
 
-TEST(Operations, EnableKeyGuarantee)
+TEST(TOperationsTest, EnableKeyGuarantee)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -761,7 +761,7 @@ TEST(Operations, EnableKeyGuarantee)
     EXPECT_EQ((*spec)["enable_key_guarantee"].AsBool(), false);
 }
 
-TEST(Operations, OrderedMapReduce)
+TEST(TOperationsTest, OrderedMapReduce)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -789,7 +789,7 @@ TEST(Operations, OrderedMapReduce)
     EXPECT_EQ((*spec)["ordered"].AsBool(), true);
 }
 
-TEST(Operations, CustomTitle)
+TEST(TOperationsTest, CustomTitle)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -825,7 +825,7 @@ TEST(Operations, CustomTitle)
     }
 }
 
-TEST(Operations, RangeBasedReader)
+TEST(TOperationsTest, RangeBasedReader)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -854,7 +854,7 @@ TEST(Operations, RangeBasedReader)
     EXPECT_EQ(data, result);
 }
 
-TEST(Operations, RangeBasedReaderEmptyTable)
+TEST(TOperationsTest, RangeBasedReaderEmptyTable)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -875,7 +875,7 @@ TEST(Operations, RangeBasedReaderEmptyTable)
     EXPECT_TRUE(result.empty());
 }
 
-TEST(Operations, MaxFailedJobCount)
+TEST(TOperationsTest, MaxFailedJobCount)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -908,7 +908,7 @@ TEST(Operations, MaxFailedJobCount)
     }
 }
 
-TEST(Operations, FailOnJobRestart)
+TEST(TOperationsTest, FailOnJobRestart)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -939,7 +939,7 @@ TEST(Operations, FailOnJobRestart)
     EXPECT_EQ(static_cast<int>(briefProgress->Failed), 1);
 }
 
-TEST(Operations, StderrTablePath)
+TEST(TOperationsTest, StderrTablePath)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -964,7 +964,7 @@ TEST(Operations, StderrTablePath)
     EXPECT_TRUE(result[0]["data"].AsString().Contains(expectedStderr));
 }
 
-TEST(Operations, CreateDebugOutputTables)
+TEST(TOperationsTest, CreateDebugOutputTables)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1004,7 +1004,7 @@ TEST(Operations, CreateDebugOutputTables)
                 .CreateDebugOutputTables(false)));
 }
 
-TEST(Operations, CreateOutputTables)
+TEST(TOperationsTest, CreateOutputTables)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1062,7 +1062,7 @@ TEST(Operations, CreateOutputTables)
         TOperationFailedError);
 }
 
-TEST(Operations, TestFetchTable)
+TEST(TOperationsTest, FetchTable)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1109,17 +1109,17 @@ void TestPassJobstate(bool viaEnv)
         opts);
 }
 
-TEST(Operations, TestPassingJobstateViaFile)
+TEST(TOperationsTest, PassingJobstateViaFile)
 {
     TestPassJobstate(/* viaEnv = */ false);
 }
 
-TEST(Operations, TestPassingJobstateViaEnv)
+TEST(TOperationsTest, PassingJobstateViaEnv)
 {
     TestPassJobstate(/* viaEnv = */ true);
 }
 
-TEST(Operations, TestFetchTableRange)
+TEST(TOperationsTest, FetchTableRange)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1140,7 +1140,7 @@ TEST(Operations, TestFetchTableRange)
         new TMapperThatChecksFile("input"));
 }
 
-TEST(Operations, TestReadProtobufFileInJob)
+TEST(TOperationsTest, ReadProtobufFileInJob)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1186,7 +1186,7 @@ TEST(Operations, TestReadProtobufFileInJob)
     }
 }
 
-TEST(Operations, TestGetOperationStatus_Completed)
+TEST(TOperationsTest, GetOperationStatus_Completed)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1216,7 +1216,7 @@ TEST(Operations, TestGetOperationStatus_Completed)
     EXPECT_TRUE(operation->GetError().Empty());
 }
 
-TEST(Operations, TestGetOperationStatus_Failed)
+TEST(TOperationsTest, GetOperationStatus_Failed)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1247,7 +1247,7 @@ TEST(Operations, TestGetOperationStatus_Failed)
     EXPECT_TRUE(operation->GetError().Defined());
 }
 
-TEST(Operations, TestGetOperationStatistics)
+TEST(TOperationsTest, GetOperationStatistics)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1268,7 +1268,7 @@ TEST(Operations, TestGetOperationStatistics)
     EXPECT_TRUE(jobStatistics.GetStatistics("time/total").Max().Defined());
 }
 
-TEST(Operations, TestCustomStatistics)
+TEST(TOperationsTest, CustomStatistics)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1343,7 +1343,7 @@ void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf, bool en
     EXPECT_EQ(expected, actual);
 }
 
-TEST(Operations, ProtobufMapProto3)
+TEST(TOperationsTest, ProtobufMapProto3)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1373,27 +1373,27 @@ TEST(Operations, ProtobufMapProto3)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(Operations, ProtobufMap_NativeProtobuf)
+TEST(TOperationsTest, ProtobufMap_NativeProtobuf)
 {
     MapWithProtobuf(false, false);
 }
 
-TEST(Operations, ProtobufMap_ClientProtobuf)
+TEST(TOperationsTest, ProtobufMap_ClientProtobuf)
 {
     MapWithProtobuf(false, true);
 }
 
-TEST(Operations, ProtobufMap_Input_VerySlow_Deprecated_NativeProtobuf)
+TEST(TOperationsTest, ProtobufMap_Input_VerySlow_Deprecated_NativeProtobuf)
 {
     MapWithProtobuf(true, false);
 }
 
-TEST(Operations, ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
+TEST(TOperationsTest, ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
 {
     MapWithProtobuf(true, true);
 }
 
-TEST(Operations, ProtobufMap_EnableTabletIndex)
+TEST(TOperationsTest, ProtobufMap_EnableTabletIndex)
 {
     MapWithProtobuf(false, false, /* enableTabletIndex */ true);
 }
@@ -1517,17 +1517,17 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
     EXPECT_EQ(expectedContent2, actualContent2);
 }
 
-TEST(Operations, ProtobufMap_ComplexTypes_Message)
+TEST(TOperationsTest, ProtobufMap_ComplexTypes_Message)
 {
     TestProtobufMap_ComplexTypes(/* useOneOf */ false);
 }
 
-TEST(Operations, ProtobufMap_ComplexTypes_OneOf)
+TEST(TOperationsTest, ProtobufMap_ComplexTypes_OneOf)
 {
     TestProtobufMap_ComplexTypes(/* useOneOf */ true);
 }
 
-TEST(Operations, ProtobufMap_TypeOptions)
+TEST(TOperationsTest, ProtobufMap_TypeOptions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1642,7 +1642,7 @@ TEST(Operations, ProtobufMap_TypeOptions)
     }
 }
 
-TEST(Operations, JobPrefix)
+TEST(TOperationsTest, JobPrefix)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1723,7 +1723,7 @@ TEST(Operations, JobPrefix)
     }
 }
 
-TEST(Operations, JobEnvironment)
+TEST(TOperationsTest, JobEnvironment)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1749,7 +1749,7 @@ TEST(Operations, JobEnvironment)
     }
 }
 
-TEST(Operations, MapReduceMapOutput)
+TEST(TOperationsTest, MapReduceMapOutput)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1813,7 +1813,7 @@ void TestMapReduceMapOutput()
         TVector<TNode>{TNode()("Url", "http://example.com/index.php")});
 }
 
-TEST(Operations, MapReduceMapOutputProtobuf)
+TEST(TOperationsTest, MapReduceMapOutputProtobuf)
 {
     TestMapReduceMapOutput<
         TUrlRow,
@@ -1823,7 +1823,7 @@ TEST(Operations, MapReduceMapOutputProtobuf)
         TCountHttpCodeTotalReducer>();
 }
 
-TEST(Operations, AddLocalFile)
+TEST(TOperationsTest, AddLocalFile)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1850,7 +1850,7 @@ TEST(Operations, AddLocalFile)
         new TMapperThatChecksFile("path/in/job"));
 }
 
-TEST(Operations, TestFailWithNoInput)
+TEST(TOperationsTest, FailWithNoInput)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1864,7 +1864,7 @@ TEST(Operations, TestFailWithNoInput)
     }
 }
 
-TEST(Operations, MaxOperationCountExceeded)
+TEST(TOperationsTest, MaxOperationCountExceeded)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1907,7 +1907,7 @@ TEST(Operations, MaxOperationCountExceeded)
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(startOp(), std::exception, "Limit for the number of concurrent operations");
 }
 
-TEST(Operations, NetworkProblems)
+TEST(TOperationsTest, NetworkProblems)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -1985,31 +1985,31 @@ void TestJobNodeReader(ENodeReaderFormat nodeReaderFormat, bool strictSchema)
     EXPECT_EQ(result, TVector<TNode>{row});
 }
 
-TEST(Operations, JobNodeReader_Skiff_Strict)
+TEST(TOperationsTest, JobNodeReader_Skiff_Strict)
 {
     TestJobNodeReader(ENodeReaderFormat::Skiff, true);
 }
-TEST(Operations, JobNodeReader_Skiff_NonStrict)
+TEST(TOperationsTest, JobNodeReader_Skiff_NonStrict)
 {
     EXPECT_THROW(TestJobNodeReader(ENodeReaderFormat::Skiff, false), yexception);
 }
-TEST(Operations, JobNodeReader_Auto_Strict)
+TEST(TOperationsTest, JobNodeReader_Auto_Strict)
 {
     TestJobNodeReader(ENodeReaderFormat::Auto, true);
 }
-TEST(Operations, JobNodeReader_Auto_NonStrict)
+TEST(TOperationsTest, JobNodeReader_Auto_NonStrict)
 {
     TestJobNodeReader(ENodeReaderFormat::Auto, false);
 }
-TEST(Operations, JobNodeReader_Yson_Strict)
+TEST(TOperationsTest, JobNodeReader_Yson_Strict)
 {
     TestJobNodeReader(ENodeReaderFormat::Yson, true);
 }
-TEST(Operations, JobNodeReader_Yson_NonStrict)
+TEST(TOperationsTest, JobNodeReader_Yson_NonStrict)
 {
     TestJobNodeReader(ENodeReaderFormat::Yson, false);
 }
-TEST(Operations, JobNodeReader_Skiff_ComplexTypes)
+TEST(TOperationsTest, JobNodeReader_Skiff_ComplexTypes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2038,7 +2038,7 @@ TEST(Operations, JobNodeReader_Skiff_ComplexTypes)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(Operations, TestSkiffAllTypes)
+TEST(TOperationsTest, SkiffAllTypes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2122,7 +2122,7 @@ TEST(Operations, TestSkiffAllTypes)
 }
 
 
-TEST(Operations, TestSkiffOperationHint)
+TEST(TOperationsTest, SkiffOperationHint)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2154,7 +2154,7 @@ TEST(Operations, TestSkiffOperationHint)
     EXPECT_EQ(actual, expected);
 }
 
-TEST(Operations, TestComplexTypeMode)
+TEST(TOperationsTest, ComplexTypeMode)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2217,7 +2217,7 @@ TEST(Operations, TestComplexTypeMode)
     }
 }
 
-TEST(Operations, TestSkiffOperationHintConfigurationConflict)
+TEST(TOperationsTest, SkiffOperationHintConfigurationConflict)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2288,12 +2288,12 @@ void TestIncompleteReducer(ENodeReaderFormat nodeReaderFormat)
     }
 }
 
-TEST(Operations, IncompleteReducer_Yson)
+TEST(TOperationsTest, IncompleteReducer_Yson)
 {
     TestIncompleteReducer(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, IncompleteReducer_Skiff)
+TEST(TOperationsTest, IncompleteReducer_Skiff)
 {
     TestIncompleteReducer(ENodeReaderFormat::Skiff);
 }
@@ -2342,12 +2342,12 @@ void TestRowIndices(ENodeReaderFormat nodeReaderFormat)
     }
 }
 
-TEST(Operations, RowIndices_Yson)
+TEST(TOperationsTest, RowIndices_Yson)
 {
     TestRowIndices(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, RowIndices_Skiff)
+TEST(TOperationsTest, RowIndices_Skiff)
 {
     TestRowIndices(ENodeReaderFormat::Skiff);
 }
@@ -2417,27 +2417,27 @@ void TestRangeIndices(ENodeReaderFormat nodeReaderFormat)
     }
 }
 
-TEST(Operations, RangeIndices_Yson_TNode)
+TEST(TOperationsTest, RangeIndices_Yson_TNode)
 {
     TestRangeIndices<TNode>(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, RangeIndices_Skiff_TNode)
+TEST(TOperationsTest, RangeIndices_Skiff_TNode)
 {
     TestRangeIndices<TNode>(ENodeReaderFormat::Skiff);
 }
 
-TEST(Operations, RangeIndices_TYaMRRow)
+TEST(TOperationsTest, RangeIndices_TYaMRRow)
 {
     TestRangeIndices<TYaMRRow>(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, RangeIndices_Protobuf)
+TEST(TOperationsTest, RangeIndices_Protobuf)
 {
     TestRangeIndices<TEmbeddedMessage>(ENodeReaderFormat::Yson);
 }
 
-TEST(Operations, OrderedDynamicTableReadLimits)
+TEST(TOperationsTest, OrderedDynamicTableReadLimits)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2552,7 +2552,7 @@ TEST(Operations, OrderedDynamicTableReadLimits)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(Operations, SkiffForInputQuery)
+TEST(TOperationsTest, SkiffForInputQuery)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2585,7 +2585,7 @@ TEST(Operations, SkiffForInputQuery)
         TApiUsageError);
 }
 
-TEST(Operations, SkiffForDynamicTables)
+TEST(TOperationsTest, SkiffForDynamicTables)
 {
     TTabletFixture fixture;
     auto client = fixture.GetClient();
@@ -2622,7 +2622,7 @@ TEST(Operations, SkiffForDynamicTables)
         yexception);
 }
 
-TEST(Operations, FileCacheModes)
+TEST(TOperationsTest, FileCacheModes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2666,7 +2666,7 @@ TEST(Operations, FileCacheModes)
                 .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
 }
 
-TEST(Operations, LockFileStorage)
+TEST(TOperationsTest, LockFileStorage)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2735,7 +2735,7 @@ TEST(Operations, LockFileStorage)
     EXPECT_FALSE(hasSharedLock(TConfig::Get()->RemoteTempFilesDirectory + "/new_cache"));
 }
 
-TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
+TEST(TOperationsTest, CacheCleanedWhenOperationStartWasRetried)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2811,7 +2811,7 @@ TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
     EXPECT_NO_THROW(thread->Join());
 }
 
-TEST(Operations, CacheCleanedWhenOperationWasPending)
+TEST(TOperationsTest, CacheCleanedWhenOperationWasPending)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2868,7 +2868,7 @@ TEST(Operations, CacheCleanedWhenOperationWasPending)
     EXPECT_NO_THROW(opWithFile->Watch().GetValueSync());
 }
 
-TEST(Operations, RetryLockConflict)
+TEST(TOperationsTest, RetryLockConflict)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2907,7 +2907,7 @@ TEST(Operations, RetryLockConflict)
     }
 }
 
-TEST(Operations, Vanilla)
+TEST(TOperationsTest, Vanilla)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2933,7 +2933,7 @@ TEST(Operations, Vanilla)
     EXPECT_EQ(stream.ReadAll().size(), (firstJobCount + secondJobCount) * message.size());
 }
 
-TEST(Operations, VanillaTableOutput)
+TEST(TOperationsTest, VanillaTableOutput)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2964,7 +2964,7 @@ TEST(Operations, VanillaTableOutput)
     EXPECT_EQ(expected2, actual2);
 }
 
-TEST(Operations, FailingVanilla)
+TEST(TOperationsTest, FailingVanilla)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -2987,7 +2987,7 @@ TEST(Operations, FailingVanilla)
     EXPECT_NE(client->Get(stderrPath + "/@row_count"), 0);
 }
 
-TEST(Operations, VanillaOutputTableCountCheck)
+TEST(TOperationsTest, VanillaOutputTableCountCheck)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3061,7 +3061,7 @@ void Descending()
         2 * client->Get(inputTable + "/@row_count").AsInt64());
 }
 
-TEST(Operations, LazySort)
+TEST(TOperationsTest, LazySort)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3127,7 +3127,7 @@ TEST(Operations, LazySort)
     }
 }
 
-TEST(Operations, FormatHint)
+TEST(TOperationsTest, FormatHint)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3189,7 +3189,7 @@ TEST(Operations, FormatHint)
     EXPECT_EQ(readOutputAndRemove(), expected);
 }
 
-TEST(Operations, AttachOperation)
+TEST(TOperationsTest, AttachOperation)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3215,7 +3215,7 @@ TEST(Operations, AttachOperation)
     EXPECT_EQ(operation->GetBriefState(), EOperationBriefState::Aborted);
 }
 
-TEST(Operations, AttachInexistingOperation)
+TEST(TOperationsTest, AttachInexistingOperation)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3229,7 +3229,7 @@ TEST(Operations, AttachInexistingOperation)
     }
 }
 
-TEST(Operations, CrossTransactionMerge)
+TEST(TOperationsTest, CrossTransactionMerge)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3267,7 +3267,7 @@ TEST(Operations, CrossTransactionMerge)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(Operations, OutputTableCounter)
+TEST(TOperationsTest, OutputTableCounter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3311,7 +3311,7 @@ TEST(Operations, OutputTableCounter)
     }
 }
 
-TEST(Operations, AllocatedPorts)
+TEST(TOperationsTest, AllocatedPorts)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3342,7 +3342,7 @@ TEST(Operations, AllocatedPorts)
 }
 
 //COMPAT(hiddenpath): Enable test when consumer manager option will be shipped to production
-TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
+TEST(TOperationsTest, DISABLED_UnrecognizedSpecWarnings)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3396,7 +3396,7 @@ TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
             ("blah2", 2));
 }
 
-TEST(Operations, NewMapReduceOverloads)
+TEST(TOperationsTest, NewMapReduceOverloads)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3451,7 +3451,7 @@ TEST(Operations, NewMapReduceOverloads)
     EXPECT_EQ(readOutputAndRemove(), expected);
 }
 
-TEST(Operations, NewSortOverload)
+TEST(TOperationsTest, NewSortOverload)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3474,7 +3474,7 @@ TEST(Operations, NewSortOverload)
     EXPECT_EQ(ReadTable(client, workingDir + "/output"), expected);
 }
 
-TEST(Operations, OperationTimeout)
+TEST(TOperationsTest, OperationTimeout)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3496,7 +3496,7 @@ TEST(Operations, OperationTimeout)
         "Operation is running for too long");
 }
 
-TEST(Operations, JobTimeout)
+TEST(TOperationsTest, JobTimeout)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3518,7 +3518,7 @@ TEST(Operations, JobTimeout)
         "Job time limit exceeded");
 }
 
-TEST(Operations, QLFilter)
+TEST(TOperationsTest, QLFilter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3552,7 +3552,7 @@ TEST(Operations, QLFilter)
     }
 }
 
-TEST(Operations, QLAndColumnFilter)
+TEST(TOperationsTest, QLAndColumnFilter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3580,7 +3580,7 @@ TEST(Operations, QLAndColumnFilter)
         "Column filter and QL filter cannot appear in the same operation");
 }
 
-TEST(Operations, CommandRawJob)
+TEST(TOperationsTest, CommandRawJob)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3605,7 +3605,7 @@ TEST(Operations, CommandRawJob)
     EXPECT_EQ(rows, TVector{TNode()("a", "koo")("b", "kindzadza")});
 }
 
-TEST(Operations, CommandVanillaJob)
+TEST(TOperationsTest, CommandVanillaJob)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3625,7 +3625,7 @@ TEST(Operations, CommandVanillaJob)
     EXPECT_EQ(is.ReadAll(), "Hello world!\n");
 }
 
-TEST(Operations, ProtobufColumnFilter)
+TEST(TOperationsTest, ProtobufColumnFilter)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3741,7 +3741,7 @@ TEST(Operations, ProtobufColumnFilter)
 }
 
 
-TEST(Operations, NoOutputOperation)
+TEST(TOperationsTest, NoOutputOperation)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3764,7 +3764,7 @@ TEST(Operations, NoOutputOperation)
     EXPECT_TRUE(jobStatistics.GetStatistics("time/total").Max().Defined());
 }
 
-TEST(Operations, FuturesAfterPreparationFailed)
+TEST(TOperationsTest, FuturesAfterPreparationFailed)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3789,7 +3789,7 @@ TEST(Operations, FuturesAfterPreparationFailed)
     }
 }
 
-TEST(Operations, FuturesAfterStartFailed)
+TEST(TOperationsTest, FuturesAfterStartFailed)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3821,7 +3821,7 @@ TEST(Operations, FuturesAfterStartFailed)
     }
 }
 
-TEST(Operations, FuturesAfterOperationFailed)
+TEST(TOperationsTest, FuturesAfterOperationFailed)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3855,7 +3855,7 @@ TEST(Operations, FuturesAfterOperationFailed)
     }
 }
 
-TEST(Operations, FuturesOfAttachedOperation)
+TEST(TOperationsTest, FuturesOfAttachedOperation)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3887,7 +3887,7 @@ TEST(Operations, FuturesOfAttachedOperation)
     EXPECT_THROW(attached->Watch().GetValueSync(), TOperationFailedError);
 }
 
-TEST(Operations, StartOperationModes)
+TEST(TOperationsTest, StartOperationModes)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3921,7 +3921,7 @@ TEST(Operations, StartOperationModes)
     }
 }
 
-TEST(Operations, GetStatus)
+TEST(TOperationsTest, GetStatus)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3949,7 +3949,7 @@ TEST(Operations, GetStatus)
     EXPECT_EQ(operation->GetStatus(), "On YT cluster: completed");
 }
 
-TEST(Operations, MiscOptions)
+TEST(TOperationsTest, MiscOptions)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -3986,7 +3986,7 @@ TEST(Operations, MiscOptions)
     EXPECT_EQ(spec["weight"].AsDouble(), 2.0);
 }
 
-TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53390)
+TEST(TOperationsTest, ProtoFormatColumnFilter_YTADMINREQ_53390)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -4014,7 +4014,7 @@ TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53390)
     ASSERT_EQ(input, output);
 }
 
-TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53786)
+TEST(TOperationsTest, ProtoFormatColumnFilter_YTADMINREQ_53786)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

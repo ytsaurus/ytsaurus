@@ -27,7 +27,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestParseQueryTest, Sample)
+TEST(TParseQueryTest, Sample)
 {
     ParseQueryString("path[10]=0");
 
@@ -38,7 +38,7 @@ TEST(TTestParseQueryTest, Sample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestUserAgentDetectionTest, Wrapper)
+TEST(TUserAgentDetectionTest, Wrapper)
 {
     auto version = DetectPythonWrapper("");
     EXPECT_FALSE(version);
@@ -61,7 +61,7 @@ TEST(TTestUserAgentDetectionTest, Wrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestCsrfTokenTest, Sample)
+TEST(TCsrfTokenTest, Sample)
 {
     auto now = TInstant::Now();
     auto token = SignCsrfToken("prime", "abcd", now);

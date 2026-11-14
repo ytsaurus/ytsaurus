@@ -44,7 +44,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestPartitionStates
+class TPartitionStatesTest
     : public ::testing::Test
 {
 protected:
@@ -144,7 +144,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestPartitionStates, WriteAndLookup)
+TEST_W(TPartitionStatesTest, WriteAndLookup)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TPartitionStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -166,7 +166,7 @@ TEST_W(TTestPartitionStates, WriteAndLookup)
     ASSERT_TRUE(after != nullptr);
 }
 
-TEST_W(TTestPartitionStates, WriteAndErase)
+TEST_W(TPartitionStatesTest, WriteAndErase)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TPartitionStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -198,7 +198,7 @@ TEST_W(TTestPartitionStates, WriteAndErase)
 
 // Verifies that Write() with TEraseMutation deletes the row from the table,
 // exercising the TEraseMutation branch in TPartitionStates::Write().
-TEST_W(TTestPartitionStates, WriteAndEraseViaMutation)
+TEST_W(TPartitionStatesTest, WriteAndEraseViaMutation)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TPartitionStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -228,7 +228,7 @@ TEST_W(TTestPartitionStates, WriteAndEraseViaMutation)
     EXPECT_TRUE(after.empty());
 }
 
-TEST_W(TTestPartitionStates, ListAll)
+TEST_W(TPartitionStatesTest, ListAll)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TPartitionStates>(tablesContext, New<TDynamicTableRequestSpec>());
@@ -253,7 +253,7 @@ TEST_W(TTestPartitionStates, ListAll)
     ASSERT_EQ(std::ssize(result), 2);
 }
 
-TEST_W(TTestPartitionStates, ListWithNameFilter)
+TEST_W(TPartitionStatesTest, ListWithNameFilter)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TPartitionStates>(tablesContext, New<TDynamicTableRequestSpec>());

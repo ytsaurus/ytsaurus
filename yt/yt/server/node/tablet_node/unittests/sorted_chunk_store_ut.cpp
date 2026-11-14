@@ -26,7 +26,7 @@ class TSortedChunkStoreTestKeysFiltering
         std::vector<std::string>>>
 { };
 
-TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
+TEST_P(TSortedChunkStoreTestKeysFiltering, FilterKeys)
 {
     const auto& args = GetParam();
     TStringBuf lowerString = std::get<0>(args);

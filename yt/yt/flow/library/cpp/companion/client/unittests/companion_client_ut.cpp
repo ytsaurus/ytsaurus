@@ -22,7 +22,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TCompanionClientTest, TestParseTCompanionStatus)
+TEST(TCompanionClientTest, ParseTCompanionStatus)
 {
     auto result = NYT::NYTree::ConvertTo<TCompanionInfoPtr>(TYsonString(TStringBuf(R""""(
         {
@@ -72,7 +72,7 @@ TEST(TCompanionClientTest, RemoveJobIsSingleAttempt)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TCompanionResourceModelTest, TestInitResourceCommandArgRoundTrip)
+TEST(TCompanionResourceModelTest, InitResourceCommandArgRoundTrip)
 {
     TInitResourceCommandArg arg;
     arg.IncarnationId = TResourceInstanceId(TGuid::Create());
@@ -127,7 +127,7 @@ TEST(TCompanionResourceModelTest, TestInitResourceCommandArgRoundTrip)
         parsed.ResourceRevision->Spec->AsMap()->GetChildValueOrThrow<std::string>("path"));
 }
 
-TEST(TCompanionResourceModelTest, TestInitResourceCommandArgThrowsOnUnrecognized)
+TEST(TCompanionResourceModelTest, InitResourceCommandArgThrowsOnUnrecognized)
 {
     EXPECT_THROW(
         ConvertTo<TInitResourceCommandArg>(TYsonString(TStringBuf(R""""(
@@ -140,7 +140,7 @@ TEST(TCompanionResourceModelTest, TestInitResourceCommandArgThrowsOnUnrecognized
         std::exception);
 }
 
-TEST(TCompanionResourceModelTest, TestLifecycleArgumentsUseRegisteredDefaults)
+TEST(TCompanionResourceModelTest, LifecycleArgumentsUseRegisteredDefaults)
 {
     auto init = ConvertTo<TInitResourceCommandArg>(TYsonString(TStringBuf(R""""(
         {
@@ -154,7 +154,7 @@ TEST(TCompanionResourceModelTest, TestLifecycleArgumentsUseRegisteredDefaults)
     EXPECT_FALSE(init.ResourceRevision);
 }
 
-TEST(TCompanionResourceModelTest, TestResourceReferenceProtoRoundTrip)
+TEST(TCompanionResourceModelTest, ResourceReferenceProtoRoundTrip)
 {
     TCompanionResourceInstanceReference reference;
     reference.ResourceId = "resource";
@@ -170,7 +170,7 @@ TEST(TCompanionResourceModelTest, TestResourceReferenceProtoRoundTrip)
     EXPECT_EQ(reference, parsed);
 }
 
-TEST(TCompanionResourceModelTest, TestUnloadResourceCommandArgRoundTrip)
+TEST(TCompanionResourceModelTest, UnloadResourceCommandArgRoundTrip)
 {
     TUnloadResourceCommandArg arg;
     arg.IncarnationId = TResourceInstanceId(TGuid::Create());
@@ -179,7 +179,7 @@ TEST(TCompanionResourceModelTest, TestUnloadResourceCommandArgRoundTrip)
     EXPECT_EQ(arg.IncarnationId, parsed.IncarnationId);
 }
 
-TEST(TCompanionResourceModelTest, TestResourceReferenceThrowsOnUnrecognized)
+TEST(TCompanionResourceModelTest, ResourceReferenceThrowsOnUnrecognized)
 {
     EXPECT_THROW(
         ConvertTo<TCompanionResourceInstanceReference>(TYsonString(TStringBuf(R""""(

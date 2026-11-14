@@ -223,7 +223,7 @@ private:
     }
 };
 
-TEST_F(TDistributedThrottlerTest, TestLimitUniform)
+TEST_F(TDistributedThrottlerTest, LimitUniform)
 {
     int throttlerCount = 4;
     auto config = GenerateThrottlerConfig();
@@ -255,7 +255,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     EXPECT_LE(duration, 7000);
 }
 
-TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
+TEST_F(TDistributedThrottlerTest, LimitAdaptive)
 {
     int throttlerCount = 4;
     auto config = GenerateThrottlerConfig();
@@ -284,7 +284,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     EXPECT_LE(duration, 15000u);
 }
 
-TEST_F(TDistributedThrottlerTest, TestAdaptiveFractionalLimits)
+TEST_F(TDistributedThrottlerTest, AdaptiveFractionalLimits)
 {
     int throttlerCount = 4;
     auto config = GenerateThrottlerConfig();

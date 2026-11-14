@@ -23,7 +23,7 @@ using namespace NYTree;
 
 using TClusterDirectorySynchronizerTest = TApiTestBase;
 
-TEST_F(TClusterDirectorySynchronizerTest, TestClusterConnectionMisconfiguration)
+TEST_F(TClusterDirectorySynchronizerTest, ClusterConnectionMisconfiguration)
 {
     auto connection = DynamicPointerCast<NNative::IConnection>(Connection_);
     ASSERT_TRUE(connection);

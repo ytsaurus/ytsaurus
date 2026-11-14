@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestKeyedHeapTest, TBasicTest)
+TEST(TKeyedHeapTest, TBasicTest)
 {
     TKeyedHeap<std::string, int> heap;
     EXPECT_TRUE(heap.Empty());
@@ -35,7 +35,7 @@ TEST(TTestKeyedHeapTest, TBasicTest)
     EXPECT_TRUE(heap.Empty());
 }
 
-TEST(TTestKeyedHeapTest, TCustomComparer)
+TEST(TKeyedHeapTest, TCustomComparer)
 {
     auto comparer = [] (int left, int right) {
         return left * left > right * right;
@@ -61,7 +61,7 @@ TEST(TTestKeyedHeapTest, TCustomComparer)
 }
 
 // Thank you @getsiu
-TEST(TTestKeyedHeapTest, TOrdering)
+TEST(TKeyedHeapTest, TOrdering)
 {
     TKeyedHeap<int, int, std::less<int>> heap;
 

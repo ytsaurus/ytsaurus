@@ -541,7 +541,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TVersionedChunkLookupTest, Test)
+TEST_P(TVersionedChunkLookupTest, Lookup)
 {
     DoTest(GetParam());
 }
@@ -568,7 +568,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
+TEST_F(TVersionedChunkLookupTest, IndexedMetadata)
 {
     WriteManyRows({
         .OptimizeFor = EOptimizeFor::Lookup,
@@ -2605,7 +2605,7 @@ private:
     }
 };
 
-TEST_P(TVersionedChunksStressTest, Test)
+TEST_P(TVersionedChunksStressTest, RunStress)
 {
     DoStressTest();
 }

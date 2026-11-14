@@ -69,11 +69,11 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "CppTests");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestTimerStore
+class TTimerStoreTest
     : public TDynamicTablesTestBase
 {
 public:
-    TTestTimerStore()
+    TTimerStoreTest()
     { }
 
 protected:
@@ -188,7 +188,7 @@ protected:
     TActionQueuePtr ActionQueue_;
 };
 
-TEST_W(TTestTimerStore, PartitionStoreBasic)
+TEST_W(TTimerStoreTest, PartitionStoreBasic)
 {
     auto partition1 = New<TPartition>();
     partition1->PartitionId = TPartitionId(TGuid::Create());
@@ -274,7 +274,7 @@ TEST_W(TTestTimerStore, PartitionStoreBasic)
     ASSERT_TRUE(TimersEqualWithoutSchema(timer2, loadResult2[0].second));
 }
 
-TEST_W(TTestTimerStore, BasicTimers)
+TEST_W(TTimerStoreTest, BasicTimers)
 {
     auto spec = New<TComputationSpec>();
     spec->GroupBySchema = PrepareDefaultKeySchema();
@@ -347,7 +347,7 @@ TEST_W(TTestTimerStore, BasicTimers)
     }
 }
 
-TEST_W(TTestTimerStore, DeduplicateTimers)
+TEST_W(TTimerStoreTest, DeduplicateTimers)
 {
     auto spec = New<TComputationSpec>();
     spec->GroupBySchema = PrepareDefaultKeySchema();
@@ -477,7 +477,7 @@ TEST_W(TTestTimerStore, DeduplicateTimers)
     }
 }
 
-TEST_W(TTestTimerStore, NoDeduplicationTimers)
+TEST_W(TTimerStoreTest, NoDeduplicationTimers)
 {
     auto spec = New<TComputationSpec>();
     spec->GroupBySchema = PrepareDefaultKeySchema();

@@ -68,7 +68,7 @@ protected:
     IMultiChunkPoolInputPtr Pool_;
 };
 
-TEST_F(TMultiChunkPoolInputTest, TestAdd)
+TEST_F(TMultiChunkPoolInputTest, Add)
 {
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
@@ -78,7 +78,7 @@ TEST_F(TMultiChunkPoolInputTest, TestAdd)
     EXPECT_EQ(Pool_->Add(Stripes_[0]), 0);
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestAddWithKey)
+TEST_F(TMultiChunkPoolInputTest, AddWithKey)
 {
     TChunkStripeKey key;
 
@@ -90,7 +90,7 @@ TEST_F(TMultiChunkPoolInputTest, TestAddWithKey)
     EXPECT_EQ(Pool_->AddWithKey(Stripes_[0], key), 0);
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestSuspend)
+TEST_F(TMultiChunkPoolInputTest, Suspend)
 {
     InSequence sequence;
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
@@ -104,7 +104,7 @@ TEST_F(TMultiChunkPoolInputTest, TestSuspend)
     Pool_->Suspend(0);
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestResume)
+TEST_F(TMultiChunkPoolInputTest, Resume)
 {
     InSequence sequence;
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
@@ -118,7 +118,7 @@ TEST_F(TMultiChunkPoolInputTest, TestResume)
     Pool_->Resume(0);
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestReset)
+TEST_F(TMultiChunkPoolInputTest, Reset)
 {
     TLogger logger("InputChunkMapping");
     auto mapping = New<TInputChunkMapping>(EChunkMappingMode::Sorted, logger);
@@ -136,7 +136,7 @@ TEST_F(TMultiChunkPoolInputTest, TestReset)
     Pool_->Reset(0, Stripes_[1], mapping);
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestFinish)
+TEST_F(TMultiChunkPoolInputTest, Finish)
 {
     for (auto& mock : Mocks_) {
         EXPECT_CALL(*mock, Finish())
@@ -148,7 +148,7 @@ TEST_F(TMultiChunkPoolInputTest, TestFinish)
     EXPECT_TRUE(Pool_->IsFinished());
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestFinishPool)
+TEST_F(TMultiChunkPoolInputTest, FinishPool)
 {
     std::vector<int> finishPermutation = {3, 5, 2, 1, 6, 0};
 
@@ -163,7 +163,7 @@ TEST_F(TMultiChunkPoolInputTest, TestFinishPool)
     EXPECT_FALSE(Pool_->IsFinished());
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
+TEST_F(TMultiChunkPoolInputTest, PartitionTag)
 {
     const std::vector<int> partitions = {0, 1, 3, 2, 1, 0, 2};
 
@@ -179,7 +179,7 @@ TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
     }
 }
 
-TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
+TEST_F(TMultiChunkPoolInputTest, CookieMapping)
 {
     // In this test we add stripes one by one and after each
     // addition check external cookie to cookie mapping using suspend call.
@@ -292,7 +292,7 @@ protected:
     std::vector<int> StripeCounts_;
 };
 
-TEST_F(TMultiChunkPoolOutputTest, TestExtract)
+TEST_F(TMultiChunkPoolOutputTest, Extract)
 {
     InitPools({3, 2, 1, 4});
     int cookieCount = 0;
@@ -304,7 +304,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestExtract)
     EXPECT_EQ(cookieCount, 10);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools1)
+TEST_F(TMultiChunkPoolOutputTest, EmptyPools1)
 {
     InitPools({0, 0, 1, 2, 0, 3, 0});
     int cookieCount = 0;
@@ -316,7 +316,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools1)
     EXPECT_EQ(cookieCount, 6);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools2)
+TEST_F(TMultiChunkPoolOutputTest, EmptyPools2)
 {
     InitPools({0, 0, 0});
     int cookieCount = 0;
@@ -328,7 +328,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools2)
     EXPECT_EQ(cookieCount, 0);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools3)
+TEST_F(TMultiChunkPoolOutputTest, EmptyPools3)
 {
     InitPools({});
     int cookieCount = 0;
@@ -340,7 +340,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestEmptyPools3)
     EXPECT_EQ(cookieCount, 0);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
+TEST_F(TMultiChunkPoolOutputTest, TeleportChunks)
 {
     // Teleport chunks are not supported for now.
     InitPools({0, 0});
@@ -366,7 +366,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
     EXPECT_TRUE(Pool_->IsCompleted());
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestGetLocality)
+TEST_F(TMultiChunkPoolOutputTest, GetLocality)
 {
     InitPools({0});
 
@@ -374,7 +374,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetLocality)
     EXPECT_TRUE(Pool_->IsCompleted());
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
+TEST_F(TMultiChunkPoolOutputTest, GetStripeList)
 {
     InitPools({2, 1});
 
@@ -403,7 +403,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
     EXPECT_EQ(stripeList10->GetOutputChunkPoolIndex(), 1);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)
+TEST_F(TMultiChunkPoolOutputTest, GetStripeListSliceCount)
 {
     InitPools({2, 1});
 
@@ -424,7 +424,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)
     EXPECT_EQ(Pool_->GetStripeListSliceCount(2), 25);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestCompleted)
+TEST_F(TMultiChunkPoolOutputTest, Completed)
 {
     InitPools({2, 1});
 
@@ -445,7 +445,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCompleted)
     Pool_->Completed(2, TCompletedJobSummary{});
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestFailed)
+TEST_F(TMultiChunkPoolOutputTest, Failed)
 {
     InitPools({2, 1});
 
@@ -466,7 +466,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestFailed)
     Pool_->Failed(2);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestAborted)
+TEST_F(TMultiChunkPoolOutputTest, Aborted)
 {
     InitPools({2, 1});
 
@@ -487,7 +487,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestAborted)
     Pool_->Aborted(2, EAbortReason::Scheduler);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestLost)
+TEST_F(TMultiChunkPoolOutputTest, Lost)
 {
     InitPools({2, 1});
 
@@ -508,7 +508,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestLost)
     Pool_->Lost(2);
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
+TEST_F(TMultiChunkPoolOutputTest, CookieMapping)
 {
     std::vector<int> poolSizes = {0, 3, 1, 4, 0, 1, 5, 9, 0};
 
@@ -543,7 +543,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
     }
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestFinalize)
+TEST_F(TMultiChunkPoolOutputTest, Finalize)
 {
     InitPools({2, 1}, /*finalize*/ false);
 
@@ -556,7 +556,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestFinalize)
     EXPECT_TRUE(Pool_->IsCompleted());
 }
 
-TEST_F(TMultiChunkPoolOutputTest, TestAddPoolOutput)
+TEST_F(TMultiChunkPoolOutputTest, AddPoolOutput)
 {
     InitPools({3, 2, 1}, /*finalize*/ false, /*poolsToAdd*/ 2);
 

@@ -41,7 +41,7 @@ class TCommonPivotKeyIndicesTest
     : public ::testing::Test
 { };
 
-TEST_F(TCommonPivotKeyIndicesTest, TestEqual)
+TEST_F(TCommonPivotKeyIndicesTest, Equal)
 {
     std::vector<TLegacyOwningKey> leftKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));
@@ -59,7 +59,7 @@ TEST_F(TCommonPivotKeyIndicesTest, TestEqual)
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
-TEST_F(TCommonPivotKeyIndicesTest, TestUnequal)
+TEST_F(TCommonPivotKeyIndicesTest, Unequal)
 {
     std::vector<TLegacyOwningKey> leftKeys, rightKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));
@@ -78,7 +78,7 @@ TEST_F(TCommonPivotKeyIndicesTest, TestUnequal)
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
-TEST_F(TCommonPivotKeyIndicesTest, TestMixed)
+TEST_F(TCommonPivotKeyIndicesTest, Mixed)
 {
     std::vector<TLegacyOwningKey> leftKeys, rightKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));

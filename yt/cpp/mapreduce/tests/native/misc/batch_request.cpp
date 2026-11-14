@@ -87,7 +87,7 @@ static TNode::TListType SortedStrings(TNode::TListType input) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(BatchRequestSuite, TestGet)
+TEST(TBatchRequestTest, Get)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -116,7 +116,7 @@ TEST(BatchRequestSuite, TestGet)
     EXPECT_TRUE(fooAccountRes.GetValue().GetAttributes().HasKey("account"));
 }
 
-TEST(BatchRequestSuite, TestSet)
+TEST(TBatchRequestTest, Set)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -143,7 +143,7 @@ TEST(BatchRequestSuite, TestSet)
     EXPECT_EQ(tx->Get(workingDir + "/qux"), TNode("gg"));
 }
 
-TEST(BatchRequestSuite, TestList)
+TEST(TBatchRequestTest, List)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -181,7 +181,7 @@ TEST(BatchRequestSuite, TestList)
     EXPECT_THROW(badRes.GetValue(), TErrorResponse);
 }
 
-TEST(BatchRequestSuite, TestListEmptyPath)
+TEST(TBatchRequestTest, ListEmptyPath)
 {
     const TTestFixture fixture;
     const auto client = fixture.GetClient();
@@ -199,7 +199,7 @@ TEST(BatchRequestSuite, TestListEmptyPath)
         TNode::TListType({"bar", "foo"}));
 }
 
-TEST(BatchRequestSuite, TestExists)
+TEST(TBatchRequestTest, Exists)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -222,7 +222,7 @@ TEST(BatchRequestSuite, TestExists)
     EXPECT_EQ(quxTxRes.GetValue(), true);
 }
 
-TEST(BatchRequestSuite, TestLock)
+TEST(TBatchRequestTest, Lock)
 {
     TZeroWaitLockPollIntervalGuard g;
 
@@ -303,7 +303,7 @@ TEST(BatchRequestSuite, TestLock)
     EXPECT_NO_THROW(waitableAcquired.GetValue(TDuration::Seconds(5)));
 }
 
-TEST(BatchRequestSuite, TestUnlock)
+TEST(TBatchRequestTest, Unlock)
 {
    TZeroWaitLockPollIntervalGuard g;
 
@@ -332,7 +332,7 @@ TEST(BatchRequestSuite, TestUnlock)
    EXPECT_EQ(otherTx->Get(path).AsInt64(), 2);
 }
 
-TEST(BatchRequestSuite, TestWaitableLock)
+TEST(TBatchRequestTest, WaitableLock)
 {
     TZeroWaitLockPollIntervalGuard g;
 
@@ -379,7 +379,7 @@ TEST(BatchRequestSuite, TestWaitableLock)
     EXPECT_NO_THROW(res4.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
 }
 
-TEST(BatchRequestSuite, TestCreate)
+TEST(TBatchRequestTest, Create)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -429,7 +429,7 @@ TEST(BatchRequestSuite, TestCreate)
     EXPECT_THROW(badRes.GetValue(), TErrorResponse);
 }
 
-TEST(BatchRequestSuite, TestRemove) {
+TEST(TBatchRequestTest, Remove) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -547,7 +547,7 @@ void TestCopyMove(
         forceRes.GetValue());
 }
 
-TEST(BatchRequestSuite, TestMove) {
+TEST(TBatchRequestTest, Move) {
     auto checkMoved = [] (
         IClientBasePtr client,
         const TString& sourcePath,
@@ -562,7 +562,7 @@ TEST(BatchRequestSuite, TestMove) {
     TestCopyMove<TMoveOptions>(&IBatchRequest::Move, checkMoved);
 }
 
-TEST(BatchRequestSuite, TestCopy) {
+TEST(TBatchRequestTest, Copy) {
     const auto checkCopied = [] (
         IClientBasePtr client,
         const TString& sourcePath,
@@ -578,7 +578,7 @@ TEST(BatchRequestSuite, TestCopy) {
     TestCopyMove<TCopyOptions>(&IBatchRequest::Copy, checkCopied);
 }
 
-TEST(BatchRequestSuite, TestLink) {
+TEST(TBatchRequestTest, Link) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -641,7 +641,7 @@ TEST(BatchRequestSuite, TestLink) {
     ignoreExistingRes.GetValue(); // check it doesn't throw
 }
 
-TEST(BatchRequestSuite, TestCanonizeYPath) {
+TEST(TBatchRequestTest, CanonizeYPath) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -682,7 +682,7 @@ TGUID GetOrCreateUser(const IClientBasePtr& client, const TString& user)
     return GetGuid(client->Get("//sys/users/" + user + "/@id").AsString());
 }
 
-TEST(BatchRequestSuite, TestCheckPermission)
+TEST(TBatchRequestTest, CheckPermission)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -711,7 +711,7 @@ TEST(BatchRequestSuite, TestCheckPermission)
     EXPECT_EQ(writeReadOnlyResult.GetValueSync().Action, ESecurityAction::Deny);
 }
 
-TEST(BatchRequestSuite, TestYtPrefix) {
+TEST(TBatchRequestTest, YtPrefix) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -738,7 +738,7 @@ TEST(BatchRequestSuite, TestYtPrefix) {
     EXPECT_EQ(existsRes.GetValue(), true);
 }
 
-TEST(BatchRequestSuite, TestRequestReset) {
+TEST(TBatchRequestTest, RequestReset) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -752,7 +752,7 @@ TEST(BatchRequestSuite, TestRequestReset) {
     EXPECT_THROW(batchRequest->ExecuteBatch(), yexception);
 }
 
-TEST(BatchRequestSuite, TestBatchPartMaxSize) {
+TEST(TBatchRequestTest, BatchPartMaxSize) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -780,7 +780,7 @@ TEST(BatchRequestSuite, TestBatchPartMaxSize) {
     }
 }
 
-TEST(BatchRequestSuite, TestBigRequest) {
+TEST(TBatchRequestTest, BigRequest) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -807,7 +807,7 @@ TEST(BatchRequestSuite, TestBigRequest) {
     EXPECT_EQ(client->Get(workingDir + "/ddd"), TNode(ddd));
 }
 
-TEST(BatchRequestSuite, TestBigLoad) {
+TEST(TBatchRequestTest, BigLoad) {
     TTestFixture fixture;
     auto rootClient = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -847,7 +847,7 @@ TEST(BatchRequestSuite, TestBigLoad) {
     }
 }
 
-TEST(BatchRequestSuite, TestTransactionGet) {
+TEST(TBatchRequestTest, TransactionGet) {
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();

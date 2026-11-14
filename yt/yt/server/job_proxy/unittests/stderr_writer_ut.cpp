@@ -9,7 +9,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TStderrWriterTest, TestPagedLog)
+TEST(TStderrWriterTest, PagedLog)
 {
     TStderrWriter writer(1000);
     TStringStream reference;
@@ -164,7 +164,7 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 }
 
-TEST(TStderrWriterTest, TestPagedLogOneBuffer)
+TEST(TStderrWriterTest, PagedLogOneBuffer)
 {
     TStringStream reference;
 

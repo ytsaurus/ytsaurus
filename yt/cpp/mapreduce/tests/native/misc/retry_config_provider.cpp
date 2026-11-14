@@ -9,7 +9,7 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-TEST(RetryConfigProvider, TestRetriesTimeLimit)
+TEST(TRetryConfigProviderTest, RetriesTimeLimit)
 {
     SKIP_IF_RPC();
 

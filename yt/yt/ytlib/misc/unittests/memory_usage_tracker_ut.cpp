@@ -489,7 +489,7 @@ TEST(TMemoryUsageTrackerTest, AttachCategory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TReservingMemoryUsageTrackerTest, TestReturnedAll)
+TEST(TReservingMemoryUsageTrackerTest, ReturnedAll)
 {
     NProfiling::TCounter memoryUsageCounter;
     auto tracker = New<TTestNodeMemoryTracker>();

@@ -36,7 +36,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestInputMessages
+class TInputMessagesTest
     : public ::testing::Test
 {
 protected:
@@ -135,7 +135,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestInputMessages, WriteAndContains)
+TEST_W(TInputMessagesTest, WriteAndContains)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TInputMessages>(tablesContext);
@@ -156,7 +156,7 @@ TEST_W(TTestInputMessages, WriteAndContains)
     EXPECT_TRUE(after[0]);
 }
 
-TEST_W(TTestInputMessages, ContainsEmpty)
+TEST_W(TInputMessagesTest, ContainsEmpty)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TInputMessages>(tablesContext);
@@ -168,7 +168,7 @@ TEST_W(TTestInputMessages, ContainsEmpty)
     EXPECT_TRUE(result.empty());
 }
 
-TEST_W(TTestInputMessages, WriteMultipleComputations)
+TEST_W(TInputMessagesTest, WriteMultipleComputations)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TInputMessages>(tablesContext);
@@ -187,7 +187,7 @@ TEST_W(TTestInputMessages, WriteMultipleComputations)
     EXPECT_FALSE(r2[0]);
 }
 
-TEST_W(TTestInputMessages, ContainsMissingRows)
+TEST_W(TInputMessagesTest, ContainsMissingRows)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TInputMessages>(tablesContext);
@@ -205,7 +205,7 @@ TEST_W(TTestInputMessages, ContainsMissingRows)
 }
 
 // Verifies that messages with the same MessageId but different Key are stored independently.
-TEST_W(TTestInputMessages, SameMessageIdDifferentKeyAreIndependent)
+TEST_W(TInputMessagesTest, SameMessageIdDifferentKeyAreIndependent)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TInputMessages>(tablesContext);
@@ -239,7 +239,7 @@ TEST_W(TTestInputMessages, SameMessageIdDifferentKeyAreIndependent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestInputMessages, CompactWriteAndContains)
+TEST_W(TInputMessagesTest, CompactWriteAndContains)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TCompactInputMessages>(tablesContext);
@@ -260,7 +260,7 @@ TEST_W(TTestInputMessages, CompactWriteAndContains)
     EXPECT_TRUE(after[0]);
 }
 
-TEST_W(TTestInputMessages, CompactContainsEmpty)
+TEST_W(TInputMessagesTest, CompactContainsEmpty)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TCompactInputMessages>(tablesContext);
@@ -271,7 +271,7 @@ TEST_W(TTestInputMessages, CompactContainsEmpty)
     EXPECT_TRUE(result.empty());
 }
 
-TEST_W(TTestInputMessages, CompactWriteMultipleComputations)
+TEST_W(TInputMessagesTest, CompactWriteMultipleComputations)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TCompactInputMessages>(tablesContext);
@@ -290,7 +290,7 @@ TEST_W(TTestInputMessages, CompactWriteMultipleComputations)
     EXPECT_FALSE(r2[0]);
 }
 
-TEST_W(TTestInputMessages, CompactContainsMissingRows)
+TEST_W(TInputMessagesTest, CompactContainsMissingRows)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TCompactInputMessages>(tablesContext);
@@ -309,7 +309,7 @@ TEST_W(TTestInputMessages, CompactContainsMissingRows)
 
 // Verifies that for the compact table messages with the same MessageId but different key hash
 // are stored independently.
-TEST_W(TTestInputMessages, CompactSameMessageIdDifferentKeyAreIndependent)
+TEST_W(TInputMessagesTest, CompactSameMessageIdDifferentKeyAreIndependent)
 {
     auto tablesContext = PrepareTablesContext();
     auto table = New<NTables::TCompactInputMessages>(tablesContext);

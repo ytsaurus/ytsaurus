@@ -36,7 +36,7 @@ TPartitions BuildTreeAndListPartitions(int partitionCount, int maxPartitionFacto
     return partitions;
 }
 
-TEST(TPartitionsTest, TestPartitionTreeSkeleton)
+TEST(TPartitionsTest, PartitionTreeSkeleton)
 {
     EXPECT_EQ(BuildTreeAndListPartitions(1, 1), TPartitions({{0}}));
     EXPECT_EQ(BuildTreeAndListPartitions(1, 123), TPartitions({{0}}));

@@ -10,7 +10,7 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(WhoAmI, Test)
+TEST(TWhoAmITest, GetLogin)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

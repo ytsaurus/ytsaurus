@@ -24,7 +24,7 @@ static TInstant GetLastPingTime(const IClientBasePtr& client, const ITransaction
     return TInstant::ParseIso8601(node.AsString());
 };
 
-TEST(CustomClientConfig, TestRetries)
+TEST(TCustomClientConfigTest, Retries)
 {
     SKIP_IF_RPC();
 
@@ -50,7 +50,7 @@ TEST(CustomClientConfig, TestRetries)
     }
 }
 
-TEST(CustomClientConfig, TestTransactionAutoPing)
+TEST(TCustomClientConfigTest, TransactionAutoPing)
 {
     auto config = MakeIntrusive<TConfig>();
     config->PingInterval = TDuration::MilliSeconds(100);

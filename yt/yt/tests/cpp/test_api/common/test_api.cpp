@@ -59,13 +59,13 @@ using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TApiTestBase, TestClusterConnection)
+TEST_F(TApiTestBase, ClusterConnection)
 {
     auto resOrError = Client_->GetNode(TYPath("/"));
     EXPECT_TRUE(WaitFor(resOrError).IsOK());
 }
 
-TEST_F(TApiTestBase, TestCreateInvalidNode)
+TEST_F(TApiTestBase, CreateInvalidNode)
 {
     auto resOrError = Client_->CreateNode(TYPath("//tmp/a"), EObjectType::SortedDynamicTabletStore);
     EXPECT_FALSE(WaitFor(resOrError).IsOK());
@@ -219,7 +219,7 @@ static auto v3 = "{name=v3;type=int64};";
 static auto v4 = "{name=v4;type=int64};";
 static auto v5 = "{name=v5;type=int64};";
 
-TEST_F(TLookupFilterTest, TestLookupAll)
+TEST_F(TLookupFilterTest, LookupAll)
 {
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2"},
@@ -244,7 +244,7 @@ TEST_F(TLookupFilterTest, TestLookupAll)
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 
-TEST_F(TLookupFilterTest, TestVersionedLookupAll)
+TEST_F(TLookupFilterTest, VersionedLookupAll)
 {
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2"},
@@ -271,7 +271,7 @@ TEST_F(TLookupFilterTest, TestVersionedLookupAll)
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 
-TEST_P(TLookupFilterTest, TestLookupFilter)
+TEST_P(TLookupFilterTest, LookupFilter)
 {
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
@@ -319,7 +319,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 }
 
-TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
+TEST_P(TLookupFilterTest, VersionedLookupFilter)
 {
     const auto& param = GetParam();
     const auto& namedColumns = std::get<0>(param);
@@ -438,7 +438,7 @@ INSTANTIATE_TEST_SUITE_P(
             su + "[" + ku2 + ku0 + v4 + v3 + "]")
 ));
 
-TEST_F(TLookupFilterTest, TestRetentionConfig)
+TEST_F(TLookupFilterTest, RetentionConfig)
 {
     WriteUnversionedRow(
         {"k0", "k1", "k2", "v3", "v4", "v5"},
@@ -541,7 +541,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
 //   versioned_lookup(key=k, column_filter=[value1])
 // the information about the presence of the second insertion is not lost,
 // although no versioned values are returned.
-TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
+TEST_F(TLookupFilterTest, FilteredOutTimestamps)
 {
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2", "v3", "v4", "v5"},
@@ -641,7 +641,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     EXPECT_EQ(expected, actual);
 }
 
-TEST_F(TLookupFilterTest, TestLookupDuplicateKeyColumns)
+TEST_F(TLookupFilterTest, LookupDuplicateKeyColumns)
 {
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2"},
@@ -724,7 +724,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
+TEST_F(TOrderedDynamicTablesTest, OrderedTableWrite)
 {
     WriteUnversionedRow(
         {"v3", "v1", "v2"},
@@ -787,7 +787,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TQueueApiTest, TestQueueApi)
+TEST_P(TQueueApiTest, QueueApi)
 {
     CreateTable(
         /*tablePath*/ Format("//tmp/test_queue_api_%v", GetParam()),

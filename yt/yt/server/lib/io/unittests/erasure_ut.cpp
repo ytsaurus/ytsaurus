@@ -1353,7 +1353,7 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair1)
+TEST_P(TErasureMixtureTest, AdaptiveRepair1)
 {
     auto* codec = GetCodecOrThrow(ECodec::IsaReedSolomon_6_3);
 
@@ -1366,7 +1366,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair1)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair2)
+TEST_P(TErasureMixtureTest, AdaptiveRepair2)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {
@@ -1386,7 +1386,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair2)
     ExecAdaptiveRepairTest(codec, ToSharedRefs(dataStrings), erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair3)
+TEST_P(TErasureMixtureTest, AdaptiveRepair3)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {
@@ -1401,7 +1401,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair3)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair4)
+TEST_P(TErasureMixtureTest, AdaptiveRepair4)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {
@@ -1416,7 +1416,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair4)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair5)
+TEST_P(TErasureMixtureTest, AdaptiveRepair5)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {
@@ -1431,7 +1431,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair5)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepair6)
+TEST_P(TErasureMixtureTest, AdaptiveRepair6)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {
@@ -1446,7 +1446,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair6)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasureMixtureTest, TestAdaptiveRepairFailingMeta)
+TEST_P(TErasureMixtureTest, AdaptiveRepairFailingMeta)
 {
     auto* codec = FindCodec(GetParam());
     if (!codec) {

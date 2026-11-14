@@ -282,7 +282,7 @@ private:
     int SubrequestCounter_ = 0;
 };
 
-TEST_F(TBatchRequestTest, TestInvalidObjectIdError)
+TEST_F(TBatchRequestTest, InvalidObjectIdError)
 {
     auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
     auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
@@ -306,12 +306,12 @@ TEST_F(TBatchRequestTest, TestInvalidObjectIdError)
     EXPECT_EQ(invalidCellTagResponse.GetMessage(), Format("Unknown cell tag %v", TCellTag(9)));
 }
 
-TEST_F(TBatchRequestTest, TestEmptyBatchRequest)
+TEST_F(TBatchRequestTest, EmptyBatchRequest)
 {
     TestBatchRequest(0);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestNoMutations)
+TEST_F(TBatchRequestTest, BatchRequestNoMutations)
 {
     // Create a table to read via a separate batch request.
     TestBatchRequest({"create"});
@@ -321,59 +321,59 @@ TEST_F(TBatchRequestTest, TestBatchRequestNoMutations)
     TestBatchRequest(101, AllowNonMutationsOnly);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestOnlyMutations)
+TEST_F(TBatchRequestTest, BatchRequestOnlyMutations)
 {
     TestBatchRequest(99, AllowMutationsOnly);
     TestBatchRequest(100, AllowMutationsOnly);
     TestBatchRequest(101, AllowMutationsOnly);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith1Subrequest)
+TEST_F(TBatchRequestTest, BatchRequestWith1Subrequest)
 {
     TestBatchRequest(1);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith50Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith50Subrequests)
 {
     TestBatchRequest(50);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith99Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith99Subrequests)
 {
     TestBatchRequest(99);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith100Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith100Subrequests)
 {
     TestBatchRequest(100);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith101Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith101Subrequests)
 {
     TestBatchRequest(101);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith150Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith150Subrequests)
 {
     TestBatchRequest(150);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith199Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith199Subrequests)
 {
     TestBatchRequest(199);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith200Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith200Subrequests)
 {
     TestBatchRequest(200);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith201Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith201Subrequests)
 {
     TestBatchRequest(201);
 }
 
-TEST_F(TBatchRequestTest, TestBatchRequestWith1151Subrequests)
+TEST_F(TBatchRequestTest, BatchRequestWith1151Subrequests)
 {
     TestBatchRequest(1151);
 }
@@ -435,14 +435,14 @@ protected:
     }
 };
 
-TEST_F(TBatchWithRetriesTest, TestRetryCount)
+TEST_F(TBatchWithRetriesTest, RetryCount)
 {
     auto tablePath = GenerateTablePath();
     auto request = GetRequest(tablePath);
     ASSERT_EQ(InvokeAndGetRetryCount(request, NYTree::EErrorCode::ResolveError, 5), 5);
 }
 
-TEST_F(TBatchWithRetriesTest, TestCorrectRequest)
+TEST_F(TBatchWithRetriesTest, CorrectRequest)
 {
     auto tablePath = GenerateTablePath();
     auto badRequest = GetRequest(tablePath);
@@ -504,7 +504,7 @@ protected:
     }
 };
 
-TEST_F(TParallelBatchWithRetriesTest, TestRetryCount)
+TEST_F(TParallelBatchWithRetriesTest, RetryCount)
 {
     auto tablePath = GenerateTablePath();
     auto request = GetRequest(tablePath);
@@ -519,7 +519,7 @@ TEST_F(TParallelBatchWithRetriesTest, TestRetryCount)
             /* maxParallelSubbatchCount */ 1));
 }
 
-TEST_F(TParallelBatchWithRetriesTest, TestCorrectRequest)
+TEST_F(TParallelBatchWithRetriesTest, CorrectRequest)
 {
     auto tablePath = GenerateTablePath();
     auto badRequest = GetRequest(tablePath);
@@ -633,7 +633,7 @@ IClientPtr TVersionedWriteTest::ReplicatorClient_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TVersionedWriteTest, TestWriteRemapping)
+TEST_F(TVersionedWriteTest, WriteRemapping)
 {
     WriteVersionedRow(
         {"k0", "k1", "k2", "v5", "v3", "v4"},
@@ -682,7 +682,7 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
         TErrorException);
 }
 
-TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
+TEST_F(TVersionedWriteTest, WriteTypeChecking)
 {
     EXPECT_THROW(
         WriteVersionedRow(
@@ -693,7 +693,7 @@ TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
         TErrorException);
 }
 
-TEST_F(TVersionedWriteTest, TestInsertDuplicateKeyColumns)
+TEST_F(TVersionedWriteTest, InsertDuplicateKeyColumns)
 {
     auto preparedKey = PrepareUnversionedRow(
         {"k0", "k1", "k2"},
@@ -733,7 +733,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
+TEST_F(TVersionedWriteTestWithRequired, NoRequiredColumns)
 {
     EXPECT_THROW(
         WriteVersionedRow(
@@ -768,7 +768,7 @@ TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TModifyRowsTest, TestNoSeqNumbers)
+TEST_F(TModifyRowsTest, NoSeqNumbers)
 {
     WriteSimpleRow(0, 10);
     WriteSimpleRow(1, 11);
@@ -781,7 +781,7 @@ TEST_F(TModifyRowsTest, TestNoSeqNumbers)
     ValidateTableContent({{0, 14}, {1, 15}});
 }
 
-TEST_F(TModifyRowsTest, TestOrderedSeqNumbers)
+TEST_F(TModifyRowsTest, OrderedSeqNumbers)
 {
     WriteSimpleRow(0, 10, 0);
     WriteSimpleRow(1, 11, 1);
@@ -794,7 +794,7 @@ TEST_F(TModifyRowsTest, TestOrderedSeqNumbers)
     ValidateTableContent({{0, 14}, {1, 15}});
 }
 
-TEST_F(TModifyRowsTest, TestShuffledSeqNumbers)
+TEST_F(TModifyRowsTest, ShuffledSeqNumbers)
 {
     WriteSimpleRow(0, 14, 4);
     WriteSimpleRow(1, 13, 3);
@@ -807,7 +807,7 @@ TEST_F(TModifyRowsTest, TestShuffledSeqNumbers)
     ValidateTableContent({{0, 14}, {1, 15}});
 }
 
-TEST_F(TModifyRowsTest, TestRepeatingSeqNumbers)
+TEST_F(TModifyRowsTest, RepeatingSeqNumbers)
 {
     WriteSimpleRow(0, 10, 0);
     WriteSimpleRow(0, 11, 1);
@@ -817,7 +817,7 @@ TEST_F(TModifyRowsTest, TestRepeatingSeqNumbers)
     ValidateTableContent({});
 }
 
-TEST_F(TModifyRowsTest, TestMissingSeqNumbers)
+TEST_F(TModifyRowsTest, MissingSeqNumbers)
 {
     WriteSimpleRow(1, 11, 0);
     WriteSimpleRow(0, 12, 1);
@@ -829,7 +829,7 @@ TEST_F(TModifyRowsTest, TestMissingSeqNumbers)
     ValidateTableContent({});
 }
 
-TEST_F(TModifyRowsTest, TestNegativeSeqNumbers)
+TEST_F(TModifyRowsTest, NegativeSeqNumbers)
 {
     EXPECT_THROW(WriteSimpleRow(0, 10, -1), TErrorException);
     EXPECT_THROW(SyncCommit(), TErrorException);
@@ -858,7 +858,7 @@ protected:
     }
 };
 
-TEST_F(TAlterTableTest, TestUnknownType)
+TEST_F(TAlterTableTest, UnknownType)
 {
     auto createRes = Client_->CreateNode("//tmp/t1", EObjectType::Table);
     WaitFor(createRes)
@@ -1003,7 +1003,7 @@ protected:
     }
 };
 
-TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
+TEST_F(TConcatenateTest, ParallelConcatenateToSortedWithAppend)
 {
     auto threadPool = CreateThreadPool(2, "ParallelConcatenate");
     TCreateNodeOptions options;
@@ -1055,7 +1055,7 @@ TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
     WaitFor(AllSet(std::move(futures))).ThrowOnError();
 }
 
-TEST_F(TConcatenateTest, TestParallelConcatenateWithAppend)
+TEST_F(TConcatenateTest, ParallelConcatenateWithAppend)
 {
     TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();

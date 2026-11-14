@@ -85,7 +85,7 @@ TEST(TSymbolizeTest, GetBuildId)
     ASSERT_NE(*buildId, std::string{""});
 }
 
-TEST(TBuildInfoTest, Test)
+TEST(TBuildInfoTest, GetDefault)
 {
     if (!IsProfileBuild()) {
         GTEST_SKIP();

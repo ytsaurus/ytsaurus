@@ -155,7 +155,7 @@ DEFINE_REFCOUNTED_TYPE(TCountingThrottler)
 
 // The three tables are created straight from the catalogue definitions rather than through a
 // pipeline node, so the test does not depend on the table set of the packaged YT binary.
-class TTestTimerPages
+class TTimerPagesTest
     : public ::testing::Test
 {
 protected:
@@ -296,7 +296,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TTestTimerPages, ConcurrentBlindMetadataUpdates)
+TEST_W(TTimerPagesTest, ConcurrentBlindMetadataUpdates)
 {
     auto page = MakePage(TComputationId("comp"), TTimerFamilyId(1), 0);
     page.Count = 3;
@@ -333,7 +333,7 @@ TEST_W(TTestTimerPages, ConcurrentBlindMetadataUpdates)
     EXPECT_TRUE(pages[0].Flags.OnceShared);
 }
 
-TEST_W(TTestTimerPages, MaxTimestampAggregatesBlindly)
+TEST_W(TTimerPagesTest, MaxTimestampAggregatesBlindly)
 {
     auto page = MakePage(TComputationId("comp"), TTimerFamilyId(1), 0);
     page.Count = 3;
@@ -384,7 +384,7 @@ TEST_W(TTestTimerPages, MaxTimestampAggregatesBlindly)
     EXPECT_EQ(pages[0].MaxTimestamp, TSystemTimestamp(900));
 }
 
-TEST_W(TTestTimerPages, NullFormatVersionAndMaxTimestampReadAsLegacy)
+TEST_W(TTimerPagesTest, NullFormatVersionAndMaxTimestampReadAsLegacy)
 {
     auto page = MakePage(TComputationId("comp"), TTimerFamilyId(1), 0);
     page.FormatVersion = 1;
@@ -421,7 +421,7 @@ TEST_W(TTestTimerPages, NullFormatVersionAndMaxTimestampReadAsLegacy)
     EXPECT_FALSE(pages[0].MaxTimestamp);
 }
 
-TEST_W(TTestTimerPages, LoadMetaSkipsRowsWithoutStream)
+TEST_W(TTimerPagesTest, LoadMetaSkipsRowsWithoutStream)
 {
     const TComputationId computationId("comp");
     Commit([&] (const auto& tx) {
@@ -451,7 +451,7 @@ TEST_W(TTestTimerPages, LoadMetaSkipsRowsWithoutStream)
     EXPECT_EQ(familyIds, (std::vector<ui64>{1, 3, 4}));
 }
 
-TEST_W(TTestTimerPages, StructuralMetadataUpdateConflictsWithBlindWrite)
+TEST_W(TTimerPagesTest, StructuralMetadataUpdateConflictsWithBlindWrite)
 {
     std::vector<NTables::ITimerPages::TPageUpdate> updates{
         {.End = std::optional(TSystemTimestamp(100))},
@@ -499,7 +499,7 @@ TEST_W(TTestTimerPages, StructuralMetadataUpdateConflictsWithBlindWrite)
     }
 }
 
-TEST_W(TTestTimerPages, ConcurrentPageRemovalCanBeRetried)
+TEST_W(TTimerPagesTest, ConcurrentPageRemovalCanBeRetried)
 {
     auto page = MakePage(TComputationId("comp"), TTimerFamilyId(1), 0);
     page.Count = 1;
@@ -535,7 +535,7 @@ TEST_W(TTestTimerPages, ConcurrentPageRemovalCanBeRetried)
     EXPECT_TRUE(WaitFor(Table_->LoadMeta({.ComputationId = page.ComputationId})).ValueOrThrow().empty());
 }
 
-TEST_W(TTestTimerPages, MetadataPaginationKeepsOneSnapshot)
+TEST_W(TTimerPagesTest, MetadataPaginationKeepsOneSnapshot)
 {
     std::vector<TTimerPageMeta> pages;
     for (int index = 0; index < 4; ++index) {
@@ -580,7 +580,7 @@ TEST_W(TTestTimerPages, MetadataPaginationKeepsOneSnapshot)
     EXPECT_EQ(WaitFor(Table_->LoadMeta({})).ValueOrThrow().size(), 3u);
 }
 
-TEST_W(TTestTimerPages, RowsReadLookupErase)
+TEST_W(TTimerPagesTest, RowsReadLookupErase)
 {
     const auto familyId = TTimerFamilyId(10);
     auto page = MakePage(TComputationId("comp"), familyId, 100);
@@ -672,7 +672,7 @@ TEST_W(TTestTimerPages, RowsReadLookupErase)
     EXPECT_EQ(afterErase.back().Timer.MessageId, TMessageId("id-5"));
 }
 
-TEST_W(TTestTimerPages, ReadPageByExactKeyRange)
+TEST_W(TTimerPagesTest, ReadPageByExactKeyRange)
 {
     const auto familyId = TTimerFamilyId(12);
     auto page = MakePage(TComputationId("comp"), familyId, 100);
@@ -704,7 +704,7 @@ TEST_W(TTestTimerPages, ReadPageByExactKeyRange)
     EXPECT_EQ(exactRows[1].Timer.MessageId, TMessageId("id-3"));
 }
 
-TEST_W(TTestTimerPages, ReadPageUsesOneSelectForKnownCount)
+TEST_W(TTimerPagesTest, ReadPageUsesOneSelectForKnownCount)
 {
     const auto familyId = TTimerFamilyId(10);
     constexpr int RowCount = 300;
@@ -750,7 +750,7 @@ TEST_W(TTestTimerPages, ReadPageUsesOneSelectForKnownCount)
     EXPECT_EQ(throttler->GetThrottleCount() - beforeCount, 3);
 }
 
-TEST_W(TTestTimerPages, MaintenanceIgnoresDefaultRowLimits)
+TEST_W(TTimerPagesTest, MaintenanceIgnoresDefaultRowLimits)
 {
     const auto familyId = TTimerFamilyId(20);
     auto page = MakePage(TComputationId("comp"), familyId, 100);
@@ -790,7 +790,7 @@ TEST_W(TTestTimerPages, MaintenanceIgnoresDefaultRowLimits)
     EXPECT_EQ(total.MinSystem, TSystemTimestamp(20));
 }
 
-TEST_W(TTestTimerPages, SlotRowReplacement)
+TEST_W(TTimerPagesTest, SlotRowReplacement)
 {
     const auto familyId = TTimerFamilyId(20);
     auto page = MakePage(TComputationId("comp"), familyId, 100);
@@ -820,7 +820,7 @@ TEST_W(TTestTimerPages, SlotRowReplacement)
     EXPECT_TRUE(WaitFor(Table_->ReadPage(page, std::nullopt)).ValueOrThrow().empty());
 }
 
-TEST_W(TTestTimerPages, Meta)
+TEST_W(TTimerPagesTest, Meta)
 {
     const auto computationId = TComputationId("comp");
     const auto familyId = TTimerFamilyId(30);
@@ -919,7 +919,7 @@ TEST_W(TTestTimerPages, Meta)
     EXPECT_EQ(meta[0], page);
 }
 
-TEST_W(TTestTimerPages, Journal)
+TEST_W(TTimerPagesTest, Journal)
 {
     auto range = WaitFor(Table_->GetJournalRowRange()).ValueOrThrow();
     EXPECT_EQ(range.TrimmedRowCount, 0);
@@ -981,7 +981,7 @@ TEST_W(TTestTimerPages, Journal)
     EXPECT_EQ(tail.NextRowIndex, range.TotalRowCount);
 }
 
-TEST_W(TTestTimerPages, TablesExist)
+TEST_W(TTimerPagesTest, TablesExist)
 {
     EXPECT_TRUE(WaitFor(Table_->TablesExist()).ValueOrThrow());
 }

@@ -2278,7 +2278,7 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountRetries)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestJobInterruption)
+TEST_F(TSortedChunkPoolTest, JobInterruption)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2798,7 +2798,7 @@ TEST_F(TSortedChunkPoolTest, SuchForeignWithPivotKeys)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
+TEST_F(TSortedChunkPoolTest, JobSplitStripeSuspension)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3067,7 +3067,7 @@ TEST_F(TSortedChunkPoolTest, SplitMustRespectSingleJobness)
     ExtractOutputCookiesWhilePossible();
 }
 
-class TSortedChunkPoolSingleJobSplit
+class TSortedChunkPoolSingleJobSplitTest
     : public TSortedChunkPoolTest
 {
 protected:
@@ -3142,7 +3142,7 @@ protected:
     }
 };
 
-TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingletons)
+TEST_F(TSortedChunkPoolSingleJobSplitTest, SplitMustRespectSingleJobnessWithSingletons)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     DataWeightPerJob_ = 10_KB;
@@ -3185,7 +3185,7 @@ TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingleto
 }
 
 
-TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingletonsAndForeign1)
+TEST_F(TSortedChunkPoolSingleJobSplitTest, SplitMustRespectSingleJobnessWithSingletonsAndForeign1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     DataWeightPerJob_ = 10_KB;
@@ -3452,7 +3452,7 @@ TEST_F(TSortedChunkPoolTest, DoNotEnlargeJobsWithForeignData)
 }
 
 // TODO(max42): this test is not viable since slices must be added in input order.
-TEST_F(TSortedChunkPoolTest, DISABLED_TestCorrectOrderInsideStripe)
+TEST_F(TSortedChunkPoolTest, DISABLED_CorrectOrderInsideStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3497,7 +3497,7 @@ TEST_F(TSortedChunkPoolTest, DISABLED_TestCorrectOrderInsideStripe)
     }
 }
 
-TEST_F(TSortedChunkPoolTest, TestTrickyCase)
+TEST_F(TSortedChunkPoolTest, TrickyCase)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3544,7 +3544,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
+TEST_F(TSortedChunkPoolTest, TrickyCase2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3582,7 +3582,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
+TEST_F(TSortedChunkPoolTest, TrickyCase3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3613,7 +3613,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
+TEST_F(TSortedChunkPoolTest, TrickyCase4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3660,7 +3660,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
     EXPECT_TRUE(TeleportChunks_.empty());
 }
 
-TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
+TEST_F(TSortedChunkPoolTest, NoChunkSliceFetcher)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3691,7 +3691,7 @@ TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
+TEST_F(TSortedChunkPoolTest, StripeListStatisticsAreSet)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3725,7 +3725,7 @@ TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
     EXPECT_GT(statistics.DataWeight, 0);
 }
 
-TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
+TEST_F(TSortedChunkPoolTest, SeveralSlicesInInputStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3757,7 +3757,7 @@ TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
     EXPECT_EQ(2u, stripeLists[0]->Stripes()[1]->DataSlices().size());
 }
 
-TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
+TEST_F(TSortedChunkPoolTest, PivotKeys1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -3801,7 +3801,7 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
+TEST_F(TSortedChunkPoolTest, PivotKeys2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(

@@ -217,7 +217,7 @@ void CheckReaderContinious(const TFakeReplicationLogBatchReader& reader, int exp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
+TEST(TReplicationLogBatchReaderTest, ReadEmpty)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -252,7 +252,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadAll)
+TEST(TReplicationLogBatchReaderTest, ReadAll)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -289,7 +289,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
+TEST(TReplicationLogBatchReaderTest, ReadUntilLimits)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 12;
@@ -345,7 +345,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
+TEST(TReplicationLogBatchReaderTest, ReadLargeTransactionBreakingLimits)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 12;
@@ -401,7 +401,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
+TEST(TReplicationLogBatchReaderTest, ReadAllNoMatching)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -438,7 +438,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
+TEST(TReplicationLogBatchReaderTest, ReadAllSomeMatching)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -481,7 +481,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
+TEST(TReplicationLogBatchReaderTest, ReadByLimitsNoneMatching)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -536,7 +536,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
+TEST(TReplicationLogBatchReaderTest, ReadByLimitsSomeMatching)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -602,7 +602,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
+TEST(TReplicationLogBatchReaderTest, CombinedTransactionWithUpperBound)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -662,7 +662,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
     nodeMemoryTracker->ClearTrackers();
 }
 
-TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
+TEST(TReplicationLogBatchReaderTest, CombinedTransactionWithMaxInstant)
 {
     auto mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;

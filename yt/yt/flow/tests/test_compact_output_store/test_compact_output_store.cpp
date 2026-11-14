@@ -50,7 +50,7 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestCompactOutputStore
+class TCompactOutputStoreTest
     : public ::testing::Test
 {
 protected:
@@ -192,7 +192,7 @@ protected:
 // Verifies the full Register → Sync cycle against a real YT cluster.
 // After Register(persist=true) + Sync(), the message is written to the
 // compact partition output messages table and Contains() returns true.
-TEST_W(TTestCompactOutputStore, RegisterSyncAndInit)
+TEST_W(TCompactOutputStoreTest, RegisterSyncAndInit)
 {
     auto context = PrepareOutputStoreContext();
     auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
@@ -220,7 +220,7 @@ TEST_W(TTestCompactOutputStore, RegisterSyncAndInit)
 
 // Verifies that Register(persist=true) + Sync() + Unregister() + Sync()
 // erases the chunk row from the compact partition output messages table.
-TEST_W(TTestCompactOutputStore, RegisterUnregisterSync)
+TEST_W(TCompactOutputStoreTest, RegisterUnregisterSync)
 {
     auto context = PrepareOutputStoreContext();
     auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
@@ -259,7 +259,7 @@ TEST_W(TTestCompactOutputStore, RegisterUnregisterSync)
 }
 
 // Keyed full cycle for the compact_output_messages table.
-TEST_W(TTestCompactOutputStore, RegisterKeyedSyncAndInit)
+TEST_W(TCompactOutputStoreTest, RegisterKeyedSyncAndInit)
 {
     auto context = PrepareOutputStoreContext();
     auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
@@ -281,7 +281,7 @@ TEST_W(TTestCompactOutputStore, RegisterKeyedSyncAndInit)
 
 // Erase GC that overflows the epoch-tx budget drains via async retryable transactions committed
 // after the epoch. Uses small injectable caps so a handful of chunks trigger the overflow.
-TEST_W(TTestCompactOutputStore, EraseOverflowDrainsViaAsyncTransactions)
+TEST_W(TCompactOutputStoreTest, EraseOverflowDrainsViaAsyncTransactions)
 {
     constexpr int ChunkCount = 5;
     constexpr int EpochEraseBudget = 2;

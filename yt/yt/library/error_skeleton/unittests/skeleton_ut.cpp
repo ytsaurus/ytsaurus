@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkeletonTest, TestSimple)
+TEST(TSkeletonTest, Simple)
 {
     auto error =
         TError(TErrorCode(1), "foo")
@@ -26,11 +26,11 @@ TEST(TSkeletonTest, TestSimple)
         error.GetSkeleton());
 }
 
-class TTestReplacement
+class TReplacementTest
     : public testing::TestWithParam<std::tuple<std::string, std::string>>
 { };
 
-TEST_P(TTestReplacement, TestReplacement)
+TEST_P(TReplacementTest, Replacement)
 {
     auto error = TError(TErrorCode(42), std::get<0>(GetParam()), TError::TDisableFormat{});
     auto expectedSkeleton = std::string("#42: ") + std::get<1>(GetParam());
@@ -41,8 +41,8 @@ TEST_P(TTestReplacement, TestReplacement)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReplacement,
-    TTestReplacement,
+    TReplacementTest,
+    TReplacementTest,
     ::testing::Values(
         std::tuple{
             "foo; bar 123-abc-987654-fed //home some-node.yp-c.yandex.net:1234 0-0-0-0",

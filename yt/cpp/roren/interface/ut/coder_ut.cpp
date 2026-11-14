@@ -6,7 +6,7 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestCoder, Variant)
+TEST(TCoderTest, Variant)
 {
     using TVariant = std::variant<std::monostate, std::string, std::string, int>;
     TVariant before;
@@ -30,7 +30,7 @@ TEST(TTestCoder, Variant)
     ASSERT_EQ(before, after);
 }
 
-TEST(TTestCoder, Tuple)
+TEST(TCoderTest, Tuple)
 {
     using TTuple = std::tuple<std::string, std::string, int>;
     TTuple before = {"foo", "bar", -42};

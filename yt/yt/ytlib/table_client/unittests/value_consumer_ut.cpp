@@ -37,7 +37,7 @@ MATCHER_P(SameAs, expectedUnversionedValue, "is same as " + ToString(expectedUnv
     return ToString(arg) == ToString(expectedUnversionedValue);
 }
 
-TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
+TEST_P(TValueConsumerTypeConversionTest, Behaviour)
 {
     auto typeConversionConfig = New<TTypeConversionConfig>();
     std::tie(
