@@ -17,6 +17,16 @@ void TSwiftMapCompanionComputation::DoInit(IJobInitContextPtr /*initContext*/)
     InitCompanionJob();
 }
 
+void TSwiftMapCompanionComputation::AddWatermarks(
+    const TCompanionProcessRequestPtr& request,
+    const TComputationSpec& spec,
+    const TWatermarkStatePtr& watermarkState)
+{
+    for (const auto& streamId : spec.InputStreamIds) {
+        request->Watermarks.push_back(MakeStreamWatermark(watermarkState, streamId));
+    }
+}
+
 void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
     YT_TLOG_DEBUG("Starting DoProcess")
@@ -33,6 +43,8 @@ void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCol
         request->Messages.push_back(message);
         messageMap[message->MessageId] = message;
     }
+
+    AddWatermarks(request, *GetSpec(), GetEpochWatermarkState());
 
     // Request to Companion.
     auto response = DoProcessWithCompanion(request);

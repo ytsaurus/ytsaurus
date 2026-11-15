@@ -51,6 +51,12 @@ public:
 
     static void ValidateSpec(const TComputationSpec& spec);
 
+    //! Adds the epoch watermarks of the input and timer streams to |request|.
+    static void AddWatermarks(
+        const TCompanionProcessRequestPtr& request,
+        const TComputationSpec& spec,
+        const TWatermarkStatePtr& watermarkState);
+
     void DoInit(IJobInitContextPtr initContext) final;
 
     void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) final;

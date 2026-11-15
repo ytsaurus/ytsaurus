@@ -14,6 +14,13 @@ namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Epoch watermarks of one stream.
+struct TStreamWatermarks
+{
+    TSystemTimestamp EventWatermark;
+    TSystemTimestamp SystemWatermark;
+};
+
 //! Decoded ProcessBatch request: the whole epoch input of one job.
 struct TBatchInput
 {
@@ -23,7 +30,7 @@ struct TBatchInput
     THashMap<std::string, NCompanion::TStateHolder<std::string>> InternalStates;
     THashMap<std::string, NCompanion::TStateHolder<TPayload>> ExternalStates;
     THashMap<std::string, NCompanion::TStateHolder<TPayload>> JoinedExternalStates;
-    THashMap<TStreamId, TSystemTimestamp> Watermarks;
+    THashMap<TStreamId, TStreamWatermarks> Watermarks;
     //! Epoch state; null when the worker sent none.
     std::optional<TSystemTimestamp> CurrentTimestamp;
     std::optional<TUniqueSeqNo> EpochUniqueSeqNo;

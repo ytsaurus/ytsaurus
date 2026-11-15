@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     companion_computation_base_ut.cpp
     companion_spec_validation_ut.cpp
+    companion_watermarks_ut.cpp
     registry_ut.cpp
     transform_ordered_source_companion_computation_ut.cpp
 )

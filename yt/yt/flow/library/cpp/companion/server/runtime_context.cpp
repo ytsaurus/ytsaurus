@@ -42,19 +42,18 @@ TSystemTimestamp TCompanionRuntimeContext::GetCurrentTimestamp() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TWatermarkStatePtr BuildWatermarkState(
-    const THashMap<TStreamId, TSystemTimestamp>& watermarks,
+    const THashMap<TStreamId, TStreamWatermarks>& watermarks,
     std::optional<TSystemTimestamp> currentTimestamp)
 {
     auto state = New<TWatermarkState>();
     if (currentTimestamp) {
         state->CurrentTimestamp = *currentTimestamp;
     }
-    for (const auto& [streamId, watermark] : watermarks) {
-        auto watermarks = New<TWatermarks>();
-        // The wire carries only the event watermark; the system watermark stays
-        // zero ("unknown") rather than guessed.
-        watermarks->EventWatermark = watermark;
-        state->Streams[streamId] = std::move(watermarks);
+    for (const auto& [streamId, streamWatermarks] : watermarks) {
+        auto stateWatermarks = New<TWatermarks>();
+        stateWatermarks->EventWatermark = streamWatermarks.EventWatermark;
+        stateWatermarks->SystemWatermark = streamWatermarks.SystemWatermark;
+        state->Streams[streamId] = std::move(stateWatermarks);
     }
     return state;
 }

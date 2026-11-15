@@ -73,6 +73,15 @@ TCompanionResponsePtr ProcessWithCompanionHealing(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStreamWatermark MakeStreamWatermark(const TWatermarkStatePtr& watermarkState, const TStreamId& streamId)
+{
+    return TStreamWatermark{
+        .StreamId = streamId,
+        .EventWatermark = watermarkState->GetEventWatermark(streamId),
+        .SystemWatermark = watermarkState->GetSystemWatermark(streamId),
+    };
+}
+
 void AddJoinedExternalStates(
     const TCompanionProcessRequestPtr& request,
     const THashMap<std::string, ICompanionStateAdapterPtr>& joiners,

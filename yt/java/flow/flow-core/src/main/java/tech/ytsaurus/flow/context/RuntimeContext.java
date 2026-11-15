@@ -26,8 +26,7 @@ public interface RuntimeContext extends StatefulContext {
     /**
      * Min Watermark value for all timer streams.
      *
-     * <p>Returns {@code 0} when the computation carries no watermarks
-     * (SwiftMap / SwiftOrderedSource computations), meaning no event time has advanced.
+     * <p>Returns {@code 0} when the request carries no watermarks, meaning no event time has advanced.
      *
      * @return Min watermark timestamp.
      */
