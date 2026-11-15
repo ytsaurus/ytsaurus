@@ -54,12 +54,6 @@ public:
 
     void Initialize() override
     {
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(
-            BIND_NO_PROPAGATE(&TPrelockTracker::OnTransactionFinished, Unretained(this)));
-        transactionManager->SubscribeTransactionAborted(
-            BIND_NO_PROPAGATE(&TPrelockTracker::OnTransactionFinished, Unretained(this)));
-
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPrelockTracker::OnDynamicConfigChanged, Unretained(this)));
     }
@@ -132,6 +126,24 @@ public:
 
             return error;
         }
+    }
+
+    TCompactVector<TNodeId, 8> OnTransactionFinished(TTransaction* transaction) override
+    {
+        if (!IsEnabled()) {
+            return {};
+        }
+
+        YT_VERIFY(HasHydraContext());
+        YT_VERIFY(transaction);
+
+        YT_TLOG_DEBUG("Dropping prelocks")
+            .With("TransactionId", transaction->GetId());
+
+        TCompactVector<TNodeId, 8> unlockedNodes;
+        OnLockingTransactionFinished(transaction, &unlockedNodes);
+        OnOwningTransactionFinished(transaction, &unlockedNodes);
+        return unlockedNodes;
     }
 
 private:
@@ -237,23 +249,7 @@ private:
         return Bootstrap_->GetDynamicConfig()->SequoiaManager->EnablePrelockTracker;
     }
 
-    void OnTransactionFinished(TTransaction* transaction)
-    {
-        if (!IsEnabled()) {
-            return;
-        }
-
-        YT_VERIFY(HasHydraContext());
-        YT_VERIFY(transaction);
-
-        YT_TLOG_DEBUG("Dropping prelocks")
-            .With("TransactionId", transaction->GetId());
-
-        OnLockingTransactionFinished(transaction);
-        OnOwningTransactionFinished(transaction);
-    }
-
-    void OnOwningTransactionFinished(TTransaction* owningTransaction)
+    void OnOwningTransactionFinished(TTransaction* owningTransaction, TCompactVector<TNodeId, 8>* unlockedNodes)
     {
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(owningTransaction);
@@ -306,6 +302,7 @@ private:
                     UnregisterPrelock(lockingTransaction, versionedNodeId.ObjectId, lockRequest);
                     prelockCounts.erase(prelockIt);
                 }
+                unlockedNodes->push_back(versionedNodeId.ObjectId);
             }
 
             if (prelockCounts.empty()) {
@@ -314,7 +311,7 @@ private:
         }
     }
 
-    void OnLockingTransactionFinished(TTransaction* lockingTransaction)
+    void OnLockingTransactionFinished(TTransaction* lockingTransaction, TCompactVector<TNodeId, 8>* unlockedNodes)
     {
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(lockingTransaction);
@@ -324,6 +321,7 @@ private:
             for (const auto& [nodeIdWithLockRequest, count] : it->second) {
                 const auto& [nodeId, lockRequest] = nodeIdWithLockRequest;
                 UnregisterPrelock(lockingTransaction, nodeId, lockRequest);
+                unlockedNodes->push_back(nodeId);
             }
             LockingTransactionToPrelockCounts_.erase(it);
         }

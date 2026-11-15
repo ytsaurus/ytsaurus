@@ -608,25 +608,26 @@ public:
         JobFailContextHandler_->SetEnabled(config->EnableJobFailContextReporter);
     }
 
-    void OnDynamicConfigChanged(
-        const TJobReporterConfigPtr& /*oldConfig*/,
-        const TJobReporterConfigPtr& newConfig)
+    void Reconfigure(const TJobReporterConfigPtr& config)
     {
-        JobHandler_->OnConfigChanged(
-            newConfig,
-            newConfig->JobHandler);
-        JobSpecHandler_->OnConfigChanged(
-            newConfig,
-            newConfig->JobSpecHandler);
-        JobStderrHandler_->OnConfigChanged(
-            newConfig,
-            newConfig->JobStderrHandler);
-        JobProfileHandler_->OnConfigChanged(
-            newConfig,
-            newConfig->JobProfileHandler);
-        JobFailContextHandler_->OnConfigChanged(
-            newConfig,
-            newConfig->JobFailContextHandler);
+        JobHandler_->Reconfigure(
+            config,
+            config->JobHandler);
+        OperationIdHandler_->Reconfigure(
+            config,
+            config->OperationIdHandler);
+        JobSpecHandler_->Reconfigure(
+            config,
+            config->JobSpecHandler);
+        JobStderrHandler_->Reconfigure(
+            config,
+            config->JobStderrHandler);
+        JobProfileHandler_->Reconfigure(
+            config,
+            config->JobProfileHandler);
+        JobFailContextHandler_->Reconfigure(
+            config,
+            config->JobFailContextHandler);
     }
 
 private:
@@ -692,12 +693,10 @@ void TJobReporter::UpdateConfig(const TJobReporterConfigPtr& config)
     }
 }
 
-void TJobReporter::OnDynamicConfigChanged(
-    const TJobReporterConfigPtr& oldConfig,
-    const TJobReporterConfigPtr& newConfig)
+void TJobReporter::Reconfigure(const TJobReporterConfigPtr& config)
 {
     if (Impl_) {
-        Impl_->OnDynamicConfigChanged(oldConfig, newConfig);
+        Impl_->Reconfigure(config);
     }
 }
 

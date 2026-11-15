@@ -379,4 +379,4 @@ class TestNodeDirectorySynchronizationOnTableRead(YTEnvSetup):
         wait(lambda: throttled.get_delta() > 0)
         wait(lambda: distributed.get_delta() > 0)
 
-        assert sum(c.get_delta() for c in peer_hit) > 0
+        wait(lambda: sum(c.get_delta() for c in peer_hit) > 0)

@@ -10,7 +10,7 @@ from yt_commands import (
     create_dynamic_table, get_chunk_owner_disk_space, cluster_resources_equal, master_memory_sleep,
     assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver, raises_yt_error,
     get_active_primary_master_leader_address, start_transaction, abort_transaction, commit_transaction,
-    get_currently_active_pirmary_master_follower_addresses, get_recursive_disk_space)
+    get_currently_active_primary_master_follower_addresses, get_recursive_disk_space)
 
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
@@ -4951,7 +4951,7 @@ class TestAccountsProfiling(YTEnvSetup):
         leader_address = get_active_primary_master_leader_address(self)
         leader_profiler = profiler_factory().at_primary_master(leader_address)
 
-        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_addresses = get_currently_active_primary_master_follower_addresses(self)
         follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
 
         secondary_cell_tags = get("//sys/secondary_masters")
@@ -5055,7 +5055,7 @@ class TestAccountsProfiling(YTEnvSetup):
         leader_address = get_active_primary_master_leader_address(self)
         leader_profiler = profiler_factory().at_primary_master(leader_address)
 
-        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_addresses = get_currently_active_primary_master_follower_addresses(self)
         follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
 
         profilers = [leader_profiler] + follower_profilers
@@ -5108,7 +5108,7 @@ class TestAccountsProfiling(YTEnvSetup):
 
         sleep(2)
 
-        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_addresses = get_currently_active_primary_master_follower_addresses(self)
         follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
 
         # Find which follower is currently reporting metrics for account.

@@ -58,6 +58,8 @@ struct IJobController
 
     virtual TFuture<void> GetAllJobsCleanupFinishedFuture() = 0;
 
+    virtual TFuture<void> GetJobCleanupDelayReleasedFuture() const = 0;
+
     virtual TFuture<void> AbortAllJobs(const TError& error) = 0;
 
     virtual bool AreJobsDisabled() const noexcept = 0;

@@ -15,11 +15,15 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/rpc/service.h>
+
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NTransactionServer {
 
@@ -27,11 +31,74 @@ using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectServer;
+using namespace NYTree;
 
 using TEphemeralTransactionPtr = TEphemeralObjectPtr<TTransaction>;
 using TWeakTransactionPtr = TWeakObjectPtr<TTransaction>;
 
-static constinit const auto Logger = TransactionServerLogger;
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TransactionServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionIdHash
+{
+    template <class C>
+    size_t operator()(const TObjectPtr<TTransaction, C>& ptr) const
+    {
+        return THash<TTransactionId>{}(ptr ? ptr->GetId() : NullTransactionId);
+    }
+
+    size_t operator()(TTransactionId id) const
+    {
+        return THash<TTransactionId>{}(id);
+    }
+
+    size_t operator()(TTransaction* transaction) const
+    {
+        return operator()(transaction ? transaction->GetId() : NullTransactionId);
+    }
+};
+
+struct TTransactionIdIsEqual
+{
+    template <class C>
+    bool operator()(const TObjectPtr<TTransaction, C>& lhs, const TObjectPtr<TTransaction, C>& rhs) const
+    {
+        return lhs == rhs;
+    }
+
+    template <class C>
+    bool operator()(const TObjectPtr<TTransaction, C>& lhs, TTransactionId rhs) const
+    {
+        return (lhs ? lhs->GetId() : NullTransactionId) == rhs;
+    }
+
+    template <class C>
+    bool operator()(TTransactionId lhs, const TObjectPtr<TTransaction, C>& rhs) const
+    {
+        return operator()(rhs, lhs);
+    }
+
+    template <class C>
+    bool operator()(const TObjectPtr<TTransaction, C>& lhs, TTransaction* rhs) const
+    {
+        return lhs.Get() == rhs;
+    }
+
+    template <class C>
+    bool operator()(TTransaction* lhs, const TObjectPtr<TTransaction, C>& rhs) const
+    {
+        return operator()(rhs, lhs);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,6 +326,28 @@ public:
         Queue_.clear();
     }
 
+    // Used in Orchid implementation.
+
+    void ListKeys(std::vector<std::string>* result, i64 limit) const
+    {
+        for (const auto& [transaction, info] : Transactions_) {
+            if (std::ssize(*result) >= limit) {
+                break;
+            }
+
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            result->push_back(ToString(transaction->GetId()));
+        }
+    }
+
+    bool Contains(TTransactionId transactionId) const
+    {
+        return Transactions_.contains(transactionId);
+    }
+
 private:
     const TStringBuf Action_;
 
@@ -270,7 +359,7 @@ private:
         TBackoffStrategy BackoffStrategy;
         std::optional<TQueueIterator> QueueIterator;
     };
-    THashMap<TEphemeralTransactionPtr, TTransactionInfo> Transactions_;
+    THashMap<TEphemeralTransactionPtr, TTransactionInfo, TTransactionIdHash, TTransactionIdIsEqual> Transactions_;
     TQueue Queue_;
 };
 
@@ -287,6 +376,8 @@ class TTransactionFinisher
 public:
     explicit TTransactionFinisher(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TransactionFinisher)
+        , OrchidService_(New<TTransactionFinisherOrchidService>(MakeWeak(this))
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::TransactionFinisher)))
         , LeasesRevocationQueue_("lease revocation")
         , FinishQueue_("finish")
     {
@@ -497,8 +588,15 @@ public:
         }
     }
 
+    IYPathServicePtr GetOrchidService() override
+    {
+        return OrchidService_;
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    const IYPathServicePtr OrchidService_;
 
     TPeriodicExecutorPtr Executor_;
 
@@ -511,7 +609,82 @@ private:
     THashMap<TEphemeralTransactionPtr, TPromise<void>> FailedCommitCompletionPromises_;
 
     // Persistent.
-    THashMap<TWeakTransactionPtr, TTransactionFinishRequest> Requests_;
+    THashMap<TWeakTransactionPtr, TTransactionFinishRequest, TTransactionIdHash, TTransactionIdIsEqual> Requests_;
+
+    class TTransactionFinisherOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TTransactionFinisherOrchidService(TWeakPtr<TTransactionFinisher> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        std::vector<std::string> GetKeys(i64 limit) const override
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return {};
+            }
+
+            std::vector<std::string> keys;
+            keys.reserve(std::min<i64>(limit, owner->Requests_.size()));
+            for (const auto& [transaction, request] : owner->Requests_) {
+                if (std::ssize(keys) >= limit) {
+                    break;
+                }
+                if (IsObjectAlive(transaction)) {
+                    keys.push_back(ToString(transaction->GetId()));
+                }
+            }
+
+            owner->LeasesRevocationQueue_.ListKeys(&keys, limit);
+
+            SortUnique(keys);
+
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            auto owner = Owner_.Lock();
+            return owner ? owner->Requests_.size()  + owner->LeasesRevocationQueue_.Size() : 0;
+        }
+
+        IYPathServicePtr FindItemService(const std::string& key) const override
+        {
+            auto transactionId = TTransactionId::FromString(key);
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return nullptr;
+            }
+
+            bool transactionFound = false;
+            bool requestPersisted = false;
+
+            if (owner->Requests_.contains(transactionId)) {
+                transactionFound = true;
+                requestPersisted = true;
+            } else if (owner->LeasesRevocationQueue_.Contains(transactionId)) {
+                transactionFound = true;
+            }
+
+            if (!transactionFound) {
+                return nullptr;
+            }
+
+            return ConvertToNode(BIND([requestPersisted] (NYson::IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("phase")
+                            .Value(requestPersisted ? "finish" : "lease_revocation")
+                    .EndMap();
+            }));
+        }
+
+    private:
+        const TWeakPtr<TTransactionFinisher> Owner_;
+    };
 
     void ScheduleFinish(TTransaction* transaction)
     {

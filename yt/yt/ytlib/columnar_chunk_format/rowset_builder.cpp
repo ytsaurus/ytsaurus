@@ -380,6 +380,12 @@ public:
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, spans, batchSize, newMeta);
         TDataExtractor::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
     }
+
+    size_t DoGetMemoryUsage() const
+    {
+        return TScanVersionExtractor<Aggregate>::DoGetMemoryUsage() +
+            TDataExtractor::DoGetMemoryUsage();
+    }
 };
 
 template <EValueType Type, bool Aggregate, bool ConvertToAny>
@@ -1755,6 +1761,8 @@ public:
             spansIt->Upper = savedUpperBound;
         }
 
+        MemoryGuard_.SetSize(GetMemoryUsage());
+
         return readCount - leftCount;
     }
 #endif
@@ -1831,9 +1839,10 @@ public:
         }
         CurrentResultOffset_ += readCount - leftCount;
 
+        MemoryGuard_.SetSize(GetMemoryUsage());
+
         return readCount - leftCount;
     }
-
 
 private:
     TMemoryHolder<TReadSpan> ReadListHolder_;
@@ -1853,18 +1862,32 @@ private:
         return ReadList_.Front().Lower;
     }
 
+    size_t GetMemoryUsage() const
+    {
+        size_t totalMemoryUsage = TBase::GetMemoryUsage();
+        totalMemoryUsage += ColumnReadersMemorySize_ + MemoryPool_.GetCapacity();
+        for (const auto& column : KeyColumns_) {
+            totalMemoryUsage += column->GetMemoryUsage();
+        }
+        for (const auto& column : ValueColumns_) {
+            totalMemoryUsage += column->GetMemoryUsage();
+        }
+        totalMemoryUsage += ValueCounts_.GetSize();
+        totalMemoryUsage += ValueOutput_.GetSize();
+
+        return totalMemoryUsage;
+    }
+
 #ifdef FULL_UNPACK
     ui32 UpdateSegmentsFullUnpack(ui32 rowIndex, TReaderStatistics* readerStatistics)
     {
         // Timestamp column segment limit.
         ui32 segmentRowLimit = TBase::GetSegmentRowLimit();
-        size_t totalMemoryUsage = 0;
         if (rowIndex >= segmentRowLimit) {
             TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DecodeTimestampSegmentTime);
 
             ++readerStatistics->UpdateSegmentCallCount;
             segmentRowLimit = TBase::UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
-            totalMemoryUsage += TBase::GetMemoryUsage();
         }
 
         {
@@ -1874,7 +1897,6 @@ private:
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
-                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1889,15 +1911,12 @@ private:
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
-                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
                 segmentRowLimit = std::min(segmentRowLimit, currentLimit);
             }
         }
-
-        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage + MemoryPool_.GetCapacity());
 
         return segmentRowLimit;
     }
@@ -1907,7 +1926,6 @@ private:
     {
         YT_VERIFY(!spans.empty());
         ui32 startRowIndex = spans.Front().Lower;
-        size_t totalMemoryUsage = 0;
 
         // Timestamp column segment limit.
         ui32 segmentRowLimit = TBase::GetSegmentRowLimit();
@@ -1916,7 +1934,6 @@ private:
 
             ++readerStatistics->UpdateSegmentCallCount;
             segmentRowLimit = TBase::UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
-            totalMemoryUsage += TBase::GetMemoryUsage();
         }
 
         {
@@ -1926,7 +1943,6 @@ private:
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
-                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1941,15 +1957,12 @@ private:
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
-                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
                 segmentRowLimit = std::min(segmentRowLimit, currentLimit);
             }
         }
-
-        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage + MemoryPool_.GetCapacity());
 
         return segmentRowLimit;
     }

@@ -543,6 +543,7 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_tracker/duration_before_job_considered_disappeared_from_node", 100)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
+        update_scheduler_config("enable_allocation_abort_on_zero_user_slots", False)
         time.sleep(0.5)
 
         aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "disappeared_from_node"})

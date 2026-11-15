@@ -1034,10 +1034,8 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
     def setup_method(self, method):
         super(TestGetJobStderrGpuChecker, self).setup_method(method)
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(), override_tablet_cell_bundle="default"
-        )
+        self.setup_gpu_layer_and_reset_nodes()
+        self.init_operations_archive()
 
     def teardown_method(self, method):
         remove("//sys/operations_archive")
@@ -1045,7 +1043,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_fail(self):
-        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
@@ -1084,7 +1081,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_job_error(self):
-        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_success")
 
         op = run_test_vanilla(
@@ -1119,8 +1115,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_gpu_check_success(self):
-        self.setup_gpu_layer_and_reset_nodes()
-
         update_controller_agent_config(
             "vanilla_operation_options/gpu_check",
             {
@@ -1152,7 +1146,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_has_gpu_check_stderr_in_archive_features(self):
-        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(

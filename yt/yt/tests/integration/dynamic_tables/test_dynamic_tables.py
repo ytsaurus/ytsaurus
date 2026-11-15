@@ -15,10 +15,10 @@ from yt_sequoia_helpers import not_implemented_in_sequoia
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove, link,
-    exists, create_account, create_user, make_ace, make_batch_request,
+    exists, create_account, create_user, make_ace,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
-    execute_batch, execute_command, get_active_primary_master_leader_address,
+    execute_command, get_active_primary_master_leader_address,
     start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     select_rows, lookup_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table,
@@ -462,16 +462,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         second_peer_address = _get_peers()[1]["address"]
 
         set_node_decommissioned(second_peer_address, True)
-        wait(
-            lambda: len(_get_peers()) == 2
-            and _get_peers()[1].get("address", second_peer_address) != second_peer_address
-        )
-        new_second_peer_address = _get_peers()[1]["address"]
-        assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
-        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
 
-        wait(lambda: len(_get_peers()) == 1)
-        assert _get_peers()[0]["address"] == new_second_peer_address
+        def _has_single_replacement_peer():
+            peers = _get_peers()
+            if len(peers) != 1:
+                return False
+            address = peers[0].get("address")
+            return address is not None and address not in (first_peer_address, second_peer_address)
+
+        wait(_has_single_replacement_peer)
 
         wait_for_cells(
             [cell_id],
@@ -1763,19 +1762,16 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus")
     @pytest.mark.timeout(150)
-    def test_cell_bundle_distribution_new(self):
-        self._test_cell_bundle_distribution(True)
-
-    @authors("savrus")
-    @flaky(max_runs=5)
-    def test_cell_bundle_distribution_old(self):
-        self._test_cell_bundle_distribution(False)
+    def test_cell_bundle_distribution(self):
+        self._test_cell_bundle_distribution(test_decommission=False)
 
     @authors("gritukan")
     @pytest.mark.timeout(150)
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_tablet_cell_balancer_works_after_decommission(self):
-        self._test_cell_bundle_distribution(True)
+        if self.USE_SEQUOIA:
+            pytest.skip("Test is too long and has no Sequoia specifics")
+        self._test_cell_bundle_distribution(test_decommission=True)
 
     @authors("savrus")
     def test_cell_bundle_options(self):
@@ -4122,7 +4118,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: get("//tmp/a/@chunk_ids/0") != initial_chunk_id)
 
         assert exists(f"#{initial_chunk_id}")
-        assert [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+        wait(lambda: [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
 
         set("//tmp/a/@forced_compaction_revision", 1)
         remount_table("//tmp/a")
@@ -4382,13 +4378,21 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @pytest.mark.parametrize("freeze", [False, True])
     def test_mount_orphaned(self, freeze):
         self._create_sorted_table("//tmp/t")
-        cells = sync_create_cells(1)
+        cell_id = sync_create_cells(1)[0]
+        cell_path = "#" + cell_id
 
-        requests = []
-        requests.append(make_batch_request("remove", path="#" + cells[0]))
-        requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
-        rsps = execute_batch(requests)
-        assert len(rsps[1]["output"]) == 0
+        removal_config_path = "//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal"
+        set(removal_config_path, False)
+        try:
+            remove(cell_path)
+            for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+                driver = get_driver(cell_index)
+                wait(lambda: get(cell_path + "/@tablet_cell_life_stage", driver=driver) == "decommissioned")
+            mount_table("//tmp/t", cell_id=cell_id, freeze=freeze)
+        finally:
+            set(removal_config_path, True)
+
+        wait(lambda: not exists(cell_path))
 
         expected_state = "frozen" if freeze else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state

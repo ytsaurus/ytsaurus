@@ -1151,7 +1151,7 @@ std::optional<double> TNode::GetLoadFactor(int mediumIndex, int chunkHostMasterC
     // NB: Avoid division by zero.
     return GetOrDefault(SessionCount_, mediumIndex)
         ? std::optional(
-            static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) /
+            (static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) + 1.0) /
             std::max(GetOrDefault(IOWeights_, mediumIndex), 1e-9))
         : std::nullopt;
 }

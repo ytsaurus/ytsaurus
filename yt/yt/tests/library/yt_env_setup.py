@@ -1,4 +1,5 @@
 import yt_commands
+import yt_error_codes
 import yt_sequoia_helpers
 import yt_scheduler_helpers
 
@@ -7,6 +8,7 @@ try:
 except ImportError:
     from yt_tests_opensource_settings import has_tvm_service_support
 
+from yt.common import YtError
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import (
@@ -503,6 +505,7 @@ class YTEnvSetup(object):
     TEST_MAINTENANCE_FLAGS = False
 
     WAIT_FOR_DYNAMIC_CONFIG = True
+    FORCE_ABORT_TRANSACTIONS_ON_CLEANUP = False
 
     ENABLE_MULTIDAEMON = False
 
@@ -1575,21 +1578,35 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["controller_agent"]):
             update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
+
+            master_version = "trunk"
+            controller_agent_version = "trunk"
+            for version, components in cls.ARTIFACT_COMPONENTS.items():
+                if "master" in components:
+                    master_version = version
+                if "controller_agent" in components:
+                    controller_agent_version = version
+
             if not cls._is_ground_cluster(index) and \
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                for version, components in cls.ARTIFACT_COMPONENTS.items():
-                    yt_commands.print_debug(f"version = {version}, components = {components}")
-                    if "controller_agent" not in components:
-                        continue
-                    # COMPAT(kvk1920)
-                    if version == "trunk" or version >= "25_4":
-                        continue
+
+                # COMPAT(kvk1920)
+                if controller_agent_version != "trunk" and controller_agent_version < "25_4":
                     update_inplace(config, {
                         "set_committed_attribute_via_transaction_action": False,
                         "commit_operation_cypress_node_changes_via_system_transaction": True,
                     })
+
+            # COMPAT(kvk1920)
+            if (controller_agent_version == "trunk" or controller_agent_version >= "26_3") and \
+                    (master_version == "trunk" or master_version >= "26_3"):
+                yt_commands.print_debug("Using lazy trasaction externalization in CA")
+                update_inplace(config, {"controller_agent": {
+                    "use_lazy_transaction_externalization": True,
+                }})
+
             # COMPAT(pogorelov): controller-agent versions before 26.2 default to
             # the legacy sorted pool; force the new one to match trunk behavior.
             controller_agent_version = None
@@ -2129,7 +2146,13 @@ class YTEnvSetup(object):
             for scion in scions:
                 if yt_commands.get(f"#{scion}/@path", driver=driver) == "//sys/operations":
                     continue
-                yt_commands.remove(f"#{scion}", driver=driver)
+                while True:
+                    try:
+                        yt_commands.remove(f"#{scion}", driver=driver)
+                        break
+                    except YtError as error:
+                        if not error.contains_code(yt_error_codes.Unavailable):
+                            raise
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
@@ -2231,7 +2254,10 @@ class YTEnvSetup(object):
         test_cleanup.abort_transactions(
             list_action=lambda *args, **kwargs: yt_commands.ls(*args, driver=driver, **kwargs),
             abort_action=lambda transaction_id: requests.append(
-                yt_commands.make_batch_request(abort_command, transaction_id=transaction_id)),
+                yt_commands.make_batch_request(
+                    abort_command,
+                    transaction_id=transaction_id,
+                    force=self.FORCE_ABORT_TRANSACTIONS_ON_CLEANUP)),
             exists_action=lambda *args, **kwargs: yt_commands.exists(*args, driver=driver, **kwargs),
             get_action=lambda *args, **kwargs: yt_commands.get(*args, driver=driver, **kwargs))
 
@@ -2614,7 +2640,17 @@ class YTEnvSetup(object):
         if not cls.TEST_MAINTENANCE_FLAGS and cls.Env.get_component_version("ytserver-master").abi >= (23, 1):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
-        config.setdefault("chunk_service", {})
+        # COMPAT(kvk1920)
+        master_version = "trunk"
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "master" in components:
+                master_version = version
+                break
+        if master_version == "trunk" or master_version >= "26_3":
+            config.setdefault("transaction_manager", {})["enable_lazy_transaction_externalization"] = True
+            config.setdefault("chunk_service", {})["use_lazy_transaction_externalization"] = True
+        else:
+            config.setdefault("cell_master", {}).setdefault("logging", {}).setdefault("message_level_overrides")["Lazy transaction externalization is disabled but someone requested it"] = "error"
 
         # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
         if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
@@ -2929,9 +2965,28 @@ class YTEnvSetup(object):
         # Resource holders are released asynchronously after a job vanishes, so the
         # resource manager may still report acquired resources right after the active
         # job count drops to zero. Poll instead of checking once.
-        resource_types = ["pending_resources", "acquired_resources"]
+        resource_types = ["pending_resources", "acquired_resources", "releasing_resources"]
+        cleanup_delays_released = False
+
+        def resources_released():
+            nonlocal cleanup_delays_released
+            nonzero = get_nonzero_resources(resource_types)
+            if (not cleanup_delays_released and
+                    any(type == "releasing_resources" for _, type, _ in nonzero) and
+                    not any("node" in components for components in self.ARTIFACT_COMPONENTS.values())):
+                config = yt_commands.get("//sys/cluster_nodes/@config", driver=driver)
+                if not config:
+                    config["%true"] = {}
+                for patch in config.values():
+                    update_inplace(patch, {
+                        "exec_node": {"job_controller": {"testing": {"release_job_cleanup_delays": True}}},
+                    })
+                yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
+                cleanup_delays_released = True
+            return not nonzero
+
         try:
-            wait(lambda: not get_nonzero_resources(resource_types), iter=300)
+            wait(resources_released)
         except WaitFailed:
             nonzero = get_nonzero_resources(resource_types)
             assert not nonzero, "\n".join(

@@ -141,7 +141,7 @@ public:
         SetEnabled(ReporterConfig_.Acquire()->Enabled);
     }
 
-    void OnConfigChanged(
+    void Reconfigure(
         const TArchiveReporterConfigPtr& newReporterConfig,
         const TArchiveHandlerConfigPtr& newHandlerConfig) override
     {

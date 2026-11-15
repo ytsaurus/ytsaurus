@@ -426,6 +426,9 @@ public:
     // No check valueIdx != valueIdxEnd for initial value of index.
     Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 id) const;
 
+protected:
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
+
 private:
     TMemoryHolder<ui32> WriteTimestampIds_;
 };

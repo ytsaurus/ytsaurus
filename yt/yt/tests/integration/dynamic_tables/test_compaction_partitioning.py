@@ -1562,6 +1562,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 # 1500 is approximately equal to 1.5 * chunk_size.
                 "min_partitioning_data_size": 1500,
                 "backing_store_retention_time": 0,
+                "enable_compaction_and_partitioning": False,
                 "testing": {
                     "partitioning_delay": delays["partitioning"],
                     "compaction_delay": delays["compaction"]
@@ -1576,6 +1577,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             sync_flush_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        set("//tmp/t/@mount_config/enable_compaction_and_partitioning", True)
+        remount_table("//tmp/t")
 
         wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/partitioning_tasks/running_tasks")) > 0)
         wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/running_tasks")) > 0)

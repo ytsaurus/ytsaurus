@@ -97,6 +97,15 @@ class TestLayersBase(YTEnvSetup):
 
 class TestPortoLayersBase(TestLayersBase):
     USE_PORTO = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -374,6 +383,8 @@ class TestSimpleUserJobWithoutLayers(TestLayersBase):
 
 
 class TestLayers(TestPortoLayersBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
         for node in self.Env.configs["node"]:
@@ -888,8 +899,8 @@ class TestRootFS(TestLayersBase):
         assert len(job_ids) == 1
 
         job_id = job_ids[0]
-        stderr_bytes = op.read_stderr(job_id)
-        assert stderr_bytes.decode("ascii").strip() == "my_file"
+        # NB: Stderr may lag behind the breakpoint: the node returns it empty until it marks the job running.
+        wait(lambda: op.read_stderr(job_id).decode("ascii").strip() == "my_file")
 
 
 class TestPrivateDirectory(TestLayersBase):
@@ -1032,6 +1043,7 @@ class TestPrivateDirectory(TestLayersBase):
 
 
 class TestProbingLayer(TestPortoLayersBase):
+    NUM_NODES = 5
     NUM_TEST_PARTITIONS = 5
 
     INPUT_TABLE = "//tmp/input_table"

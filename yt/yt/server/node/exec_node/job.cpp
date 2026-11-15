@@ -3024,7 +3024,11 @@ void TJob::Cleanup()
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_TLOG_DEBUG("Simulate delay in cleanup");
 
-        TDelayedExecutor::WaitForDuration(*delay);
+        WaitFor(AnySet<void>({
+            TDelayedExecutor::MakeDelayed(*delay),
+            Bootstrap_->GetJobController()->GetJobCleanupDelayReleasedFuture(),
+        }))
+            .ThrowOnError();
 
         if (JobPhase_.load() >= EJobPhase::Cleanup) {
             return;

@@ -794,6 +794,17 @@ void TAllocationConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobControllerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("resource_acquisition_delay", &TThis::ResourceAcquisitionDelay)
+        .Default();
+
+    registrar.Parameter("release_job_cleanup_delays", &TThis::ReleaseJobCleanupDelays)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     // Make it greater than interrupt preemption timeout.
@@ -820,7 +831,7 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("job_proxy_build_info_update_period", &TThis::JobProxyBuildInfoUpdatePeriod)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
@@ -844,8 +855,8 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("profile_job_proxy_process_exit", &TThis::ProfileJobProxyProcessExit)
         .Default(false);
 
-    registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
-        .Default();
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Parameter("allocation", &TThis::Allocation)
         .DefaultNew();

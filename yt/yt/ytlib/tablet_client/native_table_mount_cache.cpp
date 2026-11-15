@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/ytlib/object_client/helpers.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -37,6 +38,8 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
@@ -176,7 +179,13 @@ private:
                 if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                     WaitFor(RequestTableAttributes(PrimaryRevision_))
                         .ThrowOnError();
-                    mountInfoOrError = WaitFor(RequestMountInfo(NHydra::NullRevision));
+
+                    auto syncWithNativeCell = mountInfoOrError.FindMatching(NYTree::EErrorCode::ResolveError).has_value();
+                    mountInfoOrError = WaitFor(RequestMountInfo(
+                        syncWithNativeCell
+                            ? SecondaryResponseRevision_
+                            : NHydra::NullRevision,
+                        syncWithNativeCell));
                 }
 
                 if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
@@ -208,6 +217,7 @@ private:
         TCellTag CellTag_;
         NHydra::TRevision PrimaryRevision_ = NHydra::NullRevision;
         NHydra::TRevision SecondaryRevision_ = NHydra::NullRevision;
+        NHydra::TRevision SecondaryResponseRevision_ = NHydra::NullRevision;
 
         TMasterReadOptions GetMasterReadOptions()
         {
@@ -291,7 +301,9 @@ private:
             }
         }
 
-        TFuture<TTableMountInfoPtr> RequestMountInfo(NHydra::TRevision refreshSecondaryRevision)
+        TFuture<TTableMountInfoPtr> RequestMountInfo(
+            NHydra::TRevision refreshSecondaryRevision,
+            bool syncWithNativeCell = false)
         {
             auto connection = Connection_.Lock();
             if (!connection) {
@@ -315,6 +327,9 @@ private:
             SetBalancingHeader(batchReq, connection, options);
 
             auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
+            if (syncWithNativeCell && CellTagFromId(TableId_) != connection->GetPrimaryMasterCellTag()) {
+                AddCellTagToSyncWith(req, TableId_);
+            }
             SetCachingHeader(req, connection, options, refreshSecondaryRevision);
 
             size_t hash = 0;
@@ -337,6 +352,10 @@ private:
 
         TTableMountInfoPtr OnTableMountInfoReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
+            SecondaryResponseRevision_ = batchRspOrError.IsOK() && batchRspOrError.Value()->GetResponseCount() == 1
+                ? batchRspOrError.Value()->GetRevision(0)
+                : NHydra::NullRevision;
+
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v",
                 Path_);
 

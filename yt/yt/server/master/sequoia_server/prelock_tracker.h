@@ -28,6 +28,8 @@ struct IPrelockTracker
         NTransactionServer::TTransaction* lockingTransaction,
         NCypressServer::TNodeId nodeId,
         const NCypressServer::TLockRequest& lockRequest) const = 0;
+
+    virtual TCompactVector<NCypressServer::TNodeId, 8> OnTransactionFinished(NTransactionServer::TTransaction* transaction) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPrelockTracker)

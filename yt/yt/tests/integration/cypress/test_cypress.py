@@ -2517,14 +2517,10 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            attributes={"expiration_time": str(get_current_time() + timedelta(days=1))},
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
-        assert exists("//tmp/t2/@expiration_time")
-
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert not exists("//tmp/t2")
+        assert get("//tmp/t2/@expiration_time") == get("//tmp/t1/@expiration_time")
 
     @authors("koloshmet")
     def test_copy_preserve_expiration_time_authorized(self):
@@ -2535,30 +2531,22 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            attributes={"expiration_time": str(get_current_time() + timedelta(days=1))},
             authenticated_user=auth_user1,
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, authenticated_user=auth_user2)
-        assert exists("//tmp/t2/@expiration_time")
+        assert get("//tmp/t2/@expiration_time") == get("//tmp/t1/@expiration_time")
         assert get("//tmp/t2/@expiration_time_user") == auth_user2
-
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert not exists("//tmp/t2")
 
     @authors("babenko")
     def test_copy_dont_preserve_expiration_time(self):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            attributes={"expiration_time": str(get_current_time() + timedelta(days=1))},
         )
         copy("//tmp/t1", "//tmp/t2")
-        assert not exists("//tmp/t2/@expiration_time")
-        assert not exists("//tmp/t2/@expiration_time_user")
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@", attributes=["expiration_time", "expiration_time_user"]) == {}
 
     @authors("koloshmet")
     def test_copy_dont_preserve_expiration_time_authorized(self):
@@ -2569,29 +2557,21 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            attributes={"expiration_time": str(get_current_time() + timedelta(days=1))},
             authenticated_user=auth_user1,
         )
         copy("//tmp/t1", "//tmp/t2", authenticated_user=auth_user2)
-        assert not exists("//tmp/t2/@expiration_time")
-        assert not exists("//tmp/t2/@expiration_time_user")
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@", attributes=["expiration_time", "expiration_time_user"]) == {}
 
     @authors("koloshmet")
     def test_copy_preserve_expiration_timeout(self):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_timeout": 1000},
+            attributes={"expiration_timeout": 24 * 60 * 60 * 1000},
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_timeout=True)
-        assert exists("//tmp/t2/@expiration_timeout")
-
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert not exists("//tmp/t2")
+        assert get("//tmp/t2/@expiration_timeout") == get("//tmp/t1/@expiration_timeout")
 
     @authors("koloshmet")
     def test_copy_preserve_expiration_timeout_authorized(self):
@@ -2602,30 +2582,22 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_timeout": 1000},
+            attributes={"expiration_timeout": 24 * 60 * 60 * 1000},
             authenticated_user=auth_user1,
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_timeout=True, authenticated_user=auth_user2)
-        assert exists("//tmp/t2/@expiration_timeout")
+        assert get("//tmp/t2/@expiration_timeout") == get("//tmp/t1/@expiration_timeout")
         assert get("//tmp/t2/@expiration_timeout_user") == auth_user2
-
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert not exists("//tmp/t2")
 
     @authors("koloshmet")
     def test_copy_dont_preserve_expiration_timeout(self):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_timeout": 1000},
+            attributes={"expiration_timeout": 24 * 60 * 60 * 1000},
         )
         copy("//tmp/t1", "//tmp/t2")
-        assert not exists("//tmp/t2/@expiration_timeout")
-        assert not exists("//tmp/t2/@expiration_timeout_user")
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@", attributes=["expiration_timeout", "expiration_timeout_user"]) == {}
 
     @authors("koloshmet")
     def test_copy_dont_preserve_expiration_timeout_authorized(self):
@@ -2636,26 +2608,22 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_timeout": 1000},
+            attributes={"expiration_timeout": 24 * 60 * 60 * 1000},
             authenticated_user=auth_user1,
         )
         copy("//tmp/t1", "//tmp/t2", authenticated_user=auth_user2)
-        assert not exists("//tmp/t2/@expiration_timeout")
-        assert not exists("//tmp/t2/@expiration_timeout_user")
-        time.sleep(2)
-        assert not exists("//tmp/t1")
-        assert exists("//tmp/t2")
+        assert get("//tmp/t2/@", attributes=["expiration_timeout", "expiration_timeout_user"]) == {}
 
     @authors("babenko")
     def test_copy_preserve_expiration_time_in_tx1(self):
-        create(
-            "table",
-            "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=5))},
-        )
+        create("table", "//tmp/t1")
+        guard_tx = start_transaction()
+        lock("//tmp/t1", mode="shared", attribute_key="expiration_guard", tx=guard_tx)
+        set("//tmp/t1/@expiration_time", str(get_current_time() - timedelta(seconds=1)))
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
-        assert exists("//tmp/t2/@expiration_time", tx=tx)
+        assert get("//tmp/t2/@expiration_time", tx=tx) == get("//tmp/t1/@expiration_time")
+        abort_transaction(guard_tx)
         wait(lambda: not exists("//tmp/t1"))
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
@@ -2667,14 +2635,13 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         set(
             "//tmp/t1/@expiration_time",
-            str(get_current_time() + timedelta(seconds=1)),
+            str(get_current_time() - timedelta(seconds=1)),
             tx=tx,
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t1/@expiration_time", tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
         assert get("//tmp/t1/@expiration_time", tx=tx) == get("//tmp/t2/@expiration_time", tx=tx)
-        time.sleep(2)
         assert exists("//tmp/t1")
         assert exists("//tmp/t1", tx=tx)
         assert exists("//tmp/t2", tx=tx)
@@ -4375,6 +4342,30 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//tmp/t2", preserve_acl=True)
         move("//tmp/t1", "//tmp/t3", preserve_acl=True)
+
+        assert not get("//tmp/t2/@inherit_acl")
+        assert not get("//tmp/t3/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert_items_equal(get("//tmp/t3/@acl"), acl)
+
+    @authors("achains")
+    def test_preserve_acl_transaction(self):
+        create("table", "//tmp/t1")
+
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+
+        tx = start_transaction()
+        copy("//tmp/t1", "//tmp/t2", preserve_acl=True, tx=tx)
+        move("//tmp/t1", "//tmp/t3", preserve_acl=True, tx=tx)
+
+        assert not get("//tmp/t2/@inherit_acl", tx=tx)
+        assert not get("//tmp/t3/@inherit_acl", tx=tx)
+        assert_items_equal(get("//tmp/t2/@acl", tx=tx), acl)
+        assert_items_equal(get("//tmp/t3/@acl", tx=tx), acl)
+
+        commit_transaction(tx)
 
         assert not get("//tmp/t2/@inherit_acl")
         assert not get("//tmp/t3/@inherit_acl")

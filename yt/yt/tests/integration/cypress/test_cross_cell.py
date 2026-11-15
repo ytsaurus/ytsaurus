@@ -4,7 +4,7 @@ from yt_commands import (
     authors, raises_yt_error, wait, create, ls, get, set, copy, move, remove, link, exists, create_account,
     create_user, make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
     read_file, write_file, read_table, write_table, sync_create_cells, create_dynamic_table, insert_rows,
-    lookup_rows, sync_mount_table, sync_unmount_table, sync_freeze_table, abort_all_transactions, gc_collect)
+    lookup_rows, sync_mount_table, sync_unmount_table, sync_freeze_table, abort_all_user_transactions, gc_collect)
 
 import yt_error_codes
 
@@ -135,7 +135,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("recursive_resource_usage")
 
     def teardown_method(self, method):
-        abort_all_transactions()
+        abort_all_user_transactions()
         # XXX(babenko): cleanup is weird
         remove(self.DST)
         super(TestCrossCellCopy, self).teardown_method(method)
@@ -835,32 +835,30 @@ class TestCrossCellCopy(YTEnvSetup):
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
 
-    # Maybe these two tests are redundant, considering the preservable attributes test.
     @authors("shakurov")
     def test_expiration_time(self):
-        expiration_time = str(get_current_time() + timedelta(seconds=3))
         src_path = f"{self.SRC}/table"
         dst_path = f"{self.DST}/table"
-        self.create_table(src_path)
-        set(f"{src_path}/@expiration_time", expiration_time)
-        self.execute_command(src_path, dst_path, preserve_expiration_time=True)
-        wait(
-            lambda: not exists(dst_path),
-            sleep_backoff=0.5,
-            timeout=5)
+        tx = start_transaction()
+        self.create_table(src_path, tx=tx)
+        set(f"{src_path}/@expiration_time", str(get_current_time() - timedelta(seconds=1)), tx=tx)
+        expiration_time = get(f"{src_path}/@expiration_time", tx=tx)
+        self.execute_command(src_path, dst_path, preserve_expiration_time=True, tx=tx)
+        assert get(f"{dst_path}/@expiration_time", tx=tx) == expiration_time
+        commit_transaction(tx)
+        wait(lambda: not exists(dst_path))
 
     @authors("shakurov")
     def test_expiration_timeout(self):
         src_path = f"{self.SRC}/table"
         dst_path = f"{self.DST}/table"
-        self.create_table(src_path)
-        set(f"{src_path}/@expiration_timeout", 3000)
-        self.execute_command(src_path, dst_path, preserve_expiration_timeout=True)
-
-        wait(
-            lambda: not exists(dst_path, suppress_expiration_timeout_renewal=True),
-            sleep_backoff=0.5,
-            timeout=5)
+        tx = start_transaction()
+        self.create_table(src_path, tx=tx)
+        set(f"{src_path}/@expiration_timeout", 0, tx=tx)
+        self.execute_command(src_path, dst_path, preserve_expiration_timeout=True, tx=tx)
+        assert get(f"{dst_path}/@expiration_timeout", tx=tx) == 0
+        commit_transaction(tx)
+        wait(lambda: not exists(dst_path, suppress_expiration_timeout_renewal=True))
 
     @authors("babenko", "theevilbird")
     def test_removed_account(self):

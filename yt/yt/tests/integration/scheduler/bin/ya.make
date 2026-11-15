@@ -1,5 +1,7 @@
 PY3TEST()
 
+SET(YT_SIZE_BUNDLED_TESTS yes)
+
 INCLUDE(../../YaMakeBoilerplateForTestsWithConftest.txt)
 
 #controller, scheduler

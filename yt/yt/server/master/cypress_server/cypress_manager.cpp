@@ -2414,7 +2414,8 @@ public:
             [&] (TCheckLockErrorConflict error) -> TCreateLockResult {
                 // Should we wait?
                 if (!waitable ||
-                    error.Error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) // TODO(ivpiskarev): remove after YT-28954.
+                    (!GetDynamicConfig()->CheckPendingLocksAfterPrelockRelease &&
+                        error.Error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError))
                 {
                     THROW_ERROR std::move(error).Error;
                 }
@@ -3871,8 +3872,15 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        YT_VERIFY(transaction->NestedTransactions().empty());
+
+        const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+        auto unlockedNodes = prelockTracker->OnTransactionFinished(transaction);
+
         MergeBranchedNodes(transaction);
         ReleaseLocks(transaction, transaction->GetParent());
+
+        CheckPendingLocksAfterPrelocksRelease(std::move(unlockedNodes));
     }
 
     void OnTransactionAborted(TTransaction* transaction)
@@ -3881,12 +3889,30 @@ private:
 
         YT_VERIFY(transaction->NestedTransactions().empty());
 
+        const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+        auto unlockedNodes = prelockTracker->OnTransactionFinished(transaction);
+
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
+
+        CheckPendingLocksAfterPrelocksRelease(std::move(unlockedNodes));
     }
 
+    void CheckPendingLocksAfterPrelocksRelease(TCompactVector<TNodeId, 8> unlockedNodes)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        if (!GetDynamicConfig()->CheckPendingLocksAfterPrelockRelease) {
+            return;
+        }
 
+        SortUnique(unlockedNodes);
+        for (auto nodeId : unlockedNodes) {
+            if (auto* trunkNode = FindNode(TVersionedNodeId(nodeId))) {
+                CheckPendingLocks(trunkNode);
+            }
+        }
+    }
 
     template <NMpl::CInvocable<void(TCypressNode*)> TDoCheck, NMpl::CInvocable<bool()> TIsCheckFinished>
     struct TCheckSubtreeTrunkNodesTraverser
@@ -5661,10 +5687,16 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
+
+        if (oldConfig->CypressManager->CheckPendingLocksAfterPrelockRelease &&
+            !GetDynamicConfig()->CheckPendingLocksAfterPrelockRelease)
+        {
+            YT_TLOG_ALERT("Some pending locks waiting on prelocks may never become acquired");
+        }
     }
 };
 

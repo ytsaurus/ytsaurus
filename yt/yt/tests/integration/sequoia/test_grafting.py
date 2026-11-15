@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, exists, copy, move, link, remove, wait,
-    start_transaction, commit_transaction, abort_all_transactions,
+    start_transaction, commit_transaction, abort_all_user_transactions,
     raises_yt_error, create_user, ls, lock, multicell_sleep,
 )
 
@@ -233,7 +233,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
             force=True)
 
     def teardown_method(self, method):
-        abort_all_transactions()
+        abort_all_user_transactions()
         remove("//cypress", force=True)
         super().teardown_method(method)
 

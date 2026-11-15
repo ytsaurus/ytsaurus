@@ -49,7 +49,7 @@ struct IArchiveReporter
     virtual void SetEnabled(bool enable) = 0;
     virtual int ExtractWriteFailuresCount() = 0;
     virtual bool IsQueueTooLarge() const = 0;
-    virtual void OnConfigChanged(
+    virtual void Reconfigure(
         const TArchiveReporterConfigPtr& newReporterConfig,
         const TArchiveHandlerConfigPtr& newHandlerConfig) = 0;
 };

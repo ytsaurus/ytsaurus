@@ -242,6 +242,8 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidMergingTabletsWithCumulativeDataWeight)                 (3367))  // akozhikhov
     ((FixHunkTabletValidateReshard)                                 (3368))  // akozhikhov
     ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
+    ((FixPreserveAclUnderTransaction)                               (3371))  // achains
+    ((CheckPendingLocksAfterPrelockRelease_26_2)                    (3372))  // ivpiskarev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -87,6 +87,8 @@ struct ITransactionFinisher
     virtual TFuture<void> EndRequestAndGetFailedCommitCompletionFuture(
         NRpc::TRequestId requestId,
         TTransactionId transactionId) = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionFinisher)

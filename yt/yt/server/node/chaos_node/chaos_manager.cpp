@@ -1225,6 +1225,7 @@ private:
 
     void HydraChaosNodeRemoveMigratedReplicationCards(NChaosNode::NProto::TReqRemoveMigratedReplicationCards* request)
     {
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
         int cardsRemoved = 0;
         for (const auto& protoMigratedCard : request->migrated_cards()) {
             auto replicationCardId = FromProto<TReplicationCardId>(protoMigratedCard.replication_card_id());
@@ -1233,6 +1234,13 @@ private:
             const auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard || IsDomesticReplicationCard(replicationCardId) ||
                 !IsReplicationCardMigrated(replicationCard) || replicationCard->GetCurrentTimestamp() != migrationTimestamp)
+            {
+                continue;
+            }
+
+            // COMPAT(savrus)
+            if (reign >= EChaosReign::RemoveOnlyConfirmedMigratedCards &&
+                replicationCard->GetState() != EReplicationCardState::Migrated)
             {
                 continue;
             }

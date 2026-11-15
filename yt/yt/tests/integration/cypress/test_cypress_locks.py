@@ -1779,6 +1779,32 @@ class TestCypressLocks(YTEnvSetup):
 
         assert get("//tmp/m/@cow_cookie") != get("//tmp/m/@cow_cookie", tx=tx)
 
+    @authors("ivpiskarev")
+    def test_pending_locks_acquisition_after_prelock_release_0(self):
+        create("table", "//tmp/t")
+        cell_tag = get("//tmp/t/@native_cell_tag")
+        tx1, tx2 = [start_transaction(replicate_to_master_cell_tags=[cell_tag]) for i in range(2)]
+        set("//tmp/t/@acquire_prelock", {"owning_transaction": tx1, "locking_transaction": tx1, "lock_mode": "exclusive"})
+        lock_id = lock("//tmp/t", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        assert get(f"#{lock_id}/@state") == "pending"
+        commit_transaction(tx1)
+        assert get(f"#{lock_id}/@state") == "acquired"
+        commit_transaction(tx2)
+
+    @authors("ivpiskarev")
+    def test_pending_locks_acquisition_after_prelock_release_1(self):
+        create("table", "//tmp/t")
+        cell_tag = get("//tmp/t/@native_cell_tag")
+        tx1, tx2, tx3 = [start_transaction(replicate_to_master_cell_tags=[cell_tag]) for i in range(3)]
+        lock_id1 = lock("//tmp/t", mode="shared", tx=tx2)["lock_id"]
+        lock_id2 = lock("//tmp/t", mode="exclusive", tx=tx1, waitable=True)["lock_id"]
+        assert [get(f"#{lock_id1}/@state"), get(f"#{lock_id2}/@state")] == ["acquired", "pending"]
+        set("//tmp/t/@acquire_prelock", {"owning_transaction": tx3, "locking_transaction": tx3, "lock_mode": "shared"})
+        commit_transaction(tx2)
+        assert get(f"#{lock_id2}/@state") == "pending"
+        commit_transaction(tx3)
+        assert get(f"#{lock_id2}/@state") == "acquired"
+
 
 ##################################################################
 

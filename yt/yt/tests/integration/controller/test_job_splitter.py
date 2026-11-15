@@ -43,6 +43,7 @@ class TestJobSplitter(YTEnvSetup):
                 },
                 "job_splitter": {
                     "min_job_time": 5000,
+                    "exec_to_prepare_time_ratio": 0,
                     "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,

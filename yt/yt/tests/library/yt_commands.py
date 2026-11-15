@@ -16,12 +16,14 @@ from yt.common import (
 from yt.ypath import parse_ypath
 
 from yt.test_helpers import wait, WaitFailed
+from yt.test_helpers import cleanup as test_cleanup
 from yt.test_helpers.errors import raises_yt_error, retry_yt_error, assert_yt_error  # noqa
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import builtins
 import contextlib
 import copy as pycopy
+import functools
 import os
 import pytest
 import random
@@ -1019,9 +1021,12 @@ def abort_transactions(transactions, **kwargs):
         execute_batch(requests, **kwargs)
 
 
-def abort_all_transactions(**kwargs):
-    topmost_transactions = ls("//sys/topmost_transactions")
-    abort_transactions(topmost_transactions, **kwargs)
+def abort_all_user_transactions(**kwargs):
+    transactions = test_cleanup.iterate_user_transactions(
+        list_action=functools.partial(ls, **kwargs),
+        exists_action=functools.partial(exists, **kwargs),
+        get_action=functools.partial(get, **kwargs))
+    abort_transactions([str(tx) for tx in transactions], **kwargs)
 
 
 def generate_timestamp(**kwargs):
@@ -3781,12 +3786,21 @@ def get_active_primary_master_follower_address(env_setup):
                 return rpc_address
 
 
-def get_currently_active_pirmary_master_follower_addresses(env_setup):
+def get_currently_active_primary_master_follower_addresses(env_setup):
     followers = []
     for rpc_address in env_setup.Env.configs["master"][0]["primary_master"]["addresses"]:
         if is_active_primary_master_follower(rpc_address):
             followers.append(rpc_address)
     return followers
+
+
+def get_active_secondary_master_leader_address(env_setup, cell_tag):
+    for cell_config in env_setup.Env.configs["master"][0]["secondary_masters"]:
+        if cell_tag_from_id(cell_config["cell_id"]) == cell_tag:
+            break
+    for rpc_address in cell_config["addresses"]:
+        if get(f"//sys/secondary_masters/{cell_tag}/{rpc_address}/orchid/monitoring/hydra/active_leader"):
+            return rpc_address
 
 
 def get_node_alive_object_counts(address, types):
@@ -3811,6 +3825,11 @@ def get_supported_erasure_codecs(filter=None):
     if filter is None:
         return yt_tests_settings.supported_erasure_codes
     return [codec for codec in filter if codec in yt_tests_settings.supported_erasure_codes]
+
+
+def cell_tag_from_id(object_id):
+    parts = list(builtins.map(lambda p: int(p, 16), object_id.split("-")))
+    return parts[2] >> 16
 
 
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):

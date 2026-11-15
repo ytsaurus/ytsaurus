@@ -626,9 +626,7 @@ private:
         GpuManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->GpuManager,
             newConfig->ExecNode->GpuManager);
-        JobReporter_->OnDynamicConfigChanged(
-            oldConfig->ExecNode->JobReporter,
-            newConfig->ExecNode->JobReporter);
+        JobReporter_->Reconfigure(newConfig->ExecNode->JobReporter);
         if (newConfig->ExecNode->SignatureComponents || oldConfig->ExecNode->SignatureComponents) {
             YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(
                 newConfig->ExecNode->SignatureComponents

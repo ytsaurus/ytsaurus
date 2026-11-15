@@ -670,6 +670,22 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobControllerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> ResourceAcquisitionDelay;
+
+    bool ReleaseJobCleanupDelays;
+
+    REGISTER_YSON_STRUCT(TJobControllerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobControllerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -703,9 +719,7 @@ struct TJobControllerDynamicConfig
 
     bool ProfileJobProxyProcessExit;
 
-    //! This option is used for testing purposes only.
-    //! Adds delay before starting a job.
-    std::optional<TDuration> TestResourceAcquisitionDelay;
+    TJobControllerTestingConfigPtr Testing;
 
     TAllocationConfigPtr Allocation;
 

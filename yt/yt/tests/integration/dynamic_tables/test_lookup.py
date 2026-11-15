@@ -2350,6 +2350,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("hunks", [False, True])
     @pytest.mark.parametrize("peer_count", [1, 2])
     def test_lookup_cache_stress2(self, hunks, peer_count):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
         self._setup_cell(peer_count)
 
         def _make_value(i):

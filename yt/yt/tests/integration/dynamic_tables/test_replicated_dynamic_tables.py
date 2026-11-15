@@ -129,13 +129,12 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             },
         },
         "tablet_node": {
-            "replicator_data_weight_throttling_granularity": 1
+            "hint_manager": {
+                "replicator_hint_config_fetcher": {
+                    "update_period": 100,
+                },
+            },
         },
-        "tablet_node_hint_manager": {
-            "replicator_hint_config_fetcher": {
-                "update_period": 100
-            }
-        }
     }
 
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {

@@ -42,10 +42,13 @@
 #include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/process_exit_profiler.h>
 #include <yt/yt/core/misc/statistics.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
@@ -371,7 +374,7 @@ public:
 
         StartAllocationsScheduled_ = true;
 
-        auto delay = GetDynamicConfig()->TestResourceAcquisitionDelay;
+        auto delay = GetDynamicConfig()->Testing->ResourceAcquisitionDelay;
         auto readyFuture = delay
             ? TDelayedExecutor::MakeDelayed(*delay)
             : OKFuture;
@@ -473,6 +476,14 @@ public:
             .AsVoid();
     }
 
+    TFuture<void> GetJobCleanupDelayReleasedFuture() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(JobsLock_);
+        return JobCleanupDelaysReleased_.ToFuture().ToUncancelable();
+    }
+
     void OnDynamicConfigChanged(
         const TJobControllerDynamicConfigPtr& oldConfig,
         const TJobControllerDynamicConfigPtr& newConfig) override
@@ -484,6 +495,21 @@ public:
         }
 
         DynamicConfig_.Store(newConfig);
+
+        if (newConfig->Testing->ReleaseJobCleanupDelays != oldConfig->Testing->ReleaseJobCleanupDelays) {
+            TPromise<void> promiseToRelease;
+            {
+                auto guard = WriterGuard(JobsLock_);
+                if (newConfig->Testing->ReleaseJobCleanupDelays) {
+                    promiseToRelease = JobCleanupDelaysReleased_;
+                } else {
+                    JobCleanupDelaysReleased_ = NewPromise<void>();
+                }
+            }
+            if (promiseToRelease) {
+                promiseToRelease.TrySet();
+            }
+        }
 
         ProfilingExecutor_->SetPeriod(
             newConfig->ProfilingPeriod);
@@ -578,6 +604,7 @@ private:
     THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
 
     THashSet<TJobPtr> JobsWaitingForCleanup_;
+    TPromise<void> JobCleanupDelaysReleased_ = NewPromise<void>();
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
     struct TRecentlyRemovedJobRecord
@@ -1986,22 +2013,24 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        // TODO(max42): not sure if running ytserver-job-proxy --build --yson from JobThread
-        // is a good idea; maybe delegate to another thread?
-
         TErrorOr<TBuildInfoPtr> buildInfo;
 
         try {
-            auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
+            buildInfo = WaitFor(BIND([] {
+                auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
+                    .ValueOrThrow();
+
+                TSubprocess jobProxy(jobProxyPath);
+                jobProxy.AddArguments({"--build", "--yson"});
+
+                auto result = jobProxy.Execute();
+                result.Status.ThrowOnError();
+
+                return ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
+            })
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run())
                 .ValueOrThrow();
-
-            TSubprocess jobProxy(jobProxyPath);
-            jobProxy.AddArguments({"--build", "--yson"});
-
-            auto result = jobProxy.Execute();
-            result.Status.ThrowOnError();
-
-            buildInfo = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
         } catch (const std::exception& ex) {
             buildInfo = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
                 .With(ex);

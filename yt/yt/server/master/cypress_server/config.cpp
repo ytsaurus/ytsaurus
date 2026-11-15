@@ -135,6 +135,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("check_pending_locks_after_prelock_release", &TThis::CheckPendingLocksAfterPrelockRelease)
+        .Default(true);
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 

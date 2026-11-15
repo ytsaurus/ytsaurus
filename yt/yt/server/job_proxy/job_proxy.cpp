@@ -447,7 +447,9 @@ void TJobProxy::SendHeartbeat()
         }
     }
 
-    LastHeartbeatFuture_ = req->Invoke().AsVoid().Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
+    LastHeartbeatFuture_ = req->Invoke().AsVoid()
+        .Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)))
+        .ToImmediatelyCancelable(/*propagateCancelation*/ false);
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -651,6 +653,11 @@ void TJobProxy::DoRun()
         WaitFor(CpuMonitor_->Stop())
             .ThrowOnError();
         YT_TLOG_INFO("CPU monitor stopped");
+    }
+
+    if (auto abortFuture = AbortFuture_.Load()) {
+        WaitFor(abortFuture)
+            .ThrowOnError();
     }
 
     if (GetJobSpecHelper()->HasSidecars()) {
@@ -2089,9 +2096,7 @@ void TJobProxy::CheckMemoryUsage()
         HeartbeatExecutor_->ScheduleOutOfBand();
         auto error = WaitFor(executedEvent);
         if (error.IsOK()) {
-            auto heartbeatFuture = LastHeartbeatFuture_
-                .ToImmediatelyCancelable(/*propagateCancelation*/ false);
-            error = WaitFor(heartbeatFuture);
+            error = WaitFor(LastHeartbeatFuture_);
         }
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Failed to send heartbeat before memory reserve increase")
             .With(error);
@@ -2200,6 +2205,22 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
 }
 
 void TJobProxy::Abort(EJobProxyExitCode exitCode)
+{
+    auto abortFuture = AbortFuture_.Transform([&] (TFuture<void>& future) {
+        if (!future) {
+            future = BIND(&TJobProxy::DoAbort, MakeStrong(this), exitCode)
+                .AsyncVia(JobThread_->GetInvoker())
+                .Run()
+                .ToUncancelable();
+        }
+        return future;
+    });
+
+    WaitFor(abortFuture)
+        .ThrowOnError();
+}
+
+void TJobProxy::DoAbort(EJobProxyExitCode exitCode)
 {
     if (Config_->SendHeartbeatBeforeAbort) {
         auto error = WaitFor(HeartbeatExecutor_->GetExecutedEvent());

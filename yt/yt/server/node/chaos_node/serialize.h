@@ -59,6 +59,7 @@ DEFINE_ENUM(EChaosReign,
     ((GrantChaosLeaseShortcutsToNewCells)       (300505)) // shamteev
     ((CheckLastTransactionCommitTimestamp)      (300506)) // osidorkin
     ((CheckReplicaPathBeforeApplying)           (300507)) // osidorkin
+    ((RemoveOnlyConfirmedMigratedCards)         (300508)) // savrus
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
