@@ -59,6 +59,9 @@ void AddJoinedExternalStates(
     const THashMap<std::string, ICompanionStateAdapterPtr>& joiners,
     const IInputContextPtr& input);
 
+//! The epoch event and system watermarks of |streamId|, as an in-process host exposes them.
+TStreamWatermark MakeStreamWatermark(const TWatermarkStatePtr& watermarkState, const TStreamId& streamId);
+
 //! Rejects an external state manager with ``auto_preload = %false``: companion states are
 //! shipped with the batch, so the companion cannot preload on demand.
 void ValidateExternalStateManagersAutoPreload(const TComputationSpec& spec);

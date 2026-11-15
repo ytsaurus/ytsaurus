@@ -276,7 +276,8 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     for (const auto& watermark : companionRequest->Watermarks) {
         auto addWatermarkPtr = request->add_watermarks();
         addWatermarkPtr->set_stream_id(ToProto<TProtobufString>(watermark.StreamId));
-        addWatermarkPtr->set_watermark(watermark.Watermark.Underlying());
+        addWatermarkPtr->set_watermark(watermark.EventWatermark.Underlying());
+        addWatermarkPtr->set_system_watermark(watermark.SystemWatermark.Underlying());
     }
     YT_TLOG_DEBUG("Watermarks added to process batch request")
         .With("Size", request->watermarks_size());

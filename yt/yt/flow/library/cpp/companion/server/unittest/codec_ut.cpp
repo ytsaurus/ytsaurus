@@ -59,6 +59,7 @@ TEST(TCodecTest, ParsesMessagesTimersVisitsWatermarks)
         auto* protoWatermark = request.add_watermarks();
         protoWatermark->set_stream_id("input");
         protoWatermark->set_watermark(123);
+        protoWatermark->set_system_watermark(124);
         request.set_current_timestamp(456);
         request.set_epoch_unique_seq_no(789);
     }
@@ -86,7 +87,8 @@ TEST(TCodecTest, ParsesMessagesTimersVisitsWatermarks)
     EXPECT_EQ(input.Visits[0]->AlignmentTimestamp, input.Visits[0]->SystemTimestamp);
 
     ASSERT_EQ(std::ssize(input.Watermarks), 1);
-    EXPECT_EQ(input.Watermarks[TStreamId("input")], TSystemTimestamp(123));
+    EXPECT_EQ(input.Watermarks[TStreamId("input")].EventWatermark, TSystemTimestamp(123));
+    EXPECT_EQ(input.Watermarks[TStreamId("input")].SystemWatermark, TSystemTimestamp(124));
     EXPECT_EQ(input.CurrentTimestamp, TSystemTimestamp(456));
     EXPECT_EQ(input.EpochUniqueSeqNo, TUniqueSeqNo(789));
 }

@@ -7,6 +7,7 @@
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
 #include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
+#include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
@@ -520,6 +521,27 @@ TEST(TAddJoinedExternalStatesTest, KeepsProtoDescriptorWhenAllProfilesAreAbsent)
     EXPECT_EQ(protoState.format(), static_cast<int>(EStateFormat::Proto));
     EXPECT_EQ(protoState.proto_type(), "test.TProfile");
     EXPECT_EQ(protoState.stateitems_size(), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMakeStreamWatermarkTest, CarriesEventAndSystemWatermarks)
+{
+    auto state = New<TWatermarkState>();
+    auto watermarks = New<TWatermarks>();
+    watermarks->EventWatermark = TSystemTimestamp(100);
+    watermarks->SystemWatermark = TSystemTimestamp(200);
+    state->Streams[TStreamId("in")] = watermarks;
+
+    auto streamWatermark = MakeStreamWatermark(state, TStreamId("in"));
+    EXPECT_EQ(streamWatermark.StreamId, TStreamId("in"));
+    EXPECT_EQ(streamWatermark.EventWatermark, TSystemTimestamp(100));
+    EXPECT_EQ(streamWatermark.SystemWatermark, TSystemTimestamp(200));
+
+    // A stream absent from the state gets zero watermarks, as in process.
+    auto absentWatermark = MakeStreamWatermark(state, TStreamId("other"));
+    EXPECT_EQ(absentWatermark.EventWatermark, ZeroSystemTimestamp);
+    EXPECT_EQ(absentWatermark.SystemWatermark, ZeroSystemTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

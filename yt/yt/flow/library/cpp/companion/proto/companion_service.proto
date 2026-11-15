@@ -106,7 +106,10 @@ message TJobInfo {
 message TWatermark
 {
     required string stream_id = 1;
+    // Event watermark.
     required uint64 watermark = 2;
+    // Always set by the worker.
+    optional uint64 system_watermark = 3;
 }
 
 message TNewTimer

@@ -62,6 +62,16 @@ void TTransformCompanionComputation::DoInit(IJobInitContextPtr initContext)
     YT_TLOG_DEBUG("DoInit finished");
 }
 
+void TTransformCompanionComputation::AddWatermarks(
+    const TCompanionProcessRequestPtr& request,
+    const TComputationSpec& spec,
+    const TWatermarkStatePtr& watermarkState)
+{
+    for (const auto& streamId : Concatenate(spec.InputStreamIds, GetKeys(spec.TimerStreams))) {
+        request->Watermarks.push_back(MakeStreamWatermark(watermarkState, streamId));
+    }
+}
+
 void TTransformCompanionComputation::DoProcess(
     IInputContextPtr input,
     IOutputCollectorPtr output)
@@ -174,12 +184,7 @@ void TTransformCompanionComputation::DoProcess(
 
     AddJoinedExternalStates(request, JoinedStateAdapters_, input);
 
-    for (const auto& streamId : Concatenate(GetSpec()->InputStreamIds, GetKeys(GetSpec()->TimerStreams))) {
-        auto streamWatermark = GetEpochEventWatermark(streamId);
-        request->Watermarks.push_back(TStreamWatermark{
-            .StreamId = streamId,
-            .Watermark = streamWatermark});
-    }
+    AddWatermarks(request, *GetSpec(), GetEpochWatermarkState());
 
     // Request to Companion.
     auto response = DoProcessWithCompanion(request);

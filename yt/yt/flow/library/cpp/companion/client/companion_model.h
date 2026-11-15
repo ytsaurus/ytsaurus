@@ -98,7 +98,8 @@ struct TStateHolder
 struct TStreamWatermark
 {
     TStreamId StreamId;
-    TSystemTimestamp Watermark;
+    TSystemTimestamp EventWatermark;
+    TSystemTimestamp SystemWatermark;
 };
 
 struct TNewTimer

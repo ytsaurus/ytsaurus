@@ -17,6 +17,12 @@ public:
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);
 
+    //! Adds the epoch watermarks of the input streams to |request|.
+    static void AddWatermarks(
+        const TCompanionProcessRequestPtr& request,
+        const TComputationSpec& spec,
+        const TWatermarkStatePtr& watermarkState);
+
     void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override;
 
     void DoInit(IJobInitContextPtr initContext) override;

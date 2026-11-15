@@ -48,6 +48,16 @@ void TTransformOrderedSourceCompanionComputation::DoInit(IJobInitContextPtr init
     YT_TLOG_DEBUG("DoInit finished");
 }
 
+void TTransformOrderedSourceCompanionComputation::AddWatermarks(
+    const TCompanionProcessRequestPtr& request,
+    const TComputationSpec& spec,
+    const TWatermarkStatePtr& watermarkState)
+{
+    for (const auto& streamId : GetKeys(spec.SourceStreams)) {
+        request->Watermarks.push_back(MakeStreamWatermark(watermarkState, streamId));
+    }
+}
+
 void TTransformOrderedSourceCompanionComputation::DoProcess(
     IInputContextPtr input,
     IOutputCollectorPtr output)
@@ -104,12 +114,7 @@ void TTransformOrderedSourceCompanionComputation::DoProcess(
         GetSpec()->OutputStreamIds,
         GetContext()->StreamSpecStorage->GetStreamSpecs());
 
-    for (const auto& streamId : GetKeys(GetSpec()->SourceStreams)) {
-        request->Watermarks.push_back(TStreamWatermark{
-            .StreamId = streamId,
-            .Watermark = GetEpochEventWatermark(streamId),
-        });
-    }
+    AddWatermarks(request, *GetSpec(), GetEpochWatermarkState());
 
     auto response = DoProcessWithCompanion(request);
 

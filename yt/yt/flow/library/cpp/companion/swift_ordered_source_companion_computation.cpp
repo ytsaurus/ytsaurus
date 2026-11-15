@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,16 @@ void TSwiftOrderedSourceCompanionComputation::DoInit(IJobInitContextPtr /*initCo
     InitCompanionJob();
 
     YT_TLOG_INFO("Computation initialized");
+}
+
+void TSwiftOrderedSourceCompanionComputation::AddWatermarks(
+    const TCompanionProcessRequestPtr& request,
+    const TComputationSpec& spec,
+    const TWatermarkStatePtr& watermarkState)
+{
+    for (const auto& streamId : GetKeys(spec.SourceStreams)) {
+        request->Watermarks.push_back(MakeStreamWatermark(watermarkState, streamId));
+    }
 }
 
 void TSwiftOrderedSourceCompanionComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
@@ -45,6 +57,8 @@ void TSwiftOrderedSourceCompanionComputation::DoProcess(IInputContextPtr input, 
         GetSpec()->OutputStreamIds,
         GetContext()->StreamSpecStorage->GetStreamSpecs());
     request->OverrideStreamSpecs = localStreamSpecs;
+
+    AddWatermarks(request, *GetSpec(), GetEpochWatermarkState());
 
     // Request to Companion.
     auto response = DoProcessWithCompanion(request);

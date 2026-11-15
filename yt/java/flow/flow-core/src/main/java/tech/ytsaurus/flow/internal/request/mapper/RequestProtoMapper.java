@@ -116,8 +116,7 @@ public class RequestProtoMapper {
             }
             watermarks.put(protoWatermark.getStreamId(), watermark);
         }
-        // SwiftMap / SwiftOrderedSource computations never send watermarks;
-        // Fall back to 0 ("no event time has advanced").
+        // A request without watermarks falls back to 0 ("no event time has advanced").
         if (watermarks.isEmpty()) {
             minWatermark = 0L;
         }

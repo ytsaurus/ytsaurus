@@ -41,10 +41,9 @@ DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Builds the epoch watermark snapshot from the wire watermarks. The wire carries
-//! one (event) watermark per stream and the epoch timestamp.
+//! Builds the epoch watermark snapshot from the wire watermarks and the epoch timestamp.
 TWatermarkStatePtr BuildWatermarkState(
-    const THashMap<TStreamId, TSystemTimestamp>& watermarks,
+    const THashMap<TStreamId, TStreamWatermarks>& watermarks,
     std::optional<TSystemTimestamp> currentTimestamp = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
