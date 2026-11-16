@@ -435,6 +435,8 @@ public:
     void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) override
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
+
+        YT_VERIFY(messageTransferingInfo);
         MessageTransferingInfo_ = std::move(messageTransferingInfo);
         // Update buffer state manager so new jobs start with warm demand estimates.
         BufferStateManager_->UpdateMessageTransferingInfo(MessageTransferingInfo_);
@@ -521,7 +523,7 @@ private:
     IResourceManagerPtr ResourceManager_;
     TTimerPageCataloguePtr TimerPageCatalogue_;
 
-    TMessageTransferingInfoPtr MessageTransferingInfo_;
+    TMessageTransferingInfoPtr MessageTransferingInfo_ = New<TMessageTransferingInfo>();
 
     class TJobPerformanceCounters
     {

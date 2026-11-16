@@ -171,6 +171,7 @@ TInputBuffer::TInputBuffer(
     , BatchDuration_(dynamicSpec->BatchDuration)
     , EpochCycleTracker_(std::move(epochCycleTracker))
     , TimeProvider_(std::move(timeProvider))
+    , MessageTransferingInfo_(New<TMessageTransferingInfo>())
     , MessageProcessingTimer_(profiler.Timer("/message_processing_time"))
 {
     const auto now = TimeProvider_();
@@ -223,6 +224,8 @@ void TInputBuffer::DoReconfigure(TDynamicComputationSpecPtr dynamicSpec)
 
 void TInputBuffer::UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo)
 {
+    YT_VERIFY(messageTransferingInfo);
+
     SerializedInvoker_->Invoke(
         BIND(&TInputBuffer::DoUpdateMessageTransferingInfo, MakeStrong(this), std::move(messageTransferingInfo)));
 }

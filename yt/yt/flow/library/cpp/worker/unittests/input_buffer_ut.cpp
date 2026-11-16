@@ -371,6 +371,45 @@ TEST(TInputBufferEpochCycleTest, SamplesInterExtractionIntervals)
     EXPECT_EQ(*medianCycle, TDuration::Seconds(5));
 }
 
+TEST(TInputBufferTimestampTest, UsesFrontMessageUntilTransferStatisticsArrive)
+{
+    const TStreamId streamId("input");
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->InputStreamIds.insert(streamId);
+    computationSpec->InputOrdering->TimeType = ETimeType::EventTime;
+    auto dynamicSpec = New<TDynamicComputationSpec>();
+    dynamicSpec->BatchDuration = TDuration::Zero();
+
+    auto buffer = New<TInputBuffer>(
+        TJobId(TGuid::Create()),
+        NFlow::TStreamLimitUsageStateMap{{streamId, MakeLimitState(1'000'000)}},
+        /*epochCycleTracker*/ nullptr,
+        THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr>{},
+        computationSpec,
+        TComputationId("computation"),
+        dynamicSpec,
+        GetSyncInvoker(),
+        NProfiling::TProfiler{},
+        [] {
+            return TInstant::Seconds(1000);
+        });
+
+    TMessageBuilder builder(streamId, New<NTableClient::TTableSchema>());
+    builder.SetMessageId(TMessageId("msg"));
+    builder.SetSystemTimestamp(TSystemTimestamp(150));
+    builder.SetAlignmentTimestamp(TSystemTimestamp(150));
+    builder.SetEventTimestamp(TSystemTimestamp(120));
+    auto message = New<TInputMessage>(builder.Finish(), MakeKey("key"));
+    NConcurrency::WaitFor(buffer->AddMessages(TGuid::Create(), {std::move(message)}, /*onProcessed*/ {}))
+        .ThrowOnError();
+    EXPECT_EQ(buffer->GetMinStabilizedEventTimestamp(), TSystemTimestamp(120));
+
+    auto transferInfo = New<TMessageTransferingInfo>();
+    transferInfo->StreamTimestampStatistics[streamId].RegisterMessage(TTimestampStatisticsRegistrationInfo(30));
+    buffer->UpdateMessageTransferingInfo(transferInfo);
+    EXPECT_EQ(buffer->GetMinStabilizedEventTimestamp(), TSystemTimestamp(180));
+}
+
 TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
 {
     const TStreamId streamId("input");

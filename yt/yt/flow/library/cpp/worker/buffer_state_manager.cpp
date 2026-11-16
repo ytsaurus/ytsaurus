@@ -386,6 +386,8 @@ public:
 
     void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) override
     {
+        YT_VERIFY(messageTransferingInfo);
+
         auto guard = Guard(Lock_);
         MessageTransferingInfo_ = std::move(messageTransferingInfo);
     }
@@ -455,9 +457,6 @@ private:
     {
         auto now = TimeProvider_();
         auto baselineDemand = [&] (const TStreamId& streamId, const TComputationId& computationId, i64 inflationPerMessage) {
-            if (!MessageTransferingInfo_) {
-                return 0.0;
-            }
             const auto& speeds = MessageTransferingInfo_->SpeedStatistics.StreamSpeed1d;
             auto it = speeds.find(streamId);
             if (it == speeds.end()) {
@@ -922,7 +921,7 @@ private:
     const TPeriodicExecutorPtr BufferManagementExecutor_;
 
     THashMap<TJobId, TJobState> JobIdToState_;
-    TMessageTransferingInfoPtr MessageTransferingInfo_;
+    TMessageTransferingInfoPtr MessageTransferingInfo_ = New<TMessageTransferingInfo>();
     NProfiling::TGauge InputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/input/capacity");
     NProfiling::TGauge OutputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/output/capacity");
 };
