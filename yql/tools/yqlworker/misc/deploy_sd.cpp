@@ -11,7 +11,7 @@
 
 namespace NYql {
 
-static const TStringBuf SdClusters[] = {"sas"_sb, "vla"_sb, "klg"_sb, "nrg"_sb};
+static const TStringBuf SdClusters[] = {"sas"_sb, "vla"_sb, "klg"_sb, "nrg"_sb, "mow"_sb};
 
 void DeployServiceToHosts(TStringBuf service, ui32 expectedHosts, TVector<TString>* hosts)
 {
