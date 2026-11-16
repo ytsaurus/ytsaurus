@@ -1959,7 +1959,10 @@ public:
                 THROW_ERROR std::move(error).Error;
             });
 
-        if (IsLockRedundant(trunkNode, transaction, request)) {
+        auto enableRecursiveNodeRemovalLocking = GetDynamicConfig()->EnableRecursiveNodeRemovalLocking;
+        if ((!transaction || !recursive || !enableRecursiveNodeRemovalLocking) &&
+            IsLockRedundant(trunkNode, transaction, request))
+        {
             return GetVersionedNode(trunkNode, transaction);
         }
 

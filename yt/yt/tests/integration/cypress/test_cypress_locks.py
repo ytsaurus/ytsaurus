@@ -729,14 +729,19 @@ class TestCypressLocks(YTEnvSetup):
         # Must not be crashed YT_LOG_ALERT.
         abort_transaction(tx)
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_remove_map_subtree_lock(self):
-        set("//tmp/a", {"b": 1})
+        set("//sys/@config/cypress_manager/enable_recursive_node_removal_locking", True)
+        set("//tmp/a", {"b": {"c": 1}})
         tx = start_transaction()
-        lock("//tmp/a/b", mode="exclusive", tx=tx)
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/a/b since \"exclusive\""
+        lock("//tmp/a/b/c", mode="exclusive", tx=tx)
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/a/b/c since \"exclusive\""
                              f" lock is taken by concurrent transaction {tx}"):
             remove("//tmp/a")
+        with raises_yt_error('Cannot take "exclusive" lock for node //tmp/a/b/c'):
+            remove("//tmp/a/*")
+        assert get("//tmp/a") == {"b": {"c": 1}}
+        abort_transaction(tx)
 
     @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks1(self):
@@ -1170,8 +1175,9 @@ class TestCypressLocks(YTEnvSetup):
 
         assert get("//tmp/t/@parent_id") == get("//tmp/@id")
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_remove_locks(self):
+        set("//sys/@config/cypress_manager/enable_recursive_node_removal_locking", True)
         set("//tmp/a", {"b": 1})
 
         tx1 = start_transaction()
@@ -1182,6 +1188,34 @@ class TestCypressLocks(YTEnvSetup):
                              " since \"exclusive\" lock is taken by concurrent "
                              f"transaction {tx1}"):
             remove("//tmp/a", tx=tx2)
+
+        abort_transaction(tx1)
+
+        # Removing an already locked root must still lock its descendants.
+        lock("//tmp/a", mode="exclusive", tx=tx2)
+        remove("//tmp/a", tx=tx2)
+        tx3 = start_transaction()
+        with raises_yt_error('Cannot take "exclusive" lock for node //tmp/a/b'):
+            set("//tmp/a/b", 3, tx=tx3)
+
+        abort_transaction(tx2)
+        set("//tmp/a/b", 3, tx=tx3)
+        commit_transaction(tx3)
+        assert get("//tmp/a/b") == 3
+
+        for remove_path, value in (("//tmp/a", 4), ("//tmp/a/*", 5)):
+            removing_tx = start_transaction()
+            lock("//tmp/a/b", mode="exclusive", tx=removing_tx)
+            remove(remove_path, tx=removing_tx)
+
+            writing_tx = start_transaction()
+            with raises_yt_error('Cannot take "exclusive" lock for node //tmp/a/b'):
+                set("//tmp/a/b", value, tx=writing_tx)
+
+            abort_transaction(removing_tx)
+            set("//tmp/a/b", value, tx=writing_tx)
+            commit_transaction(writing_tx)
+            assert get("//tmp/a/b") == value
 
     @authors("babenko", "ignat")
     def test_map_locks1(self):
