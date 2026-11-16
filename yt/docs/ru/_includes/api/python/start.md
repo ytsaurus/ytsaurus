@@ -116,7 +116,6 @@ pip install ytsaurus-client
   * [Другое](../../../api/python/userdoc.md#other)
     - [gRPC](../../../api/python/userdoc.md#grpc)
     - [YSON-биндинги](../../../api/python/userdoc.md#yson_bindings)
-<!--   * [Устаревшее](../../../api/python/userdoc.md#legacy) -->
   * [Python3 и байтовые строки](../../../api/python/userdoc.md#python3_strings)
 
 ### Справка { #pydoc }
