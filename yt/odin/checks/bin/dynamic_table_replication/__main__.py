@@ -85,7 +85,7 @@ def run_check(yt_client, logger, options, states):
         return options["cluster_name"] in options["replica_clusters"]
 
     def is_chaos_meta_cluster():
-        return options["cluster_name"] in options["choas_metaclusters"]
+        return options["cluster_name"] in options["chaos_metaclusters"]
 
     def create_collocation():
         assert is_meta_cluster()
