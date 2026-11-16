@@ -84,8 +84,12 @@ class TestQuery(DynamicTablesBase):
 
         sync_mount_table(path)
 
-        for i in range(chunks):
-            data = [{"a": (i * stripe + j), "b": (i * stripe + j) * 10} for j in range(1, 1 + stripe)]
+        data = [
+            {"a": (i * stripe + j), "b": (i * stripe + j) * 10}
+            for i in range(chunks)
+            for j in range(1, 1 + stripe)
+        ]
+        if data:
             insert_rows(path, data)
 
     def _create_table(self, path, schema, data, optimize_for="lookup"):
