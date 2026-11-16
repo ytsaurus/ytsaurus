@@ -67,6 +67,12 @@ NLockElection::ILockElectionManagerPtr CreateChaosElectionManager(
     TChaosElectionManagerConfigPtr config,
     TChaosElectionManagerOptionsPtr options);
 
+inline constexpr TStringBuf LockKeyColumn = "lock_key";
+inline constexpr TStringBuf LeaderLeaseIdColumn = "leader_lease_id";
+inline constexpr TStringBuf LeaderNameColumn = "leader_name";
+inline constexpr TStringBuf LeaseTimeoutColumn = "lease_timeout";
+inline constexpr TStringBuf LastPingTimeColumn = "last_ping_time";
+
 //! Returns the schema required for the lock table used by the chaos election manager.
 NTableClient::TTableSchemaPtr GetChaosElectionLockTableSchema();
 

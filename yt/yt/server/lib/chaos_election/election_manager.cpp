@@ -36,12 +36,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline static constexpr TStringBuf LockKeyColumn = "lock_key";
-inline static constexpr TStringBuf LeaderLeaseIdColumn = "leader_lease_id";
-inline static constexpr TStringBuf LeaderNameColumn = "leader_name";
-inline static constexpr TStringBuf LeaseTimeoutColumn = "lease_timeout";
-inline static constexpr TStringBuf LastPingTimeColumn = "last_ping_time";
-
 TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
     return New<TTableSchema>(
