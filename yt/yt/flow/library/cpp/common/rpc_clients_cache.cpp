@@ -138,7 +138,7 @@ public:
         const TClientsCacheConfigPtr& config,
         const TClientOptions& clientOptions,
         std::optional<TJobProxyRoute> jobProxyRoute)
-        : Config_(GetClustersConfigWithNormalClusterName(config))
+        : Config_(CloneConfigWithNormalizedClusterNames(config))
         , ClientOptions_(clientOptions)
         , JobProxyRoute_(std::move(jobProxyRoute))
     { }
