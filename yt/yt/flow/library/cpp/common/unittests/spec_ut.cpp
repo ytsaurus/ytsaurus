@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NFlow {
@@ -1976,6 +1978,87 @@ TEST(TDynamicSpecTest, PreservesUnrecognizedFieldsOnRoundTrip)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerDefaultSurvivesCustomThrottlers)
+{
+    auto expectedThrottler = New<TDynamicThrottlerSpec>();
+    expectedThrottler->Limit = 100.0 / 60.0;
+    EXPECT_TRUE(New<TDynamicPipelineSpec>()->Throttlers.contains(FailedMessagesThrottlerId));
+    for (const auto yson : {"{}", "{throttlers={custom={limit=42;};};}"}) {
+        auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(yson));
+        const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(throttler), ConvertToNode(expectedThrottler)));
+        auto roundTripped = ConvertTo<TDynamicPipelineSpecPtr>(ConvertToYsonString(dynamicSpec));
+        const auto& roundTrippedThrottler = GetOrCrash(roundTripped->Throttlers, FailedMessagesThrottlerId);
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(roundTrippedThrottler), ConvertToNode(expectedThrottler)));
+    }
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerCanBeOverridden)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(
+        "{throttlers={failed_messages={limit=5;period=17000;request_period=7000;max_grant_amount=3;};};}"));
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_DOUBLE_EQ(*throttler->Limit, 5.0);
+    EXPECT_EQ(throttler->Period, TDuration::Seconds(17));
+    EXPECT_EQ(throttler->RequestPeriod, TDuration::Seconds(7));
+    EXPECT_EQ(throttler->MaxGrantAmount, 3);
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerPreservesDefaultsOnLimitOverride)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(
+        "{throttlers={failed_messages={limit=5;};};}"));
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    auto expectedThrottler = New<TDynamicThrottlerSpec>();
+    expectedThrottler->Limit = 5.0;
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(throttler), ConvertToNode(expectedThrottler)));
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerUsesRegularDefaultsForExplicitConfig)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(
+        "{throttlers={failed_messages={rpc_timeout=300000;retrying_channel={retry_attempts=7;};};};}"));
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    auto expectedThrottler = New<TDynamicThrottlerSpec>();
+    expectedThrottler->RpcTimeout = TDuration::Minutes(5);
+    expectedThrottler->RetryingChannel->RetryAttempts = 7;
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(throttler), ConvertToNode(expectedThrottler)));
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerKeepsLimitOnFieldUpdate)
+{
+    auto node = ConvertToNode(New<TDynamicPipelineSpec>());
+    SetNodeByYPath(node, "/throttlers/failed_messages/rpc_timeout", ConvertToNode(300000));
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(node);
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_DOUBLE_EQ(*throttler->Limit, 100.0 / 60.0);
+    EXPECT_EQ(throttler->RpcTimeout, TDuration::Minutes(5));
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerCanBeExplicitlyUnlimited)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(
+        "{throttlers={failed_messages={limit=#;};};}"));
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_FALSE(throttler->Limit);
+    auto roundTripped = ConvertTo<TDynamicPipelineSpecPtr>(ConvertToYsonString(dynamicSpec));
+    const auto& roundTrippedThrottler = GetOrCrash(roundTripped->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_FALSE(roundTrippedThrottler->Limit);
+}
+
+TEST(TDynamicSpecTest, FailedMessagesThrottlerSupportsClassWeightsAsLimit)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(
+        "{throttlers={failed_messages={use_class_weights_as_limit=%true;classes={a={weight=3;};};};};}"));
+    const auto& throttler = GetOrCrash(dynamicSpec->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_FALSE(throttler->Limit);
+    EXPECT_EQ(throttler->GetEffectiveLimit(), 3.0);
+    auto roundTripped = ConvertTo<TDynamicPipelineSpecPtr>(ConvertToYsonString(dynamicSpec));
+    const auto& roundTrippedThrottler = GetOrCrash(roundTripped->Throttlers, FailedMessagesThrottlerId);
+    EXPECT_FALSE(roundTrippedThrottler->Limit);
+    EXPECT_EQ(roundTrippedThrottler->GetEffectiveLimit(), 3.0);
+}
 
 TEST(TDynamicSpecTest, ThrottlerIdsResolved)
 {

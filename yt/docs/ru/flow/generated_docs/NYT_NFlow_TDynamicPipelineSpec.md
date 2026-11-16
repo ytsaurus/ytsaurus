@@ -15,8 +15,7 @@
 **Значение по умолчанию**: `{}`
  ||
 || `throttlers` | **Тип**: `THashMap<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
-**Значение по умолчанию**: `{}`
-Набор именованных распределённых троттлеров, общих для всех `Computation` пайплайна. Ключи являются id троттлеров и должны соответствовать `[0-9A-Za-z_-]+`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
+Набор именованных распределённых троттлеров, общих для всех `Computation` пайплайна. Ключи являются id троттлеров и должны соответствовать `[0-9A-Za-z_-]+`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). Троттлер `failed_messages` добавляется автоматически; см. [Ограничение скорости сохранения](../concepts/failed-messages.md#throttling). ||
 || `job_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
 **Значение по умолчанию**: `{}`
 Настройки `JobManager`. ||
