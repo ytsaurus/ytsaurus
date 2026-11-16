@@ -1761,10 +1761,10 @@ TEST_F(TFairShareUpdateTest, FifoReorderingHandlesResourcePrecision)
     struct TTestCase
     {
         EJobResourceType ResourceType;
-        double Total;
-        double Quantum;
-        double Undershoot;
-        bool AcceptUndershoot;
+        double Total = 0.0;
+        double Quantum = 0.0;
+        double Undershoot = 0.0;
+        bool AcceptUndershoot = false;
     };
 
     const TTestCase testCases[] = {
@@ -1866,13 +1866,16 @@ TEST_F(TFairShareUpdateTest, FifoReorderingHandlesResourcePrecision)
                     SetResource(competitorDemand, testCase.ResourceType, testCase.Total - guarantee);
                     CreateOperation(competitorPool.Get(), competitorDemand);
 
-                    auto context = DoFairShareUpdate(totalLimits, root, TTestFairShareUpdateOptions{
-                        .MainResource = testCase.ResourceType,
-                        .EnableStepFunctionForGangOperations = true,
-                        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
-                        .EnableImprovedFairShareByFitFactorComputation = enableImproved,
-                        .EnableFastFifoFairShareByFitFactorComputation = enableFastFifo,
-                    });
+                    auto context = DoFairShareUpdate(
+                        totalLimits,
+                        root,
+                        TTestFairShareUpdateOptions{
+                            .MainResource = testCase.ResourceType,
+                            .EnableStepFunctionForGangOperations = true,
+                            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+                            .EnableImprovedFairShareByFitFactorComputation = enableImproved,
+                            .EnableFastFifoFairShareByFitFactorComputation = enableFastFifo,
+                        });
                     ASSERT_TRUE(context.Errors.empty());
 
                     double actualGuarantee = fifoPool->Attributes().StrongGuaranteeShare[testCase.ResourceType];
@@ -1943,12 +1946,15 @@ TEST_F(TFairShareUpdateTest, FifoReorderingChecksAdaptiveEpsilonComponentwise)
     competitorDemand.SetGpu(1328);
     CreateOperation(competitorPool.Get(), competitorDemand);
 
-    auto context = DoFairShareUpdate(totalLimits, root, TTestFairShareUpdateOptions{
-        .MainResource = EJobResourceType::Gpu,
-        .EnableStepFunctionForGangOperations = true,
-        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
-        .EnableImprovedFairShareByFitFactorComputation = true,
-    });
+    auto context = DoFairShareUpdate(
+        totalLimits,
+        root,
+        TTestFairShareUpdateOptions{
+            .MainResource = EJobResourceType::Gpu,
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
     ASSERT_TRUE(context.Errors.empty());
 
     EXPECT_EQ(0, firstGang->Attributes().EffectiveFifoIndex);
