@@ -225,7 +225,9 @@ TErrorOr<TKeyCountPartitioning::TResult> TKeyCountPartitioning::Partition(
             smallest = std::min(smallest, count);
             largest = std::max(largest, count);
         }
-        if (largest - smallest > 1 || std::ssize(ranges) > maximum) {
+        const bool canCompactEmptyRanges =
+            !State_->ObservedKeys.empty() && smallest == 0 && std::ssize(ranges) > neededPartitions;
+        if (largest - smallest > 1 || std::ssize(ranges) > maximum || canCompactEmptyRanges) {
             result.Ranges = BuildKeyCountRanges(getSortedKeys(), UniversalKeyRange(), maxKeys);
             result.RetainedPartitions.clear();
             result.Reason = "periodic_rebalance";

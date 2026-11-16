@@ -491,7 +491,7 @@ TEST_F(TPartitioningTransactionTest, KeyCountHistoryUnionUsesFiveFourFour)
     EXPECT_EQ(ranges, (std::vector<TKeyRange>{{MinKey(), MakeKey(6u)}, {MakeKey(6u), MakeKey(10u)}, {MakeKey(10u), MaxKey()}}));
 }
 
-TEST_F(TPartitioningTransactionTest, KeyCountPeriodicRebalanceRecreatesOnlyWhenSpreadExceedsOne)
+TEST_F(TPartitioningTransactionTest, KeyCountPeriodicRebalanceKeepsBalancedNonemptyRanges)
 {
     EnableKeyCount(6)->RebalancePeriod = TDuration::Seconds(10);
     const auto& layout = FlowView_->State->ExecutionSpec->Layout;
@@ -531,6 +531,50 @@ TEST_F(TPartitioningTransactionTest, KeyCountPeriodicRebalanceRecreatesOnlyWhenS
     }
     std::sort(ranges.begin(), ranges.end());
     EXPECT_EQ(ranges, (std::vector<TKeyRange>{{MinKey(), MakeKey(6u)}, {MakeKey(6u), MaxKey()}}));
+    EXPECT_EQ(GetOrCrash(layout->Partitions, first->PartitionId)->State, EPartitionState::Interrupting);
+    EXPECT_EQ(GetOrCrash(layout->Partitions, second->PartitionId)->State, EPartitionState::Interrupting);
+}
+
+TEST_F(TPartitioningTransactionTest, KeyCountPeriodicRebalanceCompactsEmptyRangesWithObservedKeys)
+{
+    EnableKeyCount()->RebalancePeriod = TDuration::Seconds(10);
+    const auto& layout = FlowView_->State->ExecutionSpec->Layout;
+    const auto original = layout->Partitions.begin()->second;
+    FlowView_->State->StartMutation();
+    auto first = CloneYsonStruct(original);
+    first->UpperKey = MakeKey(1u);
+    layout->Partitions.insert_or_assign(first->PartitionId, first);
+    auto second = CloneYsonStruct(original);
+    second->PartitionId = TPartitionId(TGuid::Create());
+    second->CurrentJobId.reset();
+    second->LowerKey = MakeKey(1u);
+    second->StateTimestamp = Now_;
+    layout->CreatePartition(second);
+    FlowView_->State->CommitMutation();
+
+    Coordinator_->BeginIteration(FlowView_);
+    RunPass();
+    Coordinator_->Commit();
+    Now_ += TDuration::Seconds(11);
+    Coordinator_->BeginIteration(FlowView_);
+    RunPass();
+    Coordinator_->Commit();
+    ASSERT_EQ(layout->Partitions.size(), 2u);
+
+    Job_->ObservedKeys.emplace().emplace(MakeKey(0u), Now_);
+    Now_ += TDuration::Seconds(11);
+    Coordinator_->BeginIteration(FlowView_);
+    RunPass();
+    Coordinator_->Commit();
+
+    std::vector<TKeyRange> ranges;
+    for (const auto& [_, partition] : layout->Partitions) {
+        if (partition->State == EPartitionState::Executing) {
+            ranges.push_back({*partition->LowerKey, *partition->UpperKey});
+        }
+    }
+    EXPECT_EQ(ranges, std::vector{UniversalKeyRange()});
+    EXPECT_TRUE(ReadState()->KeyCountPartitioning->ObservedKeys.contains(MakeKey(0u)));
     EXPECT_EQ(GetOrCrash(layout->Partitions, first->PartitionId)->State, EPartitionState::Interrupting);
     EXPECT_EQ(GetOrCrash(layout->Partitions, second->PartitionId)->State, EPartitionState::Interrupting);
 }
