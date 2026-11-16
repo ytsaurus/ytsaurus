@@ -33,13 +33,14 @@ enum class TYtTableIntent: ui32 {
     SymlinkCreate = 1 << 8, // CREATE SYMLINK destination: lock the link path itself, not its target.
     Referenced  = 1 << 9, // CREATE SYMLINK target: lock it to protect from removal; combined with Read for metadata loading.
     SymlinkDrop = 1 << 10, // DROP SYMLINK operand: lock the link itself, not its target.
+    Alter       = 1 << 11,
 };
 
 Y_DECLARE_FLAGS(TYtTableIntents, TYtTableIntent);
 Y_DECLARE_OPERATORS_FOR_FLAGS(TYtTableIntents);
 
 inline bool HasReadIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Read | TYtTableIntent::View);
+    return intents & (TYtTableIntent::Read | TYtTableIntent::View | TYtTableIntent::Alter);
 }
 
 inline bool HasSymlinkIntents(TYtTableIntents intents) {
@@ -47,11 +48,11 @@ inline bool HasSymlinkIntents(TYtTableIntents intents) {
 }
 
 inline bool HasModifyIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Override | TYtTableIntent::Append | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace);
+    return intents & (TYtTableIntent::Override | TYtTableIntent::Append | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace | TYtTableIntent::Alter);
 }
 
 inline bool HasExclusiveModifyIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Override | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace);
+    return intents & (TYtTableIntent::Override | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace | TYtTableIntent::Alter);
 }
 
 struct TYtViewDescription {
