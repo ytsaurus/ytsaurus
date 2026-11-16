@@ -1,4 +1,5 @@
 #include "node_proxy_detail.h"
+
 #include "private.h"
 #include "helpers.h"
 #include "shard.h"
@@ -3432,13 +3433,14 @@ void TCypressMapNodeProxy::Clear()
         &keyToChildMapStorage);
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
-    // Take shared locks for children.
+    // Take exclusive locks for the removed subtrees.
+    auto recursive = GetDynamicCypressManagerConfig()->EnableRecursiveNodeRemovalLocking;
     using TChild = std::pair<TKey, TCypressNode*>;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& [key, child] : keyToChildList) {
         LockThisImpl(TLockRequest::MakeSharedChild(key));
-        auto* childImpl = LockImpl(child);
+        auto* childImpl = LockImpl(child, ELockMode::Exclusive, recursive);
         children.emplace_back(key, childImpl);
     }
 

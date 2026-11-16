@@ -112,6 +112,9 @@ struct TDynamicCypressManagerConfig
     // TODO(ivpiskarev): remove after making sure that new behaviour does not cause issues.
     bool CheckPendingLocksAfterPrelockRelease;
 
+    // COMPAT(danilalexeev): YT-30240.
+    bool EnableRecursiveNodeRemovalLocking;
+
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 

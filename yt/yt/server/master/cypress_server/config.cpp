@@ -148,6 +148,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_pending_locks_after_prelock_release", &TThis::CheckPendingLocksAfterPrelockRelease)
         .Default(true);
 
+    registrar.Parameter("enable_recursive_node_removal_locking", &TThis::EnableRecursiveNodeRemovalLocking)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 
