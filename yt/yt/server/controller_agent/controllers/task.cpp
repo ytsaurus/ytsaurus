@@ -553,8 +553,10 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
 
             if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
-                attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
-                attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+                attributes.DiskRequest.DiskSpace = attributes.DiskRequest.DiskSpace.value_or(0) + diskRequest->DiskSpace;
+                if (diskRequest->InodeCount) {
+                    attributes.DiskRequest.InodeCount = attributes.DiskRequest.InodeCount.value_or(0) + *diskRequest->InodeCount;
+                }
             } else if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd) {
                 // NBD uses no local disk; keep exec node from falling back to MinRequiredDiskSpace.
                 attributes.DiskRequest.DiskSpace = attributes.DiskRequest.DiskSpace.value_or(0);
@@ -848,10 +850,12 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
             auto diskQuota = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
             if (!isNbd) {
-                neededResources.DiskQuota() = diskQuota;
+                neededResources.DiskQuota() += diskQuota;
             }
-            joblet->DiskRequestAccount = diskRequest->Account;
-            joblet->DiskQuota = std::move(diskQuota);
+            if (diskRequest->Account) {
+                joblet->DiskRequestAccount = diskRequest->Account;
+                joblet->DiskQuota += diskQuota;
+            }
         }
     }
 
@@ -2336,7 +2340,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
             }
 
             if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
-                resultWithQuota.DiskQuota() = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
+                resultWithQuota.DiskQuota() += CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             }
         }
     }
