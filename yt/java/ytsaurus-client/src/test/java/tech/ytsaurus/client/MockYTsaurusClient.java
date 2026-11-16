@@ -25,6 +25,7 @@ import tech.ytsaurus.client.request.AttachTransaction;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.ConcatenateNodes;
@@ -41,6 +42,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetColumnarStatistics;
 import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
@@ -326,6 +328,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
         return (CompletableFuture<List<MultiTablePartition>>) callMethod("partitionTables");
+    }
+
+    @Override
+    public CompletableFuture<List<ColumnarStatistics>> getColumnarStatistics(GetColumnarStatistics req) {
+        return (CompletableFuture<List<ColumnarStatistics>>) callMethod("getColumnarStatistics");
     }
 
     @Override

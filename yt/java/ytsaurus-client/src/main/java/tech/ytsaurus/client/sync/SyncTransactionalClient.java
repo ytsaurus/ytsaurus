@@ -13,10 +13,12 @@ import tech.ytsaurus.client.operations.VanillaSpec;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.GetColumnarStatistics;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.GetNode;
@@ -240,6 +242,8 @@ public interface SyncTransactionalClient {
     GUID moveNode(MoveNode req);
 
     List<MultiTablePartition> partitionTables(PartitionTables req);
+
+    List<ColumnarStatistics> getColumnarStatistics(GetColumnarStatistics req);
 
     void advanceConsumer(AdvanceConsumer req);
 

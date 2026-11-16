@@ -48,6 +48,7 @@ import tech.ytsaurus.client.request.BaseOperation;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.ConcatenateNodes;
@@ -66,6 +67,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetColumnarStatistics;
 import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
@@ -642,6 +644,15 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                     p.getAggregateStatistics().getRowCount());
                             return new MultiTablePartition(tableRanges, cookie, statistics);
                         })
+                        .collect(Collectors.toList())));
+    }
+
+    @Override
+    public CompletableFuture<List<ColumnarStatistics>> getColumnarStatistics(GetColumnarStatistics req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_COLUMNAR_STATISTICS.createRequestBuilder(rpcOptions)),
+                response -> response.body().getStatisticsList().stream()
+                        .map(ColumnarStatistics::fromProto)
                         .collect(Collectors.toList())));
     }
 
