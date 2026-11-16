@@ -552,11 +552,15 @@ public:
                 .Folders({{options.Prefix(), options.Attributes()}});
             auto execCtx = MakeExecCtx(std::move(batchOptions), session, options.Cluster(), nullptr, nullptr);
 
-            if (auto filePtr = MaybeGetFilePtrFromCache(execCtx->GetOrCreateEntry(), execCtx->Options_.Folders().front())) {
-                TFolderResult res;
-                res.SetSuccess();
-                res.ItemsOrFileLink = *filePtr;
-                return MakeFuture(res);
+            // A cache lookup must not initialize transactions on the caller's fiber:
+            // synchronous SDK requests can yield while holding a thread-owned mutex.
+            if (const auto entry = execCtx->TryGetEntry()) {
+                if (const auto filePtr = MaybeGetFilePtrFromCache(entry, execCtx->Options_.Folders().front())) {
+                    TFolderResult res;
+                    res.SetSuccess();
+                    res.ItemsOrFileLink = *filePtr;
+                    return MakeFuture(res);
+                }
             }
 
             auto getFolderFuture = session->Async([execCtx] () {

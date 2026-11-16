@@ -21,7 +21,6 @@ PEERDIR(
     yql/essentials/minikql/comp_nodes
     yql/essentials/public/udf
     yql/essentials/utils
-    yql/essentials/utils/threading
     yql/essentials/core
     yql/essentials/core/expr_nodes
     yql/essentials/core/type_ann
@@ -43,6 +42,7 @@ PEERDIR(
     yt/yql/providers/yt/lib/mkql_helpers
     yt/yql/providers/yt/lib/res_pull
     yt/yql/providers/yt/lib/schema
+    yt/yql/providers/yt/lib/threading
     yt/yql/providers/yt/lib/yson_helpers
     yt/yql/providers/yt/provider
     yql/essentials/parser/pg_wrapper

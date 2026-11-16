@@ -17,6 +17,7 @@ RECURSE(
     res_pull
     row_spec
     temp_files
+    threading
     tvm_client
     schema
     secret_masker

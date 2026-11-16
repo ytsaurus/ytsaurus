@@ -19,7 +19,10 @@ public:
     using TWeakPtr = std::weak_ptr<TAsyncQueue>;
     using TPtr = std::shared_ptr<TAsyncQueue>;
 
+    // Creates a real thread pool; zero threads selects an adaptive pool.
     static TPtr Make(size_t numThreads, const TString& poolName);
+
+    static TPtr MakeFakePool();
 
     virtual ~TAsyncQueue() {
         MtpQueue_->Stop();
@@ -37,6 +40,7 @@ public:
     }
 
 private:
+    TAsyncQueue();
     TAsyncQueue(size_t numThreads, const TString& poolName);
 
     THolder<IThreadPool> MtpQueue_;
