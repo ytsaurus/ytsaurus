@@ -32,6 +32,7 @@ import tech.ytsaurus.rpcproxy.TReqFlowExecute;
 import tech.ytsaurus.rpcproxy.TReqFreezeTable;
 import tech.ytsaurus.rpcproxy.TReqGCCollect;
 import tech.ytsaurus.rpcproxy.TReqGenerateTimestamps;
+import tech.ytsaurus.rpcproxy.TReqGetColumnarStatistics;
 import tech.ytsaurus.rpcproxy.TReqGetCurrentUser;
 import tech.ytsaurus.rpcproxy.TReqGetFileFromCache;
 import tech.ytsaurus.rpcproxy.TReqGetFlowView;
@@ -122,6 +123,7 @@ import tech.ytsaurus.rpcproxy.TRspFlowExecute;
 import tech.ytsaurus.rpcproxy.TRspFreezeTable;
 import tech.ytsaurus.rpcproxy.TRspGCCollect;
 import tech.ytsaurus.rpcproxy.TRspGenerateTimestamps;
+import tech.ytsaurus.rpcproxy.TRspGetColumnarStatistics;
 import tech.ytsaurus.rpcproxy.TRspGetCurrentUser;
 import tech.ytsaurus.rpcproxy.TRspGetFileFromCache;
 import tech.ytsaurus.rpcproxy.TRspGetFlowView;
@@ -283,6 +285,11 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqPartitionTables.Builder, TRspPartitionTables> PARTITION_TABLES =
             apiServiceMethod("PartitionTables", TReqPartitionTables::newBuilder, TRspPartitionTables.parser());
+
+    public static final RpcMethodDescriptor<TReqGetColumnarStatistics.Builder,
+            TRspGetColumnarStatistics> GET_COLUMNAR_STATISTICS =
+            apiServiceMethod("GetColumnarStatistics", TReqGetColumnarStatistics::newBuilder,
+                    TRspGetColumnarStatistics.parser());
 
     public static final RpcMethodDescriptor<TReqMountTable.Builder, TRspMountTable> MOUNT_TABLE =
             apiServiceMethod("MountTable", TReqMountTable::newBuilder, TRspMountTable.parser());

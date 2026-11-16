@@ -12,10 +12,12 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.GetColumnarStatistics;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.GetNode;
@@ -174,6 +176,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req);
+
+    CompletableFuture<List<ColumnarStatistics>> getColumnarStatistics(GetColumnarStatistics req);
 
     CompletableFuture<Void> advanceConsumer(AdvanceConsumer req);
 

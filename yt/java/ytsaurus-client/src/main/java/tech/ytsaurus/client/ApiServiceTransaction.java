@@ -22,11 +22,13 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.GetColumnarStatistics;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.GetNode;
@@ -427,6 +429,11 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
     @Override
     public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
         return client.partitionTables(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<List<ColumnarStatistics>> getColumnarStatistics(GetColumnarStatistics req) {
+        return client.getColumnarStatistics(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
