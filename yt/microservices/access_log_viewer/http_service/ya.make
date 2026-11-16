@@ -38,6 +38,10 @@ ENDIF()
 
 END()
 
+RECURSE(
+    docs
+)
+
 RECURSE_FOR_TESTS(
     tests
 )

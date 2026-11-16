@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -17,12 +19,14 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/library/go/httputil/swaggerui"
 	"go.ytsaurus.tech/yt/go/mapreduce"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/microservices/access_log_viewer/http_service/docs"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
@@ -73,28 +77,32 @@ func GetInfoHandler() ytmsvc.HTTPHandlerE {
 	}
 }
 
+// @Accept json
+// @Produce json
+// @Param request body WhoamiRequest true "Request body"
+// @Success 200 {object} WhoamiResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /whoami [post]
 func GetWhoamiHandler(authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		var reqData struct {
-			Cluster string `json:"cluster"`
-		}
+		var reqData WhoamiRequest
 		if err := json.NewDecoder(req.Body).Decode(&reqData); err != nil {
 			return nil, err
-		}
-		type Response struct {
-			User string `json:"user"`
 		}
 		user, ticket, err := authorizer.getUser(req, reqData.Cluster)
 		_ = ticket
 		if err != nil {
 			return nil, err
 		}
-		return Response{
+		return WhoamiResponse{
 			User: user.Login,
 		}, nil
 	}
 }
 
+// @Produce json
+// @Success 200 {object} ServedClustersResponse
+// @Router /served-clusters [post]
 func GetServedClustersHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		response := ServedClustersResponse{Clusters: []string{}, Statuses: make(map[string]ClusterStatus)}
@@ -235,6 +243,12 @@ func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) 
 	}
 }
 
+// @Accept json
+// @Produce json
+// @Param request body AccessLogRequest true "Request body"
+// @Success 200 {object} AccessLogResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /access-log [post]
 func GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot string, authorizer *Authorizer, ytTokenEnvVariable, logsTimezone string) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
@@ -293,6 +307,12 @@ func ReadAccessLogRequest(req *http.Request) (request AccessLogRequest, err erro
 	return
 }
 
+// @Accept json
+// @Produce json
+// @Param request body AccessLogRequest true "Request body"
+// @Success 200 {object} ClickHouseQueryResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /chquery [post]
 func GetClickHouseQueryHandler(snapshotRoot, logsTimezone string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
@@ -319,6 +339,12 @@ func GetClickHouseQueryHandler(snapshotRoot, logsTimezone string, authorizer *Au
 	}
 }
 
+// @Accept json
+// @Produce json
+// @Param request body AccessLogRequest true "Request body"
+// @Success 200 {object} QTAccessLogResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /qt-access-log [post]
 func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
@@ -380,6 +406,12 @@ func GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenE
 	return
 }
 
+// @Accept json
+// @Produce json
+// @Param request body VisibleTimeRangeRequest true "Request body"
+// @Success 200 {object} VisibleTimeRangeResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /visible-time-range [post]
 func GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot string) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		decoder := json.NewDecoder(req.Body)
@@ -397,11 +429,33 @@ func GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot string) ytm
 	}
 }
 
+// serveSwaggerUI serves the Swagger UI for the API under the version prefix of the request, such as /v1 or /testing.
+func serveSwaggerUI(spec map[string]any) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		basePath := "/" + chi.URLParam(r, "api_version")
+		requestSpec := maps.Clone(spec)
+		requestSpec["basePath"] = basePath
+		specJSON, err := json.Marshal(requestSpec)
+		if err != nil {
+			ytmsvc.WriteError(w, r, yterrors.Err("could not encode the Swagger specification", err))
+			return
+		}
+		ui := http.FileServer(swaggerui.NewFileSystem(swaggerui.WithJSONScheme(specJSON)))
+		http.StripPrefix(path.Join(basePath, "swagger"), ui).ServeHTTP(w, r)
+	}
+}
+
 func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer, exporter *AccessLogExporter, corsConfig *ytmsvc.CORSConfig) http.Handler {
+	var swaggerSpec map[string]any
+	ytmsvc.Must0(json.Unmarshal(docs.SwaggerJSON, &swaggerSpec))
 	apiV1 := func(r chi.Router) {
 		if exporter != nil {
 			exporter.routes(r)
 		}
+		r.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
+		})
+		r.Get("/swagger/*", serveSwaggerUI(swaggerSpec))
 		r.Get("/ready", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprintf(w, "true") })
 		r.Post("/info", ytmsvc.FormatResponse(GetInfoHandler()))
 		r.Post("/whoami", ytmsvc.FormatResponse(GetWhoamiHandler(authorizer)))

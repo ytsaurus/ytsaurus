@@ -201,6 +201,14 @@ var reverseObjectTypes = map[string]string{
 	"list_node": "list",
 }
 
+type WhoamiRequest struct {
+	Cluster string `json:"cluster"`
+}
+
+type WhoamiResponse struct {
+	User string `json:"user"`
+}
+
 type VisibleTimeRangeRequest struct {
 	Cluster string `json:"cluster"`
 }
