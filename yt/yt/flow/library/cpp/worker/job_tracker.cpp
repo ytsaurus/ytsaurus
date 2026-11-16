@@ -715,6 +715,7 @@ private:
 
         jobContext->ControlSerializedInvoker = wrapInvoker(CreateSerializedInvoker(JobControlThreadPool_->GetInvoker("JobControl"), "JobControl"));
         jobContext->PoolInvoker = wrapInvoker(JobThreadPool_->GetInvoker(Format("Computation-%v", jobSpec->Partition->ComputationId)));
+        jobContext->InputBufferPoolInvoker = wrapInvoker(Context_->InputBufferPoolInvoker);
         jobContext->SerializedInvoker = CreateSerializedInvoker(jobContext->PoolInvoker, "Job");
 
         jobContext->ClockClusterTag = Context_->ClockClusterTag;

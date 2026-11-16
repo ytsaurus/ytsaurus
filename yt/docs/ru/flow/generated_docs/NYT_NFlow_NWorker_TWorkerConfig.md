@@ -10,7 +10,7 @@
  ||
 || `message_service_threads` | **Тип**: `int`
 **Значение по умолчанию**: `3`
- ||
+Число потоков для обработчиков RPC передачи сообщений и операций входных буферов. CPU, затраченный входным буфером, учитывается в потреблении его джобы. ||
 || `file_storage` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NFileStorage::TFileStorageConfig](./all_yson_structs#NYT_NFlow_NFileStorage_TFileStorageConfig)`>`
 Опциональный постоянный локальный кеш исходных данных файловых ресурсов. Он обязателен для воркера, загружающего файловый ресурс. ||
 || `initial_controller_connector` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicControllerConnectorSpec](./all_yson_structs#NYT_NFlow_TDynamicControllerConnectorSpec)`>`
