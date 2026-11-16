@@ -151,17 +151,29 @@ class TestAccessLogViewer(ClickHouseTestBase):
         }
         self._wait_for_response("POST", "visible-time-range", visible_range, json=cluster_request)
 
+        cluster_status = {
+            "access_log": {"available": True},
+            "export": {
+                "enabled": False,
+                "input_tables_available": False,
+                "reason": "disabled",
+            },
+        }
         for prefix in ["", "v1/"]:
             for endpoint, expected in [
                 ("whoami", {"user": DEBUG_LOGIN}),
-                ("served-clusters", {"clusters": [self._proxy]}),
-                ("served_clusters", {"clusters": [self._proxy]}),
                 ("visible-time-range", visible_range),
                 ("visible_time_range", visible_range),
             ]:
                 response = self._request("POST", prefix + endpoint, json=cluster_request)
                 assert response.status_code == 200, response.text
                 assert response.json() == expected, response.text
+            for endpoint in ["served-clusters", "served_clusters"]:
+                response = self._request("POST", prefix + endpoint, json=cluster_request)
+                assert response.status_code == 200, response.text
+                result = response.json()
+                assert result["clusters"] == [self._proxy], response.text
+                assert result["statuses"][self._proxy] == cluster_status, response.text
         response = self._request("GET", "readiness")
         assert response.status_code == 200, response.text
 

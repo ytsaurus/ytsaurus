@@ -16,6 +16,7 @@ PY_SRCS(
 NO_CHECK_IMPORTS(base)
 
 TEST_SRCS(
+    test_access_log_export.py
     test_access_log_viewer.py
 )
 
@@ -48,5 +49,7 @@ IF (SANITIZER_TYPE == "thread")
         contrib/libs/llvm20/tools/llvm-symbolizer
     )
 ENDIF()
+
+TIMEOUT(1800)
 
 END()

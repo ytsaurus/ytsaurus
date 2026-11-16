@@ -17,6 +17,8 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/yt/go/mapreduce"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
@@ -30,7 +32,23 @@ const (
 
 var logger *zap.Logger
 
-var ClustersVisibleRanges = make(map[string]VisibleTimeRangeResponse)
+type clusterState struct {
+	VisibleRange *VisibleTimeRangeResponse
+	Export       ExportClusterStatus
+}
+
+func (cs clusterState) status() ClusterStatus {
+	status := ClusterStatus{Export: cs.Export}
+	if cs.VisibleRange != nil {
+		status.AccessLog.Available = true
+	} else {
+		status.AccessLog.Reason = "chyt_unavailable"
+	}
+	return status
+}
+
+// TODO(ilyaibraev): Synchronize cluster-state publication and reads.
+var clusterStates map[string]clusterState
 
 func GetLivenessHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
@@ -40,10 +58,12 @@ func GetLivenessHandler() ytmsvc.HTTPHandlerE {
 
 func GetReadinessHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		if len(ClustersVisibleRanges) == 0 {
-			return nil, yterrors.Err("not ready")
+		for _, state := range clusterStates {
+			if state.VisibleRange != nil || state.Export.InputTablesAvailable {
+				return ytmsvc.ResponseStatusOK, nil
+			}
 		}
-		return ytmsvc.ResponseStatusOK, nil
+		return nil, yterrors.Err("not ready")
 	}
 }
 
@@ -77,9 +97,13 @@ func GetWhoamiHandler(authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 
 func GetServedClustersHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		response := ServedClustersResponse{}
-		for cluster := range ClustersVisibleRanges {
-			response.Clusters = append(response.Clusters, cluster)
+		response := ServedClustersResponse{Clusters: []string{}, Statuses: make(map[string]ClusterStatus)}
+		for cluster, state := range clusterStates {
+			status := state.status()
+			if status.AccessLog.Available {
+				response.Clusters = append(response.Clusters, cluster)
+			}
+			response.Statuses[cluster] = status
 		}
 		return response, nil
 	}
@@ -90,9 +114,11 @@ func GetMetricsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		now := time.Now().Unix()
 		reg := ytmsvc.GetNewRegistry(map[string]string{"host": host})
-		for cluster, visibleRange := range ClustersVisibleRanges {
-			subreg := reg.WithTags(map[string]string{"served_cluster": cluster})
-			subreg.IntGauge("data_lag").Set(now - visibleRange.Latests)
+		for cluster, state := range clusterStates {
+			if state.VisibleRange != nil {
+				subreg := reg.WithTags(map[string]string{"served_cluster": cluster})
+				subreg.IntGauge("data_lag").Set(now - state.VisibleRange.Latests)
+			}
 		}
 		ytmsvc.StreamRegistry(reg, w, req)
 	}
@@ -219,7 +245,7 @@ func GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot string, authorizer
 		if err != nil {
 			return
 		}
-		if _, ok := ClustersVisibleRanges[request.Cluster]; !ok {
+		if clusterStates[request.Cluster].VisibleRange == nil {
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
@@ -277,7 +303,7 @@ func GetClickHouseQueryHandler(snapshotRoot, logsTimezone string, authorizer *Au
 		if err != nil {
 			return
 		}
-		if _, ok := ClustersVisibleRanges[request.Cluster]; !ok {
+		if clusterStates[request.Cluster].VisibleRange == nil {
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
@@ -303,7 +329,7 @@ func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVari
 		if err != nil {
 			return
 		}
-		if _, ok := ClustersVisibleRanges[request.Cluster]; !ok {
+		if clusterStates[request.Cluster].VisibleRange == nil {
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
@@ -362,17 +388,20 @@ func GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot string) ytm
 		if err != nil {
 			return
 		}
-		if visibleRange, ok := ClustersVisibleRanges[request.Cluster]; !ok {
+		if visibleRange := clusterStates[request.Cluster].VisibleRange; visibleRange == nil {
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		} else {
-			return visibleRange, nil
+			return *visibleRange, nil
 		}
 	}
 }
 
-func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer, corsConfig *ytmsvc.CORSConfig) http.Handler {
+func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer, exporter *AccessLogExporter, corsConfig *ytmsvc.CORSConfig) http.Handler {
 	apiV1 := func(r chi.Router) {
+		if exporter != nil {
+			exporter.routes(r)
+		}
 		r.Get("/ready", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprintf(w, "true") })
 		r.Post("/info", ytmsvc.FormatResponse(GetInfoHandler()))
 		r.Post("/whoami", ytmsvc.FormatResponse(GetWhoamiHandler(authorizer)))
@@ -393,11 +422,12 @@ func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, 
 	return r
 }
 
-func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, ytClient yt.Client, cmd *cobra.Command) {
+func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, ytClient yt.Client, exporter *AccessLogExporter, cmd *cobra.Command) {
 	includeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("include"))
 	excludeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("exclude"))
 	useClusterDirectory := ytmsvc.Must(cmd.Flags().GetString("proxy")) != ""
 	timer := time.NewTimer(0)
+	defer timer.Stop()
 	delay := time.Duration(30 * time.Second)
 	for {
 		select {
@@ -405,21 +435,28 @@ func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, y
 			return
 		case <-timer.C:
 			if clusters := ytmsvc.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
-				newClustersVisibleRanges := make(map[string]VisibleTimeRangeResponse)
+				states := make(map[string]clusterState)
 				for cluster := range clusters {
+					state := clusterState{Export: ExportClusterStatus{Reason: "disabled"}}
 					response, err := GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenEnvVariable, logsTimezone)
 					if err != nil {
 						ytmsvc.Logger.Error(err.Error())
-						continue
+					} else {
+						state.VisibleRange = &response
 					}
-					newClustersVisibleRanges[cluster] = response
+					if exporter != nil {
+						state.Export = exporter.getClusterStatus(ctx, cluster)
+					}
+					states[cluster] = state
 				}
-				ClustersVisibleRanges = newClustersVisibleRanges
+				clusterStates = states
 			}
 			timer.Reset(delay)
 		}
 	}
 }
+
+const exportClientTimeout = 30 * time.Second
 
 func RunServer(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithCancelCause(context.Background())
@@ -430,10 +467,24 @@ func RunServer(cmd *cobra.Command, args []string) {
 	chytAlias := ytmsvc.Must(cmd.Flags().GetString("chyt-alias"))
 	snapshotRoot := ytmsvc.Must(cmd.Flags().GetString("snapshot-root"))
 	logsTimezone := ytmsvc.Must(cmd.Flags().GetString("logs-timezone"))
-	go UpdateClusters(ctx, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, ytClient, cmd)
-
 	authorizerConfig := newAuthorizerConfigFromCmd(cmd)
 	authorizer := newAuthorizer(logger, authorizerConfig)
+
+	exportOperationCluster := ytmsvc.Must(cmd.Flags().GetString("export-operation-cluster"))
+	var exporter *AccessLogExporter
+	if exportOperationCluster != "" {
+		operationClusterClient := ytmsvc.Must(newYTClient(exportOperationCluster, ytTokenEnvVariable, logger, exportClientTimeout))
+		exporter = ytmsvc.Must(NewAccessLogExporter(AccessLogExporterConfig{
+			OperationCluster:   exportOperationCluster,
+			SnapshotRoot:       ypath.Path(snapshotRoot),
+			LogsTimezone:       logsTimezone,
+			TokenEnvVariable:   ytTokenEnvVariable,
+			DefaultPool:        ytmsvc.Must(cmd.Flags().GetString("export-default-pool")),
+			PoolTree:           ytmsvc.Must(cmd.Flags().GetString("export-pool-tree")),
+			MaxInputTableCount: ytmsvc.Must(cmd.Flags().GetInt("export-max-input-tables")),
+		}, operationClusterClient, authorizer, logger))
+	}
+	go UpdateClusters(ctx, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, ytClient, exporter, cmd)
 
 	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
 
@@ -444,12 +495,15 @@ func RunServer(cmd *cobra.Command, args []string) {
 		host = "127.0.0.1"
 	}
 	addr := fmt.Sprintf("%s:%v", host, port)
-	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, corsConfig)
+	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, exporter, corsConfig)
 
 	ytmsvc.Must0(http.ListenAndServe(addr, router))
 }
 
 func main() {
+	if mapreduce.InsideJob() {
+		os.Exit(mapreduce.JobMain())
+	}
 	//logger = ytlog.Must()
 	logger = ytmsvc.Must(zap.NewDeployLogger(log.DebugLevel))
 	logger.Info("start")

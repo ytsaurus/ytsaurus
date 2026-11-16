@@ -121,7 +121,25 @@ type CountAccessLogResponse struct {
 
 type ActionSelector map[string]bool
 type ScopeSelector map[string]bool
-type UserTypeSelector map[string]bool
+type UserTypeSelector map[UserType]bool
+
+type UserType string
+
+const (
+	UserTypeHuman  UserType = "human"
+	UserTypeRobot  UserType = "robot"
+	UserTypeSystem UserType = "system"
+)
+
+var systemUsers = []string{
+	"root",
+	"system",
+	"scheduler",
+	"table_mount_informer",
+	"yt-clickhouse-cache",
+}
+
+var robotUserPrefixes = []string{"robot-", "zomb-"}
 
 type AccessRecordFieldSelector struct {
 	OriginalPath    bool `json:"original_path"`
@@ -193,7 +211,24 @@ type VisibleTimeRangeResponse struct {
 }
 
 type ServedClustersResponse struct {
-	Clusters []string `json:"clusters"`
+	Clusters []string                 `json:"clusters"`
+	Statuses map[string]ClusterStatus `json:"statuses"`
+}
+
+type ClusterStatus struct {
+	AccessLog AccessLogClusterStatus `json:"access_log"`
+	Export    ExportClusterStatus    `json:"export"`
+}
+
+type AccessLogClusterStatus struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type ExportClusterStatus struct {
+	Enabled              bool   `json:"enabled"`
+	InputTablesAvailable bool   `json:"input_tables_available"`
+	Reason               string `json:"reason,omitempty"`
 }
 
 type ClickHouseQueryResponse struct {
