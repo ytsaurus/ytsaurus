@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/cell_master_client/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
@@ -20,8 +22,14 @@ namespace NYT::NSecurityServer {
 class TClusterResourceLimits
 {
 public:
+    //! For generic deserialization only. Use the named factories below.
+    TClusterResourceLimits() = default;
+
     static TClusterResourceLimits Infinity();
     static TClusterResourceLimits Zero();
+    static TClusterResourceLimits DefaultUniversumLimits();
+
+    bool IsZeroDelta() const;
 
     TClusterResourceLimits&& SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &;
@@ -121,15 +129,26 @@ void SerializeClusterResourceLimits(
     const NCellMaster::TBootstrap* bootstrap,
     bool serializeDiskSpace);
 
+void SerializeClusterResourceLimits(
+    const TClusterResourceLimits& resourceLimits,
+    NYTree::TFluentMap fluent,
+    const NCellMaster::TBootstrap* bootstrap,
+    bool serializeDiskSpace);
+
 void DeserializeClusterResourceLimits(
     TClusterResourceLimits& resourceLimits,
     NYTree::INodePtr node,
     const NCellMaster::TBootstrap* bootstrap,
-    bool zeroByDefault);
+    const TClusterResourceLimits& defaultLimits);
 
 void SerializeViolatedClusterResourceLimits(
     const TViolatedClusterResourceLimits& violatedResourceLimits,
     NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeViolatedClusterResourceLimits(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYTree::TFluentMap fluent,
     const NCellMaster::TBootstrap* bootstrap);
 
 void SerializeViolatedClusterResourceLimitsInCompactFormat(
@@ -144,6 +163,13 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
     bool serializeDiskSpace,
     std::optional<int> relevantMediumIndex = std::nullopt);
 
+void SerializeViolatedClusterResourceLimitsInBooleanFormat(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYTree::TFluentMap fluent,
+    const NCellMaster::TBootstrap* bootstrap,
+    bool serializeDiskSpace,
+    std::optional<int> relevantMediumIndex = std::nullopt);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*spec*/);
@@ -151,4 +177,3 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& reso
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

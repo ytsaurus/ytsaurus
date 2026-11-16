@@ -33,6 +33,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -289,13 +291,15 @@ private:
                     tabletSnapshot->Settings.StoreWriterOptions->Account,
                     tabletSnapshot->Settings.StoreWriterOptions->MediumName,
                     tabletCellBundleName,
-                    tabletSnapshot->Settings.MountConfig->InMemoryMode);
+                    tabletSnapshot->Settings.MountConfig->InMemoryMode,
+                    NObjectClient::CellTagFromId(tabletSnapshot->TabletId));
 
                 resourceLimitsManager->ValidateResourceLimits(
                     tabletSnapshot->Settings.HunkWriterOptions->Account,
                     tabletSnapshot->Settings.HunkWriterOptions->MediumName,
                     tabletCellBundleName,
-                    EInMemoryMode::None);
+                    EInMemoryMode::None,
+                    NObjectClient::CellTagFromId(tabletSnapshot->TabletId));
             }
 
             auto slotOptions = Slot_->GetOptions();

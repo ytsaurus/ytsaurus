@@ -72,6 +72,23 @@ int GetAccountProfilingBucketIndex(TAccountId accountId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Preserve the legacy attributes as a view of the universum group entry.
+//! Other groups are exposed under per_group, using their current names.
+template <class TSerializeGroup, class TIncludeGroup = decltype([] (auto) { return true; })>
+void SerializeAccountResources(
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap,
+    TSerializeGroup serializeGroup,
+    TIncludeGroup includeGroup = {});
+
+TCellGroupToResourceLimits DeserializeAccountResourceLimits(
+    NYTree::INodePtr node,
+    const NCellMaster::TBootstrap* bootstrap,
+    const TClusterResourceLimits& defaultUniversumGroupLimits,
+    const TClusterResourceLimits& defaultGroupLimits);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_

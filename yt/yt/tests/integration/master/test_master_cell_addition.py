@@ -6,7 +6,8 @@ from yt.environment.default_config import get_dynamic_node_config
 from yt_commands import (
     authors, create_dynamic_table, get_cell_tag, get_driver, get_singular_chunk_id, insert_rows, map_reduce, sync_create_cells,
     read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
-    start_transaction, write_table, assert_true_for_all_cells, create_master_cell_group)
+    start_transaction, write_table, assert_true_for_all_cells, create_master_cell_group,
+    create_account, raises_yt_error)
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionWithRemoteClustersBaseChecks
 
@@ -37,6 +38,17 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
         group_id = create_master_cell_group("group", cell_tags)
         path = "//sys/master_cell_groups/group"
         set(path + "/@custom_attribute", "value")
+        universum_group_path = "//sys/master_cell_groups/universum"
+        universum_group_id = get(universum_group_path + "/@id")
+
+        create_account("group_limits")
+        account_path = "//sys/accounts/group_limits"
+        set(account_path + "/@resource_limits/node_count", 2)
+        set(account_path + "/@resource_limits/per_group", {"group": {"node_count": 1}})
+        create("table", "//tmp/group_limits_before", attributes={
+            "account": "group_limits", "external_cell_tag": 11,
+        })
+        wait(lambda: get(account_path + "/@resource_usage/per_group/group/node_count") == 1)
 
         yield
 
@@ -47,7 +59,21 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
                 and get(path + "/@name", driver=driver) == "group"
                 and get(path + "/@cell_tags", driver=driver) == cell_tags
                 and get(path + "/@custom_attribute", driver=driver) == "value"
+                and get(universum_group_path + "/@id", driver=driver) == universum_group_id
+                and get(universum_group_path + "/@name", driver=driver) == "universum"
+                and sorted(get(universum_group_path + "/@cell_tags", driver=driver)) == [10, 11, 12, 13]
             ))
+
+        create("table", "//tmp/group_limits_after", attributes={
+            "account": "group_limits", "external_cell_tag": 13,
+        })
+        wait(lambda: get(account_path + "/@resource_usage/node_count", driver=get_driver(3)) == 2)
+        wait(lambda: get(account_path + "/@resource_usage/node_count") == 2)
+        assert get(account_path + "/@resource_usage/per_group/group/node_count") == 1
+        with raises_yt_error("over Cypress node count limit"):
+            create("table", "//tmp/group_limits_blocked", attributes={
+                "account": "group_limits", "external_cell_tag": 13,
+            })
 
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(150)

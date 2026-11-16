@@ -2974,7 +2974,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_nested_limits2(self):
         create_account("yt", empty=True)
         self._set_account_node_count_limit("yt", 4)
-        with raises_yt_error("Failed to change resource limits for account"):
+        with raises_yt_error("cannot be above that of its parent"):
             create_account("max", "yt", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/yt", attributes={"account": "yt"})
@@ -3856,7 +3856,7 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "allow_children_limit_overcommit": allow_overcommit,
             },
         )
-        with raises_yt_error("Failed to change resource limits for account"):
+        with raises_yt_error("cannot be above that of its parent"):
             create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 2}})
         create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 1}})
         with raises_yt_error("Failed to change resource limits"):
@@ -4028,7 +4028,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         limits = {"disk_space_per_medium": {"hdd8": 1024}}
         create_account("yt", attributes={"resource_limits": {"disk_space": 1000}})
 
-        with raises_yt_error("Failed to change resource limits for account"):
+        with raises_yt_error("cannot be above that of its parent"):
             create_account("yt-dev", "yt", attributes={"resource_limits": limits})
 
         create_account("yt-dev", attributes={"resource_limits": limits})

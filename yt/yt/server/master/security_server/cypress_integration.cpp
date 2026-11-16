@@ -138,17 +138,31 @@ private:
             }
 
             case EInternedAttributeKey::TotalResourceLimits: {
-                auto resources = rootAccount->ComputeTotalChildrenLimits();
-                SerializeClusterResourceLimits(resources, consumer, Bootstrap_, /*serializeDiskSpace*/ true);
+                SerializeAccountResources(
+                    consumer,
+                    Bootstrap_,
+                    [&] (auto groupId, TFluentMap fluent) {
+                        SerializeClusterResourceLimits(
+                            rootAccount->ComputeTotalChildrenLimits(groupId),
+                            fluent,
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    });
                 return true;
             }
 
             case EInternedAttributeKey::RootAccountResourceLimits:
-                SerializeClusterResourceLimits(
-                    rootAccount->ClusterResourceLimits(),
+                SerializeAccountResources(
                     consumer,
                     Bootstrap_,
-                    /*serializeDiskSpace*/ true);
+                    [&] (auto groupId, TFluentMap fluent) {
+                        SerializeClusterResourceLimits(
+                            rootAccount->GetResourceLimits(groupId),
+                            fluent,
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    },
+                    [&] (auto groupId) { return rootAccount->CellGroupToResourceLimits().contains(groupId); });
                 return true;
 
             default:

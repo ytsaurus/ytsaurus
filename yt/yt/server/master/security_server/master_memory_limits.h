@@ -66,7 +66,7 @@ void DeserializeMasterMemoryLimits(
     TMasterMemoryLimits& limits,
     NYTree::INodePtr node,
     const NCellMaster::IMulticellManagerPtr& multicellManager,
-    bool zeroByDefault);
+    const TMasterMemoryLimits& defaultLimits);
 
 void SerializeViolatedMasterMemoryLimits(
     const TViolatedMasterMemoryLimits& violatedLimits,
@@ -81,4 +81,3 @@ void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

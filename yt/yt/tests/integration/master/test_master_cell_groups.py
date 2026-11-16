@@ -41,12 +41,27 @@ class TestMasterCellGroups(YTEnvSetup):
         wait(_check, timeout=60, sleep_backoff=1.0)
 
     @authors("evanevannnn")
+    def test_universum_group(self):
+        group_id = get("//sys/master_cell_groups/universum/@id")
+        for driver in [None, get_driver(1), get_driver(2)]:
+            assert get("//sys/master_cell_groups/universum/@id", driver=driver) == group_id
+            assert sorted(get(self._path("universum") + "/@cell_tags", driver=driver)) == [10, 11, 12]
+            assert get("//sys/master_cell_groups/universum/@builtin", driver=driver)
+        with raises_yt_error("built-in master cell group"):
+            remove("//sys/master_cell_groups/universum")
+        for name in ["universum", "renamed"]:
+            with raises_yt_error("built-in master cell group"):
+                set("//sys/master_cell_groups/universum/@name", name)
+        with raises_yt_error("built-in master cell group"):
+            set("//sys/master_cell_groups/universum/@cell_tags", [10])
+
+    @authors("evanevannnn")
     def test_create_rename_and_remove(self):
         """Validate master cell group creation, renaming, and removal."""
         cell_tags = [self._primary_cell_tag()]
         create_master_cell_group("group", cell_tags)
 
-        assert ls("//sys/master_cell_groups") == ["group"]
+        assert sorted(ls("//sys/master_cell_groups")) == ["group", "universum"]
         assert get(self._path("group") + "/@cell_tags") == cell_tags
 
         set(self._path("group") + "/@name", "renamed")
@@ -114,7 +129,10 @@ class TestMasterCellGroups(YTEnvSetup):
 
         create_master_cell_group("first", [self._primary_cell_tag()])
         with raises_yt_error("count limit .* is reached"):
-            create_master_cell_group("second", [self._primary_cell_tag()])
+            create_master_cell_group("second", [11])
+
+        remove(self._path("first"))
+        create_master_cell_group("second", [11])
 
     @authors("evanevannnn")
     def test_snapshot(self):

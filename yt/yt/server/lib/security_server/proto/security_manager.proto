@@ -46,8 +46,15 @@ message TReqSetAccountStatistics
 {
     message TEntry
     {
+        message TGroupEntry
+        {
+            required NYT.NProto.TGuid group_id = 1;
+            required TAccountStatistics statistics = 2;
+        }
+
         required NYT.NProto.TGuid account_id = 1;
         required TAccountStatistics statistics = 2;
+        repeated TGroupEntry group_statistics = 3;
     }
 
     optional uint32 cell_tag = 1;

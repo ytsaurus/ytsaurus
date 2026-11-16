@@ -23,7 +23,9 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/config.h>
+#include <yt/yt/server/master/security_server/helpers.h>
 
 #include <yt/yt/server/master/table_server/public.h>
 
@@ -306,19 +308,23 @@ void TCellBundleProxy::DoSerializeAccountViolatedResourceLimits(
 {
     auto enableTabletResourceValidation =
         Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation;
-    auto violatedResourceLimits = account->GetViolatedResourceLimits(
-        Bootstrap_,
-        enableTabletResourceValidation);
-
-    // NB: Filter out master memory and irrelevant media violations.
-    violatedResourceLimits.SetMasterMemory({});
-
-    SerializeViolatedClusterResourceLimitsInBooleanFormat(
-        violatedResourceLimits,
+    SerializeAccountResources(
         consumer,
         Bootstrap_,
-        /*serializeDiskSpace*/ false,
-        /*relevantMediumIndex*/ medium->GetIndex());
+        [&] (auto groupId, TFluentMap fluent) {
+            auto violatedResourceLimits = account->GetViolatedResourceLimits(
+                Bootstrap_,
+                enableTabletResourceValidation,
+                groupId);
+            // NB: Filter out master memory and irrelevant media violations.
+            violatedResourceLimits.SetMasterMemory({});
+            SerializeViolatedClusterResourceLimitsInBooleanFormat(
+                violatedResourceLimits,
+                fluent,
+                Bootstrap_,
+                /*serializeDiskSpace*/ false,
+                /*relevantMediumIndex*/ medium->GetIndex());
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
