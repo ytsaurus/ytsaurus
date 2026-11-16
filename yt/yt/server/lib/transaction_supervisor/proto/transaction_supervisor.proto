@@ -70,6 +70,12 @@ message TReqCoordinatorAbortTransaction
     optional string user_tag = 5;
 }
 
+message TReqCoordinatorClearTransactions
+{
+    repeated NYT.NProto.TGuid transaction_ids = 1;
+    optional bool discard_lazy_transactions = 2 [default = false];
+}
+
 message TReqParticipantPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;

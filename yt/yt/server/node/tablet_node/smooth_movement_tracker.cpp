@@ -334,7 +334,7 @@ public:
     {
         std::vector<std::string> reasons;
 
-        constexpr int ExpectedMutationHandlerCount = 74;
+        constexpr int ExpectedMutationHandlerCount = 75;
         if (Automaton_->GetRegisteredMethodCount() != ExpectedMutationHandlerCount) {
             reasons.push_back(Format(
                 "new mutation handler registered (ExpectedCount: %v, ActualCount: %v)",

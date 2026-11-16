@@ -1,0 +1,24 @@
+{
+    NUM_MASTERS = 1;
+    NUM_NODES = 4;
+    NUM_CHAOS_NODES = 1;
+    NUM_CLOCKS = 1;
+    NUM_MASTER_CACHES = 1;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    DRIVER_BACKEND = native;
+    NUM_RPC_PROXIES = 0;
+    DELTA_NODE_CONFIG = {
+        rpc_server = {
+            services = {
+                TransactionParticipantService = {
+                    methods = {
+                        CommitTransaction = {
+                            concurrency_limit = 0;
+                        };
+                    };
+                };
+            };
+        };
+    };
+}

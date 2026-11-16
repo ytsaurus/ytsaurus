@@ -105,3 +105,14 @@ message TRspGetDownedParticipants
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqClearTransactions
+{
+    repeated NYT.NProto.TGuid transaction_ids = 1;
+    optional bool discard_lazy_transactions = 2 [default = false];
+}
+
+message TRspClearTransactions
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

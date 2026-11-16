@@ -140,6 +140,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorClearTransactions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantRecordCommitTimestamp, Unretained(this)),
@@ -820,6 +822,8 @@ private:
                 .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(ClearTransactions)
+                .SetHeavy(true));
         }
 
     private:
@@ -1079,6 +1083,31 @@ private:
                 .With("DownedCellCount", downedCellIds.size());
 
             context->Reply();
+        }
+
+        //! Dangerous mutation. Do not use unless you 100% know what you are doing.
+        //! This method is created to clear stuck transactions, that are never ever going to finish.
+        //! Prerequisite to using this method is finding such stuck transactions.
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, ClearTransactions)
+        {
+            ValidatePeer(EPeerKind::Leader);
+
+            auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+
+            context->AnnotateRequest()
+                .With("TransactionCount", transactionIds.size())
+                .With("DiscardLazyTransactions", request->discard_lazy_transactions());
+
+            auto owner = GetOwnerOrThrow();
+
+            NTransactionSupervisor::NProto::TReqCoordinatorClearTransactions hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_ids(), transactionIds);
+            hydraRequest.set_discard_lazy_transactions(request->discard_lazy_transactions());
+
+            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
+            mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+            mutation->SetCurrentTraceContext();
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
 
@@ -2153,6 +2182,62 @@ private:
             .With("TransactionId", transactionId);
     }
 
+    void HydraCoordinatorClearTransactions(NTransactionSupervisor::NProto::TReqCoordinatorClearTransactions* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+
+        for (const auto& transactionId : transactionIds) {
+            auto* commit = FindPersistentCommit(transactionId);
+            if (!commit) {
+                YT_TLOG_DEBUG("Requested to clear a non-existing transaction commit; ignored")
+                    .With("TransactionId", transactionId);
+                continue;
+            }
+
+            if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy) {
+                if (!request->discard_lazy_transactions()) {
+                    YT_TLOG_WARNING("Lazy transaction clear skipped; explicit opt-in required")
+                        .With("TransactionId", transactionId);
+                    continue;
+                }
+
+                auto state = commit->GetPersistentState();
+                if (state != ECommitState::Commit && state != ECommitState::Abort) {
+                    YT_TLOG_WARNING("Lazy transaction clear skipped; transaction is not finished")
+                        .With("TransactionId", transactionId)
+                        .With("State", state);
+                    continue;
+                }
+
+                if (state == ECommitState::Commit) {
+                    auto identity = commit->AuthenticationIdentity();
+                    NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+                    try {
+                        TTransactionAbortOptions options{
+                            .Force = true,
+                        };
+                        TransactionManager_->AbortTransaction(transactionId, options);
+                    } catch (const std::exception& ex) {
+                        if (!TError(ex).FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                            YT_TLOG_WARNING("Lazy coordinator transaction could not be discarded")
+                                .With("TransactionId", transactionId)
+                                .With(ex);
+                            continue;
+                        }
+                    }
+
+                    SetCommitFailed(commit, TError(
+                        "Lazy transaction %v was discarded by an administrator",
+                        transactionId));
+                }
+            }
+
+            RemovePersistentCommit(commit);
+        }
+    }
 
     // Possible persistent transaction states:
     // Active -- ok
