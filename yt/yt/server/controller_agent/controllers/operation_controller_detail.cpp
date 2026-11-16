@@ -7910,6 +7910,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         attributeKeys.emplace_back("executable");
                         attributeKeys.emplace_back("filesystem");
                         attributeKeys.emplace_back("access_method");
+                        attributeKeys.emplace_back("primary_medium");
                         break;
 
                     case EObjectType::Table:
@@ -7999,6 +8000,23 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             if (file.Layer) {
                                 if (attributes.Get<i64>("chunk_count") == 0) {
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
+                                }
+
+                                if (!Config_->LayerMediaRestrictions.empty()) {
+                                    auto primaryMedium = attributes.Get<std::string>("primary_medium");
+                                    if (std::find(
+                                            Config_->LayerMediaRestrictions.begin(),
+                                            Config_->LayerMediaRestrictions.end(),
+                                            primaryMedium) == Config_->LayerMediaRestrictions.end())
+                                    {
+                                        THROW_ERROR_EXCEPTION(
+                                            "Layer %v is stored on medium %Qv which is not allowed on this cluster; allowed layer media: %v",
+                                            file.Path,
+                                            primaryMedium,
+                                            Config_->LayerMediaRestrictions)
+                                            .With("layer_path", file.Path.GetPath())
+                                            .With("primary_medium", primaryMedium);
+                                    }
                                 }
 
                                 auto accessMethod = file.Path.GetAccessMethod();
