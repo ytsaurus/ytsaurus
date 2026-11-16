@@ -103,6 +103,9 @@ struct TDynamicCypressManagerConfig
     // COMPAT(shakurov)
     bool EnableSequoiaNodeStateValidationInCreateLock;
 
+    // COMPAT(aleksandra-zh)
+    bool FixForceMove;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
