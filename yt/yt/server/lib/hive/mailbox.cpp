@@ -3,8 +3,6 @@
 #include "helpers.h"
 #include "persistent_mailbox_state_cookie.h"
 
-#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
-
 #include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/yt/core/misc/serialize.h>
@@ -57,8 +55,8 @@ void TPersistentMailboxState::Load(TLoadContext& context)
     if (context.GetVersion() >= 9) {
         Load(context, incomingProgress.CausalTime);
     } else {
-        // COMPAT(danilalexeev)
-        auto causalTime = GetCurrentSnapshotLoadContext()->CausalTime;
+        // COMPAT(danilalexeev): Discard legacy timestamps independently of the snapshot sequence number.
+        auto causalTime = TCausalTime(0);
         for (auto& message : outcomingMessages.Messages) {
             message.CausalTime = causalTime;
         }

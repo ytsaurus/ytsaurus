@@ -1011,6 +1011,25 @@ private:
         return channel;
     }
 
+    static TCausalTime GetCurrentMessageCausalTime()
+    {
+        auto* mutationContext = TryGetCurrentMutationContext();
+        if (!mutationContext) {
+            return GetCurrentCausalTime();
+        }
+
+        // COMPAT(danilalexeev): Legacy Hive snapshots do not retain causal timestamps.
+        constexpr TReign TabletReignRemoveHiveLogicalTime = 101607;
+        constexpr TReign ChaosReignRemoveHiveLogicalTime = 300509;
+        auto reign = mutationContext->Request().Reign;
+        if ((IsTabletReign(reign) && reign < TabletReignRemoveHiveLogicalTime) ||
+            (IsChaosReign(reign) && reign < ChaosReignRemoveHiveLogicalTime))
+        {
+            return TCausalTime(0);
+        }
+        return mutationContext->GetCausalTime();
+    }
+
     void ReliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1022,7 +1041,7 @@ private:
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
-        auto causalTime = GetCurrentCausalTime();
+        auto causalTime = GetCurrentMessageCausalTime();
 
         TReign reign = 0;
         if (mutationContext) {
@@ -2256,17 +2275,18 @@ private:
             traceContextGuard.emplace(std::move(traceContext));
         }
         auto* mutationContext = GetCurrentMutationContext();
+        auto causalTime = GetCurrentMessageCausalTime();
         YT_TLOG_DEBUG("Applying reliable incoming message")
             .With(MakeIncomingMailboxEndpointsTags(mailbox->GetEndpointId()))
             .With("MessageId", messageId)
             .With("MutationType", message.type())
             .With("SenderReign", message.reign())
-            .With("CausalTime", mutationContext->GetCausalTime())
+            .With("CausalTime", causalTime)
             .With("SequenceNumber", mutationContext->GetSequenceNumber());
 
         ApplyMessage(std::move(message), mailbox->GetEndpointId());
 
-        mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1, mutationContext->GetCausalTime());
+        mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1, causalTime);
 
         if (!IsRecovery() && mailbox->IsCell()) {
             BackgroundInvoker_->Invoke(
