@@ -557,6 +557,9 @@ void TEraseOperationOptions::Register(TRegistrar /*registrar*/)
 
 void TPushBasedShuffleOptions::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
     registrar.Parameter("seal_fallback_compression_ratio", &TThis::SealFallbackCompressionRatio)
         .GreaterThan(0.0)
         .LessThanOrEqual(1.0)
