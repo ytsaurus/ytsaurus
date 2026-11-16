@@ -128,7 +128,6 @@ pip install "ytsaurus-client[admin]"
 * [Other](../../../api/python/userdoc.md#other)
    - [gRPC](../../../api/python/userdoc.md#grpc)
    - [YSON bindings](../../../api/python/userdoc.md#yson_bindings)
-<!-- * [Deprecated](../../../api/python/userdoc.md#legacy) -->
 * [Python3 and byte strings](../../../api/python/userdoc.md#python3_strings)
 
 ### Help { #pydoc }

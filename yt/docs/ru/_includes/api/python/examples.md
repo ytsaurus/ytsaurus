@@ -8,7 +8,7 @@
 
 Современный способ работы с Python API — типизированный.
 Данные, хранящиеся в таблицах и обрабатываемые операциями, представляются в коде [классами](../../../api/python/userdoc.md#dataclass) с типизированными полями (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). Нерекомендуемый (но иногда неизбежный, особенно при работе со старыми таблицами) способ — нетипизированный, когда строки таблиц представляются словарями.
-Такой способ гораздо более медленный, чреват ошибками и неудобен при работе со сложными типами. Поэтому в данном разделе документации приведены примеры работы с типизированным API.<!-- Нетипизированные примеры можно найти в [соответствующем разделе](#untyped_tutorial). -->
+Такой способ гораздо более медленный, чреват ошибками и неудобен при работе со сложными типами. Поэтому в данном разделе документации приведены примеры работы с типизированным API. Нетипизированные примеры можно найти в [соответствующем разделе](#untyped_tutorial).
 
 ### Чтение и запись таблиц { #read_write }
 
@@ -142,3 +142,65 @@ C помощью RPC можно работать с динамическими �
 
 Документация содержится [в отдельном разделе](../../../api/python/userdoc.md#gevent).
 Пример находится в [yt/python/examples/gevent](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/gevent).
+
+## Нетипизированное API (устарело, не рекомендуется к использованию в новом коде) { #untyped_tutorial }
+
+### Простой map { #simple_map_untyped }
+
+Предположим, имеется таблица с колонками login, name, uid по адресу //home/dev/tutorial/staff_unsorted.
+Необходимо сделать таблицу с email адресами, вычислив их из логина: `email = login + "@ytsaurus.tech"`.
+
+Для решения задачи подойдёт простой mapper.
+
+Пример находится в [yt/python/examples/simple_map](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_map).
+
+### Сортировка таблицы и простая операция reduce { #sort_and_reduce_untyped }
+
+По той же таблице, что и в предыдущем примере, можно посчитать статистику — сколько раз встречается то или иное имя и самый длинный логин среди всех людей с одним именем. Для решения данной задачи хорошо подходит операция Reduce. Так как операцию Reduce можно запускать только на сортированных таблицах, сначала необходимо отсортировать исходную таблицу.
+
+Пример находится в [yt/python/examples/simple_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_reduce).
+
+### Reduce с несколькими входными таблицами { #reduce_multiple_output_untyped }
+
+Предположим, кроме таблицы с пользователями есть другая таблица, в которой записано какой пользователь является служебным. Поле is_robot принимает значения true или false.
+
+Следующая программа формирует таблицу, в которой остаются только служебные пользователи.
+
+Пример находится в [yt/python/examples/multiple_input_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/multiple_input_reduce).
+
+### Reduce с несколькими входными и несколькими выходными таблицами { #reduce_multiple_input_output_untyped }
+
+Данный пример повторяет предыдущий с той разницей, что запись будет производиться сразу в две выходные таблицы — и с пользователями-людьми, и со служебными пользователями.
+
+Пример находится в [yt/python/examples/multiple_input_multiple_output_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/multiple_input_multiple_output_reduce).
+
+### Чтение и запись таблиц { #read_write_untyped }
+
+{{product-name}} позволяет записывать данные в таблицы, а также дописывать данные в конец существующих таблиц. Для чтения таблиц доступны несколько режимов: чтение всей таблицы, чтение отдельных диапазонов по номеру строки или ключу.
+
+Пример находится в [yt/python/examples/table_read_write](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_read_write).
+
+### Операция MapReduce { #map_reduce_untyped }
+
+В {{product-name}} реализована слитная операция MapReduce, которая работает быстрее, нежели Map + Sort + Reduce. Попробуем по таблице с пользователями ещё раз посчитать статистику, сколько раз встречается то или иное имя. Перед подсчётом статистики нормализируем имена, приведя их к нижнему регистру, чтобы люди с именами `АРКАДИЙ` и `Аркадий` склеились в нашей статистике.
+
+Пример находится в [yt/python/examples/map_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/map_reduce).
+
+### Декораторы для классов- и функций-джобов { #job_decorators_untyped }
+
+Существует возможность пометить функции или классы джобов специальными декораторами, меняющими ожидаемый интерфейс взаимодействия с джобами.
+Примеры декораторов: `with_context`, `aggregator`, `reduce_aggregator`, `raw`, `raw_io`. Полное описание можно найти в [документации](../../../api/python/userdoc.md#python_decorators_untyped).
+
+Пример находится в [yt/python/examples/job_decorators](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/job_decorators).
+
+### Переключатели таблиц и контекст { #table_switches_untyped }
+
+В функциях-джобах можно переключать выходные таблицы различными способами. Например, в формате YSON выбор режима контролируется опцией `control_attributes_mode`, которая может принимать значения `iterator`, `row_fields` или `none` (подробнее можно прочитать в [разделе](../../../api/python/userdoc.md#control_attributes)). Для получения индекса строки таблицы нужно использовать декоратор `@yt.wrapper.with_context` (смотрите [документацию](../../../api/python/userdoc.md#python_decorators)) и вторым параметром в функции джоба принимать `context`.
+
+Пример находится в [yt/python/examples/table_switches](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_switches).
+
+### Работа со строками в Python3 { #yson_string_proxy }
+
+По умолчанию строки при нетипизированном чтении автоматически кодируются кодировкой utf-8, включая ключи словарей. Выбрать другую кодировку можно с помощью опции `encoding` параметра `format` операций чтения/записи. При этом если встретится байтовая строка, вернётся специальный объект типа `YsonStringProxy`. Для такого объекта все попытки работать с ним как со строкой приведут к характерной ошибке `NotUnicodeError`. Подробнее смотрите [документацию](../../../api/python/userdoc.md#python3_strings).
+
+Пример находится в [yt/python/examples/yson_string_proxy](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/yson_string_proxy).
