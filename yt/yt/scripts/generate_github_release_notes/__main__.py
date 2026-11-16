@@ -1,4 +1,5 @@
 import argparse
+import copy
 import re
 import subprocess
 import sys
@@ -6,6 +7,7 @@ import sys
 from collections import defaultdict
 
 DELIMITER = "-#-#-#-#"
+CHANGELOG_HEADING_PATTERN = re.compile(r"^ *[*#-]+ *Changelog +entry *$", re.MULTILINE | re.IGNORECASE)
 
 
 class ChangelogEntry:
@@ -34,6 +36,23 @@ def parse_changelog_entry(commit_description):
     return None
 
 
+def parse_changelog_entries(commit_description):
+    heading_starts = [match.start() for match in CHANGELOG_HEADING_PATTERN.finditer(commit_description)]
+    if len(heading_starts) < 2:
+        entry = parse_changelog_entry(commit_description)
+        return [entry] if entry else []
+
+    entries = []
+    for start, end in zip(heading_starts, heading_starts[1:] + [len(commit_description)]):
+        block = commit_description[start:end]
+        if not block.endswith("\n"):
+            block += "\n"
+        entry = parse_changelog_entry(block)
+        if entry:
+            entries.append(entry)
+    return entries
+
+
 class Commit:
     def __init__(self, commit_log, repo):
         commit_lines = commit_log.split('\n', 1)
@@ -49,6 +68,7 @@ class Commit:
         self.description = commit_description
 
         self.changelog_entry = parse_changelog_entry(self.description)
+        self.changelog_entries = parse_changelog_entries(self.description)
         self.repo = repo
 
     def get_link(self):
@@ -70,7 +90,8 @@ def get_commits(repo, since_commit, until_commit):
     result = subprocess.run(
         ['git', 'log', f'{since_commit}..{until_commit}', f'--pretty=format:%H%n%B%n{DELIMITER}'],
         capture_output=True,
-        text=True
+        text=True,
+        check=True,
     )
     commits = result.stdout.strip().split(f'\n{DELIMITER}\n')
     return [Commit(commit.strip(), repo) for commit in commits if commit.strip()]
@@ -151,8 +172,10 @@ def generate_release_notes(args):
         commits, release_notes.removed_commits = filter_commits(commits, commits_prev_release)
 
     for commit in commits:
-        if commit.changelog_entry:
-            release_notes.by_component[commit.changelog_entry.component][commit.changelog_entry.commit_type].append(commit)
+        for entry in commit.changelog_entries:
+            commit_with_entry = copy.copy(commit)
+            commit_with_entry.changelog_entry = entry
+            release_notes.by_component[entry.component][entry.commit_type].append(commit_with_entry)
 
     return release_notes
 
