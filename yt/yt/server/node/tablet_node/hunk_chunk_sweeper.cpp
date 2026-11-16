@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "global_stores_update_throttler.h"
 #include "hunk_chunk.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -23,6 +24,12 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
+
+#include <util/random/shuffle.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -43,16 +50,21 @@ class THunkChunkSweeper
 public:
     explicit THunkChunkSweeper(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
+        , GlobalStoresUpdateThrottler_(Bootstrap_->GetGlobalStoresUpdateThrottler())
     { }
 
     void Start() override
     {
         const auto& slotManager = Bootstrap_->GetSlotManager();
+        slotManager->SubscribeBeginSlotScan(BIND(&THunkChunkSweeper::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&THunkChunkSweeper::OnScanSlot, MakeStrong(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&THunkChunkSweeper::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
     IBootstrap* const Bootstrap_;
+
+    const TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
 
     const NProfiling::TProfiler Profiler_ = TabletNodeProfiler()
         .WithPrefix("/hunk_chunk_sweeper")
@@ -60,6 +72,25 @@ private:
     const NProfiling::TCounter ScheduledHunkChunkCounter_ = Profiler_.Counter("/scheduled_hunk_chunk_count");
     const NProfiling::TCounter SweptHunkChunkCounter_ = Profiler_.Counter("/swept_hunk_chunk_count");
 
+    struct TTask
+    {
+        ITabletSlotPtr Slot;
+        TTabletId TabletId;
+        IInvokerPtr EpochInvoker;
+        std::vector<THunkChunkPtr> HunkChunks;
+    };
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TaskSpinLock_);
+    std::vector<TTask> Tasks_;
+
+    std::atomic<bool> SchedulingInProgress_ = false;
+
+
+    void OnBeginSlotScan()
+    {
+        auto guard = Guard(TaskSpinLock_);
+        Tasks_.clear();
+    }
 
     void OnScanSlot(const ITabletSlotPtr& slot)
     {
@@ -78,6 +109,74 @@ private:
         }
     }
 
+    void OnEndSlotScan()
+    {
+        std::vector<TTask> tasks;
+        {
+            auto guard = Guard(TaskSpinLock_);
+            tasks.swap(Tasks_);
+        }
+
+        if (tasks.empty()) {
+            return;
+        }
+
+        if (SchedulingInProgress_.load()) {
+            const auto& Logger = TabletNodeLogger;
+            YT_TLOG_DEBUG("Tablet hunk chunks sweep scheduling is still in progress");
+            return;
+        }
+
+        SchedulingInProgress_.store(true);
+
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
+            &THunkChunkSweeper::ScheduleTasks,
+            MakeStrong(this),
+            Passed(std::move(tasks))));
+    }
+
+    void ScheduleTasks(std::vector<TTask> tasks)
+    {
+        Shuffle(tasks.begin(), tasks.end());
+
+        std::vector<TGlobalStoresUpdateThrottler::TRequest> requests;
+        requests.reserve(tasks.size());
+        for (const auto& task : tasks) {
+            requests.push_back({
+                .BundleName = task.Slot->GetTabletCellBundleName(),
+                .CellTag = CellTagFromId(task.TabletId),
+                .StoreCount = static_cast<int>(ssize(task.HunkChunks)),
+            });
+        }
+
+        auto throttleResult = GlobalStoresUpdateThrottler_->Throttle(
+            requests,
+            ETabletStoresUpdateReason::Sweep);
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(tasks.size());
+        for (auto&& [task, isThrottlerAcquired] : Zip(tasks, throttleResult)) {
+            if (!isThrottlerAcquired) {
+                continue;
+            }
+
+            ScheduledHunkChunkCounter_.Increment(ssize(task.HunkChunks));
+            futures.push_back(BIND(
+                &THunkChunkSweeper::SweepHunkChunks,
+                MakeStrong(this),
+                Passed(std::move(task.Slot)),
+                task.TabletId,
+                Passed(std::move(task.HunkChunks)))
+                .AsyncVia(task.EpochInvoker)
+                .Run());
+        }
+
+        AllSet(std::move(futures))
+            .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TError>>&) {
+                SchedulingInProgress_.store(false);
+            }));
+    }
+
     void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
@@ -89,18 +188,13 @@ private:
             return;
         }
 
-        for (const auto& hunkChunk : hunkChunks) {
-            BeginHunkChunkSweep(hunkChunk);
-        }
-
-        ScheduledHunkChunkCounter_.Increment(hunkChunks.size());
-
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
-            &THunkChunkSweeper::SweepHunkChunks,
-            MakeStrong(this),
-            slot,
-            tablet,
-            std::move(hunkChunks)));
+        auto guard = Guard(TaskSpinLock_);
+        Tasks_.push_back(TTask{
+            .Slot = slot,
+            .TabletId = tablet->GetId(),
+            .EpochInvoker = tablet->GetEpochAutomatonInvoker(),
+            .HunkChunks = std::move(hunkChunks),
+        });
     }
 
     std::vector<THunkChunkPtr> PickHunkChunksForSweep(TTablet* tablet)
@@ -131,14 +225,34 @@ private:
     }
 
     void SweepHunkChunks(
-        const ITabletSlotPtr& slot,
-        TTablet* tablet,
-        const std::vector<THunkChunkPtr>& hunkChunks)
+        ITabletSlotPtr slot,
+        TTabletId tabletId,
+        std::vector<THunkChunkPtr> hunkChunks)
     {
-        auto tabletId = tablet->GetId();
+        auto Logger = TabletNodeLogger();
 
-        auto Logger = TabletNodeLogger()
-            .WithTags(tablet->GetLoggingTags());
+        const auto& tabletManager = slot->GetTabletManager();
+        auto* tablet = tabletManager->FindTablet(tabletId);
+        if (!tablet) {
+            YT_TLOG_DEBUG("Tablet is missing; aborting hunk chunks sweep")
+                .With("TabletId", tabletId);
+            return;
+        }
+
+        Logger.AddTags(tablet->GetLoggingTags());
+
+        std::erase_if(hunkChunks, [] (const THunkChunkPtr& hunkChunk) {
+            return hunkChunk->GetSweepState() != EHunkChunkSweepState::None;
+        });
+
+        if (hunkChunks.empty()) {
+            YT_TLOG_DEBUG("No hunk chunks left to sweep; aborting hunk chunks sweep");
+            return;
+        }
+
+        for (const auto& hunkChunk : hunkChunks) {
+            BeginHunkChunkSweep(hunkChunk);
+        }
 
         try {
             YT_TLOG_INFO("Sweeping tablet hunk chunks")
@@ -188,7 +302,6 @@ private:
             transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            const auto& tabletManager = slot->GetTabletManager();
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
 

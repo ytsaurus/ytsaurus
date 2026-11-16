@@ -990,10 +990,7 @@ public:
             Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
-        , GlobalStoresUpdateThrottler_(New<TGlobalStoresUpdateThrottler>(
-            /*config*/ nullptr,
-            Bootstrap_->GetConnection(),
-            Profiler_))
+        , GlobalStoresUpdateThrottler_(Bootstrap_->GetGlobalStoresUpdateThrottler())
     {
         Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -1301,7 +1298,6 @@ private:
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);
         CompactionOrchid_->Reconfigure(config->Orchid);
-        GlobalStoresUpdateThrottler_->Reconfigure(newNodeConfig->GlobalStoresUpdateThrottler);
 
         {
             auto guard = WriterGuard(PoolNamesLock_);
@@ -1475,14 +1471,14 @@ private:
         void (TStoreCompactor::*action)(TCompactionTask*),
         ETabletStoresUpdateReason updateReason)
     {
-        auto throttlerAcquired = ThrottleStoresUpdateAtMaster(tasks, semaphore, updateReason);
+        auto throttleResult = ThrottleStoresUpdateAtMaster(tasks, semaphore, updateReason);
 
         auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
-        YT_VERIFY(tasks->size() >= throttlerAcquired.size());
-        for (auto&& [task, isThrottlerAcquired] : Zip(*tasks, throttlerAcquired)) {
+        YT_VERIFY(tasks->size() >= throttleResult.size());
+        for (auto&& [task, isThrottlerAcquired] : Zip(*tasks, throttleResult)) {
             if (!isThrottlerAcquired) {
                 continue;
             }

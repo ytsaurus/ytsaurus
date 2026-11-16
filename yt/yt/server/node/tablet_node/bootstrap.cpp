@@ -8,6 +8,7 @@
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "error_manager.h"
+#include "global_stores_update_throttler.h"
 #include "hedging_manager_registry.h"
 #include "hint_manager.h"
 #include "hunk_chunk_sweeper.h"
@@ -262,6 +263,11 @@ public:
 
         CompactionHintFetchThrottlers_ = New<TCompactionHintFetchThrottlers>(
             GetTabletNodeDynamicConfig()->StoreCompactor->CompactionHintFetchers);
+
+        GlobalStoresUpdateThrottler_ = New<TGlobalStoresUpdateThrottler>(
+            GetTabletNodeDynamicConfig()->GlobalStoresUpdateThrottler,
+            GetConnection(),
+            TabletNodeProfiler().WithPrefix("/global_stores_update_throttler"));
 
         auto selfAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort);
         DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
@@ -564,6 +570,11 @@ public:
         return CompactionHintFetchThrottlers_;
     }
 
+    const TGlobalStoresUpdateThrottlerPtr& GetGlobalStoresUpdateThrottler() const override
+    {
+        return GlobalStoresUpdateThrottler_;
+    }
+
     const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const override
     {
         return DistributedThrottlerManager_;
@@ -668,6 +679,7 @@ private:
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
     TCompactionHintFetchThrottlersPtr CompactionHintFetchThrottlers_;
+    TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
     IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     IMediumThrottlerManagerFactoryPtr MediumThrottlerManagerFactory_;
 
@@ -716,6 +728,8 @@ private:
 
         CompactionHintFetchThrottlers_->Reconfigure(
             tabletNodeConfig->StoreCompactor->CompactionHintFetchers);
+
+        GlobalStoresUpdateThrottler_->Reconfigure(tabletNodeConfig->GlobalStoresUpdateThrottler);
 
         TableReplicatorThreadPool_->SetThreadCount(
             tabletNodeConfig->TabletManager->ReplicatorThreadPoolSize.value_or(
