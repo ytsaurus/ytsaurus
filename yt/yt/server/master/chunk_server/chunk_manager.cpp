@@ -4634,7 +4634,7 @@ private:
             }
 
             if (auto replicaWithoutState = TChunkPtrWithReplicaIndex(replica);
-                validation && location->HasUnapprovedReplica(replicaWithoutState))
+                location->HasUnapprovedReplica(replicaWithoutState))
             {
                 continue;
             }
