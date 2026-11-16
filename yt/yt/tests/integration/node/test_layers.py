@@ -869,6 +869,62 @@ class TestLayers(TestPortoLayersBase):
             assert b"static-bin" in stderr
 
 
+class TestLayerMediaRestrictions(TestPortoLayersBase):
+    MEDIUM_CONFIG = {
+        "default": {},
+        "ssd": {},
+    }
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize(
+        "allowed_media, user_layer, system_layer, expect_reject",
+        [
+            pytest.param(["ssd"], "//tmp/layer_hdd", None, True, id="hdd_layer"),
+            pytest.param(["ssd"], "//tmp/layer_ssd", None, False, id="ssd_layer"),
+            pytest.param(["ssd"], "//tmp/layer_ssd", "//tmp/layer_hdd", True, id="hdd_system_layer"),
+            pytest.param([], "//tmp/layer_hdd", None, False, id="no_restrictions"),
+        ],
+    )
+    def test_layer_media_restrictions(self, allowed_media, user_layer, system_layer, expect_reject):
+        create_account("ssd_account")
+        set_account_disk_space_limit("ssd_account", 1024 ** 3, "ssd")
+
+        create("file", "//tmp/layer_ssd", attributes={"primary_medium": "ssd", "account": "ssd_account"})
+        write_file("//tmp/layer_ssd", open("layers/static-bin.tar", "rb").read())
+
+        create("file", "//tmp/layer_hdd")
+        write_file("//tmp/layer_hdd", open("layers/static-bin.tar", "rb").read())
+
+        create("file", "//tmp/rootfs_ssd", attributes={"primary_medium": "ssd", "account": "ssd_account"})
+        with open("rootfs/rootfs.tar.gz", "rb") as rootfsFile:
+            write_file("//tmp/rootfs_ssd", None, input_stream=rootfsFile)
+
+        update_controller_agent_config("system_layer_path", system_layer)
+        update_controller_agent_config("layer_media_restrictions", allowed_media)
+
+        op = vanilla(
+            track=False,
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "layer_paths": [user_layer, "//tmp/rootfs_ssd"],
+                        "command": "echo LAYER_OK",
+                    },
+                },
+            },
+        )
+        if expect_reject:
+            with raises_yt_error("which is not allowed on this cluster"):
+                op.track()
+            assert op.get_state() == "failed"
+        else:
+            op.track()
+            assert op.get_job_count("completed") == 1
+
+
 class TestRootFS(TestLayersBase):
     USE_PORTO = True
 

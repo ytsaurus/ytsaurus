@@ -1422,6 +1422,11 @@ struct TControllerAgentConfig
     //! If |true|, operations on tables whose primary medium is S3 (offshore) are forbidden.
     bool ForbidOperationsOnOffshoreMedia;
 
+    //! If non-empty, layers (both user-specified and controller-provided) are required
+    //! to reside on one of these media. The check is performed by the primary_medium
+    //! attribute of the layer node at operation initialization. Empty = no restrictions.
+    std::vector<std::string> LayerMediaRestrictions;
+
     // COMPAT(kvk1920)
     bool UseLazyTransactionExternalization;
 
