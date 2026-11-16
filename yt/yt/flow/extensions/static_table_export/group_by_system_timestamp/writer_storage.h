@@ -183,6 +183,8 @@ public:
     void AbortStream(const TStaticTableExportWindowStreamPtr& stream);
 
     TStaticTableExportProgressPtr Bootstrap(int partitionCount, ui64 closedThrough);
+    //! Extends the export to |partitionCount| source partitions; the added ones start at their first exported offset.
+    void AddPartitions(int partitionCount);
     bool HasCurrentSchema(const TStaticTableExportProgressPtr& progress) const;
     //! Alters the unpublished gates to the current schema; returns false when a writer still holds one.
     bool MigrateSchema();

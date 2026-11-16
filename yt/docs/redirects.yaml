@@ -1044,6 +1044,10 @@ ru:
       to: /flow/extensions/monium.md
       type: redirect
 
+    - from: /flow/extensions/logbroker-static-table-export.md
+      to: /flow/extensions/static-table-export.md
+      type: redirect
+
     - from: /flow/file-providers/sandbox.md
       to: /flow/extensions/sandbox.md
       type: redirect

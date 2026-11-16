@@ -92,10 +92,21 @@ void TStaticTableExportPublisher::Publish()
             Storage_->Bootstrap(input.PartitionCount, closedThrough);
             return;
         }
-        THROW_ERROR_EXCEPTION_UNLESS(progress->PartitionCount == input.PartitionCount,
-            "Static table export source partition count changed from %v to %v",
+
+        THROW_ERROR_EXCEPTION_IF(input.PartitionCount < progress->PartitionCount,
+            "Static table export source partition count decreased from %v to %v",
             progress->PartitionCount,
             input.PartitionCount);
+
+        // Writers of an added partition cannot claim it before the state includes it, so none of its messages is acknowledged yet.
+        if (input.PartitionCount > progress->PartitionCount) {
+            Storage_->AddPartitions(input.PartitionCount);
+
+            YT_TLOG_INFO("Added static table export source partitions")
+                .With("PartitionCount", input.PartitionCount);
+
+            return;
+        }
         // Writers of the current schema wait for the migration, so it cannot wait for a closable window.
         if (!Storage_->HasCurrentSchema(progress)) {
             if (!Storage_->MigrateSchema()) {
