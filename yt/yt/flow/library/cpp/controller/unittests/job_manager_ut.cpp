@@ -79,9 +79,6 @@ public:
         return OKFuture;
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
-
     TResourceRevisionState GetRevisionState() const override
     {
         return {};
@@ -113,6 +110,12 @@ class TCapturingResourceController
     : public IResourceController
 {
 public:
+    static THashMap<std::string, TWorkerStatusPtr> WorkerStatuses;
+    static std::optional<i64> PublishedRevisionId;
+    static TFuture<void> Discovery;
+    static std::optional<std::string> TargetSpec;
+    static i64 TargetRevisionId;
+
     TCapturingResourceController(
         TResourceControllerContextPtr /*context*/,
         TDynamicResourceControllerContextPtr /*dynamicContext*/)
@@ -121,10 +124,22 @@ public:
     void Init(IInitContextPtr /*initContext*/) override
     { }
 
+    TFuture<void> GetPreparingFuture() override
+    {
+        return Discovery;
+    }
+
     TResourceRevisionPtr BuildTargetRevision() override
     {
+        auto result = Discovery.TryGet();
+        THROW_ERROR_EXCEPTION_UNLESS(result, "Resource discovery is pending");
+        result->ThrowOnError();
+        if (!TargetSpec) {
+            return nullptr;
+        }
         auto revision = New<TResourceRevision>();
-        revision->Spec = NYTree::ConvertToNode("target");
+        revision->RevisionId = TargetRevisionId;
+        revision->Spec = NYTree::ConvertToNode(*TargetSpec);
         return revision;
     }
 
@@ -146,10 +161,10 @@ public:
     {
         WorkerStatuses.clear();
         PublishedRevisionId.reset();
+        Discovery = OKFuture;
+        TargetSpec = "target";
+        TargetRevisionId = 123;
     }
-
-    static THashMap<std::string, TWorkerStatusPtr> WorkerStatuses;
-    static std::optional<i64> PublishedRevisionId;
 
 protected:
     TParametersPtr GetParametersBase() const override
@@ -165,6 +180,9 @@ protected:
 
 THashMap<std::string, TWorkerStatusPtr> TCapturingResourceController::WorkerStatuses;
 std::optional<i64> TCapturingResourceController::PublishedRevisionId;
+TFuture<void> TCapturingResourceController::Discovery;
+std::optional<std::string> TCapturingResourceController::TargetSpec;
+i64 TCapturingResourceController::TargetRevisionId = 123;
 
 class TCapturingResource
     : public TSimpleResource
@@ -305,6 +323,7 @@ public:
 
     void SetUp() override
     {
+        TCapturingResourceController::Reset();
         Reset();
     }
 
@@ -410,6 +429,7 @@ TEST_F(TJobManagerTest, ResourceControllerFeedbackIsFencedByWorkerIncarnation)
     auto spec = New<TPipelineSpec>();
     spec->Resources[resourceId] = MakeCapturingResourceSpec();
     Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
 
     const std::string workerAddress = "worker";
     auto worker = New<NFlow::TWorker>();
@@ -445,78 +465,181 @@ TEST_F(TJobManagerTest, ResourceControllerFeedbackIsFencedByWorkerIncarnation)
     EXPECT_EQ(capturedStatus->ResourceStatuses.at(resourceId), resourceStatus);
 }
 
-TEST_F(TJobManagerTest, OnlyChangedDynamicResourceSpecBumpsPublishedRevision)
+TEST_F(TJobManagerTest, PublishesControllerRevisionWithoutReassigningId)
 {
     const TResourceId resourceId("resource");
     auto spec = New<TPipelineSpec>();
     spec->Resources[resourceId] = MakeCapturingResourceSpec();
-    auto dynamicSpec = New<TDynamicPipelineSpec>();
-    Prepare(spec, dynamicSpec);
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    const auto& targets = FlowView->State->ExecutionSpec->ResourceTargetRevisions;
 
     JobManager->UpdateResourceControllers(FlowView);
-    const auto firstRevisionId = GetOrCrash(
-        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
-        resourceId)
-        ->RevisionId;
-
-    auto unrelatedDynamicSpec = CloneYsonStruct(dynamicSpec);
-    unrelatedDynamicSpec->JobManager->MinimumWorkerCount = 2;
-    JobManager->Reconfigure(unrelatedDynamicSpec);
+    EXPECT_EQ(GetOrCrash(targets->GetValue(), resourceId)->RevisionId,
+        TCapturingResourceController::TargetRevisionId);
+    auto version = targets->GetVersion();
     JobManager->UpdateResourceControllers(FlowView);
-    const auto secondRevisionId = GetOrCrash(
-        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
-        resourceId)
-        ->RevisionId;
+    EXPECT_EQ(targets->GetVersion(), version);
 
-    EXPECT_EQ(secondRevisionId, firstRevisionId);
-
-    auto changedDynamicSpec = CloneYsonStruct(unrelatedDynamicSpec);
-    auto dynamicResourceSpec = New<TDynamicResourceSpec>();
-    dynamicResourceSpec->FileProviderDiscoverPeriod = TDuration::Seconds(31);
-    changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
-    JobManager->Reconfigure(changedDynamicSpec);
+    ++TCapturingResourceController::TargetRevisionId;
     JobManager->UpdateResourceControllers(FlowView);
-    const auto thirdRevisionId = GetOrCrash(
-        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
-        resourceId)
-        ->RevisionId;
-
-    EXPECT_GT(thirdRevisionId, secondRevisionId);
+    EXPECT_EQ(GetOrCrash(targets->GetValue(), resourceId)->RevisionId,
+        TCapturingResourceController::TargetRevisionId);
+    EXPECT_GT(targets->GetVersion(), version);
 }
 
-TEST_F(TJobManagerTest, RestoresPublishedResourceRevisionAfterRestartAndEarlyReconfigure)
+TEST_F(TJobManagerTest, CreatesResourceInstancesWhileDiscoveryIsPending)
 {
     const TResourceId resourceId("resource");
     auto spec = New<TPipelineSpec>();
     spec->Resources[resourceId] = MakeCapturingResourceSpec();
-    auto dynamicSpec = New<TDynamicPipelineSpec>();
-    Prepare(spec, dynamicSpec);
+    auto computation = CreateGenericComputationSpec<TSimpleComputation>();
+    auto requirement = New<TResourceDescription>();
+    requirement->Controller = false;
+    requirement->Worker = true;
+    computation->RequiredResourceIds[resourceId] = requirement;
+    spec->Computations[TComputationId("computation")] = computation;
+    Prepare(spec, New<TDynamicPipelineSpec>());
 
+    auto worker = New<NFlow::TWorker>();
+    worker->RpcAddress = "worker";
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
+    FlowView->State->Workers[worker->RpcAddress] = worker;
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    auto discovery = NewPromise<void>();
+    TCapturingResourceController::Discovery = discovery.ToFuture();
+
+    FlowView->State->StartMutation();
     JobManager->UpdateResourceControllers(FlowView);
-    const auto firstRevisionId = GetOrCrash(
-        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
-        resourceId)
-        ->RevisionId;
+    JobManager->CheckCompletedPartitions(FlowView);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->PipelineState->GetValue(), EPipelineState::Working);
+    EXPECT_EQ(layout->ResourceInstances.size(), 1);
+    EXPECT_TRUE(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue().empty());
+    FlowView->State->CommitMutation();
 
-    JobManager = CreateJobManager(
-        JobManagerContext,
-        spec,
-        dynamicSpec,
-        FlowView->State->JobManagerState,
-        /*authenticator*/ nullptr);
-
-    auto changedDynamicSpec = CloneYsonStruct(dynamicSpec);
-    auto dynamicResourceSpec = New<TDynamicResourceSpec>();
-    dynamicResourceSpec->FileProviderDiscoverPeriod = TDuration::Seconds(31);
-    changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
-    JobManager->Reconfigure(changedDynamicSpec);
+    discovery.Set();
+    FlowView->State->StartMutation();
     JobManager->UpdateResourceControllers(FlowView);
-    const auto secondRevisionId = GetOrCrash(
-        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
-        resourceId)
-        ->RevisionId;
+    JobManager->CheckCompletedPartitions(FlowView);
+    ASSERT_EQ(layout->ResourceInstances.size(), 1);
+    EXPECT_TRUE(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue().contains(resourceId));
+    auto instanceId = layout->ResourceInstances.begin()->first;
+    FlowView->State->CommitMutation();
 
-    EXPECT_EQ(secondRevisionId, firstRevisionId);
+    auto nextDiscovery = NewPromise<void>();
+    TCapturingResourceController::Discovery = nextDiscovery.ToFuture();
+    FlowView->State->StartMutation();
+    JobManager->UpdateResourceControllers(FlowView);
+    JobManager->CheckCompletedPartitions(FlowView);
+    EXPECT_EQ(layout->ResourceInstances.size(), 1);
+    EXPECT_TRUE(layout->ResourceInstances.contains(instanceId));
+    FlowView->State->CommitMutation();
+}
+
+TEST_F(TJobManagerTest, KeepsPublishedTargetWhileDiscoveryIsPendingOrRejected)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto& targets = FlowView->State->ExecutionSpec->ResourceTargetRevisions;
+    auto version = targets->GetVersion();
+    auto revision = GetOrCrash(targets->GetValue(), resourceId)->RevisionId;
+
+    auto discovery = NewPromise<void>();
+    TCapturingResourceController::Discovery = discovery.ToFuture();
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_EQ(targets->GetVersion(), version);
+    EXPECT_EQ(GetOrCrash(targets->GetValue(), resourceId)->RevisionId, revision);
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains("/resource_controllers/resource/target_revision"));
+
+    TCapturingResourceController::Discovery = MakeFuture<void>(TError("Rejected resource parameters"));
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_EQ(targets->GetVersion(), version);
+    EXPECT_EQ(GetOrCrash(targets->GetValue(), resourceId)->RevisionId, revision);
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains("/resource_controllers/resource/target_revision"));
+
+    TCapturingResourceController::Discovery = OKFuture;
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_EQ(targets->GetVersion(), version);
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+}
+
+TEST_F(TJobManagerTest, SuccessfulNullClearsPublishedResourceTarget)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    JobManager->UpdateResourceControllers(FlowView);
+    ASSERT_TRUE(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue().contains(resourceId));
+
+    TCapturingResourceController::TargetSpec.reset();
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_TRUE(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue().empty());
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+}
+
+TEST_F(TJobManagerTest, DiscardedPublicationDoesNotReplaceCommittedTarget)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    JobManager->UpdateResourceControllers(FlowView);
+    auto committedState = FlowView->State;
+    auto committedTarget = GetOrCrash(committedState->ExecutionSpec->ResourceTargetRevisions->GetValue(), resourceId);
+
+    FlowView->State = committedState->Clone();
+    TCapturingResourceController::TargetSpec = "replacement";
+    ++TCapturingResourceController::TargetRevisionId;
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_GT(GetOrCrash(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(), resourceId)->RevisionId,
+        committedTarget->RevisionId);
+
+    FlowView->State = committedState;
+    auto discovery = NewPromise<void>();
+    TCapturingResourceController::Discovery = discovery.ToFuture();
+    JobManager->UpdateResourceControllers(FlowView);
+    auto target = GetOrCrash(FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(), resourceId);
+    EXPECT_EQ(target->RevisionId, committedTarget->RevisionId);
+    EXPECT_TRUE(NYTree::AreNodesEqual(target->Spec, committedTarget->Spec));
+}
+
+TEST_F(TJobManagerTest, InactivePipelineDoesNotRepublishResourceTargets)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+    const auto& executionSpec = FlowView->State->ExecutionSpec;
+    const auto& targets = executionSpec->ResourceTargetRevisions;
+
+    for (auto state : {EPipelineState::Stopped, EPipelineState::Paused, EPipelineState::Completed}) {
+        JobManager->UpdateResourceControllers(FlowView);
+        ASSERT_TRUE(targets->GetValue().contains(resourceId));
+        auto revisionId = GetOrCrash(targets->GetValue(), resourceId)->RevisionId;
+        executionSpec->PipelineState->TrySetValue(state, TestVersionProvider());
+        JobManager->UpdateResourceControllers(FlowView);
+        EXPECT_TRUE(targets->GetValue().empty());
+        JobManager->UpdateResourceControllers(FlowView);
+        EXPECT_TRUE(targets->GetValue().empty());
+
+        auto discovery = NewPromise<void>();
+        TCapturingResourceController::Discovery = discovery.ToFuture();
+        executionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+        JobManager->UpdateResourceControllers(FlowView);
+        EXPECT_TRUE(targets->GetValue().empty());
+        discovery.Set();
+        JobManager->UpdateResourceControllers(FlowView);
+        EXPECT_EQ(GetOrCrash(targets->GetValue(), resourceId)->RevisionId, revisionId);
+    }
 }
 
 TEST_F(TJobManagerTest, ReportsEachWorkerGroupMinimum)

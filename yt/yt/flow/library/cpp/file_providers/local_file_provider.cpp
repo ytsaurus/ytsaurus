@@ -43,7 +43,7 @@ void TLocalFileProviderParameters::Register(TRegistrar registrar)
         .NonEmpty();
 }
 
-TFuture<TFileProviderRevisionPtr> TLocalFileProvider::Discover()
+TFuture<TFileProviderDiscoveryResult> TLocalFileProvider::Discover()
 {
     const auto& path = GetParameters()->Path;
     auto basename = std::string(TFsPath(path).Basename());
@@ -59,7 +59,7 @@ TFuture<TFileProviderRevisionPtr> TLocalFileProvider::Discover()
         Format("local_file:v1:%v", path));
     revision->DisplayVersion = path;
     revision->Locator = ConvertToNode(locator)->AsMap();
-    return MakeFuture<TFileProviderRevisionPtr>(std::move(revision));
+    return MakeFuture(TFileProviderDiscoveryResult{.Revision = std::move(revision)});
 }
 
 TFuture<void> TLocalFileProvider::Download(

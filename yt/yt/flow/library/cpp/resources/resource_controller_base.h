@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/common/resource_controller.h>
 
+#include <yt/yt/core/actions/future.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,7 @@ public:
     ~TResourceControllerBase() override;
 
     void Init(IInitContextPtr initContext) final;
+    TFuture<void> GetPreparingFuture() final;
     TResourceRevisionPtr BuildTargetRevision() final;
     void CollectStatuses(
         const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
@@ -64,6 +67,7 @@ private:
     const NYTree::TYsonStructPtr Parameters_;
     TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;
     const TIntrusivePtr<TFileProviderDiscovery> FileProviderDiscovery_;
+    TResourceRevisionPtr TargetRevision_;
 
 protected:
     NLogging::TLogger Logger;

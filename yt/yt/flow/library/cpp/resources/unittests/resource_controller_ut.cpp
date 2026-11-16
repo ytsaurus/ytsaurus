@@ -8,6 +8,10 @@
 #include <yt/yt/flow/library/cpp/common/resource_controller.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/type_name.h>
@@ -44,9 +48,11 @@ public:
 
     using TResourceControllerBase::TResourceControllerBase;
 
+    INodePtr TargetSpec;
+
     INodePtr DoBuildTargetRevisionSpec() override
     {
-        return nullptr;
+        return TargetSpec;
     }
 
     void DoCollectStatuses(
@@ -97,6 +103,8 @@ TResourceControllerContextPtr MakeControllerContext(const TResourceSpecPtr& spec
     auto context = New<TResourceControllerContext>();
     context->ResourceId = TResourceId("TestResource");
     context->ResourceSpec = spec;
+    context->Invoker = GetSyncInvoker();
+    context->VersionProvider = TestVersionProvider();
     return context;
 }
 
@@ -132,6 +140,10 @@ TEST(TResourceControllerRegistryTest, PlainResourceGetsBaseController)
         MakeDynamicControllerContext());
     ASSERT_TRUE(controller);
     EXPECT_TRUE(DynamicPointerCast<TResourceControllerBase>(controller));
+    controller->Init(nullptr);
+    ASSERT_TRUE(controller->GetPreparingFuture().IsSet());
+    NConcurrency::WaitFor(controller->GetPreparingFuture())
+        .ThrowOnError();
     EXPECT_FALSE(controller->BuildTargetRevision());
     EXPECT_FALSE(controller->GetView());
 }
@@ -147,6 +159,42 @@ TEST(TResourceControllerRegistryTest, ControllableResourceCreatesController)
     auto typedController = DynamicPointerCast<TChannelController>(controller);
     ASSERT_TRUE(typedController);
     EXPECT_EQ(typedController->GetParameters()->Tag, "from-spec");
+}
+
+TEST(TResourceControllerRegistryTest, TargetRevisionIdentityFollowsContentAndReconfiguration)
+{
+    auto context = MakeControllerContext(MakeResourceSpec(TypeName<TChannelResource>(), "{}"));
+    auto dynamicContext = MakeDynamicControllerContext();
+    auto controller = New<TChannelController>(context, dynamicContext);
+    controller->TargetSpec = ConvertToNode("first");
+    controller->Init(nullptr);
+    auto build = [&] {
+        return controller->BuildTargetRevision();
+    };
+
+    auto first = build();
+    ASSERT_TRUE(first);
+    EXPECT_GT(first->RevisionId, 0);
+    EXPECT_EQ(build(), first);
+
+    controller->TargetSpec->AsString()->SetValue("second");
+    auto second = build();
+    EXPECT_GT(second->RevisionId, first->RevisionId);
+    EXPECT_EQ(ConvertTo<std::string>(first->Spec), "first");
+    EXPECT_EQ(build(), second);
+
+    auto changedContext = MakeDynamicControllerContext();
+    changedContext->DynamicResourceSpec->FileProviderDiscoverPeriod = TDuration::Seconds(31);
+    controller->Reconfigure(changedContext);
+    auto reconfigured = build();
+    EXPECT_GT(reconfigured->RevisionId, second->RevisionId);
+    EXPECT_TRUE(AreNodesEqual(reconfigured->Spec, second->Spec));
+    EXPECT_EQ(build(), reconfigured);
+
+    controller = New<TChannelController>(context, changedContext);
+    controller->TargetSpec = ConvertToNode("second");
+    controller->Init(nullptr);
+    EXPECT_GT(build()->RevisionId, reconfigured->RevisionId);
 }
 
 TEST(TResourceBaseTest, RevisionStateFollowsDeliveredTarget)

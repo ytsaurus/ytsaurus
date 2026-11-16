@@ -51,9 +51,6 @@ public:
         return OKFuture;
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
-
     void AddItem(std::string item)
     {
         Items_.push_back(std::move(item));
@@ -108,9 +105,6 @@ public:
         return OKFuture;
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
-
     size_t GetDependenciesCount() const
     {
         return Spec_->Dependencies.size();
@@ -150,16 +144,15 @@ class TReconfigurableResource
 public:
     TReconfigurableResource(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
         : Spec_(context->ResourceSpec)
-    { }
+    {
+        SubscribeReconfigured(BIND([this] (const TDynamicResourceContextPtr&) {
+            ++ReconfigureCount_;
+        }));
+    }
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
         return OKFuture;
-    }
-
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    {
-        ++ReconfigureCount_;
     }
 
     int GetReconfigureCount() const
@@ -228,9 +221,6 @@ public:
         LoadStarted_ = true;
         return LoadPromise_.ToFuture();
     }
-
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
 
     TResourceRevisionState GetRevisionState() const override
     {
@@ -319,17 +309,16 @@ public:
         : ResourceInstanceId_(context->ResourceInstanceId)
         , ResourceIncarnationGeneration_(context->ResourceIncarnationGeneration)
         , DynamicContext_(std::move(dynamicContext))
-    { }
+    {
+        SubscribeReconfigured(BIND([this] (const TDynamicResourceContextPtr& context) {
+            ++ReconfigureCount_;
+            DynamicContext_ = context;
+        }));
+    }
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
         return OKFuture;
-    }
-
-    void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) override
-    {
-        ++ReconfigureCount_;
-        DynamicContext_ = dynamicContext;
     }
 
     TResourceRevisionState GetRevisionState() const override
@@ -595,6 +584,28 @@ TEST_F(TResourceManagerTest, ReconfigureBasic)
     resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
+}
+
+TEST_F(TResourceManagerTest, ReconfigureIsolatesResourceErrors)
+{
+    auto manager = CreateManager({
+        {"first", BuildReconfigurableResourceSpec()},
+        {"second", BuildReconfigurableResourceSpec()},
+    });
+    int attempts = 0;
+    for (const auto& id : {TResourceId("first"), TResourceId("second")}) {
+        manager->Get(id)->SubscribeReconfigured(BIND([&] (const TDynamicResourceContextPtr&) {
+            ++attempts;
+            THROW_ERROR_EXCEPTION("Reconfiguration failed");
+        }));
+    }
+
+    THashMap<TResourceId, TDynamicResourceSpecPtr> specs{
+        {"first", BuildDynamicResourceSpec("updated")},
+        {"second", BuildDynamicResourceSpec("updated")},
+    };
+    EXPECT_NO_THROW(manager->Reconfigure(specs, /*targetRevisions*/ {}));
+    EXPECT_EQ(attempts, 2);
 }
 
 TEST_F(TResourceManagerTest, ReconfigureSkipsUnchangedSpec)

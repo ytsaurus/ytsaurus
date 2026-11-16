@@ -112,9 +112,10 @@ class TestFileResourceLifecycle(FlowTestBase):
         return table_path
 
     def write_cypress_file(self, path, data):
-        if not self.client.exists(path):
-            self.client.create("file", path)
-        self.client.write_file(path, data)
+        with self.client.Transaction():
+            if not self.client.exists(path):
+                self.client.create("file", path)
+            self.client.write_file(path, data)
 
     def make_node_config(
         self,
@@ -242,16 +243,23 @@ class TestFileResourceLifecycle(FlowTestBase):
         return sum(1 for root, _, files in os.walk(cache_path) if "manifest.yson" in files and os.path.basename(root))
 
     @pytest.mark.authors(["mikari"])
-    @pytest.mark.parametrize("directory_last", [False, True])
-    @pytest.mark.parametrize("restart_workers", [False, True])
-    def test_static_spec_change_requires_new_discovery(self, directory_last, restart_workers):
+    @pytest.mark.parametrize("directory_last,dynamic_pin", [(False, False), (True, False), (True, True)])
+    @pytest.mark.parametrize(
+        "pause,restart_controller,restart_workers",
+        [(False, False, False), (False, True, False), (False, True, True), (True, False, False)],
+    )
+    def test_spec_change_requires_new_discovery(
+        self, directory_last, restart_controller, restart_workers, dynamic_pin, pause
+    ):
         old_directory = f"{self.work_yt_path}/old"
-        new_directory = f"{self.work_yt_path}/new"
+        new_directory = old_directory if dynamic_pin else f"{self.work_yt_path}/new"
+        new_name = "pinned" if dynamic_pin else "file"
+        new_file = f"{new_directory}/{new_name}"
         self.client.create("map_node", old_directory)
         self.write_cypress_file(f"{old_directory}/file", b"first")
         provider_class = "TYTDirectoryLastFileProvider" if directory_last else "TYTFileProvider"
         old_path = old_directory if directory_last else f"{old_directory}/file"
-        new_path = new_directory if directory_last else f"{new_directory}/file"
+        new_path = new_directory if directory_last else new_file
         pipeline = self.prepare_pipeline(f"NYT::NFlow::{provider_class}", f"<cluster=primary>{old_path}")
         config = get_yson_config(pipeline)
         config["spec"]["resources"]["text"]["always_on"] = True
@@ -287,15 +295,28 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("before")
             self.wait_output("before", "first")
             wait_active()
-            self.client.stop_pipeline(self.pipeline_path)
-            self.wait_pipeline_state("stopped")
-            current = self.client.get_pipeline_spec(self.pipeline_path)
-            current["spec"]["resources"]["text"]["file_providers"]["file"]["parameters"][
-                "path"
-            ] = f"<cluster=primary>{new_path}"
-            self.client.set_pipeline_spec(self.pipeline_path, current["spec"], expected_version=current["version"])
-            federation.controllers[0].restart()
-            self.wait_pipeline_state("stopped")
+            stop = self.client.pause_pipeline if pause else self.client.stop_pipeline
+            stop(self.pipeline_path)
+            stopped_state = "paused" if pause else "stopped"
+            self.wait_pipeline_state(stopped_state)
+            if dynamic_pin:
+                parameters = {"pinned_file_name": new_name}
+                self.client.set_pipeline_dynamic_spec(
+                    self.pipeline_path,
+                    {"file": {"parameters": parameters}},
+                    spec_path="/resources/text/file_providers",
+                )
+            else:
+                current = self.client.get_pipeline_spec(self.pipeline_path)
+                current["spec"]["resources"]["text"]["file_providers"]["file"]["parameters"][
+                    "path"
+                ] = f"<cluster=primary>{new_path}"
+                self.client.set_pipeline_spec(
+                    self.pipeline_path, current["spec"], expected_version=current["version"], force=pause
+                )
+            if restart_controller:
+                federation.controllers[0].restart()
+                self.wait_pipeline_state(stopped_state)
             if restart_workers:
                 for worker in federation.workers:
                     worker.stop()
@@ -304,20 +325,35 @@ class TestFileResourceLifecycle(FlowTestBase):
                 shutil.rmtree(cache_paths[1])
                 for worker in federation.workers:
                     worker.start()
+            self.write_input("after-spec-change")
             self.client.start_pipeline(self.pipeline_path)
             self.wait_for_pipeline_description_error("File provider discovery failed")
-            view = self.resource_view()["file_providers"]
-            assert view.get("active_file_snapshot_id") is None
-            assert view.get("preparing_file_snapshot_id") is None
-            self.write_input("after-spec-change")
+
+            def snapshots_reset():
+                view = self.resource_view()["file_providers"]
+                return (dynamic_pin or view.get("active_file_snapshot_id") is None) and view.get(
+                    "preparing_file_snapshot_id"
+                ) is None
+
+            # Discovery errors are visible before the corresponding flow view is committed.
+            wait(snapshots_reset, timeout=60, ignore_exceptions=True)
             time.sleep(2)
+            assert self.client.get_pipeline_state(self.pipeline_path) == "working"
+            layout = self.client.get_flow_view(
+                self.pipeline_path, view_path="/state/execution_spec/layout", cache=False
+            )
+            assert layout.get("resource_instances")
+            assert not self.client.get_flow_view(
+                self.pipeline_path, view_path="/state/execution_spec/resource_target_revisions/value", cache=False
+            )
             assert not list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-spec-change'"))
 
-            self.client.create("map_node", new_directory)
-            self.write_cypress_file(f"{new_directory}/file", b"corrupt")
+            if not self.client.exists(new_directory):
+                self.client.create("map_node", new_directory)
+            self.write_cypress_file(new_file, b"corrupt")
             self.wait_for_pipeline_description_error("Test file resource rejected corrupt payload")
             assert not list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-spec-change'"))
-            self.write_cypress_file(f"{new_directory}/file", b"second")
+            self.write_cypress_file(new_file, b"second")
             self.wait_output("after-spec-change", "second")
             wait_active()
             self.client.stop_pipeline(self.pipeline_path)
@@ -667,6 +703,9 @@ class TestFileResourceLifecycle(FlowTestBase):
         ):
             self.write_input("before")
             self.wait_output("before", "first")
+            jobs_path = "/state/execution_spec/layout/jobs"
+            original_jobs = set(self.client.get_flow_view(self.pipeline_path, view_path=jobs_path, cache=False))
+            assert original_jobs
             self.write_blob_table(f"{directory}/002", {"file": b"second"})
             self.wait_for_updated_output("updated", "second")
 
@@ -676,6 +715,187 @@ class TestFileResourceLifecycle(FlowTestBase):
                 spec_path="/resources/text/file_providers",
             )
             self.wait_for_updated_output("pinned", "first")
+
+            self.write_blob_table(f"{directory}/003", {"file": b"corrupt"})
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                {"file": {"parameters": {"pinned_file_name": "003"}}},
+                spec_path="/resources/text/file_providers",
+            )
+            self.wait_for_pipeline_description_error("Test file resource rejected corrupt payload")
+            self.write_input("failed-pin")
+            self.wait_output("failed-pin", "first")
+            assert set(self.client.get_flow_view(self.pipeline_path, view_path=jobs_path, cache=False)) == original_jobs
+
+            self.client.write_table(f"{directory}/003", [{"filename": "file", "part_index": 0, "data": b"third"}])
+            self.wait_for_updated_output("repaired-pin", "third")
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                {"file": {"parameters": {}}},
+                spec_path="/resources/text/file_providers",
+            )
+            self.write_blob_table(f"{directory}/004", {"file": b"fourth"})
+            self.wait_for_updated_output("unpinned", "fourth")
+            assert set(self.client.get_flow_view(self.pipeline_path, view_path=jobs_path, cache=False)) == original_jobs
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("discovered_before_stop", [False, True])
+    def test_pin_before_stop_blocks_old_resource_on_restart(self, discovered_before_stop):
+        directory = f"{self.work_yt_path}/versions"
+        pinned_file = f"{directory}/001"
+        self.client.create("map_node", directory)
+        self.write_cypress_file(f"{directory}/002", b"old")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTDirectoryLastFileProvider", f"<cluster=primary>{directory}")
+        config = get_yson_config(pipeline)
+        config["dynamic_spec"]["controller_connector"].update(
+            {"controller_wait_timeout": "10s", "controller_heartbeat_rpc_timeout": "10s"}
+        )
+        pipeline = self.dump_config_to_log_dir(config, "pipeline.yson")
+        node_config, _, worker_overrides = self.make_node_config(workers_count=2)
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            worker_node_config_overrides=worker_overrides,
+            pipeline_binary_args={"--config": pipeline},
+        ):
+            self.write_input("before-pin")
+            self.wait_output("before-pin", "old")
+            if discovered_before_stop:
+                self.write_cypress_file(pinned_file, b"corrupt")
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                {"file": {"parameters": {"pinned_file_name": "001"}}},
+                spec_path="/resources/text/file_providers",
+            )
+            error = (
+                "Test file resource rejected corrupt payload"
+                if discovered_before_stop
+                else "File provider discovery failed"
+            )
+            self.wait_for_pipeline_description_error(error)
+            self.write_input("while-pinned-unavailable")
+            self.wait_output("while-pinned-unavailable", "old")
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+            layout = self.client.get_flow_view(
+                self.pipeline_path, view_path="/state/execution_spec/layout", cache=False
+            )
+            assert not layout.get("resource_instances")
+            assert not self.client.get_flow_view(
+                self.pipeline_path, view_path="/state/execution_spec/resource_target_revisions/value", cache=False
+            )
+
+            self.write_input("after-restart")
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_for_pipeline_description_error(error)
+            self.wait_pipeline_state("working")
+            time.sleep(2)
+            if not discovered_before_stop:
+                layout = self.client.get_flow_view(
+                    self.pipeline_path, view_path="/state/execution_spec/layout", cache=False
+                )
+                assert layout.get("resource_instances")
+                assert not self.client.get_flow_view(
+                    self.pipeline_path, view_path="/state/execution_spec/resource_target_revisions/value", cache=False
+                )
+
+            def rows():
+                return list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-restart'"))
+
+            assert not rows()
+            self.write_cypress_file(pinned_file, b"pinned")
+            self.wait_output("after-restart", "pinned")
+            assert all(row["file_text"] == "pinned" for row in rows())
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize(
+        "preload_required,corrupt_replacement,restart_controller",
+        [(False, False, False), (False, True, True), (True, True, False)],
+    )
+    def test_restart_recovers_from_deleted_active_file(self, preload_required, corrupt_replacement, restart_controller):
+        directory = f"{self.work_yt_path}/versions"
+        old_file = f"{directory}/001"
+        new_file = f"{directory}/002"
+        self.client.create("map_node", directory)
+        self.write_cypress_file(old_file, b"first")
+        old_object_id = self.client.get(f"{old_file}/@id")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTDirectoryLastFileProvider", f"<cluster=primary>{directory}")
+        config = get_yson_config(pipeline)
+        config["spec"]["resources"]["text"]["preload_required"] = preload_required
+        if preload_required:
+            config["dynamic_spec"]["job_manager"] = {"balancer_type": "resource_queue", "async_balancing": False}
+        pipeline = self.dump_config_to_log_dir(config, "pipeline.yson")
+        node_config, cache_paths, worker_overrides = self.make_node_config()
+
+        def instance_status():
+            view = self.client.get_flow_view(self.pipeline_path, cache=False)
+            instances = view["state"]["execution_spec"]["layout"]["resource_instances"]
+            assert len(instances) == 1
+            instance_id, instance = next(iter(instances.items()))
+            status = view["feedback"]["worker_statuses"][instance["worker_address"]]["resource_instance_statuses"][
+                instance_id
+            ]
+            return instance_id, status
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            worker_node_config_overrides=worker_overrides,
+            pipeline_binary_args={"--config": pipeline},
+        ) as federation:
+            self.write_input("before-stop")
+            before = self.wait_output("before-stop", "first")
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+            federation.workers[0].stop()
+            for path, _, _ in os.walk(cache_paths[0]):
+                os.chmod(path, 0o700)
+            shutil.rmtree(cache_paths[0])
+            self.client.remove(old_file)
+            wait(lambda: not self.client.exists(f"#{old_object_id}"), timeout=60)
+            self.write_cypress_file(new_file, b"corrupt" if corrupt_replacement else b"second")
+            if restart_controller:
+                federation.controllers[0].restart()
+                self.wait_pipeline_state("stopped")
+            federation.workers[0].start()
+            self.write_input("after-restart")
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("working")
+
+            blocked_instance_id = None
+            if corrupt_replacement:
+                self.wait_for_pipeline_description_error("Test file resource rejected corrupt payload")
+                blocked_instance_id, status = instance_status()
+                assert status["load_state"] == "loading"
+                assert status.get("active_file_snapshot_id") is None
+                assert not status.get("load_error", {}).get("code", 0)
+                target = self.client.get_flow_view(
+                    self.pipeline_path,
+                    view_path="/state/execution_spec/resource_target_revisions/value/text",
+                    cache=False,
+                )
+                assert target["active_file_snapshot"]["id"] == before["file_snapshot_id"]
+                assert target["preparing_file_snapshot"]["id"] != before["file_snapshot_id"]
+                job_statuses = self.client.get_flow_view(
+                    self.pipeline_path, view_path="/feedback/partition_job_statuses", cache=False
+                )
+                assert all(
+                    status.get("current_job_status", {}).get("inited_time") is None for status in job_statuses.values()
+                )
+                assert not list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-restart'"))
+                self.write_cypress_file(new_file, b"second")
+
+            after = self.wait_output("after-restart", "second")
+            assert after["file_snapshot_id"] != before["file_snapshot_id"]
+            wait(
+                lambda: instance_status()[1]["load_state"] == "loaded"
+                and instance_status()[1].get("active_file_snapshot_id") == after["file_snapshot_id"],
+                timeout=60,
+                ignore_exceptions=True,
+            )
+            if blocked_instance_id is not None:
+                assert instance_status()[0] == blocked_instance_id
+            rows = list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-restart'"))
+            assert rows and all(row["file_text"] == "second" for row in rows)
 
     @pytest.mark.authors(["mikari"])
     def test_yt_file_cache_survives_restart_and_cleans_old_revision(self):
@@ -692,12 +912,21 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("before")
             self.wait_output("before", "first")
 
-            self.client.remove(file_path)
+            cached_files = {
+                os.path.join(directory, name): os.stat(os.path.join(directory, name))
+                for directory, _, files in os.walk(cache_paths[0])
+                if "payload" in directory.split(os.sep)
+                for name in files
+            }
+            assert cached_files
             federation.controllers[0].restart()
             self.wait_pipeline_state("working")
             federation.workers[0].restart()
             self.write_input("after-restart")
             self.wait_output("after-restart", "first")
+            for path, before in cached_files.items():
+                after = os.stat(path)
+                assert (after.st_ino, after.st_mtime_ns) == (before.st_ino, before.st_mtime_ns)
 
             self.publish_blob_revision(file_path, "002", {"file": b"second"})
             self.wait_for_updated_output("updated", "second")

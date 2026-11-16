@@ -1730,9 +1730,6 @@ public:
         return MakeFuture(TError());
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
-
     TResourceRevisionState GetRevisionState() const override
     {
         return {};

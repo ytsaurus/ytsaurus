@@ -189,7 +189,9 @@ TEST(TYTDirectoryLastFileProviderTest, SelectsLexicographicallyGreatestBlobTable
         MakeTableNode(tableId, TRevision{2}));
     auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     ASSERT_TRUE(revision);
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
@@ -211,7 +213,9 @@ TEST(TYTDirectoryLastFileProviderTest, AlsoSelectsCypressFileChildren)
         MakeFileNode(fileId, TRevision{3}, 10));
     auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     ASSERT_TRUE(revision);
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
@@ -225,9 +229,13 @@ TEST(TYTDirectoryLastFileProviderTest, SameChildReloadsOnContentChange)
     auto client = New<testing::StrictMock<TMockClient>>();
     auto provider = MakeDirectoryProvider(client);
     ExpectDiscovery(client.Get(), listing, "//versions/001", objectId, MakeTableNode(objectId, TRevision{1}));
-    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    auto first = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     ExpectDiscovery(client.Get(), listing, "//versions/001", objectId, MakeTableNode(objectId, TRevision{2}));
-    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    auto second = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     EXPECT_NE(first->ObjectId, second->ObjectId);
 
@@ -237,7 +245,9 @@ TEST(TYTDirectoryLastFileProviderTest, SameChildReloadsOnContentChange)
         "//versions/002",
         objectId,
         MakeTableNode(objectId, TRevision{2}));
-    auto nextPath = WaitFor(provider->Discover()).ValueOrThrow();
+    auto nextPath = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     EXPECT_NE(second->ObjectId, nextPath->ObjectId);
 }
 
@@ -271,18 +281,27 @@ TEST(TYTDirectoryLastFileProviderTest, DynamicPinSelectsExactChildAndCanBeCleare
         MakeTableNode(secondTableId, TRevision{2}));
     auto provider = MakeDirectoryProvider(client);
 
+    auto latest = WaitFor(provider->Discover())
+        .ValueOrThrow();
+    EXPECT_FALSE(latest.Pinned);
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        latest.Revision->Locator->GetChildValueOrThrow<TYPath>("object_path"),
         "//versions/002");
 
     provider->Reconfigure(MakeDirectoryDynamicContext("001"));
+    auto pinned = WaitFor(provider->Discover())
+        .ValueOrThrow();
+    EXPECT_TRUE(pinned.Pinned);
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        pinned.Revision->Locator->GetChildValueOrThrow<TYPath>("object_path"),
         "//versions/001");
 
     provider->Reconfigure(MakeDirectoryDynamicContext());
+    auto unpinned = WaitFor(provider->Discover())
+        .ValueOrThrow();
+    EXPECT_FALSE(unpinned.Pinned);
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        unpinned.Revision->Locator->GetChildValueOrThrow<TYPath>("object_path"),
         "//versions/002");
 }
 
@@ -301,7 +320,9 @@ TEST(TYTDirectoryLastFileProviderTest, UnsupportedLinkDoesNotMaskGreatestSupport
         MakeTableNode(tableId, TRevision{1}));
     auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     ASSERT_TRUE(revision);
     EXPECT_EQ(revision->Locator->GetChildCount(), 4);
@@ -317,8 +338,12 @@ TEST(TYTDirectoryLastFileProviderTest, EmptyOrUnsupportedDirectoryHasNoRevision)
         .WillOnce(testing::Return(MakeFuture(ConvertToYsonString(MakeDirectoryListing({})))));
     auto provider = MakeDirectoryProvider(client);
 
-    EXPECT_FALSE(WaitFor(provider->Discover()).ValueOrThrow());
-    EXPECT_FALSE(WaitFor(provider->Discover()).ValueOrThrow());
+    EXPECT_FALSE(WaitFor(provider->Discover())
+            .ValueOrThrow()
+            .Revision);
+    EXPECT_FALSE(WaitFor(provider->Discover())
+            .ValueOrThrow()
+            .Revision);
 }
 
 TEST(TYTDirectoryLastFileProviderTest, DynamicPinMustNameExistingSupportedChild)

@@ -372,13 +372,15 @@ void TYTFileProviderParameters::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path);
 }
 
-TFuture<TFileProviderRevisionPtr> TYTFileProvider::Discover()
+TFuture<TFileProviderDiscoveryResult> TYTFileProvider::Discover()
 {
-    auto path = GetParameters()->Path;
     return DiscoverYTFileProvider(
         GetContext(),
         TypeName<TYTFileProvider>(),
-        path);
+        GetParameters()->Path)
+        .Apply(BIND([] (const TFileProviderRevisionPtr& revision) {
+            return TFileProviderDiscoveryResult{.Revision = revision};
+        }));
 }
 
 TFuture<void> TYTFileProvider::Download(

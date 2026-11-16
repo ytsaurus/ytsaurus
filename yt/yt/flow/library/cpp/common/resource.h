@@ -122,6 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResourceContext);
  */
 struct IResource
     : public virtual TRefCounted
+    , public virtual TReconfigurable<TDynamicResourceContext>
 {
     // Provide TParameter[Ptr] aliases. It is type of spec `Parameters` field.
     // This type is used in resource registration for future parsing.
@@ -161,17 +162,6 @@ struct IResource
      *  \returns A future that completes when the resource is fully loaded.
      */
     virtual TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) = 0;
-
-    //! Reconfigures the resource.
-    /*!
-     *  This method is called by TResourceManager when resource dynamic spec is updated.
-     *
-     *  Important! Reconfiguration of a resource is scoped to that resource only.
-     *  It does NOT trigger reconfiguration of dependent resources.
-     *
-     *  \param dynamicSpec - The new dynamic resource spec.
-     */
-    virtual void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) = 0;
 
     //! Revision state of this instance.
     /*!

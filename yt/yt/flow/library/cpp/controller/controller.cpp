@@ -18,6 +18,7 @@
 
 #include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 
@@ -488,12 +489,12 @@ public:
             YT_VERIFY(JobManager_);
             YT_VERIFY(LeaseManager_);
 
+            JobManager_->UpdateResourceControllers(flowView);
             JobManager_->CheckCompletedPartitions(flowView);
             SyncTraverseDataWithSpec(flowView);
             JobManager_->AggregateTraverseData(flowView);
             JobManager_->UpdateInputStreamsTraverse(flowView);
             JobManager_->UpdateWatermarkState(flowView);
-            JobManager_->UpdateResourceControllers(flowView);
 
             bool flowCoreTargetMatched = CheckFlowCoreTarget(flowView, NodeInfo_->FlowCoreVersion);
             if (flowCoreTargetMatched != FlowCoreTargetMatched_) {
@@ -746,6 +747,7 @@ private:
         const auto& executionSpec = flowView->State->ExecutionSpec;
         const bool specVersionChanged = executionSpec->PipelineSpec->GetVersion() != spec->GetVersion();
         if (specVersionChanged) {
+            executionSpec->ResourceTargetRevisions->TrySetValue({}, VersionProvider_);
             ResetDynamicPartitionSpecs(flowView->EphemeralState);
         }
         if (specVersionChanged || !JobManager_) {
@@ -930,6 +932,7 @@ private:
             LeaseManager_->CheckLeases(flowView);
         };
         auto finishPipeline = [&] (EPipelineState newState) {
+            flowView->State->ExecutionSpec->ResourceTargetRevisions->TrySetValue({}, VersionProvider_);
             JobManager_->StopAllJobs(flowView);
             LeaseManager_->TerminateStrayLeases(flowView);
             const auto& layout = flowView->State->ExecutionSpec->Layout;

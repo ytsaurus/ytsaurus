@@ -251,7 +251,9 @@ TEST(TYTFileProviderTest, RejectsChangedSourceBeforeReading)
             auto client = New<testing::StrictMock<TMockClient>>();
             auto provider = MakeProvider("//current", client);
             ExpectSnapshotTransaction(client.Get(), "//current", objectId, isTable ? MakeTableNode(objectId, TRevision{11}) : MakeFileNode(objectId, TRevision{11}, 6));
-            auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+            auto revision = WaitFor(provider->Discover())
+                .ValueOrThrow()
+                .Revision;
             ExpectSnapshotTransaction(client.Get(), "//current", currentId, isTable ? MakeTableNode(currentId, currentRevision) : MakeFileNode(currentId, currentRevision, 1024));
             TTempDir root;
             EXPECT_THROW_WITH_SUBSTRING(
@@ -271,11 +273,15 @@ TEST(TYTFileProviderTest, TimestampDoesNotChangeCacheIdentity)
     const auto timestamp = TInstant::ParseIso8601("2026-07-01T00:00:00Z");
     node->MutableAttributes()->Set("modification_time", timestamp);
     ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
-    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    auto first = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     EXPECT_EQ(first->Timestamp, timestamp);
     node->MutableAttributes()->Set("modification_time", timestamp + TDuration::Hours(1));
     ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
-    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    auto second = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     EXPECT_EQ(second->Timestamp, timestamp + TDuration::Hours(1));
     EXPECT_EQ(first->ObjectId, second->ObjectId);
 }
@@ -287,7 +293,9 @@ TEST(TYTFileProviderTest, DownloadsOriginalTargetAfterRejectedReplacement)
     auto client = New<testing::StrictMock<TMockClient>>();
     auto provider = MakeProvider("//current", client);
     ExpectSnapshotTransaction(client.Get(), "//current", objectId, MakeFileNode(objectId, TRevision{11}, 6));
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     TTempDir root;
     ExpectSnapshotTransaction(client.Get(), "//current", replacementId, MakeFileNode(replacementId, TRevision{12}, 3));
     EXPECT_THROW_WITH_SUBSTRING(
@@ -304,13 +312,19 @@ TEST(TYTFileProviderTest, ContentChangesInvalidateCache)
     auto client = New<testing::StrictMock<TMockClient>>();
     auto provider = MakeProvider("//dir/file", client);
     ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{11}, 6));
-    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    auto first = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{12}, 6));
-    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    auto second = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     EXPECT_NE(first->ObjectId, second->ObjectId);
     ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{12}, 6));
-    EXPECT_EQ(second->ObjectId, WaitFor(provider->Discover()).ValueOrThrow()->ObjectId);
+    auto rediscovered = WaitFor(provider->Discover())
+        .ValueOrThrow();
+    EXPECT_EQ(second->ObjectId, rediscovered.Revision->ObjectId);
 }
 
 TEST(TYTFileProviderTest, ReplacingObjectInvalidatesCacheWithSameContentRevision)
@@ -324,7 +338,9 @@ TEST(TYTFileProviderTest, ReplacingObjectInvalidatesCacheWithSameContentRevision
                 ? MakeTableNode(objectId, TRevision{42})
                 : MakeFileNode(objectId, TRevision{42}, 6);
             ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
-            return WaitFor(provider->Discover()).ValueOrThrow();
+            return WaitFor(provider->Discover())
+                .ValueOrThrow()
+                .Revision;
         };
         auto first = discover(1);
         auto second = discover(2);
@@ -347,10 +363,14 @@ TEST(TYTFileProviderTest, IgnoresAttributeOnlyChanges)
         auto provider = MakeProvider("//dir/file", client);
         node->MutableAttributes()->Set("revision", TRevision{12});
         ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, node);
-        auto first = WaitFor(provider->Discover()).ValueOrThrow();
+        auto first = WaitFor(provider->Discover())
+            .ValueOrThrow()
+            .Revision;
         node->MutableAttributes()->Set("revision", TRevision{13});
         ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, node);
-        auto second = WaitFor(provider->Discover()).ValueOrThrow();
+        auto second = WaitFor(provider->Discover())
+            .ValueOrThrow()
+            .Revision;
 
         EXPECT_EQ(first->ObjectId, second->ObjectId);
         EXPECT_EQ(first->DisplayVersion, second->DisplayVersion);
@@ -368,7 +388,9 @@ TEST(TYTFileProviderTest, DiscoversBlobTableThroughLinkAndDownloadsAllFiles)
         MakeTableNode(objectId, TRevision{42}));
     auto provider = MakeProvider("<cluster=primary>//current", client);
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
     EXPECT_FALSE(revision->Size);
@@ -401,7 +423,9 @@ TEST(TYTFileProviderTest, EmptyBlobTableMaterializesAnEmptyDirectory)
         MakeTableNode(objectId, TRevision{1}));
     auto provider = MakeProvider("//empty", client);
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     ASSERT_TRUE(revision);
 
     ExpectSnapshotTransaction(
@@ -476,7 +500,9 @@ TEST(TYTFileProviderTest, DownloadsChangedBlobTableAfterRediscovery)
         WaitFor(provider->Download(revision, root.Name())).ThrowOnError(),
         "source changed since discovery");
     ExpectSnapshotTransaction(client.Get(), "//blob", objectId, MakeTableNode(objectId, TRevision{43}));
-    revision = WaitFor(provider->Discover()).ValueOrThrow();
+    revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     ExpectSnapshotTransaction(
         client.Get(),
         "//blob",

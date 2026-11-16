@@ -89,7 +89,7 @@ public:
 
     using TFileProviderBase::TFileProviderBase;
 
-    TFuture<TFileProviderRevisionPtr> Discover() override
+    TFuture<TFileProviderDiscoveryResult> Discover() override
     {
         auto pinnedContentId = GetDynamicParameters()->PinnedContentId;
         TErrorOr<TFileProviderRevisionPtr> result;
@@ -124,8 +124,12 @@ public:
                 }
             }
         }
-        return gate.Apply(BIND([result = std::move(result)] {
-            return result.ValueOrThrow();
+        return gate.Apply(BIND([result = std::move(result), pinned = pinnedContentId.has_value()] {
+            return TFileProviderDiscoveryResult{
+                .Revision = result
+                    .ValueOrThrow(),
+                .Pinned = pinned,
+            };
         }));
     }
 
@@ -466,10 +470,27 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TTestState);
 
+struct TTestResourceDynamicParameters
+    : public TYsonStruct
+{
+    int Version = 0;
+
+    REGISTER_YSON_STRUCT(TTestResourceDynamicParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("version", &TThis::Version)
+            .Default(0)
+            .GreaterThanOrEqual(0);
+    }
+};
+
 class TTestFileResource
     : public TFileResourceBase<TTestState>
 {
 public:
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TTestResourceDynamicParameters, TFileResourceBase);
+
     using TFileResourceBase::TFileResourceBase;
 
     TFuture<TMaterializedFileProviderPtr> MaterializeOne(
@@ -885,6 +906,7 @@ TIntrusivePtr<TResourceControllerBase> MakeNamedController(
     context->Invoker = invoker;
     static const auto timeProvider = New<TFakeTimeProvider>();
     context->TimeProvider = timeProvider;
+    context->VersionProvider = TestVersionProvider();
     context->Logger = NLogging::TLogger("ResourceControllerTest");
     context->StatusProfiler = std::move(statusProfiler);
     context->Profiler = std::move(profiler);
@@ -1023,6 +1045,37 @@ void WaitForPreparingState(
             .Period = TDuration::MilliSeconds(10),
             .Message = Format("Snapshot %v did not reach %v/%v", snapshotId, expectedState, expectedStage),
         });
+}
+
+TResourceRevisionPtr TryBuildTargetRevision(const IResourceControllerPtr& controller)
+{
+    auto result = controller->GetPreparingFuture().TryGet();
+    if (!result) {
+        return nullptr;
+    }
+    result->ThrowOnError();
+    return controller->BuildTargetRevision();
+}
+
+TResourceRevisionPtr WaitForTargetRevision(const IResourceControllerPtr& controller)
+{
+    WaitFor(controller->GetPreparingFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    return controller->BuildTargetRevision();
+}
+
+std::optional<TFileSnapshotId> GetActiveSnapshotId(const IResourceControllerPtr& controller)
+{
+    return ConvertTo<std::optional<TFileSnapshotId>>(controller->GetView()
+            ->GetChildOrThrow("file_providers")
+            ->AsMap()
+            ->GetChildOrThrow("active_file_snapshot_id"));
+}
+
+bool HasDiscovered(const IResourceControllerPtr& controller)
+{
+    auto result = controller->GetPreparingFuture().TryGet();
+    return result && result->IsOK();
 }
 
 class TFileResourceTest
@@ -1269,30 +1322,30 @@ TEST_F(TFileResourceTest, NamedControllerPublishesOnlyCompleteSnapshots)
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    EXPECT_FALSE(controller->BuildTargetRevision());
-    EXPECT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
+    EXPECT_FALSE(TryBuildTargetRevision(controller));
+    EXPECT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_providers/discovery"));
 
     TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
     WaitForPredicate(
         [&] {
-            return static_cast<bool>(controller->BuildTargetRevision());
+            return static_cast<bool>(TryBuildTargetRevision(controller));
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
 
-    const auto target = controller->BuildTargetRevision();
+    const auto target = TryBuildTargetRevision(controller);
     EXPECT_FALSE(target->ActiveFileSnapshot);
     ASSERT_TRUE(target->PreparingFileSnapshot);
     EXPECT_EQ(target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(), "left-v1");
     EXPECT_EQ(target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(), "right-v1");
-    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
+    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_providers/discovery"));
 
     TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
     WaitForPredicate(
         [&] {
-            auto updated = controller->BuildTargetRevision();
+            auto updated = TryBuildTargetRevision(controller);
             return updated &&
                 GetLatestFileSnapshot(updated)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v2";
         },
@@ -1301,11 +1354,11 @@ TEST_F(TFileResourceTest, NamedControllerPublishesOnlyCompleteSnapshots)
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(TryBuildTargetRevision(controller))->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
 }
 
-TEST_F(TFileResourceTest, NamedControllerKeepsOwnSpecWhenDiscoveryFails)
+TEST_F(TFileResourceTest, NamedControllerWaitsForDiscoveryBeforePublishingOwnSpec)
 {
     TFakeFileProvider::SetDiscoveryError("file");
 
@@ -1327,11 +1380,19 @@ TEST_F(TFileResourceTest, NamedControllerKeepsOwnSpecWhenDiscoveryFails)
         return TFakeFileProvider::GetDiscoverCount("file") > 0;
     });
 
+    auto futurePreparing = controller->GetPreparingFuture();
+    EXPECT_FALSE(futurePreparing.IsSet());
+    EXPECT_THROW(controller->BuildTargetRevision(), std::exception);
+    TFakeFileProvider::PushDiscoveryRevision("recovered", "file");
+    WaitFor(futurePreparing.WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
     auto target = controller->BuildTargetRevision();
     ASSERT_TRUE(target);
     EXPECT_EQ(ConvertTo<std::string>(target->Spec), "controller-spec");
     EXPECT_FALSE(target->ActiveFileSnapshot);
-    EXPECT_FALSE(target->PreparingFileSnapshot);
+    ASSERT_TRUE(target->PreparingFileSnapshot);
+    EXPECT_EQ(GetOrCrash(target->PreparingFileSnapshot->FileProviders, TFileProviderId("file"))->ObjectId.Underlying(),
+        "recovered");
 }
 
 TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidatedSnapshot)
@@ -1350,7 +1411,7 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1370,24 +1431,27 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
     currentStatus->PreparingFileSnapshot->State = EFileSnapshotState::Preparing;
     currentStatus->PreparingFileSnapshot->PreparationStage = EFileSnapshotPreparationStage::Validating;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(currentStatus, workerIncarnationId)}}, nullptr, 17);
-    EXPECT_TRUE(controller->BuildTargetRevision()->PreparingFileSnapshot);
+    EXPECT_TRUE(TryBuildTargetRevision(controller)->PreparingFileSnapshot);
 
     auto staleIncarnationStatus = CloneYsonStruct(currentStatus);
     staleIncarnationStatus->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
     staleIncarnationStatus->ResourceIncarnationGeneration = 1;
     staleIncarnationStatus->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(staleIncarnationStatus, workerIncarnationId)}}, nullptr, 17);
-    EXPECT_TRUE(controller->BuildTargetRevision()->PreparingFileSnapshot);
+    EXPECT_TRUE(TryBuildTargetRevision(controller)->PreparingFileSnapshot);
 
     auto staleRevisionStatus = CloneYsonStruct(currentStatus);
     staleRevisionStatus->TargetRevisionId = 16;
     staleRevisionStatus->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(staleRevisionStatus, workerIncarnationId)}}, nullptr, 17);
-    EXPECT_TRUE(controller->BuildTargetRevision()->PreparingFileSnapshot);
+    EXPECT_TRUE(TryBuildTargetRevision(controller)->PreparingFileSnapshot);
 
+    auto preparingTarget = target;
     currentStatus->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(currentStatus, workerIncarnationId)}}, nullptr, 17);
-    target = controller->BuildTargetRevision();
+    target = WaitForTargetRevision(controller);
+    EXPECT_GT(target->RevisionId, preparingTarget->RevisionId);
+    EXPECT_FALSE(preparingTarget->ActiveFileSnapshot);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     EXPECT_EQ(target->ActiveFileSnapshot->Id, snapshotId);
     EXPECT_FALSE(target->PreparingFileSnapshot);
@@ -1404,9 +1468,12 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"file", "file"}},
-        TDuration::Hours(1));
+        TDuration::MilliSeconds(1));
     restored->Init(restoredStateManager->CreateContext());
-    target = restored->BuildTargetRevision();
+    EXPECT_FALSE(restored->GetPreparingFuture().IsSet());
+    EXPECT_THROW_WITH_SUBSTRING(restored->BuildTargetRevision(), "Waiting for file provider discovery");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
+    target = WaitForTargetRevision(restored);
     ASSERT_TRUE(target);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     EXPECT_EQ(target->ActiveFileSnapshot->Id, snapshotId);
@@ -1425,13 +1492,13 @@ TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
         TDuration::MilliSeconds(1),
         {},
         {},
-        TDuration::Hours(1));
+        TDuration::Seconds(1));
     controller->Init(nullptr);
 
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1451,32 +1518,24 @@ TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
             .Period = TDuration::MilliSeconds(5),
         });
 
-    target = controller->BuildTargetRevision();
+    target = TryBuildTargetRevision(controller);
     ASSERT_TRUE(target->PreparingFileSnapshot);
     EXPECT_EQ(target->PreparingFileSnapshot->Id, firstSnapshotId);
     EXPECT_EQ(
         target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying(),
         "v1");
 
-    auto dynamicContext = New<TDynamicResourceControllerContext>();
-    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
-        nullptr,
-        TDuration::MilliSeconds(1),
-        TDuration::MilliSeconds(100),
-        {},
-        TDuration::MilliSeconds(1))
-        ->DynamicResourceSpec;
-    controller->Reconfigure(dynamicContext);
+    TFakeFileProvider::SetDiscoveryError("file");
 
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target &&
                 target->PreparingFileSnapshot &&
                 target->PreparingFileSnapshot->Id != firstSnapshotId;
         },
         TWaitForPredicateOptions{
-            .IterationCount = 100,
+            .IterationCount = 500,
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
@@ -1504,7 +1563,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1521,7 +1580,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
 
-    target = controller->BuildTargetRevision();
+    target = WaitForTargetRevision(controller);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     EXPECT_FALSE(target->PreparingFileSnapshot);
     const auto activeId = target->ActiveFileSnapshot->Id;
@@ -1529,7 +1588,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     TFakeFileProvider::PushDiscoveryRevision("v2", "file");
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target &&
                 target->PreparingFileSnapshot &&
                 target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying() == "v2";
@@ -1543,7 +1602,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     TFakeFileProvider::PushDiscoveryRevision("v3", "file");
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target &&
                 target->PreparingFileSnapshot &&
                 target->PreparingFileSnapshot->Id != supersededPreparingId;
@@ -1576,13 +1635,15 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"file", "file"}},
-        TDuration::Hours(1),
+        TDuration::MilliSeconds(1),
         {},
         {},
         TDuration::MilliSeconds(1),
         2);
     restored->Init(restoredStateManager->CreateContext());
-    target = restored->BuildTargetRevision();
+    EXPECT_FALSE(restored->GetPreparingFuture().IsSet());
+    TFakeFileProvider::PushDiscoveryRevision("v3", "file");
+    target = WaitForTargetRevision(restored);
     ASSERT_TRUE(target);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     ASSERT_TRUE(target->PreparingFileSnapshot);
@@ -1609,7 +1670,7 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1625,12 +1686,12 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
     status->PreparingFileSnapshot->SnapshotId = target->PreparingFileSnapshot->Id;
     status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
-    ASSERT_TRUE(controller->BuildTargetRevision()->ActiveFileSnapshot);
+    ASSERT_TRUE(WaitForTargetRevision(controller)->ActiveFileSnapshot);
 
     TFakeFileProvider::PushDiscoveryRevision("v2", "file");
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1641,7 +1702,7 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
     TFakeFileProvider::PushDiscoveryRevision("v1", "file");
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->ActiveFileSnapshot && !target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1668,7 +1729,7 @@ TEST_F(TFileResourceTest, NamedControllerRetainsLastCompleteSnapshotAcrossFailur
     controller->Init(nullptr);
     WaitForPredicate(
         [&] {
-            return static_cast<bool>(controller->BuildTargetRevision());
+            return static_cast<bool>(TryBuildTargetRevision(controller));
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1686,22 +1747,40 @@ TEST_F(TFileResourceTest, NamedControllerRetainsLastCompleteSnapshotAcrossFailur
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(TryBuildTargetRevision(controller))->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
-    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
+    EXPECT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_providers/discovery"));
 
     TFakeFileProvider::SetDiscoveryError("right");
     WaitForPredicate(
         [&] {
-            return statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery");
+            return statusProfiler->GetStatus().Errors.contains("/file_providers/discovery");
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
-        "right-v1");
+    discoverCount = TFakeFileProvider::GetDiscoverCount("left");
+    TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
+    WaitForPredicate(
+        [&] {
+            return TFakeFileProvider::GetDiscoverCount("left") >= discoverCount + 3;
+        },
+        TWaitForPredicateOptions{
+            .IterationCount = 100,
+            .Period = TDuration::MilliSeconds(5),
+        });
+    auto snapshot = GetLatestFileSnapshot(TryBuildTargetRevision(controller));
+    EXPECT_EQ(GetOrCrash(snapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying(), "left-v1");
+    EXPECT_EQ(GetOrCrash(snapshot->FileProviders, TFileProviderId("right"))->ObjectId.Underlying(), "right-v1");
+
+    TFakeFileProvider::PushDiscoveryRevision("right-v2", "right");
+    WaitForPredicate([&] {
+        auto updated = GetLatestFileSnapshot(TryBuildTargetRevision(controller));
+        return GetOrCrash(updated->FileProviders, TFileProviderId("right"))->ObjectId.Underlying() == "right-v2";
+    });
+    snapshot = GetLatestFileSnapshot(TryBuildTargetRevision(controller));
+    EXPECT_EQ(GetOrCrash(snapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying(), "left-v2");
 }
 
 TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning)
@@ -1725,7 +1804,7 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -1742,7 +1821,7 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
 
-    target = controller->BuildTargetRevision();
+    target = WaitForTargetRevision(controller);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     const auto activeSnapshotId = target->ActiveFileSnapshot->Id;
     WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
@@ -1935,7 +2014,7 @@ TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
     auto discover = [&] (const std::string& id, std::optional<TInstant> timestamp) {
         TFakeFileProvider::PushDiscoveryRevision(id, "file", timestamp);
         WaitForPredicate([&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot &&
                 GetOrCrash(target->PreparingFileSnapshot->FileProviders, TFileProviderId("file"))->ObjectId.Underlying() == id;
         });
@@ -1955,7 +2034,7 @@ TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
     status->TargetRevisionId = 17;
     status->PreparingFileSnapshot = New<TFileSnapshotStatus>();
     auto promote = [&] {
-        status->PreparingFileSnapshot->SnapshotId = controller->BuildTargetRevision()->PreparingFileSnapshot->Id;
+        status->PreparingFileSnapshot->SnapshotId = TryBuildTargetRevision(controller)->PreparingFileSnapshot->Id;
         status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
         controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
     };
@@ -1970,12 +2049,13 @@ TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
     EXPECT_FALSE(read("yt/test/file_provider_target_revision_age", "preparing", "v2"));
     TFakeFileProvider::PushDiscoveryRevision("v1", "file", timestamp + TDuration::Minutes(1));
     WaitForPredicate([&] {
-        return !controller->BuildTargetRevision()->PreparingFileSnapshot;
+        auto target = TryBuildTargetRevision(controller);
+        return target && !target->PreparingFileSnapshot;
     });
     controller->CollectStatuses({}, nullptr, 17);
     EXPECT_EQ(targetValue("active", "v1"), 1);
     EXPECT_EQ(targetValue("preparing", "v2"), 0);
-    EXPECT_EQ(GetOrCrash(controller->BuildTargetRevision()->ActiveFileSnapshot->FileProviders,
+    EXPECT_EQ(GetOrCrash(TryBuildTargetRevision(controller)->ActiveFileSnapshot->FileProviders,
         TFileProviderId("file"))
             ->Timestamp,
         timestamp);
@@ -2006,11 +2086,16 @@ TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"file", "file"}},
-        TDuration::Hours(1),
+        TDuration::MilliSeconds(1),
         NProfiling::TProfiler(registry, "/restored"));
     controller->Init(restoredState->CreateContext());
-    ASSERT_TRUE(controller->BuildTargetRevision()->ActiveFileSnapshot);
-    EXPECT_EQ(GetOrCrash(controller->BuildTargetRevision()->ActiveFileSnapshot->FileProviders,
+    EXPECT_FALSE(controller->GetPreparingFuture().IsSet());
+    EXPECT_THROW_WITH_SUBSTRING(controller->BuildTargetRevision(), "Waiting for file provider discovery");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file", timestamp + TDuration::Minutes(1));
+    auto restoredTarget = WaitForTargetRevision(controller);
+    ASSERT_TRUE(restoredTarget);
+    ASSERT_TRUE(restoredTarget->ActiveFileSnapshot);
+    EXPECT_EQ(GetOrCrash(restoredTarget->ActiveFileSnapshot->FileProviders,
         TFileProviderId("file"))
             ->Timestamp,
         timestamp);
@@ -2040,7 +2125,7 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevi
     TResourceRevisionPtr target;
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target && target->PreparingFileSnapshot;
         },
         TWaitForPredicateOptions{
@@ -2051,14 +2136,14 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevi
     status->PreparingFileSnapshot->SnapshotId = target->PreparingFileSnapshot->Id;
     status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
-    target = controller->BuildTargetRevision();
+    target = WaitForTargetRevision(controller);
     ASSERT_TRUE(target->ActiveFileSnapshot);
     const auto activeId = target->ActiveFileSnapshot->Id;
 
     TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
     WaitForPredicate(
         [&] {
-            target = controller->BuildTargetRevision();
+            target = TryBuildTargetRevision(controller);
             return target &&
                 target->PreparingFileSnapshot &&
                 target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v2";
@@ -2093,7 +2178,7 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevi
         Format("%v/%v/%v", TFileProviderId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Preparing))));
 }
 
-TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProviderSpecs)
+TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyAfterFreshDiscovery)
 {
     TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
     TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
@@ -2108,12 +2193,13 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProvid
     controller->Init(stateManager->CreateContext());
     WaitForPredicate(
         [&] {
-            return static_cast<bool>(controller->BuildTargetRevision());
+            return static_cast<bool>(TryBuildTargetRevision(controller));
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
+    auto previousSnapshotId = GetLatestFileSnapshot(WaitForTargetRevision(controller))->Id;
     WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
             .AsyncVia(queue->GetInvoker())
             .Run())
@@ -2128,24 +2214,31 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProvid
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"left", "left"}, {"right", "right"}},
-        TDuration::Hours(1));
+        TDuration::MilliSeconds(1));
     restored->Init(restoredStateManager->CreateContext());
-    ASSERT_TRUE(restored->BuildTargetRevision());
+    EXPECT_FALSE(restored->GetPreparingFuture().IsSet());
+    EXPECT_THROW_WITH_SUBSTRING(restored->BuildTargetRevision(), "Waiting for file provider discovery");
+    TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
+    ASSERT_TRUE(WaitForTargetRevision(restored));
+    EXPECT_EQ(GetLatestFileSnapshot(TryBuildTargetRevision(restored))->Id, previousSnapshotId);
     EXPECT_EQ(
-        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(TryBuildTargetRevision(restored))->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "left-v1");
     EXPECT_EQ(
-        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(TryBuildTargetRevision(restored))->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
+    TFakeFileProvider::SetDiscoveryError("left");
+    TFakeFileProvider::SetDiscoveryError("right");
     auto changedStateManager = New<TStateManagerMock>();
     changedStateManager->SetStorage(stateManager->GetStorage());
     auto changed = MakeNamedController(
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"left", "changed-left"}, {"right", "right"}},
-        TDuration::Hours(1));
+        TDuration::MilliSeconds(1));
     changed->Init(changedStateManager->CreateContext());
-    EXPECT_FALSE(changed->BuildTargetRevision());
+    EXPECT_FALSE(TryBuildTargetRevision(changed));
 
     auto changedResourceStateManager = New<TStateManagerMock>();
     changedResourceStateManager->SetStorage(stateManager->GetStorage());
@@ -2153,10 +2246,10 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProvid
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"left", "left"}, {"right", "right"}},
-        TDuration::Hours(1));
+        TDuration::MilliSeconds(1));
     changedResource->GetSpec()->AlwaysOn = true;
     changedResource->Init(changedResourceStateManager->CreateContext());
-    EXPECT_FALSE(changedResource->BuildTargetRevision());
+    EXPECT_FALSE(TryBuildTargetRevision(changedResource));
 
     auto incompatibleStateManager = New<TStateManagerMock>();
     incompatibleStateManager->SetStorage(stateManager->GetStorage());
@@ -2164,9 +2257,33 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProvid
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"left", "changed-left"}, {"right", "right"}, {"extra", "extra"}},
-        TDuration::Hours(1));
+        TDuration::MilliSeconds(1));
     incompatible->Init(incompatibleStateManager->CreateContext());
-    EXPECT_FALSE(incompatible->BuildTargetRevision());
+    EXPECT_FALSE(TryBuildTargetRevision(incompatible));
+
+    WaitFor(BIND(&TStateManagerMock::Sync, changedResourceStateManager)
+            .AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+    auto restartedStateManager = New<TStateManagerMock>();
+    restartedStateManager->SetStorage(changedResourceStateManager->GetStorage());
+    changedResource.Reset();
+    auto restarted = MakeNamedController(
+        queue->GetInvoker(),
+        CreateSyncStatusProfiler(),
+        {{"left", "left"}, {"right", "right"}},
+        TDuration::MilliSeconds(1));
+    restarted->GetSpec()->AlwaysOn = true;
+    restarted->Init(restartedStateManager->CreateContext());
+    EXPECT_FALSE(restarted->GetPreparingFuture().IsSet());
+    TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v2", "right");
+    auto target = WaitForTargetRevision(restarted);
+    ASSERT_TRUE(target);
+    ASSERT_TRUE(target->ActiveFileSnapshot);
+    EXPECT_FALSE(target->PreparingFileSnapshot);
+    EXPECT_EQ(GetOrCrash(target->ActiveFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying(), "left-v2");
+    EXPECT_EQ(GetOrCrash(target->ActiveFileSnapshot->FileProviders, TFileProviderId("right"))->ObjectId.Underlying(), "right-v2");
 }
 
 TEST_F(TFileResourceTest, NamedControllerReconfiguresDirectDiscoverPeriod)
@@ -2205,6 +2322,79 @@ TEST_F(TFileResourceTest, NamedControllerReconfiguresDirectDiscoverPeriod)
         });
 }
 
+TEST_F(TFileResourceTest, DynamicSpecInvalidationResetsSnapshotCreationDelay)
+{
+    for (bool restartController : {false, true}) {
+        TFakeFileProvider::PushDiscoveryRevision("v1", "left");
+        auto queue = New<TActionQueue>();
+        auto stateManager = New<TStateManagerMock>();
+        auto controller = MakeNamedController(
+            queue->GetInvoker(),
+            CreateSyncStatusProfiler(),
+            {{"left", "left"}},
+            /*discoverPeriod*/ TDuration::MilliSeconds(1),
+            /*profiler*/ {},
+            /*pinnedContentIds*/ {},
+            /*fileSnapshotMinCreationPeriod*/ TDuration::Hours(1));
+        controller->Init(stateManager->CreateContext());
+        TResourceRevisionPtr target;
+        WaitForPredicate([&] {
+            target = TryBuildTargetRevision(controller);
+            return target && target->PreparingFileSnapshot;
+        });
+        auto previousSnapshotId = target->PreparingFileSnapshot->Id;
+        auto previousObjectId = GetOrCrash(target->PreparingFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId;
+
+        if (restartController) {
+            WaitFor(BIND([] {
+            }).AsyncVia(queue->GetInvoker())
+                    .Run())
+                .ThrowOnError();
+            stateManager->Sync();
+            controller.Reset();
+            auto restoredStateManager = New<TStateManagerMock>();
+            restoredStateManager->SetStorage(stateManager->GetStorage());
+            stateManager = std::move(restoredStateManager);
+            controller = MakeNamedController(
+                queue->GetInvoker(),
+                CreateSyncStatusProfiler(),
+                {{"left", "left"}},
+                /*discoverPeriod*/ TDuration::MilliSeconds(1),
+                /*profiler*/ {},
+                /*pinnedContentIds*/ {},
+                /*fileSnapshotMinCreationPeriod*/ TDuration::Hours(1),
+                /*fileSnapshotCatalogMaxEntries*/ 1024,
+                /*fileSnapshotRolloutWarningPeriod*/ TDuration::Minutes(16));
+            controller->Init(stateManager->CreateContext());
+        } else {
+            auto dynamicContext = New<TDynamicResourceControllerContext>();
+            dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+                /*target*/ nullptr,
+                /*discoverPeriod*/ TDuration::MilliSeconds(1),
+                /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+                /*pinnedContentIds*/ {},
+                /*fileSnapshotMinCreationPeriod*/ TDuration::Hours(1),
+                /*fileSnapshotCatalogMaxEntries*/ 1024,
+                /*fileSnapshotRolloutWarningPeriod*/ TDuration::Minutes(16))
+                ->DynamicResourceSpec;
+            controller->Reconfigure(dynamicContext);
+        }
+
+        WaitForPredicate([&] {
+            target = TryBuildTargetRevision(controller);
+            return target && target->PreparingFileSnapshot &&
+                target->PreparingFileSnapshot->Id != previousSnapshotId;
+        },
+            TWaitForPredicateOptions{
+                .IterationCount = 100,
+                .Period = TDuration::MilliSeconds(5),
+            });
+        EXPECT_EQ(GetOrCrash(target->PreparingFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId, previousObjectId);
+        EXPECT_FALSE(target->ActiveFileSnapshot);
+        EXPECT_TRUE(HasDiscovered(controller));
+    }
+}
+
 TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
 {
     TFakeFileProvider::PushDiscoveryRevision("latest-v1", "left");
@@ -2218,9 +2408,9 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
     controller->Init(nullptr);
     WaitForPredicate(
         [&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "latest-v1";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "latest-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2230,7 +2420,7 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
     auto dynamicContext = New<TDynamicResourceControllerContext>();
     dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
         nullptr,
-        TDuration::Hours(1),
+        TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(100),
         {{"left", "pinned-v1"}})
         ->DynamicResourceSpec;
@@ -2238,21 +2428,42 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
 
     WaitForPredicate(
         [&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "pinned-v1";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "pinned-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
+    auto pinnedTarget = TryBuildTargetRevision(controller);
+    ASSERT_TRUE(pinnedTarget->ActiveFileSnapshot);
+    EXPECT_FALSE(pinnedTarget->PreparingFileSnapshot);
+    EXPECT_TRUE(HasDiscovered(controller));
+
+    dynamicContext = New<TDynamicResourceControllerContext>();
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(nullptr)->DynamicResourceSpec;
+    controller->Reconfigure(dynamicContext);
+    EXPECT_EQ(GetActiveSnapshotId(controller), pinnedTarget->ActiveFileSnapshot->Id);
+    WaitForPredicate([&] {
+        auto target = TryBuildTargetRevision(controller);
+        return target && target->PreparingFileSnapshot && HasDiscovered(controller);
+    },
+        TWaitForPredicateOptions{.IterationCount = 100, .Period = TDuration::MilliSeconds(5)});
+    EXPECT_EQ(TryBuildTargetRevision(controller)->ActiveFileSnapshot->Id, pinnedTarget->ActiveFileSnapshot->Id);
 }
 
 TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
 {
     TFakeFileProvider::PushDiscoveryRevision("left-v0", "left");
     TFakeFileProvider::PushDiscoveryRevision("right-v0", "right");
+    auto leftGate = NewPromise<void>();
     auto rightGate = NewPromise<void>();
+    auto releaseGates = Finally([&] {
+        leftGate.TrySet();
+        rightGate.TrySet();
+    });
+    TFakeFileProvider::SetDiscoveryGate("left-v1", leftGate.ToFuture());
     TFakeFileProvider::SetDiscoveryGate("right-v1", rightGate.ToFuture());
 
     auto queue = New<TActionQueue>();
@@ -2261,26 +2472,30 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
         {{"left", "left"}, {"right", "right"}},
-        TDuration::Hours(1));
+        TDuration::Hours(1),
+        {},
+        {{"left", "left-v0"}, {"right", "right-v0"}});
     controller->Init(stateManager->CreateContext());
     WaitForPredicate(
         [&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v0" &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying() == "right-v0";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "left-v0" &&
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("right"))->ObjectId.Underlying() == "right-v0";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
 
+    auto previousActive = GetActiveSnapshotId(controller);
+    ASSERT_TRUE(previousActive);
     auto leftDiscoverCount = TFakeFileProvider::GetDiscoverCount("left");
     auto rightDiscoverCount = TFakeFileProvider::GetDiscoverCount("right");
     auto dynamicContext = New<TDynamicResourceControllerContext>();
     dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
         nullptr,
-        TDuration::Hours(1),
+        TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(100),
         {{"left", "left-v1"}, {"right", "right-v1"}})
         ->DynamicResourceSpec;
@@ -2300,14 +2515,8 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
             .Run())
         .ThrowOnError();
 
-    auto pendingTarget = controller->BuildTargetRevision();
-    ASSERT_TRUE(pendingTarget);
-    EXPECT_EQ(
-        GetLatestFileSnapshot(pendingTarget)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
-        "left-v0");
-    EXPECT_EQ(
-        GetLatestFileSnapshot(pendingTarget)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
-        "right-v0");
+    EXPECT_FALSE(controller->GetPreparingFuture().IsSet());
+    EXPECT_EQ(GetActiveSnapshotId(controller), previousActive);
 
     WaitFor(BIND(&TStateManagerMock::Sync, stateManager)
             .AsyncVia(queue->GetInvoker())
@@ -2323,27 +2532,126 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
         {},
         {{"left", "left-v1"}, {"right", "right-v1"}});
     restored->Init(restoredStateManager->CreateContext());
-    auto restoredTarget = restored->BuildTargetRevision();
-    ASSERT_TRUE(restoredTarget);
-    EXPECT_EQ(
-        GetLatestFileSnapshot(restoredTarget)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
-        "left-v0");
-    EXPECT_EQ(
-        GetLatestFileSnapshot(restoredTarget)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
-        "right-v0");
+    EXPECT_FALSE(restored->GetPreparingFuture().IsSet());
+    EXPECT_EQ(GetActiveSnapshotId(restored), previousActive);
 
+    leftGate.Set();
     rightGate.Set();
     WaitForPredicate(
         [&] {
-            auto target = restored->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(restored);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v1" &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying() == "right-v1";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "left-v1" &&
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("right"))->ObjectId.Underlying() == "right-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
+    dynamicContext = New<TDynamicResourceControllerContext>();
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::MilliSeconds(10),
+        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+        /*pinnedContentIds*/ {{"left", "left-v2"}})
+        ->DynamicResourceSpec;
+    restored->Reconfigure(dynamicContext);
+    WaitForPredicate([&] {
+        auto target = TryBuildTargetRevision(restored);
+        return target && target->ActiveFileSnapshot &&
+            GetOrCrash(target->ActiveFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "left-v2";
+    });
+    auto partialPinTarget = TryBuildTargetRevision(restored);
+    EXPECT_EQ(
+        GetOrCrash(partialPinTarget->ActiveFileSnapshot->FileProviders, TFileProviderId("right"))->ObjectId.Underlying(),
+        "right-v1");
+    ASSERT_TRUE(partialPinTarget->PreparingFileSnapshot);
+    EXPECT_EQ(
+        GetOrCrash(partialPinTarget->PreparingFileSnapshot->FileProviders, TFileProviderId("right"))->ObjectId.Underlying(),
+        "right-v0");
+}
+
+TEST_F(TFileResourceTest, PreparingFutureFollowsCurrentConfiguration)
+{
+    auto queue = New<TActionQueue>();
+    auto controller = MakeNamedController(
+        queue->GetInvoker(),
+        CreateSyncStatusProfiler(),
+        {{"left", "left"}},
+        /*discoverPeriod*/ TDuration::Hours(1),
+        /*profiler*/ {},
+        /*pinnedContentIds*/ {{"left", "initial"}});
+    controller->Init(nullptr);
+    auto initialTarget = WaitForTargetRevision(controller);
+    auto initialSnapshotId = GetActiveSnapshotId(controller);
+    ASSERT_TRUE(initialSnapshotId);
+    ASSERT_EQ(initialTarget->ActiveFileSnapshot->Id, *initialSnapshotId);
+    ASSERT_EQ(GetOrCrash(initialTarget->ActiveFileSnapshot->FileProviders,
+        TFileProviderId("left"))
+            ->ObjectId.Underlying(),
+        "initial");
+
+    auto obsoleteGate = NewPromise<void>();
+    auto currentGate = NewPromise<void>();
+    auto releaseGates = Finally([&] {
+        obsoleteGate.TrySet();
+        currentGate.TrySet();
+    });
+    TFakeFileProvider::SetDiscoveryGate("obsolete", obsoleteGate.ToFuture());
+    TFakeFileProvider::SetDiscoveryGate("current", currentGate.ToFuture());
+    auto reconfigure = [&] (const std::string& contentId) {
+        auto context = New<TDynamicResourceControllerContext>();
+        context->DynamicResourceSpec = MakeNamedDynamicContext(
+            /*target*/ nullptr,
+            /*discoverPeriod*/ TDuration::MilliSeconds(10),
+            /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+            /*pinnedContentIds*/ {{"left", contentId}})
+            ->DynamicResourceSpec;
+        controller->Reconfigure(context);
+    };
+
+    reconfigure("obsolete");
+    auto futureObsoleteDiscovery = controller->GetPreparingFuture();
+    WaitForPredicate([] {
+        return TFakeFileProvider::GetDiscoverCount("left") >= 2;
+    });
+    ASSERT_FALSE(futureObsoleteDiscovery.IsSet());
+
+    reconfigure("current");
+    auto futureCurrentDiscovery = controller->GetPreparingFuture();
+    EXPECT_FALSE(WaitFor(futureObsoleteDiscovery.WithTimeout(TDuration::Seconds(5))).IsOK());
+    obsoleteGate.Set();
+    WaitForPredicate([] {
+        return TFakeFileProvider::GetDiscoverCount("left") >= 3;
+    });
+    futureCurrentDiscovery.Cancel(TError("Cancelled test waiter"));
+    EXPECT_FALSE(futureCurrentDiscovery.IsSet());
+    EXPECT_FALSE(controller->GetPreparingFuture().IsSet());
+    EXPECT_EQ(GetActiveSnapshotId(controller), initialSnapshotId);
+
+    EXPECT_THROW(controller->BuildTargetRevision(), std::exception);
+    auto callbackCompleted = NewPromise<void>();
+    futureCurrentDiscovery.Subscribe(BIND([controller, callbackCompleted] (const TError& error) {
+        EXPECT_TRUE(controller->GetPreparingFuture().IsSet());
+        callbackCompleted.Set(error);
+    }));
+    currentGate.Set();
+    WaitFor(callbackCompleted.ToFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    auto target = controller->BuildTargetRevision();
+    auto currentSnapshotId = GetActiveSnapshotId(controller);
+    ASSERT_TRUE(currentSnapshotId);
+    EXPECT_NE(currentSnapshotId, initialSnapshotId);
+    ASSERT_TRUE(target->ActiveFileSnapshot);
+    EXPECT_EQ(target->ActiveFileSnapshot->Id, *currentSnapshotId);
+    EXPECT_FALSE(target->PreparingFileSnapshot);
+    EXPECT_EQ(GetOrCrash(target->ActiveFileSnapshot->FileProviders,
+        TFileProviderId("left"))
+            ->ObjectId.Underlying(),
+        "current");
+    EXPECT_GT(target->RevisionId, initialTarget->RevisionId);
+    EXPECT_EQ(WaitForTargetRevision(controller),
+        target);
 }
 
 TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPin)
@@ -2364,9 +2672,9 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
     controller->Init(nullptr);
     WaitForPredicate(
         [&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "initial";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "initial";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2384,7 +2692,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
     auto dynamicContext = New<TDynamicResourceControllerContext>();
     dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
         nullptr,
-        TDuration::Hours(1),
+        TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(100),
         {{"left", "pinned"}})
         ->DynamicResourceSpec;
@@ -2399,23 +2707,121 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    ASSERT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())
-            ->FileProviders.at(TFileProviderId("left"))
-            ->ObjectId.Underlying(),
-        "initial");
+    EXPECT_FALSE(TryBuildTargetRevision(controller));
+    EXPECT_FALSE(HasDiscovered(controller));
 
     pinnedGate.Set();
     WaitForPredicate(
         [&] {
-            auto target = controller->BuildTargetRevision();
+            auto target = TryBuildTargetRevision(controller);
             return target &&
-                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "pinned";
+                GetOrCrash(GetLatestFileSnapshot(target)->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "pinned";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
+}
+
+TEST_F(TFileResourceTest, RejectedControllerParametersPropagateAndAllowRecovery)
+{
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto controller = MakeNamedController(
+        queue->GetInvoker(),
+        statusProfiler,
+        {{"left", "left"}},
+        /*discoverPeriod*/ TDuration::MilliSeconds(1),
+        /*profiler*/ {},
+        /*pinnedContentIds*/ {{"left", "initial"}});
+    controller->Init(nullptr);
+    WaitForPredicate([&] {
+        return TryBuildTargetRevision(controller) && HasDiscovered(controller);
+    });
+    auto previousActive = TryBuildTargetRevision(controller)->ActiveFileSnapshot;
+    auto dynamicContext = New<TDynamicResourceControllerContext>();
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::MilliSeconds(1),
+        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+        /*pinnedContentIds*/ {{"left", ""}})
+        ->DynamicResourceSpec;
+    EXPECT_THROW(controller->Reconfigure(dynamicContext), std::exception);
+    EXPECT_EQ(GetActiveSnapshotId(controller), previousActive->Id);
+
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::MilliSeconds(1),
+        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+        /*pinnedContentIds*/ {{"left", "recovered"}})
+        ->DynamicResourceSpec;
+    controller->Reconfigure(dynamicContext);
+    WaitForPredicate([&] {
+        auto target = TryBuildTargetRevision(controller);
+        return target && HasDiscovered(controller) &&
+            GetOrCrash(target->ActiveFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "recovered";
+    });
+
+    auto recoveredActive = GetActiveSnapshotId(controller);
+    dynamicContext = New<TDynamicResourceControllerContext>();
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::MilliSeconds(1),
+        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+        /*pinnedContentIds*/ {{"left", "during-invalid-parameters"}})
+        ->DynamicResourceSpec;
+    ASSERT_TRUE(dynamicContext->DynamicResourceSpec->Parameters->AddChild("version", ConvertToNode(-1)));
+    EXPECT_THROW(controller->Reconfigure(dynamicContext), std::exception);
+    auto controllerWithoutFiles = MakeNamedController(
+        queue->GetInvoker(),
+        /*statusProfiler*/ nullptr,
+        /*fileProviders*/ {});
+    controllerWithoutFiles->Init(nullptr);
+    EXPECT_TRUE(HasDiscovered(controllerWithoutFiles));
+    EXPECT_THROW(controllerWithoutFiles->Reconfigure(dynamicContext), std::exception);
+    EXPECT_EQ(GetActiveSnapshotId(controller), recoveredActive);
+
+    dynamicContext = New<TDynamicResourceControllerContext>();
+    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::MilliSeconds(1),
+        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
+        /*pinnedContentIds*/ {{"left", "recovered"}})
+        ->DynamicResourceSpec;
+    controller->Reconfigure(dynamicContext);
+    EXPECT_TRUE(WaitForTargetRevision(controller));
+    EXPECT_TRUE(statusProfiler->GetStatus().Errors.empty());
+    controllerWithoutFiles->Reconfigure(dynamicContext);
+    EXPECT_TRUE(HasDiscovered(controllerWithoutFiles));
+}
+
+TEST_F(TFileResourceTest, RejectedParametersPropagateAndAllowRecovery)
+{
+    auto queue = New<TActionQueue>();
+    auto resource = MakeResource(queue->GetInvoker());
+    int reconfigurations = 0;
+    resource->SubscribeReconfigured(BIND([&] (const TDynamicResourceContextPtr&) {
+        ++reconfigurations;
+    }));
+    auto invalidParameters = MakeDynamicContext();
+    ASSERT_TRUE(invalidParameters->DynamicResourceSpec->Parameters->AddChild("version", ConvertToNode(-1)));
+    auto invalidProvider = MakeNamedDynamicContext(
+        /*target*/ nullptr,
+        /*discoverPeriod*/ TDuration::Seconds(1),
+        /*updateRetryPeriod*/ TDuration::Seconds(1),
+        /*pinnedContentIds*/ {{"file", ""}});
+    for (const auto& context : {invalidParameters, invalidProvider}) {
+        EXPECT_THROW(resource->Reconfigure(context), std::exception);
+        EXPECT_EQ(resource->GetDynamicParameters()->Version, 0);
+        EXPECT_EQ(reconfigurations, 0);
+    }
+
+    auto recovered = MakeDynamicContext();
+    ASSERT_TRUE(recovered->DynamicResourceSpec->Parameters->AddChild("version", ConvertToNode(1)));
+    resource->Reconfigure(recovered);
+    EXPECT_EQ(resource->GetDynamicContext(), recovered);
+    EXPECT_EQ(resource->GetDynamicParameters()->Version, 1);
+    EXPECT_EQ(reconfigurations, 1);
 }
 
 TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
@@ -2432,7 +2838,7 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
     controller->Init(stateManager->CreateContext());
     WaitForPredicate(
         [&] {
-            return static_cast<bool>(controller->BuildTargetRevision());
+            return static_cast<bool>(TryBuildTargetRevision(controller));
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2442,6 +2848,8 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
             .AsyncVia(queue->GetInvoker())
             .Run())
         .ThrowOnError();
+    const auto previousActive = GetActiveSnapshotId(controller);
+    ASSERT_TRUE(previousActive);
     controller.Reset();
 
     TFakeFileProvider::SetDiscoveryError("left");
@@ -2453,11 +2861,8 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
         {{"left", "left"}},
         TDuration::Hours(1));
     restored->Init(restoredStateManager->CreateContext());
-    auto target = restored->BuildTargetRevision();
-    ASSERT_TRUE(target);
-    EXPECT_EQ(
-        GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
-        "pinned-v1");
+    EXPECT_FALSE(restored->GetPreparingFuture().IsSet());
+    EXPECT_EQ(GetActiveSnapshotId(restored), previousActive);
 }
 
 TEST_F(TFileResourceTest, LockBeforeFirstStateThrows)
@@ -2562,6 +2967,23 @@ TEST_F(TFileResourceTest, MalformedTargetIsReportedAndCanRecover)
         EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 2);
         EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
     }
+}
+
+TEST_F(TFileResourceTest, InitialLoadWaitsForTarget)
+{
+    auto queue = New<TActionQueue>();
+    auto resource = MakeResource(queue->GetInvoker());
+    auto futureLoad = resource->Load({});
+    EXPECT_FALSE(futureLoad.IsSet());
+    EXPECT_THROW_WITH_SUBSTRING(resource->Lock(), "no initialized data");
+
+    resource->Reconfigure(MakeDynamicContext());
+    EXPECT_FALSE(futureLoad.IsSet());
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(1, "v1")));
+    WaitFor(futureLoad.WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    EXPECT_EQ(resource->Lock()->Value, "payload:v1");
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 1);
 }
 
 TEST_F(TFileResourceTest, CancelInitialLoadBeforeTarget)

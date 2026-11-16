@@ -156,7 +156,9 @@ retry succeeds or a replacement target arrives. During an update, the resource k
 previous valid version.
 
 The controller keeps an active snapshot and the next snapshot being prepared. A new worker first
-loads the active snapshot and then prepares the next one. The controller admits the preparing
+attempts to load the active snapshot and then prepares the next one. An active download failure does
+not block preparing and validating the next snapshot while the active snapshot waits for a retry.
+The controller admits the preparing
 snapshot after one current resource instance on the current target revision validates it. This is
 a canary admission check, not an all-worker barrier or quorum. After admission, workers converge
 asynchronously and may complete the switch at different times, but each worker receives the same
@@ -189,7 +191,7 @@ is retried, the computation could observe a different file version and become no
 Use a materializing transformation such as `TTransformComputation`, or use a provider that is
 guaranteed not to change during the entire run.
 
-### Pinning a version
+### Pinning a version {#pinning-a-version}
 
 A provider may define dynamic parameters. For example, `TYTDirectoryLastFileProvider` can temporarily
 select a specific table revision instead of the latest one:
@@ -210,8 +212,23 @@ dynamic_spec = {
 };
 ```
 
-After the parameters change, the controller discovers revisions again. Workers keep using the
-previous snapshot until a complete new set has been discovered successfully.
+Dynamic `parameters.pinned_file_name` selects that exact table. After discovery, the new snapshot
+becomes `Active` directly, bypassing `Preparing`. Workers still download, initialize, and validate
+its data. A running resource keeps serving its previous valid snapshot until these steps succeed.
+Removing the pin retains the active snapshot; the next regular version goes through `Preparing`.
+
+A completed Stop or Pause clears the published target revisions. The next Start puts the pipeline
+in `Working`: resource instances may be created before discovery completes, but a job waits for their
+`Load()` before initializing its computation. A file resource waits for the current snapshot, so a pin
+set before Start applies to the first load without serving the old version. Discovery waits and errors
+appear in the controller status. Initializing a resource controller requires fresh discovery, even
+with unchanged specs.
+Persisted snapshots and the file cache are reused but do not replace discovery. On a running pipeline,
+pending or failed discovery leaves the published revision unchanged: the resource continues serving
+its previous snapshot.
+
+Pause remains available while waiting. Stop still requires draining existing work; an unavailable
+resource can delay its completion.
 
 ### Postprocessing downloaded files
 

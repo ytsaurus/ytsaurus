@@ -39,9 +39,6 @@ public:
         return Completion.ToFuture();
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr&) override
-    { }
-
     TResourceRevisionState GetRevisionState() const override
     {
         return {};
@@ -175,6 +172,26 @@ TEST_F(TResourceInstanceManagerTest, LazyAndSharedLoad)
     WaitFor(first).ThrowOnError();
     WaitFor(second).ThrowOnError();
     EXPECT_EQ(Manager_->CollectResourceInstanceStatuses().at(id)->LoadState, EResourceLoadState::Loaded);
+}
+
+TEST_F(TResourceInstanceManagerTest, ReconfigureIsolatesResourceErrors)
+{
+    auto first = Add("first");
+    auto second = Add("second");
+    Reconfigure();
+    int attempts = 0;
+    for (auto id : {first, second}) {
+        Get(id)->SubscribeReconfigured(BIND([&] (const TDynamicResourceContextPtr&) {
+            ++attempts;
+            THROW_ERROR_EXCEPTION("Reconfiguration failed");
+        }));
+        auto spec = New<TDynamicResourceSpec>();
+        spec->FileProviderDiscoverPeriod = TDuration::Seconds(99);
+        DynamicSpecs_[id]->DynamicResourceSpec = std::move(spec);
+    }
+
+    EXPECT_NO_THROW(Reconfigure());
+    EXPECT_EQ(attempts, 2);
 }
 
 TEST_F(TResourceInstanceManagerTest, FailureIsCachedUntilReplacement)

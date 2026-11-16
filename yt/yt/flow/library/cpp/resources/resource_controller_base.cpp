@@ -30,9 +30,7 @@ struct TFileProviderDiscoveryState
     : public TYsonStruct
 {
     IMapNodePtr ResourceSpec;
-    IMapNodePtr FileProviders;
-    IMapNodePtr DynamicFileProviders;
-    THashMap<TFileProviderId, TFileProviderRevisionPtr> Revisions;
+    IMapNodePtr DynamicResourceSpec;
     std::optional<TFileSnapshotId> ActiveFileSnapshotId;
     std::optional<TFileSnapshotId> PreparingFileSnapshotId;
     THashMap<TFileSnapshotId, TFileSnapshotPtr> KnownFileSnapshots;
@@ -45,11 +43,7 @@ struct TFileProviderDiscoveryState
     {
         registrar.Parameter("resource_spec", &TThis::ResourceSpec)
             .Default();
-        registrar.Parameter("file_providers", &TThis::FileProviders)
-            .Default();
-        registrar.Parameter("dynamic_file_providers", &TThis::DynamicFileProviders)
-            .Default();
-        registrar.Parameter("revisions", &TThis::Revisions)
+        registrar.Parameter("dynamic_resource_spec", &TThis::DynamicResourceSpec)
             .Default();
         registrar.Parameter("active_file_snapshot_id", &TThis::ActiveFileSnapshotId)
             .Default();
@@ -141,17 +135,6 @@ TDynamicFileProviderSpecPtr GetDynamicFileProviderSpec(
     return result;
 }
 
-THashMap<TFileProviderId, TDynamicFileProviderSpecPtr> BuildDynamicFileProviderSpecs(
-    const TResourceSpecPtr& resourceSpec,
-    const TDynamicResourceSpecPtr& dynamicResourceSpec)
-{
-    THashMap<TFileProviderId, TDynamicFileProviderSpecPtr> result;
-    for (const auto& [id, _] : resourceSpec->FileProviders) {
-        EmplaceOrCrash(result, id, GetDynamicFileProviderSpec(dynamicResourceSpec, id));
-    }
-    return result;
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,10 +156,7 @@ public:
             RolloutWarningErrorState_ = Context_->StatusProfiler->ErrorState("/file_snapshot_rollout");
         }
 
-        auto dynamicFileProviders = BuildDynamicFileProviderSpecs(
-            Context_->ResourceSpec,
-            dynamicContext->DynamicResourceSpec);
-        DynamicFileProviders_ = ConvertToNode(dynamicFileProviders)->AsMap();
+        DynamicResourceSpec_ = ConvertToNode(dynamicContext->DynamicResourceSpec)->AsMap();
 
         for (const auto& [id, spec] : Context_->ResourceSpec->FileProviders) {
             auto providerContext = New<TFileProviderContext>();
@@ -190,22 +170,19 @@ public:
                 .WithTag("Component", "FileProvider")
                 .WithTag("FileProvider", id);
 
-            auto errorState = Context_->StatusProfiler->ErrorState(
-                Format("/file_providers/%v/discovery", id));
             auto dynamicProviderContext = New<TDynamicFileProviderContext>();
-            dynamicProviderContext->DynamicFileProviderSpec = GetOrCrash(dynamicFileProviders, id);
-            auto executor = New<TPeriodicExecutor>(
+            dynamicProviderContext->DynamicFileProviderSpec = GetDynamicFileProviderSpec(
+                dynamicContext->DynamicResourceSpec,
+                id);
+            EmplaceOrCrash(Providers_, id, TRegistry::Get()->CreateFileProvider(providerContext, dynamicProviderContext));
+        }
+
+        if (!Providers_.empty()) {
+            DiscoveryError_ = Context_->StatusProfiler->ErrorState("/file_providers/discovery");
+            DiscoveryExecutor_ = New<TPeriodicExecutor>(
                 Context_->Invoker,
-                BIND(&TFileProviderDiscovery::Discover, MakeWeak(this), id),
+                BIND(&TFileProviderDiscovery::Discover, MakeWeak(this)),
                 dynamicContext->DynamicResourceSpec->FileProviderDiscoverPeriod);
-            TProviderEntry providerEntry{
-                .Spec = spec,
-                .DynamicSpec = dynamicProviderContext->DynamicFileProviderSpec,
-                .Provider = TRegistry::Get()->CreateFileProvider(providerContext, dynamicProviderContext),
-                .DiscoveryError = std::move(errorState),
-                .DiscoveryExecutor = std::move(executor),
-            };
-            EmplaceOrCrash(Providers_, id, std::move(providerEntry));
         }
     }
 
@@ -217,31 +194,10 @@ public:
             auto resourceSpec = ConvertToNode(Context_->ResourceSpec)->AsMap();
             const auto staticSpecMatches = State_->ResourceSpec &&
                 AreNodesEqual(State_->ResourceSpec, resourceSpec);
-            State_->ResourceSpec = std::move(resourceSpec);
-            auto fileProviders = ConvertToNode(Context_->ResourceSpec->FileProviders)->AsMap();
-            if (staticSpecMatches && State_->FileProviders &&
-                State_->DynamicFileProviders &&
-                AreNodesEqual(State_->FileProviders, fileProviders) &&
-                AreNodesEqual(State_->DynamicFileProviders, DynamicFileProviders_))
-            {
-                auto guard = Guard(Lock_);
-                for (const auto& [id, revision] : State_->Revisions) {
-                    auto providerIt = Providers_.find(id);
-                    if (providerIt != Providers_.end() &&
-                        revision &&
-                        revision->FileProviderClassName == providerIt->second.Spec->FileProviderClassName)
-                    {
-                        PendingRevisions_[id] = revision;
-                    }
-                }
-                if (PendingRevisions_.size() == Providers_.size()) {
-                    PublishedRevisions_ = PendingRevisions_;
-                }
-            } else {
-                State_->FileProviders = std::move(fileProviders);
-                State_->DynamicFileProviders = DynamicFileProviders_;
-                State_->Revisions.clear();
-            }
+            ForceActive_ = State_->ResourceSpec && !staticSpecMatches;
+            const bool discoverySpecMatches = staticSpecMatches &&
+                State_->DynamicResourceSpec &&
+                AreNodesEqual(State_->DynamicResourceSpec, DynamicResourceSpec_);
 
             {
                 auto guard = Guard(Lock_);
@@ -250,8 +206,10 @@ public:
                 auto preparingFileSnapshot = FindKnownFileSnapshot(State_->PreparingFileSnapshotId);
                 if (staticSpecMatches && ArePersistedFileSnapshotsCompatible(activeFileSnapshot, preparingFileSnapshot)) {
                     ActiveFileSnapshot_ = std::move(activeFileSnapshot);
-                    PreparingFileSnapshot_ = std::move(preparingFileSnapshot);
-                    LastFileSnapshotCreationTime_ = State_->LastFileSnapshotCreationTime;
+                    PreparingFileSnapshot_ = discoverySpecMatches ? std::move(preparingFileSnapshot) : nullptr;
+                    LastFileSnapshotCreationTime_ = discoverySpecMatches
+                        ? State_->LastFileSnapshotCreationTime
+                        : std::nullopt;
                     ActiveFileSnapshotPublishedAt_ = State_->ActiveFileSnapshotPublishedAt;
                     if (ActiveFileSnapshot_ && !ActiveFileSnapshotPublishedAt_) {
                         ActiveFileSnapshotPublishedAt_ = TInstant::Now();
@@ -263,130 +221,124 @@ public:
                     ActiveFileSnapshotPublishedAt_.reset();
                 }
                 PruneKnownFileSnapshots();
-                PersistFileSnapshotState();
             }
         }
 
-        for (const auto& [_, entry] : Providers_) {
-            entry.DiscoveryExecutor->Start();
+        if (DiscoveryExecutor_) {
+            DiscoveryExecutor_->Start();
+        } else {
+            DoDiscovery();
         }
+    }
+
+    TFuture<void> GetPreparingFuture() const
+    {
+        auto guard = Guard(Lock_);
+        return PreparingPromise_.ToFuture().ToUncancelable();
     }
 
     void Reconfigure(const TDynamicResourceControllerContextPtr& dynamicContext)
     {
-        auto dynamicFileProviders = BuildDynamicFileProviderSpecs(
-            Context_->ResourceSpec,
-            dynamicContext->DynamicResourceSpec);
-        auto dynamicFileProvidersNode = ConvertToNode(dynamicFileProviders)->AsMap();
-        std::vector<TPeriodicExecutorPtr> changedExecutors;
-
-        for (auto& [id, entry] : Providers_) {
-            entry.DiscoveryExecutor->SetPeriod(
-                dynamicContext->DynamicResourceSpec->FileProviderDiscoverPeriod);
-
-            const auto& dynamicSpec = GetOrCrash(dynamicFileProviders, id);
-            if (AreNodesEqual(ConvertToNode(entry.DynamicSpec), ConvertToNode(dynamicSpec))) {
-                continue;
-            }
-
-            auto dynamicProviderContext = New<TDynamicFileProviderContext>();
-            dynamicProviderContext->DynamicFileProviderSpec = dynamicSpec;
-            entry.Provider->Reconfigure(dynamicProviderContext);
-            {
-                auto guard = Guard(Lock_);
-                entry.DynamicSpec = dynamicSpec;
-                ++entry.Generation;
-                PendingRevisions_.erase(id);
-            }
-            changedExecutors.push_back(entry.DiscoveryExecutor);
+        for (const auto& [fileProviderId, provider] : Providers_) {
+            auto providerContext = New<TDynamicFileProviderContext>();
+            providerContext->DynamicFileProviderSpec = GetDynamicFileProviderSpec(
+                dynamicContext->DynamicResourceSpec,
+                fileProviderId);
+            provider->Reconfigure(providerContext);
+        }
+        if (DiscoveryExecutor_) {
+            DiscoveryExecutor_->SetPeriod(dynamicContext->DynamicResourceSpec->FileProviderDiscoverPeriod);
         }
 
+        auto dynamicSpec = ConvertToNode(dynamicContext->DynamicResourceSpec)->AsMap();
+        TPromise<void> previousPromise;
         {
             auto guard = Guard(Lock_);
-            FileSnapshotMinCreationPeriod_ = dynamicContext->DynamicResourceSpec->FileSnapshotMinCreationPeriod;
-            FileSnapshotCatalogMaxEntries_ = dynamicContext->DynamicResourceSpec->FileSnapshotCatalogMaxEntries;
-            FileSnapshotRolloutWarningPeriod_ = dynamicContext->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod;
-            PruneKnownFileSnapshots();
-            if (!AreNodesEqual(DynamicFileProviders_, dynamicFileProvidersNode)) {
-                DynamicFileProviders_ = std::move(dynamicFileProvidersNode);
-                if (State_.IsInitialized()) {
-                    State_->DynamicFileProviders = DynamicFileProviders_;
-                    State_->Revisions = PendingRevisions_;
-                }
-            }
-            PersistFileSnapshotState();
+            ++Generation_;
+            DynamicResourceSpec_ = std::move(dynamicSpec);
+            DiscoveryResult_.clear();
+            previousPromise = std::exchange(PreparingPromise_, NewPromise<void>());
         }
+        PreparingFileSnapshot_.Reset();
+        LastFileSnapshotCreationTime_.reset();
+        FileSnapshotMinCreationPeriod_ = dynamicContext->DynamicResourceSpec->FileSnapshotMinCreationPeriod;
+        FileSnapshotCatalogMaxEntries_ = dynamicContext->DynamicResourceSpec->FileSnapshotCatalogMaxEntries;
+        FileSnapshotRolloutWarningPeriod_ = dynamicContext->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod;
+        PruneKnownFileSnapshots();
 
-        for (const auto& executor : changedExecutors) {
-            executor->ScheduleOutOfBand();
+        previousPromise.TrySet(TError("Resource discovery was reconfigured"));
+        if (Providers_.empty()) {
+            DoDiscovery();
         }
     }
 
-    std::optional<std::pair<TFileSnapshotPtr, TFileSnapshotPtr>> BuildTargetFileSnapshots()
+    std::pair<TFileSnapshotPtr, TFileSnapshotPtr> BuildTargetFileSnapshots()
     {
         const auto& Logger = Context_->Logger;
-        std::optional<THashMap<TFileProviderId, TFileProviderRevisionPtr>> revisionsToSnapshot;
+        THashMap<TFileProviderId, TFileProviderRevisionPtr> revisions;
+        THashSet<TFileProviderId> pinnedProviders;
         {
             auto guard = Guard(Lock_);
-            auto now = TInstant::Now();
-            if (LastFileSnapshotCreationTime_ && *LastFileSnapshotCreationTime_ > now) {
-                LastFileSnapshotCreationTime_ = now;
-                PersistFileSnapshotState();
-            }
-            if (PublishedRevisions_.size() == Providers_.size() &&
-                MatchesFileSnapshot(ActiveFileSnapshot_, PublishedRevisions_) &&
-                PreparingFileSnapshot_)
-            {
-                PreparingFileSnapshot_.Reset();
-                PersistFileSnapshotState();
-            }
-            if (!Providers_.empty() &&
-                PublishedRevisions_.size() == Providers_.size() &&
-                !MatchesFileSnapshot(ActiveFileSnapshot_, PublishedRevisions_) &&
-                !MatchesFileSnapshot(PreparingFileSnapshot_, PublishedRevisions_) &&
-                (!LastFileSnapshotCreationTime_ ||
-                    now >= *LastFileSnapshotCreationTime_ + FileSnapshotMinCreationPeriod_))
-            {
-                revisionsToSnapshot = PublishedRevisions_;
+            THROW_ERROR_EXCEPTION_UNLESS(DiscoveryResult_.size() == Providers_.size(), "Waiting for file provider discovery");
+            for (const auto& [fileProviderId, result] : DiscoveryResult_) {
+                revisions[fileProviderId] = result.Revision;
+                if (result.Pinned) {
+                    pinnedProviders.insert(fileProviderId);
+                }
             }
         }
-
-        TFileSnapshotPtr createdSnapshot;
-        if (revisionsToSnapshot) {
-            THROW_ERROR_EXCEPTION_UNLESS(
-                Context_->TimeProvider,
-                "File provider controller requires a time provider");
+        PromotePinnedSnapshot(revisions, pinnedProviders);
+        auto now = TInstant::Now();
+        if (LastFileSnapshotCreationTime_ && *LastFileSnapshotCreationTime_ > now) {
+            LastFileSnapshotCreationTime_ = now;
+        }
+        if (MatchesFileSnapshot(ActiveFileSnapshot_, revisions)) {
+            PreparingFileSnapshot_.Reset();
+        } else if (!Providers_.empty() &&
+            !MatchesFileSnapshot(PreparingFileSnapshot_, revisions) &&
+            (!LastFileSnapshotCreationTime_ ||
+                now >= *LastFileSnapshotCreationTime_ + FileSnapshotMinCreationPeriod_))
+        {
             auto snapshot = New<TFileSnapshot>();
             snapshot->Id = TFileSnapshotId(Context_->TimeProvider->GenerateSeqNo());
-            snapshot->FileProviders = *revisionsToSnapshot;
-
-            auto guard = Guard(Lock_);
-            auto now = TInstant::Now();
-            if (AreFileProviderRevisionsEqual(PublishedRevisions_, *revisionsToSnapshot) &&
-                !MatchesFileSnapshot(ActiveFileSnapshot_, *revisionsToSnapshot) &&
-                !MatchesFileSnapshot(PreparingFileSnapshot_, *revisionsToSnapshot) &&
-                (!LastFileSnapshotCreationTime_ ||
-                    now >= *LastFileSnapshotCreationTime_ + FileSnapshotMinCreationPeriod_))
-            {
-                PreparingFileSnapshot_ = std::move(snapshot);
-                createdSnapshot = PreparingFileSnapshot_;
-                RegisterKnownFileSnapshot(PreparingFileSnapshot_);
-                LastFileSnapshotCreationTime_ = now;
-                PersistFileSnapshotState();
-            }
-        }
-
-        if (createdSnapshot) {
+            snapshot->FileProviders = std::move(revisions);
+            PreparingFileSnapshot_ = std::move(snapshot);
+            RegisterKnownFileSnapshot(PreparingFileSnapshot_);
+            LastFileSnapshotCreationTime_ = now;
             YT_TLOG_INFO("Created file snapshot for rollout")
-                .With("FileSnapshotId", createdSnapshot->Id);
+                .With("FileSnapshotId", PreparingFileSnapshot_->Id);
         }
-
-        auto guard = Guard(Lock_);
+        if (State_.IsInitialized()) {
+            State_->ResourceSpec = ConvertToNode(Context_->ResourceSpec)->AsMap();
+            State_->DynamicResourceSpec = DynamicResourceSpec_;
+        }
+        PersistFileSnapshotState();
         UpdateTargetMetrics();
-        if (!Providers_.empty() && !ActiveFileSnapshot_ && !PreparingFileSnapshot_) {
-            return std::nullopt;
+        return {ActiveFileSnapshot_, PreparingFileSnapshot_};
+    }
+
+    void PromotePinnedSnapshot(
+        const THashMap<TFileProviderId, TFileProviderRevisionPtr>& discoveredRevisions,
+        const THashSet<TFileProviderId>& pinnedProviders)
+    {
+        if (Providers_.empty() || (!ForceActive_ && pinnedProviders.empty())) {
+            return;
         }
-        return std::pair(ActiveFileSnapshot_, PreparingFileSnapshot_);
+        auto revisions = ActiveFileSnapshot_ ? ActiveFileSnapshot_->FileProviders : discoveredRevisions;
+        for (const auto& fileProviderId : pinnedProviders) {
+            revisions[fileProviderId] = GetOrCrash(discoveredRevisions, fileProviderId);
+        }
+        if (MatchesFileSnapshot(ActiveFileSnapshot_, revisions)) {
+            return;
+        }
+        auto snapshot = New<TFileSnapshot>();
+        snapshot->Id = TFileSnapshotId(Context_->TimeProvider->GenerateSeqNo());
+        snapshot->FileProviders = std::move(revisions);
+        ActiveFileSnapshot_ = std::move(snapshot);
+        ForceActive_ = false;
+        PreparingFileSnapshot_.Reset();
+        ActiveFileSnapshotPublishedAt_ = TInstant::Now();
+        RegisterKnownFileSnapshot(ActiveFileSnapshot_);
     }
 
     void CollectStatuses(
@@ -571,7 +523,9 @@ public:
         auto view = New<TFileProviderDiscoveryView>();
         {
             auto guard = Guard(Lock_);
-            view->ProviderRevisions = PublishedRevisions_;
+            for (const auto& [fileProviderId, result] : DiscoveryResult_) {
+                view->ProviderRevisions[fileProviderId] = result.Revision;
+            }
             view->ActiveFileSnapshotId = ActiveFileSnapshot_
                 ? std::optional(ActiveFileSnapshot_->Id)
                 : std::nullopt;
@@ -607,16 +561,6 @@ private:
         TIncarnationId WorkerIncarnationId;
         TResourceInstanceId ResourceInstanceId;
         ui64 Generation;
-    };
-
-    struct TProviderEntry
-    {
-        TFileProviderSpecPtr Spec;
-        TDynamicFileProviderSpecPtr DynamicSpec;
-        IFileProviderPtr Provider;
-        IStatusErrorStatePtr DiscoveryError;
-        TPeriodicExecutorPtr DiscoveryExecutor;
-        ui64 Generation = 0;
     };
 
     void UpdateTargetMetrics()
@@ -867,11 +811,11 @@ private:
         if (snapshot->FileProviders.size() != Providers_.size()) {
             return false;
         }
-        for (const auto& [id, entry] : Providers_) {
-            auto it = snapshot->FileProviders.find(id);
+        for (const auto& [fileProviderId, spec] : Context_->ResourceSpec->FileProviders) {
+            auto it = snapshot->FileProviders.find(fileProviderId);
             if (it == snapshot->FileProviders.end() ||
                 !it->second ||
-                it->second->FileProviderClassName != entry.Spec->FileProviderClassName)
+                it->second->FileProviderClassName != spec->FileProviderClassName)
             {
                 return false;
             }
@@ -948,92 +892,75 @@ private:
         State_->ActiveFileSnapshotPublishedAt = ActiveFileSnapshotPublishedAt_;
     }
 
-    void Discover(const TFileProviderId& id)
+    void DoDiscovery()
+    {
+        auto generation = [this] {
+            auto guard = Guard(Lock_);
+            return Generation_;
+        }();
+
+        THashMap<TFileProviderId, TFuture<TFileProviderDiscoveryResult>> futures;
+        for (const auto& [fileProviderId, provider] : Providers_) {
+            futures[fileProviderId] = provider->Discover();
+        }
+
+        THashMap<TFileProviderId, TFileProviderDiscoveryResult> results;
+        for (const auto& [fileProviderId, future] : futures) {
+            auto result = WaitFor(future)
+                .ValueOrThrow();
+            THROW_ERROR_EXCEPTION_UNLESS(result.Revision, "File provider %Qv discovery returned no revision", fileProviderId);
+            const auto& expectedClassName = GetOrCrash(Context_->ResourceSpec->FileProviders, fileProviderId)->FileProviderClassName;
+            THROW_ERROR_EXCEPTION_UNLESS(result.Revision->FileProviderClassName == expectedClassName, "Discovered file provider %Qv class %Qv differs from configured class %Qv", fileProviderId, result.Revision->FileProviderClassName, expectedClassName);
+            results[fileProviderId] = std::move(result);
+        }
+
+        auto promise = [&] {
+            auto guard = Guard(Lock_);
+            THROW_ERROR_EXCEPTION_UNLESS(generation == Generation_, "Resource discovery was reconfigured");
+            const auto& Logger = Context_->Logger;
+            for (const auto& [fileProviderId, result] : results) {
+                auto it = DiscoveryResult_.find(fileProviderId);
+                if (it == DiscoveryResult_.end() || !AreFileProviderRevisionsEqual(it->second.Revision, result.Revision)) {
+                    YT_TLOG_INFO("Discovered new file provider revision")
+                        .With("FileProvider", fileProviderId)
+                        .With("ObjectId", result.Revision->ObjectId)
+                        .With("DisplayVersion", result.Revision->DisplayVersion)
+                        .With("ExpectedSize", result.Revision->Size);
+                }
+            }
+            DiscoveryResult_ = std::move(results);
+            return PreparingPromise_;
+        }();
+        promise.TrySet();
+    }
+
+    void Discover()
     {
         const auto& Logger = Context_->Logger;
-        const auto& entry = GetOrCrash(Providers_, id);
-        ui64 generation;
-        {
-            auto guard = Guard(Lock_);
-            generation = entry.Generation;
-        }
         try {
-            auto revision = WaitFor(entry.Provider->Discover()).ValueOrThrow();
-            if (revision) {
-                THROW_ERROR_EXCEPTION_UNLESS(
-                    revision->FileProviderClassName == entry.Spec->FileProviderClassName,
-                    "Discovered file provider %Qv class %Qv differs from configured class %Qv",
-                    id,
-                    revision->FileProviderClassName,
-                    entry.Spec->FileProviderClassName);
-                bool changed = false;
-                {
-                    auto guard = Guard(Lock_);
-                    if (generation != entry.Generation) {
-                        return;
-                    }
-                    auto previousIt = PendingRevisions_.find(id);
-                    changed = previousIt == PendingRevisions_.end() ||
-                        !AreFileProviderRevisionsEqual(previousIt->second, revision);
-                    PendingRevisions_[id] = revision;
-                    if (PendingRevisions_.size() == Providers_.size()) {
-                        PublishedRevisions_ = PendingRevisions_;
-                    }
-                    if (State_.IsInitialized()) {
-                        State_->Revisions = PendingRevisions_;
-                    }
-                }
-                entry.DiscoveryError->ClearError();
-                if (changed) {
-                    YT_TLOG_INFO("Discovered new file provider revision")
-                        .With("FileProvider", id)
-                        .With("ObjectId", revision->ObjectId)
-                        .With("DisplayVersion", revision->DisplayVersion)
-                        .With("ExpectedSize", revision->Size);
-                }
-                return;
-            }
-
-            bool hasRevision;
-            {
-                auto guard = Guard(Lock_);
-                if (generation != entry.Generation) {
-                    return;
-                }
-                hasRevision = PendingRevisions_.contains(id);
-            }
-            if (hasRevision) {
-                entry.DiscoveryError->ClearError();
-            } else {
-                entry.DiscoveryError->SetError(
-                    TError("File provider discovery returned no revision")
-                        .With("file_provider", id));
-            }
+            DoDiscovery();
+            DiscoveryError_->ClearError();
         } catch (const std::exception& ex) {
             auto error = TError("File provider discovery failed")
-                .With("file_provider", id)
                 .With(TError(ex));
-            {
-                auto guard = Guard(Lock_);
-                if (generation != entry.Generation) {
-                    return;
-                }
-            }
-            entry.DiscoveryError->SetError(error);
+            DiscoveryError_->SetError(error);
             YT_TLOG_WARNING("File provider discovery failed")
-                .With("FileProvider", id)
                 .With(error);
         }
     }
 
     const TResourceControllerContextPtr Context_;
-    THashMap<TFileProviderId, TProviderEntry> Providers_;
+    THashMap<TFileProviderId, IFileProviderPtr> Providers_;
+    TPeriodicExecutorPtr DiscoveryExecutor_;
+    IStatusErrorStatePtr DiscoveryError_;
 
     mutable TSpinLock Lock_;
     TMutableStateClient<TFileProviderDiscoveryState> State_;
-    IMapNodePtr DynamicFileProviders_;
-    THashMap<TFileProviderId, TFileProviderRevisionPtr> PendingRevisions_;
-    THashMap<TFileProviderId, TFileProviderRevisionPtr> PublishedRevisions_;
+    THashMap<TFileProviderId, TFileProviderDiscoveryResult> DiscoveryResult_;
+    IMapNodePtr DynamicResourceSpec_;
+    i64 Generation_ = 0;
+    TPromise<void> PreparingPromise_ = NewPromise<void>();
+    bool ForceActive_ = false;
     TFileSnapshotPtr ActiveFileSnapshot_;
     TFileSnapshotPtr PreparingFileSnapshot_;
     THashMap<TFileSnapshotId, TFileSnapshotPtr> KnownFileSnapshots_;
@@ -1080,12 +1007,13 @@ TResourceControllerBase::TResourceControllerBase(
     , FileProviderDiscovery_(New<TFileProviderDiscovery>(Context_, dynamicContext))
     , Logger(Context_->Logger)
 {
-    SubscribeReconfigured(BIND([this] (const TDynamicResourceControllerContextPtr& newDynamicContext) {
-        DynamicContext_ = newDynamicContext;
+    SubscribeReconfigured(BIND([this] (const TDynamicResourceControllerContextPtr& dynamicContext) {
+        DynamicContext_ = dynamicContext;
         DynamicParameters_ = TRegistry::Get()->ParseResourceDynamicParameters(
             Context_->ResourceSpec,
-            newDynamicContext->DynamicResourceSpec);
-        FileProviderDiscovery_->Reconfigure(newDynamicContext);
+            dynamicContext->DynamicResourceSpec);
+        FileProviderDiscovery_->Reconfigure(dynamicContext);
+        TargetRevision_.Reset();
     }));
 }
 
@@ -1095,23 +1023,29 @@ void TResourceControllerBase::Init(IInitContextPtr initContext)
     FileProviderDiscovery_->Init(initContext ? initContext->WithPrefix("file_providers") : nullptr);
 }
 
+TFuture<void> TResourceControllerBase::GetPreparingFuture()
+{
+    return FileProviderDiscovery_->GetPreparingFuture();
+}
+
 TResourceRevisionPtr TResourceControllerBase::BuildTargetRevision()
 {
+    auto [active, preparing] = FileProviderDiscovery_->BuildTargetFileSnapshots();
     auto spec = DoBuildTargetRevisionSpec();
-    auto fileSnapshots = FileProviderDiscovery_->BuildTargetFileSnapshots();
-    if (!spec &&
-        (!fileSnapshots || (!fileSnapshots->first && !fileSnapshots->second)))
-    {
+    if (!spec && !active && !preparing) {
+        TargetRevision_.Reset();
         return nullptr;
     }
-
     auto revision = New<TResourceRevision>();
-    revision->Spec = std::move(spec);
-    if (fileSnapshots) {
-        revision->ActiveFileSnapshot = fileSnapshots->first;
-        revision->PreparingFileSnapshot = fileSnapshots->second;
+    revision->Spec = spec ? CloneNode(spec) : nullptr;
+    revision->ActiveFileSnapshot = std::move(active);
+    revision->PreparingFileSnapshot = std::move(preparing);
+    revision->RevisionId = TargetRevision_ ? TargetRevision_->RevisionId : 0;
+    if (!TargetRevision_ || !AreNodesEqual(ConvertToNode(revision), ConvertToNode(TargetRevision_))) {
+        revision->RevisionId = Context_->VersionProvider->GenerateVersion().Underlying();
+        TargetRevision_ = std::move(revision);
     }
-    return revision;
+    return TargetRevision_;
 }
 
 void TResourceControllerBase::CollectStatuses(

@@ -364,9 +364,6 @@ struct TNullResource
         return OKFuture;
     }
 
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
-
     TResourceRevisionState GetRevisionState() const override
     {
         return {};

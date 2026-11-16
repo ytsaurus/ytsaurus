@@ -72,7 +72,7 @@ public:
 
     using TFileProviderBase::TFileProviderBase;
 
-    TFuture<TFileProviderRevisionPtr> Discover() override;
+    TFuture<TFileProviderDiscoveryResult> Discover() override;
 
     TFuture<void> Download(
         const TFileProviderRevisionPtr& revision,

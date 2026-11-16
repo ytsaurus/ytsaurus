@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+#include <tuple>
+
 namespace NYT::NFlow {
 
 using namespace NThreading;
@@ -38,9 +40,6 @@ public:
     {
         THROW_ERROR_EXCEPTION(Error_);
     }
-
-    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-    { }
 
     TResourceRevisionState GetRevisionState() const override
     {
@@ -234,7 +233,7 @@ public:
         }
         std::vector<IResourcePtr> released;
         std::vector<std::pair<TResourceInstanceId, TFuture<void>>> canceledLoads;
-        std::vector<std::pair<IResourcePtr, TDynamicResourceContextPtr>> reconfigured;
+        std::vector<std::tuple<TResourceId, IResourcePtr, TDynamicResourceContextPtr>> reconfigured;
         THashSet<TResourceInstanceId> eager;
         {
             auto guard = Guard(Lock_);
@@ -284,7 +283,7 @@ public:
                     }
                     Resources_.emplace(resourceId, CreateResource(resourceId, instanceId));
                 } else if (auto context = UpdateDynamicContext(resourceId, dynamicSpec->DynamicResourceSpec, dynamicSpec->TargetRevision)) {
-                    reconfigured.emplace_back(it->second, std::move(context));
+                    reconfigured.emplace_back(resourceId, it->second, std::move(context));
                 }
                 if (GetOrCrash(resourceSpecs, resourceId)->AlwaysOn) {
                     AlwaysOnResourceIds_.push_back(resourceId);
@@ -311,8 +310,8 @@ public:
                 released.clear();
             }));
         }
-        for (const auto& [resource, context] : reconfigured) {
-            resource->Reconfigure(context);
+        for (const auto& [resourceId, resource, context] : reconfigured) {
+            ReconfigureResource(resourceId, resource, context);
         }
         YT_UNUSED_FUTURE(Load(eager));
     }
@@ -353,19 +352,19 @@ public:
         const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicSpecs,
         const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions) override
     {
-        std::vector<std::pair<IResourcePtr, TDynamicResourceContextPtr>> toReconfigure;
+        std::vector<std::tuple<TResourceId, IResourcePtr, TDynamicResourceContextPtr>> toReconfigure;
         {
             auto guard = Guard(Lock_);
 
             for (const auto& [resourceId, resource] : Resources_) {
                 if (auto context = UpdateDynamicContext(resourceId, GetOrDefault(dynamicSpecs, resourceId), GetOrDefault(targetRevisions, resourceId))) {
-                    toReconfigure.emplace_back(resource, std::move(context));
+                    toReconfigure.emplace_back(resourceId, resource, std::move(context));
                 }
             }
         }
 
-        for (const auto& [resource, dynamicContext] : toReconfigure) {
-            resource->Reconfigure(dynamicContext);
+        for (const auto& [resourceId, resource, dynamicContext] : toReconfigure) {
+            ReconfigureResource(resourceId, resource, dynamicContext);
         }
     }
 
@@ -548,6 +547,21 @@ private:
 
     // Always-on resources required on this unit.
     std::vector<TResourceId> AlwaysOnResourceIds_;
+
+    void ReconfigureResource(
+        TResourceId resourceId,
+        const IResourcePtr& resource,
+        const TDynamicResourceContextPtr& context)
+    {
+        try {
+            resource->Reconfigure(context);
+        } catch (const std::exception& ex) {
+            // TODO(mikari): Fail the resource instance and its dependents (YTFLOW-990).
+            YT_TLOG_ERROR("Failed to reconfigure resource")
+                .With("ResourceId", resourceId)
+                .With(ex);
+        }
+    }
 
     TResourceId GetResourceIdOrThrow(TResourceInstanceId instanceId) const
     {
