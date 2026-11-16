@@ -31,6 +31,9 @@ message TChunkReaderStatistics
     optional int64 block_count = 19;
     optional int64 prefetched_block_count = 20;
 
+    // Bytes read from disk on locations with I/O fair share enabled.
+    optional int64 io_consumed = 24;
+
     reserved 8;
 }
 

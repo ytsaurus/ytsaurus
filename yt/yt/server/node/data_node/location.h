@@ -327,6 +327,8 @@ public:
 
     bool ShouldUseUncategorizedThrottler() const;
 
+    bool IsIOFairShareEnabled() const;
+
     const TChunkStorePtr& GetChunkStore() const;
 
     std::optional<TDuration> GetDelayBeforeBlobChunkRead() const;

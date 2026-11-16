@@ -117,6 +117,10 @@ struct TChunkLocationConfig
     double WeightedRequestWeight;
     double UnweightedRequestWeight;
 
+    //! When enabled, disk bytes of this location are reported to clients as io_consumed
+    //! and thus count towards per-job I/O fair share.
+    bool EnableIOFairShare;
+
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
@@ -147,6 +151,8 @@ struct TChunkLocationDynamicConfig
 
     std::optional<double> WeightedRequestWeight;
     std::optional<double> UnweightedRequestWeight;
+
+    std::optional<bool> EnableIOFairShare;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;

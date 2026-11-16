@@ -127,6 +127,7 @@ struct TTestCase
     bool EnableJobIoStatistics = true;
     std::optional<TForwardedIoFairShareState> ForwardedIoFairShareState;
     bool ExpectUnbatchedReads = false;
+    bool IOFairShareEnabled = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +323,11 @@ public:
         PostponeProbingReply_.store(postponeProbingReply);
     }
 
+    void SetIOFairShareEnabled(bool ioFairShareEnabled)
+    {
+        IOFairShareEnabled_.store(ioFairShareEnabled);
+    }
+
     void SetChunkMeta(
         TChunkId chunkId,
         NProto::TChunkMeta chunkMeta)
@@ -382,6 +388,7 @@ private:
     std::atomic<bool> EnablePartialThrottling_ = false;
     std::atomic<bool> HasFatalError_ = false;
     std::atomic<bool> PostponeProbingReply_ = false;
+    std::atomic<bool> IOFairShareEnabled_ = true;
     std::optional<TProbeStatistics> ProbeStatistics_;
     bool PeerCalled_ = false;
     std::atomic<double> LastIoFairShareWeight_ = -1;
@@ -442,6 +449,9 @@ private:
         }
         statistics->WastedDataBytesReadFromDisk = statistics->DataBytesReadFromDisk.load() / 2;
         statistics->MetaBytesReadFromDisk = 17;
+        if (IOFairShareEnabled_.load()) {
+            statistics->IOConsumed = statistics->DataBytesReadFromDisk.load() + statistics->MetaBytesReadFromDisk.load();
+        }
         return statistics;
     }
 };
@@ -555,6 +565,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         addressToService[address] = service;
         service->SetChunkBlocks(chunkId, blocks);
         service->SetPartiallyThrottle(testCase.PartiallyThrottling);
+        service->SetIOFairShareEnabled(testCase.IOFairShareEnabled);
         if (testCase.ExpectUnbatchedReads) {
             // Keep the first response pending until every overlapping read gets its own RPC.
             service->SetReadRequestBarrier(requestInBatch);
@@ -706,9 +717,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
 
     // Wasted bytes are already included in the total disk reads.
-    auto expectedIoConsumed = testCase.EnableJobIoStatistics
+    auto expectedReportedIoConsumed = testCase.IOFairShareEnabled
         ? statistics->DataBytesReadFromDisk.load() + statistics->MetaBytesReadFromDisk.load()
         : 0;
+    auto expectedIoConsumed = testCase.EnableJobIoStatistics ? expectedReportedIoConsumed : 0;
+    EXPECT_EQ(statistics->IOConsumed.load(), expectedReportedIoConsumed);
     EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedIoConsumed);
 
     // Forwarded fields take precedence over the local meter and reader config.
@@ -770,6 +783,10 @@ INSTANTIATE_TEST_SUITE_P(
         TTestCase{
             .EnableChunkProber = true,
             .ForwardedIoFairShareState = TForwardedIoFairShareState{},
+        },
+        TTestCase{
+            .EnableChunkProber = true,
+            .IOFairShareEnabled = false,
         },
         TTestCase{
             .EnableChunkProber = true,

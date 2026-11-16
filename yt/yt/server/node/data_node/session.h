@@ -148,6 +148,7 @@ struct ISession
     {
         NIO::TIOCounters IOCounters;
         NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
+        //! Only set for locations with I/O fair share enabled.
         std::optional<i64> CumulativeIOConsumed;
     };
 

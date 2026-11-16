@@ -21,6 +21,8 @@ struct TChunkWriterStatistics
     std::atomic<i64> MetaBytesWrittenToDisk = 0;
     std::atomic<i64> MetaIOWriteRequests = 0;
     std::atomic<i64> MetaIOSyncRequests = 0;
+    //! Bytes written to disk on locations with I/O fair share enabled.
+    std::atomic<i64> IOConsumed = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterStatistics)

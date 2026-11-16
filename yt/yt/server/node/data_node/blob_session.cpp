@@ -1024,8 +1024,10 @@ ISession::TFlushBlocksResult TBlobSession::OnBlockFlushed(int blockIndex)
     return TFlushBlocksResult{
         .IOCounters = {},
         .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
-        .CumulativeIOConsumed = WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics
-            ->DataBytesWrittenToDisk.load(std::memory_order::relaxed),
+        .CumulativeIOConsumed = Location_->IsIOFairShareEnabled()
+            ? std::make_optional(WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics
+                ->DataBytesWrittenToDisk.load(std::memory_order::relaxed))
+            : std::nullopt,
     };
 }
 
