@@ -3328,7 +3328,7 @@ class TestWriterTimingStatistics(YTEnvSetup):
         job_id, = op.list_jobs()
         wait(lambda: "running" in get_job_phase_durations(get_job(op.id, job_id).get("events", [])))
         phase_durations = get_job_phase_durations(get_job(op.id, job_id)["events"])
-        running_time_ms = phase_durations["running"].total_seconds() * 1000
+        writer_lifetime_ms = (phase_durations["preparing_job"] + phase_durations["running"]).total_seconds() * 1000
 
         eps_ms = 20
         # The empty writer's Close() shares the single-threaded ChunkWriter queue with the two
@@ -3337,7 +3337,7 @@ class TestWriterTimingStatistics(YTEnvSetup):
 
         def assert_total_time(total_time):
             # Not very precise :(.
-            assert abs(running_time_ms - total_time) < 1000
+            assert abs(writer_lifetime_ms - total_time) < 1000
 
         for table_index in [0, 1]:
             wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
