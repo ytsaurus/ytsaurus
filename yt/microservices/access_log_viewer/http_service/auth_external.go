@@ -4,11 +4,13 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/spf13/cobra"
 
 	"go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/yt/go/yterrors"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
@@ -26,7 +28,25 @@ func (a *Authorizer) getUser(r *http.Request, authCluster string) (*ytmsvc.User,
 	if a.config.debugLogin != "" {
 		return &ytmsvc.User{Login: a.config.debugLogin}, nil, nil
 	}
-	return ytmsvc.GetUser(r, a.l, a.config.authCookieName, authCluster)
+	user, ticket, err := ytmsvc.GetUser(r, a.l, a.config.authCookieName, authCluster)
+	if err != nil && isInvalidCredentialsError(err) {
+		return nil, nil, yterrors.Err(yterrors.CodeInvalidCredentials, "user credentials are missing or invalid", err)
+	}
+	return user, ticket, err
+}
+
+// getUserAndService authenticates the user; the external build has no caller service.
+func (a *Authorizer) getUserAndService(r *http.Request, authCluster string) (*ytmsvc.User, *string, string, error) {
+	user, ticket, err := a.getUser(r, authCluster)
+	return user, ticket, "", err
+}
+
+func isInvalidCredentialsError(err error) bool {
+	var httpError *yterrors.HTTPError
+	return errors.Is(err, http.ErrNoCookie) ||
+		(errors.As(err, &httpError) && httpError.StatusCode == http.StatusUnauthorized) ||
+		yterrors.ContainsErrorCode(err, yterrors.CodeAuthenticationError) ||
+		yterrors.ContainsErrorCode(err, yterrors.CodeInvalidCredentials)
 }
 
 func newAuthorizerConfigFromCmd(cmd *cobra.Command) *AuthorizerConfig {

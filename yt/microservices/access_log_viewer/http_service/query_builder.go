@@ -52,41 +52,39 @@ func containsArr(arr []string, val string) bool {
 }
 
 func GetSystemUserSelector() string {
-	systemUsers := []string{
-		"root",
-		"system",
-		"scheduler",
-		"table_mount_informer",
-		"yt-clickhouse-cache",
-	}
 	return fmt.Sprintf("(user IN (%s) as is_system_user)", strings.Join(quotifyArr(systemUsers), ","))
 }
 
 func GetRobotUserSelector() string {
-	return "((startsWith(user, 'robot-') OR startsWith(user, 'zomb-')) as is_robot_user)"
+	var clauses []string
+	for _, prefix := range robotUserPrefixes {
+		clauses = append(clauses, fmt.Sprintf("startsWith(user, %s)", quotifyStr(prefix)))
+	}
+	return fmt.Sprintf("((%s) as is_robot_user)", strings.Join(clauses, " OR "))
 }
 
 func GetUserTypeSelector() string {
-	return fmt.Sprintf("(multiIf(%s, 'robot', %s, 'system', 'human') as user_type)", GetRobotUserSelector(), GetSystemUserSelector())
+	return fmt.Sprintf("(multiIf(%s, '%s', %s, '%s', '%s') as user_type)",
+		GetRobotUserSelector(), UserTypeRobot, GetSystemUserSelector(), UserTypeSystem, UserTypeHuman)
 }
 
 func GetUserNameFilterClause(request AccessLogRequest) (where string, settings map[string]string, err error) {
 	settings = make(map[string]string)
 	var clause []string
 
-	if selected, ok := request.UserType["human"]; ok && selected {
-		if selected, ok := request.UserType["robot"]; !(ok && selected) {
+	if selected, ok := request.UserType[UserTypeHuman]; ok && selected {
+		if selected, ok := request.UserType[UserTypeRobot]; !(ok && selected) {
 			clause = append(clause, fmt.Sprintf("NOT %s", GetRobotUserSelector()))
 		}
-		if selected, ok := request.UserType["system"]; !(ok && selected) {
+		if selected, ok := request.UserType[UserTypeSystem]; !(ok && selected) {
 			clause = append(clause, fmt.Sprintf("NOT %s", GetSystemUserSelector()))
 		}
 	} else {
 		var disjunctionClause []string
-		if selected, ok := request.UserType["robot"]; ok && selected {
+		if selected, ok := request.UserType[UserTypeRobot]; ok && selected {
 			disjunctionClause = append(disjunctionClause, GetRobotUserSelector())
 		}
-		if selected, ok := request.UserType["system"]; ok && selected {
+		if selected, ok := request.UserType[UserTypeSystem]; ok && selected {
 			disjunctionClause = append(disjunctionClause, GetSystemUserSelector())
 		}
 		if disjunctionClause != nil {
