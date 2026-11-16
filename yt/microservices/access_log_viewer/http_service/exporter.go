@@ -537,6 +537,12 @@ func writeExportResponse(w http.ResponseWriter, r *http.Request, response any, e
 	_ = json.NewEncoder(w).Encode(response)
 }
 
+// @Accept json
+// @Produce json
+// @Param request body ExportAccessLogRequest true "Request body"
+// @Success 200 {object} ExportAccessLogResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /export-access-log [post]
 func (e *AccessLogExporter) handleStart(w http.ResponseWriter, r *http.Request) {
 	response, err := e.start(w, r)
 	writeExportResponse(w, r, response, err)
@@ -592,6 +598,11 @@ func (e *AccessLogExporter) getClusterStatus(ctx context.Context, cluster string
 	return status
 }
 
+// @Produce json
+// @Param export_id path string true "Export ID"
+// @Success 200 {object} ExportAccessLogStatusResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /export-access-log/{export_id} [get]
 func (e *AccessLogExporter) handleStatus(w http.ResponseWriter, r *http.Request) {
 	operation, annotation, err := e.getOwnedOperation(r)
 	if err != nil {
@@ -601,6 +612,11 @@ func (e *AccessLogExporter) handleStatus(w http.ResponseWriter, r *http.Request)
 	writeExportResponse(w, r, e.buildExportStatus(operation, annotation), nil)
 }
 
+// @Produce json
+// @Param export_id path string true "Export ID"
+// @Success 200 {object} ExportAccessLogStatusResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /export-access-log/{export_id} [delete]
 func (e *AccessLogExporter) handleAbort(w http.ResponseWriter, r *http.Request) {
 	operation, annotation, err := e.getOwnedOperation(r)
 	if err != nil {

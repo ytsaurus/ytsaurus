@@ -1,0 +1,729 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/access-log": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AccessLogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AccessLogResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/chquery": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AccessLogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ClickHouseQueryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/export-access-log": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.ExportAccessLogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ExportAccessLogResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/export-access-log/{export_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Export ID",
+                        "name": "export_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ExportAccessLogStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Export ID",
+                        "name": "export_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ExportAccessLogStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/qt-access-log": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AccessLogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.QTAccessLogResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/served-clusters": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ServedClustersResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/visible-time-range": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.VisibleTimeRangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.VisibleTimeRangeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/whoami": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.WhoamiRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.WhoamiResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.AccessLogClusterStatus": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.AccessLogRequest": {
+            "type": "object",
+            "properties": {
+                "begin": {
+                    "type": "number"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "distinct_by": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "number"
+                },
+                "field_selector": {
+                    "$ref": "#/definitions/main.AccessRecordFieldSelector"
+                },
+                "metadata": {
+                    "type": "boolean"
+                },
+                "method_group": {
+                    "$ref": "#/definitions/main.ActionSelector"
+                },
+                "pagination": {
+                    "$ref": "#/definitions/main.PaginationRequest"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "path_regex": {
+                    "type": "string"
+                },
+                "recursive": {
+                    "type": "boolean"
+                },
+                "scope": {
+                    "$ref": "#/definitions/main.ScopeSelector"
+                },
+                "user_regex": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "$ref": "#/definitions/main.UserTypeSelector"
+                }
+            }
+        },
+        "main.AccessLogResponse": {
+            "type": "object",
+            "properties": {
+                "accesses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.AccessRecord"
+                    }
+                },
+                "total_row_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.AccessRecord": {
+            "type": "object",
+            "properties": {
+                "destination_path": {
+                    "type": "string"
+                },
+                "instant": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "method_group": {
+                    "type": "string"
+                },
+                "original_destination_path": {
+                    "type": "string"
+                },
+                "original_path": {
+                    "type": "string"
+                },
+                "original_source_path": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "source_path": {
+                    "type": "string"
+                },
+                "target_path": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "string"
+                },
+                "transaction_info": {},
+                "type": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "[\"robot\", \"human\", \"system\"] = None",
+                    "type": "string"
+                }
+            }
+        },
+        "main.AccessRecordFieldSelector": {
+            "type": "object",
+            "properties": {
+                "method_group": {
+                    "type": "boolean"
+                },
+                "original_path": {
+                    "type": "boolean"
+                },
+                "scope": {
+                    "type": "boolean"
+                },
+                "target_path": {
+                    "type": "boolean"
+                },
+                "transaction_info": {
+                    "type": "boolean"
+                },
+                "user_type": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "main.ActionSelector": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "main.ClickHouseQueryResponse": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "settings": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "main.ClusterStatus": {
+            "type": "object",
+            "properties": {
+                "access_log": {
+                    "$ref": "#/definitions/main.AccessLogClusterStatus"
+                },
+                "export": {
+                    "$ref": "#/definitions/main.ExportClusterStatus"
+                }
+            }
+        },
+        "main.ExportAccessLogRequest": {
+            "type": "object",
+            "properties": {
+                "begin": {
+                    "type": "number"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "number"
+                },
+                "max_access_transitions": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "boolean"
+                },
+                "method_group": {
+                    "$ref": "#/definitions/main.ActionSelector"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "path_regex": {
+                    "type": "string"
+                },
+                "pool": {
+                    "type": "string"
+                },
+                "scope": {
+                    "$ref": "#/definitions/main.ScopeSelector"
+                },
+                "strict": {
+                    "type": "boolean"
+                },
+                "user_regex": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "$ref": "#/definitions/main.UserTypeSelector"
+                }
+            }
+        },
+        "main.ExportAccessLogResponse": {
+            "type": "object",
+            "properties": {
+                "begin": {
+                    "type": "integer"
+                },
+                "end": {
+                    "type": "integer"
+                },
+                "export_id": {
+                    "type": "string"
+                },
+                "output_cluster": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ExportAccessLogStatusResponse": {
+            "type": "object",
+            "properties": {
+                "begin": {
+                    "type": "integer"
+                },
+                "end": {
+                    "type": "integer"
+                },
+                "error": {
+                    "$ref": "#/definitions/yterrors.Error"
+                },
+                "export_id": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/main.ExportInputStatistics"
+                },
+                "jobs": {
+                    "$ref": "#/definitions/main.ExportJobCounters"
+                },
+                "output_cluster": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ExportClusterStatus": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "input_tables_available": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ExportInputStatistics": {
+            "type": "object",
+            "properties": {
+                "data_weight": {
+                    "type": "integer"
+                },
+                "row_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.ExportJobCounters": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.PaginationRequest": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.QTAccessLogResponse": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "query_id": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ScopeSelector": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "main.ServedClustersResponse": {
+            "type": "object",
+            "properties": {
+                "clusters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "statuses": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/main.ClusterStatus"
+                    }
+                }
+            }
+        },
+        "main.UserTypeSelector": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "main.VisibleTimeRangeRequest": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.VisibleTimeRangeResponse": {
+            "type": "object",
+            "properties": {
+                "earliest": {
+                    "type": "integer"
+                },
+                "latests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.WhoamiRequest": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.WhoamiResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "yterrors.Error": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "code": {
+                    "type": "integer"
+                },
+                "inner_errors": {
+                    "description": "NOTE: Unwrap() always returns last inner error.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/yterrors.Error"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
