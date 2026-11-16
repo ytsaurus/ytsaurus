@@ -1,7 +1,7 @@
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.taggable import NotEquals
 
@@ -234,10 +234,14 @@ def _thread_cpu(sensor, thread, alias):
         NodeCpu(sensor)
         .value("cluster", TemplateTag("chaos_cluster"))
         .value("chaos_cell_bundle", TemplateTag("chaos_cell_bundle"))
-        .value("host", "Aggr")
+        .value("host", NotEquals("Aggr"))
         .value("thread", thread)
     )
-    return (MonitoringExpr(expression).series_sum("cluster") / 100).alias("{{cluster}}; " + alias)
+    return (
+        (MonitoringExpr(expression) / 100)
+        .top_max(10)
+        .alias("{{cluster}}; {{host}}; " + alias)
+    )
 
 
 def _action_queue_time():
@@ -346,17 +350,13 @@ def build_chaos_bundle_runtime():
         .row()
         .cell(
             "Chaos slot CPU",
-            MultiSensor(
-                _thread_cpu("yt.resource_tracker.user_cpu", "ChaosSlot*", "user"),
-                _thread_cpu("yt.resource_tracker.system_cpu", "ChaosSlot*", "system"),
-                _thread_cpu("yt.resource_tracker.cpu_wait", "ChaosSlot*", "wait"),
-            ),
-            description="CPU consumed by chaos automaton threads for the selected bundle.",
+            _thread_cpu("yt.resource_tracker.user_cpu", "ChaosSlot*", "user"),
+            description="Highest user CPU consumption by individual chaos slots for the selected bundle.",
         )
         .cell(
-            "Chaos action queue time",
-            _action_queue_time(),
-            description="Cumulative execution-time rate grouped by chaos automaton queue.",
+            "Chaos slot CPU wait",
+            _thread_cpu("yt.resource_tracker.cpu_wait", "ChaosSlot*", "wait"),
+            description="Highest CPU wait by individual chaos slots for the selected bundle.",
         )
         .row()
         .cell(
@@ -386,7 +386,11 @@ def build_chaos_bundle_runtime():
             _chaos_cell_moves_and_node_restarts(),
             description="Chaos-cell moves for the selected bundle and cluster-wide node restarts.",
         )
-        .cell("", EmptyCell())
+        .cell(
+            "Chaos action queue time",
+            _action_queue_time(),
+            description="Cumulative execution-time rate grouped by chaos automaton queue.",
+        )
         .row()
         .cell(
             "Changelog write rate",
