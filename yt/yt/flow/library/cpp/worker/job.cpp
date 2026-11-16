@@ -158,7 +158,7 @@ public:
                 JobSpec_->ComputationSpec,
                 JobSpec_->Partition->ComputationId,
                 DynamicJobSpec_->DynamicComputationSpec,
-                JobContext_->PoolInvoker,
+                JobContext_->InputBufferPoolInvoker,
                 Profiler))
         , ControlSerializedInvoker_(JobContext_->ControlSerializedInvoker)
         , JobSerializedInvoker_(JobContext_->SerializedInvoker)

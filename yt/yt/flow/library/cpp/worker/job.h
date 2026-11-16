@@ -42,6 +42,7 @@ struct TJobContext
     IInvokerPtr ControlSerializedInvoker;
     IInvokerPtr SerializedInvoker;
     IInvokerPtr PoolInvoker;
+    IInvokerPtr InputBufferPoolInvoker;
     NObjectClient::TCellTag ClockClusterTag;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
     ITimerPageCataloguePtr TimerPageCatalogue;

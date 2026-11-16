@@ -1,6 +1,7 @@
 #include <yt/yt/flow/library/cpp/worker/input_buffer.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_spec.h>
+#include <yt/yt/flow/library/cpp/worker/traced_invoker.h>
 
 #include <yt/yt/flow/library/cpp/computation/universal_controller.h>
 
@@ -18,10 +19,18 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/serialized_invoker.h>
+
+#include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <library/cpp/yt/system/thread_id.h>
+
 #include <atomic>
+#include <future>
 
 namespace NYT::NFlow::NWorker {
 namespace {
@@ -186,6 +195,9 @@ protected:
     const TDynamicJobSpecPtr Dynamic_ = New<TDynamicJobSpec>();
     TKeySnapshotProbe Probe_;
     IJobPtr Job_;
+    TActionQueuePtr InputBufferQueue_;
+    IInvokerPtr InputBufferPoolInvoker_;
+    TJobCpuTimeAccountantPtr CpuTimeAccountant_;
 
     void SetUp() override
     {
@@ -201,6 +213,9 @@ protected:
             WaitFor(Job_->Stop()).ThrowOnError();
         }
         Queue_->Shutdown();
+        if (InputBufferQueue_) {
+            InputBufferQueue_->Shutdown();
+        }
         GetActiveKeySnapshotProbe().store(nullptr);
     }
 
@@ -210,6 +225,14 @@ protected:
         jobContext->ControlSerializedInvoker = Queue_->GetInvoker();
         jobContext->SerializedInvoker = Queue_->GetInvoker();
         jobContext->PoolInvoker = Queue_->GetInvoker();
+        jobContext->InputBufferPoolInvoker = InputBufferPoolInvoker_ ? InputBufferPoolInvoker_ : Queue_->GetInvoker();
+        if (CpuTimeAccountant_) {
+            jobContext->PoolInvoker = CreateTracedInvoker(
+                jobContext->PoolInvoker,
+                NTracing::TTraceContext::NewRoot("JobTest"),
+                CpuTimeAccountant_);
+            jobContext->SerializedInvoker = CreateSerializedInvoker(jobContext->PoolInvoker);
+        }
         auto resourceContext = New<TResourceManagerContext>();
         resourceContext->Invoker = Queue_->GetInvoker();
         resourceContext->StatusProfiler = CreateSyncStatusProfiler();
@@ -362,6 +385,80 @@ TEST_F(TKeyCountJobTest, EqualSizedInputBatchesHavePositiveByteRate)
     ASSERT_TRUE(metrics);
     EXPECT_GT(metrics->Global.BytesPerSecond, 0);
     EXPECT_GT(GetOrCrash(metrics->Streams, streamId).BytesPerSecond, 0);
+}
+
+TEST_F(TKeyCountJobTest, InputBufferRunsIndependentlyAndChargesJobCpu)
+{
+    InputBufferQueue_ = New<TActionQueue>("MsgServiceTest");
+    const auto& serviceQueue = InputBufferQueue_;
+    CpuTimeAccountant_ = New<TJobCpuTimeAccountant>();
+    InputBufferPoolInvoker_ = CreateTracedInvoker(
+        serviceQueue->GetInvoker(),
+        NTracing::TTraceContext::NewRoot("InputBufferTest"),
+        CpuTimeAccountant_);
+    constexpr int messageCount = 4096;
+    Dynamic_->DynamicComputationSpec = New<TDynamicComputationSpec>();
+    Dynamic_->DynamicComputationSpec->MaxRowsPerBatch = NYTree::TSize(messageCount);
+    Start(TypeName<TRunningKeySnapshotComputation>(), /*enable*/ false, /*input*/ true);
+    WaitFor(Probe_.Started.ToFuture()).ThrowOnError();
+    Job_->UpdateMessageTransferingInfo(New<TMessageTransferingInfo>());
+    auto buffer = Job_->GetInputBuffer();
+    WaitFor(buffer->GetInflightMetrics()).ThrowOnError();
+
+    auto release = std::make_shared<std::promise<void>>();
+    auto gate = release->get_future().share();
+    auto releaseGuard = Finally([release] {
+        release->set_value();
+    });
+    auto started = NewPromise<void>();
+    Queue_->GetInvoker()->Invoke(BIND([started, gate] {
+        started.Set();
+        // Hold the job thread to verify that buffer operations do not need it.
+        gate.wait();
+    }));
+    WaitFor(started.ToFuture().WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    auto cpuBefore = CpuTimeAccountant_->GetCpuTime();
+
+    const TStreamId streamId("input");
+    auto schema = New<NTableClient::TTableSchema>();
+    auto connectionId = TGuid::Create();
+    buffer->AddConnectionOffer(connectionId, {{streamId, {{TSystemTimestamp(100), 1'000'000}}}});
+    auto limits = WaitFor(buffer->GetConnectionLimits(connectionId).WithTimeout(TDuration::Seconds(5))).ValueOrThrow();
+    EXPECT_GT(limits.at(streamId), 0);
+    std::vector<TInputMessageConstPtr> messages;
+    for (int index = 0; index < messageCount; ++index) {
+        TMessageBuilder builder(streamId, schema);
+        builder.SetMessageId(TMessageId(Format("msg-%v", index)));
+        builder.SetSystemTimestamp(TSystemTimestamp(100));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(100));
+        builder.SetEventTimestamp(TSystemTimestamp(100));
+        messages.push_back(New<TInputMessage>(builder.Finish(), MakeKey("key")));
+    }
+    auto processed = NewPromise<std::pair<int, bool>>();
+    auto onProcessed = BIND([processed, threadId = serviceQueue->GetInvoker()->GetThreadId()] (TJobId, std::vector<TMessageId> ids) {
+        processed.Set({std::ssize(ids), GetSystemThreadId() == threadId});
+    });
+    auto states = WaitFor(buffer->AddMessages(connectionId, std::move(messages), onProcessed)
+            .WithTimeout(TDuration::Seconds(5)))
+        .ValueOrThrow();
+    EXPECT_EQ(std::count(states.begin(), states.end(), EMessageDeliveryState::Accepted), messageCount);
+    auto batch = WaitFor(buffer->GetInputBatch({streamId}).WithTimeout(TDuration::Seconds(5))).ValueOrThrow();
+    ASSERT_EQ(std::ssize(batch), messageCount);
+    std::deque<TMessageId> ids;
+    for (const auto& message : batch) {
+        ids.push_back(message->MessageId);
+    }
+    buffer->MarkPersisted(std::move(ids));
+    auto [processedCount, onServiceThread] = WaitFor(processed.ToFuture().WithTimeout(TDuration::Seconds(5))).ValueOrThrow();
+    EXPECT_EQ(processedCount, messageCount);
+    EXPECT_TRUE(onServiceThread);
+    auto metrics = WaitFor(buffer->GetInflightMetrics().WithTimeout(TDuration::Seconds(5))).ValueOrThrow();
+    EXPECT_EQ(metrics.at(streamId)->Count, 0);
+    // Drain the service queue so the traced callbacks have finished CPU accounting.
+    auto flush = BIND([] {
+    });
+    WaitFor(flush.AsyncVia(serviceQueue->GetInvoker()).Run()).ThrowOnError();
+    EXPECT_GT(CpuTimeAccountant_->GetCpuTime(), cpuBefore);
 }
 
 TEST_F(TKeyCountJobTest, DisabledComputationOmitsKeys)

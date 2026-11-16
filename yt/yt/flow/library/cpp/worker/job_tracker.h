@@ -30,6 +30,7 @@ struct TJobTrackerContext
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr ControlInvoker;
+    IInvokerPtr InputBufferPoolInvoker;
     IMessageDistributorPtr MessageDistributor;
     IInputManagerPtr InputManager;
     IPipelineAuthenticatorPtr PipelineAuthenticator;

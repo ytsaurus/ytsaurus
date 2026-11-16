@@ -597,12 +597,15 @@ private:
         auto workerGroups = GetWorkerGroups();
         auto workerCapabilities = GetWorkerCapabilities();
 
+        MessageServiceThreadPool_ = NConcurrency::CreateThreadPool(Config_->Worker->MessageServiceThreads, "MsgService");
+
         auto jobTrackerContext = New<NWorker::TJobTrackerContext>();
         jobTrackerContext->WorkerNodeInfo = NodeInfo_;
         jobTrackerContext->ClientsCache = CommonYTConnector_->GetClientsCache();
         jobTrackerContext->PipelinePath = Config_->Path;
         jobTrackerContext->PipelinePath.SetCluster(Config_->ClusterUrl);
         jobTrackerContext->ControlInvoker = ControlQueue_->GetInvoker(NController::EControlQueue::Default);
+        jobTrackerContext->InputBufferPoolInvoker = MessageServiceThreadPool_->GetInvoker();
         jobTrackerContext->MessageDistributor = MessageDistributor_;
         jobTrackerContext->InputManager = InputManager_;
         jobTrackerContext->PipelineAuthenticator = PipelineAuthenticator_;
@@ -649,8 +652,6 @@ private:
             OrchidRoot_,
             "/job_tracker",
             CreateVirtualNode(JobTracker_->CreateOrchidService()->Via(ControlQueue_->GetInvoker(NController::EControlQueue::StaticOrchid))));
-
-        MessageServiceThreadPool_ = NConcurrency::CreateThreadPool(Config_->Worker->MessageServiceThreads, "MsgService");
 
         RpcServer_->RegisterService(NWorker::CreateMessageService(
             InputManager_,
