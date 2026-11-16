@@ -47,6 +47,9 @@ YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TQuotaClassId);
 //! distributed throttler runtime.
 inline const std::string DefaultQuotaClassName = "default";
 
+//! Pipeline-wide quota for capturing failed messages.
+inline const TThrottlerId FailedMessagesThrottlerId("failed_messages");
+
 //! Bounds for a throttler class weight. The weighted scheduler advances virtual
 //! time by amount/weight, so weights outside this range can overflow it.
 inline constexpr double MinQuotaClassWeight = 1e-6;

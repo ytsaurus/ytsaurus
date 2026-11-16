@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 namespace NYT::NFlow::NTables {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +24,9 @@ public:
         TContextPtr context,
         TStreamSpecsPtr streamSpecs,
         std::string workerId,
-        TFlowCoreTarget flowCoreTarget);
+        TFlowCoreTarget flowCoreTarget,
+        NConcurrency::IThroughputThrottlerPtr writeThrottler,
+        IStatusErrorStatePtr writeQuotaErrorState);
 
     void Write(
         const IRetryableTransactionPtr& transaction,
@@ -36,6 +40,8 @@ private:
     const TStreamSpecsPtr StreamSpecs_;
     const std::string WorkerId_;
     const TFlowCoreTarget FlowCoreTarget_;
+    const NConcurrency::IThroughputThrottlerPtr WriteThrottler_;
+    const IStatusErrorStatePtr WriteQuotaErrorState_;
     const NYPath::TYPath TablePath_;
     const NProfiling::TCounter CapturedRows_;
 };

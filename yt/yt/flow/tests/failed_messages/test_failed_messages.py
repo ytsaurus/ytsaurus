@@ -133,6 +133,12 @@ class TestFailedMessages(FlowTestBase):
             wait(lambda: len(self.read_failures()) == EVENT_COUNT // 6, timeout=120)
             if problems:
                 wait(lambda: sum(worker.injected_problems_count for worker in federation.workers) > 0, timeout=120)
+            if not problems:
+                dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+                dynamic_spec["spec"].setdefault("throttlers", {})["failed_messages"] = {"limit": 1000.0}
+                self.client.set_pipeline_dynamic_spec(
+                    self.pipeline_path, dynamic_spec["spec"], expected_version=dynamic_spec["version"]
+                )
             self.write_input(EVENT_COUNT // 2, EVENT_COUNT)
             wait(lambda: len(self.read_failures()) == EVENT_COUNT // 3, timeout=180)
             wait(

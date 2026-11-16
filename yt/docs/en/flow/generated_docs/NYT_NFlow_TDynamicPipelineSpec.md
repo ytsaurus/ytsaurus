@@ -15,8 +15,7 @@ Named list of all pipeline nodes. ||
 **Default value**: `{}`
  ||
 || `throttlers` | **Type**: `THashMap<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
-**Default value**: `{}`
-A set of named distributed throttlers common to all `Computation` pipeline nodes. Keys are throttler IDs and must match `[0-9A-Za-z_-]+`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
+A set of named distributed throttlers common to all `Computation` pipeline nodes. Keys are throttler IDs and must match `[0-9A-Za-z_-]+`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). The `failed_messages` throttler is added automatically; see [Capture rate limit](../concepts/failed-messages.md#throttling). ||
 || `job_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
 **Default value**: `{}`
 `JobManager` settings. ||

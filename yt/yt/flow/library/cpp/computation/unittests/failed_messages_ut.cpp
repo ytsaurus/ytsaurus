@@ -6,6 +6,8 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/distributed_throttler/server.h>
+
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -22,6 +24,10 @@
 #include <yt/yt/client/unittests/mock/transaction.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/local_server.h>
+#include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -268,13 +274,24 @@ TError RunCapture(TCaptureProbe* probe, bool swift, bool enabled = true)
         New<TStreamSpecs>(THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>>{{InputStreamId, {{TStreamSpecId(1), streamSpec}}}}),
         New<TTableSchema>(),
         nullptr);
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr{};
+    auto throttlerConfig = New<NDistributedThrottler::TDistributedThrottlerServiceConfig>();
+    throttlerConfig->Throttlers[FailedMessagesThrottlerId.Underlying()] =
+        New<NDistributedThrottler::TDistributedThrottlerBucketConfig>();
+    auto throttlerService = NDistributedThrottler::CreateDistributedThrottlerService(
+        throttlerConfig,
+        queue->GetInvoker(),
+        context->Logger);
+    auto server = NRpc::CreateLocalServer();
+    server->RegisterService(throttlerService->GetRpcService());
+    server->Start();
+    context->DistributedThrottlerControllerChannelProvider = [channel = NRpc::CreateLocalChannel(server)] {
+        return channel;
     };
     auto dynamic = New<TDynamicComputationContext>();
+    dynamic->Throttlers = New<TDynamicPipelineSpec>()->Throttlers;
     dynamic->DynamicComputationSpec = New<TDynamicComputationSpec>();
     dynamic->DynamicPartitionSpec = ConvertTo<TDynamicPartitionSpecPtr>(TYsonStringBuf("{computation_partition_spec={};}"));
-    return WaitFor(BIND([=] {
+    auto result = WaitFor(BIND([=] {
         TIntrusivePtr<TUniversalComputationBase> computation;
         if (swift) {
             computation = New<TCaptureSwiftMap>(context, dynamic);
@@ -289,6 +306,8 @@ TError RunCapture(TCaptureProbe* probe, bool swift, bool enabled = true)
         static_cast<IComputation*>(computation.Get())->Run(New<TCaptureRunContext>(probe, context->StreamSpecStorage->GetSchema(InputStreamId)));
     }).AsyncVia(queue->GetInvoker())
             .Run());
+    YT_UNUSED_FUTURE(server->Stop());
+    return result;
 }
 
 TEST(TFailedMessageCaptureTest, AcknowledgesOnlyAfterSuccessfulOrRecoveredCommit)

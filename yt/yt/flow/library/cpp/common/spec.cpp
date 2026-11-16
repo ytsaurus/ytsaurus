@@ -17,6 +17,8 @@
 #include <yt/yt/core/concurrency/config.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 #include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/yson/consumer.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -100,6 +102,13 @@ void ValidatePipelineDeclarationIds(const TPipelineSpec* spec)
     for (const auto& [_, resourceSpec] : spec->Resources) {
         ValidateDeclarationIds("file provider", resourceSpec->FileProviders);
     }
+}
+
+TDynamicThrottlerSpecPtr CreateDefaultFailedMessagesThrottlerSpec()
+{
+    auto throttler = New<TDynamicThrottlerSpec>();
+    throttler->Limit = 100.0 / 60.0;
+    return throttler;
 }
 
 void ValidateThrottlerIds(const TDynamicPipelineSpec* spec)
@@ -1660,7 +1669,11 @@ void TDynamicPipelineSpec::Register(TRegistrar registrar)
     registrar.Parameter("resources", &TThis::Resources)
         .Default();
     registrar.Parameter("throttlers", &TThis::Throttlers)
-        .Default();
+        .DefaultCtor([] {
+            return THashMap<TThrottlerId, TDynamicThrottlerSpecPtr>{
+                {FailedMessagesThrottlerId, CreateDefaultFailedMessagesThrottlerSpec()},
+            };
+        });
 
     registrar.Parameter("job_manager", &TThis::JobManager)
         .DefaultNew();

@@ -15,6 +15,7 @@
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/flow/library/cpp/native_client/public.h>
 
@@ -89,7 +90,9 @@ NTables::TFailedMessagesPtr TTransformComputation::CreateFailedMessages()
         std::move(tableContext),
         GetContext()->StreamSpecStorage->GetStreamSpecs(),
         GetContext()->Job->WorkerAddress,
-        GetContext()->FlowCoreTarget);
+        GetContext()->FlowCoreTarget,
+        GetThrottlerOrThrow(FailedMessagesThrottlerId),
+        GetContext()->StatusProfiler->ErrorState("/failed_messages/write_quota"));
 }
 
 void TTransformComputation::DoPrepare(const IComputationRunContextPtr& context)

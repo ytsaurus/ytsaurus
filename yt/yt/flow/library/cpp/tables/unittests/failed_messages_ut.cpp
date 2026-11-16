@@ -7,6 +7,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/client/api/rowset.h>
 
@@ -16,6 +17,10 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/unittests/mock/transaction.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -37,12 +42,29 @@ using namespace NYTree;
 using namespace NYson;
 using namespace testing;
 
+class TMockWriteThrottler
+    : public NConcurrency::IThroughputThrottler
+{
+public:
+    MOCK_METHOD(TFuture<void>, Throttle, (i64), (override));
+    MOCK_METHOD(bool, TryAcquire, (i64), (override));
+    MOCK_METHOD(i64, TryAcquireAvailable, (i64), (override));
+    MOCK_METHOD(void, Acquire, (i64), (override));
+    MOCK_METHOD(void, Release, (i64), (override));
+    MOCK_METHOD(bool, IsOverdraft, (), (override));
+    MOCK_METHOD(i64, GetQueueTotalAmount, (), (const, override));
+    MOCK_METHOD(TDuration, GetEstimatedOverdraftDuration, (), (const, override));
+    MOCK_METHOD(i64, GetAvailable, (), (const, override));
+};
+
 class TFailedMessagesTest
     : public Test
 {
 protected:
     const NProfiling::TSolomonRegistryPtr Registry_ = New<NProfiling::TSolomonRegistry>();
     TFailedMessagesPtr Table_;
+    TIntrusivePtr<StrictMock<TMockWriteThrottler>> WriteThrottler_;
+    IStatusProfilerPtr StatusProfiler_;
     TStreamSpecsPtr StreamSpecs_;
     const TPartitionId PartitionId_ = TPartitionId(TGuid::Create());
     const TSystemTimestamp BatchTimestamp_ = TSystemTimestamp(123);
@@ -64,7 +86,15 @@ protected:
         StreamSpecs_ = New<TStreamSpecs>(THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>>{
             {TStreamId("source"), {{TStreamSpecId(1), originalSpec}, {TStreamSpecId(2), currentSpec}}},
         });
-        Table_ = New<TFailedMessages>(context, StreamSpecs_, "capture-worker:9012", TFlowCoreTarget("capture-core-target"));
+        WriteThrottler_ = New<StrictMock<TMockWriteThrottler>>();
+        StatusProfiler_ = CreateSyncStatusProfiler();
+        Table_ = New<TFailedMessages>(
+            context,
+            StreamSpecs_,
+            "capture-worker:9012",
+            TFlowCoreTarget("capture-core-target"),
+            WriteThrottler_,
+            StatusProfiler_->ErrorState("/write_quota"));
     }
 
     i64 CollectCapturedRows()
@@ -88,11 +118,11 @@ protected:
         return -1;
     }
 
-    TFailedMessage MakeFailure()
+    TFailedMessage MakeFailure(const char* messageId = "original-id")
     {
         auto schema = StreamSpecs_->GetSchema(TStreamSpecId(1));
         TMessageBuilder builder(TStreamId("source"), schema);
-        builder.SetMessageId(TMessageId("original-id"));
+        builder.SetMessageId(TMessageId(messageId));
         builder.SetSystemTimestamp(TSystemTimestamp(11));
         builder.SetAlignmentTimestamp(TSystemTimestamp(11));
         builder.SetEventTimestamp(TSystemTimestamp(7));
@@ -111,6 +141,8 @@ TEST_W(TFailedMessagesTest, PreservesOriginalStreamSpecIdPayloadSourceKeyAndFirs
     auto duplicate = failure;
     duplicate.Reason = TError("Second capture must not replace the first");
     auto transaction = CreateRetryableTransaction();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .WillOnce(Return(OKFuture));
     Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {failure, duplicate});
 
     auto attempt = New<StrictMock<TMockTransaction>>();
@@ -157,6 +189,9 @@ TEST_W(TFailedMessagesTest, PreservesOriginalStreamSpecIdPayloadSourceKeyAndFirs
 
 TEST_W(TFailedMessagesTest, RereadsEveryAttemptAndNeverOverwritesAnExistingFailure)
 {
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .Times(2)
+        .WillRepeatedly(Return(OKFuture));
     auto transaction = CreateRetryableTransaction();
     Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure()});
     auto attempt = New<StrictMock<TMockTransaction>>();
@@ -199,6 +234,8 @@ TEST_W(TFailedMessagesTest, EmptyWriteDoesNotIncrementCaptureCount)
 TEST_W(TFailedMessagesTest, FailedLookupDoesNotRepeatCaptureCount)
 {
     auto transaction = CreateRetryableTransaction();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .WillOnce(Return(OKFuture));
     Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure()});
     auto attempt = New<StrictMock<TMockTransaction>>();
     attempt->StartTimestamp = NTransactionClient::TTimestamp(100);
@@ -213,6 +250,81 @@ TEST_W(TFailedMessagesTest, FailedLookupDoesNotRepeatCaptureCount)
     EXPECT_CALL(*attempt, ModifyRows("//pipeline/failed_messages", _, _, _)).Times(1);
     transaction->DoAttempt(attempt);
     EXPECT_EQ(CollectCapturedRows(), 0);
+}
+
+TEST_W(TFailedMessagesTest, AcquiresQuotaInSingleMessagePortions)
+{
+    auto transaction = CreateRetryableTransaction();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .Times(3)
+        .WillRepeatedly(Return(OKFuture));
+    Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure("first"), MakeFailure("second"), MakeFailure("third")});
+    EXPECT_FALSE(transaction->IsEmpty());
+}
+
+TEST_W(TFailedMessagesTest, WaitsForQuotaBeforePreparingWrites)
+{
+    auto queue = New<NConcurrency::TActionQueue>("WriteQuotaTest");
+    auto transaction = CreateRetryableTransaction();
+    auto requested = NewPromise<void>();
+    auto granted = NewPromise<void>();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .WillOnce([&] (i64) {
+            requested.Set();
+            return granted.ToFuture();
+        });
+    auto futureWrite = BIND([this, transaction] {
+        Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure()});
+    }).AsyncVia(queue->GetInvoker())
+        .Run();
+    NConcurrency::WaitFor(requested.ToFuture())
+        .ThrowOnError();
+    NConcurrency::WaitFor(BIND([] {
+    }).AsyncVia(queue->GetInvoker())
+            .Run())
+        .ThrowOnError();
+    EXPECT_FALSE(futureWrite.IsSet());
+    EXPECT_TRUE(transaction->IsEmpty());
+    granted.Set();
+    NConcurrency::WaitFor(futureWrite)
+        .ThrowOnError();
+    EXPECT_FALSE(transaction->IsEmpty());
+    queue->Shutdown();
+}
+
+TEST_W(TFailedMessagesTest, EmptyCaptureDoesNotRequestQuota)
+{
+    auto transaction = CreateRetryableTransaction();
+    Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {});
+    EXPECT_TRUE(transaction->IsEmpty());
+}
+
+TEST_W(TFailedMessagesTest, RetriesQuotaWithoutReacquiringGrantedPrefix)
+{
+    auto transaction = CreateRetryableTransaction();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .WillOnce(Return(OKFuture))
+        .WillOnce(Return(MakeFuture<void>(TError("Controller channel is not available"))))
+        .WillOnce([&] (i64) {
+            EXPECT_EQ(StatusProfiler_->GetStatus().Errors.size(), 1u);
+            EXPECT_TRUE(transaction->IsEmpty());
+            return OKFuture;
+        })
+        .WillOnce(Return(OKFuture));
+    Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure("first"), MakeFailure("second"), MakeFailure("third")});
+    EXPECT_FALSE(transaction->IsEmpty());
+    EXPECT_TRUE(StatusProfiler_->GetStatus().Errors.empty());
+}
+
+TEST_W(TFailedMessagesTest, ThrottlingCancellationDoesNotPrepareWrites)
+{
+    auto transaction = CreateRetryableTransaction();
+    EXPECT_CALL(*WriteThrottler_, Throttle(1))
+        .WillOnce(Return(MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Capture throttler canceled"))));
+    EXPECT_THROW_WITH_SUBSTRING(
+        Table_->Write(transaction, TComputationId("computation"), PartitionId_, BatchTimestamp_, {MakeFailure()}),
+        "Capture throttler canceled");
+    EXPECT_TRUE(transaction->IsEmpty());
 }
 
 } // namespace

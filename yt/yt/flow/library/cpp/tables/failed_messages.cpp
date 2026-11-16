@@ -8,6 +8,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -15,6 +16,9 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -42,11 +46,15 @@ TFailedMessages::TFailedMessages(
     TContextPtr context,
     TStreamSpecsPtr streamSpecs,
     std::string workerId,
-    TFlowCoreTarget flowCoreTarget)
+    TFlowCoreTarget flowCoreTarget,
+    IThroughputThrottlerPtr writeThrottler,
+    IStatusErrorStatePtr writeQuotaErrorState)
     : Context_(context->WithTableName(FailedMessagesTableName))
     , StreamSpecs_(std::move(streamSpecs))
     , WorkerId_(std::move(workerId))
     , FlowCoreTarget_(std::move(flowCoreTarget))
+    , WriteThrottler_(std::move(writeThrottler))
+    , WriteQuotaErrorState_(std::move(writeQuotaErrorState))
     , TablePath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), FailedMessagesTableName))
     , CapturedRows_(Context_->Profiler
             .WithTag("tag", Context_->Tag.value_or(std::string(FailedMessagesTableName)))
@@ -116,6 +124,24 @@ void TFailedMessages::Write(
     }
 
     CapturedRows_.Increment(std::ssize(rows));
+
+    // Wait before a native transaction is opened; a low capture limit may delay the epoch for minutes.
+    for (i64 index = 0; index < std::ssize(keys); ++index) {
+        while (true) {
+            auto error = WaitFor(WriteThrottler_->Throttle(1));
+            if (error.IsOK()) {
+                WriteQuotaErrorState_->ClearError();
+                break;
+            }
+
+            if (error.FindMatching(NYT::EErrorCode::Canceled)) {
+                error.ThrowOnError();
+            }
+
+            WriteQuotaErrorState_->SetError(error);
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+        }
+    }
 
     // Check every attempt to keep a repeated capture from overwriting an existing failure.
     transaction->Apply(BIND([

@@ -44,3 +44,27 @@ Currently, the mechanism saves messages for later investigation. Repair and repl
 The `yt.flow.worker.computation.tables.captured_rows` counter tracks messages accepted for capture into `failed_messages` after removing duplicates within the batch. It increments when preparing the write, before the epoch commits. Transaction retries do not increment it again.
 
 The metric is exported with the `table=failed_messages`, `computation_id`, and `tag=<computation_id>:failed_messages` labels. Monitoring exposes the message capture rate as `yt.flow.worker.computation.tables.captured_rows.rate`.
+
+## Capture rate limit {#throttling}
+
+Flow automatically creates a dedicated [distributed throttler](../../../flow/concepts/distributed_throttler.md) named `failed_messages`. Its budget is shared across the entire pipeline: adding jobs or workers does not increase the available quota.
+
+Quota is requested before opening the epoch transaction. When quota is exhausted, the job waits: messages are retained, but the epoch commit and subsequent batches are delayed. Repeated `AddFailedMessage` calls for the same key, stream, and message ID within a batch consume one quota unit. Recapturing an already stored message also consumes quota; internal retries of the same epoch commit do not request it again.
+
+Configure the throttler under `throttlers.failed_messages` at the root of the **dynamic spec**. For example, to raise the limit to 300 messages per minute, set 5 messages per second:
+
+```yson
+{
+    throttlers = {
+        failed_messages = {
+            limit = 5.0;
+        };
+    };
+}
+```
+
+`limit` is measured in messages per second: use `N / 60` for a limit of `N` messages per minute. Omitting `failed_messages` from the map restores its default limit, including when other throttlers are configured. Setting `limit = #` explicitly removes the limit.
+
+Changes apply without restarting the pipeline. Update the corresponding section of the existing dynamic spec while preserving other settings; also update the runner configuration so the next release retains the change.
+
+The throttler limits the average quota grant rate. Writes commit in batches with the epoch, so the number of rows appearing during a particular minute may exceed the average minute budget. Do not use the name `failed_messages` for other user actions: they would consume the same budget.
