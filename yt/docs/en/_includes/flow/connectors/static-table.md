@@ -24,7 +24,13 @@ Source class: `NYT::NFlow::NStaticTableConnector::TSource`.
 
 {% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
 
-### Writing to static tables in arrival order
+## Static tables as pipeline output {#output}
+
+- Static tables are not suitable for exchanging data between pipelines: they are written in large blocks, rows have no write time, and the reading pipeline gets the data with a large and uneven delay. Use [queues](../../../flow/connectors/queue.md) to connect pipelines.
+- A general-purpose pipeline cannot write to static tables efficiently: writes follow the computation commits, so a large stream turns into many small tables or master transactions. The [`TArrivalOrderTableSink`](#arrival-order-sink) sink is meant for a small stream.
+- Moving messages from a queue to static tables can be done efficiently with the [static table export](../../../flow/extensions/static-table-export.md) extension. It writes one table per time window, every message exactly once.
+
+### Writing to static tables in arrival order {#arrival-order-sink}
 
 Sink class: `NYT::NFlow::NStaticTableConnector::TArrivalOrderTableSink`.
 

@@ -297,9 +297,11 @@ std::pair<TStaticTableExportProgressPtr, TStaticTableExportCursors> TStaticTable
     auto progress = ReadProgress(transaction);
     THROW_ERROR_EXCEPTION_UNLESS(progress, "Static table export state disappeared");
     for (int partition : partitions) {
+        // The publisher adds a new source partition to the state soon; the claim is retried until then.
         THROW_ERROR_EXCEPTION_UNLESS(partition >= 0 && partition < progress->PartitionCount,
-            "Static table export source topology changed")
-            .With("partition", partition);
+            "Static table export state does not include the source partition yet")
+            .With("partition", partition)
+            .With("partition_count", progress->PartitionCount);
     }
     auto cursors = ReadCursors(transaction, partitions);
     TStaticTableExportCursors updates;
@@ -601,6 +603,27 @@ TStaticTableExportProgressPtr TStaticTableExportWriterStorage::Bootstrap(int par
     WaitFor(transaction->Commit())
         .ThrowOnError();
     return progress;
+}
+
+void TStaticTableExportWriterStorage::AddPartitions(int partitionCount)
+{
+    const auto transaction = StartTransaction(ControlTransactionTimeout);
+    auto abortGuard = AbortOnExit(transaction);
+    auto progress = ReadProgress(transaction);
+
+    THROW_ERROR_EXCEPTION_UNLESS(progress, "Static table export state disappeared");
+
+    if (progress->PartitionCount >= partitionCount) {
+        return;
+    }
+    // A new partition has no cursor, so it has written nothing and its first range starts anywhere.
+    progress->PartitionCount = partitionCount;
+    progress->PublishedOffsets.resize(partitionCount);
+    WaitFor(transaction->SetNode(GetRootPath() + "/@progress", ConvertToYsonString(progress)))
+        .ThrowOnError();
+    abortGuard.Release();
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 bool TStaticTableExportWriterStorage::HasCurrentSchema(const TStaticTableExportProgressPtr& progress) const
