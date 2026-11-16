@@ -1532,6 +1532,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_operations_on_offshore_media", &TThis::ForbidOperationsOnOffshoreMedia)
         .Default(true);
 
+    registrar.Parameter("layer_media_restrictions", &TThis::LayerMediaRestrictions)
+        .Default();
+
     registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
         .Default(false);
 
