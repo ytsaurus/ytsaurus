@@ -1505,7 +1505,7 @@ class YTEnvSetup(object):
                 if not cls.get_param("USE_SEQUOIA", cluster_index):
                     config["skip_sequoia_initialization"] = True
                 cls.update_timestamp_provider_config(config, cluster_index)
-                cls.update_sequoia_connection_config(config, cluster_index)
+                cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
                 cls.update_master_replication_card_cache_config(
                     config,
@@ -1650,7 +1650,7 @@ class YTEnvSetup(object):
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.update_sequoia_connection_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
             cls.assign_store_location_media(config, cluster_index, index)
             cls.modify_node_config(config, cluster_index)
 
@@ -1703,13 +1703,14 @@ class YTEnvSetup(object):
             if not cls.get_param("USE_SEQUOIA", cluster_index):
                 config["skip_sequoia_initialization"] = True
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.update_sequoia_connection_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
             cls.modify_cypress_proxy_config(config, cluster_index)
             multidaemon_config["daemons"][f"cypress_proxy_{index}"]["config"] = config
 
         for key, config in configs["driver"].items():
             cls._apply_effective_config_patch(config, "DELTA_DRIVER_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_driver_config(config)
 
         cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
@@ -1745,7 +1746,7 @@ class YTEnvSetup(object):
             return
 
         ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
-        update_inplace(config["cluster_connection"], {
+        update_inplace(config, {
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,

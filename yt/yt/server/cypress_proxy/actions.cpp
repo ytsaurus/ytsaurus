@@ -428,6 +428,11 @@ void AttachChild(
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
+    // All child modifications have to be serialized via locking of the row (parent_id, null_tx_id, child_key).
+    sequoiaTransaction->LockRow(NRecords::TChildNodeKey{
+        .ParentId = parentId.ObjectId,
+        .ChildKey = childKey,
+    }, ELockType::Exclusive);
     sequoiaTransaction->WriteRow(NRecords::TChildNode{
         .Key = {
             .ParentId = parentId.ObjectId,
@@ -470,6 +475,12 @@ void DetachChild(
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& transaction)
 {
+    // All child modifications have to be serialized via locking of the row (parent_id, null_tx_id, child_key).
+    transaction->LockRow(NRecords::TChildNodeKey{
+        .ParentId = parentId.ObjectId,
+        .ChildKey = childKey,
+    }, ELockType::Exclusive);
+
     auto progenitorTransactionId = GetOrCrash(
         progenitorTransactionCache.Child,
         std::pair(parentId.ObjectId, childKey));

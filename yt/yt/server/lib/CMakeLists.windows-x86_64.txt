@@ -46,6 +46,10 @@ add_subdirectory(discovery_server)
 add_subdirectory(chaos_election)
 add_subdirectory(cross_cluster_replicated_state)
 add_subdirectory(s3)
+add_subdirectory(object_server)
+add_subdirectory(cypress_proxy)
+add_subdirectory(sequoia)
+add_subdirectory(table_server)
 
 add_library(ytserver INTERFACE)
 
