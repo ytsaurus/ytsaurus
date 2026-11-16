@@ -2303,11 +2303,9 @@ class TestChaos(ChaosTestBase):
         )
 
         queue_shards = [[], [1], [2], [3], [4]]
-        for queue in replicas[1:]:
-            replica_path = queue["replica_path"]
-            reshard_table(replica_path, queue_shards)
-            sync_mount_table(replica_path)
-        sync_mount_table(replicas[0]["replica_path"])
+        queue_paths = [replica["replica_path"] for replica in replicas[1:]]
+        map_in_parallel(lambda path: reshard_table(path, queue_shards, driver=primary), queue_paths)
+        self._mount_replicas(replicas)
         self._sync_replication_era(card_id, replicas)
 
         def _check(row_count: int):
@@ -2315,11 +2313,13 @@ class TestChaos(ChaosTestBase):
             keys = [{"key": i} for i in range(len(queue_shards))]
             insert_rows("//tmp/q0", rows)
             wait(lambda: lookup_rows("//tmp/t", keys) == rows)
-            for queue in replicas[1:]:
-                replica_path = queue["replica_path"]
+
+            def _check_queue(replica_path):
                 wait(lambda: get(replica_path + "/@tablets/0/trimmed_row_count", driver=primary) == row_count)
                 sync_flush_table(replica_path, driver=primary)
                 wait(lambda: len(get(replica_path + "/@chunk_ids", driver=primary)) == 0)
+
+            map_in_parallel(_check_queue, queue_paths)
 
         _check(1)
         _check(2)
@@ -4477,23 +4477,25 @@ class TestChaos(ChaosTestBase):
                 return [[]] + [[i] for i in range(1, tablet_count)]
 
         schema1, schema2 = self._get_schemas_by_name(schemas)
-        self._create_replica_tables(
-            replicas[:3],
-            replica_ids[:3],
-            create_tablet_cells=False,
-            schema=schema2,
-            pivot_keys=_create_pivots(schema2),
-        )
-
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
-        self._create_replica_tables(
-            replicas[3:4],
-            replica_ids[3:4],
-            create_tablet_cells=False,
-            schema=schema1,
-            pivot_keys=_create_pivots(schema1),
-        )
-        self._sync_replication_era(card_id)
+
+        def _create_replica_group(args):
+            group_replicas, group_replica_ids, schema = args
+            self._create_replica_tables(
+                group_replicas,
+                group_replica_ids,
+                create_tablet_cells=False,
+                schema=schema,
+                pivot_keys=_create_pivots(schema),
+            )
+
+        map_in_parallel(_create_replica_group, [
+            (replicas[:3], replica_ids[:3], schema2),
+            (replicas[3:4], replica_ids[3:4], schema1),
+        ])
+
+        # Only this queue's progress is needed to initialize the remaining remote replicas.
+        self._sync_replication_era(card_id, replicas[3:4])
 
         sync_unmount_table("//tmp/rqs", driver=remote_driver0)
         progress = get("//tmp/rqs/@replication_progress", driver=remote_driver0)
@@ -4544,10 +4546,10 @@ class TestChaos(ChaosTestBase):
         # Force client to update its caches
         if mode != "async_queue":
             alter_table_replica(replica_ids[5], enabled=False)
-            self._sync_alter_replica(card_id, replicas, replica_ids, 5, enabled=True)
+            alter_table_replica(replica_ids[5], enabled=True)
         else:
             alter_table_replica(replica_ids[2], mode="async")
-            self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")
+        self._sync_replication_era(card_id)
 
         def _filter(rows, schema):
             columns = builtins.set([c["name"] for c in schema])
