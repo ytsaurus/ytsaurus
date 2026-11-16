@@ -412,6 +412,14 @@ bool TChunkLocation::ShouldUseUncategorizedThrottler() const
     return config->EnableUncategorizedThrottler;
 }
 
+bool TChunkLocation::IsIOFairShareEnabled() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->EnableIOFairShare;
+}
+
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

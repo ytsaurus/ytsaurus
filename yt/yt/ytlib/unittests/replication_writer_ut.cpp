@@ -205,9 +205,15 @@ public:
             i64 dataBytes = 0;
             if (ReportCumulativeFlushBytes_) {
                 dataBytes = request->block_count() * DataBytesPerFlush_;
-                EXPECT_GE(request->io_consumed(), dataBytes);
+                if (IOFairShareEnabled_) {
+                    EXPECT_GE(request->io_consumed(), dataBytes);
+                }
             }
-            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), dataBytes, MetaBytesPerFinish_);
+            auto* statistics = response->mutable_chunk_writer_statistics();
+            FillChunkWriterStatistics(statistics, dataBytes, MetaBytesPerFinish_);
+            if (ReportCumulativeFlushBytes_ && IOFairShareEnabled_) {
+                statistics->set_io_consumed(dataBytes + MetaBytesPerFinish_);
+            }
         }
         context->Reply();
     }
@@ -395,8 +401,10 @@ public:
 
         if (ReportChunkWriterStatistics_) {
             if (ReportCumulativeFlushBytes_) {
-                auto bytes = (blockIndex + 1) * DataBytesPerFlush_;
-                response->set_cumulative_io_consumed(bytes);
+                if (IOFairShareEnabled_) {
+                    auto bytes = (blockIndex + 1) * DataBytesPerFlush_;
+                    response->set_cumulative_io_consumed(bytes);
+                }
             } else {
                 FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), DataBytesPerFlush_, /*metaBytes*/ 0);
             }
@@ -467,6 +475,11 @@ public:
         MetaBytesPerFinish_ = metaBytesPerFinish;
     }
 
+    void SetIOFairShareEnabled(bool ioFairShareEnabled)
+    {
+        IOFairShareEnabled_ = ioFairShareEnabled;
+    }
+
     void SetControlledFlushes(std::vector<TControlledFlush> flushes)
     {
         ControlledFlushes_ = std::move(flushes);
@@ -523,6 +536,7 @@ private:
     std::vector<TControlledFlush> ControlledFlushes_;
     bool ReportChunkWriterStatistics_ = false;
     bool ReportCumulativeFlushBytes_ = false;
+    bool IOFairShareEnabled_ = true;
     i64 DataBytesPerFlush_ = 0;
     i64 MetaBytesPerFinish_ = 0;
     std::atomic<i64> ReportedWriterBytes_ = 0;
@@ -573,6 +587,7 @@ struct TWriterTestCase
     bool AttachJobIoMeter = false;
     bool EnableJobIoStatistics = true;
     bool ReportCumulativeFlushBytes = false;
+    bool IOFairShareEnabled = true;
     std::optional<i64> GroupSize;
     i64 FirstFlushTotal = 0;
 };
@@ -997,6 +1012,7 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
             DataBytesPerFlush,
             MetaBytesPerFinish,
             GetParam().ReportCumulativeFlushBytes);
+        service->SetIOFairShareEnabled(GetParam().IOFairShareEnabled);
     }
 
     auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
@@ -1019,17 +1035,22 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
         }))
         .BlockingWait(TDuration::Seconds(120));
 
-    // The meter must accumulate exactly the disk-write bytes reported by the data
-    // nodes across all FlushBlocks (data) and FinishChunk (meta) responses.
     i64 expectedBytes = 0;
     for (const auto& service : Services) {
         expectedBytes += service->GetReportedWriterBytes();
     }
 
+    // The meter must accumulate exactly the disk-write bytes reported as io_consumed.
+    // Legacy data nodes and locations without I/O fair share do not report it.
+    auto expectedIoConsumed = GetParam().ReportCumulativeFlushBytes && GetParam().IOFairShareEnabled
+        ? expectedBytes
+        : 0;
+
     EXPECT_GT(expectedBytes, 0);
-    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedBytes);
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedIoConsumed);
     const auto& statistics = writeOptions.ClientOptions.ChunkWriterStatistics;
     EXPECT_EQ(statistics->DataBytesWrittenToDisk.load() + statistics->MetaBytesWrittenToDisk.load(), expectedBytes);
+    EXPECT_EQ(statistics->IOConsumed.load(), expectedIoConsumed);
 
     for (const auto& service : Services) {
         EXPECT_TRUE(service->GetFinishHasIoConsumed());
@@ -1053,6 +1074,13 @@ INSTANTIATE_TEST_SUITE_P(
             .NodeCount = 3,
             .BlockCount = 16,
             .ReportCumulativeFlushBytes = true,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 16,
+            .ReportCumulativeFlushBytes = true,
+            .IOFairShareEnabled = false,
         },
         TWriterTestCase{
             .UseProbePutBlocks = true,

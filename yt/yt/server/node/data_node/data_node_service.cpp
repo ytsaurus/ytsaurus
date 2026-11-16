@@ -156,6 +156,35 @@ THashMap<std::string, std::string> MakeReadIOTags(
     return result;
 }
 
+void SetIOConsumed(
+    const TChunkReaderStatisticsPtr& chunkReaderStatistics,
+    const TChunkLocationPtr& location)
+{
+    if (!location->IsIOFairShareEnabled()) {
+        return;
+    }
+
+    // Wasted bytes are already included in the data bytes.
+    chunkReaderStatistics->IOConsumed.store(
+        chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+        chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed),
+        std::memory_order::relaxed);
+}
+
+void SetIOConsumed(
+    const TChunkWriterStatisticsPtr& chunkWriterStatistics,
+    const TChunkLocationPtr& location)
+{
+    if (!location->IsIOFairShareEnabled()) {
+        return;
+    }
+
+    chunkWriterStatistics->IOConsumed.store(
+        chunkWriterStatistics->DataBytesWrittenToDisk.load(std::memory_order::relaxed) +
+        chunkWriterStatistics->MetaBytesWrittenToDisk.load(std::memory_order::relaxed),
+        std::memory_order::relaxed);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,6 +431,7 @@ private:
                 }
 
                 *response->mutable_chunk_info() = chunkInfo;
+                SetIOConsumed(chunkWriterStatistics, session->GetStoreLocation());
                 ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
 
                 context->Reply();
@@ -1141,6 +1171,9 @@ private:
                 MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
         }
 
+        if (chunk) {
+            SetIOConsumed(chunkReaderStatistics, chunk->GetLocation());
+        }
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = std::count_if(
@@ -2089,6 +2122,7 @@ private:
                         traceContext->GetElapsedTime().GetValue(),
                         std::memory_order::relaxed);
                 }
+                SetIOConsumed(chunkReaderStatistics, chunk->GetLocation());
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
                 auto bytesReadFromDisk =
@@ -2209,6 +2243,7 @@ private:
                 *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
             }
 
+            SetIOConsumed(options.ChunkReaderStatistics, chunk->GetLocation());
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
             ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
         }).AsyncVia(CreateFixedPriorityInvoker(

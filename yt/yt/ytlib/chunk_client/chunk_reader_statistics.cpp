@@ -62,6 +62,7 @@ void TChunkReaderStatistics::RecordPass()
     XX(MetaBytesReadFromDisk, meta_bytes_read_from_disk) \
     XX(MetaBytesTransmitted, meta_bytes_transmitted) \
     XX(MetaIORequests, meta_io_requests) \
+    XX(IOConsumed, io_consumed) \
     XX(OmittedSuspiciousNodeCount, omitted_suspicious_node_count) \
     XX(P2PActivationCount, p2p_activation_count) \
     XX(RemoteCpuTime, remote_cpu_time) \

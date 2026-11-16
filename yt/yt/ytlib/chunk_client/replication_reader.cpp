@@ -1063,7 +1063,7 @@ protected:
         TotalBytesReadFromDisk_.fetch_add(bytesReadFromDisk, std::memory_order::relaxed);
 
         if (const auto& jobIoMeter = SessionOptions_.JobIoMeter) {
-            jobIoMeter->Account(bytesReadFromDisk);
+            jobIoMeter->Account(protoChunkReaderStatistics.io_consumed());
         }
     }
 

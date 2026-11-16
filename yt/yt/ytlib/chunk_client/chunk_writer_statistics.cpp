@@ -17,6 +17,7 @@ void ToProto(NProto::TChunkWriterStatistics* protoChunkWriterStatistics, const T
     protoChunkWriterStatistics->set_meta_bytes_written_to_disk(chunkWriterStatistics->MetaBytesWrittenToDisk.load(std::memory_order::relaxed));
     protoChunkWriterStatistics->set_meta_io_write_requests(chunkWriterStatistics->MetaIOWriteRequests.load(std::memory_order::relaxed));
     protoChunkWriterStatistics->set_meta_io_sync_requests(chunkWriterStatistics->MetaIOSyncRequests.load(std::memory_order::relaxed));
+    protoChunkWriterStatistics->set_io_consumed(chunkWriterStatistics->IOConsumed.load(std::memory_order::relaxed));
 }
 
 void FromProto(TChunkWriterStatisticsPtr* chunkWriterStatisticsPtr, const NProto::TChunkWriterStatistics& protoChunkWriterStatistics)
@@ -30,6 +31,7 @@ void FromProto(TChunkWriterStatisticsPtr* chunkWriterStatisticsPtr, const NProto
     chunkWriterStatistics->MetaBytesWrittenToDisk.store(protoChunkWriterStatistics.meta_bytes_written_to_disk(), std::memory_order::relaxed);
     chunkWriterStatistics->MetaIOWriteRequests.store(protoChunkWriterStatistics.meta_io_write_requests(), std::memory_order::relaxed);
     chunkWriterStatistics->MetaIOSyncRequests.store(protoChunkWriterStatistics.meta_io_sync_requests(), std::memory_order::relaxed);
+    chunkWriterStatistics->IOConsumed.store(protoChunkWriterStatistics.io_consumed(), std::memory_order::relaxed);
 }
 
 void UpdateFromProto(const TChunkWriterStatisticsPtr* chunkWriterStatisticsPtr, const NProto::TChunkWriterStatistics& protoChunkWriterStatistics)
@@ -42,6 +44,7 @@ void UpdateFromProto(const TChunkWriterStatisticsPtr* chunkWriterStatisticsPtr, 
     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(protoChunkWriterStatistics.meta_bytes_written_to_disk(), std::memory_order::relaxed);
     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(protoChunkWriterStatistics.meta_io_write_requests(), std::memory_order::relaxed);
     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(protoChunkWriterStatistics.meta_io_sync_requests(), std::memory_order::relaxed);
+    chunkWriterStatistics->IOConsumed.fetch_add(protoChunkWriterStatistics.io_consumed(), std::memory_order::relaxed);
 }
 
 void DumpChunkWriterStatistics(

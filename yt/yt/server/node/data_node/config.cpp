@@ -117,6 +117,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(WeightedRequestWeight, dynamicConfig.WeightedRequestWeight);
     UpdateYsonStructField(UnweightedRequestWeight, dynamicConfig.UnweightedRequestWeight);
 
+    UpdateYsonStructField(EnableIOFairShare, dynamicConfig.EnableIOFairShare);
+
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
 }
 
@@ -147,6 +149,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("unweighted_request_weight", &TThis::UnweightedRequestWeight)
         .GreaterThanOrEqual(0.0)
         .Default(1.0);
+
+    registrar.Parameter("enable_io_fair_share", &TThis::EnableIOFairShare)
+        .Default(false);
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
@@ -209,6 +214,9 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("unweighted_request_weight", &TThis::UnweightedRequestWeight)
         .GreaterThanOrEqual(0.0)
+        .Optional();
+
+    registrar.Parameter("enable_io_fair_share", &TThis::EnableIOFairShare)
         .Optional();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
