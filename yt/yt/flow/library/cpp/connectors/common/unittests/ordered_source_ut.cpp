@@ -533,6 +533,56 @@ TEST_F(TOrderedSourceTest, LegacyBoundariesAreNormalizedDuringInit)
     Reset();
 }
 
+TEST_F(TOrderedSourceTest, ObsoleteOffsetsAreDropped)
+{
+    RunInInvoker([&] {
+        Source->Terminate();
+    });
+
+    auto state = New<TOrderedSourcePartitionState>();
+    state->CommittedOffsetExclusive = IntToOffset(7);
+    state->PersistedOffsetExclusive = IntToOffset(7);
+    state->PublishedOffsetExclusive = IntToOffset(7);
+    state->MaxOffsetExclusive = IntToOffset(9);
+    auto stateNode = ConvertToNode(state)->AsMap();
+    for (const auto& key : {
+            "committed_offset_exclusive",
+            "persisted_offset_exclusive",
+            "published_offset_exclusive",
+            "max_offset_exclusive",
+         })
+    {
+        stateNode->AddChild(key, ConvertToNode(3));
+    }
+    stateNode->AddChild("offset_memory", ConvertToNode(std::vector<std::pair<i64, ui64>>{{3, 1ULL << 63}}));
+    StateManager->Set("/source/v0", ConvertToYsonString(stateNode));
+
+    Source = MakeTestSource(SourceSpec, 9);
+    const auto data = RunInInvoker([&] {
+        Source->Init(StateManager->CreateContext()->WithPrefix("source"));
+        auto data = UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        Source->Sync();
+        StateManager->Sync();
+        return data;
+    });
+    EXPECT_EQ(data.size(), 2u);
+
+    const auto savedStateNode = ConvertToNode(StateManager->Get("/source/v0"))->AsMap();
+    for (const auto& key : {
+            "committed_offset_exclusive",
+            "persisted_offset_exclusive",
+            "published_offset_exclusive",
+            "max_offset_exclusive",
+            "offset_memory",
+         })
+    {
+        EXPECT_FALSE(savedStateNode->FindChild(key)) << key;
+    }
+    EXPECT_EQ(OffsetToInt(ConvertTo<TOrderedSourcePartitionStatePtr>(savedStateNode)->PersistedOffsetExclusive), 7);
+
+    Reset();
+}
+
 TEST_F(TOrderedSourceTest, PayloadlessRecordAdvancesWithoutMessages)
 {
     const auto initialMessageId = RunInInvoker([&] {

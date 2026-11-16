@@ -38,11 +38,6 @@ struct TOrderedSourcePartitionState
     TOffset PublishedOffsetExclusive;
     TOffset MaxOffsetExclusive;
 
-    std::optional<i64> CommittedOffsetExclusiveObsolete;
-    std::optional<i64> PersistedOffsetExclusiveObsolete;
-    std::optional<i64> PublishedOffsetExclusiveObsolete;
-    std::optional<i64> MaxOffsetExclusiveObsolete;
-
     bool MaxOffsetIsConfirmed{};
 
     TInstant LastNotIdleInstant;
@@ -68,14 +63,11 @@ struct TOrderedSourcePartitionState
     double AvgOffsetByteSize{};
 
     TIntrusivePtr<TOrderedMemory<TOffset, TUniqueSeqNo>> OffsetMemory;
-    TIntrusivePtr<TOrderedMemory<i64, TUniqueSeqNo>> OffsetMemoryObsolete;
 
     TIntrusivePtr<TOrderedMemory<TUniqueSeqNo, TSystemTimestamp>> AlignmentTimestampMemory;
     TSystemTimestamp MaxMemorizedAlignmentTimestamp;
 
     void EnsureInvariants() const;
-
-    void SyncObsoleteOffsets();
 
     void NormalizeOffsets(const std::function<TOffset(const TOffset&)>& normalizeOffset);
 

@@ -78,19 +78,6 @@ void TOrderedSourcePartitionState::EnsureInvariants() const
         LastNotIdleInstant);
 }
 
-void TOrderedSourcePartitionState::SyncObsoleteOffsets()
-{
-    CommittedOffsetExclusiveObsolete = OffsetToInt(CommittedOffsetExclusive);
-    PersistedOffsetExclusiveObsolete = OffsetToInt(PersistedOffsetExclusive);
-    PublishedOffsetExclusiveObsolete = OffsetToInt(PublishedOffsetExclusive);
-    MaxOffsetExclusiveObsolete = OffsetToInt(MaxOffsetExclusive);
-
-    OffsetMemoryObsolete = New<TOrderedMemory<i64, TUniqueSeqNo>>();
-    for (const auto& [offset, seqNo] : *OffsetMemory) {
-        OffsetMemoryObsolete->Register(OffsetToInt(offset), seqNo);
-    }
-}
-
 void TOrderedSourcePartitionState::NormalizeOffsets(
     const std::function<TOffset(const TOffset&)>& normalizeOffset)
 {
@@ -106,15 +93,6 @@ void TOrderedSourcePartitionState::NormalizeOffsets(
 
 void TOrderedSourcePartitionState::Register(TRegistrar registrar)
 {
-    registrar.Parameter("committed_offset_exclusive", &TThis::CommittedOffsetExclusiveObsolete)
-        .Default();
-    registrar.Parameter("persisted_offset_exclusive", &TThis::PersistedOffsetExclusiveObsolete)
-        .Default();
-    registrar.Parameter("published_offset_exclusive", &TThis::PublishedOffsetExclusiveObsolete)
-        .Default();
-    registrar.Parameter("max_offset_exclusive", &TThis::MaxOffsetExclusiveObsolete)
-        .Default();
-
     registrar.Parameter("committed_offset_exclusive_v2", &TThis::CommittedOffsetExclusive)
         .Default(MakeKey());
     registrar.Parameter("persisted_offset_exclusive_v2", &TThis::PersistedOffsetExclusive)
@@ -155,38 +133,11 @@ void TOrderedSourcePartitionState::Register(TRegistrar registrar)
 
     registrar.Parameter("offset_memory_v2", &TThis::OffsetMemory)
         .DefaultNew();
-    registrar.Parameter("offset_memory", &TThis::OffsetMemoryObsolete)
-        .Default();
 
     registrar.Parameter("alignment_timestamp_memory", &TThis::AlignmentTimestampMemory)
         .DefaultNew();
     registrar.Parameter("max_memorized_alignment_timestamp", &TThis::MaxMemorizedAlignmentTimestamp)
         .Default(ZeroSystemTimestamp);
-
-    registrar.Postprocessor([] (TThis* state) {
-        if (state->CommittedOffsetExclusiveObsolete) {
-            state->CommittedOffsetExclusive = IntToOffset(*state->CommittedOffsetExclusiveObsolete);
-        }
-
-        if (state->PersistedOffsetExclusiveObsolete) {
-            state->PersistedOffsetExclusive = IntToOffset(*state->PersistedOffsetExclusiveObsolete);
-        }
-
-        if (state->PublishedOffsetExclusiveObsolete) {
-            state->PublishedOffsetExclusive = IntToOffset(*state->PublishedOffsetExclusiveObsolete);
-        }
-
-        if (state->MaxOffsetExclusiveObsolete) {
-            state->MaxOffsetExclusive = IntToOffset(*state->MaxOffsetExclusiveObsolete);
-        }
-
-        if (state->OffsetMemoryObsolete) {
-            state->OffsetMemory = New<TOrderedMemory<TOffset, TUniqueSeqNo>>();
-            for (const auto& [offset, seqNo] : *state->OffsetMemoryObsolete) {
-                state->OffsetMemory->Register(IntToOffset(offset), seqNo);
-            }
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,11 +269,6 @@ void TOrderedSourceBase::Sync()
             lastSeqNo = seqNo.Underlying();
         }
         YT_VERIFY(lastOffset < State_->MaxOffsetExclusive);
-    }
-
-    //! This is inherently temporary code for two-way compatibility with original (int) offsets.
-    if (dynamic_cast<TIntegerOffsetOrderedSourceBase*>(this)) {
-        State_->SyncObsoleteOffsets();
     }
 }
 
