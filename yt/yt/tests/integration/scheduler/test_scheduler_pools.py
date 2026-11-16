@@ -1196,6 +1196,23 @@ class TestSchedulerPoolAcls(YTEnvSetup):
             authenticated_user="u",
         )
 
+    def test_write_allows_to_set_and_remove_fifo_children_reordering_attribute(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+
+        attribute_path = "//sys/pool_trees/my_tree/nirvana/@enable_fifo_children_reordering_for_guarantee_utilization"
+
+        create_user("u")
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            set(attribute_path, True, authenticated_user="u")
+
+        set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
+        set(attribute_path, True, authenticated_user="u")
+        assert get(attribute_path)
+
+        remove(attribute_path, authenticated_user="u")
+        assert not exists(attribute_path)
+
     def test_administer_allows_to_set_non_user_managed_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
