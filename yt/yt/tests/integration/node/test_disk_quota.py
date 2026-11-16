@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, update_nodes_dynamic_config, wait, events_on_fs, create, ls, get, set, exists,
@@ -9,7 +9,10 @@ from yt_commands import (
     abort_job, run_test_vanilla, extract_statistic_v2 as extract_statistic,
     with_breakpoint, wait_breakpoint, release_breakpoint, wait_no_assert,
     raises_yt_error, write_file, print_debug,
+    get_allocation_id_from_job_id,
 )
+
+from yt_scheduler_helpers import scheduler_orchid_operation_path
 
 from yt.common import update
 
@@ -403,6 +406,61 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
         wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
         for type in ("running", "aborted", "failed"):
             assert op.get_job_count(type) == 0
+        op.abort()
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("job_medium, other_medium", [
+        (None, "default"),
+        ("default", None),
+        (None, "ssd"),
+        ("ssd", "default"),
+    ])
+    def test_different_volume_media(self, job_medium: str | None, other_medium: str | None) -> None:
+        volumes = {}
+        for name, medium in (("job", job_medium), ("other", other_medium)):
+            request = {"type": "local_disk", "disk_space": 512 * 1024}
+            if medium is not None:
+                request["medium_name"] = medium
+            volumes[name] = {"disk_request": request}
+        volumes["job"]["layers"] = [{"path": ROOTFS_LAYER_PATH}]
+        task = {
+            "volumes": volumes,
+            "job_volume_mounts": [{"volume_id": "job", "mount_path": "/"}],
+        }
+        task["job_volume_mounts"].append({"volume_id": "other", "mount_path": "/data"})
+
+        with raises_yt_error("Disk requests with two or more different medium are not currently supported"):
+            run_test_vanilla(command="true", task_patch=task, track=True)
+
+    @authors("krasovav")
+    def test_unfeasible_volume_requests(self):
+        op = run_test_vanilla(
+            command="true",
+            spec={"sanity_check_delay": 60000},
+            task_patch={
+                "volumes": {
+                    name: {
+                        "disk_request": {
+                            "type": "local_disk",
+                            "disk_space": 1280 * 1024,
+                            "medium_name": "ssd",
+                        },
+                    }
+                    for name in ("job", "data")
+                },
+                "job_volume_mounts": [
+                    {"volume_id": "job", "mount_path": "/"},
+                    {"volume_id": "data", "mount_path": "/data"},
+                ],
+            },
+        )
+        wait(lambda: get(
+            scheduler_orchid_operation_path(op.id)
+            + "/min_needed_resources_unsatisfied_count/disk_quota",
+            default=0,
+        ) > 0)
+        for state in ("running", "completed", "failed", "aborted"):
+            assert op.get_job_count(state) == 0
         op.abort()
 
     @authors("ignat")
@@ -1161,6 +1219,111 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         # Check that second operation failed due to lack of space.
         with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             start_op("ssd", "my_account", 768 * 1024, track=True)
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("root_type", ["local_disk", "nbd"])
+    def test_multiple_volume_accounts_are_rejected(self, root_type):
+        for account in ("first", "second"):
+            create_account(account)
+
+        volumes = {
+            name: {
+                "disk_request": {
+                    "type": root_type if name == "job" else "local_disk",
+                    "disk_space": 512 * 1024,
+                    "medium_name": "hdd",
+                    "account": account,
+                },
+            }
+            for name, account in (("job", "first"), ("data", "second"))
+        }
+        volumes["job"]["layers"] = [{"path": ROOTFS_LAYER_PATH}]
+        if root_type == "nbd":
+            volumes["job"]["disk_request"]["disk_space"] = 64 * 1024 * 1024
+        with raises_yt_error("Disk requests with two or more different accounts are not currently supported"):
+            run_test_vanilla(
+                command="true",
+                track=True,
+                task_patch={
+                    "volumes": volumes,
+                    "job_volume_mounts": [
+                        {"volume_id": "job", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/data"},
+                    ],
+                },
+            )
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("accounts", [
+        ("first", "first", "first"),
+        ("first", None, "first"),
+        (None, "first", None),
+        (None, None, None),
+    ], ids=["same_account", "mixed", "accounted_data_only", "no_accounts"])
+    def test_multiple_volume_accounting(self, accounts):
+        update_controller_agent_config("update_account_resource_usage_leases_period", 100)
+        # Accounts are optional for hdd in this test configuration.
+        create_account("first")
+        set("//sys/accounts/first/@resource_limits/disk_space_per_medium/hdd", 2 * 1024 * 1024)
+
+        volumes = {
+            name: {
+                "disk_request": {
+                    "type": "local_disk",
+                    "disk_space": index * 128 * 1024,
+                    "inode_count": index * 10,
+                    "medium_name": "hdd",
+                    "account": account,
+                },
+            }
+            for index, (name, account) in enumerate(zip(("job", "first_data", "second_data"), accounts), start=1)
+        }
+        volumes["job"]["layers"] = [{"path": ROOTFS_LAYER_PATH}]
+        expected_space = sum(volume["disk_request"]["disk_space"] for volume in volumes.values())
+        expected_account_space = sum(
+            volume["disk_request"]["disk_space"] for volume in volumes.values()
+            if volume["disk_request"]["account"] is not None
+        )
+
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec={"max_failed_job_count": 1},
+            task_patch={
+                "volumes": volumes,
+                "job_volume_mounts": [
+                    {"volume_id": name, "mount_path": "/" if name == "job" else f"/{name}"}
+                    for name in volumes
+                ],
+            },
+        )
+        job, = wait_breakpoint(op)
+        allocation_path = (
+            op.get_job_node_orchid_path(job)
+            + "/exec_node/job_controller/allocations/" + get_allocation_id_from_job_id(job)
+        )
+        resources = get(allocation_path + "/base_resource_usage")
+        assert resources["disk_space_request"] == expected_space
+
+        def check_usage(job_count: int) -> None:
+            usage = get("//sys/accounts/first/@resource_usage/disk_space_per_medium/hdd")
+            assert usage == expected_account_space * job_count
+
+            quota = get(scheduler_orchid_operation_path(op.id) + "/disk_quota_usage", default={})
+            disk_usage = sum(quota.get("disk_space_per_medium", {}).values())
+            disk_usage += quota.get("disk_space_without_medium") or 0
+            assert disk_usage == expected_space * job_count
+
+        wait_no_assert(lambda: check_usage(1))
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+        wait(lambda: op.get_state() == "running")
+        wait(lambda: list(op.get_running_jobs()) == [job])
+        wait_no_assert(lambda: check_usage(1))
+
+        release_breakpoint()
+        op.track()
+        wait_no_assert(lambda: check_usage(0))
 
     @authors("ignat")
     @pytest.mark.timeout(150)

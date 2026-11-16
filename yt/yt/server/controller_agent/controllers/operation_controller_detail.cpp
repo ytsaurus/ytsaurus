@@ -1684,7 +1684,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
             .StartTime = joblet->StartTime,
             .PreemptibleProgressStartTime = joblet->PreemptibleProgressStartTime,
             .ResourceLimits = joblet->ResourceLimits,
-            .DiskQuota = joblet->DiskQuota,
+            .DiskQuota = allocation.Resources.DiskQuota(),
             .TreeId = joblet->TreeId,
             .NodeId = joblet->NodeDescriptor.Id,
             .NodeAddress = NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
