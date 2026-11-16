@@ -2,8 +2,9 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, NODES
 
 from yt_commands import (
     abandon_job, abort_job, authors, create, create_account, create_tmpdir, get, ls,
-    map_reduce, raises_yt_error, read_table, release_breakpoint, set_account_disk_space_limit, set_nodes_banned,
-    sort, wait, wait_breakpoint, with_breakpoint, write_table)
+    map_reduce, raises_yt_error, read_table, release_breakpoint, remember_controller_agent_config,
+    set_account_disk_space_limit, set_nodes_banned, sort, update_controller_agent_config, wait, wait_breakpoint,
+    with_breakpoint, write_table)
 
 from yt_type_helpers import make_schema
 
@@ -23,6 +24,12 @@ class TestPushBasedShuffleBase(YTEnvSetup):
         "controller_agent": {
             "testing_options": {
                 "enable_snapshot_cycle_after_materialization": False,
+            },
+            "sort_operation_options": {
+                "push_based_shuffle": {"enable": True},
+            },
+            "map_reduce_operation_options": {
+                "push_based_shuffle": {"enable": True},
             },
         },
     }
@@ -297,6 +304,16 @@ class TestPushBasedShuffleValidation(TestPushBasedShuffleBase):
     def test_simple_sort_ignores_push_based_shuffle(self):
         self._run_sort(in_schema=None, out_schema=None, pivot_keys=[])
         assert read_table("//tmp/t_out") == [{"key": "a"}]
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("operation", ["map_reduce", "sort"])
+    def test_disabled_by_controller_agent_options(self, operation):
+        with remember_controller_agent_config():
+            update_controller_agent_config(f"{operation}_operation_options/push_based_shuffle/enable", False)
+            with raises_yt_error("Push-based shuffle is disabled"):
+                getattr(self, f"_run_{operation}")()
+            getattr(self, f"_run_{operation}")(use_push_based_shuffle=False)
+            assert read_table("//tmp/t_out") == [{"key": "a"}]
 
     @authors("apollo1321")
     def test_intermediate_stream_schema_must_be_strict(self):

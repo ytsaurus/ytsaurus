@@ -668,6 +668,9 @@ def with_push_based_shuffle(mapper_output_schema=None):
                     update_controller_agent_config(
                         "{}/spec_template/use_push_based_shuffle".format(operation_options),
                         True)
+                    update_controller_agent_config(
+                        "{}/push_based_shuffle/enable".format(operation_options),
+                        True)
                 update_controller_agent_config(
                     "testing_options/enable_snapshot_cycle_after_materialization",
                     False)

@@ -302,6 +302,8 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 struct TPushBasedShuffleOptions
     : public NYTree::TYsonStruct
 {
+    bool Enable;
+
     double SealFallbackCompressionRatio;
     i64 SealFallbackRowCountPerRecord;
 

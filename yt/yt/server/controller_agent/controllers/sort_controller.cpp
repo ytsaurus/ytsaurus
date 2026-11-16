@@ -2886,6 +2886,15 @@ protected:
 
     virtual void InitIntermediateSchemas() = 0;
 
+    void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        THROW_ERROR_EXCEPTION_IF(
+            Spec_->UsePushBasedShuffle && !Options_->PushBasedShuffle->Enable,
+            "Push-based shuffle is disabled on this cluster");
+    }
+
     void CustomMaterialize() override
     {
         TOperationControllerBase::CustomMaterialize();
