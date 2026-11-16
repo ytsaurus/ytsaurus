@@ -74,6 +74,12 @@ def build_tablet_balancer():
                     .alias("tablet merges"),
                 MonitoringExpr(stb("tablet_splits").all("container").aggr("group", "table_path"))
                     .alias("tablet splits"),
+                MonitoringExpr(stb("replica_non_trivial_reshards").all("container").aggr("group", "table_path"))
+                    .alias("replica non-trivial reshards"),
+                MonitoringExpr(stb("replica_tablet_merges").all("container").aggr("group", "table_path"))
+                    .alias("replica tablet merges"),
+                MonitoringExpr(stb("replica_tablet_splits").all("container").aggr("group", "table_path"))
+                    .alias("replica tablet splits"),
                 MonitoringExpr(
                     stb("parameterized_reshard_merges").all("container", "group").aggr("table_path"))
                     .alias("parameterized tablet merges, {{group}}"),
