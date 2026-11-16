@@ -1483,12 +1483,9 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
 
-        # Wait for updated replica progress is reported back to chaos node.
-        timestamp = generate_timestamp()
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
-
-        assert len(_get_in_sync_replicas("//tmp/t")) == 1
-        assert len(_get_in_sync_replicas("//tmp/crt")) == 1
+        # Replication progress is cached independently from the master attributes.
+        wait(lambda: _get_in_sync_replicas("//tmp/t") == [replica_ids[0]])
+        wait(lambda: _get_in_sync_replicas("//tmp/crt") == [replica_ids[0]])
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
@@ -1503,14 +1500,8 @@ class TestChaos(ChaosTestBase):
 
         sync_mount_table("//tmp/t")
 
-        # Trigger era switch so chaos caches get updated
-        alter_table_replica(replica_ids[2], enabled=False)
-        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
-
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replica_reached_last_own_era"))
-
-        assert len(_get_in_sync_replicas("//tmp/t")) == 1
-        assert len(_get_in_sync_replicas("//tmp/crt")) == 1
+        wait(lambda: _get_in_sync_replicas("//tmp/t") == [replica_ids[0]])
+        wait(lambda: _get_in_sync_replicas("//tmp/crt") == [replica_ids[0]])
 
     @authors("savrus")
     def test_async_get_in_sync_replicas(self):
