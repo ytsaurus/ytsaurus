@@ -1023,7 +1023,8 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
         }
     }
 
-    THashSet<std::string> allVolumesMediums;
+    THashSet<std::optional<std::string>> allVolumesMediums;
+    THashSet<std::string> allVolumesAccounts;
     bool hasNonRootNbdVolume = false;
     auto rootVolumeIds = [&] () -> THashSet<std::string_view> {
         THashSet<std::string_view> result;
@@ -1046,8 +1047,9 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
         }
 
         if (const auto& diskRequest = volume->DiskRequest->TryGetConcrete<NScheduler::TDiskRequestConfig>()) {
-            if (diskRequest->MediumName) {
-                allVolumesMediums.insert(*diskRequest->MediumName);
+            allVolumesMediums.insert(diskRequest->MediumName);
+            if (diskRequest->Account) {
+                allVolumesAccounts.insert(*diskRequest->Account);
             }
         }
 
@@ -1106,6 +1108,11 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
     // TODO(krasovav): Delete after supporting multiple medium.
     if (allVolumesMediums.size() > 1) {
         THROW_ERROR_EXCEPTION("Disk requests with two or more different medium are not currently supported")
+            .With("volumes", spec->Volumes);
+    }
+
+    if (allVolumesAccounts.size() > 1) {
+        THROW_ERROR_EXCEPTION("Disk requests with two or more different accounts are not currently supported")
             .With("volumes", spec->Volumes);
     }
 
