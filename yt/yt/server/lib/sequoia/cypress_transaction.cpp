@@ -330,6 +330,14 @@ private:
     {
         static_assert(CForkRecordType<TForkRecord>);
 
+        if constexpr (std::is_same_v<TForkRecord, NRecords::TChildFork>) {
+            // NB: on every modification of "child_nodes" Sequoia table the
+            // corresponding (parent_id, child_key, null_tx_id) must be locked.
+            auto key = MakeResolveRecordKey(forkRecord);
+            key.TransactionId = NullTransactionId;
+            SequoiaTransaction_->LockRow(key, ELockType::Exclusive);
+        }
+
         if (ParentCypressTransactionId_) {
             // Fork tables don't contain records for trunk versions of nodes.
             SequoiaTransaction_->WriteRow(UnderParentCypressTransaction(forkRecord));
