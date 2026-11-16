@@ -185,6 +185,7 @@ void TBootstrap::DoRun()
             context->setIndexMarkCache("", 0, 0);
             context->setIndexUncompressedCache("", 0, 0);
             context->setMMappedFileCache(0);
+            context->setQueryConditionCache(/*cache_policy*/ "", /*max_size_in_bytes*/ 0, /*size_ratio*/ 0);
         }
         host->InitSingletones();
 
