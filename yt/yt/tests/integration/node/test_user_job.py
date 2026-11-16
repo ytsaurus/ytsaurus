@@ -1665,7 +1665,9 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
         )
 
         # One pipe's worth of data was transferred.
-        assert all(event['bytes'] == 65536 for event in raw_events)
+        # NB: Linux's default pipe capacity is 64 KiB, but it might be reduced to 8 KiB if
+        # pipe-user-pages-soft was exceeded.
+        assert all(event["bytes"] in (8192, 65536) for event in raw_events), raw_events
 
 
 class TestUserJobIsolation(YTEnvSetup):
