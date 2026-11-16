@@ -62,6 +62,7 @@ struct IBootstrap
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(EWorkloadCategory category) const = 0;
     virtual const TCompactionHintFetchThrottlersPtr& GetCompactionHintFetchThrottlers() const = 0;
+    virtual const TGlobalStoresUpdateThrottlerPtr& GetGlobalStoresUpdateThrottler() const = 0;
     virtual const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const = 0;
     virtual IMediumThrottlerManagerFactoryPtr& GetMediumThrottlerManagerFactory() = 0;
 
