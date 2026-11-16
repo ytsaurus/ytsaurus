@@ -2,8 +2,9 @@
 
 #include "dq_factories.h"
 
+#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_setup.h>
+
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_program_builder.h>
-#include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
 
 
 namespace NKikimr::NMiniKQL {
