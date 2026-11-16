@@ -45,7 +45,8 @@ public:
         const std::string& /*account*/,
         const std::string& /*mediumName*/,
         const std::optional<std::string>& /*tabletCellBundle*/,
-        EInMemoryMode /*inMemoryMode*/) override
+        EInMemoryMode /*inMemoryMode*/,
+        std::optional<TCellTag> /*masterCellTag*/) override
     { }
 
     void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& /*config*/) override

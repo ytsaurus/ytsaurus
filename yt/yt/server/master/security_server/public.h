@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/cell_master/public.h>
+
 #include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/server/lib/hydra/public.h>
@@ -82,7 +84,7 @@ class TWrappedAccessControlDescriptorPtr;
 struct TAcdOverride;
 
 struct TAccountStatistics;
-using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
+using TCellToStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
 
 struct TAccountBackupConfig;
 
@@ -92,6 +94,10 @@ class TClusterResources;
 class TRichClusterResources;
 class TClusterResourceLimits;
 class TViolatedClusterResourceLimits;
+
+using TCellGroupToResourceLimits = THashMap<NCellMaster::TMasterCellGroupId, TClusterResourceLimits>;
+using TCellGroupToStatistics = THashMap<NCellMaster::TMasterCellGroupId, TAccountStatistics>;
+
 struct TChunkMergerCriteria;
 
 struct TUserWorkload;

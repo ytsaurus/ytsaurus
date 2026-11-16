@@ -19,6 +19,7 @@ namespace NYT::NCellarNode {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTabletClient;
@@ -39,6 +40,7 @@ struct TResourceLimitsKey
     std::string MediumName;
     std::optional<std::string> TabletCellBundle;
     EInMemoryMode InMemoryMode;
+    std::optional<TCellTag> MasterCellTag;
 
     // Hasher.
     operator size_t() const
@@ -47,7 +49,8 @@ struct TResourceLimitsKey
             Account,
             TabletCellBundle,
             MediumName,
-            InMemoryMode);
+            InMemoryMode,
+            MasterCellTag);
     }
 
     // Comparer.
@@ -57,7 +60,8 @@ struct TResourceLimitsKey
             Account == other.Account &&
             MediumName == other.MediumName &&
             TabletCellBundle == other.TabletCellBundle &&
-            InMemoryMode == other.InMemoryMode;
+            InMemoryMode == other.InMemoryMode &&
+            MasterCellTag == other.MasterCellTag;
     }
 
     // Formatter.
@@ -65,11 +69,12 @@ struct TResourceLimitsKey
     {
         Format(
             builder,
-            "%v:%v:%v:%v",
+            "%v:%v:%v:%v:%v",
             key.Account,
             key.MediumName,
             key.TabletCellBundle,
-            key.InMemoryMode);
+            key.InMemoryMode,
+            key.MasterCellTag);
     }
 };
 
@@ -113,9 +118,16 @@ private:
         auto bundleTabletStaticValidationEnabledAsync = client->GetNode(
             "//sys/@config/tablet_manager/enable_tablet_resource_validation",
             options);
-        auto accountLimitsAsync = client->GetNode(
-            "//sys/accounts/" + ToYPathLiteral(key.Account) + "/@violated_resource_limits",
-            options);
+        auto accountLimitsPath = TYPath("//sys/accounts/" + ToYPathLiteral(key.Account) + "/@violated_resource_limits");
+        auto accountLimitsAsync = key.MasterCellTag
+            ? client->GetNode(accountLimitsPath + "_per_cell/" + ToString(*key.MasterCellTag), options)
+                .Apply(BIND([client, options, accountLimitsPath] (const TErrorOr<TYsonString>& resultOrError) {
+                    if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        return client->GetNode(accountLimitsPath, options);
+                    }
+                    return MakeFuture<TYsonString>(resultOrError);
+                }))
+            : client->GetNode(accountLimitsPath, options);
         auto bundleLimitsAsync = key.TabletCellBundle
             ? client->GetNode(
                 "//sys/tablet_cell_bundles/" + ToYPathLiteral(*key.TabletCellBundle) + "/@violated_resource_limits",
@@ -244,13 +256,15 @@ public:
         const std::string& account,
         const std::string& mediumName,
         const std::optional<std::string>& tabletCellBundle,
-        EInMemoryMode inMemoryMode)
+        EInMemoryMode inMemoryMode,
+        std::optional<TCellTag> masterCellTag)
     {
         return ResourceLimitsCache_->Get(TResourceLimitsKey{
             account,
             mediumName,
             tabletCellBundle,
             inMemoryMode,
+            masterCellTag,
         });
     }
 
@@ -258,15 +272,16 @@ public:
         const std::string& account,
         const std::string& mediumName,
         const std::optional<std::string>& tabletCellBundle,
-        EInMemoryMode inMemoryMode)
+        EInMemoryMode inMemoryMode,
+        std::optional<TCellTag> masterCellTag) override
     {
-        auto asyncResult = CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
+        auto asyncResult = CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode, masterCellTag);
         auto optionalResult = asyncResult.TryGet();
         auto result = optionalResult ? *optionalResult : WaitFor(asyncResult);
         result.ThrowOnError();
     }
 
-    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override
     {
         ResourceLimitsCache_->Reconfigure(
             config->ResourceLimitsCache

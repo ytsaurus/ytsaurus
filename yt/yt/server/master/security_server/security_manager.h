@@ -131,9 +131,11 @@ struct ISecurityManager
      */
     virtual TAccount* GetChunkWiseAccountingMigrationAccount() = 0;
 
-    //! Sets |resourceLimits| as |account|'s cluster resource limits.
+    //! Sets |resourceLimits| as |account|'s resource limits for all master cell groups.
     //! Throws if that would violate the invariants.
-    virtual void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits) = 0;
+    virtual void TrySetResourceLimits(TAccount* account, const TCellGroupToResourceLimits& resourceLimits) = 0;
+
+    virtual void OnMasterCellGroupChanged(NCellMaster::TMasterCellGroup* group) = 0;
 
     //! Subtracts |resourceDelta| from |srcAccount| and all its ancestors up to (but not including)
     //! LCA(|srcAccount|, |dstAccount|), then adds it to |dstAccount| and all its ancestors up to
@@ -145,7 +147,7 @@ struct ISecurityManager
     virtual void TransferAccountResources(
         TAccount* srcAccount,
         TAccount* dstAccount,
-        const TClusterResourceLimits& resourceDelta) = 0;
+        const TCellGroupToResourceLimits& resourceDelta) = 0;
 
     //! Adds the #chunk schemas usage to the resource usage of accounts mentioned in #requisition.
     //! As a result of this, account can become strongly referenced by schema.

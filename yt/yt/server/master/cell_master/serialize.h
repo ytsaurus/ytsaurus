@@ -251,6 +251,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaSecondaryIndices)                                      (3401))  // sabdenovch
     ((HydraCausalTime)                                              (3402))  // danilalexeev
     ((CheckPendingLocksAfterPrelockRelease)                         (3403))  // ivpiskarev
+    ((AccountMasterCellGroupLimits)                                 (3404))  // evanevannnn
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

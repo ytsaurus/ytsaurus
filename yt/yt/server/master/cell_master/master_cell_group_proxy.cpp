@@ -6,6 +6,9 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -30,7 +33,18 @@ private:
     using TBase = TNonversionedObjectProxyBase<TMasterCellGroup>;
 
     void ValidateRemoval() override
-    { }
+    {
+        auto* group = GetThisImpl();
+        if (group->IsBuiltin()) {
+            THROW_ERROR_EXCEPTION("Cannot remove a built-in master cell group");
+        }
+
+        for (auto [accountId, account] : Bootstrap_->GetSecurityManager()->Accounts()) {
+            if (IsObjectAlive(account) && account->CellGroupToResourceLimits().contains(group->GetId())) {
+                THROW_ERROR_EXCEPTION("Master cell group is used by account %Qv", account->GetName());
+            }
+        }
+    }
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {

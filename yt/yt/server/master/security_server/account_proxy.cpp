@@ -145,11 +145,11 @@ private:
                 account->GetName());
         }
 
-        // Master memory usage is eventually consistent and may be stale, so do not check it here.
-        if (!account->ClusterStatistics().IsPersistentlyEmpty()) {
+        const auto& statistics = account->GetStatistics();
+        if (!statistics.IsPersistentlyEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot remove account %Qv because its usage is not zero",
                 account->GetName())
-                .With("current_usage", ToString(account->ClusterStatistics()));
+                .With("current_usage", ToString(statistics));
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -222,6 +222,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ViolatedResourceLimits)
             .SetOpaque(true)
             .SetPresent(!isRootAccount));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ViolatedResourceLimitsPerCell)
+            .SetOpaque(true)
+            .SetPresent(!isRootAccount && Bootstrap_->IsPrimaryMaster()));
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveCommittedResourceUsage));
@@ -317,7 +320,7 @@ private:
                 }
 
                 BuildYsonFluently(consumer)
-                    .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
+                    .DoMapFor(account->CellToStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
                         fluent.Item(multicellManager->GetMasterCellName(pair.first));
                         Serialize(pair.second, fluent.GetConsumer(), Bootstrap_);
                     });
@@ -336,11 +339,17 @@ private:
                 if (IsRootAccount()) {
                     break;
                 }
-                SerializeClusterResourceLimits(
-                    account->ClusterResourceLimits(),
+                SerializeAccountResources(
                     consumer,
                     Bootstrap_,
-                    /*serializeDiskSpace*/ true);
+                    [&] (auto groupId, TFluentMap fluent) {
+                        SerializeClusterResourceLimits(
+                            account->GetResourceLimits(groupId),
+                            fluent,
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    },
+                    [&] (auto groupId) { return account->CellGroupToResourceLimits().contains(groupId); });
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -348,33 +357,75 @@ private:
                     break;
                 }
 
-                auto violatedLimits = account->GetViolatedResourceLimits(
-                    Bootstrap_,
-                    Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation);
-                SerializeViolatedClusterResourceLimitsInBooleanFormat(
-                    violatedLimits,
+                SerializeAccountResources(
                     consumer,
                     Bootstrap_,
-                    /*serializeDiskSpace*/ true);
+                    [&] (auto groupId, TFluentMap fluent) {
+                        auto limits = account->GetViolatedResourceLimits(
+                            Bootstrap_,
+                            Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation,
+                            groupId);
+                        SerializeViolatedClusterResourceLimitsInBooleanFormat(
+                            limits,
+                            fluent,
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    });
 
                 return true;
             }
 
+            case EInternedAttributeKey::ViolatedResourceLimitsPerCell: {
+                if (IsRootAccount() || !Bootstrap_->IsPrimaryMaster()) {
+                    break;
+                }
+
+                auto cellTags = multicellManager->GetRegisteredMasterCellTags();
+                cellTags.insert(multicellManager->GetCellTag());
+                auto enableTabletResourceValidation =
+                    Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation;
+                BuildYsonFluently(consumer)
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
+                        auto limits = account->GetViolatedResourceLimitsForCell(
+                            Bootstrap_,
+                            enableTabletResourceValidation,
+                            cellTag);
+                        fluent.Item(ToString(cellTag));
+                        SerializeViolatedClusterResourceLimitsInBooleanFormat(
+                            limits,
+                            fluent.GetConsumer(),
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    });
+                return true;
+            }
+
             case EInternedAttributeKey::RecursiveViolatedResourceLimits: {
-                auto violatedLimits = account->GetRecursiveViolatedResourceLimits(
-                    Bootstrap_,
-                    Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation);
-                SerializeViolatedClusterResourceLimits(
-                    violatedLimits,
+                SerializeAccountResources(
                     consumer,
-                    Bootstrap_);
+                    Bootstrap_,
+                    [&] (auto groupId, TFluentMap fluent) {
+                        auto limits = account->GetRecursiveViolatedResourceLimits(
+                            Bootstrap_,
+                            Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation,
+                            groupId);
+                        SerializeViolatedClusterResourceLimits(limits, fluent, Bootstrap_);
+                    });
 
                 return true;
             }
 
             case EInternedAttributeKey::TotalChildrenResourceLimits: {
-                auto resourceLimits = account->ComputeTotalChildrenLimits();
-                SerializeClusterResourceLimits(resourceLimits, consumer, Bootstrap_, /*serializeDiskSpace*/ true);
+                SerializeAccountResources(
+                    consumer,
+                    Bootstrap_,
+                    [&] (auto groupId, TFluentMap fluent) {
+                        SerializeClusterResourceLimits(
+                            account->ComputeTotalChildrenLimits(groupId),
+                            fluent,
+                            Bootstrap_,
+                            /*serializeDiskSpace*/ true);
+                    });
                 return true;
             }
 
@@ -591,12 +642,11 @@ private:
                     break;
                 }
 
-                TClusterResourceLimits limits;
-                DeserializeClusterResourceLimits(
-                    limits,
+                auto limits = DeserializeAccountResourceLimits(
                     ConvertToNode(value),
                     Bootstrap_,
-                    /*zeroByDefault*/ false);
+                    TClusterResourceLimits::DefaultUniversumLimits(),
+                    TClusterResourceLimits::Infinity());
                 securityManager->TrySetResourceLimits(account, limits);
                 return true;
             }
@@ -688,12 +738,11 @@ private:
             request->src_account(),
             /*activeLifeStageOnly*/ true);
 
-        TClusterResourceLimits resourceDelta;
-        DeserializeClusterResourceLimits(
-            resourceDelta,
+        auto resourceDelta = DeserializeAccountResourceLimits(
             ConvertToNode(TYsonString(request->resource_delta())),
             Bootstrap_,
-            /*zeroByDefault*/ true);
+            TClusterResourceLimits::Zero(),
+            TClusterResourceLimits::Zero());
 
         context->AnnotateRequest()
             .With("SrcAccount", srcAccount->GetName())

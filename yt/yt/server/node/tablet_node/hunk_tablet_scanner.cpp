@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -394,7 +396,10 @@ private:
             const auto& resourceLimitsManager = TabletSlot_->GetResourceLimitsManager();
             resourceLimitsManager->ValidateResourceLimits(
                 writerOptions->Account,
-                writerOptions->MediumName);
+                writerOptions->MediumName,
+                /*tabletCellBundle*/ std::nullopt,
+                /*inMemoryMode*/ NTabletClient::EInMemoryMode::None,
+                CellTagFromId(Tablet_->GetId()));
 
             auto transaction = CreateTransaction();
             auto actionRequest = MakeActionRequest();
