@@ -1,5 +1,7 @@
 #include "resource_controller.h"
 
+#include <yt/yt/core/actions/future.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,6 +13,11 @@ TNullResourceController::TNullResourceController(
 
 void TNullResourceController::Init(IInitContextPtr /*initContext*/)
 { }
+
+TFuture<void> TNullResourceController::GetPreparingFuture()
+{
+    return OKFuture;
+}
 
 TResourceRevisionPtr TNullResourceController::BuildTargetRevision()
 {

@@ -47,7 +47,7 @@ void TYTDirectoryLastFileProviderDynamicParameters::Register(TRegistrar registra
     });
 }
 
-TFuture<TFileProviderRevisionPtr> TYTDirectoryLastFileProvider::Discover()
+TFuture<TFileProviderDiscoveryResult> TYTDirectoryLastFileProvider::Discover()
 {
     auto directoryPath = GetParameters()->Path;
     auto pinnedFileName = GetDynamicParameters()->PinnedFileName;
@@ -91,7 +91,7 @@ TFuture<TFileProviderRevisionPtr> TYTDirectoryLastFileProvider::Discover()
         "Pinned YT directory child %Qv does not exist",
         *pinnedFileName);
     if (!selectedName) {
-        return MakeFuture<TFileProviderRevisionPtr>(nullptr);
+        return MakeFuture(TFileProviderDiscoveryResult{});
     }
 
     auto childPath = directoryPath;
@@ -100,7 +100,10 @@ TFuture<TFileProviderRevisionPtr> TYTDirectoryLastFileProvider::Discover()
     return DiscoverYTFileProvider(
         GetContext(),
         TypeName<TYTDirectoryLastFileProvider>(),
-        childPath);
+        childPath)
+        .Apply(BIND([pinned = pinnedFileName.has_value()] (const TFileProviderRevisionPtr& revision) {
+            return TFileProviderDiscoveryResult{.Revision = revision, .Pinned = pinned};
+        }));
 }
 
 TFuture<void> TYTDirectoryLastFileProvider::Download(

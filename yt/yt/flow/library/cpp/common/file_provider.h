@@ -112,6 +112,14 @@ DEFINE_REFCOUNTED_TYPE(TDynamicFileProviderContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFileProviderDiscoveryResult
+{
+    TFileProviderRevisionPtr Revision;
+    bool Pinned = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IFileProvider
     : public virtual TRefCounted
     , public virtual TReconfigurable<TDynamicFileProviderContext>
@@ -121,7 +129,7 @@ struct IFileProvider
 
     using TValidator = TNoopSpecValidator;
 
-    virtual TFuture<TFileProviderRevisionPtr> Discover() = 0;
+    virtual TFuture<TFileProviderDiscoveryResult> Discover() = 0;
 
     // Materializes |revision|; current dynamic parameters must not reselect its source.
     virtual TFuture<void> Download(

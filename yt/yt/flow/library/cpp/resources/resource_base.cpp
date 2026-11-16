@@ -17,6 +17,18 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDynamicFileProviderContextPtr BuildDynamicFileProviderContext(
+    const TDynamicResourceSpecPtr& dynamicSpec,
+    const TFileProviderId& fileProviderId)
+{
+    auto context = New<TDynamicFileProviderContext>();
+    context->DynamicFileProviderSpec = GetOrDefault(
+        dynamicSpec->FileProviders,
+        fileProviderId,
+        New<TDynamicFileProviderSpec>());
+    return context;
+}
+
 std::string GetFileProviderIdentityDigest(
     const TResourceId& resourceId,
     const TFileProviderId& providerId,
@@ -142,27 +154,19 @@ TResourceBase::TResourceBase(TResourceContextPtr context, TDynamicResourceContex
             .WithTag("Component", "FileProvider")
             .WithTag("FileProvider", name);
 
-        auto dynamicProviderContext = New<TDynamicFileProviderContext>();
-        dynamicProviderContext->DynamicFileProviderSpec = GetOrDefault(
-            dynamicContext->DynamicResourceSpec->FileProviders,
-            name,
-            New<TDynamicFileProviderSpec>());
+        auto dynamicProviderContext = BuildDynamicFileProviderContext(dynamicContext->DynamicResourceSpec, name);
         EmplaceOrCrash(
             FileProviders_,
             name,
             TRegistry::Get()->CreateFileProvider(providerContext, dynamicProviderContext));
     }
-
     SubscribeReconfigured(BIND([this] (const TDynamicResourceContextPtr& dynamicContext) {
         DynamicContext_ = dynamicContext;
-        DynamicParameters_ = TRegistry::Get()->ParseResourceDynamicParameters(Context_->ResourceSpec, dynamicContext->DynamicResourceSpec);
-        for (const auto& [name, provider] : FileProviders_) {
-            auto dynamicProviderContext = New<TDynamicFileProviderContext>();
-            dynamicProviderContext->DynamicFileProviderSpec = GetOrDefault(
-                dynamicContext->DynamicResourceSpec->FileProviders,
-                name,
-                New<TDynamicFileProviderSpec>());
-            provider->Reconfigure(dynamicProviderContext);
+        DynamicParameters_ = TRegistry::Get()->ParseResourceDynamicParameters(
+            Context_->ResourceSpec,
+            dynamicContext->DynamicResourceSpec);
+        for (const auto& [fileProviderId, provider] : FileProviders_) {
+            provider->Reconfigure(BuildDynamicFileProviderContext(dynamicContext->DynamicResourceSpec, fileProviderId));
         }
     }));
 }
@@ -347,14 +351,6 @@ TFuture<void> TResourceBase::Load(const THashMap<TResourceId, IResourcePtr>& /*d
     return GetCancelableContext()->IsCanceled()
         ? MakeFuture<void>(GetCancelableContext()->GetCancelationError())
         : OKFuture;
-}
-
-void TResourceBase::Reconfigure(const TDynamicResourceContextPtr& dynamicContext)
-{
-    if (GetCancelableContext()->IsCanceled()) {
-        return;
-    }
-    TReconfigurable<TDynamicResourceContext>::Reconfigure(dynamicContext);
 }
 
 TResourceRevisionState TResourceBase::GetRevisionState() const

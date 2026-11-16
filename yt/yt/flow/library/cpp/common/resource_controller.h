@@ -33,6 +33,7 @@ struct TResourceControllerContext
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     ITimeProviderPtr TimeProvider;
+    IVersionProviderPtr VersionProvider;
 
     // Observability.
     NLogging::TLogger Logger;
@@ -84,13 +85,12 @@ struct IResourceController
     //! job manager state, for controllers that need to survive controller restarts.
     virtual void Init(IInitContextPtr initContext) = 0;
 
-    //! Builds the target revision to broadcast to the worker-side instances.
-    /*!
-     *  Null means "nothing to publish"; the resource is then absent from the broadcast map.
-     *  A result that differs from the previously built one becomes a new revision.
-     *
-     *  Discover external state in the background; only read its cached result here.
-     */
+    //! Waits until file provider discovery has results for the current configuration.
+    virtual TFuture<void> GetPreparingFuture() = 0;
+
+    //! Returns the target revision with a stable ID until the target changes.
+    //! Throws if discovery has not produced results for the current configuration.
+    //! A null result is interpreted by the resource implementation.
     virtual TResourceRevisionPtr BuildTargetRevision() = 0;
 
     //! Receives the current feedback from alive workers (keyed by worker address) plus the status
@@ -119,6 +119,7 @@ public:
 
     void Init(IInitContextPtr initContext) override;
 
+    TFuture<void> GetPreparingFuture() override;
     TResourceRevisionPtr BuildTargetRevision() override;
 
     void CollectStatuses(

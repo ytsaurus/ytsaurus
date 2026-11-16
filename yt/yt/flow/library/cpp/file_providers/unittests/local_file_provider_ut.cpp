@@ -45,8 +45,12 @@ TEST(TLocalFileProviderTest, DiscoveryDoesNotReadAndIsDeterministic)
     auto path = (TFsPath(root.Name()) / "missing.txt").GetPath();
     auto provider = MakeProvider(path);
 
-    auto first = WaitFor(provider->Discover()).ValueOrThrow();
-    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    auto first = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
+    auto second = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     EXPECT_EQ(first->FileProviderClassName, TypeName<TLocalFileProvider>());
     EXPECT_EQ(first->ObjectId, second->ObjectId);
@@ -67,7 +71,9 @@ TEST(TLocalFileProviderTest, DownloadsExactBytesUnderBasename)
     }
 
     auto provider = MakeProvider(inputPath.GetPath());
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     auto staging = TFsPath(root.Name()) / "staging";
     staging.MkDirs();
     WaitFor(provider->Download(revision, staging.GetPath())).ThrowOnError();
@@ -82,14 +88,18 @@ TEST(TLocalFileProviderTest, InPlaceChangesDoNotChangeRevision)
     auto inputPath = TFsPath(root.Name()) / "immutable.txt";
     inputPath.Touch();
     auto provider = MakeProvider(inputPath.GetPath());
-    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    auto first = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     {
         TOFStream output(inputPath.GetPath());
         output << "changed";
         output.Finish();
     }
-    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    auto second = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
 
     EXPECT_EQ(first->ObjectId, second->ObjectId);
 }
@@ -100,7 +110,9 @@ TEST(TLocalFileProviderTest, RejectsMalformedSerializedBasenameAtDownload)
     auto inputPath = TFsPath(root.Name()) / "input.bin";
     inputPath.Touch();
     auto provider = MakeProvider(inputPath.GetPath());
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover())
+        .ValueOrThrow()
+        .Revision;
     revision->Locator = ConvertTo<IMapNodePtr>(TYsonString(Format("{path=%Qv;basename=\"../escaped\";}",
         inputPath.GetPath())));
     auto staging = TFsPath(root.Name()) / "staging";

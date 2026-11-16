@@ -61,7 +61,6 @@ DEFINE_REFCOUNTED_TYPE(TMaterializedFileProviderSnapshot);
 //! @see IResource for details.
 class TResourceBase
     : public TResourceLifecycleBase
-    , public virtual TReconfigurable<TDynamicResourceContext>
 {
 public:
     using TController = TResourceControllerBase;
@@ -102,10 +101,6 @@ public:
     //! Loads the resource with its dependencies.
     //! @see IResource::Load for details.
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override;
-
-    //! Reconfigures the resource.
-    //! @see IResource::Reconfigure for details.
-    void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) final;
 
     //! Reports both ids equal to the last delivered target revision, i.e. treats switching as
     //! instant.

@@ -1473,9 +1473,6 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
             return OKFuture;
         }
 
-        void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
-        { }
-
         TResourceRevisionState GetRevisionState() const override
         {
             return {};
