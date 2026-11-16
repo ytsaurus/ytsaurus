@@ -1223,7 +1223,7 @@ class YTEnvSetup(object):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
                 cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
                 cls.update_timestamp_provider_config(config, cluster_index)
-                cls.update_sequoia_connection_config(config, cluster_index)
+                cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
                 cls.update_master_replication_card_cache_config(
                     config,
@@ -1342,7 +1342,7 @@ class YTEnvSetup(object):
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.update_sequoia_connection_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
             cls.modify_node_config(config, cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
@@ -1380,13 +1380,14 @@ class YTEnvSetup(object):
 
             cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.update_sequoia_connection_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config["cluster_connection"], cluster_index)
             cls.modify_cypress_proxy_config(config, cluster_index)
             multidaemon_config["daemons"][f"cypress_proxy_{index}"]["config"] = config
 
         for key, config in configs["driver"].items():
             cls._apply_effective_config_patch(config, "DELTA_DRIVER_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_driver_config(config)
 
         cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
@@ -1420,7 +1421,7 @@ class YTEnvSetup(object):
             return
 
         ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
-        update_inplace(config["cluster_connection"], {
+        update_inplace(config, {
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,

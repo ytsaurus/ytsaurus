@@ -1,7 +1,12 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
+#include <yt/yt/server/cypress_proxy/action_helpers.h>
+#include <yt/yt/server/cypress_proxy/actions.h>
+#include <yt/yt/server/cypress_proxy/public.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
@@ -9,6 +14,13 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -29,6 +41,7 @@ namespace {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NSequoiaClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
@@ -47,6 +60,9 @@ public:
     {
         TApiTestBase::SetUp();
 
+        auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+        SequoiaClient_ = nativeConnection->GetSequoiaConnection()->CreateClient(NRpc::GetRootAuthenticationIdentity());
+
         WaitFor(Client_->CreateNode("//sequoia", EObjectType::Rootstock))
             .ValueOrThrow();
     }
@@ -60,6 +76,12 @@ public:
         AbortCypressTransactions();
 
         RemoveScion();
+
+        WaitFor(Client_->RemoveNode("//tmp/*", TRemoveNodeOptions{
+            .Recursive = true,
+            .Force = true,
+        }))
+            .ThrowOnError();
     }
 
     static NApi::ITransactionPtr StartCypressTransaction(const NApi::TTransactionStartOptions& options = {})
@@ -71,6 +93,9 @@ public:
 
         return tx;
     }
+
+protected:
+    ISequoiaClientPtr SequoiaClient_;
 
 private:
     static void RemoveScion()
@@ -127,7 +152,151 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
     YSON_EXPECT_EQ("{b = {}}", rsp);
 }
 
-TEST_F(TSequoiaTest, TestRowLockConflict)
+DEFINE_ENUM(EConcurrentChildUpdate,
+    (Trunk)
+    (Parent)
+    (NestedCommit)
+);
+
+class TSequoiaChildMappingTest
+    : public TSequoiaTestBase
+    , public testing::WithParamInterface<std::tuple<EConcurrentChildUpdate, bool>>
+{ };
+
+TEST_P(TSequoiaChildMappingTest, RejectStaleChildUpdate)
+{
+    auto [update, replace] = GetParam();
+    const auto path = TAbsolutePath::MakeCanonicalPathOrThrow("//sequoia/child");
+    const auto sourcePath = "//tmp/source";
+    WaitFor(Client_->CreateNode(sourcePath, EObjectType::MapNode))
+        .ValueOrThrow();
+    WaitFor(Client_->CreateNode("//tmp/source/descendant", EObjectType::MapNode))
+        .ValueOrThrow();
+
+    auto parentId = ConvertTo<TObjectId>(WaitFor(Client_->GetNode("//sequoia/@id"))
+        .ValueOrThrow());
+    auto originalId = NullObjectId;
+    if (replace) {
+        originalId = WaitFor(Client_->CreateNode(path.ToRealPath().Underlying(), EObjectType::MapNode))
+            .ValueOrThrow();
+        WaitFor(Client_->CreateNode("//sequoia/child/descendant", EObjectType::MapNode))
+            .ValueOrThrow();
+    }
+
+    auto parentTx = update != EConcurrentChildUpdate::Trunk ? StartCypressTransaction() : nullptr;
+    auto staleTx = StartCypressTransaction({
+        .ParentId = parentTx ? parentTx->GetId() : NullObjectId,
+        .ReplicateToMasterCellTags = TCellTagList{CellTagFromId(parentId)},
+    });
+    auto concurrentTx = update == EConcurrentChildUpdate::NestedCommit
+        ? StartCypressTransaction({.ParentId = parentTx->GetId()})
+        : nullptr;
+    TCopyNodeOptions copyOptions;
+    copyOptions.TransactionId = concurrentTx
+        ? concurrentTx->GetId()
+        : parentTx ? parentTx->GetId() : NullObjectId;
+    copyOptions.Force = replace;
+    auto copyChild = [&] {
+        return WaitFor(Client_->CopyNode(sourcePath, path.ToRealPath().Underlying(), copyOptions))
+            .ValueOrThrow();
+    };
+    auto concurrentChildId = concurrentTx ? copyChild() : NullObjectId;
+
+    auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+    auto staleCreation = WaitFor(NCypressProxy::StartCypressProxyTransaction(
+        SequoiaClient_,
+        ESequoiaTransactionType::CypressModification,
+        /*features*/ {}))
+        .ValueOrThrow();
+    auto staleId = staleCreation->GenerateObjectId(EObjectType::SequoiaMapNode, CellTagFromId(parentId));
+    NCypressProxy::TProgenitorTransactionCache cache;
+    NCypressClient::TVersionedNodeId versionedParentId(parentId, staleTx->GetId());
+
+    if (replace) {
+        cache.Path.emplace(path, NullObjectId);
+        cache.Child.emplace(std::pair(parentId, std::string("child")), NullObjectId);
+        NCypressProxy::DetachChild(versionedParentId, "child", /*options*/ {}, cache, staleCreation);
+    }
+
+    auto inheritedAttributes = CreateEphemeralAttributes();
+    inheritedAttributes->Set("account", "tmp");
+    NCypressProxy::CreateNode(
+        {staleId, staleTx->GetId()},
+        parentId,
+        path,
+        /*explicitAttributes*/ nullptr,
+        inheritedAttributes.Get(),
+        cache,
+        staleCreation);
+    NCypressProxy::AttachChild(versionedParentId, staleId, "child", /*options*/ {}, cache, staleCreation);
+
+    if (concurrentTx) {
+        WaitFor(concurrentTx->Commit())
+            .ThrowOnError();
+    } else {
+        concurrentChildId = copyChild();
+    }
+
+    auto error = WaitFor(staleCreation->Commit({
+        .CoordinatorCellId = nativeConnection->GetMasterCellId(CellTagFromId(parentId)),
+        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+    }));
+    ASSERT_TRUE(error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)) << ToString(error);
+
+    WaitFor(staleTx->Commit())
+        .ThrowOnError();
+    if (parentTx) {
+        WaitFor(parentTx->Commit())
+            .ThrowOnError();
+    }
+
+    EXPECT_EQ(ConvertTo<TObjectId>(WaitFor(Client_->GetNode("//sequoia/child/@id"))
+        .ValueOrThrow()), concurrentChildId);
+    EXPECT_EQ(ConvertTo<std::string>(WaitFor(Client_->GetNode(FromObjectId(concurrentChildId) + "/@path"))
+        .ValueOrThrow()), "//sequoia/child");
+
+    auto rows = WaitFor(SequoiaClient_->LookupRows(std::vector{
+        NRecords::TNodeIdToPathKey{.NodeId = concurrentChildId},
+        NRecords::TNodeIdToPathKey{.NodeId = staleId},
+        NRecords::TNodeIdToPathKey{.NodeId = staleId, .TransactionId = staleTx->GetId()},
+    }))
+        .ValueOrThrow();
+    ASSERT_TRUE(rows[0]);
+    EXPECT_EQ(rows[0]->Path, "//sequoia/child");
+    EXPECT_FALSE(rows[1]);
+    EXPECT_FALSE(rows[2]);
+
+    auto paths = WaitFor(SequoiaClient_->LookupRows(std::vector{
+        NRecords::TPathToNodeIdKey{.Path = path.ToMangledSequoiaPath()},
+    }))
+        .ValueOrThrow();
+    ASSERT_TRUE(paths[0]);
+    EXPECT_EQ(paths[0]->NodeId, concurrentChildId);
+
+    auto children = WaitFor(SequoiaClient_->LookupRows(std::vector{
+        NRecords::TChildNodeKey{.ParentId = parentId, .ChildKey = "child"},
+    }))
+        .ValueOrThrow();
+    ASSERT_TRUE(children[0]);
+    EXPECT_EQ(children[0]->ChildId, concurrentChildId);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    TSequoiaChildMappingTest,
+    testing::Combine(
+        testing::Values(
+            EConcurrentChildUpdate::Trunk,
+            EConcurrentChildUpdate::Parent,
+            EConcurrentChildUpdate::NestedCommit),
+        testing::Bool()),
+    [] (const testing::TestParamInfo<TSequoiaChildMappingTest::ParamType>& info) {
+        auto update = std::get<0>(info.param);
+        bool replace = std::get<1>(info.param);
+        return Format("%v%v", update, replace ? "Replacement" : "Creation");
+    });
+
+TEST_F(TSequoiaTest, RowLockConflict)
 {
     constexpr static int ThreadCount = 5;
     constexpr static int RequestCount = 25;

@@ -15,6 +15,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/server/lib/transaction_server
     yt/yt/ytlib
 )
 

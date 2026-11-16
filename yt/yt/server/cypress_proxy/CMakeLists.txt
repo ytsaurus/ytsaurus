@@ -12,67 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-server-cypress_proxy)
-
-
-target_compile_options(yt-server-cypress_proxy PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(yt-server-cypress_proxy PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  library-cpp-iterator
-  library-cpp-getopt
-  yt-library-dynamic_config
-  yt-library-orchid
-  yt-library-server_program
-  yt-yt-ytlib
-  server-lib-admin
-  server-lib-misc
-  server-lib-object_server
-  server-lib-cypress_proxy
-  server-lib-security_server
-  server-lib-sequoia
-  server-lib-cross_cluster_replicated_state
-)
-
-target_sources(yt-server-cypress_proxy PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/access_control.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/acd_fetcher.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/actions.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/ban_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_proxy_service_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_transaction_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_connector.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/per_user_and_workload_request_queue_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/rootstock_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/response_keeper.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_attribute_fetcher.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_session.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_tree_visitor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory_synchronizer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
