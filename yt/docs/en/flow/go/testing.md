@@ -70,6 +70,7 @@ The inputs of one batch are built by harness methods and passed to `Process` in 
 | `h.Timer(key, triggerTimestamp)` | A fired timer of the key. |
 | `h.Visit(key)` | A visit of a key from a key visitor stream. |
 | `h.SetWatermark(streamID, watermark)` | The watermark of a stream; it holds until it is set again. |
+| `h.SetSystemWatermark(streamID, watermark)` | The system watermark of a stream; it holds until it is set again. |
 
 Every message is given its own identifier, just as the worker does. The timestamps stay zero: a test that needs them can simply set them on the result.
 

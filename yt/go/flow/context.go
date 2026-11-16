@@ -19,9 +19,10 @@ type RequestRuntime struct {
 	job     *Job
 	streams StreamSpecs
 
-	watermarks   map[string]uint64
-	minWatermark uint64
-	watermarked  bool
+	watermarks       map[string]uint64
+	systemWatermarks map[string]uint64
+	minWatermark     uint64
+	watermarked      bool
 
 	internal map[string]*StatesHolder[InternalState]
 	external map[string]*StatesHolder[ExternalState]
@@ -36,13 +37,14 @@ var _ Runtime = (*RequestRuntime)(nil)
 // NewRequestRuntime returns an empty runtime for a job.
 func NewRequestRuntime(job *Job) *RequestRuntime {
 	return &RequestRuntime{
-		job:           job,
-		streams:       job.StreamSpecs(),
-		watermarks:    map[string]uint64{},
-		internal:      map[string]*StatesHolder[InternalState]{},
-		external:      map[string]*StatesHolder[ExternalState]{},
-		joined:        map[string]*StatesHolder[ExternalState]{},
-		trackedStates: map[trackedStateKey]trackedState{},
+		job:              job,
+		streams:          job.StreamSpecs(),
+		watermarks:       map[string]uint64{},
+		systemWatermarks: map[string]uint64{},
+		internal:         map[string]*StatesHolder[InternalState]{},
+		external:         map[string]*StatesHolder[ExternalState]{},
+		joined:           map[string]*StatesHolder[ExternalState]{},
+		trackedStates:    map[trackedStateKey]trackedState{},
 	}
 }
 
@@ -51,13 +53,18 @@ func (r *RequestRuntime) SetStreamSpecs(streams StreamSpecs) {
 	r.streams = streams
 }
 
-// SetWatermark records a stream watermark.
+// SetWatermark records a stream event watermark.
 func (r *RequestRuntime) SetWatermark(streamID string, watermark uint64) {
 	r.watermarks[streamID] = watermark
 	if !r.watermarked || watermark < r.minWatermark {
 		r.minWatermark = watermark
 		r.watermarked = true
 	}
+}
+
+// SetSystemWatermark records a stream system watermark.
+func (r *RequestRuntime) SetSystemWatermark(streamID string, watermark uint64) {
+	r.systemWatermarks[streamID] = watermark
 }
 
 // LoadInternalState loads an internal state entry.
@@ -134,6 +141,12 @@ func (r *RequestRuntime) MinWatermark() uint64 {
 // Watermark returns the event watermark of one stream.
 func (r *RequestRuntime) Watermark(streamID string) (uint64, bool) {
 	watermark, ok := r.watermarks[streamID]
+	return watermark, ok
+}
+
+// SystemWatermark returns the system watermark of one stream.
+func (r *RequestRuntime) SystemWatermark(streamID string) (uint64, bool) {
+	watermark, ok := r.systemWatermarks[streamID]
 	return watermark, ok
 }
 

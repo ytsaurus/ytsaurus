@@ -82,6 +82,7 @@ PEERDIR(
           .setMessages(messages)           // List<ExtendedMessage>
           .setTimers(timers)               // List<Timer>
           .setWatermarks(watermarks)       // Map<String, Long>
+          .setSystemWatermarks(systemWatermarks)  // Map<String, Long>
           .setExternalState("name", stateMap)  // Map<Payload, ExternalState>
           .setInternalState("name", stateMap)  // Map<Payload, InternalState>
           .build();
@@ -94,6 +95,7 @@ PEERDIR(
           .setMessages(messages)           // List<ExtendedMessage>
           .setTimers(timers)               // List<Timer>
           .setWatermarks(watermarks)       // Map<String, Long>
+          .setSystemWatermarks(systemWatermarks)  // Map<String, Long>
           .setExternalState("name", stateMap)  // Map<Payload, ExternalState>
           .setInternalState("name", stateMap)  // Map<Payload, InternalState>
           .build()

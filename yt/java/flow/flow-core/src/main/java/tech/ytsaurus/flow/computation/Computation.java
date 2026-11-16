@@ -106,6 +106,7 @@ public class Computation implements YTreeConvertible {
                 stateBackend,
                 request.getStreamSpecs(),
                 request.getWatermarks(),
+                request.getSystemWatermarks(),
                 request.getMinWatermark(),
                 job.getStaticParameters(),
                 job.getDynamicParameters(),

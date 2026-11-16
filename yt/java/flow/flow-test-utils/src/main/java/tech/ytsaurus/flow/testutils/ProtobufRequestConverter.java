@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -99,20 +100,9 @@ public class ProtobufRequestConverter {
     }
 
     /**
-     * Builds a protobuf {@link TReqProcessBatch} request from the given test inputs.
+     * Builds a protobuf {@link TReqProcessBatch} request carrying no system watermarks.
      *
-     * @param computationId        target computation id
-     * @param messages             domain messages to process
-     * @param timers               domain timers to process
-     * @param pipelineSpec         YSON pipeline specification
-     * @param streamsContext       registered streams of the pipeline
-     * @param internalStates       internal-state contents keyed by state name and entry key
-     * @param externalStates       external-state contents keyed by state name and entry key
-     * @param joinedExternalStates read-only joined external-state contents keyed by state name and key
-     * @param externalStateSchemas optional per-state schemas used when no values are supplied
-     * @param protoStateTypes      proto message type per proto-format external state name
-     * @param watermarks           per-stream watermarks
-     * @return the protobuf process-batch request
+     * @see #createProcessBatch(String, List, List, YTreeNode, FlowStreamsContext, Map, Map, Map, Map, Map, Map, Map)
      */
     public TReqProcessBatch createProcessBatch(
             String computationId,
@@ -126,6 +116,53 @@ public class ProtobufRequestConverter {
             Map<String, TableSchema> externalStateSchemas,
             Map<String, String> protoStateTypes,
             Map<String, Long> watermarks
+    ) {
+        return createProcessBatch(
+                computationId,
+                messages,
+                timers,
+                pipelineSpec,
+                streamsContext,
+                internalStates,
+                externalStates,
+                joinedExternalStates,
+                externalStateSchemas,
+                protoStateTypes,
+                watermarks,
+                Map.of()
+        );
+    }
+
+    /**
+     * Builds a protobuf {@link TReqProcessBatch} request from the given test inputs.
+     *
+     * @param computationId        target computation id
+     * @param messages             domain messages to process
+     * @param timers               domain timers to process
+     * @param pipelineSpec         YSON pipeline specification
+     * @param streamsContext       registered streams of the pipeline
+     * @param internalStates       internal-state contents keyed by state name and entry key
+     * @param externalStates       external-state contents keyed by state name and entry key
+     * @param joinedExternalStates read-only joined external-state contents keyed by state name and key
+     * @param externalStateSchemas optional per-state schemas used when no values are supplied
+     * @param protoStateTypes      proto message type per proto-format external state name
+     * @param watermarks           per-stream event watermarks
+     * @param systemWatermarks     per-stream system watermarks
+     * @return the protobuf process-batch request
+     */
+    public TReqProcessBatch createProcessBatch(
+            String computationId,
+            List<ExtendedMessage> messages,
+            List<Timer> timers,
+            YTreeNode pipelineSpec,
+            FlowStreamsContext streamsContext,
+            Map<String, Map<Payload, State>> internalStates,
+            Map<String, Map<Payload, State>> externalStates,
+            Map<String, Map<Payload, State>> joinedExternalStates,
+            Map<String, TableSchema> externalStateSchemas,
+            Map<String, String> protoStateTypes,
+            Map<String, Long> watermarks,
+            Map<String, Long> systemWatermarks
     ) {
         var builder = TReqProcessBatch.newBuilder()
                 .setRequestId(ProtoUtils.toProto(GUID.create()))
@@ -162,11 +199,15 @@ public class ProtobufRequestConverter {
         ));
         builder.addAllTimers(convertTimersToProto(timers, codecRegistry.getKeyCodec()));
 
-        for (var entry : watermarks.entrySet()) {
+        // The wire carries both watermarks of a stream, so a missing one is sent as 0.
+        var watermarkStreamIds = new TreeSet<>(watermarks.keySet());
+        watermarkStreamIds.addAll(systemWatermarks.keySet());
+        for (var streamId : watermarkStreamIds) {
             builder.addWatermarks(
                     TWatermark.newBuilder()
-                            .setStreamId(entry.getKey())
-                            .setWatermark(entry.getValue())
+                            .setStreamId(streamId)
+                            .setWatermark(watermarks.getOrDefault(streamId, 0L))
+                            .setSystemWatermark(systemWatermarks.getOrDefault(streamId, 0L))
                             .build()
             );
         }

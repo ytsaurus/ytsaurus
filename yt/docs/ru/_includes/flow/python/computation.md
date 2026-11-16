@@ -231,6 +231,7 @@ def mapper(message, output, ctx):
 | `ctx.parameters` | Словарь параметров компьютейшена из спеки |
 | `ctx.min_watermark` | Минимальный [вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) по всем входным стримам |
 | `ctx.watermark(stream_id)` | [Вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) конкретного стрима (`int` или `None`) |
+| `ctx.system_watermark(stream_id)` | [Системный вотермарк](../../../flow/concepts/watermarks.md#systemwatermark) конкретного стрима (`int` или `None`) |
 | `ctx.state(name, message)` | Получить YSON-[стейт](../../../flow/concepts/glossary.md#state), привязанный к ключу сообщения |
 | `ctx.raw_state(name, message)` | Получить стейт в виде сырых байтов |
 | `ctx.proto_state(name, message, ProtoClass)` | Получить Protobuf-стейт |
@@ -267,6 +268,9 @@ min_wm = ctx.min_watermark
 
 # Вотермарк конкретного стрима (int или None)
 stream_wm = ctx.watermark("stream_id")
+
+# Системный вотермарк конкретного стрима (int или None)
+stream_system_wm = ctx.system_watermark("stream_id")
 ```
 
 ## OutputCollector {#output-collector}

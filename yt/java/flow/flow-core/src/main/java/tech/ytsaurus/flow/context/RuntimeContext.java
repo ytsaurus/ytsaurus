@@ -41,6 +41,14 @@ public interface RuntimeContext extends StatefulContext {
     @Nullable Long getEpochEventWatermark(String streamId);
 
     /**
+     * System watermark value for the specified stream.
+     *
+     * @param streamId The identifier of the stream.
+     * @return System watermark timestamp, or {@code null} if the stream carries no watermark.
+     */
+    @Nullable Long getEpochSystemWatermark(String streamId);
+
+    /**
      * Returns content of the "parameters" section from computation static spec.
      *
      * @return Map of parameter name to YTree parameter value.

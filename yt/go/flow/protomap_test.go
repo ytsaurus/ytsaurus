@@ -290,8 +290,8 @@ func TestProcessBatchFromProtoDecodesTimersAndVisits(t *testing.T) {
 func TestProcessBatchFromProtoComputesMinWatermark(t *testing.T) {
 	runtime, _ := processBatch(t, &companion.TReqProcessBatch{
 		Watermarks: []*companion.TWatermark{
-			{StreamId: proto.String("clicks"), Watermark: proto.Uint64(500)},
-			{StreamId: proto.String("shows"), Watermark: proto.Uint64(300)},
+			{StreamId: proto.String("clicks"), Watermark: proto.Uint64(500), SystemWatermark: proto.Uint64(510)},
+			{StreamId: proto.String("shows"), Watermark: proto.Uint64(300), SystemWatermark: proto.Uint64(310)},
 		},
 	})
 
@@ -301,7 +301,14 @@ func TestProcessBatchFromProtoComputesMinWatermark(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(500), watermark)
 
+	watermark, ok = runtime.SystemWatermark("clicks")
+	require.True(t, ok)
+	require.Equal(t, uint64(510), watermark)
+
 	_, ok = runtime.Watermark("unknown")
+	require.False(t, ok)
+
+	_, ok = runtime.SystemWatermark("unknown")
 	require.False(t, ok)
 
 	runtime, _ = processBatch(t, &companion.TReqProcessBatch{})

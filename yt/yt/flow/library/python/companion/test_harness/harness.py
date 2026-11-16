@@ -177,6 +177,7 @@ class ComputationHarness:
         *,
         visits=None,
         watermarks=None,
+        system_watermarks=None,
         internal_states=None,
         external_states=None,
         joined_external_states=None,
@@ -187,7 +188,8 @@ class ComputationHarness:
             messages: Input messages (list of ExtendedMessage).
             timers: Input timers (list of Timer).
             visits: Input key visits (list of Visit).
-            watermarks: Per-stream watermarks (dict of stream_id -> int).
+            watermarks: Per-stream event watermarks (dict of stream_id -> int).
+            system_watermarks: Per-stream system watermarks (dict of stream_id -> int).
             internal_states: Pre-populated internal state.
                 ``{state_name: {key_payload: value}}`` where value is
                 State, bytes, dict (YSON-serialized), or protobuf message.
@@ -206,6 +208,7 @@ class ComputationHarness:
             timers=timers or [],
             visits=visits or [],
             watermarks=watermarks or {},
+            system_watermarks=system_watermarks or {},
             internal_states=internal_states or {},
             external_states=external_states or {},
             joined_external_states=joined_external_states or {},
@@ -220,6 +223,7 @@ class ComputationHarness:
         timers: List[Timer],
         visits: List[Any],
         watermarks: Dict[str, int],
+        system_watermarks: Dict[str, int],
         internal_states: Dict[str, Dict[Payload, Any]],
         external_states: Dict[str, Dict[Payload, Any]],
         joined_external_states: Dict[str, Dict[Payload, Any]],
@@ -309,6 +313,7 @@ class ComputationHarness:
             external_states=ext_holders,
             joined_external_states=joined_holders,
             watermarks=watermarks,
+            system_watermarks=system_watermarks,
             min_watermark=min_wm,
             job=job,
             resources=dict(self._resources),

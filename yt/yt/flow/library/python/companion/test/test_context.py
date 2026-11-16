@@ -92,6 +92,7 @@ def _make_ctx(
     joined_external_states=None,
     joiner_state_names=None,
     watermarks=None,
+    system_watermarks=None,
     min_watermark=0,
     parameters=None,
     dynamic_parameters=None,
@@ -107,6 +108,7 @@ def _make_ctx(
         internal_states=internal_states or {},
         external_states=external_states or {},
         watermarks=watermarks or {},
+        system_watermarks=system_watermarks,
         min_watermark=min_watermark,
         computation_parameters=parameters or {},
         computation_dynamic_parameters=dynamic_parameters or {},
@@ -405,6 +407,16 @@ class TestDefaultRuntimeContext:
     def test_watermark_for_unknown_stream(self):
         ctx = _make_ctx()
         assert ctx.watermark("nonexistent") is None
+
+    def test_system_watermark_for_known_stream(self):
+        ctx = _make_ctx(watermarks={"input": 100}, system_watermarks={"input": 110})
+        assert ctx.system_watermark("input") == 110
+        # The system watermark leaves the event one intact.
+        assert ctx.watermark("input") == 100
+
+    def test_system_watermark_for_unknown_stream(self):
+        ctx = _make_ctx()
+        assert ctx.system_watermark("nonexistent") is None
 
     def test_stream_specs(self):
         ctx = _make_ctx()

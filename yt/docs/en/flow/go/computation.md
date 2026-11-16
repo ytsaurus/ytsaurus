@@ -362,6 +362,7 @@ close(results)
 | `rt.StreamSpecs()` | The computation streams and their schemas |
 | `rt.MinWatermark()` | The minimum [watermark](../../flow/concepts/glossary.md#timestamps-and-watermarks) across all input streams |
 | `rt.Watermark(streamID)` | The [watermark](../../flow/concepts/glossary.md#timestamps-and-watermarks) of a specific stream |
+| `rt.SystemWatermark(streamID)` | The [system watermark](../../flow/concepts/watermarks.md#systemwatermark) of a specific stream |
 | `rt.InternalState(name)` | The holder of an internal [state](../../flow/concepts/glossary.md#state) |
 | `rt.ExternalState(name)` | The holder of an external state owned by the computation |
 | `rt.JoinedExternalState(name)` | The holder of a joined external state (read-only) |
@@ -415,9 +416,12 @@ minWatermark := rt.MinWatermark()
 
 // The watermark of a specific stream
 watermark, ok := rt.Watermark("stream_id")
+
+// The system watermark of a specific stream
+systemWatermark, ok := rt.SystemWatermark("stream_id")
 ```
 
-The second value returned by `rt.Watermark` tells whether the request reported the watermark of that stream. `rt.MinWatermark()` is zero if the request reported no watermarks at all: event time hasn’t moved yet.
+The second value returned by `rt.Watermark` and `rt.SystemWatermark` tells whether the request reported the watermarks of that stream. `rt.MinWatermark()` is zero if the request reported no watermarks at all: event time hasn’t moved yet.
 
 ## OutputCollector {#output-collector}
 

@@ -37,6 +37,7 @@ public class RequestContext implements YTreeConvertible {
     private final Map<String, StatesHolder> externalStates;
     private final Map<String, StatesHolder> joinedExternalStates;
     private final Map<String, Long> watermarks;
+    private final Map<String, Long> systemWatermarks;
     private final Long minWatermark;
     private final Job job;
     private final Map<String, FlowResource> resources;
@@ -52,6 +53,7 @@ public class RequestContext implements YTreeConvertible {
         this.externalStates = builder.externalStates;
         this.joinedExternalStates = builder.joinedExternalStates;
         this.watermarks = builder.watermarks;
+        this.systemWatermarks = builder.systemWatermarks;
         this.minWatermark = builder.minWatermark;
         this.job = builder.job;
         this.resources = builder.resources;
@@ -118,6 +120,10 @@ public class RequestContext implements YTreeConvertible {
         return watermarks;
     }
 
+    public Map<String, Long> getSystemWatermarks() {
+        return systemWatermarks;
+    }
+
     public Long getMinWatermark() {
         return minWatermark;
     }
@@ -179,6 +185,11 @@ public class RequestContext implements YTreeConvertible {
             builder.key(entry.getKey()).value(entry.getValue());
         }
         builder.endMap();
+        builder.key("system_watermarks").beginMap();
+        for (var entry : systemWatermarks.entrySet()) {
+            builder.key(entry.getKey()).value(entry.getValue());
+        }
+        builder.endMap();
         return builder.endMap().build();
     }
 
@@ -190,6 +201,7 @@ public class RequestContext implements YTreeConvertible {
         private List<Timer> timers = Collections.emptyList();
         private List<Visit> visits = Collections.emptyList();
         private Map<String, Long> watermarks = Collections.emptyMap();
+        private Map<String, Long> systemWatermarks = Collections.emptyMap();
         private @Nullable Long minWatermark;
         private @Nullable StreamSpecs streamSpecsOverride;
         private Map<String, StatesHolder> internalStates = Collections.emptyMap();
@@ -253,6 +265,11 @@ public class RequestContext implements YTreeConvertible {
 
         public Builder setWatermarks(Map<String, Long> watermarks) {
             this.watermarks = watermarks;
+            return this;
+        }
+
+        public Builder setSystemWatermarks(Map<String, Long> systemWatermarks) {
+            this.systemWatermarks = systemWatermarks;
             return this;
         }
 

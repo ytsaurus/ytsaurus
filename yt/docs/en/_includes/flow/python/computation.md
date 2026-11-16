@@ -228,6 +228,7 @@ Each Computation must have a unique identifier that matches the identifiers in t
 | `ctx.parameters` | Map of the computation’s parameters from the spec |
 | `ctx.min_watermark` | Minimum [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) across all input streams |
 | `ctx.watermark(stream_id)` | [Watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) of a specific stream (`int` or `None`) |
+| `ctx.system_watermark(stream_id)` | [System watermark](../../../flow/concepts/watermarks.md#systemwatermark) of a specific stream (`int` or `None`) |
 | `ctx.state(name, message)` | Get the YSON [state](../../../flow/concepts/glossary.md#state) tied to the message key |
 | `ctx.raw_state(name, message)` | Get the state as raw bytes |
 | `ctx.proto_state(name, message, ProtoClass)` | Get the Protobuf state |
@@ -264,6 +265,9 @@ min_wm = ctx.min_watermark
 
 # Watermark of a specific stream (int or None)
 stream_wm = ctx.watermark("stream_id")
+
+# System watermark of a specific stream (int or None)
+stream_system_wm = ctx.system_watermark("stream_id")
 ```
 
 ## OutputCollector {#output-collector}

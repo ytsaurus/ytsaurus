@@ -108,6 +108,7 @@ public class RequestProtoMapper {
 
         // Watermarks.
         var watermarks = new HashMap<String, Long>();
+        var systemWatermarks = new HashMap<String, Long>();
         long minWatermark = Long.MAX_VALUE;
         for (var protoWatermark : request.getWatermarksList()) {
             long watermark = protoWatermark.getWatermark();
@@ -115,6 +116,7 @@ public class RequestProtoMapper {
                 minWatermark = watermark;
             }
             watermarks.put(protoWatermark.getStreamId(), watermark);
+            systemWatermarks.put(protoWatermark.getStreamId(), protoWatermark.getSystemWatermark());
         }
         // A request without watermarks falls back to 0 ("no event time has advanced").
         if (watermarks.isEmpty()) {
@@ -122,6 +124,7 @@ public class RequestProtoMapper {
         }
         builder.setMinWatermark(minWatermark);
         builder.setWatermarks(watermarks);
+        builder.setSystemWatermarks(systemWatermarks);
         return builder.build();
     }
 }
