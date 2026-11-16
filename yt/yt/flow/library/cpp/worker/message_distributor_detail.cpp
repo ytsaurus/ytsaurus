@@ -647,6 +647,14 @@ bool TWorkerConnection::DoRequest()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMessageDistributorState::TMessageDistributorState(IJobDirectoryPtr jobDirectory)
+    : JobDirectory(std::move(jobDirectory))
+    , DynamicSpec(New<TDynamicMessageDistributorSpec>())
+    , PipelineSpec(New<TPipelineSpec>())
+    , MessageTransferingInfo(New<TMessageTransferingInfo>())
+    , CachedBiases_(New<TOrderingTimestampBiases>())
+{ }
+
 std::pair<TTimestampStatisticsWithLockPtr, bool> TMessageDistributorState::GetOrCreateStreamStatistics(TStreamId streamId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -673,11 +681,7 @@ void TMessageDistributorState::RecomputeOrderingTimestampBiases()
 
     auto guard = Guard(BiasesLock_);
 
-    THashMap<TStreamId, TTimestampStatistics> statistics;
-    // Fill as global statistics.
-    if (auto messageTransferingInfo = MessageTransferingInfo.Acquire()) {
-        statistics = messageTransferingInfo->StreamTimestampStatistics;
-    }
+    auto statistics = MessageTransferingInfo.Acquire()->StreamTimestampStatistics;
 
     THashMap<TStreamId, TTimestampStatisticsWithLockPtr> localStatistics;
     {
@@ -833,6 +837,8 @@ TMessageDistributorStatusPtr TMessageDistributor::GetStatus() const
 void TMessageDistributor::UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(messageTransferingInfo);
     State_->MessageTransferingInfo.Store(std::move(messageTransferingInfo));
     State_->RecomputeOrderingTimestampBiases();
 }

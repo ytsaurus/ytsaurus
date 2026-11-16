@@ -148,12 +148,7 @@ class TMessageDistributorState
     : public TRefCounted
 {
 public:
-    explicit TMessageDistributorState(IJobDirectoryPtr jobDirectory)
-        : JobDirectory(std::move(jobDirectory))
-        , DynamicSpec(New<TDynamicMessageDistributorSpec>())
-        , PipelineSpec(New<TPipelineSpec>())
-        , CachedBiases_(New<TOrderingTimestampBiases>())
-    { }
+    explicit TMessageDistributorState(IJobDirectoryPtr jobDirectory);
 
     const IJobDirectoryPtr JobDirectory;
     TAtomicIntrusivePtr<TDynamicMessageDistributorSpec> DynamicSpec;
