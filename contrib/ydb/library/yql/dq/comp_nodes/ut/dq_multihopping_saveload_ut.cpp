@@ -1,6 +1,5 @@
 #include <yql/essentials/minikql/comp_nodes/mkql_multihopping.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_saveload.h>
-#include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
 #include <yql/essentials/core/sql_types/hopping.h>
 #include <yql/essentials/minikql/mkql_node.h>
 #include <yql/essentials/minikql/mkql_node_cast.h>
@@ -11,6 +10,8 @@
 #include <yql/essentials/minikql/computation/mkql_computation_node_graph_saveload.h>
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
+#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_registrar.h>
+#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_setup.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

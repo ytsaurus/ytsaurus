@@ -2,6 +2,7 @@
 
 #include <ranges>
 #include <contrib/ydb/library/yql/dq/comp_nodes/type_utils.h>
+#include <library/cpp/testing/unittest/registar.h>
 #include <yql/essentials/minikql/computation/mkql_block_impl.h>
 #include <yql/essentials/minikql/computation/mkql_block_reader.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>

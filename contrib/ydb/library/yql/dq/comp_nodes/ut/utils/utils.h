@@ -1,7 +1,7 @@
 #pragma once
 #include "dq_setup.h"
 
-#include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
+#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_setup.h>
 #include <yql/essentials/minikql/mkql_node_cast.h>
 
 namespace NKikimr {
