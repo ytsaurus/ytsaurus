@@ -26,6 +26,7 @@ public:
     TGranuleMinMaxFilter(
         TTableSchemaPtr schema,
         std::vector<int> relevantKeyPartIndices,
+        TConstExpressionPtr predicate,
         TConstraintRef queryConstraint,
         TConstraintsHolder queryConstraintsHolder,
         TRowBufferPtr rowBuffer,
@@ -34,6 +35,7 @@ public:
         , RelevantKeyPartIndices_(std::move(relevantKeyPartIndices))
         , QueryConstraint_(std::move(queryConstraint))
         , QueryConstraintsHolder_(std::move(queryConstraintsHolder))
+        , Predicate_(std::move(predicate))
         , RowBuffer_(std::move(rowBuffer))
         , Logger(std::move(logger))
     { }
@@ -105,6 +107,9 @@ private:
     const std::vector<int> RelevantKeyPartIndices_;
     const TConstraintRef QueryConstraint_;
     const TConstraintsHolder QueryConstraintsHolder_;
+
+    // Hold the memory referenced by the constraints.
+    const TConstExpressionPtr Predicate_;
     const TRowBufferPtr RowBuffer_;
 
     const NLogging::TLogger Logger;
@@ -121,13 +126,14 @@ struct TGranuleMinMaxFilterQueryConstraintsTag
 
 IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query, NLogging::TLogger logger)
 {
+    auto predicate = query->WhereClause;
     auto schema = query->GetReadSchema();
     auto& schemaColumns = schema->Columns();
 
     auto relevantKeyPartIndices = std::vector<int>();
     {
         auto queryReferences = TColumnSet();
-        TReferenceHarvester(&queryReferences).Visit(query->WhereClause);
+        TReferenceHarvester(&queryReferences).Visit(predicate);
 
         for (int index = 0; index < std::ssize(schemaColumns); ++index) {
             if (auto it = queryReferences.find(schemaColumns[index].Name()); it != queryReferences.end()) {
@@ -155,7 +161,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query, NLoggin
         }
 
         queryConstraint = queryConstraintsHolder.ExtractFromExpression(
-            query->WhereClause,
+            predicate,
             keyColumns,
             rowBuffer);
     }
@@ -163,6 +169,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query, NLoggin
     return New<TGranuleMinMaxFilter>(
         std::move(schema),
         std::move(relevantKeyPartIndices),
+        std::move(predicate),
         std::move(queryConstraint),
         std::move(queryConstraintsHolder),
         std::move(rowBuffer),
