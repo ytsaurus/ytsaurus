@@ -94,6 +94,8 @@ private:
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
+        context->AnnotateRequest()
+            .With("ValueSize", request->value().size());
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         SetImplValue(TYsonString(request->value()));
         context->Reply();
@@ -101,7 +103,8 @@ private:
 
     void SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
     {
-        context->AnnotateRequest();
+        context->AnnotateRequest()
+            .With("ValueSize", request->value().size());
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
         if (DelegateInvocation(impl->GetValue(), request, response, context)) {
