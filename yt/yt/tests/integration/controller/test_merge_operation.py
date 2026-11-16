@@ -3580,6 +3580,8 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 8
+    NUM_NODES = 4
     NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {
