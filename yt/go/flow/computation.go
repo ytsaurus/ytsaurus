@@ -51,6 +51,9 @@ type Runtime interface {
 	// Watermark returns the event watermark of one input stream.
 	Watermark(streamID string) (uint64, bool)
 
+	// SystemWatermark returns the system watermark of one input stream.
+	SystemWatermark(streamID string) (uint64, bool)
+
 	// InternalState returns the holder of a state declared in parameters.internal_states.
 	InternalState(name string) (*StatesHolder[InternalState], error)
 

@@ -320,6 +320,7 @@ class Computation:
             internal_states=request_ctx.internal_states,
             external_states=request_ctx.external_states,
             watermarks=request_ctx.watermarks,
+            system_watermarks=getattr(request_ctx, "system_watermarks", {}),
             min_watermark=request_ctx.min_watermark,
             computation_parameters=job.static_parameters,
             computation_dynamic_parameters=job.dynamic_parameters,

@@ -33,6 +33,7 @@ public class TestDoProcessRequest {
     private final Map<String, String> protoStateTypes;
     private final List<Consumer<Map<String, TableSchema>>> stateSeeds;
     private final Map<String, Long> watermarks;
+    private final Map<String, Long> systemWatermarks;
 
     TestDoProcessRequest(
             String computationId,
@@ -43,7 +44,8 @@ public class TestDoProcessRequest {
             Map<String, Map<Payload, State>> internalStates,
             Map<String, String> protoStateTypes,
             List<Consumer<Map<String, TableSchema>>> stateSeeds,
-            Map<String, Long> watermarks
+            Map<String, Long> watermarks,
+            Map<String, Long> systemWatermarks
     ) {
         this.computationId = computationId;
         this.messages = messages;
@@ -54,6 +56,7 @@ public class TestDoProcessRequest {
         this.protoStateTypes = protoStateTypes;
         this.stateSeeds = stateSeeds;
         this.watermarks = watermarks;
+        this.systemWatermarks = systemWatermarks;
     }
 
     public static Builder builder(String computationId) {
@@ -96,6 +99,10 @@ public class TestDoProcessRequest {
         return watermarks;
     }
 
+    public Map<String, Long> getSystemWatermarks() {
+        return systemWatermarks;
+    }
+
     /**
      * Runs the seeded state mutations against {@code externalStateSchemas}, the schemas declared
      * on the harness, filling {@link #getInternalStates} and {@link #getExternalStates}. Seeding
@@ -118,6 +125,7 @@ public class TestDoProcessRequest {
         private final Set<String> rowExternalStates = new HashSet<>();
         private final List<Consumer<Map<String, TableSchema>>> stateSeeds = new ArrayList<>();
         private Map<String, Long> watermarks = Collections.emptyMap();
+        private Map<String, Long> systemWatermarks = Collections.emptyMap();
 
         public Builder setComputationId(String computationId) {
             this.computationId = computationId;
@@ -245,6 +253,23 @@ public class TestDoProcessRequest {
             return this;
         }
 
+        /**
+         * Sets the system watermarks. A stream with only one of its watermarks set gets {@code 0}
+         * for the other one, as the wire carries both.
+         */
+        public Builder setSystemWatermarks(Map<String, Long> systemWatermarks) {
+            this.systemWatermarks = systemWatermarks;
+            return this;
+        }
+
+        public Builder addSystemWatermark(String streamId, long systemWatermark) {
+            if (!(this.systemWatermarks instanceof HashMap)) {
+                this.systemWatermarks = new HashMap<>(this.systemWatermarks);
+            }
+            this.systemWatermarks.put(streamId, systemWatermark);
+            return this;
+        }
+
         public TestDoProcessRequest build() {
             return new TestDoProcessRequest(
                     computationId,
@@ -255,7 +280,8 @@ public class TestDoProcessRequest {
                     internalStates,
                     protoStateTypes,
                     stateSeeds,
-                    watermarks);
+                    watermarks,
+                    systemWatermarks);
         }
     }
 }

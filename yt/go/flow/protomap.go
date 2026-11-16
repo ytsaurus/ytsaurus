@@ -71,6 +71,7 @@ func readProcessBatch(req *companion.TReqProcessBatch, job *Job) (*RequestRuntim
 
 	for _, watermark := range req.GetWatermarks() {
 		runtime.SetWatermark(watermark.GetStreamId(), watermark.GetWatermark())
+		runtime.SetSystemWatermark(watermark.GetStreamId(), watermark.GetSystemWatermark())
 	}
 
 	keySchema := job.GroupBySchema()

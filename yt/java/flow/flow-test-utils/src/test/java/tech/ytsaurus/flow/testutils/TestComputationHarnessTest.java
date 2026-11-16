@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -922,6 +923,43 @@ class TestComputationHarnessTest {
             public void unload() {
                 ++unloadCount;
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Watermark Tests")
+    class WatermarkTests {
+
+        @Test
+        @DisplayName("Event and system watermarks reach user code per stream")
+        void testWatermarksReachUserCode() {
+            // Given: A computation recording the watermarks it sees.
+            var seen = new AtomicReference<List<Long>>();
+            var context = new PipelineContext();
+            context.registerComputation(Computation.builder()
+                    .setComputationId(COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) ->
+                            seen.set(Arrays.asList(
+                                    ctx.getEpochEventWatermark("inputStream-0"),
+                                    ctx.getEpochSystemWatermark("inputStream-0"),
+                                    ctx.getEpochInputEventWatermark(),
+                                    ctx.getEpochSystemWatermark("absent"))))
+                    .build());
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(spec)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .addWatermark("inputStream-0", 100L)
+                    .addSystemWatermark("inputStream-0", 110L)
+                    .build();
+
+            // When: Processing the request.
+            harness.doProcess(request);
+
+            // Then: The system watermark leaves the event ones intact; an absent stream has none.
+            assertEquals(Arrays.asList(100L, 110L, 100L, null), seen.get());
         }
     }
 

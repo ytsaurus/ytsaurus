@@ -446,12 +446,14 @@ class DefaultRuntimeContext:
         resources: Optional[Dict[str, Any]] = None,
         http_client: Optional["HttpClient"] = None,
         https_client: Optional["HttpClient"] = None,
+        system_watermarks: Optional[Dict[str, int]] = None,
     ):
         self._internal_state_names = internal_state_names
         self._stream_specs = stream_specs
         self._internal_states = internal_states
         self._external_states = external_states
         self._watermarks = watermarks
+        self._system_watermarks = system_watermarks or {}
         self._min_watermark = min_watermark
         self._computation_parameters = computation_parameters
         self._computation_dynamic_parameters = computation_dynamic_parameters
@@ -533,6 +535,10 @@ class DefaultRuntimeContext:
     def watermark(self, stream_id: str) -> Optional[int]:
         """Event watermark for a specific stream."""
         return self._watermarks.get(stream_id)
+
+    def system_watermark(self, stream_id: str) -> Optional[int]:
+        """System watermark for a specific stream."""
+        return self._system_watermarks.get(stream_id)
 
     def message_builder(self, stream_id: str) -> MessageBuilder:
         """Create a MessageBuilder for the given stream."""
@@ -630,6 +636,7 @@ class RequestContext:
     external_states: Dict[str, StatesHolder] = field(default_factory=dict)
     joined_external_states: Dict[str, StatesHolder] = field(default_factory=dict)
     watermarks: Dict[str, int] = field(default_factory=dict)
+    system_watermarks: Dict[str, int] = field(default_factory=dict)
     min_watermark: int = 0
     job: Any = None
     stream_specs_override: Optional[StreamSpecs] = None

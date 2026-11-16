@@ -121,7 +121,8 @@ public class TestComputationHarness implements AutoCloseable {
                 request.getJoinedExternalStates(),
                 externalStateSchemas,
                 request.getProtoStateTypes(),
-                request.getWatermarks()
+                request.getWatermarks(),
+                request.getSystemWatermarks()
         );
         CompanionRequestProcessor.ProcessBatchResult processBatchResult;
         try {

@@ -82,6 +82,15 @@ class WatermarkFunction(RowFunction):
         output.add_message(builder.finish())
 
 
+class SystemWatermarkFunction(RowFunction):
+    """Emits the system watermark of the input stream as a message field."""
+
+    def on_message(self, message, output, ctx):
+        builder = ctx.message_builder("out")
+        builder.set("wm", ctx.system_watermark("input"))
+        output.add_message(builder.finish())
+
+
 # -- build_key tests --
 
 
@@ -245,6 +254,18 @@ def test_processing_watermarks():
     with h.processing([msg], watermarks={"input": 100, "out": 200}) as r:
         assert len(r.messages) == 1
         assert r.messages[0].payload["wm"] == 100  # min of 100, 200
+
+
+def test_processing_system_watermarks():
+    h = ComputationHarness(
+        SystemWatermarkFunction(),
+        streams={"input": schema(x="string"), "out": schema(wm="int64")},
+    )
+    msg = h.build_message("input", x="hello")
+
+    with h.processing([msg], watermarks={"input": 100}, system_watermarks={"input": 110}) as r:
+        assert len(r.messages) == 1
+        assert r.messages[0].payload["wm"] == 110
 
 
 def test_processing_parameters():

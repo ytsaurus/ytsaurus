@@ -31,6 +31,7 @@ public class DefaultRuntimeContext implements RuntimeContext {
     private final StateManager stateManager;
     private final StreamSpecs streamSpecs;
     private final Map<String, Long> watermarks;
+    private final Map<String, Long> systemWatermarks;
     private final Long minWatermark;
     private final Map<String, YTreeNode> computationParameters;
     private final Map<String, YTreeNode> computationDynamicParameters;
@@ -48,6 +49,7 @@ public class DefaultRuntimeContext implements RuntimeContext {
                 stateBackend,
                 streamSpecs,
                 watermarks,
+                Collections.emptyMap(),
                 minWatermark,
                 computationParameters,
                 computationDynamicParameters,
@@ -59,6 +61,7 @@ public class DefaultRuntimeContext implements RuntimeContext {
             StateBackend stateBackend,
             StreamSpecs streamSpecs,
             Map<String, Long> watermarks,
+            Map<String, Long> systemWatermarks,
             Long minWatermark,
             Map<String, YTreeNode> computationParameters,
             Map<String, YTreeNode> computationDynamicParameters,
@@ -67,6 +70,7 @@ public class DefaultRuntimeContext implements RuntimeContext {
         this.stateManager = new DefaultStateManager(stateBackend);
         this.streamSpecs = streamSpecs;
         this.watermarks = watermarks;
+        this.systemWatermarks = systemWatermarks;
         this.minWatermark = minWatermark;
         this.computationParameters = computationParameters;
         this.computationDynamicParameters = computationDynamicParameters;
@@ -175,6 +179,14 @@ public class DefaultRuntimeContext implements RuntimeContext {
     @Override
     public @Nullable Long getEpochEventWatermark(String streamId) {
         return watermarks.get(streamId);
+    }
+
+    /**
+     * @see RuntimeContext#getEpochSystemWatermark(String)
+     */
+    @Override
+    public @Nullable Long getEpochSystemWatermark(String streamId) {
+        return systemWatermarks.get(streamId);
     }
 
     @Override

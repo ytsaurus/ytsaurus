@@ -311,6 +311,8 @@
 | `ctx.createMessageBuilder(streamId)` | Создать `MessageBuilder` для указанного output-стрима |
 | `ctx.getComputationParameters()` | Получить параметры компьютейшена из спеки |
 | `ctx.getEpochInputEventWatermark()` | Получить текущий [вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) [эпохи](../../../flow/concepts/glossary.md#epoch) |
+| `ctx.getEpochEventWatermark(streamId)` | Получить [вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) конкретного стрима в эпохе (`null`, если у стрима его нет) |
+| `ctx.getEpochSystemWatermark(streamId)` | Получить [системный вотермарк](../../../flow/concepts/watermarks.md#systemwatermark) конкретного стрима в эпохе (`null`, если у стрима его нет) |
 | `ctx.getProtoStateAccessor(name, message, Class)` | Получить стейт в виде protobuf-объекта, привязанный к [ключу](../../../flow/concepts/glossary.md#key) сообщения |
 | `ctx.getYsonStateAccessor(name, message, Class)` | Получить YSON-стейт, привязанный к [ключу](../../../flow/concepts/glossary.md#key) сообщения |
 | `ctx.getStateAccessor(name, message, Class, ser, deser)` | Получить стейт с пользовательской сериализацией/десериализацией |

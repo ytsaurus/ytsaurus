@@ -55,7 +55,8 @@ type Harness struct {
 	external  map[string]flow.Schema
 	joined    map[string]flow.Schema
 
-	watermarks map[string]uint64
+	watermarks       map[string]uint64
+	systemWatermarks map[string]uint64
 
 	internalStates map[string]*stateStore[flow.InternalState]
 	externalStates map[string]*stateStore[flow.ExternalState]
@@ -72,16 +73,17 @@ func New(tb testing.TB, computation *flow.Computation, opts Options) *Harness {
 	}
 
 	h := &Harness{
-		tb:             tb,
-		computation:    computation,
-		keySchema:      opts.KeySchema,
-		streams:        maps.Clone(opts.Streams),
-		external:       maps.Clone(opts.ExternalStates),
-		joined:         maps.Clone(opts.JoinedExternalStates),
-		watermarks:     map[string]uint64{},
-		internalStates: map[string]*stateStore[flow.InternalState]{},
-		externalStates: map[string]*stateStore[flow.ExternalState]{},
-		joinedStates:   map[string]*stateStore[flow.ExternalState]{},
+		tb:               tb,
+		computation:      computation,
+		keySchema:        opts.KeySchema,
+		streams:          maps.Clone(opts.Streams),
+		external:         maps.Clone(opts.ExternalStates),
+		joined:           maps.Clone(opts.JoinedExternalStates),
+		watermarks:       map[string]uint64{},
+		systemWatermarks: map[string]uint64{},
+		internalStates:   map[string]*stateStore[flow.InternalState]{},
+		externalStates:   map[string]*stateStore[flow.ExternalState]{},
+		joinedStates:     map[string]*stateStore[flow.ExternalState]{},
 	}
 
 	job, err := buildJob(computation.ID(), opts)
@@ -192,15 +194,34 @@ func (h *Harness) Visit(key flow.Payload) flow.Visit {
 	return flow.NewVisit(flow.Meta{ID: guid.New().String()}, key)
 }
 
-// SetWatermark records a stream watermark for subsequent runs.
+// SetWatermark records a stream event watermark for subsequent runs.
 func (h *Harness) SetWatermark(streamID string, watermark uint64) {
+	h.tb.Helper()
+
+	if !h.requireStream(streamID) {
+		return
+	}
+	h.watermarks[streamID] = watermark
+}
+
+// SetSystemWatermark records a stream system watermark for subsequent runs.
+func (h *Harness) SetSystemWatermark(streamID string, watermark uint64) {
+	h.tb.Helper()
+
+	if !h.requireStream(streamID) {
+		return
+	}
+	h.systemWatermarks[streamID] = watermark
+}
+
+func (h *Harness) requireStream(streamID string) bool {
 	h.tb.Helper()
 
 	if _, ok := h.streams[streamID]; !ok {
 		h.tb.Fatalf("flowtest: unknown stream %q, declared: %v", streamID, slices.Sorted(maps.Keys(h.streams)))
-		return
+		return false
 	}
-	h.watermarks[streamID] = watermark
+	return true
 }
 
 // PutInternalState stores the bytes an internal state holds for a key before the run.
@@ -294,6 +315,9 @@ func (h *Harness) process(inputs []flow.Input) (*Response, error) {
 	runtime := flow.NewRequestRuntime(h.job)
 	for _, streamID := range slices.Sorted(maps.Keys(h.watermarks)) {
 		runtime.SetWatermark(streamID, h.watermarks[streamID])
+	}
+	for _, streamID := range slices.Sorted(maps.Keys(h.systemWatermarks)) {
+		runtime.SetSystemWatermark(streamID, h.systemWatermarks[streamID])
 	}
 	if err := h.loadStates(runtime, batch); err != nil {
 		return nil, err

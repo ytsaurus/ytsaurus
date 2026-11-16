@@ -70,6 +70,7 @@ h := flowtest.New(t, flow.NewRowComputation("mapper", &wordCountMapper{}), flowt
 | `h.Timer(key, triggerTimestamp)` | Сработавший таймер ключа. |
 | `h.Visit(key)` | Визит ключа из key-visitor стрима. |
 | `h.SetWatermark(streamID, watermark)` | Вотермарк стрима; держится до следующей установки. |
+| `h.SetSystemWatermark(streamID, watermark)` | Системный вотермарк стрима; держится до следующей установки. |
 
 Каждому сообщению выдаётся собственный идентификатор, как это делает воркер. Таймстемпы остаются нулевыми: тесту, которому они нужны, достаточно проставить их на результате.
 

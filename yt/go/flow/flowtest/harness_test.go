@@ -345,6 +345,7 @@ func TestHarnessReadsParametersAndWatermarks(t *testing.T) {
 	var (
 		static, dynamic int
 		watermark       uint64
+		systemWatermark uint64
 		minWatermark    uint64
 	)
 	computation := flow.NewRowComputation("params", flow.RowFunc(
@@ -356,6 +357,7 @@ func TestHarnessReadsParametersAndWatermarks(t *testing.T) {
 				return err
 			}
 			watermark, _ = rt.Watermark("words")
+			systemWatermark, _ = rt.SystemWatermark("words")
 			minWatermark = rt.MinWatermark()
 			return nil
 		}))
@@ -366,12 +368,14 @@ func TestHarnessReadsParametersAndWatermarks(t *testing.T) {
 		DynamicParameters: map[string]any{"window": 200},
 	})
 	h.SetWatermark("words", 42)
+	h.SetSystemWatermark("words", 43)
 
 	h.Process(h.Message("words", Row{"word": "hello"}))
 
 	require.Equal(t, 100, static)
 	require.Equal(t, 200, dynamic)
 	require.Equal(t, uint64(42), watermark)
+	require.Equal(t, uint64(43), systemWatermark)
 	require.Equal(t, uint64(42), minWatermark)
 }
 
@@ -477,6 +481,13 @@ func TestHarnessFailsOnAnUndeclaredState(t *testing.T) {
 func TestHarnessFailsOnAnUnknownWatermarkStream(t *testing.T) {
 	reported := failure(t, func(tb testing.TB) {
 		counterHarness(tb).SetWatermark("nowhere", 1)
+	})
+	require.Contains(t, reported, `unknown stream "nowhere"`)
+}
+
+func TestHarnessFailsOnAnUnknownSystemWatermarkStream(t *testing.T) {
+	reported := failure(t, func(tb testing.TB) {
+		counterHarness(tb).SetSystemWatermark("nowhere", 1)
 	})
 	require.Contains(t, reported, `unknown stream "nowhere"`)
 }

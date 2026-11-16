@@ -118,6 +118,26 @@ func TestRuntimeWatermarks(t *testing.T) {
 	require.Equal(t, uint64(100), r.MinWatermark())
 }
 
+func TestRuntimeSystemWatermarks(t *testing.T) {
+	r := testRuntime(t)
+
+	r.SetWatermark("clicks", 300)
+	r.SetSystemWatermark("clicks", 310)
+
+	watermark, ok := r.SystemWatermark("clicks")
+	require.True(t, ok)
+	require.Equal(t, uint64(310), watermark)
+
+	// The system watermark leaves the event ones intact.
+	watermark, ok = r.Watermark("clicks")
+	require.True(t, ok)
+	require.Equal(t, uint64(300), watermark)
+	require.Equal(t, uint64(300), r.MinWatermark())
+
+	_, ok = r.SystemWatermark("absent")
+	require.False(t, ok)
+}
+
 func TestRuntimeMinWatermarkIsZeroWithoutWatermarks(t *testing.T) {
 	require.Zero(t, testRuntime(t).MinWatermark())
 }

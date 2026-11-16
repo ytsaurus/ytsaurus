@@ -362,6 +362,7 @@ close(results)
 | `rt.StreamSpecs()` | Стримы компьютейшена и их схемы |
 | `rt.MinWatermark()` | Минимальный [вотермарк](../../flow/concepts/glossary.md#timestamps-and-watermarks) по всем входным стримам |
 | `rt.Watermark(streamID)` | [Вотермарк](../../flow/concepts/glossary.md#timestamps-and-watermarks) конкретного стрима |
+| `rt.SystemWatermark(streamID)` | [Системный вотермарк](../../flow/concepts/watermarks.md#systemwatermark) конкретного стрима |
 | `rt.InternalState(name)` | Холдер внутреннего [стейта](../../flow/concepts/glossary.md#state) |
 | `rt.ExternalState(name)` | Холдер внешнего стейта, которым владеет компьютейшен |
 | `rt.JoinedExternalState(name)` | Холдер присоединённого внешнего стейта (только на чтение) |
@@ -415,9 +416,12 @@ minWatermark := rt.MinWatermark()
 
 // Вотермарк конкретного стрима
 watermark, ok := rt.Watermark("stream_id")
+
+// Системный вотермарк конкретного стрима
+systemWatermark, ok := rt.SystemWatermark("stream_id")
 ```
 
-`rt.Watermark` возвращает вторым значением признак того, что запрос сообщил вотермарк этого стрима. `rt.MinWatermark()` равен нулю, если запрос не сообщил ни одного вотермарка: событийное время ещё не сдвинулось.
+`rt.Watermark` и `rt.SystemWatermark` возвращают вторым значением признак того, что запрос сообщил вотермарки этого стрима. `rt.MinWatermark()` равен нулю, если запрос не сообщил ни одного вотермарка: событийное время ещё не сдвинулось.
 
 ## OutputCollector {#output-collector}
 
