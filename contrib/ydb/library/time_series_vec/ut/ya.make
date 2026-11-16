@@ -1,6 +1,5 @@
 UNITTEST_FOR(contrib/ydb/library/time_series_vec)
 
-FORK_SUBTESTS()
 SIZE(MEDIUM)
 
 PEERDIR(
