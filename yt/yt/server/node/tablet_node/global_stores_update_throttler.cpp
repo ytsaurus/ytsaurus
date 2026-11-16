@@ -26,11 +26,11 @@ constinit const auto Logger = TabletNodeLogger;
 TGlobalStoresUpdateThrottler::TGlobalStoresUpdateThrottler(
     TGlobalStoresUpdateThrottlerConfigPtr config,
     NNative::IConnectionPtr connection,
-    const TProfiler& profiler)
+    TProfiler profiler)
     : Config_(std::move(config))
     , Connection_(std::move(connection))
-    , Profiler_(profiler)
-    , FailedThrottleRequestCounter_(profiler.Counter("/failed_throttle_requests"))
+    , Profiler_(std::move(profiler))
+    , FailedThrottleRequestCounter_(Profiler_.Counter("/failed_throttle_requests"))
 { }
 
 void TGlobalStoresUpdateThrottler::Reconfigure(TGlobalStoresUpdateThrottlerConfigPtr newConfig)
@@ -133,7 +133,7 @@ std::vector<bool> TGlobalStoresUpdateThrottler::Throttle(
         if (acceptedRequestCountOrError.IsOK()) {
             acceptedRequestCount = acceptedRequestCountOrError.Value();
         } else if (acceptedRequestCountOrError.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
-            YT_TLOG_WARNING("Failed to throttle tablet stores update, remembering \"No such method\" error")
+            YT_TLOG_WARNING("Failed to throttle tablet stores update; remembering \"No such method\" error")
                 .With("CellTag", cellTag)
                 .With(acceptedRequestCountOrError);
 

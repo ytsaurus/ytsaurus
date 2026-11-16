@@ -25,7 +25,7 @@ public:
     TGlobalStoresUpdateThrottler(
         TGlobalStoresUpdateThrottlerConfigPtr config,
         NApi::NNative::IConnectionPtr connection,
-        const NProfiling::TProfiler& profiler);
+        NProfiling::TProfiler profiler);
 
     std::vector<bool> Throttle(
         const std::vector<TRequest>& requests,
@@ -39,11 +39,10 @@ private:
     TAtomicIntrusivePtr<TGlobalStoresUpdateThrottlerConfig> Config_;
     const NApi::NNative::IConnectionPtr Connection_;
     const NProfiling::TProfiler Profiler_;
+    const NProfiling::TCounter FailedThrottleRequestCounter_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, CounterLock_);
     THashMap<NObjectClient::TCellTag, NProfiling::TCounter> ThrottledRequestCounters_;
-
-    NProfiling::TCounter FailedThrottleRequestCounter_;
 
     //! NB: Refers to a master cell, not to a tablet cell.
     struct TCellStatus
@@ -55,7 +54,7 @@ private:
     };
 
     // COMPAT(alexelexa): drop when all masters are 26.2.
-    std::atomic<TInstant> LastNoSuchMethodError_ = TInstant::Zero();
+    std::atomic<TInstant> LastNoSuchMethodError_;
 
     TFuture<void> InvokeMasterRequest(
         TCellStatus* cellStatus,

@@ -12,6 +12,8 @@ from yt_commands import (
     get_first_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, update_nodes_dynamic_config)
 
+from yt_helpers import profiler_factory
+
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal
@@ -1294,6 +1296,66 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
             chunk_count,
             duration,
             store_cost)
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular"])
+    def test_hunk_chunk_sweep_throttling(self, bottleneck):
+        sync_create_cells(1)
+
+        rate = 2
+        set("//sys/@config/tablet_manager/stores_update_throttler", self._get_throttler_config(bottleneck, rate))
+
+        tablet_count = 20
+        path = "//tmp/t"
+        self._create_table(path, with_hunks=True, external_cell_tag=self._get_external_cell_tags()[0])
+
+        sync_reshard_table(path, [[]] + [[i * 1000] for i in range(1, tablet_count)])
+        sync_mount_table(path)
+        insert_rows(path, self._make_rows([i * 1000 for i in range(tablet_count)], with_hunks=True))
+        sync_unmount_table(path)
+
+        assert len(self._get_hunk_chunk_ids(path)) == tablet_count
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_chunk_sweeper": {
+                    "enable": False,
+                },
+            },
+        })
+
+        set(f"{path}/@forced_compaction_revision", 1)
+        set(f"{path}/@forced_hunk_compaction_revision", 1)
+        sync_mount_table(path)
+
+        wait(lambda: len(self._get_hunk_chunk_ids(path)) == 2 * tablet_count)
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "global_stores_update_throttler": {
+                    "enable": True,
+                },
+                "hunk_chunk_sweeper": {
+                    "enable": True,
+                },
+            },
+        })
+
+        duration = 5
+        expected_swept_count = duration * rate
+
+        address = get_tablet_leader_address(get(f"{path}/@tablets/0/tablet_id"))
+        swept_counter = profiler_factory().at_node(address).counter(
+            "tablet_node/hunk_chunk_sweeper/swept_hunk_chunk_count")
+
+        before_count = swept_counter.get() or 0
+        time.sleep(duration)
+
+        swept_count = (swept_counter.get() or 0) - before_count
+        assert swept_count > expected_swept_count * 0.5
+        assert swept_count < expected_swept_count * 1.5
+
+        wait(lambda: len(self._get_hunk_chunk_ids(path)) == tablet_count)
 
 
 class TestUpdateTabletStoresThrottlingMulticell(TestUpdateTabletStoresThrottling):
