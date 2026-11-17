@@ -1,0 +1,67 @@
+{
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["events"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "TransformAwaiter" = {
+                "computation_class_name" = "NYT::NFlow::NAsyncProcessorTest::TTransformAwaiter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(event_id)"; "type" = "uint64"; required = %true;};
+                    {"name" = "event_id"; "type" = "int64";};
+                ];
+                "input_stream_ids" = ["events"];
+                "output_stream_ids" = ["transform_result"];
+                "timer_streams" = {
+                    "fetch_timer" = {
+                        "time_type" = "current_time";
+                        "swift" = %true;
+                        "deduplicate_equal_timestamps" = %false;
+                    };
+                };
+                "streams_dependency" = {
+                    "fetch_timer" = ["events"; "fetch_timer"];
+                };
+                "allow_timer_self_dependency" = %true;
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["transform_result"];
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "events" = {
+                "schema" = [
+                    {"name" = "event_id"; "type" = "int64";};
+                ];
+            };
+            "transform_result" = {
+                "schema" = [
+                    {"name" = "event_id"; "type" = "int64";};
+                    {"name" = "result"; "type" = "int64";};
+                    {"name" = "attempt"; "type" = "int64";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "TransformAwaiter" = {
+                "parameters" = {"desired_partition_count" = 2;};
+            };
+        };
+    };
+}

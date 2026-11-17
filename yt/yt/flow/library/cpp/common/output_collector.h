@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "async_processor.h"
 #include "message.h"
 #include "timer.h"
 
@@ -11,6 +12,7 @@
 
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace NYT::NFlow {
@@ -87,11 +89,21 @@ struct IOutputCollector
     virtual void AddTimer(const TStreamId& streamId, TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) = 0;
     virtual void AddTimer(TTimer&& timer) = 0;
 
+    //! Sends |task| to the async processor of |handle|; the result comes to its result handler in a later epoch.
+    //! The parent must be a single swift timer, the root timer of the task. Only a step that adds no task may
+    //! add outputs: a job restart fires the root timer again, so a task runs at least once.
+    //! |task| converts to the task type of |handle|.
+    template <CYsonMessage TTask, CYsonMessage TResult>
+    void Add(const TAsyncProcessorHandle<TTask, TResult>& handle, std::type_identity_t<TIntrusivePtr<TTask>> task);
+
 private:
     //! For a source computation, |options.Distribute| = false keeps the message out of the
     //! downstream output while still letting it advance the watermark. Other computations drop it.
     virtual void DoAddMessage(TMessage&& message, TAddMessageOptions options) = 0;
     virtual void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason);
+
+    //! Throws by default: only a computation with async processors takes tasks.
+    virtual void DoAddTask(const TAsyncProcessorDescriptorPtr& processor, TYsonMessagePtr task);
 };
 
 DEFINE_REFCOUNTED_TYPE(IOutputCollector);
@@ -99,3 +111,7 @@ DEFINE_REFCOUNTED_TYPE(IOutputCollector);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define OUTPUT_COLLECTOR_INL_H_
+#include "output_collector-inl.h"
+#undef OUTPUT_COLLECTOR_INL_H_

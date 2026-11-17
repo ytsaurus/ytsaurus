@@ -15,5 +15,8 @@ List of streams that the timer monitors with an individual delay specified ||
 || `deduplicate_equal_timestamps` | **Type**: `bool`
 **Default value**: `true`
 Enables timer deduplication: if you try to create a timer with the same key and `trigger_timestamp`, only one timer remains — the one with the smaller `EventTimestamp` value ||
+|| `swift` | **Type**: `bool`
+**Default value**: `false`
+A swift timer is acknowledged once its ephemeral descendants complete, e.g. the tasks of `IOutputCollector::Add`, rather than in the epoch that processed it. Requires disabled `deduplicate_equal_timestamps` and the in-memory timer store. The stream must not share its time type and watermark inputs with other timer streams, and it must be the only timer stream with the `current_time` time type; `trigger_timestamp` must not exceed the current timestamp of the epoch that sets the timer. Outputs may be added only by the processing step that adds no new task. After a job restart, the timer fires again with the state committed by the earlier steps, so the steps must tolerate being repeated ||
 |#
 

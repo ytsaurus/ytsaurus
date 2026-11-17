@@ -5,6 +5,8 @@
 #include "job_init_context.h"
 #include "state_providers.h"
 
+#include <yt/yt/flow/library/cpp/computation/public.h>
+
 #include <yt/yt/flow/library/cpp/common/init_context.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/misc/public.h>
@@ -88,7 +90,8 @@ public:
     //! Unregisters state providers and releases external managers and joiners without flushing them.
     void Clear();
 
-    IJobInitContextPtr CreateContext(std::string prefix = "");
+    //! The context registers async processors with |asyncProcessorManager|.
+    IJobInitContextPtr CreateContext(std::string prefix = "", TAsyncProcessorManagerPtr asyncProcessorManager = nullptr);
 
     TFuture<IMutableStateProviderPtr> CreatePartitionMutableStateProvider(std::string path, std::function<IStateHolderPtr()> ctor);
     TFuture<IMutableStateProviderPtr> CreateKeyMutableStateProvider(TKey key, std::string path, std::function<IStateHolderPtr()> ctor);
@@ -152,7 +155,8 @@ class TJobInitContext
 public:
     TJobInitContext(
         TJobStateManagerPtr stateManager,
-        std::string prefix = "");
+        std::string prefix = "",
+        TAsyncProcessorManagerPtr asyncProcessorManager = nullptr);
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
     TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
@@ -163,6 +167,8 @@ public:
     IJobInitContextPtr WithPrefix(TStringBuf prefix) const override;
     const std::string& GetPrefix() const override;
 
+    void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const override;
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;
@@ -170,6 +176,7 @@ protected:
 private:
     const TJobStateManagerPtr StateManager_;
     const std::string Prefix_;
+    const TAsyncProcessorManagerPtr AsyncProcessorManager_;
 };
 
 using TJobInitContextPtr = TIntrusivePtr<TJobInitContext>;

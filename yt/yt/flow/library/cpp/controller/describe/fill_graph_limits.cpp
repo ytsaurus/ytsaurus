@@ -81,13 +81,19 @@ void FillGraphLimits(
         auto& computation = computationIt->second;
         const auto& computationSpec = specIt->second;
 
-        // Jobs report the limits of source streams (e.g. the read window) by their local ids.
+        // Jobs report the limits of source and timer streams (e.g. the read window) by their local ids.
         THashMap<TStreamId, TGraphEntityId> inputStreamGraphIds;
         for (const auto& streamId : computationSpec->InputStreamIds) {
             inputStreamGraphIds.emplace(streamId, MakeStreamGraphId(streamId));
         }
 
         for (const auto& [localStreamId, _] : computationSpec->SourceStreams) {
+            inputStreamGraphIds.emplace(
+                localStreamId,
+                MakeStreamGraphId(MakeGlobalStreamId(computationId, localStreamId, computationSpec)));
+        }
+
+        for (const auto& [localStreamId, _] : computationSpec->TimerStreams) {
             inputStreamGraphIds.emplace(
                 localStreamId,
                 MakeStreamGraphId(MakeGlobalStreamId(computationId, localStreamId, computationSpec)));
@@ -284,7 +290,7 @@ std::optional<TRenderedKind> RenderKindStats(const std::string& kind, const TStr
         return FormatBytesShort(value);
     };
 
-    bool isController = kind == ControllerLimitType;
+    bool blockedTimeOnly = IsBlockedTimeOnlyLimitType(kind);
 
     TStringBuilder sb;
     sb.AppendFormat("%v{", kind);
@@ -294,11 +300,11 @@ std::optional<TRenderedKind> RenderKindStats(const std::string& kind, const TStr
         } else {
             sb.AppendFormat("blocked_share=%.2f", blocked);
         }
-        if (!isController) {
+        if (!blockedTimeOnly) {
             sb.AppendString(", ");
         }
     }
-    if (isController) {
+    if (blockedTimeOnly) {
         if (result.Blocks) {
             sb.AppendFormat(", backpressured_partition=%v", stats.MaxBlockedPartitionId);
         }

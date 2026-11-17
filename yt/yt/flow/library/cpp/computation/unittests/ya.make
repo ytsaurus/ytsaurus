@@ -3,6 +3,8 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    async_processor_manager_ut.cpp
+    async_processor_ut.cpp
     failed_messages_ut.cpp
     read_delay_ut.cpp
     availability_groups_ut.cpp
@@ -10,6 +12,7 @@ SRCS(
     key_count_observer_ut.cpp
     key_count_computation_ut.cpp
     computation_base_ut.cpp
+    computation_test_harness.cpp
     computation_tracer_ut.cpp
     processing_observation_accumulator_ut.cpp
     event_timestamp_assigner_ut.cpp
@@ -32,6 +35,7 @@ SRCS(
     state_providers_ut.cpp
     swift_map_validation_ut.cpp
     swift_map_computation_ut.cpp
+    swift_timer_spec_validation_ut.cpp
     paged_timer_store_differential_ut.cpp
     paged_timer_store_ut.cpp
     timer_page_catalogue_ut.cpp
@@ -48,6 +52,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/connectors/common
     yt/yt/flow/library/cpp/connectors/random
+    yt/yt/flow/library/cpp/distributed_throttler
     yt/yt/flow/library/cpp/tables/unittests/mock
     yt/yt/library/profiling/solomon
     yt/yt/library/query/engine

@@ -124,6 +124,8 @@
 
 {% include [_](./NYT_NFlow_TDirectControllerCommandsConfig.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicAsyncProcessorSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicBufferStateManagerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicBufferStateManagerSpec_TOneSideBufferSpec.md) %}

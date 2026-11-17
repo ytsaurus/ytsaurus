@@ -59,6 +59,9 @@
 || `state_joiners` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicStateJoinerSpec](./all_yson_structs#NYT_NFlow_TDynamicStateJoinerSpec)`>>`
 **Значение по умолчанию**: `{}`
  ||
+|| `async_processors` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicAsyncProcessorSpec](./all_yson_structs#NYT_NFlow_TDynamicAsyncProcessorSpec)`>>`
+**Значение по умолчанию**: `{}`
+Лимиты асинхронных процессоров `Computation` по именам процессоров, то есть по именам, переданным в `IJobInitContext::InitAsyncProcessor`. Процессор без записи работает с лимитами по умолчанию. Джоба завершается с ошибкой, если запись называет процессор, который `Computation` не регистрирует. ||
 || `state_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicStateManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicStateManagerSpec)`>`
 **Значение по умолчанию**: `{}`
  ||

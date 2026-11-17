@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "async_processor_manager.h"
 #include "job_state/job_init_context.h"
 #include "job_state/state_manager.h"
 #include "key_count_observer.h"
@@ -236,6 +237,9 @@ public:
         std::vector<TMessageParentsConstPtr> OutputTimersParentMessageIds;
         TLineageDelta LineageDelta;
         std::vector<TFailedMessage> FailedMessages;
+        std::vector<TAsyncTaskRequest> Tasks;
+        //! The root timers of #Tasks: a timer gets at most one task in an epoch.
+        THashSet<TMessageId> TaskRootTimerIds;
     };
 
     TRootOutputCollector(
@@ -256,6 +260,8 @@ public:
         bool distribute);
     void AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents);
     void AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason);
+    //! |parents| must be a single swift timer, the root timer of the task.
+    void AddTask(TAsyncProcessorDescriptorPtr processor, TYsonMessagePtr task, const TMessageParentsConstPtr& parents);
 
     TTransformResult CollectResult();
 
@@ -293,6 +299,7 @@ private:
 
     void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
     void DoAddFailedMessage(const TInputMessageConstPtr& message, const TError& reason) override;
+    void DoAddTask(const TAsyncProcessorDescriptorPtr& processor, TYsonMessagePtr task) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,8 +413,12 @@ public:
     struct TCheckOutputLimitsResult
     {
         THashSet<TStreamId> AllowedInputStreams;
+        //! The swift timer streams whose results of async processors may be processed. Saturated async
+        //! processors hold a stream back in #AllowedInputStreams but not here: the results make room.
+        THashSet<TStreamId> AllowedRootTimerStreams;
 
-        // If AllowedInputStreams.empty() at least one of flags is true.
+        // If AllowedInputStreams.empty() at least one of flags is true or the async processors hold back
+        // the swift timers.
         bool OutputBufferOverflow = false;
         bool BlockedByController = false;
 
@@ -474,10 +485,12 @@ protected:
     //! `InputBytesThrottlerId` grant quota for the batch. No-op if neither
     //! id is set or the batch is empty. Must run on the job serialized
     //! invoker; wrapped in the "Input.Throttle" trace part.
+    //! |otherInputs| are the inputs of the batch that are none of the above.
     void ThrottleInputBatch(
         const std::vector<TInputMessageConstPtr>& messages,
         const std::vector<TInputTimerConstPtr>& timers,
-        const std::vector<TInputVisitConstPtr>& visits);
+        const std::vector<TInputVisitConstPtr>& visits,
+        const TBatchStatistics& otherInputs = {});
 
     // Batch variant: registers all messages at once, taking locks once for the whole batch.
     void RegisterOutputMessages(
@@ -525,10 +538,13 @@ protected:
     void InitBufferWarmupState();
     void RefreshBufferWarmupState();
 
+    //! |otherInputs| are the inputs of the epoch that are not in |inputs|: they count as its work,
+    //! but not in the lineage.
     void RegisterResults(
         const IInputContextPtr& inputs,
         TLineageDelta lineageDelta,
-        THashMap<TStreamId, TBatchStatistics> skipped = {});
+        THashMap<TStreamId, TBatchStatistics> skipped = {},
+        const TBatchStatistics& otherInputs = {});
 
     void WaitForBackoff(
         const TDynamicComputationSpecPtr& dynamicSpec,
@@ -654,6 +670,8 @@ protected:
     //! KeyVisitor objects per visit-stream id; empty when the partition is not Executing
     //! or when no key_visitor_streams entries are configured.
     const THashMap<TStreamId, TKeyVisitorPtr> KeyVisitors_;
+    //! Runs the tasks of the async processors; only a computation that passes it to the init context has any.
+    const TAsyncProcessorManagerPtr AsyncProcessorManager_;
     const IComputationTracerPtr Tracer_;
     const IEventTimestampAssignerPtr EventTimestampAssigner_;
     const IMessageFilterPtr Filter_;
@@ -667,6 +685,10 @@ private:
 
     const TInstant StartTime_;
     const NProfiling::TCounter InputSkippedByExpressionCounter_;
+
+    //! Blocked time of the input streams that something other than an output holds back,
+    //! as reported in #TComputationStatus::InputLimits.
+    TBlockedTimeAccountant InputBlockedTimeAccountant_{StartTime_};
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, LimitsLock_);
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;

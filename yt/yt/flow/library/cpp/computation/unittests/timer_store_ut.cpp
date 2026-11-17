@@ -282,6 +282,24 @@ TEST_F(TTimerStoreTest, AllowedStreamsApplyTimerGroups)
     EXPECT_EQ(batch[0]->MessageId, TMessageId("timer"));
 }
 
+TEST_F(TTimerStoreTest, TakenTimerCountsInMinTriggerTimestampUntilUnregistered)
+{
+    auto context = MakeContext();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("taken", /*triggerTimestamp*/ 50), MakeTimer("pending", /*triggerTimestamp*/ 500)});
+    SetWatermark(store, /*timestamp*/ 100);
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("taken"));
+    // A taken timer is still being processed.
+    EXPECT_EQ(GetInflight(store)->MinTriggerTimestamp, TSystemTimestamp(50));
+
+    store->Unregister({New<TInputTimer>(TTimer(*batch[0]))});
+    EXPECT_EQ(GetInflight(store)->MinTriggerTimestamp, TSystemTimestamp(500));
+}
+
 TEST_F(TTimerStoreTest, InitReturnsOK)
 {
     auto context = MakeContext();

@@ -307,6 +307,20 @@ inline constexpr TStringBuf OutputBufferBytesLimitType = "output_buffer_bytes";
 //! Not a buffer: the controller withholding a stream. Carries a blocked-time
 //! share and nothing else.
 inline constexpr TStringBuf ControllerLimitType = "controller";
+//! Not a buffer either: a saturated async processor holding back a swift timer stream. The limit type
+//! is the prefix with the name of the processor; its entries are in #TJobStatus::InputLimits.
+inline constexpr TStringBuf AsyncProcessorLimitTypePrefix = "async_processor/";
+
+inline std::string MakeAsyncProcessorLimitType(TStringBuf processorName)
+{
+    return std::string(AsyncProcessorLimitTypePrefix) + std::string(processorName);
+}
+
+//! Whether the entries of |limitType| carry a blocked-time share and nothing else.
+inline bool IsBlockedTimeOnlyLimitType(TStringBuf limitType)
+{
+    return limitType == ControllerLimitType || limitType.StartsWith(AsyncProcessorLimitTypePrefix);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,7 +372,7 @@ struct TJobStatus
     NYTree::IMapNodePtr PartitionStatus;
 
     THashMap<std::string, double> EpochPartTimes;
-    // Limits of input buffer. Source buffers may be added.
+    // Limits of input buffer. Source buffers and the async processors that hold back swift timers may be added.
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits;
     // Output buffer limits and controller blocking. Sink buffers may be added.
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits;

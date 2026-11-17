@@ -69,6 +69,8 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTimerStoreContext);
 struct ITimerStore
     : public TRefCounted
 {
+    //! Takes the triggered timers of the groups whose streams are all in |allowedStreams|. A taken timer stays
+    //! registered and counted by #BuildInflight() until it is unregistered.
     virtual std::vector<TInputTimerConstPtr> GetNextBatch(const THashSet<TStreamId>& allowedStreams, i64 maxRows, i64 maxByteSize) = 0;
 
     virtual void Reconfigure(TDynamicTimerStoreContextPtr dynamicContext) = 0;
@@ -108,8 +110,6 @@ struct ITimerStore
 DEFINE_REFCOUNTED_TYPE(ITimerStore);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions);
 
 ITimerStorePtr CreateTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext);
 

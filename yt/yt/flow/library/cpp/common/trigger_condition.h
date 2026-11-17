@@ -20,6 +20,10 @@ TTimerTriggerConditions BuildTimerTriggerConditions(
     const THashMap<TStreamId, TTimerSpecPtr>& timerSpecs,
     const THashMap<TStreamId, THashSet<TStreamId>>& streamsDependency);
 
+//! Splits the timer streams of |conditions| into the groups that are blocked together: the streams of the same
+//! time type whose watermark inputs overlap, transitively; all current time streams form one group.
+std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions);
+
 //! Returns a conservative estimate of the first instant at which the trigger watermark of |condition| reached
 //! |triggerTimestamp|, as published up to |now|: never later than that instant, and for event and system time
 //! earlier by at most 1/K of its age, K being the history thinning factor. For current time it is the trigger

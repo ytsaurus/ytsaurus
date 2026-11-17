@@ -57,6 +57,12 @@ void TSwiftMapComputation::ValidateSpec(const TComputationSpec& spec)
         THROW_ERROR_EXCEPTION("TSwiftMapComputation requires input streams");
     }
 
+    for (const auto& [timerStreamId, timerSpec] : spec.TimerStreams) {
+        THROW_ERROR_EXCEPTION_IF(timerSpec->Swift,
+            "TSwiftMapComputation does not support swift timer stream %Qv",
+            timerStreamId);
+    }
+
     for (const auto& outputStreamId : spec.OutputStreamIds) {
         auto parentStreamIds = GetOrDefault(spec.StreamsDependency, outputStreamId);
         auto validateNotParent = [&] (const TStreamId& streamId, TStringBuf streamKind) {

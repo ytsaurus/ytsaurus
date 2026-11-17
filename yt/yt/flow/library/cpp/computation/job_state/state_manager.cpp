@@ -2,6 +2,8 @@
 
 #include "state_providers.h"
 
+#include <yt/yt/flow/library/cpp/computation/async_processor_manager.h>
+
 #include <yt/yt/flow/library/cpp/common/external_state_manager.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
@@ -273,12 +275,12 @@ void TJobStateManager::ErasePartitionState(
         std::vector<NTables::IPartitionStates::TTableKey>{{Context_->PartitionId, name}});
 }
 
-IJobInitContextPtr TJobStateManager::CreateContext(std::string prefix)
+IJobInitContextPtr TJobStateManager::CreateContext(std::string prefix, TAsyncProcessorManagerPtr asyncProcessorManager)
 {
     if (!prefix.empty()) {
         prefix = ExtendStateNamePrefix({}, prefix);
     }
-    return New<TJobInitContext>(MakeStrong(this), std::move(prefix));
+    return New<TJobInitContext>(MakeStrong(this), std::move(prefix), std::move(asyncProcessorManager));
 }
 
 IExternalStateManagerPtr TJobStateManager::GetExternalStateManagerOrThrow(const std::string& name) const
@@ -499,9 +501,11 @@ TDynamicStateSpecPtr TJobStateManager::GetDynamicSpec(const std::string& path) c
 
 TJobInitContext::TJobInitContext(
     TJobStateManagerPtr stateManager,
-    std::string prefix)
+    std::string prefix,
+    TAsyncProcessorManagerPtr asyncProcessorManager)
     : StateManager_(std::move(stateManager))
     , Prefix_(std::move(prefix))
+    , AsyncProcessorManager_(std::move(asyncProcessorManager))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TJobInitContext::CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
@@ -526,7 +530,16 @@ IInitContextPtr TJobInitContext::AsKey(TKey key) const
 
 IJobInitContextPtr TJobInitContext::WithPrefix(TStringBuf prefix) const
 {
-    return New<TJobInitContext>(StateManager_, ExtendStateNamePrefix(Prefix_, prefix));
+    return New<TJobInitContext>(StateManager_, ExtendStateNamePrefix(Prefix_, prefix), AsyncProcessorManager_);
+}
+
+void TJobInitContext::RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const
+{
+    if (!AsyncProcessorManager_) {
+        IJobInitContext::RegisterAsyncProcessor(std::move(descriptor));
+        return;
+    }
+    AsyncProcessorManager_->Register(std::move(descriptor));
 }
 
 const std::string& TJobInitContext::GetPrefix() const
