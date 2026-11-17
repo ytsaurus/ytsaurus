@@ -359,6 +359,18 @@ private:
                 .With("node_id", impl->GetId());
         }
         auto cellId = ConvertTo<TCellId>(*attribute);
+        std::string orchidRoot;
+        switch (TypeFromId(cellId)) {
+            case EObjectType::TabletCell:
+                orchidRoot = "//tablet_cells";
+                break;
+            case EObjectType::ChaosCell:
+                orchidRoot = "//chaos_cells";
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported cell type for a cell Orchid node")
+                    .With("cell_id", cellId);
+        }
 
         const auto& invoker = NRpc::TDispatcher::Get()->GetHeavyInvoker();
         invoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
@@ -370,7 +382,7 @@ private:
 
                 auto orchidService = CreateOrchidYPathService(TOrchidOptions{
                     .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(address),
-                    .RemoteRoot = Format("//tablet_cells/%v", cellId),
+                    .RemoteRoot = Format("%v/%v", orchidRoot, cellId),
                     .Timeout = timeout,
                 });
                 orchidService->Invoke(context);

@@ -173,6 +173,9 @@ class TestChaos(ChaosTestBase):
 
         for index, driver in enumerate(self._get_drivers()):
             _check(get("#{0}/@peers".format(cell_id), driver=driver), index)
+            wait(
+                lambda: get(f"#{cell_id}/orchid/hydra/state", driver=driver) == "leading",
+                ignore_exceptions=True)
 
     @authors("savrus")
     def test_remove_chaos_cell(self):
