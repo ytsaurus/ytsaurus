@@ -328,7 +328,8 @@ private:
                     createSnapshotAndChangelogNodes(cellNodePath);
                 }
 
-                if (TypeFromId(cellId) == EObjectType::TabletCell) {
+                auto type = TypeFromId(cellId);
+                if (type == EObjectType::TabletCell || type == EObjectType::ChaosCell) {
                     static const std::string OrchidKey("orchid");
                     auto req = TCypressYPathProxy::Create(YPathJoin(cellNodePath, OrchidKey));
                     req->set_type(ToProto(EObjectType::CellOrchidNode));
