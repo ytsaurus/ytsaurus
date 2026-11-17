@@ -12,6 +12,7 @@
 #include <yt/yt/flow/library/cpp/controller/job_balancer.h>
 #include <yt/yt/flow/library/cpp/controller/job_balancer_common.h>
 #include <yt/yt/flow/library/cpp/controller/job_manager.h>
+#include <yt/yt/flow/library/cpp/controller/resource_instances.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -381,6 +382,100 @@ TEST_F(TJobManagerTest, ReportsAndClearsInsufficientWorkers)
     distributeJobs();
 
     EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+}
+
+TEST_F(TJobManagerTest, MinimumWorkerCountRespectsStartupReadinessAndGroupOverrides)
+{
+    for (auto balancerType : {EJobBalancerType::CpuAware, EJobBalancerType::Greedy, EJobBalancerType::ResourceQueue}) {
+        for (bool useGroupOverride : {false, true}) {
+            SCOPED_TRACE(Format("Balancer: %v, GroupOverride: %v", balancerType, useGroupOverride));
+            Reset();
+            const TWorkerGroupId workerGroup(useGroupOverride ? "group" : "");
+            const TResourceId resourceId("always_on");
+            auto spec = New<TPipelineSpec>();
+            auto resource = MakeSimpleResourceSpec();
+            resource->AlwaysOn = true;
+            spec->Resources.emplace(resourceId, resource);
+            auto computation = CreateGenericComputationSpec<TSimpleComputation>(workerGroup);
+            auto description = New<TResourceDescription>();
+            description->Controller = false;
+            computation->RequiredResourceIds.emplace(resourceId, description);
+            spec->Computations.emplace(TComputationId("computation"), computation);
+            auto dynamicSpec = New<TDynamicPipelineSpec>();
+            auto groupSpec = New<TDynamicJobManagerGroupSpec>();
+            groupSpec->MinimumWorkerCount = 3;
+            groupSpec->BalancerType = balancerType;
+            if (useGroupOverride) {
+                dynamicSpec->JobManager->MinimumWorkerCount = 4;
+                dynamicSpec->JobManager->BalancerType = balancerType == EJobBalancerType::CpuAware
+                    ? EJobBalancerType::Greedy
+                    : EJobBalancerType::CpuAware;
+                dynamicSpec->JobManager->WorkerGroupOverride.emplace(workerGroup, groupSpec);
+            } else {
+                dynamicSpec->JobManager->MinimumWorkerCount = groupSpec->MinimumWorkerCount;
+                dynamicSpec->JobManager->BalancerType = balancerType;
+            }
+
+            Prepare(spec, dynamicSpec);
+            FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+            for (int index = 0; index < 3; ++index) {
+                auto worker = New<NFlow::TWorker>();
+                worker->RpcAddress = Format("worker-%v", index);
+                if (useGroupOverride) {
+                    worker->Groups.push_back(workerGroup);
+                }
+
+                FlowView->State->Workers.emplace(worker->RpcAddress, worker);
+            }
+
+            auto distributeJobs = [&] {
+                FlowView->State->StartMutation();
+                JobManager->DistributeJobs(FlowView);
+                FlowView->State->CommitMutation();
+            };
+
+            distributeJobs();
+            const auto& layout = FlowView->State->ExecutionSpec->Layout;
+            ASSERT_EQ(layout->ResourceInstances.size(), 3u);
+            for (const auto& [instanceId, instance] : layout->ResourceInstances) {
+                auto status = New<TWorkerStatus>();
+                status->WorkerIncarnationId = instance->WorkerIncarnationId;
+                auto instanceStatus = New<TWorkerResourceStatus>();
+                instanceStatus->ResourceId = resourceId;
+                instanceStatus->LoadState = instance->WorkerAddress == "worker-0"
+                    ? EResourceLoadState::Loaded
+                    : EResourceLoadState::Loading;
+                status->ResourceInstanceStatuses.emplace(instanceId, instanceStatus);
+                FlowView->Feedback->WorkerStatuses.emplace(instance->WorkerAddress, status);
+            }
+
+            distributeJobs();
+            const auto errors = StatusProfiler->GetStatus().Errors;
+            if (balancerType == EJobBalancerType::CpuAware) {
+                ASSERT_EQ(errors.size(), 1u);
+                const std::string errorKey = useGroupOverride
+                    ? "/insufficient_workers/groups/group"
+                    : "/insufficient_workers/default";
+                ASSERT_TRUE(errors.contains(errorKey));
+                EXPECT_EQ(
+                    GetOrCrash(errors, errorKey).GetMessage(),
+                    useGroupOverride
+                        ? "Too few workers in worker group \"group\" (Count: 1, Required: 3)"
+                        : "Too few workers (Count: 1, Required: 3)");
+            } else {
+                EXPECT_TRUE(errors.empty());
+            }
+
+            for (const auto& [_, status] : FlowView->Feedback->WorkerStatuses) {
+                for (const auto& [instanceId, instanceStatus] : status->ResourceInstanceStatuses) {
+                    instanceStatus->LoadState = EResourceLoadState::Loaded;
+                }
+            }
+
+            distributeJobs();
+            EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+        }
+    }
 }
 
 TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileProviders)
@@ -5081,6 +5176,157 @@ TEST_F(TJobBalancerTest, EvenLoadGateGatesSynchronousBalancerWithDefaultThreshol
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TJobBalancerTest, AlwaysOnLoadingWorkerDoesNotReceiveJobs)
+{
+    for (bool asyncBalancer : {false, true}) {
+        SCOPED_TRACE(asyncBalancer);
+        Reset();
+        PrepareBalancerTest(
+            /*workerCount*/ 2,
+            {{.PartitionCount = 10}},
+            /*exceedCountAllowed*/ 1,
+            TDuration::MilliSeconds(50),
+            /*cpuAwareBalancer*/ true,
+            asyncBalancer);
+        auto spec = FlowView->State->ExecutionSpec->PipelineSpec->GetValue();
+        auto resource = MakeSimpleResourceSpec();
+        resource->AlwaysOn = true;
+        const TResourceId resourceId("always_on");
+        spec->Resources.emplace(resourceId, resource);
+        auto description = New<TResourceDescription>();
+        description->Controller = false;
+        GetOrCrash(spec->Computations, GetComputationId(0))->RequiredResourceIds.emplace(resourceId, description);
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+
+        FlowView->State->StartMutation();
+        EnsureResourceInstances(FlowView);
+        FlowView->State->CommitMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        ASSERT_EQ(layout->ResourceInstances.size(), 2u);
+        TWorkerResourceStatusPtr loadingStatus;
+        for (const auto& [instanceId, instance] : layout->ResourceInstances) {
+            auto status = New<TWorkerStatus>();
+            status->WorkerIncarnationId = instance->WorkerIncarnationId;
+            auto instanceStatus = New<TWorkerResourceStatus>();
+            instanceStatus->ResourceId = resourceId;
+            instanceStatus->LoadState = EResourceLoadState::Loading;
+            status->ResourceInstanceStatuses.emplace(instanceId, instanceStatus);
+            FlowView->Feedback->WorkerStatuses[instance->WorkerAddress] = status;
+            if (instance->WorkerAddress == GetWorkerAddress(1)) {
+                loadingStatus = instanceStatus;
+            }
+        }
+
+        FlowView->State->StartMutation();
+        JobManager->DistributeJobs(FlowView);
+        FlowView->State->CommitMutation();
+        EXPECT_EQ(layout->Jobs.size(), 0u);
+
+        for (auto& [_, status] : GetOrCrash(FlowView->Feedback->WorkerStatuses, GetWorkerAddress(0))->ResourceInstanceStatuses) {
+            status->LoadState = EResourceLoadState::Loaded;
+        }
+
+        auto dynamicSpec = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+        dynamicSpec->JobManager->MinimumWorkerCount = 2;
+        JobManager->Reconfigure(dynamicSpec);
+        FlowView->State->StartMutation();
+        JobManager->DistributeJobs(FlowView);
+        FlowView->State->CommitMutation();
+        EXPECT_EQ(layout->Jobs.size(), 0u);
+        EXPECT_FALSE(StatusProfiler->GetStatus().Errors.empty());
+
+        dynamicSpec->JobManager->MinimumWorkerCount = 1;
+        JobManager->Reconfigure(dynamicSpec);
+        DistributeJobs();
+        EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(0)], 10);
+        EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+        EXPECT_EQ(layout->ResourceInstances.size(), 2u);
+
+        const auto partitionId = GetPartitionIds().front();
+        auto partitionState = FlowView->EphemeralState->GetPartitionState(partitionId);
+        partitionState->PendingGracefulRebalanceWorkerAddress = GetWorkerAddress(1);
+        partitionState->DynamicPartitionSpec->FinishAfterCurrentEpoch = true;
+        if (!asyncBalancer) {
+            SetCpuLoadUniform();
+            THashSet<TJobId> jobIds;
+            for (const auto& [jobId, _] : layout->Jobs) {
+                jobIds.insert(jobId);
+            }
+
+            FlowView->State->StartMutation();
+            JobManager->DistributeJobs(FlowView);
+            FlowView->State->CommitMutation();
+            for (auto jobId : jobIds) {
+                EXPECT_TRUE(layout->Jobs.contains(jobId));
+            }
+
+            EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+        }
+
+        SimulateJobFinished(FlowView, partitionId, TError(NFlow::EErrorCode::GracefulShutdown, "Job finished by graceful shutdown signal"));
+
+        FlowView->State->StartMutation();
+        JobManager->CheckCompletedPartitions(FlowView);
+        JobManager->RemoveFailedJobs(FlowView);
+        FlowView->State->CommitMutation();
+        EXPECT_FALSE(GetOrCrash(layout->Partitions, partitionId)->CurrentJobId.has_value());
+        EXPECT_FALSE(partitionState->PendingGracefulRebalanceWorkerAddress.has_value());
+        EXPECT_FALSE(partitionState->DynamicPartitionSpec->FinishAfterCurrentEpoch);
+        EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+
+        DistributeJobs();
+        EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(0)], 10);
+        EXPECT_EQ(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+
+        if (!asyncBalancer) {
+            loadingStatus->LoadState = EResourceLoadState::Loaded;
+            SetCpuLoadUniform();
+            auto balancerSpec = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue()->JobManager);
+            balancerSpec->AsyncBalancing = true;
+            balancerSpec->RebalanceDelayAfterPipelineSync = TDuration::Zero();
+            auto synchronizer = NBalancer::CreateBalanceAsyncSynchronizer(NProfiling::TProfiler(), TWorkerGroupId());
+            auto balance = [&] {
+                FlowView->State->StartMutation();
+                auto result = synchronizer->DoBalance(
+                    FlowView,
+                    JobManager->GetComputationControllers(),
+                    balancerSpec,
+                    TDuration::Seconds(1),
+                    EPipelineState::Working);
+                FlowView->State->CommitMutation();
+                return result;
+            };
+
+            synchronizer->StartBalancing(JobManagerContext->Invoker);
+            auto planned = balance();
+            auto deadline = TInstant::Now() + MaxBalanceWait;
+            while (planned.Actions.empty() && TInstant::Now() < deadline) {
+                NConcurrency::TDelayedExecutor::WaitForDuration(MinBalanceStep);
+                planned = balance();
+            }
+
+            synchronizer->StopBalancing();
+            ASSERT_FALSE(planned.Actions.empty());
+            THashSet<TPartitionId> movedPartitions;
+            for (const auto& action : planned.Actions) {
+                if (action.Type == NBalancer::ERebalanceActionType::Add && action.WorkerAddress == GetWorkerAddress(1)) {
+                    movedPartitions.insert(action.PartitionId);
+                }
+            }
+
+            ASSERT_FALSE(movedPartitions.empty());
+            loadingStatus->LoadState = EResourceLoadState::Loading;
+            for (const auto& action : balance().Actions) {
+                EXPECT_FALSE(movedPartitions.contains(action.PartitionId));
+            }
+
+            loadingStatus->LoadState = EResourceLoadState::Loaded;
+            DistributeJobs();
+            EXPECT_GT(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+        }
+    }
+}
 
 TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
 {

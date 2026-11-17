@@ -86,7 +86,9 @@ How long the `resource_queue` balancer keeps a model preload that is still loadi
 **Default value**: `1`
 Minimum number of workers to distribute the load across.
 
-Must be filled in to avoid out-of-memory errors and overloading individual workers when the system starts. Recommended value is about 60% of the target number of workers (to survive the loss of a subset of workers, for example, if a data center goes offline). ||
+Must be filled in to avoid out-of-memory errors and overloading individual workers when the system starts. Recommended value is about 60% of the target number of workers (to survive the loss of a subset of workers, for example, if a data center goes offline).
+
+With `cpu_aware` balancing, only workers that pass the `always_on` resource readiness check are counted. The minimum is checked separately for each group in use, respecting `worker_group_override`. If any group falls below its minimum, all pipeline jobs are stopped. ||
 || `lost_job_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10s`
 Time after which a `Job` is considered lost if no status update reaches the controller. The same timeout is used to consider a worker lost. ||

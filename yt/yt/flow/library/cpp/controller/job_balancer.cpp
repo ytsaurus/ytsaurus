@@ -4,6 +4,7 @@
 #include "job_balancer_common.h"
 #include "job_balancer_greedy.h"
 #include "job_balancer_resource_queue.h"
+#include "resource_instances.h"
 #include "worker_coef_estimator.h"
 
 #include <util/generic/map.h>
@@ -1182,7 +1183,8 @@ public:
     using TPartitionLocations = THashMap<TPartitionId, std::string>;
 
     TRebalanceActionsVerifier(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec)
-        : FlowView_(flowView)
+        : WorkersWaitingForResources_(NController::CollectWorkersWaitingForStartupResources(flowView))
+        , FlowView_(flowView)
         , BalancerSpec_(balancerSpec)
     { }
 
@@ -1204,8 +1206,18 @@ public:
         const TFlowLayoutPtr& layout = executionSpec->Layout;
         TRebalanceActions result = TRebalanceActions::NewSequencedAs(actions);
 
+        THashSet<TPartitionId> waitingPartitions;
+        for (const auto& transaction : actions.Transactions) {
+            for (const auto& action : transaction.Actions) {
+                if (action.Type == ERebalanceActionType::Add && WorkersWaitingForResources_.contains(action.WorkerAddress)) {
+                    waitingPartitions.insert(action.PartitionId);
+                }
+            }
+        }
+
         auto checker = [&] (const TRebalanceActions::TRebalanceAction& action) {
-            if (!layout->Partitions.contains(action.PartitionId)) {
+            // Count balancing can emit the source Del and destination Add in separate transactions.
+            if (waitingPartitions.contains(action.PartitionId) || !layout->Partitions.contains(action.PartitionId)) {
                 return false;
             }
 
@@ -1286,7 +1298,9 @@ public:
                 auto* ephemeralStatePtr = FlowView_->EphemeralState->Partitions.FindPtr(partitionId);
                 if (ephemeralStatePtr && (*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value()) {
                     const auto& targetAddress = *(*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress;
-                    if (GetOrDefault(FlowView_->State->Workers, targetAddress, nullptr)) {
+                    if (GetOrDefault(FlowView_->State->Workers, targetAddress, nullptr) &&
+                        !WorkersWaitingForResources_.contains(targetAddress))
+                    {
                         whereIs[partitionId] = targetAddress;
                     }
                 }
@@ -1327,7 +1341,7 @@ public:
     {
         TBackInsertable result;
         std::copy_if(workers.begin(), workers.end(), std::back_inserter(result), [&] (const std::string& worker) {
-            return FlowView_->State->Workers.contains(worker);
+            return FlowView_->State->Workers.contains(worker) && !WorkersWaitingForResources_.contains(worker);
         });
         return result;
     }
@@ -1348,6 +1362,8 @@ public:
     }
 
 private:
+    const THashSet<std::string> WorkersWaitingForResources_;
+
     TFlowViewPtr FlowView_;
     TDynamicJobBalancerSpecPtr BalancerSpec_;
     THashMap<TWorkerGroupId, bool> WarmupProtectionActive_;
@@ -1489,6 +1505,7 @@ void TPartitionDistributionData::CollectPartitions(
 {
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     const auto& histories = flowView->State->BalancerState->PartitionHistories;
+    const auto waitingWorkers = NController::CollectWorkersWaitingForStartupResources(flowView);
     THashMap<TJobId, TPartitionId> jobIdToPartitionId;
     const bool useHistory = balancerSpec->BalancerMetricsSource == EBalancerMetricsSource::Partition;
     const bool warmupProtection = IsWarmupProtectionActive(flowView, balancerSpec, workerGroup);
@@ -1540,7 +1557,7 @@ void TPartitionDistributionData::CollectPartitions(
             if (ephemeralStatePtr && (*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value()) {
                 const auto& targetAddress = *(*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress;
                 auto targetWorker = GetOrDefault(flowView->State->Workers, targetAddress, nullptr);
-                if (targetWorker) {
+                if (targetWorker && !waitingWorkers.contains(targetAddress)) {
                     info.Worker = targetWorker;
                 }
             }
@@ -1979,8 +1996,9 @@ TDistributionEmulation::TDistributionEmulation(
 
 void TDistributionEmulation::CollectWorkers(const TFlowViewPtr& flowView, const TPartitionDistributionData& partitionData, const TWorkerGroupId& workerGroup)
 {
+    const auto waitingWorkers = NController::CollectWorkersWaitingForStartupResources(flowView);
     for (const auto& [address, worker] : flowView->State->Workers) {
-        if (!WorkerBelongsToGroup(worker, workerGroup)) {
+        if (!WorkerBelongsToGroup(worker, workerGroup) || waitingWorkers.contains(address)) {
             continue;
         }
         auto& entry = Workers_[address];

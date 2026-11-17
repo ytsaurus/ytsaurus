@@ -27,6 +27,6 @@ Resources that this resource depends on. Mirrors the structure of `required_reso
  ||
 || `always_on` | **Type**: `bool`
 **Default value**: `false`
-If `true`, the resource loads eagerly when assigned to a unit where a computation requires it (see `worker` / `controller` in `required_resource_ids`). Worker instances remain in memory while assigned, including between jobs. Pausing or stopping the pipeline releases them after all jobs finish. Resources that no computation requires on the unit are not loaded. Mutually exclusive with `preload_required`. ||
+If `true`, the resource loads eagerly when assigned to a unit where a computation requires it (see `worker` / `controller` in `required_resource_ids`). Worker instances remain in memory while assigned, including between jobs. Pausing or stopping the pipeline releases them after all jobs finish. Resources that no computation requires on the unit are not loaded. Mutually exclusive with `preload_required`. With `cpu_aware` balancing, a worker without jobs in its current incarnation waits for all assigned `always_on` resources. Jobs are assigned once all these resources report `Loaded`, including resources required by other computations. Workers with jobs in their current incarnation continue to participate in balancing. ||
 |#
 
