@@ -661,7 +661,7 @@ class YTInstance(object):
         if sync:
             wait_function()
         else:
-            self._wait_functions.append(wait_function)
+            self._wait_functions.append((name, wait_function))
 
     def remove_runtime_data(self):
         if os.path.exists(self.runtime_data_path):
@@ -892,7 +892,7 @@ class YTInstance(object):
 
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
-    def synchronize(self):
+    def synchronize(self, component=None):
         exceptions = []
 
         def run(func):
@@ -901,15 +901,26 @@ class YTInstance(object):
             except Exception as e:
                 exceptions.append(e)
 
-        threads = [Thread(target=run, args=(func,)) for func in self._wait_functions]
+        selected_wait_functions = []
+        remaining_wait_functions = []
+        for name, func in self._wait_functions:
+            if component is None or name == component:
+                selected_wait_functions.append(func)
+            else:
+                remaining_wait_functions.append((name, func))
+        self._wait_functions = remaining_wait_functions
+
+        threads = [Thread(target=run, args=(func,)) for func in selected_wait_functions]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        self._wait_functions = []
 
         if exceptions:
             raise exceptions[0]
+
+    def discard_pending_waits(self):
+        self._wait_functions = []
 
     def rewrite_master_configs(self):
         self._prepare_masters(self._cluster_configuration["master"], force_overwrite=True)
