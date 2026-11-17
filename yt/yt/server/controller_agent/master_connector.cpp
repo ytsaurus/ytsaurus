@@ -184,6 +184,8 @@ public:
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const TDiskQuota& diskQuota)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         return BIND(&TImpl::DoUpdateAccountResourceUsageLease, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
             .Run(leaseId, diskQuota);
