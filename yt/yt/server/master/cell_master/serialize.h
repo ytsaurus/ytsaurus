@@ -171,7 +171,8 @@ DEFINE_ENUM(EMasterReign,
     ((FixValidationHeartbeatSchedulingAndClearing)                  (3266))  // grphil
     ((ExpirationArmingTime_26_1)                                    (3267))  // theevilbird
 
-    // 26.2 starts here.
+    // 26.2 doesn't exist.
+    // 26.3 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
     ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
     ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
