@@ -89,23 +89,18 @@ class StateDescriptorTest {
         );
         joined.put(JOINED_STATE, joinedHolder);
 
-        var backend = new DefaultStateBackend(
-                Set.of(PROTO_STATE, CUSTOM_STATE, RAW_STATE, YSON_STATE),
-                Set.of(EXT_STATE),
-                Set.of(JOINED_STATE),
-                internal,
-                external,
-                joined,
-                keySchema
-        );
-        ctx = new DefaultRuntimeContext(
-                backend,
-                /* streamSpecs — not exercised in state-descriptor tests */ null,
-                Map.of(),
-                0L,
-                Map.of(),
-                Map.of()
-        );
+        var backend = DefaultStateBackend.builder()
+                .setInternalStateNames(Set.of(PROTO_STATE, CUSTOM_STATE, RAW_STATE, YSON_STATE))
+                .setExternalStateNames(Set.of(EXT_STATE))
+                .setJoinedExternalStateNames(Set.of(JOINED_STATE))
+                .setInternalStates(internal)
+                .setExternalStates(external)
+                .setJoinedExternalStates(joined)
+                .setKeySchema(keySchema)
+                .build();
+        ctx = DefaultRuntimeContext.builder()
+                .setStateBackend(backend)
+                .build();
     }
 
     @Test

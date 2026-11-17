@@ -79,23 +79,14 @@ class InternalStateTrackingTest {
                 .build();
         message = message("k1");
         internalStates = new HashMap<>();
-        var backend = new DefaultStateBackend(
-                Set.of(COUNTER_STATE, RAW_STATE, PROTO_STATE),
-                Set.of(),
-                Set.of(),
-                internalStates,
-                new HashMap<>(),
-                new HashMap<>(),
-                keySchema
-        );
-        ctx = new DefaultRuntimeContext(
-                backend,
-                /*streamSpecs — not exercised in state tests*/ null,
-                Map.of(),
-                0L,
-                Map.of(),
-                Map.of()
-        );
+        var backend = DefaultStateBackend.builder()
+                .setInternalStateNames(Set.of(COUNTER_STATE, RAW_STATE, PROTO_STATE))
+                .setInternalStates(internalStates)
+                .setKeySchema(keySchema)
+                .build();
+        ctx = DefaultRuntimeContext.builder()
+                .setStateBackend(backend)
+                .build();
     }
 
     @Test

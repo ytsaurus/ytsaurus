@@ -78,10 +78,11 @@ class StateProtoMapperTest {
      * A proto state accessor over {@code holder}, built the way the runtime builds it.
      */
     private static StateAccessor<TTestMessage> protoAccessor(StatesHolder holder, Payload key) {
-        var backend = new DefaultStateBackend(
-                Set.of(), Set.of(PROTO_STATE), Set.of(),
-                Map.of(), Map.of(PROTO_STATE, holder), Map.of(),
-                KEY_SCHEMA);
+        var backend = DefaultStateBackend.builder()
+                .setExternalStateNames(Set.of(PROTO_STATE))
+                .setExternalStates(Map.of(PROTO_STATE, holder))
+                .setKeySchema(KEY_SCHEMA)
+                .build();
         return new DefaultStateManager(backend)
                 .create(StateDescriptors.externalProto(PROTO_STATE, TTestMessage.class), () -> key);
     }
