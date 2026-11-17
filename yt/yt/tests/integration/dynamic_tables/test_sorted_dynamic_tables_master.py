@@ -10,7 +10,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_first_chunk_id, create_dynamic_table, get_tablet_leader_address,
-    raises_yt_error, update_nodes_dynamic_config)
+    raises_yt_error, update_nodes_dynamic_config, freeze_table, wait_for_tablet_state)
 
 from yt_helpers import profiler_factory
 
@@ -1178,6 +1178,7 @@ class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyResha
 class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
         "tablet_node": {
@@ -1218,15 +1219,15 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
         if external_cell_tag is not None:
             attributes["external_cell_tag"] = external_cell_tag
 
-        self._create_simple_table(path, **attributes)
+        self._create_simple_table(path, dynamic_store_auto_flush_period=None, **attributes)
         set(f"{path}/@replication_factor", 1)
 
     def _make_rows(self, keys, with_hunks):
         suffix = "x" * 20 if with_hunks else ""
         return [{"key": key, "value": f"value{key}{suffix}"} for key in keys]
 
-    def _check_throttling(self, tables, get_new_count, total_count, duration, store_cost):
-        expected_new_count = duration // store_cost
+    def _check_throttling(self, tables, get_new_count, total_count, duration, store_cost, rate=1):
+        expected_new_count = duration * rate // store_cost
 
         time.sleep(duration)
 
@@ -1330,6 +1331,10 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
 
         wait(lambda: len(self._get_hunk_chunk_ids(path)) == 2 * tablet_count)
 
+        address = get_tablet_leader_address(get(f"{path}/@tablets/0/tablet_id"))
+        swept_counter = profiler_factory().at_node(address).counter(
+            "tablet_node/hunk_chunk_sweeper/swept_hunk_chunk_count")
+
         update_nodes_dynamic_config({
             "tablet_node": {
                 "global_stores_update_throttler": {
@@ -1341,21 +1346,88 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
             },
         })
 
-        duration = 5
-        expected_swept_count = duration * rate
-
-        address = get_tablet_leader_address(get(f"{path}/@tablets/0/tablet_id"))
-        swept_counter = profiler_factory().at_node(address).counter(
-            "tablet_node/hunk_chunk_sweeper/swept_hunk_chunk_count")
-
-        before_count = swept_counter.get() or 0
-        time.sleep(duration)
-
-        swept_count = (swept_counter.get() or 0) - before_count
-        assert swept_count > expected_swept_count * 0.5
-        assert swept_count < expected_swept_count * 1.5
+        # A swept hunk chunk costs one unit at the node; the master charges nothing since
+        # nothing is attached.
+        self._check_throttling(
+            [path],
+            lambda _: swept_counter.get_delta(),
+            tablet_count,
+            duration=5,
+            store_cost=1,
+            rate=rate)
 
         wait(lambda: len(self._get_hunk_chunk_ids(path)) == tablet_count)
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "flush"])
+    @pytest.mark.parametrize("with_hunks", [False, True])
+    def test_flush_throttling(self, bottleneck, with_hunks):
+        sync_create_cells(1)
+
+        store_cost = 3 if with_hunks else 2
+        rate = 2 * store_cost
+
+        duration = 5
+
+        # Twice the work that fits the measured window, so that it never runs out of stores.
+        tablet_count = 2 * duration * rate // store_cost
+
+        set("//sys/@config/tablet_manager/stores_update_throttler", self._get_throttler_config(bottleneck, rate))
+
+        self._create_table("//tmp/t", with_hunks=with_hunks, external_cell_tag=self._get_external_cell_tags()[0])
+
+        sync_reshard_table("//tmp/t", [[]] + [[i * 1000] for i in range(1, tablet_count)])
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", self._make_rows([i * 1000 for i in range(tablet_count)], with_hunks=with_hunks))
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_flusher": {
+                    "enable": False,
+                },
+            },
+        })
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        address = get_tablet_leader_address(tablet_ids[0])
+
+        # Freezing rotates the active store of every tablet, and the flush is held back by the
+        # disabled flusher, so each tablet ends up with exactly one passive dynamic store.
+        freeze_table("//tmp/t")
+
+        def _get_passive_store_count():
+            count = 0
+            for tablet_id in tablet_ids:
+                orchid = self._find_tablet_orchid(address, tablet_id)
+                count += sum(
+                    store["store_state"] == "passive_dynamic"
+                    for store in orchid["eden"]["stores"].values())
+            return count
+
+        wait(lambda: _get_passive_store_count() == tablet_count)
+
+        flush_counter = profiler_factory().at_node(address).counter("tablet_node/store_flusher/scheduled_store_flushes")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "global_stores_update_throttler": {
+                    "enable": True,
+                },
+                "store_flusher": {
+                    "enable": True,
+                },
+            },
+        })
+
+        self._check_throttling(
+            ["//tmp/t"],
+            lambda _: flush_counter.get_delta(),
+            tablet_count,
+            duration,
+            store_cost,
+            rate)
+
+        wait_for_tablet_state("//tmp/t", "frozen")
 
 
 class TestUpdateTabletStoresThrottlingMulticell(TestUpdateTabletStoresThrottling):
