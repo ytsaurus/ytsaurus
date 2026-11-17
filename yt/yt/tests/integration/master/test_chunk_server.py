@@ -8,7 +8,7 @@ from yt_commands import (
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
-    create_domestic_medium, make_batch_request, execute_batch, get_batch_error
+    create_domestic_medium, make_batch_request, execute_batch, get_batch_error, wait_no_assert
 )
 
 from yt_helpers import profiler_factory
@@ -291,6 +291,92 @@ class TestChunkServer(YTEnvSetup):
         set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
         write_table("//tmp/t", {"a": "b"})
         self._test_decommission("//tmp/t", 6)
+
+    @authors("ifsmirnov")
+    def test_decommission_lost_erasure_via_replication(self):
+        set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
+        set("//sys/@config/chunk_manager/enable_repair_via_replication_for_lost_chunks", True)
+        set("//sys/@config/chunk_manager/safe_lost_chunk_fraction", 1.0)
+
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+
+        sync_control_chunk_replicator(False)
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        set_nodes_banned(replicas[:4], True)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 2)
+
+        live_replicas = get(f"#{chunk_id}/@stored_replicas")
+        live_node_addresses = {str(replica) for replica in live_replicas}
+        live_part_indexes = {replica.attributes["index"] for replica in live_replicas}
+        for node in live_replicas:
+            set_node_decommissioned(node, True)
+
+        sync_control_chunk_replicator(True)
+        wait(lambda: chunk_id in ls("//sys/lost_chunks"))
+
+        def check_live_parts_relocated():
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            assert len(replicas) == len(live_replicas)
+            assert {replica.attributes["index"] for replica in replicas} == live_part_indexes
+            assert all(str(replica) not in live_node_addresses for replica in replicas), replicas
+            for node in live_replicas:
+                assert not self._nodes_have_chunk([node], chunk_id)
+
+        wait_no_assert(check_live_parts_relocated)
+        assert chunk_id in ls("//sys/lost_chunks")
+
+    @authors("ifsmirnov")
+    def test_decommission_lost_erasure_via_cross_medium_replication(self):
+        set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
+        set("//sys/@config/chunk_manager/enable_repair_via_replication_for_lost_chunks", False)
+        set("//sys/@config/chunk_manager/safe_lost_chunk_fraction", 1.0)
+
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+        assert builtins.set(get("//tmp/t/@media")) == {"default"}
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+
+        sync_control_chunk_replicator(False)
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        set_nodes_banned(replicas[:4], True)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 2)
+
+        live_replicas = get(f"#{chunk_id}/@stored_replicas")
+        other_medium_part_index = live_replicas[0].attributes["index"]
+        location_uuid = live_replicas[0].attributes["location_uuid"]
+        set(f"//sys/chunk_locations/{location_uuid}/@medium_override", "non_default")
+        wait(lambda: any(
+            replica.attributes["index"] == other_medium_part_index and
+            replica.attributes["medium"] == "non_default"
+            for replica in get(f"#{chunk_id}/@stored_replicas")
+        ))
+
+        source_node = str(live_replicas[0])
+        set_node_decommissioned(live_replicas[0], True)
+
+        sync_control_chunk_replicator(True)
+
+        def check_part_replicated_to_default():
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            assert any(
+                replica.attributes["index"] == other_medium_part_index and
+                replica.attributes["medium"] == "default" and
+                str(replica) != source_node
+                for replica in replicas
+            ), replicas
+
+        wait_no_assert(check_part_replicated_to_default)
+
+        def check_source_evacuated():
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            assert all(str(replica) != source_node for replica in replicas), replicas
+            assert not self._nodes_have_chunk([source_node], chunk_id)
+
+        wait_no_assert(check_source_evacuated)
 
     @authors("babenko")
     def test_decommission_journal(self):
