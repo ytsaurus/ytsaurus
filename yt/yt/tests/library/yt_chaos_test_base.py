@@ -106,7 +106,8 @@ class ChaosTestBase(DynamicTablesBase):
         return orchids
 
     def _get_chaos_cell_orchid_path(self, cell_id, driver=None):
-        return f"#{cell_id}/orchid"
+        address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+        return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
 
     def _get_chaos_cell_orchid(self, cell_id, path, driver=None):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
