@@ -2263,9 +2263,6 @@ class TestCypress(YTEnvSetup):
         set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
         set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
 
-        time_delta = 6 if expire_on_timeout_first else 1
-        timeout = 1000 if expire_on_timeout_first else 3000
-
         create_user("u1")
         create_user("u2")
         create_user("u3")
@@ -2276,37 +2273,42 @@ class TestCypress(YTEnvSetup):
             authenticated_user="u1"
         )
 
-        set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
-        set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u3")
+        expiration_delay = timedelta(days=1)
+        set("//tmp/t/@expiration_timeout", int(expiration_delay.total_seconds() * 1000), authenticated_user="u2")
+        set("//tmp/t/@expiration_time", str(get_current_time() + expiration_delay), authenticated_user="u3")
 
-        set("//tmp/t/@acl", [make_ace("deny", ["u2", "u3"], "remove")])
+        def trigger_expiration(kind):
+            set("//tmp/t/@acl", [])
+            tx = start_transaction()
+            if kind == "time":
+                set("//tmp/t/@expiration_time", str(get_current_time() - timedelta(seconds=1)), tx=tx, authenticated_user="u3")
+            else:
+                set("//tmp/t/@expiration_timeout", 1, tx=tx, authenticated_user="u2")
+            set("//tmp/t/@acl", [make_ace("deny", ["u2", "u3"], "remove")])
+            commit_transaction(tx)
 
-        time.sleep(5)
+        def get_expiration_attributes():
+            return get("//tmp/t/@", attributes=[
+                f"expiration_{kind}{suffix}"
+                for kind in ("time", "timeout")
+                for suffix in ("", "_user", "_last_reset_time")
+            ], suppress_expiration_timeout_renewal=True)
 
-        if expire_on_timeout_first:
-            assert not exists("//tmp/t/@expiration_timeout_user")
-            assert not exists("//tmp/t/@expiration_timeout")
-            assert exists("//tmp/t/@expiration_timeout_last_reset_time")
-            assert exists("//tmp/t/@expiration_time_user")
-            assert exists("//tmp/t/@expiration_time")
-            assert not exists("//tmp/t/@expiration_time_last_reset_time")
-        else:
-            assert not exists("//tmp/t/@expiration_time_user")
-            assert not exists("//tmp/t/@expiration_time")
-            assert exists("//tmp/t/@expiration_time_last_reset_time")
-            assert exists("//tmp/t/@expiration_timeout_user")
-            assert exists("//tmp/t/@expiration_timeout")
-            assert not exists("//tmp/t/@expiration_timeout_last_reset_time")
+        first, second = ("timeout", "time") if expire_on_timeout_first else ("time", "timeout")
+        trigger_expiration(first)
+        expected_attributes = {
+            f"expiration_{first}_last_reset_time",
+            f"expiration_{second}",
+            f"expiration_{second}_user",
+        }
+        wait(lambda: get_expiration_attributes().keys() == expected_attributes)
 
-        time.sleep(13)
-
-        assert exists("//tmp/t")
-        assert not exists("//tmp/t/@expiration_timeout_user")
-        assert not exists("//tmp/t/@expiration_timeout")
-        assert not exists("//tmp/t/@expiration_time_user")
-        assert not exists("//tmp/t/@expiration_time")
-        assert exists("//tmp/t/@expiration_time_last_reset_time")
-        assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+        trigger_expiration(second)
+        wait(lambda: get_expiration_attributes().keys() == {
+            "expiration_time_last_reset_time",
+            "expiration_timeout_last_reset_time",
+        })
+        assert exists("//tmp/t", suppress_expiration_timeout_renewal=True)
 
     @authors("koloshmet")
     def test_drop_expiration_remove_user(self):
