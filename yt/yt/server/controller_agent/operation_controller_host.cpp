@@ -552,9 +552,9 @@ TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
     NSecurityClient::TAccountResourceUsageLeaseId leaseId,
     const TDiskQuota& diskQuota)
 {
-    return Bootstrap_->GetControllerAgent()->GetMasterConnector()->UpdateAccountResourceUsageLease(
-        leaseId,
-        diskQuota);
+    return BIND(&NControllerAgent::TMasterConnector::UpdateAccountResourceUsageLease, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(leaseId, diskQuota);
 }
 
 std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerHost::GetClusterToNetworkBandwidthAvailability() const
