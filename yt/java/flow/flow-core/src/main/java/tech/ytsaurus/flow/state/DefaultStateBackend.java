@@ -1,5 +1,7 @@
 package tech.ytsaurus.flow.state;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -23,22 +25,21 @@ public class DefaultStateBackend implements StateBackend {
     private final Map<String, StatesHolder> joinedExternalStates;
     private final @Nullable TableSchema keySchema;
 
-    public DefaultStateBackend(
-            Set<String> internalStateNames,
-            Set<String> externalStateNames,
-            Set<String> joinedExternalStateNames,
-            Map<String, StatesHolder> internalStates,
-            Map<String, StatesHolder> externalStates,
-            Map<String, StatesHolder> joinedExternalStates,
-            @Nullable TableSchema keySchema
-    ) {
-        this.internalStateNames = internalStateNames;
-        this.externalStateNames = externalStateNames;
-        this.joinedExternalStateNames = joinedExternalStateNames;
-        this.internalStates = internalStates;
-        this.externalStates = externalStates;
-        this.joinedExternalStates = joinedExternalStates;
-        this.keySchema = keySchema;
+    private DefaultStateBackend(Builder builder) {
+        this.internalStateNames = builder.internalStateNames;
+        this.externalStateNames = builder.externalStateNames;
+        this.joinedExternalStateNames = builder.joinedExternalStateNames;
+        this.internalStates = builder.internalStates;
+        this.externalStates = builder.externalStates;
+        this.joinedExternalStates = builder.joinedExternalStates;
+        this.keySchema = builder.keySchema;
+    }
+
+    /**
+     * Creates a builder. Every state kind defaults to no declared states and no holders.
+     */
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -107,6 +108,85 @@ public class DefaultStateBackend implements StateBackend {
                     "Joined external state must be configured at computation static spec under "
                             + "external_state_joiners (StateName: %s)".formatted(stateName)
             );
+        }
+    }
+
+    /**
+     * Builder for {@link DefaultStateBackend}.
+     */
+    public static class Builder {
+        private Set<String> internalStateNames = Collections.emptySet();
+        private Set<String> externalStateNames = Collections.emptySet();
+        private Set<String> joinedExternalStateNames = Collections.emptySet();
+        private Map<String, StatesHolder> internalStates = new HashMap<>();
+        private Map<String, StatesHolder> externalStates = Collections.emptyMap();
+        private Map<String, StatesHolder> joinedExternalStates = Collections.emptyMap();
+        private @Nullable TableSchema keySchema;
+
+        Builder() {
+        }
+
+        /**
+         * Sets the internal states declared in the computation static spec.
+         */
+        public Builder setInternalStateNames(Set<String> internalStateNames) {
+            this.internalStateNames = internalStateNames;
+            return this;
+        }
+
+        /**
+         * Sets the external states declared under {@code external_state_managers}.
+         */
+        public Builder setExternalStateNames(Set<String> externalStateNames) {
+            this.externalStateNames = externalStateNames;
+            return this;
+        }
+
+        /**
+         * Sets the joined external states declared under {@code external_state_joiners}.
+         */
+        public Builder setJoinedExternalStateNames(Set<String> joinedExternalStateNames) {
+            this.joinedExternalStateNames = joinedExternalStateNames;
+            return this;
+        }
+
+        /**
+         * Sets the internal state holders keyed by state name.
+         *
+         * <p>The map must be mutable: the backend adds a holder for every internal state first
+         * accessed in the batch, and the caller reads them back from the same map.
+         */
+        public Builder setInternalStates(Map<String, StatesHolder> internalStates) {
+            this.internalStates = internalStates;
+            return this;
+        }
+
+        /**
+         * Sets the external state holders keyed by state name.
+         */
+        public Builder setExternalStates(Map<String, StatesHolder> externalStates) {
+            this.externalStates = externalStates;
+            return this;
+        }
+
+        /**
+         * Sets the read-only joined external state holders keyed by state name.
+         */
+        public Builder setJoinedExternalStates(Map<String, StatesHolder> joinedExternalStates) {
+            this.joinedExternalStates = joinedExternalStates;
+            return this;
+        }
+
+        /**
+         * Sets the key schema of the holders the backend creates.
+         */
+        public Builder setKeySchema(@Nullable TableSchema keySchema) {
+            this.keySchema = keySchema;
+            return this;
+        }
+
+        public DefaultStateBackend build() {
+            return new DefaultStateBackend(this);
         }
     }
 }

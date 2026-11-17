@@ -93,25 +93,25 @@ public class Computation implements YTreeConvertible {
         var rootCollector = new RootCollector();
 
         // Initialize runtime context.
-        var stateBackend = new DefaultStateBackend(
-                job.getInternalStatesNames(),
-                job.getExternalStatesNames(),
-                job.getExternalStateJoinersNames(),
-                request.getInternalStates(),
-                request.getExternalStates(),
-                request.getJoinedExternalStates(),
-                job.getGroupBySchema()
-        );
-        var runtimeContext = new DefaultRuntimeContext(
-                stateBackend,
-                request.getStreamSpecs(),
-                request.getWatermarks(),
-                request.getSystemWatermarks(),
-                request.getMinWatermark(),
-                job.getStaticParameters(),
-                job.getDynamicParameters(),
-                request.getResources()
-        );
+        var stateBackend = DefaultStateBackend.builder()
+                .setInternalStateNames(job.getInternalStatesNames())
+                .setExternalStateNames(job.getExternalStatesNames())
+                .setJoinedExternalStateNames(job.getExternalStateJoinersNames())
+                .setInternalStates(request.getInternalStates())
+                .setExternalStates(request.getExternalStates())
+                .setJoinedExternalStates(request.getJoinedExternalStates())
+                .setKeySchema(job.getGroupBySchema())
+                .build();
+        var runtimeContext = DefaultRuntimeContext.builder()
+                .setStateBackend(stateBackend)
+                .setStreamSpecs(request.getStreamSpecs())
+                .setWatermarks(request.getWatermarks())
+                .setSystemWatermarks(request.getSystemWatermarks())
+                .setMinWatermark(request.getMinWatermark())
+                .setComputationParameters(job.getStaticParameters())
+                .setComputationDynamicParameters(job.getDynamicParameters())
+                .setResources(request.getResources())
+                .build();
         log.debug(
                 "States (InternalStateNames: {}, ExternalStateNames: {} InternalStatesSize: {}, " +
                         "ExternalStatesSize: {}, JobId: {}, RequestId: {})",

@@ -1,7 +1,9 @@
 package tech.ytsaurus.flow.context;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.google.protobuf.Message;
 import org.jspecify.annotations.Nullable;
@@ -21,6 +23,7 @@ import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateBackend;
 import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.state.StateManager;
+import tech.ytsaurus.flow.stream.StreamIdsMapping;
 import tech.ytsaurus.flow.stream.StreamSpecs;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -37,44 +40,23 @@ public class DefaultRuntimeContext implements RuntimeContext {
     private final Map<String, YTreeNode> computationDynamicParameters;
     private final Map<String, FlowResource> resources;
 
-    public DefaultRuntimeContext(
-            StateBackend stateBackend,
-            StreamSpecs streamSpecs,
-            Map<String, Long> watermarks,
-            Long minWatermark,
-            Map<String, YTreeNode> computationParameters,
-            Map<String, YTreeNode> computationDynamicParameters
-    ) {
-        this(
-                stateBackend,
-                streamSpecs,
-                watermarks,
-                Collections.emptyMap(),
-                minWatermark,
-                computationParameters,
-                computationDynamicParameters,
-                Collections.emptyMap()
-        );
+    private DefaultRuntimeContext(Builder builder) {
+        this.stateManager = new DefaultStateManager(Objects.requireNonNull(builder.stateBackend, "stateBackend"));
+        this.streamSpecs = builder.streamSpecs;
+        this.watermarks = builder.watermarks;
+        this.systemWatermarks = builder.systemWatermarks;
+        this.minWatermark = builder.minWatermark;
+        this.computationParameters = builder.computationParameters;
+        this.computationDynamicParameters = builder.computationDynamicParameters;
+        this.resources = builder.resources;
     }
 
-    public DefaultRuntimeContext(
-            StateBackend stateBackend,
-            StreamSpecs streamSpecs,
-            Map<String, Long> watermarks,
-            Map<String, Long> systemWatermarks,
-            Long minWatermark,
-            Map<String, YTreeNode> computationParameters,
-            Map<String, YTreeNode> computationDynamicParameters,
-            Map<String, FlowResource> resources
-    ) {
-        this.stateManager = new DefaultStateManager(stateBackend);
-        this.streamSpecs = streamSpecs;
-        this.watermarks = watermarks;
-        this.systemWatermarks = systemWatermarks;
-        this.minWatermark = minWatermark;
-        this.computationParameters = computationParameters;
-        this.computationDynamicParameters = computationDynamicParameters;
-        this.resources = resources;
+    /**
+     * Creates a builder. Only the state backend is required; the minimum watermark defaults to
+     * {@code 0} and every other value to empty.
+     */
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -218,5 +200,84 @@ public class DefaultRuntimeContext implements RuntimeContext {
             );
         }
         return resource;
+    }
+
+    /**
+     * Builder for {@link DefaultRuntimeContext}.
+     */
+    public static class Builder {
+        private @Nullable StateBackend stateBackend;
+        private StreamSpecs streamSpecs = new StreamSpecs(StreamIdsMapping.builder().build(), List.of());
+        private Map<String, Long> watermarks = Collections.emptyMap();
+        private Map<String, Long> systemWatermarks = Collections.emptyMap();
+        private Long minWatermark = 0L;
+        private Map<String, YTreeNode> computationParameters = Collections.emptyMap();
+        private Map<String, YTreeNode> computationDynamicParameters = Collections.emptyMap();
+        private Map<String, FlowResource> resources = Collections.emptyMap();
+
+        Builder() {
+        }
+
+        /**
+         * Sets the backend holding the batch states. Required.
+         */
+        public Builder setStateBackend(StateBackend stateBackend) {
+            this.stateBackend = stateBackend;
+            return this;
+        }
+
+        /**
+         * Sets the computation streams. Defaults to no streams.
+         */
+        public Builder setStreamSpecs(StreamSpecs streamSpecs) {
+            this.streamSpecs = streamSpecs;
+            return this;
+        }
+
+        /**
+         * Sets the event watermarks keyed by stream id.
+         */
+        public Builder setWatermarks(Map<String, Long> watermarks) {
+            this.watermarks = watermarks;
+            return this;
+        }
+
+        /**
+         * Sets the system watermarks keyed by stream id.
+         */
+        public Builder setSystemWatermarks(Map<String, Long> systemWatermarks) {
+            this.systemWatermarks = systemWatermarks;
+            return this;
+        }
+
+        /**
+         * Sets the minimum input event watermark. Defaults to {@code 0}.
+         */
+        public Builder setMinWatermark(Long minWatermark) {
+            this.minWatermark = minWatermark;
+            return this;
+        }
+
+        public Builder setComputationParameters(Map<String, YTreeNode> computationParameters) {
+            this.computationParameters = computationParameters;
+            return this;
+        }
+
+        public Builder setComputationDynamicParameters(Map<String, YTreeNode> computationDynamicParameters) {
+            this.computationDynamicParameters = computationDynamicParameters;
+            return this;
+        }
+
+        /**
+         * Sets the companion-hosted resources acquired for this batch, keyed by alias.
+         */
+        public Builder setResources(Map<String, FlowResource> resources) {
+            this.resources = resources;
+            return this;
+        }
+
+        public DefaultRuntimeContext build() {
+            return new DefaultRuntimeContext(this);
+        }
     }
 }
