@@ -523,8 +523,8 @@ private:
                 EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, secondaryMaster);
                 InsertOrCrash(SecondaryMasterCellIds_, secondaryMaster->CellId);
                 InsertOrCrash(SecondaryMasterCellTags_, cellTag);
-
             }
+
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
                 YT_TLOG_INFO("Existing master cell appeared, reinitializing channels")
                     .With("CellTag", cellTag);
