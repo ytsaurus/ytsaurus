@@ -14,6 +14,7 @@ RECURSE(
     lambda_builder
     log
     mkql_helpers
+    nile
     res_pull
     row_spec
     temp_files
