@@ -798,7 +798,28 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     int temporarilyUnavailableReplicaCount = mediumStatistics.TemporarilyUnavailableReplicaCount[replicaIndex];
 
     if (Any(statistics.Status & ECrossMediumChunkStatus::Lost)) {
-        return EMisscheduleReason::None;
+        bool canReplicateLostChunk =
+            chunk->IsErasure() &&
+            chunk->IsSealed() &&
+            GetDynamicConfig()->EnableRepairViaReplication &&
+            GetDynamicConfig()->EnableRepairViaReplicationForLostChunks &&
+            !isPullReplicationJob &&
+            replicaCount == 0 &&
+            std::any_of(replicas.begin(), replicas.end(), [&] (TAugmentedStoredChunkReplicaPtr replica) {
+                auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+                if (!locationReplica ||
+                    replica.GetReplicaIndex() != replicaIndex ||
+                    replica.GetEffectiveMediumIndex() != targetMediumIndex)
+                {
+                    return false;
+                }
+
+                auto* location = locationReplica->AsChunkLocationPtr();
+                return location->GetNode() == sourceNode && IsReplicaDecommissioned(location);
+            });
+        if (!canReplicateLostChunk) {
+            return EMisscheduleReason::None;
+        }
     }
 
     if (replicaCount > replicationFactor) {
@@ -1729,9 +1750,19 @@ void TChunkReplicator::RefreshChunk(
         }
 
         if (!chunk->HasJobs()) {
-            if (Any(statistics.Status & EChunkStatus::Overreplicated) &&
-                None(allMediaStatistics.Status & (ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::MediumWiseLost)))
-            {
+            bool canRemoveReplicas = None(
+                allMediaStatistics.Status & (ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::MediumWiseLost));
+
+            bool canRemoveOverreplicatedLostErasurePart =
+                chunk->IsErasure() &&
+                config->EnableRepairViaReplication &&
+                config->EnableRepairViaReplicationForLostChunks &&
+                Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost);
+
+            bool canRemoveOffRequisitionErasurePart =
+                chunk->IsErasure() && entry.Policy().GetReplicationFactor() == 0;
+
+            if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
                 for (auto locationWithIndexes : statistics.DecommissionedRemovalReplicas) {
                     auto* location = locationWithIndexes.GetPtr();
                     auto node = location->GetNode();
@@ -1739,22 +1770,42 @@ void TChunkReplicator::RefreshChunk(
                         continue;
                     }
 
+                    // An erasure part may be overreplicated on this medium while still needed elsewhere.
+                    // Keep it until an active copy exists here, or on another medium if this one is unneeded.
+                    int replicaIndex = locationWithIndexes.GetReplicaIndex();
+                    if (!canRemoveReplicas) {
+                        bool hasActiveCopyOnOtherMedium =
+                            canRemoveOffRequisitionErasurePart &&
+                            std::any_of(replication.begin(), replication.end(), [&] (auto targetEntry) {
+                                return targetEntry.GetMediumIndex() != mediumIndex &&
+                                    allMediaStatistics.PerMediumStatistics[targetEntry.GetMediumIndex()]
+                                        .ReplicaCount[replicaIndex] > 0;
+                            });
+                        if (!(canRemoveOverreplicatedLostErasurePart && statistics.ReplicaCount[replicaIndex] > 0) &&
+                            !hasActiveCopyOnOtherMedium)
+                        {
+                            continue;
+                        }
+                    }
+
                     TChunkIdWithIndexes chunkIdWithIndexes(
                         chunkId,
-                        locationWithIndexes.GetReplicaIndex(),
+                        replicaIndex,
                         location->GetEffectiveMediumIndex());
                     location->AddToChunkRemovalQueue(chunkIdWithIndexes);
                 }
 
-                for (int replicaIndex : statistics.BalancingRemovalIndexes) {
-                    TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(chunk, replicaIndex, mediumIndex);
-                    auto* targetLocation = ChunkPlacement_->GetRemovalTarget(chunkWithIndexes, chunkReplicas);
-                    if (!targetLocation) {
-                        continue;
-                    }
+                if (canRemoveReplicas) {
+                    for (int replicaIndex : statistics.BalancingRemovalIndexes) {
+                        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(chunk, replicaIndex, mediumIndex);
+                        auto* targetLocation = ChunkPlacement_->GetRemovalTarget(chunkWithIndexes, chunkReplicas);
+                        if (!targetLocation) {
+                            continue;
+                        }
 
-                    TChunkIdWithIndexes chunkIdWithIndexes(chunkId, replicaIndex, mediumIndex);
-                    targetLocation->AddToChunkRemovalQueue(chunkIdWithIndexes);
+                        TChunkIdWithIndexes chunkIdWithIndexes(chunkId, replicaIndex, mediumIndex);
+                        targetLocation->AddToChunkRemovalQueue(chunkIdWithIndexes);
+                    }
                 }
             }
 
@@ -1821,9 +1872,10 @@ void TChunkReplicator::RefreshChunk(
                 }
             }
 
-            if (None(statistics.Status & EChunkStatus::Lost) && chunk->IsSealed()) {
+            bool isLost = Any(statistics.Status & EChunkStatus::Lost);
+            if (chunk->IsSealed()) {
                 TChunkPtrWithMediumIndex chunkWithIndex(chunk, mediumIndex);
-                if (Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing))) {
+                if (!isLost && Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing))) {
                     const auto& codecParams = NErasure::GetCodecOrThrow(chunk->GetErasureCodec())->GetParams();
 
                     int missingPartCount = 0;
@@ -1838,9 +1890,13 @@ void TChunkReplicator::RefreshChunk(
                     int priority = std::min(canStillLose, RepairPriorityCount - 2);
                     AddToChunkRepairQueue(chunkWithIndex, priority);
                 } else if (Any(statistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
-                    AddToChunkRepairQueue(chunkWithIndex, ErasureChunkDecommissionPriority);
+                    if (!isLost) {
+                        AddToChunkRepairQueue(chunkWithIndex, ErasureChunkDecommissionPriority);
+                    }
 
-                    if (config->EnableRepairViaReplication) {
+                    if (config->EnableRepairViaReplication &&
+                        (!isLost || config->EnableRepairViaReplicationForLostChunks))
+                    {
                         for (auto replica : chunkReplicas) {
                             auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
                             if (!locationReplica) {
@@ -1853,7 +1909,11 @@ void TChunkReplicator::RefreshChunk(
                                 continue;
                             }
 
-                            if (!IsReplicaDecommissioned(location)) {
+                            if (!IsReplicaDecommissioned(location) ||
+                                (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost) &&
+                                    replica.GetEffectiveMediumIndex() != mediumIndex) ||
+                                statistics.ReplicaCount[replica.GetReplicaIndex()] > 0)
+                            {
                                 continue;
                             }
 
