@@ -30,7 +30,7 @@ struct IJobController
 {
     virtual void Initialize() = 0;
 
-    virtual void Start() = 0;
+    virtual TFuture<void> Start() = 0;
 
     //! Finds the job by its id, returns |nullptr| if no job is found.
     /*
