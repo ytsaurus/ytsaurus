@@ -43,8 +43,8 @@ while len(a) * 100000 < {memory}:
 """
 
 
-def create_memory_script(memory, before_action=""):
-    return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
+def create_memory_script(memory, before_action="", after_action="time.sleep(5.0)"):
+    return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action=after_action).encode("ascii")
 
 
 ###############################################################################################
@@ -349,10 +349,14 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
                 before_action="time.sleep(5)",
                 # Higher memory is necessary due to additional ytserver-exec memory footprint.
                 memory=250 * 10 ** 6,
+                # Hold the memory until the test has seen both overdraft aborts.
+                after_action=with_breakpoint(
+                    "import subprocess; subprocess.call('''BREAKPOINT''', shell=True, executable='/bin/bash')",
+                ),
             ))
 
         op = run_test_vanilla(
-            track=True,
+            track=False,
             command="python3 mapper.py",
             job_count=1,
             spec={
@@ -363,6 +367,11 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
                 "user_job_memory_digest_default_value": 0.4,
                 "file_paths": ["//tmp/mapper.py"],
             })
+
+        # Jobs with 160MB and 240MB reserves are aborted for overdraft; the 400MB one completes.
+        wait(lambda: op.get_job_count("aborted") == 2, timeout=60)
+        release_breakpoint()
+        op.track()
 
         time.sleep(1)
 
