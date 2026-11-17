@@ -10,7 +10,7 @@
 
 При использовании в запросе прагмы `yt.TmpFolder` в указанной директории постепенно начинают накапливаться данные. В ней создаются следующие поддиректории:
 
-* query_cache &mdash; [кеш запросов](../syntax/pragma#querycache);
+* query_cache &mdash; [кеш запросов](../syntax/pragma/yt.md#query-cache-mode);
 * tmp &mdash; временные таблицы, которые существуют только на время работы запроса;
 * new_cache &mdash; файловый кеш {{product-name}} API:
     * исполняемые файлы YQL;
@@ -18,11 +18,11 @@
     * приложенные к запросу файлы;
     * таблицы, используемые в MapJoin, если передаются не родным для {{product-name}} способом.
 
-Поддиректория query_cache и время жизни её содержимого управляется прагмами [yt.QueryCacheMode](../syntax/pragma#querycache) и [yt.QueryCacheTtl](../syntax/pragma#ytquerycachettl). Для `yt.QueryCacheMode="disable"` кеш запросов полностью отключается и данная поддиректория не создаётся/не используется. Прагма `yt.QueryCacheTtl` позволяет ограничить время жизни таблиц в кеше запросов.
+Поддиректория query_cache и время жизни её содержимого управляется прагмами [yt.QueryCacheMode](../syntax/pragma/yt.md#query-cache-mode) и [yt.QueryCacheTtl](../syntax/pragma/yt.md#query-cache-ttl). Для `yt.QueryCacheMode="disable"` кеш запросов полностью отключается и данная поддиректория не создаётся/не используется. Прагма `yt.QueryCacheTtl` позволяет ограничить время жизни таблиц в кеше запросов.
 
-Временные таблицы запроса из поддиректории tmp очищаются автоматически после завершения запроса. Исключение составляют запросы, в которых задана прагма `yt.ReleaseTempData="never"`, и таблицы, которые отдаются в результатах запросов как Full result. Временем жизни таких таблиц можно управлять прагмой [yt.TempTablesTtl](../syntax/pragma#yttemptablesttl). Расположение временных таблиц можно отдельно переопределить через прагму [yt.TablesTmpFolder](../syntax/pragma#yttablestmpfolder).
+Временные таблицы запроса из поддиректории tmp очищаются автоматически после завершения запроса. Исключение составляют запросы, в которых задана прагма `yt.ReleaseTempData="never"`, и таблицы, которые отдаются в результатах запросов как Full result. Временем жизни таких таблиц можно управлять прагмой [yt.TempTablesTtl](../syntax/pragma/yt.md#temp-tables-ttl). Расположение временных таблиц можно отдельно переопределить через прагму [yt.TablesTmpFolder](../syntax/pragma/yt.md#tables-tmp-folder).
 
-Время жизни объектов внутри new_cache управляется прагмой [yt.FileCacheTtl](../syntax/pragma#ytfilecachettl). Из этой директории можно исключить исполняемые файлы YQL и UDF-ки, задав прагму [yt.BinaryTmpFolder](../syntax/pragma#ytbinarytmpfolder) с указанием отдельной директории и своим TTL (см. [yt.BinaryExpirationInterval](../syntax/pragma#ytbinaryexpirationinterval)). Также можно вынести таблицы, используемые в MapJoin, в отдельную директорию через прагму [yt.TableContentTmpFolder](../syntax/pragma#yt.tablecontenttmpfolder), но при этом стоит помнить, что в данных таблицах могут присутствовать чувствительные данные.
+Время жизни объектов внутри new_cache управляется прагмой [yt.FileCacheTtl](../syntax/pragma/yt.md#file-cache-ttl). Из этой директории можно исключить исполняемые файлы YQL и UDF-ки, задав прагму [yt.BinaryTmpFolder](../syntax/pragma/yt.md#binary-tmp-folder) с указанием отдельной директории и своим TTL (см. [yt.BinaryExpirationInterval](../syntax/pragma/yt.md#binary-expiration-interval)). Также можно вынести таблицы, используемые в MapJoin, в отдельную директорию через прагму [yt.TableContentTmpFolder](../syntax/pragma/yt.md#table-content-tmp-folder), но при этом стоит помнить, что в данных таблицах могут присутствовать чувствительные данные.
 
 {% if audience == "internal" %}
 Если не использовать механизмы TTL, то можно настроить периодический запуск скрипта очистки временной директории. Описание процедуры очистки и ссылку на скрипт очистки можно найти в разделе [Системные процессы]({{yt-docs-root}}/user-guide/storage/regular-system-processes#tmp_cleaning).

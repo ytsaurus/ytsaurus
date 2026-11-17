@@ -154,7 +154,7 @@ SELECT * FROM some_cluster.PARTITION_LIST($part_list);
 ```
 
 ```yql
--- предположим, что директория //home/daily_log имеет следущую структуру: //home/daily_logs/<дата в формате YYYY-MM-DD>/<название компании>/event_log
+-- предположим, что директория //home/daily_log имеет следующую структуру: //home/daily_logs/<дата в формате YYYY-MM-DD>/<название компании>/event_log
 use some_cluster;
 
 pragma yt.EarlyPartitionPruning;
