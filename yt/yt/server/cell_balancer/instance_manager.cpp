@@ -11,6 +11,7 @@
 namespace NYT::NCellBalancer {
 
 using namespace NBundleControllerClient;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,19 +132,18 @@ void TInstanceManager::ManageInstances()
     }
 }
 
-bool TInstanceManager::IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+bool TInstanceManager::IsResourceQuotaExceeded(const TInstanceResourcesPtr& usage, const TInstanceResourcesPtr& quota)
 {
-    if (!quota) {
-        return false;
-    }
+    YT_VERIFY(usage);
+    YT_VERIFY(quota);
 
     // In order to support clusters without network limits enabled
     // we check network quotas only if they are explicitly set for bundle.
-    if (quota->Network > 0 && usage->NetBytes.value_or(0) > quota->Network) {
+    if (quota->NetBytes && usage->NetBytes.value_or(0) > *quota->NetBytes) {
         return true;
     }
 
-    return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
+    return usage->Vcpu > quota->Vcpu || usage->Memory > quota->Memory;
 }
 
 int TInstanceManager::GetAllocationCountInDataCenter(
@@ -178,17 +178,34 @@ bool TInstanceManager::CheckInstanceCountLimitReached(
     return false;
 }
 
-bool TInstanceManager::CheckResourceUsageExceeded(const TResourceQuotaPtr& resourceQuota)
+bool TInstanceManager::CheckResourceQuotaExceeded(const std::string& dataCenterName)
 {
-    const auto& resourceUsage = GetOrCrash(Input_.BundleResourceTarget, BundleName_);
-    if (IsResourceUsageExceeded(resourceUsage, resourceQuota)) {
+    auto it = Input_.BundleResourceQuotaPerDataCenter.find(BundleName_);
+    if (it == Input_.BundleResourceQuotaPerDataCenter.end()) {
+        return false;
+    }
+
+    auto resourceQuota = GetOrDefault(it->second, dataCenterName);
+    if (!resourceQuota) {
+        resourceQuota = New<TInstanceResources>();
+        resourceQuota->Vcpu = 0;
+        resourceQuota->Memory = 0;
+        resourceQuota->NetBytes = 0;
+    }
+
+    const auto& resourceUsage = GetOrCrash(
+        GetOrCrash(Input_.BundleResourceTargetPerDataCenter, BundleName_),
+        dataCenterName);
+
+    if (IsResourceQuotaExceeded(resourceUsage, resourceQuota)) {
         YT_TLOG_WARNING("Bundle resource usage exceeded quota")
+            .With("DataCenter", dataCenterName)
             .WithFormat(
                 "ResourceQuota",
                 "{Vcpu: %v, Memory: %v, NetworkBytes: %v}",
-                resourceQuota->Vcpu(),
+                resourceQuota->Vcpu,
                 resourceQuota->Memory,
-                resourceQuota->Network)
+                resourceQuota->NetBytes)
             .WithFormat(
                 "ResourceUsage",
                 "{Vcpu: %v, Memory: %v, NetworkBytes: %v}",
@@ -199,14 +216,16 @@ bool TInstanceManager::CheckResourceUsageExceeded(const TResourceQuotaPtr& resou
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "bundle_resource_quota_exceeded",
             .BundleName = BundleName_,
-            .Description = Format("Cannot allocate new %v instance for bundle %v. "
+            .DataCenter = dataCenterName,
+            .Description = Format("Cannot allocate new %v instance for bundle %v in data center %v. "
                 "ResourceQuota: {Vcpu: %v, Memory: %v, NetworkBytes: %v}, "
                 "ResourceUsage: {Vcpu: %v, Memory: %v, NetworkBytes: %v}",
                 Adapter_->GetInstanceType(),
                 BundleName_,
-                resourceQuota->Vcpu(),
+                dataCenterName,
+                resourceQuota->Vcpu,
                 resourceQuota->Memory,
-                resourceQuota->Network,
+                resourceQuota->NetBytes,
                 resourceUsage->Vcpu,
                 resourceUsage->Memory,
                 resourceUsage->NetBytes)
@@ -296,7 +315,7 @@ void TInstanceManager::InitNewAllocations(
             return;
         }
 
-        if (CheckResourceUsageExceeded(bundleInfo->ResourceQuota)) {
+        if (CheckResourceQuotaExceeded(dataCenterName)) {
             return;
         }
 
@@ -664,7 +683,7 @@ void TInstanceManager::CompleteExistingAllocationWithoutInstanceAllocatorService
     const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
     const auto& currentAnnotations = instanceInfo->BundleControllerAnnotations;
     YT_VERIFY(currentAnnotations->AllocatedForBundle == spareBundleName);
-    auto newAnnotations = NYTree::CloneYsonStruct(currentAnnotations);
+    auto newAnnotations = CloneYsonStruct(currentAnnotations);
     newAnnotations->AllocatedForBundle = bundleName;
     adapter->SetInstanceAnnotations(instanceName, newAnnotations, mutations);
 
@@ -675,7 +694,7 @@ void TInstanceManager::CompleteExistingAllocationWithoutInstanceAllocatorService
 
     YT_VERIFY(newAllocationStatus->NodeId == instanceName);
 
-    auto newAllocationInfo = NYTree::CloneYsonStruct(allocationInfo);
+    auto newAllocationInfo = CloneYsonStruct(allocationInfo);
     newAllocationInfo->Status = newAllocationStatus;
     mutations->ChangedAllocations[allocationId] = newAllocationInfo;
 }
@@ -738,7 +757,7 @@ bool TInstanceManager::ReturnToSpareBundle(
     if (bundleControllerAnnotations->AllocatedForBundle != spareBundleName) {
         YT_VERIFY(bundleControllerAnnotations->AllocatedForBundle.empty());
 
-        auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
+        auto newAnnotations = CloneYsonStruct(bundleControllerAnnotations);
         newAnnotations->AllocatedForBundle = spareBundleName;
         adapter->SetInstanceAnnotations(instanceName, newAnnotations, mutations);
 
