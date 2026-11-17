@@ -3,6 +3,7 @@ PY3_PROGRAM(yt_local)
 PEERDIR(
     yt/python/yt/local
     yt/python/yt/environment/bin/yt_env_watcher_entry_point
+    yt/python/yt/environment/components/job_log_viewer
     yt/python/yt/environment/components/query_tracker
     yt/python/yt/environment/components/strawberry_controller
     yt/python/yt/environment/components/yql_agent

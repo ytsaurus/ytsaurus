@@ -9,6 +9,7 @@ from . import run_concurrent
 
 
 _GB = 1024 * 1024 * 1024
+_JOB_LOG_VIEWER_PATH = "yt/microservices/job_log_viewer/cmd/job_log_viewer/job_log_viewer"
 _DEFAULT_CONFIG = {
     "enable_debug_logging": True,
     "wait_tablet_cell_initialization": True,
@@ -69,6 +70,8 @@ def start(
 
     for cluster_name in sorted(cluster_configs, reverse=True):
         for component in cluster_configs[cluster_name].get("components", []):
+            if component.get("name") == "job-log-viewer":
+                component.setdefault("config", {}).setdefault("path", yatest.common.binary_path(_JOB_LOG_VIEWER_PATH))
             if component.get("name") != "yql-agent":
                 continue
 

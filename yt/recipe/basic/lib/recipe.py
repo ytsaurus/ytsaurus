@@ -50,6 +50,13 @@ def start(yt_cluster_factory, args, work_dir=None):
     for cluster in cluster_list:
         recipe.set_env("YT_PROXY_%s" % cluster.yt_id.upper(), cluster.get_proxy_address())
     recipe.set_env("YT_PROXY", cluster_list[0].get_proxy_address())
+    for index, cluster in enumerate(cluster_list):
+        # Clusters from other factories lack the attribute.
+        job_log_viewer_url = getattr(cluster, "job_log_viewer_url", None)
+        if job_log_viewer_url is not None:
+            recipe.set_env("YT_JOB_LOG_VIEWER_URL_%s" % cluster.yt_id.upper(), job_log_viewer_url)
+            if index == 0:
+                recipe.set_env("YT_JOB_LOG_VIEWER_URL", job_log_viewer_url)
     recipe.set_env("YT_USER", "root")  # TODO(nadya73): check if it is needed, remove it?
     recipe.set_env("YT_TOKEN", "yt_token")  # TODO(nadya73): check if it is needed, remove it?
     if "YT_PROXY_URL_ALIASING_CONFIG" in os.environ:  # TODO(nadya73): to check what is it?

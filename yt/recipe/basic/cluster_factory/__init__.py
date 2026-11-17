@@ -1,4 +1,5 @@
 from yt.environment import arcadia_interop
+from yt.environment.components.job_log_viewer import JobLogViewer
 import yt.local as yt_local
 
 import errno
@@ -11,6 +12,7 @@ class _YtLocalCluster(object):
         self.yt_work_dir = None
         self.yt_proxy_port = None
         self.yt_local_exec = None
+        self.job_log_viewer_url = None
 
         self._destination = work_dir
         self._yt_cell_tag = (index + 1) * 10
@@ -41,7 +43,9 @@ class _YtLocalCluster(object):
     def start_local_yt(self):
         self._yt_instance.start()
         if "components" in self._yt_config:
-            yt_local.run_components(self._yt_instance, self._yt_config["components"])
+            components = yt_local.run_components(self._yt_instance, self._yt_config["components"])
+            self.job_log_viewer_url = next(
+                (component.address for component in components if isinstance(component, JobLogViewer)), None)
 
         self.yt_proxy_port = int(self._yt_instance.get_http_proxy_address().split(":")[1])
         self.yt_local_exec = [arcadia_interop.search_binary_path("yt_local")]

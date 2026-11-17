@@ -150,6 +150,8 @@ def run_components(environment, components):
         c.wait()
         c.init()
 
+    return component_runners
+
 
 def start(master_count=1,
           node_count=1,

@@ -425,18 +425,18 @@ class YTInstance(object):
     def get_bin_path(self):
         return self.bin_path
 
-    def prepare_external_component(self, binary, lowercase_with_underscores_name, human_readable_name, configs, force_overwrite=False):
+    def prepare_external_component(self, binary, lowercase_with_underscores_name, human_readable_name, configs, force_overwrite=False, config_format="yson"):
         self._log_component_line(binary, human_readable_name, len(configs), is_external=True)
 
         config_paths = []
 
         for index, config in enumerate(configs):
-            config_name = "{}-{}.yson".format(lowercase_with_underscores_name, index)
+            config_name = "{}-{}.{}".format(lowercase_with_underscores_name, index, config_format)
             config_path = os.path.join(self.configs_path, config_name)
             if self._load_existing_environment and not force_overwrite:
-                config = read_config(config_path)
+                config = read_config(config_path, format=config_format)
             else:
-                write_config(config, config_path)
+                write_config(config, config_path, format=config_format)
 
             config_paths.append(config_path)
             self._service_processes[lowercase_with_underscores_name].append(None)

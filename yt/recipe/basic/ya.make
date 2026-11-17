@@ -14,6 +14,7 @@ END()
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        test_job_log_viewer
         test_query_tracker
     )
 ENDIF()

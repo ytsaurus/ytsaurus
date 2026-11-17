@@ -18,9 +18,11 @@ ENDIF()
 
 DEFAULT(YT_CONFIG_PATCH {})
 DEFAULT(QT_CONFIG_PATCH {})
+DEFAULT(JOB_LOG_VIEWER_CONFIG_PATCH {})
 DEFAULT(YT_CLUSTER_NAMES primary)
 DEFAULT(YT_CLUSTER_CONFIG_PATCHES {})
 DEFAULT(YT_WITH_QUERY_TRACKER no)
+DEFAULT(YT_WITH_JOB_LOG_VIEWER no)
 # yqla resource, built by yt/yql/package/build_local_yt_yqla.sh (adcd0a538e7a4c601d802df738d28dfc53bb38ca)
 DEFAULT(YQLA_RESOURCE sbr://14129260865)
 DEFAULT(YT_REMOVE_RUNTIME_DATA no)
@@ -35,11 +37,17 @@ IF (YT_WITH_QUERY_TRACKER == yes)
     SET(QT_CONFIG_PATCH {components=[{name=query-tracker};{name=yql-agent}]})
 ENDIF()
 
+IF (YT_WITH_JOB_LOG_VIEWER == yes)
+    DEPENDS(yt/microservices/job_log_viewer/cmd/job_log_viewer)
+    SET(JOB_LOG_VIEWER_CONFIG_PATCH {rpc_proxy_count=1;components=[{name=job-log-viewer}]})
+ENDIF()
+
 USE_RECIPE(
     yt/recipe/basic/yt_recipe
     --cluster-names ${YT_CLUSTER_NAMES}
     --cluster-config-patches ${YT_CLUSTER_CONFIG_PATCHES}
     --config-patch \"${QT_CONFIG_PATCH}\"
+    --config-patch \"${JOB_LOG_VIEWER_CONFIG_PATCH}\"
     --config-patch \"${YT_CONFIG_PATCH}\"
     --cleanup-working-directory
     --package-dir ${YT_PACKAGE_DIR}
