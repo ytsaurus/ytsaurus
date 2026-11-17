@@ -4,18 +4,41 @@ Measures parsing and chunk writing for Arrow IPC, binary/text YSON, and JSON:
 
 ```text
 prebuilt bytes -> TTableOutput -> TWritingValueConsumer
-  -> schemaless chunk writer -> TMemoryWriter
+  -> schemaless multi-chunk writer -> memory-backed chunk sinks
 ```
 
 Format writers prepare the complete input stream before measurement.
-Manual wall time excludes preparation, setup, validation, and teardown. The first
+Manual wall time excludes preparation, setup, readback verification, and teardown. The first
 iteration validates every output row against the source, outside timing.
 The benchmark preserves dataset values. JSON uses type annotations to preserve
 unsigned integers inside composite values. JSON parsing reconstructs unordered
-maps, while Arrow parsing preserves IPC field order. Both use the benchmark's
-schema-ordering adapter before chunk writing, standing in for the multi-chunk
-writer's row normalization. The adapter orders values by schema, fills missing
-columns with nulls, and validates values. YSON writes directly to the chunk writer.
+maps, while Arrow parsing preserves IPC field order. All output formats use the
+production multi-writer's row normalization and validation. The output-only
+schema-ordering wrapper is no longer needed; dataset preparation still uses it
+because its source chunk is written directly by a single-chunk writer.
+
+## Offline multi-chunk helper
+
+`dataset/multi_chunk_writer.h` provides the shared output stack for every format:
+the production schemaless multi-chunk writer with memory-backed physical sinks.
+After waiting for close, the pipeline selects only emitted chunk specs, excluding
+unused trailing sessions. The sequence overload of `ValidateOutput` checks checksums
+and keeps one expected-row cursor across chunks.
+
+The helper uses scan encoding, 256 KiB blocks, one compression worker, no compression
+or erasure, and disables computed columns, Skynet sharing, and digests. Its default
+desired chunk size is 256 MiB (the production non-erasure 2x size rule still applies).
+Other production thresholds remain active, including the 100 GiB desired chunk weight
+and 30 MiB maximum metadata size.
+
+Initial session construction remains outside manual timing. Parsing, validation,
+encoding, consumer flush, mid-stream rotations, and final close
+are timed. Chunk collection, byte/block inspection, readback, and destruction are
+outside timing. Counters report output chunks, blocks, bytes, and the common desired
+chunk size; input preparation counters remain separate.
+
+Performance comparisons must use fresh baselines. Historical single-chunk results
+bypassed the multi-writer's validation.
 
 ## Synthetic data
 
@@ -48,6 +71,3 @@ without it the importer preserves all values and integer types.
 Arrow preparation uses the existing format writer over the source chunk's columnar
 batches. It emits dense arrays and dictionaries over dense values; storage RLE is
 expanded by the ordinary conversions. Logical list/struct types remain supported.
-`arrow_dense_batches`, `arrow_dictionary_batches`, and `arrow_record_batches`
-come directly from the writer during untimed input preparation. Column-batch
-counts include reused dictionaries; they do not count dictionary IPC messages.

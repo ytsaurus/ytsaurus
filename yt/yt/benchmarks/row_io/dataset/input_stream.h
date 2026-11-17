@@ -10,11 +10,20 @@ namespace NYT::NRowIOBenchmark {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EArrowDictionaryEncoding
+{
+    Allowed,
+    Disabled,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef PrepareInputStream(
     const NFormats::TFormat& format,
     const TDataset& dataset,
     int batchRowCount,
-    NFormats::TArrowWriterStatisticsPtr statistics = nullptr);
+    NFormats::TArrowWriterStatisticsPtr statistics = nullptr,
+    EArrowDictionaryEncoding dictionaryEncoding = EArrowDictionaryEncoding::Allowed);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,6 +47,7 @@ namespace {
 struct TBenchmarkCase
 {
     int BatchRowCount = 0;
+    EArrowDictionaryEncoding ArrowDictionaryEncoding = EArrowDictionaryEncoding::Allowed;
     std::function<TDataset()> DatasetFactory;
     std::string DatasetLabel;
 };
@@ -81,6 +82,10 @@ void ReportStatistics(
     state->counters["output_blocks"] = benchmark::Counter(
         totals.OutputBlockCount,
         benchmark::Counter::kAvgIterations);
+    state->counters["output_chunks"] = benchmark::Counter(
+        totals.OutputChunkCount,
+        benchmark::Counter::kAvgIterations);
+    state->counters["desired_chunk_size"] = OutputDesiredChunkSize;
     state->counters["input_bytes"] = input.Size();
     if (arrowStatistics) {
         for (auto encoding : TEnumTraits<EArrowEncoding>::GetDomainValues()) {
@@ -113,7 +118,12 @@ void RunBenchmark(
         ? New<TArrowWriterStatistics>()
         : nullptr;
     auto input = BIND([&] {
-        return PrepareInputStream(format, dataset, config.BatchRowCount, arrowStatistics);
+        return PrepareInputStream(
+            format,
+            dataset,
+            config.BatchRowCount,
+            arrowStatistics,
+            config.ArrowDictionaryEncoding);
     }).AsyncVia(coordinator->GetInvoker()).Run().BlockingGet()
         .ValueOrThrow();
     TRunResult totals;
@@ -132,6 +142,7 @@ void RunBenchmark(
         validated = true;
         totals.OutputBytes += statistics.OutputBytes;
         totals.OutputBlockCount += statistics.OutputBlockCount;
+        totals.OutputChunkCount += statistics.OutputChunkCount;
     }
     ReportStatistics(
         state,
@@ -159,7 +170,10 @@ void RegisterCase(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterRandomCases(const std::string& formatName, const std::string& formatYson)
+void RegisterRandomCases(
+    const std::string& formatName,
+    const std::string& formatYson,
+    EArrowDictionaryEncoding dictionaryEncoding)
 {
     for (const auto& [columnCount, rowCount] : {std::pair{8, 32768}, std::pair{32, 8192}}) {
         for (int batchRowCount : {128, 1024}) {
@@ -171,6 +185,7 @@ void RegisterRandomCases(const std::string& formatName, const std::string& forma
                 batchRowCount);
             RegisterCase(name, formatYson, {
                 .BatchRowCount = batchRowCount,
+                .ArrowDictionaryEncoding = dictionaryEncoding,
                 .DatasetFactory = [columnCount, rowCount] {
                     return GenerateRandomDataset(columnCount, rowCount);
                 },
@@ -181,11 +196,14 @@ void RegisterRandomCases(const std::string& formatName, const std::string& forma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterCases(const std::string& formatName, const std::string& formatYson)
+void RegisterCases(
+    const std::string& formatName,
+    const std::string& formatYson,
+    EArrowDictionaryEncoding dictionaryEncoding = EArrowDictionaryEncoding::Allowed)
 {
     auto datasetPath = GetEnv("ROW_IO_DATASET");
     if (datasetPath.empty()) {
-        RegisterRandomCases(formatName, formatYson);
+        RegisterRandomCases(formatName, formatYson, dictionaryEncoding);
         return;
     }
 
@@ -193,6 +211,7 @@ void RegisterCases(const std::string& formatName, const std::string& formatYson)
         auto name = Format("%v/batch_rows:%v", formatName, batchRowCount);
         RegisterCase(name, formatYson, {
             .BatchRowCount = batchRowCount,
+            .ArrowDictionaryEncoding = dictionaryEncoding,
             .DatasetFactory = [datasetPath] {
                 return ReadLocalDataset(datasetPath);
             },
@@ -203,10 +222,24 @@ void RegisterCases(const std::string& formatName, const std::string& formatYson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RegisterArrowCases(const std::string& formatName, const std::string& formatYson)
+{
+    RegisterCases(
+        formatName + "/dictionaries:allowed",
+        formatYson,
+        EArrowDictionaryEncoding::Allowed);
+    RegisterCases(
+        formatName + "/dictionaries:disabled",
+        formatYson,
+        EArrowDictionaryEncoding::Disabled);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 [[maybe_unused]] const bool BenchmarksRegistered = [] {
     RegisterCases("Yson", "<format=binary>yson");
     RegisterCases("YsonText", "<format=text>yson");
-    RegisterCases("Arrow", "arrow");
+    RegisterArrowCases("Arrow", "arrow");
     RegisterCases("Json", "<annotate_with_types=%true>json");
     return true;
 }();

@@ -1,8 +1,7 @@
 #include "pipeline.h"
 
 #include <yt/yt/benchmarks/row_io/dataset/dataset.h>
-#include <yt/yt/benchmarks/row_io/dataset/schema_ordering_writer.h>
-#include <yt/yt/benchmarks/row_io/dataset/writer.h>
+#include <yt/yt/benchmarks/row_io/dataset/multi_chunk_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/memory_writer.h>
 
@@ -10,6 +9,7 @@
 
 #include <yt/yt/client/formats/config.h>
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
@@ -48,13 +48,14 @@ public:
     TOutputPipeline(
         const TFormat& format,
         const TTableSchemaPtr& schema)
-        : Sink_(New<TMemoryWriter>())
-        , Writer_(CreateWriter(schema, Sink_, EOptimizeFor::Scan))
+        : Collector_(New<TMemoryChunkCollector>())
+        , Writer_(CreateMemoryMultiChunkWriter(
+            schema,
+            TNameTable::FromSchema(*schema),
+            Collector_,
+            OutputDesiredChunkSize))
         , Consumer_(
-            // Normalize JSON map order and Arrow IPC field order before chunk encoding.
-            format.GetType() == EFormatType::Json || format.GetType() == EFormatType::Arrow
-                ? CreateSchemaOrderingWriter(Writer_)
-                : IUnversionedWriterPtr(Writer_),
+            Writer_,
             ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))
         , Output_(CreateParserForFormat(format, &Consumer_))
     { }
@@ -74,21 +75,27 @@ public:
         WaitFor(Writer_->Close())
             .ThrowOnError();
         double seconds = timer.GetElapsedTime().SecondsFloat();
-        return {
+        Chunks_ = Collector_->GetCompletedChunks(Writer_);
+        TRunResult result{
             .Seconds = seconds,
-            .OutputBytes = GetEncodedSize(Sink_),
-            .OutputBlockCount = static_cast<int>(Sink_->GetBlocks().size()),
+            .OutputChunkCount = static_cast<int>(Chunks_.size()),
         };
+        for (const auto& chunk : Chunks_) {
+            result.OutputBytes += GetEncodedSize(chunk);
+            result.OutputBlockCount += static_cast<int>(chunk->GetBlocks().size());
+        }
+        return result;
     }
 
     void Validate(const TDataset& dataset)
     {
-        ValidateOutput(dataset.Schema, dataset.Source, Sink_, dataset.RowCount);
+        ValidateOutput(dataset.Schema, dataset.Source, Chunks_, dataset.RowCount);
     }
 
 private:
-    const TMemoryWriterPtr Sink_;
-    const ISchemalessChunkWriterPtr Writer_;
+    const TMemoryChunkCollectorPtr Collector_;
+    const ISchemalessMultiChunkWriterPtr Writer_;
+    std::vector<TMemoryWriterPtr> Chunks_;
 
     TWritingValueConsumer Consumer_;
     TTableOutput Output_;

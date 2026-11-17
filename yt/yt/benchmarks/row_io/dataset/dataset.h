@@ -25,7 +25,7 @@ struct TDataset
 void ValidateOutput(
     const NTableClient::TTableSchemaPtr& schema,
     const NChunkClient::TMemoryWriterPtr& expected,
-    const NChunkClient::TMemoryWriterPtr& actual,
+    const std::vector<NChunkClient::TMemoryWriterPtr>& actualChunks,
     i64 expectedRowCount);
 
 i64 GetEncodedSize(const NChunkClient::TMemoryWriterPtr& sink);
