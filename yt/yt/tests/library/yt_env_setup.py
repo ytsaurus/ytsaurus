@@ -2104,14 +2104,24 @@ class YTEnvSetup(object):
 
         yt_commands._zombie_responses[:] = []
 
-        for cluster_index, env in enumerate([self.Env] + self.remote_envs + self.ground_envs):
-            if env is None:
-                continue
+        envs = [self.Env] + self.remote_envs + self.ground_envs
+        try:
+            for cluster_index, env in enumerate(envs):
+                if env is None:
+                    continue
 
-            env.check_liveness(callback_func=emergency_exit_within_tests)
+                env.check_liveness(callback_func=emergency_exit_within_tests)
 
-            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
-            self._master_exit_read_only_sync(env, driver=driver)
+                driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
+                self._master_exit_read_only_sync(env, driver=driver)
+
+                # Node registration can precede RPC readiness needed by cleanup.
+                if wait_for_nodes:
+                    env.synchronize(component="node")
+        finally:
+            for env in envs:
+                if env is not None:
+                    env.discard_pending_waits()
 
         for cluster_index, env in enumerate([self.Env] + self.remote_envs):
             self.teardown_cluster(method, cluster_index, wait_for_nodes)
