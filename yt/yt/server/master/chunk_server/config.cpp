@@ -1092,6 +1092,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("ignore_existing_unapproved_replicas_during_restart", &TThis::IgnoreExistingUnapprovedReplicasDuringRestart)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

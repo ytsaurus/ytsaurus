@@ -940,6 +940,9 @@ struct TDynamicChunkManagerConfig
     // COMPAT(kvk1920)
     bool EnableCorrectCrossMediumDurabilityCalculation;
 
+    // COMPAT(grphil)
+    bool IgnoreExistingUnapprovedReplicasDuringRestart;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

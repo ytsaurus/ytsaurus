@@ -4406,6 +4406,8 @@ private:
 
         existingReplicas.reserve(location->Replicas().size());
 
+        const auto& config = GetDynamicConfig();
+
         for (const auto& replica : location->Replicas()) {
             const auto* chunk = replica.GetPtr();
             if (ShouldStoreChunkInSequoia(chunk->GetId())) {
@@ -4413,7 +4415,7 @@ private:
             }
 
             if (auto replicaWithoutState = TChunkPtrWithReplicaIndex(replica);
-                validation && location->HasUnapprovedReplica(replicaWithoutState))
+                (config->IgnoreExistingUnapprovedReplicasDuringRestart || validation) && location->HasUnapprovedReplica(replicaWithoutState))
             {
                 continue;
             }
