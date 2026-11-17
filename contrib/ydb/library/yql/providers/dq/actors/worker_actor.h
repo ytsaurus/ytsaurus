@@ -1,16 +1,12 @@
 #pragma once
 
-#include "events.h"
 #include "actor_helpers.h"
-
-#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner_actor/task_runner_actor.h>
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
-
-#include <contrib/ydb/library/yql/dq/runtime/dq_transport.h>
+#include "events.h"
 
 #include <contrib/ydb/library/actors/core/actor.h>
-
+#include <contrib/ydb/library/yql/dq/actors/task_runner/task_runner_actor.h>
+#include <contrib/ydb/library/yql/dq/runtime/dq_transport.h>
+#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/counters.h>
 
 namespace NYql {

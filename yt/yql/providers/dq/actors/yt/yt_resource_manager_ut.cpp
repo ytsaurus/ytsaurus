@@ -1,19 +1,25 @@
-#include "yt_wrapper.h"
 #include "resource_manager.h"
+#include "yt_wrapper.h"
+
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+#include <yt/cpp/mapreduce/interface/fluent.h>
+
+#include <contrib/ydb/library/actors/core/hfunc.h>
 
 #include <contrib/ydb/library/actors/testlib/test_runtime.h>
-#include <contrib/ydb/library/actors/core/hfunc.h>
-#include <yql/essentials/utils/log/proto/logger_config.pb.h>
-#include <yql/essentials/utils/log/log.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
-#include <yt/cpp/mapreduce/interface/fluent.h>
+#include <yql/essentials/utils/log/log.h>
+
+#include <yql/essentials/utils/log/proto/logger_config.pb.h>
 
 #include <util/stream/file.h>
 

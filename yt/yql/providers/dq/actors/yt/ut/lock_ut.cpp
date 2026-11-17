@@ -1,21 +1,21 @@
 #include <yt/yql/providers/dq/actors/yt/lock.h>
 #include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
 
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
+#include <yt/yt/client/unittests/mock/transaction.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 #include <contrib/ydb/library/actors/testlib/test_runtime.h>
-
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
 
 #include <library/cpp/testing/gmock_in_unittest/gmock.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <library/cpp/yson/node/node_io.h>
-
-#include <yt/yt/client/unittests/mock/transaction.h>
-
-#include <yt/yt/core/ytree/public.h>
 
 using namespace NActors;
 using namespace NYql;

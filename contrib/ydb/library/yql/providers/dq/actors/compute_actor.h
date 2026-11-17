@@ -1,7 +1,7 @@
 #pragma once
 
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor.h>
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/local_worker_manager_options.h>
 
 namespace NYql {
 

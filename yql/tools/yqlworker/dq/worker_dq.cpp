@@ -1,28 +1,27 @@
 #include "worker_dq.h"
 
-#include <yql/essentials/utils/log/log.h>
-
-#include <yql/essentials/utils/yql_panic.h>
-
-#include <yql/essentials/providers/common/metrics/metrics_registry.h>
-
-#include <yql/providers/dq/metrics/metrics_pusher.h>
-#include <yt/yql/providers/dq/common/yql_dq_clique.h>
-#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
-#include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
-#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
-#include <yt/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
-#include <yt/yql/providers/dq/service/interconnect_helpers.h>
-#include <yt/yql/providers/dq/service/service_node.h>
 #include <yql/tools/yqlworker/solomon_agent/solomon_agent_client.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yql/essentials/providers/common/metrics/metrics_registry.h>
+#include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
+#include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/signals/signals.h>
 #include <yql/essentials/utils/signals/utils.h>
+#include <yql/providers/dq/metrics/metrics_pusher.h>
+
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
+
+#include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
+#include <yt/yql/providers/dq/actors/events/events.h>
+#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
+#include <yt/yql/providers/dq/common/yql_dq_clique.h>
+#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
+#include <yt/yql/providers/dq/service/interconnect_helpers.h>
+#include <yt/yql/providers/dq/service/service_node.h>
+#include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
+#include <yt/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>
 
 #include <util/generic/algorithm.h>
 #include <util/stream/file.h>

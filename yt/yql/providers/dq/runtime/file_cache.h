@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/library/yql/providers/dq/task_runner/file_cache.h>
+#include <yt/yql/providers/dq/task_runner/file_cache.h>
 
 #include <util/generic/list.h>
 

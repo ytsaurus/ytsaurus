@@ -1,8 +1,9 @@
 #include "test_coordination_helper.h"
 
+#include <yt/yql/providers/dq/actors/events/events.h>
+
 #include <contrib/ydb/library/actors/core/actor.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
 
 using namespace NActors;
 using namespace NYql;

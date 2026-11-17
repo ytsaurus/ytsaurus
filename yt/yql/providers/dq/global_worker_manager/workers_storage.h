@@ -2,9 +2,9 @@
 
 #include "worker_filter.h"
 
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/worker_info.h>
-
 #include <yt/yql/providers/dq/scheduler/dq_scheduler.h>
+
+#include <yt/yql/providers/dq/worker_manager/interface/worker_info.h>
 
 namespace NYql {
 

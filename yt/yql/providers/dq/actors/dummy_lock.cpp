@@ -1,13 +1,13 @@
 #include "dummy_lock.h"
 
+#include <yt/yql/providers/dq/actors/events/events.h>
 
 #include <contrib/ydb/library/actors/core/actor.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
 
-#include <library/cpp/svnversion/svnversion.h>
-
 #include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
+
+#include <library/cpp/svnversion/svnversion.h>
 
 namespace NYql {
 

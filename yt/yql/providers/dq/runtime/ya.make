@@ -19,6 +19,7 @@ PEERDIR(
     yql/essentials/utils/backtrace
     yql/essentials/utils/failure_injector
     yt/yql/providers/dq/config
+    yt/yql/providers/dq/task_runner
     yt/yt/core
 )
 

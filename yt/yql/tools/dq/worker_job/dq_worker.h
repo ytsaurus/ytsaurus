@@ -1,13 +1,14 @@
 #pragma once
 
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_pipe.h>
+
+#include <yt/yql/providers/dq/task_runner/tasks_runner_pipe.h>
+
+#include <yt/cpp/mapreduce/interface/client.h>
 
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io_factory.h>
 
 #include <yql/essentials/utils/log/proto/logger_config.pb.h>
-
-#include <yt/cpp/mapreduce/interface/client.h>
 
 namespace NYql::NDq::NWorker {
     struct IWorkerConfigurator

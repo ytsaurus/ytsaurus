@@ -14,6 +14,7 @@ PEERDIR(
     yql/essentials/utils
     yql/essentials/utils/network
     yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/interface
     yt/yql/providers/dq/service
     yt/yql/providers/dq/stats_collector
 )

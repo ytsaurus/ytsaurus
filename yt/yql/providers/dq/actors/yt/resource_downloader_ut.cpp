@@ -1,16 +1,20 @@
-#include <yt/yql/providers/dq/testlib/test_coordination_helper.h>
+#include "resource_manager.h"
+#include "yt_wrapper.h"
 
-#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
+#include <yt/yql/providers/dq/actors/events/events.h>
+
 #include <yt/yql/providers/dq/runtime/file_cache.h>
 
+#include <yt/yql/providers/dq/testlib/test_coordination_helper.h>
+
 #include <contrib/ydb/library/actors/testlib/test_runtime.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <util/folder/tempdir.h>
+
 #include <util/stream/file.h>
+
 #include <util/system/fs.h>
 
 namespace NYql {

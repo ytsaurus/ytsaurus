@@ -1,7 +1,27 @@
-#include "yt_wrapper.h"
 #include "node_id_allocator.h"
+#include "resource_manager.h"
+#include "yt_wrapper.h"
 
-#include <util/thread/pool.h>
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
+#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
+
+#include <yt/cpp/mapreduce/interface/fluent.h>
+
+#include <contrib/ydb/library/actors/core/events.h>
+#include <contrib/ydb/library/actors/core/hfunc.h>
+
+#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
+
+#include <library/cpp/protobuf/util/pb_io.h>
+
+#include <library/cpp/yson/node/node_io.h>
+
+#include <yql/essentials/utils/yql_panic.h>
+
+#include <yql/essentials/utils/log/log.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/size_literals.h>
@@ -14,22 +34,7 @@
 
 #include <util/system/env.h>
 
-#include <yql/essentials/utils/yql_panic.h>
-#include <yql/essentials/utils/log/log.h>
-
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
-
-#include <contrib/ydb/library/actors/core/events.h>
-#include <contrib/ydb/library/actors/core/hfunc.h>
-#include <library/cpp/yson/node/node_io.h>
-
-#include <yt/cpp/mapreduce/interface/fluent.h>
-
-#include <library/cpp/protobuf/util/pb_io.h>
+#include <util/thread/pool.h>
 
 #include <limits>
 

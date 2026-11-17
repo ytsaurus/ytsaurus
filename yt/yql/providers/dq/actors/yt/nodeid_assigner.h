@@ -1,10 +1,10 @@
 #pragma once
 
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
 
-#include <util/generic/string.h>
 #include <util/generic/hash.h>
 #include <util/generic/maybe.h>
+#include <util/generic/string.h>
 
 namespace NYql {
 
