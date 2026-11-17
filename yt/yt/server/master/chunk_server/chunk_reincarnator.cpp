@@ -334,8 +334,10 @@ public:
 
                 default:
                     // Other chunk tree types are handled in |VisitChunkAncestorOnPrepare|.
-                    YT_TLOG_FATAL("Unexpected chunk tree type")
-                        .With("Type", chunkTree->GetType());
+                    YT_TLOG_ALERT("Found unexpected chunk ancestor type while preparing chunk reincarnation")
+                        .With("ChunkId", chunk->GetId())
+                        .With("ChunkTreeId", chunkTree->GetId())
+                        .With("ChunkTreeType", chunkTree->GetType());
             }
         }
 
@@ -425,8 +427,10 @@ public:
                 }
 
                 default:
-                    YT_TLOG_FATAL("Unexpected chunk tree type")
-                        .With("Type", chunkTree->GetType());
+                    YT_TLOG_ALERT("Found unexpected chunk ancestor type while committing chunk reincarnation")
+                        .With("ChunkId", ChunkId_)
+                        .With("ChunkTreeId", chunkTree->GetId())
+                        .With("ChunkTreeType", chunkTree->GetType());
             }
         }
     }

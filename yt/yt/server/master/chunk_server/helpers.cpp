@@ -848,7 +848,6 @@ void AccumulateUniqueAncestorsStatistics(
     VisitUniqueAncestors(
         parent,
         [&] (TChunkTree* parent, TChunkTree* child) {
-            YT_VERIFY(parent->IsChunkList());
             auto* chunkList = parent->AsChunkList();
             ++mutableStatisticsDelta.Rank;
             chunkList->Statistics().Accumulate(mutableStatisticsDelta);
@@ -1089,7 +1088,6 @@ void VisitChunkTreeAndAncestors(TChunkTree* chunkTree, auto functor)
 
     while (!queue.Empty()) {
         chunkTree = queue.Pop();
-        functor(chunkTree);
 
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
