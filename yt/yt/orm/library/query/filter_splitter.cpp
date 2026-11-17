@@ -214,7 +214,7 @@ public:
 private:
     using TBaseAstVisitor<bool, TExpressionPredicateChecker>::Visit;
 
-    TExpressionPredicate Predicate_;
+    const TExpressionPredicate Predicate_;
 
     bool Visit(const TNullableExpressionList& list)
     {
