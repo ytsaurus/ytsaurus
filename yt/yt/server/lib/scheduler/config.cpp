@@ -1013,6 +1013,9 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(256);
     registrar.Parameter("remove_subbatch_size", &TThis::RemoveSubbatchSize)
         .Default(64);
+    registrar.Parameter("lock_count_fetch_subbatch_size", &TThis::LockCountFetchSubbatchSize)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("remove_batch_timeout", &TThis::RemoveBatchTimeout)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("archive_batch_size", &TThis::ArchiveBatchSize)

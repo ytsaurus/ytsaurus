@@ -783,6 +783,10 @@ struct TOperationsCleanerConfig
     //! Number of operations to remove in one subbatch request.
     int RemoveSubbatchSize;
 
+    //! Maximum number of operations in one parallel batch of lock count reads.
+    //! If unset, lock counts are fetched in a single batch.
+    std::optional<int> LockCountFetchSubbatchSize;
+
     //! Timeout for removal batch to be collected. If timeout expires then
     //! removal of smaller batch will be performed.
     TDuration RemoveBatchTimeout;
