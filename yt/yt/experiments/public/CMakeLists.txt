@@ -13,8 +13,6 @@
 # changes in this file.
 
 add_subdirectory(arithmetic_expression)
-add_subdirectory(bus_echo_client)
-add_subdirectory(bus_echo_server)
 add_subdirectory(check_schema_compatibility)
 add_subdirectory(chyt_query)
 add_subdirectory(collect_chunk_statistics)

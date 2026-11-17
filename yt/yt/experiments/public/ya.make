@@ -1,7 +1,5 @@
 RECURSE(
     arithmetic_expression
-    bus_echo_client
-    bus_echo_server
     check_schema_compatibility
     chyt_query
     collect_chunk_statistics
