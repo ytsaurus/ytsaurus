@@ -1,5 +1,6 @@
 #include "cluster_resources.h"
 
+#include "account.h"
 #include "private.h"
 #include "cluster_resource_limits.h"
 #include "helpers.h"
@@ -384,7 +385,7 @@ namespace {
 // detailed way. #committed is only relevant iff #multicellStatistics is provided.
 void DoSerializeClusterResources(
     const TClusterResources& clusterResources,
-    const TAccountMulticellStatistics* multicellStatistics,
+    const TCellToStatistics* multicellStatistics,
     bool committed,
     TFluentMap& fluent,
     const TBootstrap* bootstrap,
@@ -541,6 +542,62 @@ void SerializeRichClusterResources(
         .EndMap();
 }
 
+static void SerializeAccountGroupResourceUsage(
+    const TAccount* account,
+    TMasterCellGroupId groupId,
+    bool committed,
+    bool recursive,
+    TFluentMap fluent,
+    const TBootstrap* bootstrap)
+{
+    const TClusterResources* clusterResources = nullptr;
+    const TCellToStatistics* multicellStatistics = nullptr;
+
+    TClusterResources nonRecursiveResourceUsage;
+    TCellToStatistics nonRecursiveMulticellStatistics;
+    bool serializePerCell = bootstrap->IsPrimaryMaster() && groupId == account->GetUniversumGroupId();
+
+    const auto& clusterStatistics = account->GetStatistics(groupId);
+
+    if (recursive) {
+        clusterResources = committed
+            ? &clusterStatistics.CommittedResourceUsage
+            : &clusterStatistics.ResourceUsage;
+        if (serializePerCell) {
+            multicellStatistics = &account->CellToStatistics();
+        }
+    } else {
+        nonRecursiveResourceUsage =
+            (committed ? clusterStatistics.CommittedResourceUsage : clusterStatistics.ResourceUsage)
+            - account->ComputeTotalChildrenResourceUsage(committed, groupId);
+        clusterResources = &nonRecursiveResourceUsage;
+        if (serializePerCell) {
+            nonRecursiveMulticellStatistics = SubtractAccountCellStatistics(
+                account->CellToStatistics(),
+                account->ComputeTotalChildrenCellStatistics());
+            multicellStatistics = &nonRecursiveMulticellStatistics;
+        }
+    }
+
+    YT_ASSERT(clusterResources);
+
+    // Zero disk space usage should nevertheless be serialized if there's a
+    // non-zero limit for that medium.
+    TCompactVector<int, 4> additionalMediumIndexes;
+    for (auto [mediumIndex, _] : account->GetResourceLimits(groupId).DiskSpace()) {
+        additionalMediumIndexes.push_back(mediumIndex);
+    }
+
+    DoSerializeClusterResources(
+        *clusterResources,
+        multicellStatistics,
+        committed,
+        fluent,
+        bootstrap,
+        /*serializeTabletResources*/ true,
+        additionalMediumIndexes);
+}
+
 void SerializeAccountClusterResourceUsage(
     const TAccount* account,
     bool committed,
@@ -548,56 +605,15 @@ void SerializeAccountClusterResourceUsage(
     NYson::IYsonConsumer* consumer,
     const TBootstrap* bootstrap)
 {
-    const TClusterResources* clusterResources = nullptr;
-    const TAccountMulticellStatistics* multicellStatistics = nullptr;
-
-    TClusterResources nonRecursiveResourceUsage;
-    TAccountMulticellStatistics nonRecursiveMulticellStatistics;
-
-    const auto& clusterStatistics = account->ClusterStatistics();
-
-    if (recursive) {
-        clusterResources = committed
-            ? &clusterStatistics.CommittedResourceUsage
-            : &clusterStatistics.ResourceUsage;
-        multicellStatistics = &account->MulticellStatistics();
-    } else {
-        nonRecursiveResourceUsage =
-            (committed ? clusterStatistics.CommittedResourceUsage : clusterStatistics.ResourceUsage)
-            - account->ComputeTotalChildrenResourceUsage(committed);
-        nonRecursiveMulticellStatistics = SubtractAccountMulticellStatistics(
-            account->MulticellStatistics(),
-            account->ComputeTotalChildrenMulticellStatistics());
-        clusterResources = &nonRecursiveResourceUsage;
-        multicellStatistics = &nonRecursiveMulticellStatistics;
-    }
-
-    YT_ASSERT(clusterResources);
-    YT_ASSERT(multicellStatistics);
-
-    auto fluent = BuildYsonFluently(consumer)
-        .BeginMap();
-
-    // Zero disk space usage should nevertheless be serialized if there's a
-    // non-zero limit for that medium.
-    TCompactVector<int, 4> additionalMediumIndexes;
-    for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
-        additionalMediumIndexes.push_back(mediumIndex);
-    }
-
-    const auto& multicellManager = bootstrap->GetMulticellManager();
-    DoSerializeClusterResources(
-        *clusterResources,
-        // Secondary cells don't store statistics of other cells.
-        multicellManager->IsPrimaryMaster() ? multicellStatistics : nullptr,
-        committed,
-        fluent,
+    SerializeAccountResources(
+        consumer,
         bootstrap,
-        /*serializeTabletResources*/ true,
-        additionalMediumIndexes);
-
-    fluent
-        .EndMap();
+        [&] (auto groupId, TFluentMap fluent) {
+            SerializeAccountGroupResourceUsage(account, groupId, committed, recursive, fluent, bootstrap);
+        },
+        [&] (auto groupId) {
+            return bootstrap->IsPrimaryMaster() || account->CellGroupToStatistics().contains(groupId);
+        });
 }
 
 void DeserializeClusterResources(

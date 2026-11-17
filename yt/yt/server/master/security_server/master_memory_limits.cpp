@@ -300,16 +300,14 @@ void DeserializeMasterMemoryLimits(
     TMasterMemoryLimits& limits,
     NYTree::INodePtr node,
     const IMulticellManagerPtr& multicellManager,
-    bool zeroByDefault)
+    const TMasterMemoryLimits& defaultLimits)
 {
-    auto result = zeroByDefault
-        ? TMasterMemoryLimits::Zero()
-        : TMasterMemoryLimits{};
+    auto result = defaultLimits;
 
     auto map = node->AsMap();
 
-    result.Total = GetOptionalLimit64ChildOrThrow(map, "total");
-    result.ChunkHost = GetOptionalLimit64ChildOrThrow(map, "chunk_host");
+    result.Total = GetOptionalLimit64ChildOrThrow(map, "total", result.Total);
+    result.ChunkHost = GetOptionalLimit64ChildOrThrow(map, "chunk_host", result.ChunkHost);
 
     if (auto perCell = map->FindChild("per_cell")) {
         for (const auto& [cellName, cellLimitNode] : perCell->AsMap()->GetChildren()) {

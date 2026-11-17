@@ -21,6 +21,12 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TClusterResourceLimits& GetAccountResourceLimits(
+    const TCellGroupToResourceLimits& limits,
+    NCellMaster::TMasterCellGroupId groupId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAccountStatistics
 {
     TClusterResources ResourceUsage;
@@ -54,14 +60,14 @@ TAccountStatistics  operator -  (const TAccountStatistics& accountStatistics);
 ////////////////////////////////////////////////////////////////////////////////
 
 // lhs += rhs
-void AddToAccountMulticellStatistics(TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+void AddToAccountCellStatistics(TCellToStatistics& lhs, const TCellToStatistics& rhs);
 // lhs -= rhs
-void SubtractFromAccountMulticellStatistics(TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+void SubtractFromAccountCellStatistics(TCellToStatistics& lhs, const TCellToStatistics& rhs);
 
 // lhs + rhs
-TAccountMulticellStatistics AddAccountMulticellStatistics(const TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+TCellToStatistics AddAccountCellStatistics(const TCellToStatistics& lhs, const TCellToStatistics& rhs);
 // lhs - rhs
-TAccountMulticellStatistics SubtractAccountMulticellStatistics(const TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+TCellToStatistics SubtractAccountCellStatistics(const TCellToStatistics& lhs, const TCellToStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,9 +133,9 @@ class TAccount
     : public NObjectServer::TNonversionedMapObjectBase<TAccount>
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TAccountMulticellStatistics, MulticellStatistics);
-    DEFINE_BYREF_RO_PROPERTY(TAccountStatistics, ClusterStatistics);
-    DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TCellToStatistics, CellToStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TCellGroupToStatistics, CellGroupToStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TCellGroupToResourceLimits, CellGroupToResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
     DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 1);
     DEFINE_BYREF_RW_PROPERTY(TChunkMergerCriteria, ChunkMergerCriteria);
@@ -164,56 +170,66 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    const TAccountStatistics& GetStatistics() const;
+    const TAccountStatistics& GetStatistics(NCellMaster::TMasterCellGroupId groupId) const;
+
+    const TClusterResourceLimits& GetResourceLimits() const;
+    const TClusterResourceLimits& GetResourceLimits(NCellMaster::TMasterCellGroupId groupId) const;
+
+    NCellMaster::TMasterCellGroupId GetUniversumGroupId() const;
+
+    void RecomputeGroupStatistics(NCellMaster::TMasterCellGroup* group);
+
+    //! Caches a non-owning pointer to the local cell's entry in CellToStatistics.
     void SetLocalStatisticsPtr(TAccountStatistics *value);
 
     //! Dereferences the local statistics pointer.
-    const TAccountStatistics& LocalStatistics();
+    const TAccountStatistics& LocalStatistics() const;
 
-    void SetLocalStatistics(const TAccountStatistics& statistics);
+    //! Applies a usage delta for a cell and updates statistics for all groups containing it.
+    void IncreaseCellStatistics(NObjectClient::TCellTag cellTag, const TAccountStatistics& delta);
 
-    void SetClusterStatistics(const TAccountStatistics& statistics);
-
-    void IncreaseStatistics(const TAccountStatistics& delta);
+    //! Replaces statistics for a cell and updates statistics for all groups containing it.
+    void SetCellStatistics(NObjectClient::TCellTag cellTag, const TAccountStatistics& statistics);
 
     //! Returns |true| if disk space limit is exceeded for at least one medium,
     //! i.e. no more disk space could be allocated.
-    bool IsDiskSpaceLimitViolated() const;
+    bool IsDiskSpaceLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if disk space limit is exceeded for a given medium,
     //! i.e. no more disk space could be allocated.
-    bool IsDiskSpaceLimitViolated(int mediumIndex) const;
+    bool IsDiskSpaceLimitViolated(int mediumIndex, NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if node count limit is exceeded,
     //! i.e. no more Cypress node could be created.
-    bool IsNodeCountLimitViolated() const;
+    bool IsNodeCountLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if chunk count limit is exceeded,
     //! i.e. no more chunks could be created.
-    bool IsChunkCountLimitViolated() const;
+    bool IsChunkCountLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if tablet count limit is exceeded,
     //! i.e. no more tablets could be created.
-    bool IsTabletCountLimitViolated() const;
+    bool IsTabletCountLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if tablet static memory limit is exceeded,
     //! i.e. no more data could be stored in tablet static memory.
-    bool IsTabletStaticMemoryLimitViolated() const;
+    bool IsTabletStaticMemoryLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if total master memory usage is exceeded,
     //! i.e. no more master memory can be occupied.
-    bool IsTotalMasterMemoryLimitViolated() const;
+    bool IsTotalMasterMemoryLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if master memory usage for specified cell is exceeded.
-    bool IsCellMasterMemoryLimitViolated(NObjectClient::TCellTag cellTag) const;
+    bool IsCellMasterMemoryLimitViolated(
+        NObjectClient::TCellTag cellTag,
+        NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns |true| if chunk host master memory usage is exceeded.
-    bool IsChunkHostMasterMemoryLimitViolated() const;
+    bool IsChunkHostMasterMemoryLimitViolated(NCellMaster::TMasterCellGroupId groupId) const;
 
     //! Returns total chunk host master memory usage.
-    i64 GetChunkHostCellMasterMemoryUsage() const;
-
-    //! Returns statistics for a given cell tag.
-    TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
+    i64 GetChunkHostCellMasterMemoryUsage(NCellMaster::TMasterCellGroupId groupId) const;
 
     void RecomputeClusterStatistics();
 
@@ -223,18 +239,27 @@ public:
     void DetachChild(TAccount* child) noexcept override;
 
     TClusterResourceLimits ComputeTotalChildrenLimits() const;
+    TClusterResourceLimits ComputeTotalChildrenLimits(NCellMaster::TMasterCellGroupId groupId) const;
 
-    TClusterResources ComputeTotalChildrenResourceUsage(bool committed) const;
-    TAccountMulticellStatistics ComputeTotalChildrenMulticellStatistics() const;
+    TClusterResources ComputeTotalChildrenResourceUsage(
+        bool committed,
+        NCellMaster::TMasterCellGroupId groupId) const;
+    TCellToStatistics ComputeTotalChildrenCellStatistics() const;
 
     //! Returns violated limits of the account considering its ancestors.
     TViolatedClusterResourceLimits GetViolatedResourceLimits(
         NCellMaster::TBootstrap* bootstrap,
-        bool enableTabletResourceValidation) const;
+        bool enableTabletResourceValidation,
+        NCellMaster::TMasterCellGroupId groupId) const;
+    TViolatedClusterResourceLimits GetViolatedResourceLimitsForCell(
+        NCellMaster::TBootstrap* bootstrap,
+        bool enableTabletResourceValidation,
+        NObjectClient::TCellTag cellTag) const;
     //! Returns violated limits of the account considering its successors.
     TViolatedClusterResourceLimits GetRecursiveViolatedResourceLimits(
         NCellMaster::TBootstrap* bootstrap,
-        bool enableTabletResourceValidation) const;
+        bool enableTabletResourceValidation,
+        NCellMaster::TMasterCellGroupId groupId) const;
 
     int GetMergeJobRateLimit() const;
     void SetMergeJobRateLimit(int mergeJobRateLimit);
@@ -242,8 +267,6 @@ public:
     int GetChunkMergerNodeTraversals() const;
     void IncrementChunkMergerNodeTraversals();
     void DecrementChunkMergerNodeTraversals();
-
-    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
 
 private:
     TAccountStatistics* LocalStatisticsPtr_{};
@@ -253,6 +276,12 @@ private:
     //! Indicates the number of nodes currently being processed by the chunk
     //! merger that belong to this account.
     NObjectServer::TEpochRefCounter ChunkMergerNodeTraversals_;
+
+    void AccumulateViolatedResourceLimits(
+        TViolatedClusterResourceLimits* violatedLimits,
+        NCellMaster::TBootstrap* bootstrap,
+        bool enableTabletResourceValidation,
+        NCellMaster::TMasterCellGroupId groupId) const;
 
     std::string GetRootName() const override;
 };

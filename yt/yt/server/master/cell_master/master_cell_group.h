@@ -31,6 +31,8 @@ public:
 public:
     using TObject::TObject;
 
+    bool Contains(NObjectClient::TCellTag cellTag) const;
+
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;

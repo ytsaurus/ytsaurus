@@ -579,6 +579,7 @@ public:
 
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateKeysToSecondaryMaster);
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateValuesToSecondaryMaster);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), MasterCellRegistered);
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), SecondaryMasterRegisteredAtPrimary);
 
 private:
@@ -1143,6 +1144,8 @@ private:
 
         YT_TLOG_INFO("Master cell registered")
             .With("CellTag", cellTag);
+
+        MasterCellRegistered_.Fire(cellTag);
     }
 
     TMailboxHandle FindMasterMailbox(TCellTag cellTag)

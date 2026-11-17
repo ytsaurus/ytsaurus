@@ -220,6 +220,8 @@ struct IMulticellManager
 
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
+    //! Triggers on each master when it registers another master cell.
+    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), MasterCellRegistered);
     //! Triggers only at primary master when the secondary master is successfully registered.
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegisteredAtPrimary);
 };

@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    account_resources_ut.cpp
     chaos_replica_lag_ut.cpp
     chaos_replicated_node_proxy_ut.cpp
     chunk_helpers.cpp
@@ -16,6 +17,7 @@ SRCS(
     chunk_tree_traversing_ut.cpp
     chunk_tree_ut.cpp
     chunk_view_ut.cpp
+    cluster_resource_limits_ut.cpp
     cumulative_statistics_ut.cpp
     helpers.cpp
     incumbent_scheduler_ut.cpp

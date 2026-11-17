@@ -647,6 +647,7 @@
     XX(Version, version) \
     XX(VersionedResourceUsage, versioned_resource_usage) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
+    XX(ViolatedResourceLimitsPerCell, violated_resource_limits_per_cell) \
     XX(Virtual, virtual) \
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \

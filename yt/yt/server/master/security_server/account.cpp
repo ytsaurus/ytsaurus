@@ -3,6 +3,8 @@
 #include "helpers.h"
 #include "security_manager.h"
 
+#include <yt/yt/server/master/cell_master/master_cell_group.h>
+#include <yt/yt/server/master/cell_master/master_cell_group_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -34,6 +36,18 @@ using namespace NServer;
 
 constinit const auto Logger = SecurityServerLogger;
 constinit const auto Profiler = AccountProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Missing group limits impose no additional restriction on an account.
+const TClusterResourceLimits& GetAccountResourceLimits(
+    const TCellGroupToResourceLimits& limits,
+    TMasterCellGroupId groupId)
+{
+    static const auto Infinity = TClusterResourceLimits::Infinity();
+    auto it = limits.find(groupId);
+    return it == limits.end() ? Infinity : it->second;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,39 +138,39 @@ TAccountStatistics operator-(const TAccountStatistics& accountStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddToAccountMulticellStatistics(
-    TAccountMulticellStatistics& lhs,
-    const TAccountMulticellStatistics& rhs)
+void AddToAccountCellStatistics(
+    TCellToStatistics& lhs,
+    const TCellToStatistics& rhs)
 {
     for (const auto& [cellTag, accountStatistics] : rhs) {
         lhs[cellTag] += accountStatistics;
     }
 }
 
-void SubtractFromAccountMulticellStatistics(
-    TAccountMulticellStatistics& lhs,
-    const TAccountMulticellStatistics& rhs)
+void SubtractFromAccountCellStatistics(
+    TCellToStatistics& lhs,
+    const TCellToStatistics& rhs)
 {
     for (const auto& [cellTag, accountStatistics] : rhs) {
         lhs[cellTag] -= accountStatistics;
     }
 }
 
-TAccountMulticellStatistics AddAccountMulticellStatistics(
-    const TAccountMulticellStatistics& lhs,
-    const TAccountMulticellStatistics& rhs)
+TCellToStatistics AddAccountCellStatistics(
+    const TCellToStatistics& lhs,
+    const TCellToStatistics& rhs)
 {
     auto result = lhs;
-    AddToAccountMulticellStatistics(result, rhs);
+    AddToAccountCellStatistics(result, rhs);
     return result;
 }
 
-TAccountMulticellStatistics SubtractAccountMulticellStatistics(
-    const TAccountMulticellStatistics& lhs,
-    const TAccountMulticellStatistics& rhs)
+TCellToStatistics SubtractAccountCellStatistics(
+    const TCellToStatistics& lhs,
+    const TCellToStatistics& rhs)
 {
     auto result = lhs;
-    SubtractFromAccountMulticellStatistics(result, rhs);
+    SubtractFromAccountCellStatistics(result, rhs);
     return result;
 }
 
@@ -349,6 +363,10 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)
 {
+    CellGroupToResourceLimits_.emplace(
+        GetUniversumGroupId(),
+        TClusterResourceLimits::DefaultUniversumLimits());
+    CellGroupToStatistics_.emplace(GetUniversumGroupId(), TAccountStatistics());
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
@@ -378,9 +396,9 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     TNonversionedMapObjectBase<TAccount>::Save(context);
 
     using NYT::Save;
-    Save(context, ClusterStatistics_);
-    Save(context, MulticellStatistics_);
-    Save(context, ClusterResourceLimits_);
+    Save(context, CellGroupToStatistics_);
+    Save(context, CellToStatistics_);
+    Save(context, CellGroupToResourceLimits_);
     Save(context, AllowChildrenLimitOvercommit_);
     Save(context, MergeJobRateLimit_);
     TNullableIntrusivePtrSerializer<>::Save(context, AbcConfig_);
@@ -397,9 +415,15 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     TNonversionedMapObjectBase<TAccount>::Load(context);
 
     using NYT::Load;
-    Load(context, ClusterStatistics_);
-    Load(context, MulticellStatistics_);
-    Load(context, ClusterResourceLimits_);
+    if (context.GetVersion() >= EMasterReign::AccountMasterCellGroupLimits) {
+        Load(context, CellGroupToStatistics_);
+        Load(context, CellToStatistics_);
+        Load(context, CellGroupToResourceLimits_);
+    } else {
+        Load(context, CellGroupToStatistics_[GetUniversumGroupId()]);
+        Load(context, CellToStatistics_);
+        Load(context, GetOrCrash(CellGroupToResourceLimits_, GetUniversumGroupId()));
+    }
     Load(context, AllowChildrenLimitOvercommit_);
     Load(context, MergeJobRateLimit_);
     TNullableIntrusivePtrSerializer<>::Load(context, AbcConfig_);
@@ -429,116 +453,165 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
+TMasterCellGroupId TAccount::GetUniversumGroupId() const
+{
+    return NCellMaster::GetUniversumGroupId(CellTagFromId(GetId()));
+}
+
+const TAccountStatistics& TAccount::GetStatistics() const
+{
+    return GetStatistics(GetUniversumGroupId());
+}
+
+const TAccountStatistics& TAccount::GetStatistics(TMasterCellGroupId groupId) const
+{
+    auto it = CellGroupToStatistics_.find(groupId);
+    return it == CellGroupToStatistics_.end() ? TAccountStatistics::Empty : it->second;
+}
+
+const TClusterResourceLimits& TAccount::GetResourceLimits() const
+{
+    return GetResourceLimits(GetUniversumGroupId());
+}
+
+const TClusterResourceLimits& TAccount::GetResourceLimits(TMasterCellGroupId groupId) const
+{
+    return GetAccountResourceLimits(CellGroupToResourceLimits_, groupId);
+}
+
+void TAccount::RecomputeGroupStatistics(TMasterCellGroup* group)
+{
+    auto& result = CellGroupToStatistics_[group->GetId()];
+    result = {};
+    for (const auto& [cellTag, statistics] : CellToStatistics_) {
+        if (group->Contains(cellTag)) {
+            result += statistics;
+        }
+    }
+}
+
 void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value)
 {
     LocalStatisticsPtr_ = value;
 }
 
-const TAccountStatistics& TAccount::LocalStatistics()
+const TAccountStatistics& TAccount::LocalStatistics() const
 {
     return *LocalStatisticsPtr_;
 }
 
-void TAccount::SetLocalStatistics(const TAccountStatistics& statistics)
+void TAccount::IncreaseCellStatistics(TCellTag cellTag, const TAccountStatistics& delta)
 {
-    *LocalStatisticsPtr_ = statistics;
+    GetOrCrash(CellToStatistics_, cellTag) += delta;
+
+    const auto& groupManager = GetBootstrap()->GetMasterCellGroupManager();
+    for (auto* group : groupManager->GetMasterCellGroupsForCell(cellTag)) {
+        CellGroupToStatistics_[group->GetId()] += delta;
+    }
 }
 
-void TAccount::IncreaseClusterStatistics(const TAccountStatistics& delta)
+void TAccount::SetCellStatistics(TCellTag cellTag, const TAccountStatistics& statistics)
 {
-    ClusterStatistics_ += delta;
+    auto& cellStatistics = GetOrCrash(CellToStatistics_, cellTag);
+    auto delta = statistics - cellStatistics;
+    cellStatistics = statistics;
+
+    const auto& groupManager = GetBootstrap()->GetMasterCellGroupManager();
+    for (auto* group : groupManager->GetMasterCellGroupsForCell(cellTag)) {
+        CellGroupToStatistics_[group->GetId()] += delta;
+    }
 }
 
-void TAccount::SetClusterStatistics(const TAccountStatistics& statistics)
+bool TAccount::IsDiskSpaceLimitViolated(TMasterCellGroupId groupId) const
 {
-    ClusterStatistics_ = statistics;
-}
-
-void TAccount::IncreaseStatistics(const TAccountStatistics& delta) {
-    *LocalStatisticsPtr_ += delta;
-    ClusterStatistics_ += delta;
-}
-
-bool TAccount::IsDiskSpaceLimitViolated() const
-{
-    for (auto [mediumIndex, diskSpace] : ClusterStatistics_.ResourceUsage.DiskSpace()) {
-        if (TLimit64(diskSpace) > ClusterResourceLimits_.DiskSpace().GetOrDefault(mediumIndex)) {
+    for (auto [mediumIndex, diskSpace] : GetStatistics(groupId).ResourceUsage.DiskSpace()) {
+        if (TLimit64(diskSpace) > GetResourceLimits(groupId).DiskSpace().GetOrDefault(mediumIndex)) {
             return true;
         }
     }
     return false;
 }
 
-bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
+bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex, TMasterCellGroupId groupId) const
 {
-    auto usageSpace = GetOrDefault(ClusterStatistics_.ResourceUsage.DiskSpace(), mediumIndex);
-    auto limitsSpace = ClusterResourceLimits_.DiskSpace().GetOrDefault(mediumIndex);
+    auto usageSpace = GetOrDefault(GetStatistics(groupId).ResourceUsage.DiskSpace(), mediumIndex);
+    auto limitsSpace = GetResourceLimits(groupId).DiskSpace().GetOrDefault(mediumIndex);
     return TLimit64(usageSpace) > limitsSpace;
 }
 
-bool TAccount::IsNodeCountLimitViolated() const
+bool TAccount::IsNodeCountLimitViolated(TMasterCellGroupId groupId) const
 {
     // See TSecurityManager::ValidateResourceUsageIncrease for the reason why committed usage is compared here.
-    return TLimit64(ClusterStatistics_.CommittedResourceUsage.GetNodeCount()) > ClusterResourceLimits_.GetNodeCount();
+    return TLimit64(GetStatistics(groupId).CommittedResourceUsage.GetNodeCount()) >
+        GetResourceLimits(groupId).GetNodeCount();
 }
 
-bool TAccount::IsChunkCountLimitViolated() const
+bool TAccount::IsChunkCountLimitViolated(TMasterCellGroupId groupId) const
 {
-    return TLimit64(ClusterStatistics_.ResourceUsage.GetChunkCount()) > ClusterResourceLimits_.GetChunkCount();
+    return TLimit64(GetStatistics(groupId).ResourceUsage.GetChunkCount()) >
+        GetResourceLimits(groupId).GetChunkCount();
 }
 
-bool TAccount::IsTabletCountLimitViolated() const
+bool TAccount::IsTabletCountLimitViolated(TMasterCellGroupId groupId) const
 {
-    return TLimit32(ClusterStatistics_.ResourceUsage.GetTabletCount()) > ClusterResourceLimits_.GetTabletCount();
+    return TLimit32(GetStatistics(groupId).ResourceUsage.GetTabletCount()) >
+        GetResourceLimits(groupId).GetTabletCount();
 }
 
-bool TAccount::IsTabletStaticMemoryLimitViolated() const
+bool TAccount::IsTabletStaticMemoryLimitViolated(TMasterCellGroupId groupId) const
 {
-    return TLimit64(ClusterStatistics_.ResourceUsage.GetTabletStaticMemory()) > ClusterResourceLimits_.GetTabletStaticMemory();
+    return TLimit64(GetStatistics(groupId).ResourceUsage.GetTabletStaticMemory()) >
+        GetResourceLimits(groupId).GetTabletStaticMemory();
 }
 
-bool TAccount::IsTotalMasterMemoryLimitViolated() const
+bool TAccount::IsTotalMasterMemoryLimitViolated(TMasterCellGroupId groupId) const
 {
-    return TLimit64(ClusterStatistics_.ResourceUsage.GetTotalMasterMemory()) > ClusterResourceLimits_.MasterMemory().Total;
+    return TLimit64(GetStatistics(groupId).ResourceUsage.GetTotalMasterMemory()) >
+        GetResourceLimits(groupId).MasterMemory().Total;
 }
 
-bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
+bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag, TMasterCellGroupId groupId) const
 {
-    const auto& perCellLimits = ClusterResourceLimits_.MasterMemory().PerCell;
+    if (groupId != GetUniversumGroupId()) {
+        const auto& groupManager = GetBootstrap()->GetMasterCellGroupManager();
+        auto* group = groupManager->FindMasterCellGroup(groupId);
+        if (!IsObjectAlive(group) || !group->Contains(cellTag)) {
+            return false;
+        }
+    }
+    const auto& perCellLimits = GetResourceLimits(groupId).MasterMemory().PerCell;
     auto limitsIt = perCellLimits.find(cellTag);
     if (limitsIt == perCellLimits.end()) {
         return false;
     }
 
-    auto usageIt = MulticellStatistics_.find(cellTag);
-    if (usageIt == MulticellStatistics_.end()) {
+    auto usageIt = CellToStatistics_.find(cellTag);
+    if (usageIt == CellToStatistics_.end()) {
         return false;
     }
 
     return TLimit64(usageIt->second.ResourceUsage.GetTotalMasterMemory()) > limitsIt->second;
 }
 
-bool TAccount::IsChunkHostMasterMemoryLimitViolated() const
+bool TAccount::IsChunkHostMasterMemoryLimitViolated(TMasterCellGroupId groupId) const
 {
-    auto totalChunkHostMasterMemory = GetChunkHostCellMasterMemoryUsage();
-    return TLimit64(totalChunkHostMasterMemory) > ClusterResourceLimits_.MasterMemory().ChunkHost;
+    auto totalChunkHostMasterMemory = GetChunkHostCellMasterMemoryUsage(groupId);
+    return TLimit64(totalChunkHostMasterMemory) > GetResourceLimits(groupId).MasterMemory().ChunkHost;
 }
 
-i64 TAccount::GetChunkHostCellMasterMemoryUsage() const
+i64 TAccount::GetChunkHostCellMasterMemoryUsage(TMasterCellGroupId groupId) const
 {
-    return ClusterStatistics_.ResourceUsage.GetChunkHostCellMasterMemory();
-}
-
-TAccountStatistics* TAccount::GetCellStatistics(TCellTag cellTag)
-{
-    return &GetOrCrash(MulticellStatistics_, cellTag);
+    return GetStatistics(groupId).ResourceUsage.GetChunkHostCellMasterMemory();
 }
 
 void TAccount::RecomputeClusterStatistics()
 {
-    ClusterStatistics_ = TAccountStatistics();
-    for (const auto& [cellTag, statistics] : MulticellStatistics_) {
-        ClusterStatistics_ += statistics;
+    CellGroupToStatistics_.clear();
+    const auto& groupManager = GetBootstrap()->GetMasterCellGroupManager();
+    for (auto [groupId, group] : groupManager->MasterCellGroups()) {
+        if (IsObjectAlive(group)) {
+            RecomputeGroupStatistics(group);
+        }
     }
 }
 
@@ -580,93 +653,124 @@ void TAccount::DetachChild(TAccount* child) noexcept
 
 TClusterResourceLimits TAccount::ComputeTotalChildrenLimits() const
 {
+    return ComputeTotalChildrenLimits(GetUniversumGroupId());
+}
+
+TClusterResourceLimits TAccount::ComputeTotalChildrenLimits(TMasterCellGroupId groupId) const
+{
     auto result = TClusterResourceLimits::Zero();
     for (const auto& [key, child] : KeyToChild()) {
-        result.IncreaseWithInfinityAllowed(child->ClusterResourceLimits());
+        const auto& childLimits = child->CellGroupToResourceLimits();
+        if (auto it = childLimits.find(groupId); it != childLimits.end()) {
+            result.IncreaseWithInfinityAllowed(it->second);
+        }
     }
     return result;
 }
 
-TClusterResources TAccount::ComputeTotalChildrenResourceUsage(bool committed) const
+TClusterResources TAccount::ComputeTotalChildrenResourceUsage(bool committed, TMasterCellGroupId groupId) const
 {
     auto result = TClusterResources();
     for (const auto& [key, child] : KeyToChild()) {
         result += committed
-            ? child->ClusterStatistics().CommittedResourceUsage
-            : child->ClusterStatistics().ResourceUsage;
+            ? child->GetStatistics(groupId).CommittedResourceUsage
+            : child->GetStatistics(groupId).ResourceUsage;
     }
     return result;
 }
 
-TAccountMulticellStatistics TAccount::ComputeTotalChildrenMulticellStatistics() const
+TCellToStatistics TAccount::ComputeTotalChildrenCellStatistics() const
 {
-    auto result = TAccountMulticellStatistics();
+    auto result = TCellToStatistics();
     for (const auto& [key, child] : KeyToChild()) {
-        AddToAccountMulticellStatistics(result, child->MulticellStatistics());
+        AddToAccountCellStatistics(result, child->CellToStatistics());
     }
     return result;
 }
 
 TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimits(
     NCellMaster::TBootstrap* bootstrap,
-    bool enableTabletResourceValidation) const
+    bool enableTabletResourceValidation,
+    TMasterCellGroupId groupId) const
+{
+    TViolatedClusterResourceLimits violatedLimits;
+    AccumulateViolatedResourceLimits(&violatedLimits, bootstrap, enableTabletResourceValidation, groupId);
+    return violatedLimits;
+}
+
+TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimitsForCell(
+    NCellMaster::TBootstrap* bootstrap,
+    bool enableTabletResourceValidation,
+    TCellTag cellTag) const
+{
+    TViolatedClusterResourceLimits violatedLimits;
+    const auto& groupManager = bootstrap->GetMasterCellGroupManager();
+    for (auto* group : groupManager->GetMasterCellGroupsForCell(cellTag)) {
+        AccumulateViolatedResourceLimits(&violatedLimits, bootstrap, enableTabletResourceValidation, group->GetId());
+    }
+    return violatedLimits;
+}
+
+void TAccount::AccumulateViolatedResourceLimits(
+    TViolatedClusterResourceLimits* violatedLimits,
+    NCellMaster::TBootstrap* bootstrap,
+    bool enableTabletResourceValidation,
+    TMasterCellGroupId groupId) const
 {
     const auto& multicellManager = bootstrap->GetMulticellManager();
 
     auto selfCellTag = multicellManager->GetCellTag();
     const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
 
-    TViolatedClusterResourceLimits violatedLimits;
     for (auto* account = this; account; account = account->GetParent()) {
-        if (account->IsNodeCountLimitViolated()) {
-            violatedLimits.SetNodeCount(1);
+        if (account->IsNodeCountLimitViolated(groupId)) {
+            violatedLimits->SetNodeCount(1);
         }
-        if (account->IsChunkCountLimitViolated()) {
-            violatedLimits.SetChunkCount(1);
+        if (account->IsChunkCountLimitViolated(groupId)) {
+            violatedLimits->SetChunkCount(1);
         }
 
         if (enableTabletResourceValidation) {
-            if (account->IsTabletCountLimitViolated()) {
-                violatedLimits.SetTabletCount(1);
+            if (account->IsTabletCountLimitViolated(groupId)) {
+                violatedLimits->SetTabletCount(1);
             }
-            if (account->IsTabletStaticMemoryLimitViolated()) {
-                violatedLimits.SetTabletStaticMemory(1);
+            if (account->IsTabletStaticMemoryLimitViolated(groupId)) {
+                violatedLimits->SetTabletStaticMemory(1);
             }
         }
 
-        for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
-            if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
-                violatedLimits.SetMediumDiskSpace(mediumIndex, 1);
+        for (const auto& [mediumIndex, usage] : account->GetStatistics(groupId).ResourceUsage.DiskSpace()) {
+            if (account->IsDiskSpaceLimitViolated(mediumIndex, groupId)) {
+                violatedLimits->SetMediumDiskSpace(mediumIndex, 1);
             } else {
-                violatedLimits.AddToMediumDiskSpace(mediumIndex, 0);
+                violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
             }
         }
-        for (const auto& [mediumIndex, usage] : account->ClusterResourceLimits().DiskSpace()) {
-            violatedLimits.AddToMediumDiskSpace(mediumIndex, 0);
+        for (const auto& [mediumIndex, usage] : account->GetResourceLimits(groupId).DiskSpace()) {
+            violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
         }
 
-        if (account->IsTotalMasterMemoryLimitViolated()) {
-            violatedLimits.MasterMemory().Total = 1;
+        if (account->IsTotalMasterMemoryLimitViolated(groupId)) {
+            violatedLimits->MasterMemory().Total = 1;
         }
-        if (account->IsChunkHostMasterMemoryLimitViolated()) {
-            violatedLimits.MasterMemory().ChunkHost = 1;
+        if (account->IsChunkHostMasterMemoryLimitViolated(groupId)) {
+            violatedLimits->MasterMemory().ChunkHost = 1;
         }
-        if (account->IsCellMasterMemoryLimitViolated(selfCellTag)) {
-            violatedLimits.MasterMemory().PerCell[selfCellTag] = 1;
+        if (account->IsCellMasterMemoryLimitViolated(selfCellTag, groupId)) {
+            violatedLimits->MasterMemory().PerCell[selfCellTag] = 1;
         }
         for (auto cellTag : cellTags) {
-            if (account->IsCellMasterMemoryLimitViolated(cellTag)) {
-                violatedLimits.MasterMemory().PerCell[cellTag] = 1;
+            if (account->IsCellMasterMemoryLimitViolated(cellTag, groupId)) {
+                violatedLimits->MasterMemory().PerCell[cellTag] = 1;
             }
         }
     }
-
-    return violatedLimits;
 }
 
 TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
     NCellMaster::TBootstrap* bootstrap,
-    bool enableTabletResourceValidation) const
+    bool enableTabletResourceValidation,
+    TMasterCellGroupId groupId) const
 {
     const auto& multicellManager = bootstrap->GetMulticellManager();
 
@@ -677,44 +781,44 @@ TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
         this,
         TViolatedClusterResourceLimits(),
         [&] (const TAccount* account, TViolatedClusterResourceLimits* violatedLimits) {
-            if (account->IsNodeCountLimitViolated()) {
+            if (account->IsNodeCountLimitViolated(groupId)) {
                 violatedLimits->SetNodeCount(violatedLimits->GetNodeCount() + 1);
             }
-            if (account->IsChunkCountLimitViolated()) {
+            if (account->IsChunkCountLimitViolated(groupId)) {
                 violatedLimits->SetChunkCount(violatedLimits->GetChunkCount() + 1);
             }
 
             if (enableTabletResourceValidation) {
-                if (account->IsTabletCountLimitViolated()) {
+                if (account->IsTabletCountLimitViolated(groupId)) {
                     violatedLimits->SetTabletCount(violatedLimits->GetTabletCount() + 1);
                 }
-                if (account->IsTabletStaticMemoryLimitViolated()) {
+                if (account->IsTabletStaticMemoryLimitViolated(groupId)) {
                     violatedLimits->SetTabletStaticMemory(violatedLimits->GetTabletStaticMemory() + 1);
                 }
             }
 
-            for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
-                if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
+            for (const auto& [mediumIndex, usage] : account->GetStatistics(groupId).ResourceUsage.DiskSpace()) {
+                if (account->IsDiskSpaceLimitViolated(mediumIndex, groupId)) {
                     violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
                 } else {
                     violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
                 }
             }
-            for (const auto& [mediumIndex, usage] : account->ClusterResourceLimits().DiskSpace()) {
+            for (const auto& [mediumIndex, usage] : account->GetResourceLimits(groupId).DiskSpace()) {
                 violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
             }
 
-            if (account->IsTotalMasterMemoryLimitViolated()) {
+            if (account->IsTotalMasterMemoryLimitViolated(groupId)) {
                 ++violatedLimits->MasterMemory().Total;
             }
-            if (account->IsChunkHostMasterMemoryLimitViolated()) {
+            if (account->IsChunkHostMasterMemoryLimitViolated(groupId)) {
                 ++violatedLimits->MasterMemory().ChunkHost;
             }
-            if (account->IsCellMasterMemoryLimitViolated(selfCellTag)) {
+            if (account->IsCellMasterMemoryLimitViolated(selfCellTag, groupId)) {
                 ++violatedLimits->MasterMemory().PerCell[selfCellTag];
             }
             for (auto cellTag : cellTags) {
-                if (account->IsCellMasterMemoryLimitViolated(cellTag)) {
+                if (account->IsCellMasterMemoryLimitViolated(cellTag, groupId)) {
                     ++violatedLimits->MasterMemory().PerCell[cellTag];
                 }
             }

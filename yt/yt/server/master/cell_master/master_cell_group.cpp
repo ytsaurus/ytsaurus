@@ -10,6 +10,11 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TMasterCellGroup::Contains(NObjectClient::TCellTag cellTag) const
+{
+    return CellTags_.contains(cellTag);
+}
+
 std::string TMasterCellGroup::GetLowercaseObjectName() const
 {
     return Format("master cell group %Qv", GetName());

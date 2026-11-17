@@ -54,6 +54,7 @@ target_link_options(unittester-master PRIVATE
 )
 
 target_sources(unittester-master PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/account_resources_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chaos_replica_lag_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chaos_replicated_node_proxy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_helpers.cpp
@@ -65,6 +66,7 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_traversing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_view_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/cluster_resource_limits_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/cumulative_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/incumbent_scheduler_ut.cpp

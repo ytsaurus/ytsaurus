@@ -1,4 +1,6 @@
 #include "helpers.h"
+
+#include "cluster_resource_limits.h"
 #include "private.h"
 #include "security_manager.h"
 
@@ -8,12 +10,15 @@
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NSecurityServer {
 
+using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NLogging;
 using namespace NObjectClient;
@@ -160,6 +165,43 @@ int GetAccountShardIndex(TAccountId accountId)
 int GetAccountProfilingBucketIndex(TAccountId accountId)
 {
     return (EntropyFromId(accountId) / AccountShardCount) % AccountProfilingProducerCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCellGroupToResourceLimits DeserializeAccountResourceLimits(
+    NYTree::INodePtr node,
+    const TBootstrap* bootstrap,
+    const TClusterResourceLimits& defaultUniversumGroupLimits,
+    const TClusterResourceLimits& defaultGroupLimits)
+{
+    const auto& groupManager = bootstrap->GetMasterCellGroupManager();
+    auto universumGroupId = GetUniversumGroupId(bootstrap->GetMulticellManager()->GetPrimaryCellTag());
+    TCellGroupToResourceLimits result;
+    auto universumGroupLimits = defaultUniversumGroupLimits;
+    DeserializeClusterResourceLimits(
+        universumGroupLimits,
+        node,
+        bootstrap,
+        defaultUniversumGroupLimits);
+    EmplaceOrCrash(result, universumGroupId, std::move(universumGroupLimits));
+
+    if (auto perGroup = node->AsMap()->FindChild("per_group")) {
+        for (const auto& [name, groupNode] : perGroup->AsMap()->GetChildren()) {
+            auto* group = groupManager->GetMasterCellGroupByNameOrThrow(name);
+            if (group->GetId() == universumGroupId) {
+                THROW_ERROR_EXCEPTION("The universum group limit must be specified at the top level");
+            }
+            auto groupLimits = defaultGroupLimits;
+            DeserializeClusterResourceLimits(
+                groupLimits,
+                groupNode,
+                bootstrap,
+                defaultGroupLimits);
+            EmplaceOrCrash(result, group->GetId(), std::move(groupLimits));
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

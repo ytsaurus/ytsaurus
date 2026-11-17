@@ -4,7 +4,12 @@
 #include "helpers.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_cell_group.h>
+#include <yt/yt/server/master/cell_master/master_cell_group_manager.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 
@@ -33,6 +38,39 @@ THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashM
         YT_VERIFY(result.emplace(*optionalCellTag, value).second);
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TSerializeGroup, class TIncludeGroup>
+void SerializeAccountResources(
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap,
+    TSerializeGroup serializeGroup,
+    TIncludeGroup includeGroup)
+{
+    using namespace NYTree;
+
+    const auto& groupManager = bootstrap->GetMasterCellGroupManager();
+    auto universumGroupId = NCellMaster::GetUniversumGroupId(bootstrap->GetMulticellManager()->GetPrimaryCellTag());
+    auto groups = GetValuesSortedByKey(groupManager->MasterCellGroups());
+    std::erase_if(groups, [&] (auto* group) {
+        return group->GetId() == universumGroupId || !includeGroup(group->GetId());
+    });
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do([&] (TFluentMap fluent) {
+                serializeGroup(universumGroupId, fluent);
+            })
+            .DoIf(!groups.empty(), [&] (TFluentMap fluent) {
+                fluent.Item("per_group").DoMapFor(groups, [&] (TFluentMap fluent, auto* group) {
+                    fluent.Item(group->GetName()).DoMap([&] (TFluentMap fluent) {
+                        serializeGroup(group->GetId(), fluent);
+                    });
+                });
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
