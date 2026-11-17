@@ -1962,12 +1962,12 @@ private:
             CleanupUserProcesses();
         }
 
+        Host_->SetUserJobMemoryUsage(memoryUsage);
+
         if (UserJobSpec_.has_memory_reserve() && Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
             int targetOomScore = memoryUsage > UserJobSpec_.memory_reserve() ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
             SetOomScoreAdj(targetOomScore);
         }
-
-        Host_->SetUserJobMemoryUsage(memoryUsage);
 
         if (Config_->CheckUserJobOomKill) {
             if (auto oomKillCount = UserJobEnvironment_->GetJobOomKillCount(); oomKillCount.value_or(0)) {
