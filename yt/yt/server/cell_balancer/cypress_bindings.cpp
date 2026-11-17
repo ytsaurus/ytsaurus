@@ -289,6 +289,10 @@ void TZoneInfo::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(0);
 
+    registrar.Parameter("quota_data_center_count", &TThis::QuotaDataCenterCount)
+        .GreaterThan(0)
+        .Optional();
+
     registrar.Parameter("data_centers", &TThis::DataCenters)
         .Default();
 }

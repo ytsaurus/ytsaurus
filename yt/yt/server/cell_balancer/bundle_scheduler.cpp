@@ -20,6 +20,7 @@ namespace NYT::NCellBalancer {
 
 using namespace NBundleControllerClient;
 using namespace NLogging;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,6 +125,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     THashMap<std::string, TInstanceResourcesPtr> aliveResources;
     THashMap<std::string, TInstanceResourcesPtr> allocatedResources;
     THashMap<std::string, TInstanceResourcesPtr> targetResources;
+    THashMap<std::string, TSchedulerInputState::TDataCenterResourceMap> targetResourcesPerDataCenter;
+    THashMap<std::string, TSchedulerInputState::TDataCenterResourceMap> resourceQuotasPerDataCenter;
 
     auto calculateResources = [] (
         const auto& aliveNames,
@@ -158,7 +161,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
             TBundleControllerStatePtr bundleState;
             if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-                bundleState = NYTree::CloneYsonStruct(it->second);
+                bundleState = CloneYsonStruct(it->second);
             }
 
             auto perDCaliveNodes = GetAliveNodes(
@@ -199,12 +202,43 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             targetResource->NetBytes = nodeGuarantee->NetBytes.value_or(0) * targetConfig->TabletNodeCount + proxyGuarantee->NetBytes.value_or(0) * targetConfig->RpcProxyCount;
 
             targetResources[bundleName] = targetResource;
+
+            if (auto it = input.Zones.find(bundleInfo->Zone); it != input.Zones.end()) {
+                const auto& zoneInfo = it->second;
+                int nodeCount = GetTargetDataCenterInstanceCount(targetConfig->TabletNodeCount, zoneInfo);
+                int proxyCount = GetTargetDataCenterInstanceCount(targetConfig->RpcProxyCount, zoneInfo);
+
+                auto targetResourcePerDataCenter = New<TInstanceResources>();
+                targetResourcePerDataCenter->Vcpu = nodeGuarantee->Vcpu * nodeCount + proxyGuarantee->Vcpu * proxyCount;
+                targetResourcePerDataCenter->Memory = nodeGuarantee->Memory * nodeCount + proxyGuarantee->Memory * proxyCount;
+                targetResourcePerDataCenter->NetBytes = nodeGuarantee->NetBytes.value_or(0) * nodeCount + proxyGuarantee->NetBytes.value_or(0) * proxyCount;
+                for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
+                    targetResourcesPerDataCenter[bundleName][dataCenterName] = CloneYsonStruct(targetResourcePerDataCenter);
+                }
+
+                if (const auto& quota = bundleInfo->ResourceQuota) {
+                    int quotaDataCenterCount = zoneInfo->QuotaDataCenterCount.value_or(std::ssize(zoneInfo->DataCenters));
+
+                    auto quotaPerDataCenter = New<TInstanceResources>();
+                    quotaPerDataCenter->Vcpu = quota->Vcpu() / quotaDataCenterCount;
+                    quotaPerDataCenter->Memory = quota->Memory / quotaDataCenterCount;
+                    if (quota->Network > 0) {
+                        quotaPerDataCenter->NetBytes = quota->Network / quotaDataCenterCount;
+                    }
+
+                    for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
+                        resourceQuotasPerDataCenter[bundleName][dataCenterName] = CloneYsonStruct(quotaPerDataCenter);
+                    }
+                }
+            }
         }
     }
 
     input.BundleResourceAlive = aliveResources;
     input.BundleResourceAllocated = allocatedResources;
     input.BundleResourceTarget = targetResources;
+    input.BundleResourceTargetPerDataCenter = std::move(targetResourcesPerDataCenter);
+    input.BundleResourceQuotaPerDataCenter = std::move(resourceQuotasPerDataCenter);
 }
 
 TDuration GetEffectiveOfflineInstanceGracePeriod(const TSchedulerInputState& input)
@@ -655,7 +689,7 @@ void InitializeBundleChangedStates(const TSchedulerInputState& input, TScheduler
 
         auto& bundleState = mutations->ChangedStates[bundleName];
         if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-            bundleState = NYTree::CloneYsonStruct(it->second);
+            bundleState = CloneYsonStruct(it->second);
         } else {
             bundleState = New<TBundleControllerState>();
         }
@@ -758,7 +792,7 @@ TCpuLimitsPtr GetBundleEffectiveCpuLimits(
     const TBundleInfoPtr& bundleInfo,
     const TSchedulerInputState& input)
 {
-    auto currentCpuLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
+    auto currentCpuLimits = CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
 
     if (bundleInfo->NodeTagFilter.empty()) {
         return currentCpuLimits;
@@ -895,13 +929,13 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
 
         auto bundleConfig = New<TBundleDynamicConfig>();
         bundleConfig->CpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
-        bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
-        bundleConfig->MediumThroughputLimits = NYTree::CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
+        bundleConfig->MemoryLimits = CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
+        bundleConfig->MediumThroughputLimits = CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
         bundleConfig->FairSharePoolWeights = bundleInfo->TargetConfig->FairSharePoolWeights;
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 
-    if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(freshConfig), ConvertTo<NYTree::IMapNodePtr>(input.BundlesDynamicConfig))) {
+    if (AreNodesEqual(ConvertTo<IMapNodePtr>(freshConfig), ConvertTo<IMapNodePtr>(input.BundlesDynamicConfig))) {
         return;
     }
 
@@ -926,7 +960,7 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
             continue;
         }
 
-        if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
+        if (AreNodesEqual(ConvertTo<INodePtr>(it->second), ConvertTo<INodePtr>(possiblyChangedState))) {
             unchangedBundleStates.push_back(bundleName);
         } else {
             YT_TLOG_DEBUG("Bundle state changed")
@@ -1248,7 +1282,7 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
         const auto& zoneInfo = zoneIt->second;
         if (!zoneInfo->TabletNodeSizes.empty()) {
             auto& front = *zoneInfo->TabletNodeSizes.begin();
-            targetConfig->TabletNodeResourceGuarantee = NYTree::CloneYsonStruct(front.second->ResourceGuarantee);
+            targetConfig->TabletNodeResourceGuarantee = CloneYsonStruct(front.second->ResourceGuarantee);
             targetConfig->TabletNodeResourceGuarantee->Type = front.first;
             targetConfig->CpuLimits = front.second->DefaultConfig->CpuLimits;
             targetConfig->MemoryLimits = front.second->DefaultConfig->MemoryLimits;
@@ -1256,7 +1290,7 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
 
         if (!zoneInfo->RpcProxySizes.empty()) {
             auto& front = *zoneInfo->RpcProxySizes.begin();
-            targetConfig->RpcProxyResourceGuarantee = NYTree::CloneYsonStruct(front.second->ResourceGuarantee);
+            targetConfig->RpcProxyResourceGuarantee = CloneYsonStruct(front.second->ResourceGuarantee);
             targetConfig->RpcProxyResourceGuarantee->Type = front.first;
         }
     }
@@ -1360,7 +1394,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     TIndexedEntries<TBundleControllerState> results = schedulerState.BundleStates;
 
     for (const auto& [bundleName, state] : mutations.ChangedStates) {
-        results[bundleName] = NYTree::CloneYsonStruct(state);
+        results[bundleName] = CloneYsonStruct(state);
     }
 
     return results;

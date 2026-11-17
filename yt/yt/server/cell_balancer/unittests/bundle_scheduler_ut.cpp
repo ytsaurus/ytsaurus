@@ -20,6 +20,9 @@
 #include <util/random/shuffle.h>
 
 namespace NYT::NCellBalancer {
+
+using namespace NYTree;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,6 +338,154 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
     VerifyMultiDCNodeAllocationRequests(mutations, ForEachDataCenter(input, 5));
 
     EXPECT_EQ(5 * GetDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
+}
+
+TEST_P(TBundleSchedulerTest, AllocationQuotaPerDataCenter)
+{
+    int dataCenterCount = GetDataCenterCount();
+    // The remainder does not result in additional instances in any data center.
+    auto input = GenerateInputContext(3 * dataCenterCount - 1, 0, 2 * dataCenterCount - 1);
+    const auto& bundleInfo = input.Bundles["bigd"];
+    const auto& targetConfig = bundleInfo->TargetConfig;
+    targetConfig->TabletNodeResourceGuarantee->Vcpu = 10000;
+    targetConfig->RpcProxyResourceGuarantee->Vcpu = 2000;
+    targetConfig->RpcProxyResourceGuarantee->NetBytes = 1_GB / 16;
+
+    int targetVcpu = 22000;
+    i64 targetMemory = 194_GB;
+    i64 targetNetwork = 5_GB / 16;
+    const std::vector<std::optional<int>> quotaDataCenterCounts = {std::nullopt, 1, dataCenterCount + 1};
+    for (auto quotaDataCenterCount : quotaDataCenterCounts) {
+        input.Zones["default-zone"]->QuotaDataCenterCount = quotaDataCenterCount;
+        int divisor = quotaDataCenterCount.value_or(dataCenterCount);
+
+        for (int resourceIndex = 0; resourceIndex < 3; ++resourceIndex) {
+            SCOPED_TRACE(Format("QuotaDataCenterCount: %v, ResourceIndex: %v", quotaDataCenterCount, resourceIndex));
+
+            auto quota = New<TResourceQuota>();
+            quota->Cpu = targetVcpu * divisor / 1000;
+            quota->Memory = targetMemory * divisor;
+            quota->Network = targetNetwork * divisor;
+            bundleInfo->ResourceQuota = quota;
+
+            TSchedulerMutations mutations;
+            ScheduleBundles(input, &mutations);
+
+            EXPECT_TRUE(mutations.AlertsToFire.empty());
+            EXPECT_EQ(3 * dataCenterCount, std::ssize(mutations.NewAllocations));
+            const auto& state = GetOrCrash(mutations.ChangedStates, "bigd");
+            EXPECT_EQ(2 * dataCenterCount, std::ssize(state->NodeAllocations));
+            EXPECT_EQ(dataCenterCount, std::ssize(state->ProxyAllocations));
+
+            const auto& perDataCenterQuotas = GetOrCrash(input.BundleResourceQuotaPerDataCenter, "bigd");
+            const auto& perDataCenterTargets = GetOrCrash(input.BundleResourceTargetPerDataCenter, "bigd");
+            EXPECT_EQ(dataCenterCount, std::ssize(perDataCenterQuotas));
+            EXPECT_EQ(dataCenterCount, std::ssize(perDataCenterTargets));
+            for (const auto& dataCenter : GetDataCenters(input)) {
+                const auto& perDataCenterQuota = GetOrCrash(perDataCenterQuotas, dataCenter);
+                EXPECT_EQ(targetVcpu, perDataCenterQuota->Vcpu);
+                EXPECT_EQ(targetMemory, perDataCenterQuota->Memory);
+                EXPECT_EQ(targetNetwork, perDataCenterQuota->NetBytes);
+
+                const auto& perDataCenterTarget = GetOrCrash(perDataCenterTargets, dataCenter);
+                EXPECT_EQ(targetVcpu, perDataCenterTarget->Vcpu);
+                EXPECT_EQ(targetMemory, perDataCenterTarget->Memory);
+                EXPECT_EQ(targetNetwork, perDataCenterTarget->NetBytes);
+            }
+
+            auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
+            EXPECT_EQ(targetVcpu * divisor, orchidInfo->ResourceQuota->Vcpu);
+            EXPECT_EQ(targetMemory * divisor, orchidInfo->ResourceQuota->Memory);
+            EXPECT_EQ(targetNetwork * divisor, quota->Network);
+
+            if (resourceIndex == 0) {
+                --quota->Cpu;
+            } else if (resourceIndex == 1) {
+                --quota->Memory;
+            } else {
+                --quota->Network;
+            }
+
+            mutations = {};
+            ScheduleBundles(input, &mutations);
+
+            EXPECT_TRUE(mutations.NewAllocations.empty());
+            EXPECT_EQ(2 * dataCenterCount, std::ssize(mutations.AlertsToFire));
+            for (const auto& alert : mutations.AlertsToFire) {
+                EXPECT_EQ("bundle_resource_quota_exceeded", alert.Id);
+                ASSERT_TRUE(alert.DataCenter);
+                EXPECT_TRUE(input.Zones["default-zone"]->DataCenters.contains(*alert.DataCenter));
+            }
+        }
+    }
+}
+
+TEST_P(TBundleSchedulerTest, AllocationWithZeroResourceQuota)
+{
+    const std::string bundleName = "bigd";
+    auto input = GenerateInputContext(GetDataCenterCount());
+    for (bool hasQuota : {false, true, false}) {
+        SCOPED_TRACE(Format("HasQuota: %v", hasQuota));
+
+        if (hasQuota) {
+            input.Bundles[bundleName]->ResourceQuota = New<TResourceQuota>();
+        } else {
+            input.Bundles[bundleName]->ResourceQuota.Reset();
+        }
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        if (hasQuota) {
+            EXPECT_TRUE(mutations.NewAllocations.empty());
+            EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
+            for (const auto& alert : mutations.AlertsToFire) {
+                EXPECT_EQ("bundle_resource_quota_exceeded", alert.Id);
+                EXPECT_EQ(bundleName, alert.BundleName);
+                ASSERT_TRUE(alert.DataCenter);
+                EXPECT_TRUE(input.Zones["default-zone"]->DataCenters.contains(*alert.DataCenter));
+            }
+        } else {
+            EXPECT_TRUE(mutations.AlertsToFire.empty());
+            VerifyMultiDCNodeAllocationRequests(mutations, ForEachDataCenter(input, 1));
+        }
+    }
+}
+
+TEST_P(TBundleSchedulerTest, AllocationNetworkQuotaPerDataCenter)
+{
+    auto input = GenerateInputContext(GetDataCenterCount());
+    input.Zones["default-zone"]->QuotaDataCenterCount = GetDataCenterCount() + 1;
+    auto quota = New<TResourceQuota>();
+    quota->Cpu = 1000;
+    quota->Memory = 10_TB;
+    input.Bundles["bigd"]->ResourceQuota = quota;
+
+    for (i64 networkQuota : {0, 1}) {
+        quota->Network = networkQuota;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        if (networkQuota == 0) {
+            EXPECT_TRUE(mutations.AlertsToFire.empty());
+            EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.NewAllocations));
+        } else {
+            EXPECT_TRUE(mutations.NewAllocations.empty());
+            EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
+        }
+
+        const auto& perDataCenterQuotas = GetOrCrash(input.BundleResourceQuotaPerDataCenter, "bigd");
+        EXPECT_EQ(GetDataCenterCount(), std::ssize(perDataCenterQuotas));
+        for (const auto& dataCenter : GetDataCenters(input)) {
+            const auto& perDataCenterQuota = GetOrCrash(perDataCenterQuotas, dataCenter);
+            if (networkQuota == 0) {
+                EXPECT_FALSE(perDataCenterQuota->NetBytes);
+            } else {
+                EXPECT_EQ(0, perDataCenterQuota->NetBytes);
+            }
+        }
+    }
 }
 
 TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
@@ -1802,8 +1953,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
         mutations.ChangedRootSystemAccountLimit);
 
     // Check nothing changed is limits are ok
-    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonStruct(mutations.LiftedSystemAccountLimit["default-bundle-account"].Mutation);
-    input.RootSystemAccount->ResourceLimits = NYTree::CloneYsonStruct(mutations.ChangedRootSystemAccountLimit);
+    input.SystemAccounts["default-bundle-account"]->ResourceLimits = CloneYsonStruct(mutations.LiftedSystemAccountLimit["default-bundle-account"].Mutation);
+    input.RootSystemAccount->ResourceLimits = CloneYsonStruct(mutations.ChangedRootSystemAccountLimit);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.LiftedSystemAccountLimit));

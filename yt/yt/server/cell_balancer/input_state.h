@@ -56,6 +56,8 @@ struct TDataCenterDisruptedState
 
 struct TSchedulerInputState
 {
+    using TDataCenterResourceMap = THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr>;
+
     TBundleControllerConfigPtr Config;
     TBundleControllerDynamicConfigPtr DynamicConfig;
 
@@ -93,6 +95,8 @@ struct TSchedulerInputState
     THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAlive;
     THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAllocated;
     THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceTarget;
+    THashMap<std::string, TDataCenterResourceMap> BundleResourceTargetPerDataCenter;
+    THashMap<std::string, TDataCenterResourceMap> BundleResourceQuotaPerDataCenter;
 
     using TInstanceCountBySize = THashMap<std::string, int>;
     THashMap<std::string, TInstanceCountBySize> AllocatedNodesBySize;
