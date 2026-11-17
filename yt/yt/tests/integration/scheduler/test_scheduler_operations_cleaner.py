@@ -564,21 +564,24 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
             "remove_batch_size": 3,
             "remove_batch_timeout": 1000 * 1000,
+            "lock_count_fetch_subbatch_size": 1,
         }
         update_scheduler_config("operations_cleaner", config)
 
         transaction_id = start_transaction(timeout=300 * 1000)
+        unlocked_op = run_test_vanilla("sleep 1")
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
+
         op = run_test_vanilla("sleep 1")
         lock(
             op.get_path(),
             mode="shared",
             transaction_id=transaction_id,
         )
-        run_test_vanilla("sleep 1")
-
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 2 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
         run_test_vanilla("sleep 1")
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1 and get(CLEANER_ORCHID + "/remove_pending_locked") == 1)
+        wait(lambda: exists(op.get_path()) and not exists(unlocked_op.get_path()))
 
         unlock(
             op.get_path(),

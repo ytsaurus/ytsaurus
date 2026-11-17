@@ -51,6 +51,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <library/cpp/yt/memory/range.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <library/cpp/yt/string/string.h>
@@ -1634,6 +1636,63 @@ private:
             .With("failed_operation_ids", failedOperationIdsToInclude));
     }
 
+    template <class TResponse, class TMakeRequest, class TOnResponse>
+    void ExecuteOperationSubbatches(
+        TObjectServiceProxy& proxy,
+        TMutableRange<TRemoveOperationRequest> requests,
+        std::optional<int> subbatchSize,
+        TMakeRequest makeRequest,
+        TOnResponse onResponse,
+        TStringBuf batchErrorMessage,
+        std::vector<TRemoveOperationRequest>* failedRequests)
+    {
+        if (requests.Empty()) {
+            return;
+        }
+
+        int requestCount = std::ssize(requests);
+        int requestsPerSubbatch = subbatchSize.value_or(requestCount);
+        YT_VERIFY(requestsPerSubbatch > 0);
+
+        std::vector<TMutableRange<TRemoveOperationRequest>> subbatches;
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
+
+        int startIndex = 0;
+        while (startIndex < requestCount) {
+            int endIndex = startIndex + std::min(requestsPerSubbatch, requestCount - startIndex);
+            auto subbatch = requests.Slice(startIndex, endIndex);
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& request : subbatch) {
+                batchReq->AddRequest(makeRequest(request.Id));
+            }
+            subbatches.push_back(subbatch);
+            responseFutures.push_back(batchReq->Invoke());
+            startIndex = endIndex;
+        }
+
+        auto batchResponses = WaitFor(AllSet(std::move(responseFutures)))
+            .ValueOrThrow();
+
+        for (int subbatchIndex = 0; subbatchIndex < std::ssize(subbatches); ++subbatchIndex) {
+            auto subbatch = subbatches[subbatchIndex];
+            const auto& batchResponse = batchResponses[subbatchIndex];
+            if (!batchResponse.IsOK()) {
+                YT_TLOG_WARNING(batchErrorMessage)
+                    .With("OperationCount", subbatch.Size())
+                    .With(batchResponse);
+
+                failedRequests->insert(failedRequests->end(), subbatch.Begin(), subbatch.End());
+                continue;
+            }
+
+            auto responses = batchResponse.Value()->GetResponses<TResponse>();
+            YT_VERIFY(std::ssize(responses) == std::ssize(subbatch));
+            for (int index = 0; index < std::ssize(responses); ++index) {
+                onResponse(&subbatch[index], responses[index]);
+            }
+        }
+    }
+
     void DoRemoveOperations(std::vector<TRemoveOperationRequest> requests)
     {
         YT_TLOG_DEBUG("Removing operations from Cypress")
@@ -1655,53 +1714,29 @@ private:
         int lockedOperationCount = 0;
 
         // Fetch lock_count attribute.
-        {
-            auto proxy = CreateObjectServiceReadProxy(
-                Client_,
-                EMasterChannelKind::Follower);
-            auto batchReq = proxy.ExecuteBatch();
+        auto readProxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
+        ExecuteOperationSubbatches<TYPathProxy::TRspGet>(
+            readProxy,
+            TMutableRange(requests),
+            Config_->LockCountFetchSubbatchSize,
+            [] (TOperationId id) {
+                return TYPathProxy::Get(GetOperationPath(id) + "/@lock_count");
+            },
+            [&] (TRemoveOperationRequest* request, const auto& response) {
+                bool isLocked = response.IsOK() &&
+                    ConvertToNode(TYsonString(response.Value()->value()))->AsUint64()->GetValue() > 0;
 
-            for (const auto& removeOperationRequest : requests) {
-                auto req = TYPathProxy::Get(GetOperationPath(removeOperationRequest.Id) + "/@lock_count");
-                batchReq->AddRequest(req, "get_lock_count");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-
-            if (batchRspOrError.IsOK()) {
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                YT_VERIFY(std::ssize(rsps) == std::ssize(requests));
-
-                auto now = TInstant::Now();
-                for (int index = 0; index < std::ssize(rsps); ++index) {
-                    bool isLocked = false;
-                    const auto rsp = rsps[index];
-                    if (rsp.IsOK()) {
-                        auto lockCountNode = ConvertToNode(TYsonString(rsp.Value()->value()));
-                        if (lockCountNode->AsUint64()->GetValue() > 0) {
-                            isLocked = true;
-                        }
-                    }
-
-                    auto& removeOperationRequest = requests[index];
-                    if (isLocked) {
-                        LockedOperationQueue_.emplace_back(std::move(removeOperationRequest), now);
-                        ++lockedOperationCount;
-                    } else if (!removeOperationRequest.DependentNodeIds.empty()) {
-                        requestsWithDependentNodesToRemove.push_back(std::move(removeOperationRequest));
-                    } else {
-                        requestsWithOperationNodeToRemove.push_back(std::move(removeOperationRequest));
-                    }
+                if (isLocked) {
+                    LockedOperationQueue_.emplace_back(std::move(*request), TInstant::Now());
+                    ++lockedOperationCount;
+                } else if (!request->DependentNodeIds.empty()) {
+                    requestsWithDependentNodesToRemove.push_back(std::move(*request));
+                } else {
+                    requestsWithOperationNodeToRemove.push_back(std::move(*request));
                 }
-            } else {
-                YT_TLOG_WARNING("Failed to get lock count for operations from Cypress")
-                    .With("OperationCount", requests.size())
-                    .With(batchRspOrError);
-
-                failedRequests = requests;
-            }
-        }
+            },
+            "Failed to get lock count for operations from Cypress",
+            &failedRequests);
 
         // Remove dependent nodes from operations that have them.
         // If all dependent nodes are removed successfully, the operation node itself will be removed in the next step.
@@ -1793,66 +1828,32 @@ private:
                 .With("OperationCount", requestsWithOperationNodeToRemove.size())
                 .With("SubbatchSize", subbatchSize);
 
-            auto proxy = CreateObjectServiceWriteProxy(Client_);
+            auto writeProxy = CreateObjectServiceWriteProxy(Client_);
+            ExecuteOperationSubbatches<TYPathProxy::TRspRemove>(
+                writeProxy,
+                TMutableRange(requestsWithOperationNodeToRemove),
+                subbatchSize,
+                [] (TOperationId id) {
+                    auto request = TYPathProxy::Remove(GetOperationPath(id));
+                    request->set_recursive(true);
+                    return request;
+                },
+                [&] (TRemoveOperationRequest* request, const auto& response) {
+                    if (response.IsOK()) {
+                        YT_TLOG_DEBUG("Successfully removed finished operation from Cypress")
+                            .With("OperationId", request->Id);
+                        successfulRequests.push_back(std::move(*request));
+                    } else {
+                        YT_TLOG_DEBUG("Failed to remove finished operation from Cypress")
+                            .With("OperationId", request->Id)
+                            .With(response);
 
-            std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
-
-            int subbatchCount = DivCeil(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), subbatchSize);
-
-            std::vector<int> subbatchSizes;
-            for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
-                auto batchReq = proxy.ExecuteBatch();
-
-                int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), startIndex + subbatchSize);
-                for (int index = startIndex; index < endIndex; ++index) {
-                    auto req = TYPathProxy::Remove(GetOperationPath(requestsWithOperationNodeToRemove[index].Id));
-                    req->set_recursive(true);
-                    batchReq->AddRequest(req, "remove_operation");
-                }
-
-                responseFutures.push_back(batchReq->Invoke());
-            }
-
-            auto responseResultsOrError = WaitFor(AllSet(responseFutures));
-            YT_VERIFY(responseResultsOrError.IsOK());
-            const auto& responseResults = responseResultsOrError.Value();
-
-            for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
-                int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), startIndex + subbatchSize);
-                const auto& batchRspOrError = responseResults[subbatchIndex];
-                if (batchRspOrError.IsOK()) {
-                    const auto& batchRsp = batchRspOrError.Value();
-                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                    YT_VERIFY(std::ssize(rsps) == endIndex - startIndex);
-
-                    for (int index = startIndex; index < endIndex; ++index) {
-                        auto removeRequest = requestsWithOperationNodeToRemove[index];
-                        auto rsp = rsps[index - startIndex];
-                        if (rsp.IsOK()) {
-                            YT_TLOG_DEBUG("Successfully removed finished operation from Cypress")
-                                .With("OperationId", removeRequest.Id);
-                            successfulRequests.push_back(removeRequest);
-                        } else {
-                            YT_TLOG_DEBUG("Failed to remove finished operation from Cypress")
-                                .With("OperationId", removeRequest.Id)
-                                .With(rsp);
-
-                            removeRequest.RemovalError = rsp;
-                            failedRequests.push_back(removeRequest);
-                        }
+                        request->RemovalError = response;
+                        failedRequests.push_back(std::move(*request));
                     }
-                } else {
-                    YT_TLOG_WARNING("Failed to remove finished operations from Cypress")
-                        .With("OperationCount", endIndex - startIndex)
-                        .With(batchRspOrError);
-
-                    for (int index = startIndex; index < endIndex; ++index) {
-                        failedRequests.push_back(requestsWithOperationNodeToRemove[index]);
-                    }
-                }
-            }
+                },
+                "Failed to remove finished operations from Cypress",
+                &failedRequests);
         }
 
         YT_VERIFY(std::ssize(requests) == std::ssize(failedRequests) + std::ssize(successfulRequests) + lockedOperationCount);
