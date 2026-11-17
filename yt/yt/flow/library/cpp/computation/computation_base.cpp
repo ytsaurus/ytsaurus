@@ -579,6 +579,33 @@ void TRootOutputCollector::AddFailedMessage(const TInputMessageConstPtr& message
     Result_.FailedMessages.push_back({message, reason});
 }
 
+void TRootOutputCollector::AddTask(TAsyncProcessorDescriptorPtr processor, TYsonMessagePtr task, const TMessageParentsConstPtr& parents)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(task, "Task of async processor %Qv is null", processor->Name);
+    THROW_ERROR_EXCEPTION_UNLESS(
+        parents->ParentTimers.size() == 1 && parents->ParentMessages.empty() && parents->ParentVisits.empty(),
+        "A task of async processor %Qv must have a single parent, a swift timer; "
+        "got %v parent messages, %v parent timers and %v parent visits",
+        processor->Name,
+        parents->ParentMessages.size(),
+        parents->ParentTimers.size(),
+        parents->ParentVisits.size());
+    const auto& rootTimer = parents->ParentTimers[0];
+    THROW_ERROR_EXCEPTION_UNLESS(GetOrCrash(Spec_->TimerStreams, rootTimer->StreamId)->Swift,
+        "Timer %v of stream %Qv is not swift, so it cannot start a task of async processor %Qv",
+        rootTimer->MessageId,
+        rootTimer->StreamId,
+        processor->Name);
+    THROW_ERROR_EXCEPTION_UNLESS(Result_.TaskRootTimerIds.insert(rootTimer->MessageId).second,
+        "Timer %v gets two tasks in one epoch, but a chain of tasks is linear",
+        rootTimer->MessageId);
+    Result_.Tasks.push_back({
+        .Processor = std::move(processor),
+        .Task = std::move(task),
+        .RootTimer = rootTimer,
+    });
+}
+
 TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
 {
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
@@ -639,6 +666,11 @@ void TOutputCollector::AddTimer(TTimer&& timer)
     RootCollector_->AddTimer(std::move(timer), Parents_);
 }
 
+void TOutputCollector::DoAddTask(const TAsyncProcessorDescriptorPtr& processor, TYsonMessagePtr task)
+{
+    RootCollector_->AddTask(processor, std::move(task), Parents_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TUniversalComputationBase::TExtendedParameters::Register(TRegistrar /*registrar*/)
@@ -690,6 +722,10 @@ TUniversalComputationBase::TUniversalComputationBase(
     , TimerStore_(CreateTimerStore())
     , OutputStore_(CreateOutputStore())
     , KeyVisitors_(CreateKeyVisitors())
+    , AsyncProcessorManager_(New<TAsyncProcessorManager>(
+        GetContext()->SerializedInvoker,
+        GetContext()->Profiler.WithPrefix("/async_processors"),
+        Logger))
     , Tracer_(CreateComputationTracer(GetContext(), GetSpec(), GetDynamicSpec()->Tracer))
     , EventTimestampAssigner_(CreateEventTimestampAssigner(GetSpec()->WatermarkStrategy->EventTimestampAssigner))
     , Filter_(CreateMessageFilter(GetDynamicSpec()->SkipIfExpression))
@@ -894,6 +930,7 @@ bool TUniversalComputationBase::UpdateStatus(
         RunIteration_);
 
     auto inputLimits = GetExtraInputLimits();
+    InputBlockedTimeAccountant_.FillShares(&inputLimits);
 
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> outputLimits;
     BlockedTimeAccountant_.FillShares(&outputLimits);
@@ -1281,6 +1318,14 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
             inflights[streamId] = CloneYsonStruct(emptyStream);
         }
     }
+    // A result of an async processor is ready work of the stream of its root timer; the held root timer
+    // is already counted.
+    for (const auto& [streamId, ready] : AsyncProcessorManager_->GetReadyByRootStream()) {
+        auto& metrics = *GetOrCrash(inflights, streamId)->InflightMetrics;
+        metrics.ReadyCount = metrics.ReadyCount.value_or(0) + ready.Count;
+        metrics.ReadyByteSize = metrics.ReadyByteSize.value_or(0) + ready.ByteSize;
+        metrics.ByteSize = metrics.ByteSize.value_or(0) + ready.ByteSize;
+    }
 
     // Materialize source / source-substitute inflights first so we can hand the
     // KeyVisitors their "upstream streams are completed" signal — visit-streams use
@@ -1566,11 +1611,12 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
 void TUniversalComputationBase::ThrottleInputBatch(
     const std::vector<TInputMessageConstPtr>& messages,
     const std::vector<TInputTimerConstPtr>& timers,
-    const std::vector<TInputVisitConstPtr>& visits)
+    const std::vector<TInputVisitConstPtr>& visits,
+    const TBatchStatistics& otherInputs)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
-    if (messages.empty() && timers.empty() && visits.empty()) {
+    if (messages.empty() && timers.empty() && visits.empty() && otherInputs.Count == 0) {
         return;
     }
 
@@ -1585,11 +1631,11 @@ void TUniversalComputationBase::ThrottleInputBatch(
 
     std::vector<TFuture<void>> futures;
     if (rowsThrottlerId) {
-        i64 size = std::ssize(messages) + std::ssize(timers) + std::ssize(visits);
+        i64 size = std::ssize(messages) + std::ssize(timers) + std::ssize(visits) + otherInputs.Count;
         futures.push_back(GetThrottlerOrThrow(*rowsThrottlerId)->Throttle(size));
     }
     if (bytesThrottlerId) {
-        i64 totalBytes = 0;
+        i64 totalBytes = otherInputs.ByteSize;
         for (const auto& input : messages) {
             totalBytes += input->ByteSize;
         }
@@ -1792,18 +1838,51 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
         }
         allowedOutputStreams.insert(streamId);
     }
-    BlockedTimeAccountant_.Account(TInstant::Now(), dynamicSpec->BlockedTimeWindow, blockedLimits);
 
     result.AllowedInputStreams = ComputeAllowedInputStreams(allowedOutputStreams, GetSpec());
+
+    AsyncProcessorManager_->Reconfigure(dynamicSpec->AsyncProcessors);
+    const auto saturatedProcessors = AsyncProcessorManager_->GetSaturatedProcessors();
+    std::vector<std::string> saturatedLimitTypes;
+    saturatedLimitTypes.reserve(saturatedProcessors.size());
+    for (const auto& processor : saturatedProcessors) {
+        saturatedLimitTypes.push_back(MakeAsyncProcessorLimitType(processor));
+    }
+    // A swift stream that an output holds back is not charged to the async processors.
+    std::vector<TBlockedTimeAccountant::TBlockedLimit> blockedInputLimits;
+    for (const auto& [streamId, timerSpec] : GetSpec()->TimerStreams) {
+        if (!timerSpec->Swift || !result.AllowedInputStreams.contains(streamId)) {
+            continue;
+        }
+        result.AllowedRootTimerStreams.insert(streamId);
+        if (saturatedProcessors.empty()) {
+            continue;
+        }
+        // New swift timers wait while the async processors are saturated; the spec validation keeps a swift
+        // stream alone in its timer group.
+        result.AllowedInputStreams.erase(streamId);
+        for (const auto& limitType : saturatedLimitTypes) {
+            blockedInputLimits.push_back({limitType, streamId});
+        }
+        YT_TLOG_INFO("Swift timer stream waits for saturated async processors")
+            .With("StreamId", streamId)
+            .With("Processors", saturatedProcessors);
+    }
+
+    const auto now = TInstant::Now();
+    BlockedTimeAccountant_.Account(now, dynamicSpec->BlockedTimeWindow, blockedLimits);
+    InputBlockedTimeAccountant_.Account(now, dynamicSpec->BlockedTimeWindow, blockedInputLimits);
     return result;
 }
 
 void TUniversalComputationBase::RegisterResults(
     const IInputContextPtr& inputs,
     TLineageDelta lineageDelta,
-    THashMap<TStreamId, TBatchStatistics> skipped)
+    THashMap<TStreamId, TBatchStatistics> skipped,
+    const TBatchStatistics& otherInputs)
 {
     auto statistics = AddLineageInputs(&lineageDelta, GetSpec(), *inputs, std::move(skipped));
+    statistics += otherInputs;
     ProcessingObservationAccumulator_.AddInputs(statistics.Count, statistics.ByteSize);
     if (const auto& tracker = GetContext()->JobLineageTracker) {
         tracker->Add(std::move(lineageDelta));
@@ -2007,6 +2086,10 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
 
     auto clearStateOwnersGuard = Finally([this] {
         ClearStateOwners();
+    });
+    // The tasks end with the job: a replacement job fires their root timers again.
+    auto stopAsyncProcessorsGuard = Finally([this] {
+        AsyncProcessorManager_->Stop();
     });
 
     YT_TLOG_INFO("Starting execution");

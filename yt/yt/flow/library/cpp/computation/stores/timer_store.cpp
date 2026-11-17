@@ -87,49 +87,6 @@ struct TCompareTimerByTriggerTimestampAndMessageId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions)
-{
-    THashMap<std::pair<ETimeType, TStreamId>, TStreamId> firstTimerByCondition;
-    THashMap<TStreamId, std::vector<TStreamId>> neighbours;
-    for (const auto& [timerId, condition] : conditions) {
-        neighbours[timerId];
-        auto addCondition = [&] (const TStreamId& inputId) {
-            auto [it, inserted] = firstTimerByCondition.emplace(std::pair(condition.TimeType, inputId), timerId);
-            if (!inserted && it->second != timerId) {
-                neighbours[timerId].push_back(it->second);
-                neighbours[it->second].push_back(timerId);
-            }
-        };
-        if (condition.TimeType == ETimeType::CurrentTime) {
-            addCondition(TStreamId());
-        } else {
-            for (const auto& [inputId, delay] : condition.StreamsWithDelays) {
-                addCondition(inputId);
-            }
-        }
-    }
-
-    std::vector<std::vector<TStreamId>> groups;
-    THashSet<TStreamId> visited;
-    for (const auto& [timerId, adjacent] : neighbours) {
-        if (!visited.insert(timerId).second) {
-            continue;
-        }
-        auto& group = groups.emplace_back();
-        group.push_back(timerId);
-        for (int index = 0; index < std::ssize(group); ++index) {
-            for (const auto& neighbour : GetOrCrash(neighbours, group[index])) {
-                if (visited.insert(neighbour).second) {
-                    group.push_back(neighbour);
-                }
-            }
-        }
-    }
-    return groups;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTimerStore
     : public ITimerStore
 {
@@ -204,6 +161,7 @@ public:
                 // do not evict an already-extracted timer.
                 UnregisterTimerKeyIndex(timer);
                 InflightStore_->MarkTaken(*timer);
+                TakenTimers_[timer->StreamId].insert(timer);
                 timers.push_back(timer);
             });
 
@@ -338,6 +296,7 @@ public:
             UnregisterTimerKeyIndex(timer);
             SortedTimers_[timer->StreamId].erase(timer);
             TriggeredTimers_[timer->StreamId].erase(timer);
+            TakenTimers_[timer->StreamId].erase(timer);
             YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer was unregistered")
                 .With("MessageId", timer->MessageId)
                 .With("StreamId", timer->StreamId);
@@ -509,6 +468,8 @@ private:
 
     THashMap<TStreamId, TSortedByTriggerTimestampTimerSet> SortedTimers_;
     THashMap<TStreamId, TSortedByTriggerTimestampTimerSet> TriggeredTimers_;
+    // Taken by #GetNextBatch() and not unregistered yet; they still count in the minimum trigger timestamp.
+    THashMap<TStreamId, TSortedByTriggerTimestampTimerSet> TakenTimers_;
 
     // The timers the deduplication unregistered in the epoch, by id: a caller may unregister such a timer through
     // another object. A timer registered again loses the mark, so its own deduplication still unregisters it.
@@ -516,11 +477,10 @@ private:
     std::deque<std::pair<TInputTimerConstPtr, bool>> ModificationQueue_;
 
 private:
-    // Taken timers are not tracked: callers unregister a taken batch before building inflights.
     std::optional<TSystemTimestamp> GetMinTriggerTimestamp(const TStreamId& streamId) const
     {
         std::optional<TSystemTimestamp> result;
-        for (const auto* timerSets : {&SortedTimers_, &TriggeredTimers_}) {
+        for (const auto* timerSets : {&SortedTimers_, &TriggeredTimers_, &TakenTimers_}) {
             auto it = timerSets->find(streamId);
             if (it == timerSets->end() || it->second.empty()) {
                 continue;

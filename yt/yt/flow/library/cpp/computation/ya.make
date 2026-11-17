@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    async_processor_manager.cpp
     key_count_observer.cpp
     read_delay.cpp
     computation_base.cpp

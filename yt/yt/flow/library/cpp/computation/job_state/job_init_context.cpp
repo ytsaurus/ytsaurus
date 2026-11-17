@@ -32,6 +32,12 @@ ICompanionStateAdapterPtr IJobInitContext::CreateJoinedCompanionStateAdapter(TSt
     return adapter;
 }
 
+void IJobInitContext::RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const
+{
+    THROW_ERROR_EXCEPTION("Async processors are not supported by this computation")
+        .With("async_processor", descriptor->Name);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

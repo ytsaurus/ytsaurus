@@ -77,6 +77,21 @@ TEST(TSwiftMapSpecValidationTest, RejectsMissingInputStreams)
     ExpectValidationError(spec, "requires input streams");
 }
 
+TEST(TSwiftMapSpecValidationTest, RejectsSwiftTimerStreams)
+{
+    auto spec = ParseComputationSpec(R"##(
+        {
+            computation_class_name = "NYT::NFlow::TSwiftPassthroughComputation";
+            group_by_schema = [];
+            input_stream_ids = [ in ];
+            timer_streams = {
+                fetch_timer = { swift = %true; deduplicate_equal_timestamps = %false; };
+            };
+        }
+    )##");
+    ExpectValidationError(spec, "swift timer stream");
+}
+
 TEST(TSwiftMapSpecValidationTest, AcceptsWellFormedSpec)
 {
     auto spec = ParseComputationSpec(R"##(

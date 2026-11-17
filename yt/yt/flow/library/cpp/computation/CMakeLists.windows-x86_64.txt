@@ -39,6 +39,7 @@ target_link_libraries(library-cpp-computation PUBLIC
 )
 
 target_sources(library-cpp-computation PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/async_processor_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/key_count_observer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/read_delay.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/computation_base.cpp

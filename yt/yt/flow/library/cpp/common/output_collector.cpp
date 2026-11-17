@@ -70,6 +70,12 @@ void IOutputCollector::AddMessage(TMessage&& message, TAddMessageOptions options
     DoAddMessage(std::move(message), std::move(options));
 }
 
+void IOutputCollector::DoAddTask(const TAsyncProcessorDescriptorPtr& processor, TYsonMessagePtr /*task*/)
+{
+    THROW_ERROR_EXCEPTION("Tasks are not supported by this output collector")
+        .With("async_processor", processor->Name);
+}
+
 void IOutputCollector::AddMessage(TMessage&& message, bool distribute)
 {
     DoAddMessage(std::move(message), TAddMessageOptions{.Distribute = distribute});
@@ -78,7 +84,6 @@ void IOutputCollector::AddMessage(TMessage&& message, bool distribute)
 void IOutputCollector::AddFailedMessage(const TInputMessageConstPtr& message, const TError& reason)
 {
     THROW_ERROR_EXCEPTION_UNLESS(message, "Failed message must not be null");
-
     DoAddFailedMessage(message, reason);
 }
 

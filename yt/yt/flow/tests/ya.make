@@ -1,6 +1,8 @@
 RECURSE(
     add_message_distribute_flag
     arrival_order_table_sink
+    async_processor
+    async_processor/pipeline
     at_most_once_sink
     companion
     computation_cycles_and_buffers

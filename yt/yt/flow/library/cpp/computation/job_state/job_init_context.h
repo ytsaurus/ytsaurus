@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/async_processor.h>
 #include <yt/yt/flow/library/cpp/common/external_state_manager.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
@@ -111,6 +112,19 @@ public:
     //! Joiner counterpart of #CreateCompanionStateAdapter; the returned adapter is read-only.
     ICompanionStateAdapterPtr CreateJoinedCompanionStateAdapter(TStringBuf name) const;
 
+    //! Initializes |handle| as the async processor |name|: |start| runs its tasks, |resultHandler| processes
+    //! their results. The callbacks live until the job stops, so bind methods with #Unretained().
+    //! The limits are in #TDynamicComputationSpec::AsyncProcessors.
+    template <CYsonMessage TTask, CYsonMessage TResult>
+    void InitAsyncProcessor(
+        TAsyncProcessorHandle<TTask, TResult>& handle,
+        TStringBuf name,
+        typename TAsyncProcessorHandle<TTask, TResult>::TStart start,
+        typename TAsyncProcessorHandle<TTask, TResult>::TResultHandler resultHandler) const;
+
+    //! Throws by default: only a computation that processes the results of async processors has them.
+    virtual void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const;
+
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
     virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
 
@@ -130,3 +144,7 @@ DEFINE_REFCOUNTED_TYPE(IJobInitContext);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define JOB_INIT_CONTEXT_INL_H_
+#include "job_init_context-inl.h"
+#undef JOB_INIT_CONTEXT_INL_H_

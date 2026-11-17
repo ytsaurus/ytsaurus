@@ -31,6 +31,47 @@ TTimerTriggerConditions BuildTimerTriggerConditions(
     return conditions;
 }
 
+std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions)
+{
+    THashMap<std::pair<ETimeType, TStreamId>, TStreamId> firstTimerByCondition;
+    THashMap<TStreamId, std::vector<TStreamId>> neighbours;
+    for (const auto& [timerId, condition] : conditions) {
+        neighbours[timerId];
+        auto addCondition = [&] (const TStreamId& inputId) {
+            auto [it, inserted] = firstTimerByCondition.emplace(std::pair(condition.TimeType, inputId), timerId);
+            if (!inserted && it->second != timerId) {
+                neighbours[timerId].push_back(it->second);
+                neighbours[it->second].push_back(timerId);
+            }
+        };
+        if (condition.TimeType == ETimeType::CurrentTime) {
+            addCondition(TStreamId());
+        } else {
+            for (const auto& [inputId, delay] : condition.StreamsWithDelays) {
+                addCondition(inputId);
+            }
+        }
+    }
+
+    std::vector<std::vector<TStreamId>> groups;
+    THashSet<TStreamId> visited;
+    for (const auto& [timerId, adjacent] : neighbours) {
+        if (!visited.insert(timerId).second) {
+            continue;
+        }
+        auto& group = groups.emplace_back();
+        group.push_back(timerId);
+        for (int index = 0; index < std::ssize(group); ++index) {
+            for (const auto& neighbour : GetOrCrash(neighbours, group[index])) {
+                if (visited.insert(neighbour).second) {
+                    group.push_back(neighbour);
+                }
+            }
+        }
+    }
+    return groups;
+}
+
 std::optional<TSystemTimestamp> ResolveTriggerReach(
     const TTimerTriggerCondition& condition,
     TSystemTimestamp triggerTimestamp,

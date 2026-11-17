@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(async_processor)
 add_subdirectory(keep_order_mode)
 add_subdirectory(key_visitor)
 add_subdirectory(process_function_overhead)

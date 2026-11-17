@@ -265,6 +265,10 @@ struct TTimerSpec
     std::optional<THashSet<TStreamId>> Streams;
     std::optional<THashMap<TStreamId, TDuration>> StreamsWithDelays;
     bool DeduplicateEqualTimestamps{};
+    // A swift timer is acknowledged once its tasks of #IOutputCollector::Add() complete. It requires disabled
+    // DeduplicateEqualTimestamps and the in-memory timer store, and its trigger timestamp must not be ahead
+    // of the current one.
+    bool Swift{};
 
     REGISTER_YSON_STRUCT(TTimerSpec);
 
@@ -981,6 +985,26 @@ DEFINE_REFCOUNTED_TYPE(TDynamicRetryableRequestSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Limits of an async processor of a computation, see #IJobInitContext::InitAsyncProcessor().
+struct TDynamicAsyncProcessorSpec
+    : public NYTree::TYsonStruct
+{
+    //! Tasks running at once; reaching it pauses the swift timers.
+    NYTree::TSize MaxRunningTasks;
+    //! Byte size of the results that wait for an epoch; reaching it pauses the swift timers.
+    NYTree::TSize MaxReadyByteSize;
+    //! A task that runs longer fails with a timeout error. A change applies to the tasks that start after it.
+    std::optional<TDuration> Timeout;
+
+    REGISTER_YSON_STRUCT(TDynamicAsyncProcessorSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicAsyncProcessorSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicComputationSpec
     : public TMessageBatcherSettings
 {
@@ -1018,6 +1042,10 @@ struct TDynamicComputationSpec
     THashMap<std::string, TDynamicExternalStateManagerSpecPtr> ExternalStateManagers;
     THashMap<std::string, TDynamicExternalStateJoinerSpecPtr> ExternalStateJoiners;
     THashMap<std::string, TDynamicStateJoinerSpecPtr> StateJoiners;
+
+    //! Limits of the async processors by name; a processor without an entry has the default limits.
+    //! An entry for an unregistered processor fails the job.
+    THashMap<std::string, TDynamicAsyncProcessorSpecPtr> AsyncProcessors;
 
     TDynamicStateManagerSpecPtr StateManager;
     TDynamicInputStoreSpecPtr InputStore;

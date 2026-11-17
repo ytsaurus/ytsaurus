@@ -93,6 +93,8 @@ struct TMessage;
 struct TParsedPipelineParameters;
 
 DECLARE_REFCOUNTED_STRUCT(TInputMessage);
+DECLARE_REFCOUNTED_STRUCT(TAsyncProcessorDescriptor);
+DECLARE_REFCOUNTED_STRUCT(TUntypedCompletedAsyncTask);
 using TInputMessageConstPtr = TIntrusivePtr<const TInputMessage>;
 
 DECLARE_REFCOUNTED_STRUCT(TOutputMessage);
@@ -256,6 +258,7 @@ DECLARE_REFCOUNTED_STRUCT(TExternalStateJoinerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateJoinerContext);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateManagerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateManagerSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicAsyncProcessorSpec);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TStateJoinSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateJoinerSpec);

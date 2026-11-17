@@ -2170,6 +2170,54 @@ TEST_F(TDescribeTest, SourceStreamLimitsReachDescribe)
     EXPECT_TRUE(hasWarningSourceEdge) << diagram;
 }
 
+TEST_F(TDescribeTest, AsyncProcessorBlockedTimeShareReachesDescribe)
+{
+    Prepare();
+
+    // A job reports the saturated async processor that holds back a swift timer stream by the local
+    // id of the stream; the limit type names the processor.
+    TPartitionId blockedPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("Computation_1")) {
+            continue;
+        }
+        auto& jobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId]->CurrentJobStatus;
+        auto& limitStatus = jobStatus->InputLimits[MakeAsyncProcessorLimitType("fetcher")][TStreamId("timer_stream")];
+        limitStatus.BlockedTimeShare = 0.6;
+        blockedPartitionId = partitionId;
+        break;
+    }
+    ASSERT_FALSE(blockedPartitionId == TPartitionId());
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+    FillGraphLimits(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), Pipeline);
+    FillExtendedStreams(FlowView, Pipeline);
+
+    auto timerStreamId = MakeStreamGraphId(MakeGlobalStreamId("Computation_1", "timer_stream", Spec->Computations["Computation_1"]));
+    const auto& computation = Pipeline.Computations.at(TComputationId("Computation_1"));
+    const auto& stats = computation.InputLimitStats.at(timerStreamId).at("async_processor/fetcher");
+    EXPECT_EQ(stats.MaxBlockedTimeShare, 0.6);
+    EXPECT_EQ(stats.MaxBlockedPartitionId, blockedPartitionId);
+
+    ASSERT_EQ(computation.ExtendedTimerStreams.size(), 1u);
+    EXPECT_EQ(computation.ExtendedTimerStreams[0].StreamGraphEntityId, timerStreamId);
+    EXPECT_TRUE(computation.ExtendedTimerStreams[0].BackpressureDetected);
+
+    const TMessage* message = nullptr;
+    for (const auto& candidate : computation.Messages) {
+        if (candidate.Text == "Stream buffers and backpressure") {
+            message = &candidate;
+        }
+    }
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->Level, ELogLevel::Warning);
+    // The entry is not a buffer: it has a blocked share and no limit.
+    EXPECT_THAT(*message->MarkdownText, HasSubstr(Format("async_processor/fetcher{blocked_share=**0.60**, backpressured_partition=%v}", blockedPartitionId)));
+}
+
 TEST_F(TDescribeTest, FillStreamStatisticsMessages)
 {
     Prepare();

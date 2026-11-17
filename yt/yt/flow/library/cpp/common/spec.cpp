@@ -5,6 +5,7 @@
 #include "schema.h"
 #include "state.h"
 #include "state_cache.h"
+#include "trigger_condition.h"
 #include "yt_path_option.h"
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
@@ -23,6 +24,7 @@
 
 #include <library/cpp/iterator/concatenate.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace NYT::NFlow {
@@ -293,6 +295,8 @@ void TTimerSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("deduplicate_equal_timestamps", &TThis::DeduplicateEqualTimestamps)
         .Default(true);
+    registrar.Parameter("swift", &TThis::Swift)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1003,6 +1007,21 @@ void TDynamicKeyCountPartitioningSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicAsyncProcessorSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_running_tasks", &TThis::MaxRunningTasks)
+        .Default(NYTree::TSize(100))
+        .GreaterThan(NYTree::TSize(0));
+    registrar.Parameter("max_ready_byte_size", &TThis::MaxReadyByteSize)
+        .Default(NYTree::TSize(64_MB))
+        .GreaterThan(NYTree::TSize(0));
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default()
+        .GreaterThan(TDuration::Zero());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicComputationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("source_read_delay_estimator", &TThis::SourceReadDelayEstimator)
@@ -1044,6 +1063,9 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
     registrar.Parameter("external_state_joiners", &TThis::ExternalStateJoiners)
         .Default();
     registrar.Parameter("state_joiners", &TThis::StateJoiners)
+        .Default();
+
+    registrar.Parameter("async_processors", &TThis::AsyncProcessors)
         .Default();
 
     registrar.Parameter("state_manager", &TThis::StateManager)
@@ -1928,6 +1950,33 @@ void ValidateControllerResourceFileProviders(const TPipelineSpecPtr& spec)
     }
 }
 
+//! Throws if a swift timer stream shares its timer group: pausing the stream would hold back the whole group.
+void ValidateSwiftTimerStreamGroups(const TComputationId& computationId, const TComputationSpec& computationSpec)
+{
+    const auto& timerStreams = computationSpec.TimerStreams;
+    bool hasSwiftStreams = std::ranges::any_of(timerStreams, [] (const auto& pair) {
+        return pair.second->Swift;
+    });
+    if (!hasSwiftStreams) {
+        return;
+    }
+    for (auto& group : BuildTimerStreamGroups(BuildTimerTriggerConditions(timerStreams, computationSpec.StreamsDependency))) {
+        if (std::ssize(group) == 1) {
+            continue;
+        }
+        std::ranges::sort(group);
+        for (const auto& streamId : group) {
+            THROW_ERROR_EXCEPTION_IF(GetOrCrash(timerStreams, streamId)->Swift,
+                "Swift timer stream %Qv of computation %Qv shares its timer group %v with other timer streams; "
+                "a swift stream must not share its time type and watermark inputs, and all current time streams "
+                "form one group",
+                streamId,
+                computationId,
+                group);
+        }
+    }
+}
+
 } // namespace
 
 std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
@@ -2067,6 +2116,20 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std:
                 }
             }
             TRegistry::Get()->ValidateComputationSpec(computationSpec);
+            for (const auto& [streamId, timerSpec] : computationSpec->TimerStreams) {
+                if (!timerSpec->Swift) {
+                    continue;
+                }
+                THROW_ERROR_EXCEPTION_IF(timerSpec->DeduplicateEqualTimestamps,
+                    "Swift timer stream %Qv of computation %Qv requires disabled \"deduplicate_equal_timestamps\"",
+                    streamId,
+                    computationId);
+                THROW_ERROR_EXCEPTION_IF(computationSpec->TimerStoreBackend == ETimerStoreBackend::Paged,
+                    "Swift timer stream %Qv of computation %Qv is not supported by \"timer_store_backend\" = \"paged\"",
+                    streamId,
+                    computationId);
+            }
+            ValidateSwiftTimerStreamGroups(computationId, *computationSpec);
             if (computationSpec->ProcessingFunction == ProcessFunctionGraphFunctionName) {
                 ValidateProcessFunctionGraphComputation(spec, computationId, computationSpec);
             }

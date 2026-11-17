@@ -12,6 +12,14 @@ MIN_VISIBLE_BLOCKED_TIME_SHARE = 0.01
 # Mirrors ControllerLimitType in common/flow_view.h.
 CONTROLLER_LIMIT_TYPE = "controller"
 
+# Mirrors AsyncProcessorLimitTypePrefix in common/flow_view.h.
+ASYNC_PROCESSOR_LIMIT_TYPE_PREFIX = "async_processor/"
+
+
+def is_blocked_time_only_limit_type(limit_type):
+    """Mirrors IsBlockedTimeOnlyLimitType in common/flow_view.h: such a limit is not a buffer."""
+    return limit_type == CONTROLLER_LIMIT_TYPE or limit_type.startswith(ASYNC_PROCESSOR_LIMIT_TYPE_PREFIX)
+
 
 def is_computation_warning(computation):
     """Return True if the computation has any diagnostic warning."""
@@ -75,8 +83,9 @@ def format_limit_entry(limit_type, status):
         # Percentages of a zero limit are meaningless: fall back to absolute values.
         return f"{value / status.limit * 100:.0f}%" if status.limit > 0 else format_value(value)
 
-    # The controller limit type is not a buffer: it carries a blocked share and nothing else.
-    if limit_type != CONTROLLER_LIMIT_TYPE:
+    # Such a limit type is not a buffer: it carries a blocked share and nothing else.
+    blocked_time_only = is_blocked_time_only_limit_type(limit_type)
+    if not blocked_time_only:
         parts.append(f"limit={format_value(status.limit)}")
         parts.append(f"used={of_limit(status.used)}")
         if status.pending is not None:
@@ -86,7 +95,7 @@ def format_limit_entry(limit_type, status):
     if fill_score >= 1 or blocked_score >= 1:
         # Like the describe format: the blocked-time attribution names the most blocked partition.
         blocked_partition_id = status.blocked_partition_id or status.partition_id
-        if limit_type == CONTROLLER_LIMIT_TYPE or blocked_score >= fill_score:
+        if blocked_time_only or blocked_score >= fill_score:
             parts.append(f"backpressured_partition={blocked_partition_id}")
         else:
             parts.append(f"backpressured_partition={status.partition_id}")
