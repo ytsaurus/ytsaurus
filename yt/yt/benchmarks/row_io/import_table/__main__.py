@@ -39,7 +39,7 @@ def column_name(name):
     return name.decode("utf-8") if isinstance(name, bytes) else str(name)
 
 
-def benchmark_schema(source, columns, yson):
+def benchmark_schema(source, columns, yson, drop_sort_order=False):
     """Keep logical types, but not cluster-only computed/hunk/storage settings."""
     selected = None if columns is None else {column_name(name) for name in columns}
     result = []
@@ -60,7 +60,7 @@ def benchmark_schema(source, columns, yson):
         if "sort_order" in column:
             target["sort_order"] = column["sort_order"]
         result.append(target)
-    keep_keys = selected is None or key_names <= selected
+    keep_keys = not drop_sort_order and (selected is None or key_names <= selected)
     if not keep_keys:
         for column in result:
             column.pop("sort_order", None)
@@ -106,7 +106,7 @@ def write_rows(client, path, schema, output, yt, yson, clamp_integers=False):
     return row_count
 
 
-def export_dataset(client, path, destination, yt, yson, clamp_integers=False):
+def export_dataset(client, path, destination, yt, yson, clamp_integers=False, drop_sort_order=False):
     destination = Path(destination).expanduser().absolute()
     if destination.exists():
         raise FileExistsError(f"Refusing to overwrite {destination}")
@@ -117,7 +117,8 @@ def export_dataset(client, path, destination, yt, yson, clamp_integers=False):
         with client.Transaction(attributes={"title": "row_io benchmark export"}):
             client.lock(str(path), mode="snapshot")
             source_schema = client.get(str(path) + "/@schema")
-            schema = benchmark_schema(source_schema, path.attributes.get("columns"), yson)
+            schema = benchmark_schema(
+                source_schema, path.attributes.get("columns"), yson, drop_sort_order=drop_sort_order)
             with (temporary / "rows.yson").open("wb") as output:
                 row_count = write_rows(
                     client, path, schema, output, yt, yson, clamp_integers=clamp_integers)
@@ -139,6 +140,9 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "--clamp-integers", action="store_true",
         help="Clamp int64 to [-2^53, 2^53] and uint64 to [0, 2^53], recursively")
+    parser.add_argument(
+        "--drop-sort-order", action="store_true",
+        help="Remove column sort orders and clear unique_keys in the exported schema")
     args = parser.parse_args(argv)
     if not args.proxy:
         parser.error("Specify --proxy or YT_PROXY")
@@ -150,7 +154,8 @@ def main(argv=None):
     client = yt.YtClient(proxy=args.proxy)
     path = yt.TablePath(args.table, client=client)
     row_count = export_dataset(
-        client, path, args.output, yt, yson, clamp_integers=args.clamp_integers)
+        client, path, args.output, yt, yson,
+        clamp_integers=args.clamp_integers, drop_sort_order=args.drop_sort_order)
     print(f"Exported {row_count} rows to {args.output}")
 
 

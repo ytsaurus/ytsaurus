@@ -12,12 +12,15 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(unittests)
+
 add_library(benchmarks-row_io-dataset)
 
 
 target_link_libraries(benchmarks-row_io-dataset PUBLIC
   contrib-libs-cxxsupp
   yutil
+  libs-apache-arrow_next
   yt-yt-ytlib
   yt-library-formats
   library-query-engine
@@ -26,6 +29,7 @@ target_link_libraries(benchmarks-row_io-dataset PUBLIC
 target_sources(benchmarks-row_io-dataset PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/row_io/dataset/dataset.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/row_io/dataset/input_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/row_io/dataset/multi_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/row_io/dataset/schema_ordering_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/row_io/dataset/writer.cpp
 )

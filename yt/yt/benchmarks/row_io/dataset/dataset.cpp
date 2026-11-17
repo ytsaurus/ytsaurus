@@ -276,23 +276,25 @@ ISchemalessChunkReaderPtr CreateReader(
 void ValidateOutput(
     const TTableSchemaPtr& schema,
     const TMemoryWriterPtr& expected,
-    const TMemoryWriterPtr& actual,
+    const std::vector<TMemoryWriterPtr>& actualChunks,
     i64 expectedRowCount)
 {
-    for (const auto& block : actual->GetBlocks()) {
-        block.CheckChecksum()
-            .ThrowOnError();
-    }
-    auto reader = CreateReader(schema, actual);
-    TRowCursor actualRows(reader);
     TRowCursor expectedRows(CreateReader(schema, expected));
     i64 rowCount = 0;
-    while (auto row = actualRows.Next()) {
-        YT_VERIFY(rowCount < expectedRowCount);
-        auto expectedRow = expectedRows.Next();
-        YT_VERIFY(expectedRow);
-        ValidateRow(row, expectedRow, reader->GetNameTable(), schema, rowCount);
-        ++rowCount;
+    for (const auto& actual : actualChunks) {
+        for (const auto& block : actual->GetBlocks()) {
+            block.CheckChecksum()
+                .ThrowOnError();
+        }
+        auto reader = CreateReader(schema, actual);
+        TRowCursor actualRows(reader);
+        while (auto row = actualRows.Next()) {
+            YT_VERIFY(rowCount < expectedRowCount);
+            auto expectedRow = expectedRows.Next();
+            YT_VERIFY(expectedRow);
+            ValidateRow(row, expectedRow, reader->GetNameTable(), schema, rowCount);
+            ++rowCount;
+        }
     }
     YT_VERIFY(rowCount == expectedRowCount);
     YT_VERIFY(!expectedRows.Next());
