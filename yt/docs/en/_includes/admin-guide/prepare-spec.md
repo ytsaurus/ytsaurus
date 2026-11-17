@@ -192,6 +192,14 @@ A proper logging configuration is essential for diagnosing problems and facilita
 
 There are recommendations for disk layout and location configuration on a separate [page](../../admin-guide/locations.md).
 
+{% note tip %}
+
+Allocate a dedicated SSD medium for the system dynamic tables of the operation archive, Query Tracker, and Queue Agent. If SSDs are unavailable, allocate separate HDDs for these tables and expect possible performance degradation in these components.
+
+In either case, keep system tables separate from user data by using dedicated disks and a separate medium. User workloads can overload disks and slow down system components.
+
+{% endnote %}
+
 ## Pod anti-affinity {#anti-affinity}
 
 For production deployments, it's crucial to configure [pod anti-affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) rule to ensure high availability by distributing component instances across different Kubernetes nodes. This prevents multiple instances of the same component from running on the same node, which could lead to service disruption if that node fails.
