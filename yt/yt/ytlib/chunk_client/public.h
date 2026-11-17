@@ -236,6 +236,11 @@ DECLARE_REFCOUNTED_CLASS(TTrafficMeter)
 DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
+
+// NB: Called under the multi-writer spin lock:
+// must not perform I/O, wait, or call back into the multi-writer.
+using TUnderlyingChunkWriterFactory = TCallback<IChunkWriterPtr()>;
+
 DECLARE_REFCOUNTED_STRUCT(IMetaAggregatingWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IBlockCache)

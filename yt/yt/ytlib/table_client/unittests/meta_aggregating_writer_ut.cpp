@@ -21,6 +21,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
@@ -208,6 +209,59 @@ protected:
         EXPECT_EQ(writtenStatistics, expectedStatistics);
     }
 };
+
+TEST(TMetaAggregatingMemoryWriterTest, AccumulatedCompressedSizeRounding)
+{
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("value", EValueType::Int64),
+    });
+    auto inputSink = New<TMemoryWriter>();
+    auto inputOptions = New<TChunkWriterOptions>();
+    inputOptions->CompressionCodec = NCompression::ECodec::None;
+    auto inputWriter = CreateSchemalessChunkWriter(
+        New<TChunkWriterConfig>(),
+        inputOptions,
+        schema,
+        /*nameTable*/ nullptr,
+        inputSink,
+        /*writeBlocksOptions*/ {},
+        /*dataSink*/ std::nullopt);
+    TUnversionedRowsBuilder builder;
+    builder.AddRow(42);
+    EXPECT_TRUE(inputWriter->Write(builder.Build()));
+    WaitFor(inputWriter->Close())
+        .ThrowOnError();
+
+    auto inputMeta = New<TDeferredChunkMeta>();
+    inputMeta->CopyFrom(*inputSink->GetChunkMeta());
+    auto misc = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputMeta->extensions());
+    auto diskSpace = inputSink->GetChunkInfo().disk_space();
+    ASSERT_GT(diskSpace, 1);
+    misc.set_compressed_data_size(diskSpace - 1);
+    SetProtoExtension(inputMeta->mutable_extensions(), misc);
+
+    auto outputSink = New<TMemoryWriter>();
+    auto options = New<TMetaAggregatingWriterOptions>();
+    options->TableSchema = schema;
+    options->CompressionCodec = inputOptions->CompressionCodec;
+    auto writer = CreateMetaAggregatingWriter(outputSink, options);
+    WaitFor(writer->Open())
+        .ThrowOnError();
+    for (int chunkIndex = 0; chunkIndex < 2; ++chunkIndex) {
+        writer->AbsorbMeta(inputMeta, inputSink->GetChunkId());
+        EXPECT_TRUE(writer->WriteBlocks(
+            /*options*/ {},
+            /*workloadDescriptor*/ {},
+            inputSink->GetBlocks()));
+    }
+    WaitFor(writer->Close(/*options*/ {}))
+        .ThrowOnError();
+
+    const auto& statistics = outputSink->GetDataStatistics();
+    EXPECT_EQ(2, statistics.row_count());
+    EXPECT_EQ(2 * (diskSpace - 1), statistics.compressed_data_size());
+    EXPECT_EQ(2 * diskSpace, statistics.regular_disk_space());
+}
 
 TEST_P(TMetaAggregatingWriterTest, ReadAll)
 {

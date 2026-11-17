@@ -1,10 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_writer.h"
+
 #include "block.h"
+#include "chunk_writer.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -16,6 +19,8 @@ class TMemoryWriter
     : public IChunkWriter
 {
 public:
+    explicit TMemoryWriter(TChunkId chunkId = NullChunkId);
+
     // IChunkWriter implementation.
     TFuture<void> Open() override;
     bool WriteBlock(
@@ -35,13 +40,9 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TDeferredChunkMetaPtr& chunkMeta) override;
 
-    //! Unimplemented.
     const NProto::TChunkInfo& GetChunkInfo() const override;
-    //! Unimplemented.
     const NProto::TDataStatistics& GetDataStatistics() const override;
-    //! Unimplemented.
     TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override;
-    //! Returns #NullChunkId.
     TChunkId GetChunkId() const override;
     NErasure::ECodec GetErasureCodecId() const override;
 
@@ -55,6 +56,8 @@ public:
     TRefCountedChunkMetaPtr GetChunkMeta();
 
 private:
+    const TChunkId ChunkId_;
+
     bool Open_ = false;
     bool Closed_ = false;
 
@@ -62,6 +65,9 @@ private:
     TRefCountedChunkMetaPtr ChunkMeta_;
 
     NProto::TChunkInfo ChunkInfo_;
+    NProto::TDataStatistics Statistics_;
+
+    void FinalizeStatistics(const TDeferredChunkMetaPtr& chunkMeta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWriter)

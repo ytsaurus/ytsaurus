@@ -17,6 +17,7 @@ SRCS(
     downed_cell_tracker_ut.cpp
     encoded_row_stream_ut.cpp
     encoding_writer_ut.cpp
+    multi_chunk_writer_ut.cpp
     erasure_helpers_ut.cpp
     erasure_parts_reader_ut.cpp
     file_partition_utils_ut.cpp
@@ -25,6 +26,7 @@ SRCS(
     job_resources_ut.cpp
     journal_chunk_writer_ut.cpp
     memory_usage_tracker_ut.cpp
+    memory_writer_ut.cpp
     multi_reader_manager/multi_reader_manager_ut.cpp
     native_authenticator_ut.cpp
     native_replication_card_cache_ut.cpp
