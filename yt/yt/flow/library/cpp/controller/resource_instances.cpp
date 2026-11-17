@@ -127,6 +127,41 @@ void RestartFailedResourceInstances(const TFlowViewPtr& flowView, const THashSet
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<std::string> CollectWorkersWaitingForStartupResources(const TFlowViewPtr& flowView)
+{
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+    const auto& spec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
+    THashSet<std::string> result;
+    for (const auto& [instanceId, instance] : layout->ResourceInstances) {
+        if (!GetOrCrash(spec->Resources, instance->ResourceId)->AlwaysOn) {
+            continue;
+        }
+
+        auto worker = GetOrDefault(flowView->State->Workers, instance->WorkerAddress);
+        if (!worker || worker->IncarnationId != instance->WorkerIncarnationId) {
+            continue;
+        }
+
+        auto status = GetOrDefault(flowView->Feedback->WorkerStatuses, instance->WorkerAddress);
+        auto instanceStatus = status && status->WorkerIncarnationId == worker->IncarnationId
+            ? GetOrDefault(status->ResourceInstanceStatuses, instanceId)
+            : nullptr;
+        if (!instanceStatus || instanceStatus->LoadState != EResourceLoadState::Loaded) {
+            result.insert(instance->WorkerAddress);
+        }
+    }
+
+    // Startup admission does not withdraw workers already running jobs.
+    for (const auto& [_, job] : layout->Jobs) {
+        auto worker = GetOrDefault(flowView->State->Workers, job->WorkerAddress);
+        if (worker && worker->IncarnationId == job->WorkerIncarnationId) {
+            result.erase(job->WorkerAddress);
+        }
+    }
+
+    return result;
+}
+
 void EnsureResourceInstances(const TFlowViewPtr& flowView)
 {
     auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();

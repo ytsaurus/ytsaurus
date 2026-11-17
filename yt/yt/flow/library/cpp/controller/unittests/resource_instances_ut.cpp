@@ -1,6 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 #include <yt/yt/flow/library/cpp/controller/resource_instances.h>
@@ -71,6 +74,62 @@ TEST_F(TResourceInstancesTest, StableAssignmentAndNewWorkerIncarnation)
     EnsureResourceInstances(View_);
     EXPECT_EQ(View_->State->ExecutionSpec->Layout->ResourceInstances.size(), 1u);
     EXPECT_NE(Instance()->ResourceInstanceId, first->ResourceInstanceId);
+}
+
+TEST_F(TResourceInstancesTest, AlwaysOnReadinessRequiresCurrentInstanceStatus)
+{
+    auto spec = View_->State->ExecutionSpec->PipelineSpec->GetValue();
+    GetOrCrash(spec->Resources, TResourceId("resource"))->AlwaysOn = true;
+    EnsureResourceInstances(View_);
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).contains(Worker_->RpcAddress));
+
+    auto status = Status();
+    auto instanceStatus = New<TWorkerResourceStatus>();
+    instanceStatus->ResourceId = TResourceId("resource");
+    status->ResourceInstanceStatuses.emplace(Instance()->ResourceInstanceId, instanceStatus);
+    for (auto state : {EResourceLoadState::NotLoaded, EResourceLoadState::Loading, EResourceLoadState::Failed}) {
+        instanceStatus->LoadState = state;
+        EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).contains(Worker_->RpcAddress));
+    }
+
+    instanceStatus->LoadState = EResourceLoadState::Loaded;
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).empty());
+
+    status->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).contains(Worker_->RpcAddress));
+    status->WorkerIncarnationId = Worker_->IncarnationId;
+
+    auto oldInstanceId = Instance()->ResourceInstanceId;
+    View_->State->ExecutionSpec->Layout->ResourceInstances.erase(oldInstanceId);
+    EnsureResourceInstances(View_);
+    EXPECT_NE(Instance()->ResourceInstanceId, oldInstanceId);
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).contains(Worker_->RpcAddress));
+
+    GetOrCrash(spec->Resources, TResourceId("resource"))->AlwaysOn = false;
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).empty());
+}
+
+TEST_F(TResourceInstancesTest, StartupReadinessKeepsCurrentWorkerJobs)
+{
+    auto spec = View_->State->ExecutionSpec->PipelineSpec->GetValue();
+    GetOrCrash(spec->Resources, TResourceId("resource"))->AlwaysOn = true;
+    EnsureResourceInstances(View_);
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = TComputationId("computation");
+    const auto& layout = View_->State->ExecutionSpec->Layout;
+    layout->Partitions.emplace(partition->PartitionId, partition);
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->PartitionId = partition->PartitionId;
+    job->WorkerAddress = Worker_->RpcAddress;
+    job->WorkerIncarnationId = Worker_->IncarnationId;
+    layout->CreateJob(job);
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).empty());
+
+    Worker_->IncarnationId = TIncarnationId(TGuid::Create());
+    EnsureResourceInstances(View_);
+    EXPECT_TRUE(CollectWorkersWaitingForStartupResources(View_).contains(Worker_->RpcAddress));
 }
 
 TEST_F(TResourceInstancesTest, PreloadPlacementAndInactivePipeline)

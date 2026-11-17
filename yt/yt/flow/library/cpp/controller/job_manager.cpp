@@ -607,8 +607,11 @@ public:
     void CheckCompletedPartitions(const TFlowViewPtr& flowView) override
     {
         EnsureResourceInstances(flowView);
+        std::optional<THashSet<std::string>> waitingWorkers;
+
         YT_TLOG_INFO("Looking for new completed partitions")
             .With("PartitionCount", flowView->Feedback->PartitionJobStatuses.size());
+
         ui64 foundOk = 0;
         ui64 foundGracefulRebalance = 0;
         const auto& layout = flowView->State->ExecutionSpec->Layout;
@@ -642,6 +645,18 @@ public:
 
                 (*eph)->PendingGracefulRebalanceWorkerAddress = std::nullopt;
                 (*eph)->DynamicPartitionSpec->FinishAfterCurrentEpoch = false;
+
+                const auto& workerGroup = GetOrCrash(Spec_->Computations, partition->ComputationId)->WorkerGroup;
+                auto balancerSpec = GetOrDefault(DynamicSpec_->JobManager->WorkerGroupOverride, workerGroup, DynamicSpec_->JobManager);
+                if (balancerSpec->BalancerType == EJobBalancerType::CpuAware) {
+                    if (!waitingWorkers) {
+                        waitingWorkers = CollectWorkersWaitingForStartupResources(flowView);
+                    }
+
+                    if (waitingWorkers->contains(targetWorkerIt->first)) {
+                        continue;
+                    }
+                }
 
                 YT_TLOG_INFO("Graceful rebalance: recreating job on target worker")
                     .With("JobId", currentJobStatus->JobId)
@@ -971,18 +986,28 @@ public:
         // is taken from the group's override when present, so it can be tuned per worker group (set
         // it to 0 for a group that is allowed to run with no workers).
         bool hasInsufficientWorkers = false;
+        std::optional<THashSet<std::string>> waitingWorkers;
         for (const auto& [workerGroup, balanceSynchronizer] : BalanceSynchronizers_) {
             const TDynamicJobManagerGroupSpec* groupJobManagerSpec = DynamicSpec_->JobManager.Get();
             if (auto* overrideSpec = DynamicSpec_->JobManager->WorkerGroupOverride.FindPtr(workerGroup)) {
                 groupJobManagerSpec = overrideSpec->Get();
             }
+
+            bool cpuAwareBalancer = groupJobManagerSpec->BalancerType == EJobBalancerType::CpuAware;
+            if (cpuAwareBalancer && !waitingWorkers) {
+                waitingWorkers = CollectWorkersWaitingForStartupResources(flowView);
+            }
+
             const auto minimumWorkerCount = groupJobManagerSpec->MinimumWorkerCount;
             ui64 workersInGroup = 0;
-            for (const auto& [_, worker] : flowView->State->Workers) {
-                if (NBalancer::WorkerBelongsToGroup(worker, workerGroup)) {
+            for (const auto& [address, worker] : flowView->State->Workers) {
+                if (NBalancer::WorkerBelongsToGroup(worker, workerGroup) &&
+                    (!cpuAwareBalancer || !waitingWorkers->contains(address)))
+                {
                     ++workersInGroup;
                 }
             }
+
             const auto& errorState = GetOrCrash(InsufficientWorkersErrorStates_, workerGroup);
             if (workersInGroup < minimumWorkerCount) {
                 hasInsufficientWorkers = true;
