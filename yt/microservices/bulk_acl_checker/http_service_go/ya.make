@@ -19,6 +19,8 @@ ELSE()
         run_internal.go
         args_internal.go
     )
+
+    GO_TEST_SRCS(run_internal_test.go)
 ENDIF()
 
 GO_TEST_SRCS(
@@ -31,6 +33,10 @@ PEERDIR(
 )
 
 END()
+
+RECURSE(
+    internal/access
+)
 
 RECURSE_FOR_TESTS(
     gotest
