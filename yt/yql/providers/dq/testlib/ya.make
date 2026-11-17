@@ -6,7 +6,7 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/library/actors/core
-    contrib/ydb/library/yql/providers/dq/actors/events
+    yt/yql/providers/dq/actors/events
     yt/yql/providers/dq/global_worker_manager
 )
 

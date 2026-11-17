@@ -7,6 +7,7 @@ SRCS(
 PEERDIR(
     contrib/libs/protobuf
     contrib/ydb/library/yql/dq/actors/spilling
+    contrib/ydb/library/yql/providers/dq/actors
     contrib/ydb/library/yql/providers/dq/runtime
     contrib/ydb/library/yql/providers/dq/task_runner
     library/cpp/protobuf/util
@@ -25,6 +26,8 @@ PEERDIR(
     yt/yql/providers/dq/runtime
     yt/yql/providers/dq/service
     yt/yql/providers/dq/stats_collector
+    yt/yql/providers/dq/task_runner
+    yt/yql/providers/dq/task_runner_actor
     yt/yql/tools/dq/job_config
     yt/yt/core
 )

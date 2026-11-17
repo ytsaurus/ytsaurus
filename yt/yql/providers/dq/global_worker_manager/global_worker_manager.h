@@ -1,13 +1,18 @@
 #pragma once
 
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/worker_info.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events.h>
 #include "coordination_helper.h"
+
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <yql/essentials/providers/common/metrics/metrics_registry.h>
+
+#include <yt/yql/providers/dq/worker_manager/interface/worker_info.h>
 
 #include <contrib/ydb/library/actors/core/events.h>
+
+#include <contrib/ydb/library/yql/providers/dq/actors/events.h>
+
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
+
+#include <yql/essentials/providers/common/metrics/metrics_registry.h>
 
 namespace NYql {
 

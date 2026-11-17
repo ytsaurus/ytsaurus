@@ -20,6 +20,8 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/runtime
     contrib/ydb/library/yql/providers/dq/task_runner
+    contrib/ydb/library/yql/providers/dq/worker_manager
+    contrib/ydb/library/yql/providers/dq/worker_manager/interface
     library/cpp/svnversion
     library/cpp/threading/future
     yql/essentials/providers/common/config
@@ -27,11 +29,15 @@ PEERDIR(
     yql/essentials/providers/common/metrics
     yql/essentials/utils/failure_injector
     yt/yql/providers/dq/actors
+    yt/yql/providers/dq/actors/events
     yt/yql/providers/dq/actors/yt
     yt/yql/providers/dq/common
+    yt/yql/providers/dq/common/attrs
     yt/yql/providers/dq/config
     yt/yql/providers/dq/scheduler
     yt/yql/providers/dq/service
+    yt/yql/providers/dq/task_runner
+    yt/yql/providers/dq/worker_manager/interface
 )
 
 IF (NOT OS_WINDOWS)

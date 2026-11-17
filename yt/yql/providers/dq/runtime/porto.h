@@ -2,7 +2,7 @@
 
 #include <yt/yql/providers/dq/config/config.pb.h>
 
-#include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_pipe.h>
+#include <yt/yql/providers/dq/task_runner/tasks_runner_pipe.h>
 
 namespace NYql::NDq {
 

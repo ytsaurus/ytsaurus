@@ -10,64 +10,66 @@ SRCS(
 
 PEERDIR(
     contrib/libs/protobuf
-    library/cpp/resource
-    library/cpp/yson
-    library/cpp/yson/node
-    library/cpp/malloc/system
-    yt/cpp/mapreduce/client
-    yt/cpp/mapreduce/common
-    yt/yt/client
-    yt/yt/library/program
-    yql/essentials/ast
-    yql/essentials/sql/pg
-    yql/essentials/parser/pg_wrapper
-    yql/essentials/parser/pg_wrapper/interface
-    yql/essentials/core/facade
-    yql/essentials/core/file_storage
-    yql/essentials/core/file_storage/proto
-    yql/essentials/core/file_storage/http_download
-    yql/essentials/core/progress_merger
-    yql/essentials/core/services/mounts
-    yql/essentials/core/user_data
-    yql/essentials/core/url_lister
-    yql/essentials/minikql
-    yql/essentials/minikql/invoke_builtins/llvm16
-    yql/essentials/minikql/comp_nodes/llvm16
-    yql/essentials/protos
-    yql/essentials/public/langver
-    yql/essentials/public/udf/service/exception_policy
-    yql/essentials/utils/backtrace
-    yql/essentials/utils/log
-    yql/essentials/utils/log/proto
-    yql/essentials/sql/v1/translation
-    yql/essentials/sql/v1/lexer/antlr4
-    yql/essentials/sql/v1/lexer/antlr4_ansi
-    yql/essentials/sql/v1/proto_parser/antlr4
-    yql/essentials/sql/v1/proto_parser/antlr4_ansi
-    yql/essentials/providers/common/proto
-    yql/essentials/providers/common/codec
-    yql/essentials/providers/common/udf_resolve
-    yql/essentials/core
-    yql/essentials/core/url_preprocessing
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/opt
-    yt/yql/providers/dq/actors/yt
-    yt/yql/providers/dq/clique
-    yt/yql/providers/dq/common
-    yt/yql/providers/dq/global_worker_manager
-    yt/yql/providers/dq/metrics
     contrib/ydb/library/yql/providers/dq/helper
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
+    library/cpp/malloc/system
+    library/cpp/resource
+    library/cpp/yson
+    library/cpp/yson/node
+    yql/essentials/ast
+    yql/essentials/core
+    yql/essentials/core/facade
+    yql/essentials/core/file_storage
+    yql/essentials/core/file_storage/http_download
+    yql/essentials/core/file_storage/proto
+    yql/essentials/core/progress_merger
+    yql/essentials/core/services/mounts
+    yql/essentials/core/url_lister
+    yql/essentials/core/url_preprocessing
+    yql/essentials/core/user_data
+    yql/essentials/minikql
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/minikql/invoke_builtins/llvm16
+    yql/essentials/parser/pg_wrapper
+    yql/essentials/parser/pg_wrapper/interface
+    yql/essentials/protos
+    yql/essentials/providers/common/codec
+    yql/essentials/providers/common/proto
+    yql/essentials/providers/common/udf_resolve
+    yql/essentials/public/langver
+    yql/essentials/public/udf/service/exception_policy
+    yql/essentials/sql/pg
+    yql/essentials/sql/v1/lexer/antlr4
+    yql/essentials/sql/v1/lexer/antlr4_ansi
+    yql/essentials/sql/v1/proto_parser/antlr4
+    yql/essentials/sql/v1/proto_parser/antlr4_ansi
+    yql/essentials/sql/v1/translation
+    yql/essentials/utils/backtrace
+    yql/essentials/utils/log
+    yql/essentials/utils/log/proto
+    yt/cpp/mapreduce/client
+    yt/cpp/mapreduce/common
     yt/yql/library/token_resolver
+    yt/yql/providers/dq/actors
+    yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/clique
+    yt/yql/providers/dq/common
     yt/yql/providers/dq/control
     yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/global_worker_manager
+    yt/yql/providers/dq/metrics
     yt/yql/providers/dq/service
     yt/yql/providers/dq/stats_collector
-    yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/codec
     yt/yql/providers/yt/codec/codegen
+    yt/yql/providers/yt/comp_nodes/dq/llvm16
+    yt/yql/providers/yt/comp_nodes/llvm16
+    yt/yql/providers/yt/dq_task_preprocessor
+    yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/lib/access_provider/full
     yt/yql/providers/yt/lib/log
     yt/yql/providers/yt/lib/res_pull
@@ -78,12 +80,10 @@ PEERDIR(
     yt/yql/providers/yt/lib/yt_download
     yt/yql/providers/yt/lib/yt_url_lister
     yt/yql/providers/yt/provider
-    yt/yql/providers/yt/codec/codegen
-    yt/yql/providers/yt/comp_nodes/dq/llvm16
-    yt/yql/providers/yt/comp_nodes/llvm16
     yt/yql/providers/ytflow/gateway
     yt/yql/providers/ytflow/provider
-    yt/yql/providers/yt/dq_task_preprocessor
+    yt/yt/client
+    yt/yt/library/program
 
     yt/yql/plugin
     yt/yql/plugin/lib

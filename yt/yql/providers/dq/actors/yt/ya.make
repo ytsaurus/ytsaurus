@@ -2,7 +2,7 @@ YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/actors/core
-    contrib/ydb/library/yql/providers/dq/actors/events
+    contrib/ydb/library/yql/providers/dq/actors
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
@@ -11,7 +11,10 @@ PEERDIR(
     yql/essentials/core/issue
     yql/essentials/providers/common/metrics
     yt/cpp/mapreduce/interface
+    yt/yql/providers/dq/actors/events
+    yt/yql/providers/dq/common/attrs
     yt/yql/providers/dq/config
+    yt/yql/providers/dq/task_runner
     yt/yql/providers/yt/lib/log
 )
 

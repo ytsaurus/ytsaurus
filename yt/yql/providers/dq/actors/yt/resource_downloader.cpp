@@ -1,24 +1,29 @@
 
-#include "yt_wrapper.h"
 #include "local_job_proxy.h"
+#include "resource_manager.h"
+#include "yt_wrapper.h"
 
-#include <yql/essentials/utils/yql_panic.h>
-#include <yql/essentials/utils/log/log.h>
+#include <yt/yql/providers/dq/actors/events/events.h>
 
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
-#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
+
+#include <yt/cpp/mapreduce/interface/fluent.h>
 
 #include <contrib/ydb/library/actors/core/events.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
+
+#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
-#include <util/system/fs.h>
-#include <util/folder/tempdir.h>
-#include <util/system/env.h>
+#include <yql/essentials/utils/yql_panic.h>
 
-#include <yt/cpp/mapreduce/interface/fluent.h>
+#include <yql/essentials/utils/log/log.h>
+
+#include <util/folder/tempdir.h>
+
+#include <util/system/env.h>
+#include <util/system/fs.h>
 
 namespace NYql {
 

@@ -11,13 +11,10 @@ PEERDIR(
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/opt
     contrib/ydb/library/yql/dq/transform
-    contrib/ydb/library/yql/providers/dq/helper
-    contrib/ydb/library/yql/providers/dq/interface
     contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/helper
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
-    yt/yql/providers/yt/actors
-    yt/yql/providers/yt/dq_task_preprocessor
     contrib/ydb/library/yql/utils/bindings
     yql/essentials/core/cbo
     yql/essentials/core/dq_integration
@@ -32,8 +29,11 @@ PEERDIR(
     yql/essentials/tools/yql_facade_run
     yql/essentials/utils/log
     yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/interface
     yt/yql/providers/dq/local_gateway
+    yt/yql/providers/yt/actors
     yt/yql/providers/yt/comp_nodes/dq
+    yt/yql/providers/yt/dq_task_preprocessor
     yt/yql/providers/yt/gateway/file
     yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/mkql_dq

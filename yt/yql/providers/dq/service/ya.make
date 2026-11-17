@@ -17,7 +17,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/common
     contrib/ydb/library/yql/providers/dq/counters
-    contrib/ydb/library/yql/providers/dq/interface
     contrib/ydb/library/yql/providers/dq/worker_manager
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
     contrib/ydb/public/api/protos
@@ -26,7 +25,9 @@ PEERDIR(
     library/cpp/threading/future
     yql/essentials/providers/common/metrics
     yql/essentials/sql
+    yt/yql/providers/dq/actors/execution
     yt/yql/providers/dq/config
+    yt/yql/providers/dq/interface
 )
 
 END()

@@ -10,6 +10,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/transform
     contrib/ydb/library/yql/providers/dq/actors
+    contrib/ydb/library/yql/providers/dq/worker_manager
     yql/essentials/core/dq_integration/transform
     yql/essentials/minikql/comp_nodes
     yql/essentials/minikql/comp_nodes/llvm16
@@ -18,8 +19,12 @@ PEERDIR(
     yql/essentials/public/udf/service/stub
     yql/essentials/sql/pg_dummy
     yql/essentials/utils/log
+    yt/yql/providers/dq/actors
+    yt/yql/providers/dq/actors/events
     yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/common/attrs
     yt/yql/providers/dq/runtime
+    yt/yql/providers/dq/task_runner_actor
     yt/yql/providers/dq/testlib
 )
 

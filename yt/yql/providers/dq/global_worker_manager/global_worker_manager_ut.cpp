@@ -1,35 +1,62 @@
 #include "global_worker_manager.h"
-#include <yt/yql/providers/dq/testlib/test_coordination_helper.h>
-#include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
-#include <contrib/ydb/library/actors/core/hfunc.h>
-#include <contrib/ydb/library/actors/interconnect/interconnect.h>
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
 
-#include <yql/essentials/utils/log/proto/logger_config.pb.h>
-#include <yql/essentials/utils/log/log.h>
-
-#include <library/cpp/testing/unittest/registar.h>
-#include <contrib/ydb/library/actors/testlib/test_runtime.h>
-#include <library/cpp/yson/node/node_io.h>
-#include <yt/cpp/mapreduce/interface/fluent.h>
-#include <yql/essentials/providers/common/metrics/metrics_registry.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
-#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
 #include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
-#include <contrib/ydb/library/yql/providers/dq/actors/resource_allocator.h>
-#include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
-#include <yql/essentials/core/dq_integration/transform/yql_dq_task_transform.h>
+
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
+#include <yt/yql/providers/dq/task_runner_actor/task_runner_actor.h>
+
+#include <yt/yql/providers/dq/testlib/test_coordination_helper.h>
+
+#include <yt/cpp/mapreduce/interface/fluent.h>
+
+#include <contrib/ydb/library/actors/core/hfunc.h>
+
+#include <contrib/ydb/library/actors/interconnect/interconnect.h>
+
+#include <contrib/ydb/library/actors/testlib/test_runtime.h>
+
 #include <contrib/ydb/library/yql/dq/comp_nodes/yql_common_dq_factory.h>
-#include <yql/essentials/providers/common/comp_nodes/yql_factory.h>
-#include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
+
 #include <contrib/ydb/library/yql/dq/transform/yql_common_dq_transform.h>
+
+#include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/resource_allocator.h>
+
+#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
+
 #include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_local.h>
 
-#include <util/generic/map.h>
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
+
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
+
+#include <library/cpp/testing/unittest/registar.h>
+
+#include <library/cpp/yson/node/node_io.h>
+
+#include <yql/essentials/core/dq_integration/transform/yql_dq_task_transform.h>
+
+#include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
+
+#include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+
+#include <yql/essentials/providers/common/comp_nodes/yql_factory.h>
+
+#include <yql/essentials/providers/common/metrics/metrics_registry.h>
+
+#include <yql/essentials/utils/log/log.h>
+
+#include <yql/essentials/utils/log/proto/logger_config.pb.h>
+
 #include <util/folder/tempdir.h>
+
+#include <util/generic/map.h>
+
 #include <util/stream/file.h>
 
 using namespace NYql;

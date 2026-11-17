@@ -1,10 +1,10 @@
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
 #include <contrib/ydb/library/actors/testlib/test_runtime.h>
-
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

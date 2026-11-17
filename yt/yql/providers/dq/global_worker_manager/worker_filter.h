@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/worker_info.h>
+#include <yt/yql/providers/dq/worker_manager/interface/worker_info.h>
 
 namespace NYql {
 

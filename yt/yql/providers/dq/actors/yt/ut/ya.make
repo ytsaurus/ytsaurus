@@ -6,13 +6,14 @@ SIZE(MEDIUM)
 
 PEERDIR(
     contrib/ydb/library/actors/testlib
-    contrib/ydb/library/yql/providers/dq/actors/events
     contrib/ydb/library/yql/providers/dq/common
     library/cpp/testing/gmock_in_unittest
     yql/essentials/public/udf/service/stub
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
     yt/cpp/mapreduce/interface
+    yt/yql/providers/dq/actors/events
+    yt/yql/providers/dq/common/attrs
     yt/yql/providers/dq/global_worker_manager
     yt/yql/providers/dq/runtime
     yt/yql/providers/dq/testlib

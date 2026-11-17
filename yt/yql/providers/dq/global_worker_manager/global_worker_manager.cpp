@@ -1,36 +1,52 @@
 #include "global_worker_manager.h"
+
 #include "literal_requests_hard_reserve.h"
 #include "workers_storage.h"
 
-#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
-#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+#include <yt/yql/providers/dq/actors/events/events.h>
+
+#include <yt/yql/providers/dq/common/attrs/attrs.h>
+
 #include <yt/yql/providers/dq/scheduler/dq_scheduler.h>
 
-#include <contrib/ydb/library/yql/providers/dq/worker_manager/worker_manager_common.h>
+#include <yt/yql/providers/dq/worker_manager/interface/allocate_workers_response.h>
+
+#include <contrib/ydb/library/actors/core/hfunc.h>
+
+#include <contrib/ydb/library/actors/interconnect/interconnect.h>
+
 #include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
 #include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
+
 #include <contrib/ydb/library/yql/providers/dq/api/grpc/api.grpc.pb.h>
+
 #include <contrib/ydb/library/yql/providers/dq/counters/counters.h>
+
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/worker_manager_common.h>
+
+#include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
+
+#include <library/cpp/protobuf/util/pb_io.h>
+
+#include <library/cpp/svnversion/svnversion.h>
+
+#include <library/cpp/yson/node/node_io.h>
+
+#include <yql/essentials/utils/yql_panic.h>
 
 #include <yql/essentials/utils/failure_injector/failure_injector.h>
 
-#include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/log/log.h>
 
-#include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
-#include <library/cpp/protobuf/util/pb_io.h>
-#include <contrib/ydb/library/actors/core/hfunc.h>
-#include <contrib/ydb/library/actors/interconnect/interconnect.h>
-#include <library/cpp/yson/node/node_io.h>
-#include <library/cpp/svnversion/svnversion.h>
-
 #include <util/generic/algorithm.h>
-#include <util/generic/vector.h>
 #include <util/generic/guid.h>
+#include <util/generic/scope.h>
+#include <util/generic/vector.h>
+
+#include <util/random/shuffle.h>
+
 #include <util/system/fs.h>
 #include <util/system/getpid.h>
-#include <util/generic/scope.h>
-#include <util/random/shuffle.h>
 
 #include <algorithm>
 
@@ -1314,7 +1330,7 @@ private:
             .StartTime = TInstant::Now(),
         };
 
-        auto response = MakeHolder<TEvAllocateWorkersResponse>(resourceId, allocated);
+        auto response = MakeAllocateWorkersResponse(resourceId, allocated);
         waitInfo.Stat.FlushCounters(response->Record);
         Send(
             resourceAllocator,

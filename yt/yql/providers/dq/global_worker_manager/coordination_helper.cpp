@@ -1,29 +1,35 @@
 #include "coordination_helper.h"
+
 #include "global_worker_manager.h"
 #include "service_node_pinger.h"
 
+#include <yt/yql/providers/dq/actors/dummy_lock.h>
+
+#include <yt/yql/providers/dq/actors/yt/lock.h>
 #include <yt/yql/providers/dq/actors/yt/nodeid_assigner.h>
 #include <yt/yql/providers/dq/actors/yt/nodeid_cleaner.h>
 #include <yt/yql/providers/dq/actors/yt/worker_registrator.h>
-#include <yt/yql/providers/dq/actors/yt/lock.h>
 #include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
-#include <yt/yql/providers/dq/actors/dummy_lock.h>
-#include <yt/yql/providers/dq/service/interconnect_helpers.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/file_cache.h>
-#include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
 
-#include <yql/essentials/utils/log/log.h>
+#include <yt/yql/providers/dq/service/interconnect_helpers.h>
+
+#include <yt/yql/providers/dq/task_runner/file_cache.h>
+
+#include <yt/cpp/mapreduce/interface/fluent.h>
 
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
+#include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
+
 #include <library/cpp/svnversion/svnversion.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
-#include <yt/cpp/mapreduce/interface/fluent.h>
+#include <yql/essentials/utils/log/log.h>
 
-#include <util/system/getpid.h>
 #include <util/system/env.h>
+#include <util/system/getpid.h>
 
 namespace NYql {
 
