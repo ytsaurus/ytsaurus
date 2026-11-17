@@ -4079,7 +4079,10 @@ class TestChaos(ChaosTestBase):
                 data_replicas.append(replica)
                 data_replica_ids.append(replica_id)
 
-        sync_create_cells(1)
+        map_in_parallel(
+            lambda driver: sync_create_cells(1, driver=driver),
+            self._get_drivers(),
+        )
         create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True})
         if reshard:
             reshard_table("//tmp/rt", [[], [3], [6]])
@@ -4091,7 +4094,7 @@ class TestChaos(ChaosTestBase):
             sync_enable_table_replica(replica_id)
             rt_replica_ids.append(replica_id)
 
-        self._create_replica_tables(replicas, replica_ids, mount_tables=False)
+        self._create_replica_tables(replicas, replica_ids, create_tablet_cells=False, mount_tables=False)
         for replica in replicas:
             driver = get_driver(cluster=replica["cluster_name"])
             path = replica["replica_path"]
@@ -4110,12 +4113,15 @@ class TestChaos(ChaosTestBase):
                     wait(lambda: lookup_rows(path, keys, driver=driver) == values)
 
         def _switch(new_replica_ids):
-            for replica, new_id in zip(data_replicas, new_replica_ids):
+            def _switch_replica(replica_and_id):
+                replica, new_id = replica_and_id
                 driver = get_driver(cluster=replica["cluster_name"])
                 path = replica["replica_path"]
                 sync_unmount_table(path, driver=driver)
                 alter_table(path, upstream_replica_id=new_id, driver=driver)
                 sync_mount_table(path, driver=driver)
+
+            map_in_parallel(_switch_replica, zip(data_replicas, new_replica_ids))
 
         values = None
         keys = [{"key": i} for i in range(10)]
