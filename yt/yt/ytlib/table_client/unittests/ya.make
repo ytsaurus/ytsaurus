@@ -22,6 +22,7 @@ SRCS(
     rows_digest_ut.cpp
     schemaless_blocks_ut.cpp
     schemaless_chunks_ut.cpp
+    schemaless_multi_chunk_writer_ut.cpp
     schemaless_column_ut.cpp
     string_column_ut.cpp
     table_schema_ut.cpp

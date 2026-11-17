@@ -54,7 +54,8 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TChunkListId parentChunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
     : Logger(ChunkClientLogger())
     , SchemaId_(schemaId)
     , Client_(client)
@@ -67,6 +68,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , TrafficMeter_(trafficMeter)
+    , UnderlyingChunkWriterFactory_(std::move(underlyingChunkWriterFactory))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Options_);
@@ -198,18 +200,23 @@ void TNontemplateMultiChunkWriterBase::InitSession()
 {
     auto guard = Guard(SpinLock_);
 
-    CurrentUnderlyingWriter_ = CreateConfirmingWriter(
-        Config_,
-        Options_,
-        CellTag_,
-        TransactionId_,
-        SchemaId_,
-        ParentChunkListId_,
-        Client_,
-        LocalHostName_,
-        BlockCache_,
-        TrafficMeter_,
-        Throttler_);
+    if (UnderlyingChunkWriterFactory_) {
+        CurrentUnderlyingWriter_ = UnderlyingChunkWriterFactory_();
+        YT_VERIFY(CurrentUnderlyingWriter_);
+    } else {
+        CurrentUnderlyingWriter_ = CreateConfirmingWriter(
+            Config_,
+            Options_,
+            CellTag_,
+            TransactionId_,
+            SchemaId_,
+            ParentChunkListId_,
+            Client_,
+            LocalHostName_,
+            BlockCache_,
+            TrafficMeter_,
+            Throttler_);
+    }
 
     CurrentTemplateWriter_ = CreateTemplateWriter(CurrentUnderlyingWriter_);
 

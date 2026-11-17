@@ -85,7 +85,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache(),
-    TCallback<void(TKey, TKey)> boundaryKeysProcessor = {});
+    TCallback<void(TKey, TKey)> boundaryKeysProcessor = {},
+    NChunkClient::TUnderlyingChunkWriterFactory underlyingChunkWriterFactory = {});
 
 ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,

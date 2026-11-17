@@ -1045,7 +1045,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        TCallback<void(TKey, TKey)> boundaryKeysProcessor = {})
+        TCallback<void(TKey, TKey)> boundaryKeysProcessor = {},
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory = {})
         : TNontemplateMultiChunkWriterBase(
             config,
             options,
@@ -1057,7 +1058,8 @@ public:
             parentChunkListId,
             std::move(trafficMeter),
             std::move(throttler),
-            std::move(blockCache))
+            std::move(blockCache),
+            std::move(underlyingChunkWriterFactory))
         , Config_(std::move(config))
         , Options_(std::move(options))
         , NameTable_(std::move(nameTable))
@@ -1730,7 +1732,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        TCallback<void(TKey, TKey)> boundaryKeysProcessor)
+        TCallback<void(TKey, TKey)> boundaryKeysProcessor,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
         : TSchemalessMultiChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -1746,7 +1749,8 @@ public:
             std::move(trafficMeter),
             std::move(throttler),
             std::move(blockCache),
-            std::move(boundaryKeysProcessor))
+            std::move(boundaryKeysProcessor),
+            std::move(underlyingChunkWriterFactory))
         , CreateChunkWriter_(std::move(createChunkWriter))
     { }
 
@@ -1810,7 +1814,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        TCallback<void(TKey, TKey)> boundaryKeysProcessor)
+        TCallback<void(TKey, TKey)> boundaryKeysProcessor,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
         : TSchemalessMultiChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -1826,7 +1831,8 @@ public:
             std::move(trafficMeter),
             std::move(throttler),
             std::move(blockCache),
-            std::move(boundaryKeysProcessor))
+            std::move(boundaryKeysProcessor),
+            std::move(underlyingChunkWriterFactory))
         , RowBuffer_(New<TRowBuffer>(
             TTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
@@ -1912,7 +1918,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        TCallback<void(TKey, TKey)> boundaryKeysProcessor)
+        TCallback<void(TKey, TKey)> boundaryKeysProcessor,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
         : TVersionedSchemalessMultiChunkWriterBase<TUnversionedUpdateMultiChunkWriterTag>(
             std::move(config),
             std::move(options),
@@ -1930,7 +1937,8 @@ public:
             std::move(trafficMeter),
             std::move(throttler),
             std::move(blockCache),
-            std::move(boundaryKeysProcessor))
+            std::move(boundaryKeysProcessor),
+            std::move(underlyingChunkWriterFactory))
     { }
 
 private:
@@ -2121,7 +2129,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        TCallback<void(TKey, TKey)> boundaryKeysProcessor)
+        TCallback<void(TKey, TKey)> boundaryKeysProcessor,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
         : TVersionedSchemalessMultiChunkWriterBase<TLatestTimestampMultiChunkWriterTag>(
             std::move(config),
             std::move(options),
@@ -2139,7 +2148,8 @@ public:
             std::move(trafficMeter),
             std::move(throttler),
             std::move(blockCache),
-            std::move(boundaryKeysProcessor))
+            std::move(boundaryKeysProcessor),
+            std::move(underlyingChunkWriterFactory))
     { }
 
 private:
@@ -2208,7 +2218,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache,
-    TCallback<void(TKey, TKey)> boundaryKeysProcessor)
+    TCallback<void(TKey, TKey)> boundaryKeysProcessor,
+    TUnderlyingChunkWriterFactory underlyingChunkWriterFactory)
 {
     auto createSuitableSchemalessMultiChunkWriter = [&] <class TWriter> (auto createChunkWriter) {
         return New<TWriter>(
@@ -2227,7 +2238,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             std::move(trafficMeter),
             std::move(throttler),
             std::move(blockCache),
-            std::move(boundaryKeysProcessor));
+            std::move(boundaryKeysProcessor),
+            std::move(underlyingChunkWriterFactory));
     };
 
     switch (options->VersionedWriteOptions.WriteMode) {

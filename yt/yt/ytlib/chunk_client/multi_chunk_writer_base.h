@@ -33,7 +33,8 @@ public:
         TChunkListId parentChunkListId,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache);
+        IBlockCachePtr blockCache,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory = {});
 
     void InitializeRefCounted();
 
@@ -73,6 +74,7 @@ private:
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
+    const TUnderlyingChunkWriterFactory UnderlyingChunkWriterFactory_;
 
     bool Closing_ = false;
 
@@ -116,7 +118,8 @@ public:
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        TUnderlyingChunkWriterFactory underlyingChunkWriterFactory = {})
         : TNontemplateMultiChunkWriterBase(
             config,
             options,
@@ -128,7 +131,8 @@ public:
             parentChunkListId,
             trafficMeter,
             throttler,
-            blockCache)
+            blockCache,
+            std::move(underlyingChunkWriterFactory))
         , CreateChunkWriter_(createChunkWriter)
     { }
 
