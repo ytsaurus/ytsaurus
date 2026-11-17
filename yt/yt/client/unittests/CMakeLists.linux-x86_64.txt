@@ -73,6 +73,7 @@ target_link_options(unittester-client PRIVATE
 )
 
 target_sources(unittester-client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/chaos_lease_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/check_schema_compatibility_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/check_type_compatibility_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/chunk_replica_ut.cpp

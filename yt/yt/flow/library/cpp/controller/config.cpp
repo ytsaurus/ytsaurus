@@ -29,7 +29,15 @@ void TLeaseManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("lease_ping_period", &TThis::LeasePingPeriod)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("max_concurrent_requests", &TThis::MaxConcurrentRequests)
-        .Default(500);
+        .Default(500)
+        .GreaterThan(0)
+        .LessThanOrEqual(std::numeric_limits<int>::max());
+    registrar.Parameter("termination_backoff", &TThis::TerminationBackoff)
+        .Default(TExponentialBackoffOptions{
+            .InvocationCount = 5,
+            .MinBackoff = TDuration::MilliSeconds(500),
+            .MaxBackoff = TDuration::Seconds(5),
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

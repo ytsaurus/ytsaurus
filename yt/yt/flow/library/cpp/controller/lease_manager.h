@@ -21,7 +21,8 @@ struct ILeaseManager
 
     //! Revokes every lease that no job of the layout holds. Must run in the same iteration that
     //! dropped those jobs and before the layout is persisted: a partition whose job is gone from
-    //! the layout while its lease is still live can end up running two jobs at once.
+    //! the layout while its lease is still live can end up running two jobs at once. Retries
+    //! within the call; throws if some of those leases still cannot be revoked.
     virtual void TerminateStrayLeases(const TFlowViewPtr& flowView) = 0;
 };
 
@@ -29,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(ILeaseManager);
 
 //! |backend| selects the lease flavour: rows of the leases table for Dyntable, chaos leases for
 //! Chaos (|chaosConfig| names their bundle) and master lease transactions otherwise.
-//! |invoker| carries the chaos lease pings and must die with the leadership.
+//! |invoker| carries the lease requests and pings and must die with the leadership.
 ILeaseManagerPtr CreateLeaseManager(
     IYTConnectorPtr connector,
     TLeaseManagerConfigPtr config,

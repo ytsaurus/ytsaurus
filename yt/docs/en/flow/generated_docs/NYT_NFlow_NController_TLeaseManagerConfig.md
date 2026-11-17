@@ -14,5 +14,18 @@ Period at which the leader prolongs the leases. Every backend prolongs from the 
 || `max_concurrent_requests` | **Type**: `long`
 **Default value**: `500`
 Maximum number of concurrent requests the manager keeps in flight when it attaches to leases or terminates them. Do not increase to avoid overloading the master. Prolongation is not capped by it: the chaos pings are dispatched in one fire-and-forget round, and the Cypress ones belong to the lease transactions themselves. ||
+|| `termination_backoff` | **Type**: `NYT::TExponentialBackoffOptions`
+**Default value**:
+
+```yson
+{
+    "backoff_jitter" = 0.1;
+    "backoff_multiplier" = 1.5;
+    "invocation_count" = 5;
+    "max_backoff" = 5000;
+    "min_backoff" = 500;
+}
+```
+Retries of the termination of the leases whose jobs the controller has removed, within one scheduling iteration. The iteration is not persisted until every such lease is terminated, so this bounds the number of attempts made while the chaos cell or master is unavailable; each attempt also waits for its requests up to the client RPC timeout. Used by the Cypress and chaos election backends only. ||
 |#
 

@@ -13,6 +13,7 @@ SRCS(
     flow_executor_ut.cpp
     input_messages_watermark_ut.cpp
     job_manager_ut.cpp
+    lease_manager_ut.cpp
     lineage_aggregator_ut.cpp
     partitioning_ut.cpp
     resource_balancer_ut.cpp

@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -54,6 +56,8 @@ struct TLeaseManagerConfig
     //! terminates them. Prolongation is not capped by it: the chaos pings are dispatched in one
     //! fire-and-forget round, and the Cypress ones belong to the lease transactions themselves.
     i64 MaxConcurrentRequests{};
+    //! Retries of a stray lease termination within one scheduling iteration.
+    TExponentialBackoffOptions TerminationBackoff;
 
     REGISTER_YSON_STRUCT(TLeaseManagerConfig);
 
