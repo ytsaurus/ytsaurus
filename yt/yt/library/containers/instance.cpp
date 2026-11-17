@@ -944,7 +944,7 @@ private:
     mutable THashMap<std::string, i64> ContextSwitchMap_;
 
     TPortoInstance(std::string name, IPortoExecutorPtr executor)
-        : TPortoInstance(std::move(name), std::string(DefaultPortoNetworkInterface), executor)
+        : TPortoInstance(std::move(name), std::string(DefaultPortoNetworkInterface), std::move(executor))
     { }
 
     TPortoInstance(std::string name, std::string networkInterface, IPortoExecutorPtr executor)
