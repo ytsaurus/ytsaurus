@@ -298,7 +298,8 @@ public:
 
         GpuManager_->Start();
         SlotManager_->Start();
-        JobController_->Start();
+        WaitFor(JobController_->Start())
+            .ThrowOnError();
 
         JobProxySolomonExporter_->Register("/solomon/job_proxy", GetHttpServer());
         JobProxySolomonExporter_->Start();

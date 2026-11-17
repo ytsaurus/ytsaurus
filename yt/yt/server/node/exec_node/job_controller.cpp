@@ -180,26 +180,17 @@ public:
         clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TJobController::OnMasterDisconnected, MakeWeak(this)));
     }
 
-    void Start() override
+    TFuture<void> Start() override
     {
         auto dynamicConfig = GetDynamicConfig();
 
         ProfilingExecutor_->Start();
         ResourceAdjustmentExecutor_->Start();
         RecentlyRemovedJobCleaner_->Start();
-        JobProxyBuildInfoUpdater_->Start();
-
-        // Get ready event before actual start.
-        auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
-
-        // Actual start and fetch initial job proxy build info immediately. No need to call ScheduleOutOfBand.
+        auto buildInfoReadyFuture = JobProxyBuildInfoUpdater_->StartAndGetFirstExecutedEvent();
         JobProxyBuildInfoUpdater_->SetPeriod(dynamicConfig->JobProxyBuildInfoUpdatePeriod);
 
-        // Wait synchronously for one update in order to get some reasonable value in CachedJobProxyBuildInfo_.
-        // Note that if somebody manages to request orchid before this field is set, this will result to nullptr
-        // dereference.
-        WaitFor(buildInfoReadyEvent)
-            .ThrowOnError();
+        return buildInfoReadyFuture;
     }
 
     TJobPtr FindJob(TJobId jobId) const override
