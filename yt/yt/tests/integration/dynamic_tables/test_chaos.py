@@ -4153,7 +4153,13 @@ class TestChaos(ChaosTestBase):
     @pytest.mark.parametrize("first", ["chaos", "replicated"])
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_ordered_switch_to_replicated_table(self, mode, first, tablet_count):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+        cell_id, _, _, _ = map_in_parallel(lambda create_cells: create_cells(), [
+            self._sync_create_chaos_bundle_and_cell,
+            lambda: sync_create_cells(1),
+            lambda: sync_create_cells(1, driver=remote_driver0),
+            lambda: sync_create_cells(1, driver=remote_driver1),
+        ])
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
         schema = yson.YsonList([
             {"name": "key", "type": "int64"},
@@ -4168,9 +4174,6 @@ class TestChaos(ChaosTestBase):
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
 
-        map_in_parallel(
-            lambda driver: sync_create_cells(1, driver=driver),
-            self._get_drivers())
         create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True, "preserve_tablet_index": True})
         if tablet_count > 1:
             reshard_table("//tmp/rt", tablet_count)
@@ -4182,33 +4185,32 @@ class TestChaos(ChaosTestBase):
             sync_enable_table_replica(replica_id)
             rt_replica_ids.append(replica_id)
 
-        self._create_replica_tables(
-            replicas,
-            replica_ids,
-            create_tablet_cells=False,
-            mount_tables=False,
-            ordered=True,
-            tablet_count=tablet_count)
+        self._create_replica_tables(replicas, replica_ids, create_tablet_cells=False, mount_tables=False, ordered=True)
+        if tablet_count > 1:
+            def _reshard_replica(replica):
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                reshard_table(path, tablet_count, driver=driver)
 
-        def _check(replica_and_tablet_index):
+            map_in_parallel(_reshard_replica, replicas)
+
+        def _check_replica_tablet(args):
+            replica, tablet_index, expected_values = args
             import logging
             logger = logging.getLogger()
-            replica, tablet_index = replica_and_tablet_index
-            expected_values = values[tablet_index]
             logger.debug("Expected: {0}".format(expected_values))
 
             driver = get_driver(cluster=replica["cluster_name"])
             path = replica["replica_path"]
-            query = "key, value from [{0}] where [$tablet_index] = {1}". format(path, tablet_index)
+            query = "key, value from [{0}] where [$tablet_index] = {1}".format(path, tablet_index)
             wait(lambda: select_rows(query, driver=driver) == expected_values)
 
-        def _switch(new_replica_ids, progress=None, unmount_tables=True):
-            def _switch_replica(replica_and_id):
-                replica, new_id = replica_and_id
+        def _switch(new_replica_ids, progress=None):
+            def _switch_replica(args):
+                replica, new_id = args
                 driver = get_driver(cluster=replica["cluster_name"])
                 path = replica["replica_path"]
-                if unmount_tables:
-                    sync_unmount_table(path, driver=driver)
+                sync_unmount_table(path, driver=driver)
                 alter_table(path, upstream_replica_id=new_id, driver=driver)
                 if progress:
                     alter_table(path, replication_progress=progress, driver=driver)
@@ -4225,11 +4227,11 @@ class TestChaos(ChaosTestBase):
                     "segments": [{"lower_key": [], "timestamp": timestamp}],
                     "upper_key": MAX_KEY,
                 }
-                _switch(replica_ids, progress, unmount_tables=iteration > 0)
+                _switch(replica_ids, progress)
                 self._sync_replication_era(card_id, replicas)
                 table = "//tmp/crt"
             else:
-                _switch(rt_replica_ids, unmount_tables=iteration > 0)
+                _switch(rt_replica_ids)
                 table = "//tmp/rt"
 
             new_values = [{"$tablet_index": i % tablet_count, "key": i, "value": str(i + iteration)} for i in range(0, 10, iteration + 1)]
@@ -4241,7 +4243,11 @@ class TestChaos(ChaosTestBase):
             logger.debug("Inserting: {0}".format(new_values))
 
             insert_rows(table, new_values)
-            map_in_parallel(_check, product(replicas, range(tablet_count)))
+            map_in_parallel(_check_replica_tablet, [
+                (replica, tablet_index, values[tablet_index])
+                for tablet_index in range(tablet_count)
+                for replica in replicas
+            ])
 
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("mode", ["data/ordered", "ordered/replication_log"])
@@ -6125,7 +6131,7 @@ class TestChaosMetaCluster(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
     NUM_CHAOS_NODES = 2
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 10
 
     DELTA_CHAOS_NODE_CONFIG = {
         "chaos_node": {
