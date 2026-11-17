@@ -471,7 +471,9 @@ TEST_P(TNullAsDefaultKeyConstraintsTest, KeyConstraints)
             GetRefCountedTypeCookie<NQueryClient::TConstraintsHolder>(),
             GetDefaultMemoryChunkProvider());
         auto root = constraints.ExtractFromExpression(
-            NQueryClient::PrepareExpression(filterExpression, schema), {"x"}, rowBuffer);
+            NQueryClient::PrepareExpression(filterExpression, schema),
+            {"x"},
+            rowBuffer);
         return NQueryClient::ToString(constraints, root);
     };
     SCOPED_TRACE(filter);
