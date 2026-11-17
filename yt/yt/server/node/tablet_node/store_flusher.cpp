@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_manager.h"
+#include "global_stores_update_throttler.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"
@@ -50,6 +51,10 @@
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/iterator/zip.h>
+
+#include <util/random/shuffle.h>
 
 namespace NYT::NTabletNode {
 
@@ -132,7 +137,7 @@ struct TFlushTask
     : public TGuardedTaskInfo<TFlushTaskInfo>
 {
     const ITabletSlotPtr Slot;
-    TTablet* Tablet;
+    const IInvokerPtr Invoker;
     const IDynamicStorePtr Store;
     const bool OnlyUpdateRowCache;
 
@@ -140,14 +145,14 @@ struct TFlushTask
         TFlushTaskInfoPtr info,
         TFlushOrchidPtr orchid,
         ITabletSlotPtr slot,
-        TTablet* tablet,
+        IInvokerPtr invoker,
         IDynamicStorePtr store,
         bool onlyUpdateRowCache)
         : TGuardedTaskInfo<TFlushTaskInfo>(
             std::move(info),
             std::move(orchid))
         , Slot(std::move(slot))
-        , Tablet(tablet)
+        , Invoker(std::move(invoker))
         , Store(std::move(store))
         , OnlyUpdateRowCache(onlyUpdateRowCache)
     { }
@@ -166,6 +171,10 @@ public:
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler_.Gauge("/running_store_flushes")))
+        , GlobalStoresUpdateThrottler_(New<TGlobalStoresUpdateThrottler>(
+            /*config*/ nullptr,
+            Bootstrap_->GetConnection(),
+            Profiler_))
         , Orchid_(New<TFlushOrchid>(
             Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher->Orchid,
             Profiler_))
@@ -196,6 +205,8 @@ private:
     const IThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
 
+    const TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
+
     const TFlushOrchidPtr Orchid_;
     IYPathServicePtr OrchidService_;
 
@@ -205,11 +216,18 @@ private:
     NProfiling::TGauge DynamicMemoryUsageWriteLogsCounter_ = Profiler_.WithTag("memory_type", "write_logs").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
+    NProfiling::TCounter ScheduledFlushesCounter_ = Profiler_.Counter("/scheduled_store_flushes");
+
     YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;
     i64 WriteLogsMemoryUsage_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TaskSpinLock_);
+    std::vector<std::unique_ptr<TFlushTask>> Tasks_;
+
+    std::atomic<bool> SchedulingInProgress_ = false;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -231,6 +249,7 @@ private:
         ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
         Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
         Orchid_->Reconfigure(config->Orchid);
+        GlobalStoresUpdateThrottler_->Reconfigure(newNodeConfig->GlobalStoresUpdateThrottler);
     }
 
     void OnBeginSlotScan()
@@ -285,6 +304,86 @@ private:
         DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
         DynamicMemoryUsageWriteLogsCounter_.Update(WriteLogsMemoryUsage_);
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
+
+        std::vector<std::unique_ptr<TFlushTask>> tasks;
+        {
+            auto guard = Guard(TaskSpinLock_);
+            tasks.swap(Tasks_);
+        }
+
+        if (tasks.empty()) {
+            return;
+        }
+
+        SchedulingInProgress_.store(true);
+
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
+            &TStoreFlusher::ScheduleTasks,
+            MakeStrong(this),
+            Passed(std::move(tasks))));
+    }
+
+    void ScheduleTasks(std::vector<std::unique_ptr<TFlushTask>> tasks)
+    {
+        Shuffle(tasks.begin(), tasks.end());
+
+        tasks.resize(std::clamp<i64>(Semaphore_->GetFree(), 0, ssize(tasks)));
+
+        std::vector<TGlobalStoresUpdateThrottler::TRequest> requests;
+        std::vector<int> requestIndexes;
+        requests.reserve(tasks.size());
+        requestIndexes.reserve(tasks.size());
+
+        for (int index = 0; index < ssize(tasks); ++index) {
+            const auto& task = tasks[index];
+            if (task->OnlyUpdateRowCache) {
+                continue;
+            }
+
+            requests.push_back({
+                .BundleName = task->Info->TabletCellBundle,
+                .CellTag = CellTagFromId(task->Info->TabletId),
+                .StoreCount = 1,
+            });
+            requestIndexes.push_back(index);
+        }
+
+        auto throttleResult = GlobalStoresUpdateThrottler_->Throttle(
+            requests,
+            ETabletStoresUpdateReason::Flush);
+
+        YT_VERIFY(requestIndexes.size() == throttleResult.size());
+
+        for (auto&& [index, isThrottlerAcquired] : Zip(requestIndexes, throttleResult)) {
+            if (!isThrottlerAcquired) {
+                tasks[index].reset();
+            }
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(tasks.size());
+        for (auto&& task : tasks) {
+            if (!task) {
+                continue;
+            }
+
+            if (!task->OnlyUpdateRowCache) {
+                ScheduledFlushesCounter_.Increment();
+            }
+
+            auto invoker = task->Invoker;
+            futures.push_back(BIND(
+                &TStoreFlusher::ScheduleStoreFlush,
+                MakeStrong(this),
+                Passed(std::move(task)))
+                .AsyncVia(std::move(invoker))
+                .Run());
+        }
+
+        AllSet(std::move(futures))
+            .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TError>>&) {
+                SchedulingInProgress_.store(false);
+            }));
     }
 
     void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet, bool isLeader)
@@ -323,11 +422,18 @@ private:
     {
         tablet->UpdateUnflushedTimestamp();
 
-        const auto& rowCache = tablet->GetRowCache();
-        if (rowCache && rowCache->GetReallocatingItems()) {
+        if (SchedulingInProgress_.load()) {
             return;
         }
 
+        // NB: The actual flush is started later via the tablet epoch invoker, and the tablet may change by then.
+        // Conditions that can change within the tablet epoch are gathered in IsTabletFlushAllowed
+        // and IsStoreFlushAllowed; they must be checked again right before the flush is started.
+        if (!IsTabletFlushAllowed(tablet)) {
+            return;
+        }
+
+        const auto& rowCache = tablet->GetRowCache();
         auto follower = slot->GetAutomatonState() == EPeerState::Following || slot->GetAutomatonState() == EPeerState::FollowerRecovery;
         if (follower && !rowCache) {
             return;
@@ -344,7 +450,7 @@ private:
 
             auto dynamicStore = store->AsDynamic();
 
-            if (tablet->GetStoreManager()->IsStoreFlushable(dynamicStore)) {
+            if (IsStoreFlushAllowed(tablet, dynamicStore)) {
                 auto taskInfo = New<TFlushTaskInfo>(
                     TGuid::Create(),
                     tablet->GetId(),
@@ -353,15 +459,33 @@ private:
                     slot->GetTabletCellBundleName(),
                     storeId);
 
-                tasks.push_back(std::make_unique<TFlushTask>(taskInfo, Orchid_, slot, tablet, std::move(dynamicStore), onlyUpdateRowCache));
+                tasks.push_back(std::make_unique<TFlushTask>(
+                    taskInfo,
+                    Orchid_,
+                    slot,
+                    tablet->GetEpochAutomatonInvoker(),
+                    std::move(dynamicStore),
+                    onlyUpdateRowCache));
                 pendingTaskInfos.push_back(std::move(taskInfo));
             }
         }
         Orchid_->AddPendingTasks(std::move(pendingTaskInfos));
 
+        auto guard = Guard(TaskSpinLock_);
         for (auto&& task : tasks) {
-            ScanStoreForFlush(std::move(task));
+            Tasks_.push_back(std::move(task));
         }
+    }
+
+    bool IsTabletFlushAllowed(const TTablet* tablet) const
+    {
+        const auto& rowCache = tablet->GetRowCache();
+        return !rowCache || !rowCache->GetReallocatingItems();
+    }
+
+    bool IsStoreFlushAllowed(const TTablet* tablet, const IDynamicStorePtr& store) const
+    {
+        return tablet->GetStoreManager()->IsStoreFlushable(store);
     }
 
     void ScanTabletForLookupCacheReallocation(TTablet* tablet)
@@ -449,10 +573,36 @@ private:
             std::memory_order::relaxed);
     }
 
-    void ScanStoreForFlush(std::unique_ptr<TFlushTask> task)
+    void ScheduleStoreFlush(std::unique_ptr<TFlushTask> task)
     {
-        auto* tablet = task->Tablet;
+        const auto& slot = task->Slot;
+        auto* tablet = slot->GetTabletManager()->FindTablet(task->Info->TabletId);
+        if (!tablet) {
+            YT_TLOG_DEBUG("Tablet is missing, aborting flush")
+                .With("TabletId", task->Info->TabletId);
+            return;
+        }
+
+        if (tablet->GetMountRevision() != task->Info->MountRevision) {
+            YT_TLOG_ALERT("Unexpected tablet mount revision, aborting flush")
+                .With("TabletId", task->Info->TabletId)
+                .With("ExpectedMountRevision", task->Info->MountRevision)
+                .With("ActualMountRevision", tablet->GetMountRevision());
+            return;
+        }
+
         const auto& store = task->Store;
+        if (!tablet->FindStore(store->GetId())) {
+            return;
+        }
+
+        if (!IsTabletFlushAllowed(tablet)) {
+            return;
+        }
+
+        if (!IsStoreFlushAllowed(tablet, store)) {
+            return;
+        }
 
         const auto& movementData = tablet->SmoothMovementData();
         bool isCommonFlush = movementData.CommonDynamicStoreIds().contains(store->GetId());
@@ -478,20 +628,23 @@ private:
             IsInUnmountWorkflow(state),
             task->OnlyUpdateRowCache);
 
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+        task->Invoker->Invoke(BIND(
             &TStoreFlusher::FlushStore,
             MakeStrong(this),
             Passed(std::move(guard)),
+            tablet,
+            std::move(tabletSnapshot),
             flushCallback,
             Owned(task.release())));
     }
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
+        TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         TStoreFlushCallback flushCallback,
         TFlushTask* task)
     {
-        auto* tablet = task->Tablet;
         auto tabletId = tablet->GetId();
         auto writerProfiler = New<TWriterProfiler>();
         const auto& slot = task->Slot;
@@ -505,14 +658,6 @@ private:
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreFlusher", traceId);
         TTraceContextGuard traceContextGuard(traceContext);
-
-        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
-        if (!tabletSnapshot) {
-            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting flush");
-            storeManager->BackoffStoreFlush(store);
-            return;
-        }
 
         PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::StoreFlush, tabletSnapshot);
 
@@ -593,6 +738,7 @@ private:
 
             ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());
             updateTabletStoresReq.set_update_reason(ToProto(ETabletStoresUpdateReason::Flush));
+            updateTabletStoresReq.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
 
             // If dynamic stores for an ordered tablet are requested both with flush and
             // via AllocateDynamicStore, reordering is possible and dynamic stores will
