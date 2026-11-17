@@ -67,6 +67,24 @@ MakeTypeErasedTransactionStateCreator()
     }
 }
 
+template <class TTransaction, class TProto>
+TCallback<THashSet<std::string>(TTransaction*, TStringBuf)>
+MakeTypeErasedStrongOrderingTagsHandler(auto handler)
+{
+    if (!handler) {
+        return {};
+    }
+
+    return BIND_NO_PROPAGATE([handler = std::move(handler)] (
+        TTransaction* transaction,
+        TStringBuf value)
+    {
+        TProto typedValue;
+        DeserializeProto(&typedValue, TRef::FromStringBuf(value));
+        return handler(transaction, &typedValue);
+    });
+}
+
 template <
     class TReturnType,
     class TTransaction,
@@ -115,7 +133,7 @@ TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>
     TTypedTransactionActionDescriptor<TTransaction, TProto, TState> descriptor)
     : Type_(descriptor.GetType())
     , CreateState_(NDetail::MakeTypeErasedTransactionStateCreator<TSaveContext, TLoadContext, TState>())
-    , GenerateStrongOrderingTags_(NDetail::MakeTypeErasedTransactionActionHandler<THashSet<std::string>, TTransaction, TSaveContext, TLoadContext, TProto, TState>(
+    , GenerateStrongOrderingTags_(NDetail::MakeTypeErasedStrongOrderingTagsHandler<TTransaction, TProto>(
         std::move(descriptor.GenerateStrongOrderingTags)))
     , Prepare_(NDetail::MakeTypeErasedTransactionActionHandler<void, TTransaction, TSaveContext, TLoadContext, TProto, TState, const TTransactionPrepareOptions&>(
         std::move(descriptor.Prepare)))
@@ -137,11 +155,10 @@ auto TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadCon
 template <class TTransaction, class TSaveContext, class TLoadContext>
 THashSet<std::string> TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>::GenerateStrongOrderingTags(
     TTransaction* transaction,
-    TStringBuf value,
-    IActionState* state) const
+    TStringBuf value) const
 {
     return GenerateStrongOrderingTags_
-        ? GenerateStrongOrderingTags_(transaction, value, state)
+        ? GenerateStrongOrderingTags_(transaction, value)
         : THashSet<std::string>{};
 }
 

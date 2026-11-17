@@ -38,8 +38,7 @@ THashSet<std::string> TTransactionManagerBase<TTransaction, TSaveContext, TLoadC
                     action.Type);
             }
             const auto& descriptor = it->second;
-            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
-            auto actionTags = descriptor.GenerateStrongOrderingTags(transaction, action.Value, state);
+            auto actionTags = descriptor.GenerateStrongOrderingTags(transaction, action.Value);
             tags.insert(actionTags.begin(), actionTags.end());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG("Failed to generate strong ordering tags (TransactionId: %v, ActionType: %v)",

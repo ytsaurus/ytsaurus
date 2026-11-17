@@ -30,7 +30,11 @@ struct TTypedTransactionActionDescriptor
     template <class... TArgs>
     using TVoidHandler = THandler<void, TArgs...>;
 
-    THandler<THashSet<std::string>> GenerateStrongOrderingTags;
+    // GenerateStrongOrderingTags handler has no reason to access the state.
+    template <class... TArgs>
+    using TGenerateStrongOrderingTagsHandler = TCallback<THashSet<std::string>(TTransaction*, TProto*, TArgs...)>;
+
+    TGenerateStrongOrderingTagsHandler<> GenerateStrongOrderingTags;
     TVoidHandler<const TTransactionPrepareOptions&> Prepare;
     TVoidHandler<const TTransactionCommitOptions&> Commit;
     TVoidHandler<const TTransactionAbortOptions&> Abort;
@@ -53,7 +57,7 @@ public:
     using IActionState = ITransactionActionState<TSaveContext, TLoadContext>;
     std::unique_ptr<IActionState> CreateState() const;
 
-    THashSet<std::string> GenerateStrongOrderingTags(TTransaction* transaction, TStringBuf value, IActionState* state) const;
+    THashSet<std::string> GenerateStrongOrderingTags(TTransaction* transaction, TStringBuf value) const;
     void Prepare(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionPrepareOptions& options) const;
     void Commit(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionCommitOptions& options) const;
     void Abort(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionAbortOptions& options) const;
@@ -73,9 +77,16 @@ private:
     >;
 
     template <class... TArgs>
+    using TGenerateStrongOrderingTagsHandler = TCallback<THashSet<std::string>(
+        TTransaction* transaction,
+        TStringBuf value,
+        TArgs...)
+    >;
+
+    template <class... TArgs>
     using TVoidHandler = THandler<void, TArgs...>;
 
-    const THandler<THashSet<std::string>> GenerateStrongOrderingTags_;
+    const TGenerateStrongOrderingTagsHandler<> GenerateStrongOrderingTags_;
     const TVoidHandler<const TTransactionPrepareOptions&> Prepare_;
     const TVoidHandler<const TTransactionCommitOptions&> Commit_;
     const TVoidHandler<const TTransactionAbortOptions&> Abort_;
