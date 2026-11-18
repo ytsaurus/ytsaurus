@@ -328,6 +328,10 @@ config:
       displayName: Scheduler Alerts Jobs Archivation
       enable: true
       config: {}
+    scheduler_alerts_nodes_without_pool_tree:
+      displayName: Scheduler Alerts Nodes Without Pool Tree
+      enable: true
+      config: {}
     gpu_sre_alerts:
       displayName: GPU SRE Alerts
       enable: true
