@@ -28,9 +28,17 @@ PEERDIR(
     yt/yt/library/profiling/solomon
     yt/yt/library/program
 
+    yt/yt/build
     yt/yt/core/http
     yt/yt/core/https
 )
+
+IF (OS_LINUX)
+    PEERDIR(
+        yt/yt/library/ytprof
+        yt/yt/library/ytprof/http
+    )
+ENDIF()
 
 END()
 

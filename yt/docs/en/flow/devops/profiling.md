@@ -29,3 +29,14 @@ The first response reports live reference-counted objects; the second gives work
 When the built-in profiler is available, request `http://localhost:${FLOW_MONITORING_PORT}/ytprof/profile?d=30s` and retain the result for inspection. If that endpoint is absent, use `perf` on the process PID when the environment permits it, then compare the profile with logs and partition state. Profiling adds load; collect a short interval and do not resize a deployment from one sample.
 
 For exceptions with unclear origins, you can temporarily set `singletons.error_backtrace_enricher.level = "enabled_for_all"` in the dynamic spec. Disable it after the investigation: symbolizing backtraces can delay processing.
+
+## C++ companion profiles {#cpp-companion}
+
+The C++ companion serves the same `ytprof` profiles as Flow processes. The worker proxies them on its monitoring port: a request to `/companion/ytprof/<path>` is forwarded to the companion's `/ytprof/<path>`.
+
+```bash
+curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/companion/ytprof/cpu/profile?d=30s" > /tmp/companion-cpu.pb.gz
+curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/companion/ytprof/tcmalloc/current" > /tmp/companion-heap.pb.gz
+```
+
+The endpoint is available only when the companion has a monitoring port, `companion.monitoring_port`; a Vanilla launch fills it in automatically, see the [port settings](vanilla/initial-deploy.md#advanced-config). Without it, the worker returns 404. Python, Go and Java companions do not serve profiles. The `d` duration is limited to 5 minutes, and at most two requests are served at once; others get 429. The companion binary (`/ytprof/binary`) is not served through the worker. A CPU profile requires a companion built with `--build=profile`.

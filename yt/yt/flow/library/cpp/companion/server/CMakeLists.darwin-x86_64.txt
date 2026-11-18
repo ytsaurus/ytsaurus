@@ -36,6 +36,7 @@ target_link_libraries(cpp-companion-server PUBLIC
   cpp-process_function-host
   library-profiling-solomon
   yt-library-program
+  yt-yt-build
   yt-core-http
   yt-core-https
 )

@@ -29,3 +29,14 @@ curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/orchid/job_tracker" > /tmp/f
 При доступном встроенном профилировщике запросите `http://localhost:${FLOW_MONITORING_PORT}/ytprof/profile?d=30s` и сохраните результат для просмотра профиля. Если ручка отсутствует, используйте доступный в окружении `perf` на PID процесса и сопоставьте профиль с логами и состоянием партиций. Профилирование создаёт нагрузку; измеряйте короткий интервал и не принимайте решение о масштабировании по одному снимку.
 
 Для исключений с неясным происхождением можно временно включить `singletons.error_backtrace_enricher.level = "enabled_for_all"` в динамической спеке. Отключите настройку после расследования: символизация бектрейсов может задерживать обработку.
+
+## Профили C++-компаньона {#cpp-companion}
+
+C++-компаньон отдаёт те же профили `ytprof`, что и процессы Flow. Воркер проксирует их на своём порту мониторинга: запрос `/companion/ytprof/<путь>` передаётся в `/ytprof/<путь>` компаньона.
+
+```bash
+curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/companion/ytprof/cpu/profile?d=30s" > /tmp/companion-cpu.pb.gz
+curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/companion/ytprof/tcmalloc/current" > /tmp/companion-heap.pb.gz
+```
+
+Ручка доступна, только если у компаньона есть порт мониторинга `companion.monitoring_port`; в Vanilla он заполняется автоматически, см. [параметры портов](vanilla/initial-deploy.md#advanced-config). Без него воркер отвечает 404. Компаньоны на Python, Go и Java профили не отдают. Длительность `d` ограничена 5 минутами; одновременно обслуживаются не более двух запросов, остальные получают 429. Бинарь компаньона (`/ytprof/binary`) через воркер не отдаётся. CPU-профиль снимается, только если компаньон собран с `--build=profile`.

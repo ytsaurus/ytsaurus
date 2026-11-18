@@ -50,6 +50,7 @@ target_link_libraries(cpp-runner-no_engine PUBLIC
   yt-library-program
   yt-library-tcmalloc
   library-tracing-jaeger
+  library-cpp-cgiparam
   library-cpp-colorizer
   cpp-yt-mlock
   cpp-yt-phdr_cache
@@ -60,6 +61,7 @@ target_link_libraries(cpp-runner-no_engine PUBLIC
 target_sources(cpp-runner-no_engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/admin_http_handlers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/admin_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/companion_profiling_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/debug_build_warning.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/endpoint_provider.cpp
