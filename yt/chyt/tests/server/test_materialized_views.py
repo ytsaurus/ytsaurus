@@ -1177,6 +1177,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
                 }
 
             wait(lambda: get_partitions()[1]["next_row_index"] == 1, timeout=10)
+            clique.wait_for_query_log_table()
             wait(lambda: len([
                 row for row in read_table(clique.query_log_table_path)
                 if row.get("type") == "QueryFinish"
