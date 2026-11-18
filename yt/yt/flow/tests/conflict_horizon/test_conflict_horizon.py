@@ -44,13 +44,6 @@ def make_client():
     return yt.wrapper.YtClient(proxy=os.environ["YT_PROXY"], config=config)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def tablet_cell():
-    client = make_client()
-    cell_id = client.create("tablet_cell", attributes={"tablet_cell_bundle": TABLET_CELL_BUNDLE})
-    wait(lambda: client.get("#{}/@health".format(cell_id)) == "good")
-
-
 def create_table(client, path, extra_mount_config):
     client.create(
         "table",
