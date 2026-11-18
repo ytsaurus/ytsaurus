@@ -223,6 +223,20 @@ TEST_F(TCHToYTConversionTest, TaggedLogicalTypesForParameterizedUnsupportedNativ
     }
 }
 
+TEST_F(TCHToYTConversionTest, UsesFamilyNameForOversizedNativeTypeTag)
+{
+    Settings_->Composite->AnnotateResultSchemaWithNativeTypes = true;
+    auto dataType = DB::DataTypeFactory::instance().get(
+        "Enum16('" + std::string(MaxColumnNameLength, 'x') + "' = 1)");
+    TCHToYTConverter converter(dataType, Settings_);
+    auto logicalType = converter.GetLogicalType();
+
+    EXPECT_NO_THROW(ValidateLogicalType(TComplexTypeFieldDescriptor(logicalType)));
+    EXPECT_EQ(
+        *TaggedLogicalType("Enum16", SimpleLogicalType(ESimpleLogicalValueType::String)),
+        *logicalType);
+}
+
 TEST_F(TCHToYTConversionTest, Int16)
 {
     auto dataType = std::make_shared<DB::DataTypeInt16>();

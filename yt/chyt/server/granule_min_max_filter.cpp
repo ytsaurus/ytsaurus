@@ -41,7 +41,7 @@ std::vector<bool> ComputeUseMinMaxBounds(const TTableSchema& schema)
             }
         }
         // YSON serialization does not preserve value ordering.
-        result.push_back(!IsV3Composite(valueType) &&
+        result.push_back(!IsV3Composite(columnSchema.LogicalType()) &&
             *valueType != *SimpleLogicalType(ESimpleLogicalValueType::Any) &&
             valueType->GetMetatype() != ELogicalMetatype::AggregateState);
     }
