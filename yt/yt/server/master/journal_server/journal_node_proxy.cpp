@@ -52,7 +52,8 @@ public:
         , JournalRpcTimeout_(Bootstrap_->GetDynamicConfig()->ChunkManager->JournalRpcTimeout)
     { }
 
-    TFuture<i64> Run(TJournalNode* node) {
+    TFuture<i64> Run(TJournalNode* node)
+    {
         YT_VERIFY(!node->GetHunkChunkList());
 
         const auto* chunkList = node->GetChunkList();
