@@ -75,7 +75,7 @@ public:
                 // storage data centers and RS(3, 3) chunk. Data center replica count limit forbids to
                 // put more than two replicas in every data center, so it's impossible to allocate extra
                 // replica to move unsafely placed replica there.
-                if (!node->IsDecommissioned() && replica != unsafelyPlacedReplica) {
+                if (!IsReplicaDecommissioned(chunkLocation) && replica != unsafelyPlacedReplica) {
                     processAllocatedNode(node);
                 }
             }

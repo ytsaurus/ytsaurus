@@ -312,6 +312,8 @@ static EMaintenanceComponent MaintenanceComponentFromProto(
             return EMaintenanceComponent::RpcProxy;
         case EProtoMaintenanceComponent::MC_HOST:
             return EMaintenanceComponent::Host;
+        case EProtoMaintenanceComponent::MC_CHUNK_LOCATION:
+            return EMaintenanceComponent::ChunkLocation;
         default:
             THROW_ERROR_EXCEPTION("Invalid maintenance component %v",
                 static_cast<int>(component));

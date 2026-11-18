@@ -1948,7 +1948,8 @@ TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoi
 
 bool IsReplicaDecommissioned(TChunkLocation* replica)
 {
-    return replica->GetNode()->IsDecommissioned();
+    return replica->IsDecommissioned() ||
+        replica->GetNode()->IsDecommissioned();
 }
 
 int ComputeReplicaDeficit(

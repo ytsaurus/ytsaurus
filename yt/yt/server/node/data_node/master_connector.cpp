@@ -59,6 +59,8 @@
 
 #include <util/random/shuffle.h>
 
+#include <type_traits>
+
 namespace NYT::NDataNode {
 
 using namespace NCellMasterClient;
@@ -449,6 +451,7 @@ public:
         const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             ProcessHeartbeatResponseMediaInfo(response);
+            ProcessHeartbeatResponseWriteSessionRestrictions(response);
         }
     }
 
@@ -470,6 +473,8 @@ public:
         const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             ProcessHeartbeatResponseMediaInfo(*result.FinalizeResponse);
+            ProcessHeartbeatResponseWriteSessionRestrictions(
+                static_cast<const TRspFinalizeFullHeartbeatSession&>(*result.FinalizeResponse));
         }
     }
 
@@ -583,9 +588,7 @@ public:
         const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             ProcessHeartbeatResponseMediaInfo(response);
-
-            const auto& sessionManager = Bootstrap_->GetSessionManager();
-            sessionManager->SetDisableWriteSessions(response.disable_write_sessions() || Bootstrap_->IsDecommissioned());
+            ProcessHeartbeatResponseWriteSessionRestrictions(response);
         }
 
         if (response.schedule_validation_full_heartbeat_session()) {
@@ -1938,6 +1941,45 @@ private:
 
         const auto& mediumUpdater = Bootstrap_->GetMediumUpdater();
         mediumUpdater->UpdateLocationMedia(response.medium_overrides());
+    }
+
+    template <class TResponse>
+    void ProcessHeartbeatResponseWriteSessionRestrictions(const TResponse& response)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        static_assert(
+            std::is_same_v<TResponse, TRspFullHeartbeat> ||
+            std::is_same_v<TResponse, TRspFinalizeFullHeartbeatSession> ||
+            std::is_same_v<TResponse, TRspIncrementalHeartbeat>,
+            "TResponse must be either TRspFullHeartbeat, TRspFinalizeFullHeartbeatSession or TRspIncrementalHeartbeat");
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        // COMPAT(evanevannnn)
+        if (!response.has_write_session_restrictions()) {
+            if constexpr (std::is_same_v<TResponse, TRspIncrementalHeartbeat>) {
+                sessionManager->SetDisableWriteSessions(
+                    response.disable_write_sessions() || Bootstrap_->IsDecommissioned());
+            }
+            return;
+        }
+
+        const auto& restrictions = response.write_session_restrictions();
+        sessionManager->SetDisableWriteSessions(
+            restrictions.disable_write_sessions() || Bootstrap_->IsDecommissioned());
+
+        if (Bootstrap_->IsDataNode()) {
+            THashSet<TChunkLocationUuid> restrictedLocationUuids;
+            for (const auto& protoUuid : restrictions.location_uuids_with_disabled_write_sessions()) {
+                restrictedLocationUuids.insert(FromProto<TChunkLocationUuid>(protoUuid));
+            }
+
+            const auto& chunkStore = Bootstrap_->GetChunkStore();
+            for (const auto& location : chunkStore->Locations()) {
+                location->SetWriteSessionsDisabled(
+                    restrictedLocationUuids.contains(location->GetUuid()));
+            }
+        }
     }
 
     TDataNodeDynamicConfigPtr GetNodeDynamicConfig() const

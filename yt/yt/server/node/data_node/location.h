@@ -493,6 +493,13 @@ public:
     //! as unavailable.
     bool ScheduleDisable(const TError& reason) override;
 
+    //! Returns whether the master has disabled new write sessions for this location.
+    bool AreWriteSessionsDisabled() const;
+
+    //! Applies the location restriction received from the primary master.
+    //! Existing sessions and node-wide write restrictions are unaffected.
+    void SetWriteSessionsDisabled(bool disabled);
+
 private:
     const TStoreLocationConfigPtr StaticConfig_;
 
@@ -519,6 +526,8 @@ private:
 
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
+
+    std::atomic<bool> WriteSessionsDisabled_ = false;
 
     // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
     TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;

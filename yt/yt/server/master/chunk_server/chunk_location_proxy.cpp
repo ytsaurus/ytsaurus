@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/helpers.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_statistics_helpers.h>
 
@@ -69,6 +71,11 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Uuid)
             .SetReplicated(true)
             .SetMandatory(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
+            .SetWritable(false));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableWriteSessions)
+            .SetWritable(false));
+        descriptors->push_back(EInternedAttributeKey::MaintenanceRequests);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -124,6 +131,20 @@ private:
             case EInternedAttributeKey::LastSeenTime:
                 BuildYsonFluently(consumer)
                     .Value(Bootstrap_->GetDataNodeTracker()->GetChunkLocationLastSeenTime(*location));
+                return true;
+
+            case EInternedAttributeKey::Decommissioned:
+                BuildYsonFluently(consumer)
+                    .Value(location->IsDecommissioned());
+                return true;
+
+            case EInternedAttributeKey::DisableWriteSessions:
+                BuildYsonFluently(consumer)
+                    .Value(location->AreWriteSessionsDisabled());
+                return true;
+
+            case EInternedAttributeKey::MaintenanceRequests:
+                SerializeMaintenanceRequestsOf(location, consumer);
                 return true;
 
             default:

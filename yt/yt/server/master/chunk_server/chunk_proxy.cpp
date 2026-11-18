@@ -304,10 +304,11 @@ private:
                     fluent
                         .Item("location_uuid").Value(location->GetUuid());
                 })
-                .DoIf(node && node->IsDecommissioned(), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("decommissioned").Value(true);
-                })
+                .DoIf((node && node->IsDecommissioned()) || (location && location->IsDecommissioned()),
+                    [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("decommissioned").Value(true);
+                    })
                 .DoIf(IsErasureChunkId(chunkId), [&] (TFluentMap fluent) {
                     fluent
                         .Item("index").Value(replicaIndex);

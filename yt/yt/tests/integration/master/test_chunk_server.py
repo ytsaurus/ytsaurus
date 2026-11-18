@@ -3019,6 +3019,170 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 ##################################################################
 
 
+class TestChunkLocationDecommission(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 3
+    NUM_NODES = 8
+
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("erasure_codec, replica_count", [("none", 3), ("reed_solomon_3_3", 6)])
+    def test_evacuation(self, erasure_codec, replica_count):
+        """Validate that a decommissioned location drains completely without losing data or replicas."""
+        create("table", "//tmp/t", attributes={"erasure_codec": erasure_codec})
+        rows = [{"value": i} for i in range(10)]
+        for row in rows:
+            write_table("<append=%true>//tmp/t", [row])
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == len(rows)
+        location_replica_counts = defaultdict(int)
+        for chunk_id in chunk_ids:
+            wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replica_count)
+            for replica in get(f"#{chunk_id}/@stored_replicas"):
+                location_replica_counts[replica.attributes["location_uuid"]] += 1
+
+        location = max(location_replica_counts, key=location_replica_counts.get)
+        assert location_replica_counts[location] > 1
+        chunk_count_path = f"//sys/chunk_locations/{location}/@statistics/chunk_count"
+        wait(lambda: get(chunk_count_path) > 1)
+
+        maintenance_id = add_maintenance("chunk_location", location, "decommission", "evacuate replicas")[location]
+        try:
+            def evacuated():
+                for chunk_id in chunk_ids:
+                    replicas = get(f"#{chunk_id}/@stored_replicas")
+                    if len(replicas) != replica_count:
+                        return False
+                    if any(replica.attributes["location_uuid"] == location for replica in replicas):
+                        return False
+                return True
+
+            wait(evacuated)
+            wait(lambda: get(chunk_count_path) == 0)
+            assert read_table("//tmp/t") == rows
+            assert get(f"//sys/chunk_locations/{location}/@decommissioned")
+        finally:
+            remove_maintenance("chunk_location", location, id_=maintenance_id)
+
+
+##################################################################
+
+
+class TestChunkLocationDecommissionWithConsistentPlacement(TestConsistentChunkReplicaPlacementBase):
+    NUM_NODES = 5
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "consistent_replica_placement": {
+                "token_distribution_bucket_count": 1,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+    }
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("enable_pull_replication", [False, True])
+    def test_evacuation_and_return_to_healthy_location(self, enable_pull_replication):
+        """Validate evacuation, removal order, and return to a healthy location under consistent placement."""
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable_pull_replication", enable_pull_replication)
+
+        nodes = ls("//sys/cluster_nodes")
+        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+            driver = get_driver(cell_index)
+            wait(lambda driver=driver: all(
+                get(
+                    f"//sys/cluster_nodes/{node}/@consistent_replica_placement_token_count/default",
+                    driver=driver,
+                ) == 1
+                for node in nodes
+            ))
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t")
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+
+        def replicas():
+            return get(f"#{chunk_id}/@stored_replicas")
+
+        preferred = get(f"#{chunk_id}/@consistent_replica_placement")
+        wait(lambda: len(replicas()) == 3 and self._are_chunk_replicas_collocated(replicas(), preferred))
+
+        draining_replica = replicas()[0]
+        draining_node = str(draining_replica)
+        location = draining_replica.attributes["location_uuid"]
+
+        original_limits = {
+            node: get(f"//sys/cluster_nodes/{node}/@resource_limits_overrides") for node in nodes
+        }
+
+        def freeze_jobs(kind):
+            for node in nodes:
+                set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/{kind}_slots", 0)
+
+            for node in nodes:
+                wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/{kind}_slots") == 0)
+                wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_usage/{kind}_slots") == 0)
+
+        def unfreeze_jobs(kind):
+            for node in nodes:
+                remove(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/{kind}_slots", force=True)
+
+        maintenance_id = None
+        try:
+            freeze_jobs("removal")
+            maintenance_id = add_maintenance(
+                "chunk_location", location, "decommission", "evacuate one location")[location]
+
+            # All preferred nodes still have a replica, so there are no missing pull targets.
+            # Push must create a fourth replica before the draining copy may be removed.
+            wait(lambda: len(replicas()) == 4)
+            freeze_jobs("replication")
+
+            evacuated_replicas = replicas()
+            assert len(evacuated_replicas) == 4
+            assert self._are_chunk_replicas_collocated(
+                get(f"#{chunk_id}/@consistent_replica_placement"), preferred,
+            )
+
+            draining_copies = [r for r in evacuated_replicas if r.attributes["location_uuid"] == location]
+            assert len(draining_copies) == 1
+            assert draining_copies[0].attributes["decommissioned"]
+
+            replacement_nodes = {str(r) for r in evacuated_replicas} - {str(r) for r in preferred}
+            assert len(replacement_nodes) == 1
+
+            # With replication stopped, dropping the temporary replacement first would stall evacuation.
+            unfreeze_jobs("removal")
+            wait(lambda: len(replicas()) == 3 and all(str(r) != draining_node for r in replicas()))
+            assert replacement_nodes <= {str(r) for r in replicas()}
+
+            # Keep maintenance active: normal placement must return to the healthy sibling location.
+            unfreeze_jobs("replication")
+            wait(lambda: len(replicas()) == 3 and self._are_chunk_replicas_collocated(replicas(), preferred))
+            assert all(r.attributes["location_uuid"] != location for r in replicas())
+            assert all(not r.attributes.get("decommissioned", False) for r in replicas())
+            assert read_table("//tmp/t") == [{"key": "k1", "value": "v1"}, {"key": "k2", "value": "v2"}]
+        finally:
+            for node, limits in original_limits.items():
+                set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides", limits)
+            if maintenance_id is not None:
+                remove_maintenance("chunk_location", location, id_=maintenance_id)
+
+
+##################################################################
+
+
 class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkReplicaPlacementBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
