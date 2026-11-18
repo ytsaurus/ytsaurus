@@ -396,12 +396,12 @@ public:
                 continue;
             }
 
-            auto replicas = replicasOrError.Value();
+            auto chunkReplicas = replicasOrError.Value();
             auto chunkWithIndexes = TChunkPtrWithReplicaAndMediumIndex(
                 scheduleJobContext.Chunk.Get(),
                 scheduleJobContext.ChunkIdWithIndex.ReplicaIndex,
                 scheduleJobContext.Location->GetEffectiveMediumIndex());
-            if (TryScheduleSealJob(context, chunkWithIndexes, replicas)) {
+            if (TryScheduleSealJob(context, chunkWithIndexes, chunkReplicas)) {
                 EraseOrCrash(queue, scheduleJobContext.ChunkIdWithIndex);
             } else {
                 onSealFailed();
