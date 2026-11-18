@@ -1051,6 +1051,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
         .Default(false);
 
+    registrar.Parameter("enable_repair_via_replication_for_lost_chunks", &TThis::EnableRepairViaReplicationForLostChunks)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("max_lost_vital_chunks_to_log", &TThis::MaxLostVitalChunksToLog)
         .Default(100)
         .DontSerializeDefault();
