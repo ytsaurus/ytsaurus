@@ -42,6 +42,7 @@ RECURSE(
     scheduler
     scheduler_alerts
     scheduler_alerts_jobs_archivation
+    scheduler_alerts_nodes_without_pool_tree
     gpu_sre_alerts
     scheduler_alerts_update_fair_share
     scheduler_uptime
