@@ -144,16 +144,19 @@ class TestPullDistributionMode(ClickHouseTestBase):
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_global_join(self, instance_count):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
-        for i in range(50):
+        for i in range(self.CHUNKS_COUNT):
             write_table("<append=%true>//tmp/t1", [{"a": 2 * i}, {"a": 2 * i + 1}])
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64"}]})
-        for i in range(50):
+        for i in range(self.CHUNKS_COUNT):
             write_table("<append=%true>//tmp/t2", [{"a": 2 * i}])
 
         with Clique(instance_count, export_query_log=True, config_patch=self._get_config_patch()) as clique:
             query = 'select * from "//tmp/t1" t1 global join "//tmp/t2" t2 using a'
             result = clique.make_query(query, full_response=True)
-            assert_items_equal(result.json()["data"], [{"a": 2 * i} for i in range(50)])
+            assert_items_equal(
+                result.json()["data"],
+                [{"a": 2 * i} for i in range(self.CHUNKS_COUNT)],
+            )
 
             pulling_stats = self.extract_pulling_stats(
                 clique,
