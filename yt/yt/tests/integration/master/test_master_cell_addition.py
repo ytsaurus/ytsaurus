@@ -90,33 +90,6 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     DOWNTIME_ALL_COMPONENTS = False
 
 
-class TestMasterCellAdditionWithoutDowntimeOldProtocolForNodes(TestMasterCellAddition):
-    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
-    PATCHED_CONFIGS = []
-    STASHED_CELL_CONFIGS = []
-    CELL_IDS = builtins.set()
-    DOWNTIME_ALL_COMPONENTS = False
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "node_tracker": {
-            "return_master_cells_connection_configs_on_node_registration": False,
-            "return_master_cells_connection_configs_on_node_heartbeat": False,
-        },
-    }
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "master_connector": {
-                    "check_chunks_cell_tags_before_heartbeats": True,
-                    "force_sync_master_cell_directory_before_check_chunks": True,
-                    "check_chunks_cell_tags_after_registration_on_primary_master": False,
-                    "check_chunks_cell_tags_after_receiving_new_master_cell_configs": False,
-                },
-            },
-        },
-    }
-
-
 class TestMasterCellAdditionWithoutDowntimeRpcProxy(TestMasterCellAdditionWithoutDowntime):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
@@ -228,20 +201,6 @@ class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAddi
     CELL_IDS = builtins.set()
 
     DOWNTIME_ALL_COMPONENTS = False
-
-
-class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeOldProtocolForNodes(TestMasterCellAdditionWithRemoteClusters):
-    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
-    PATCHED_CONFIGS = []
-    STASHED_CELL_CONFIGS = []
-    CELL_IDS = builtins.set()
-    DOWNTIME_ALL_COMPONENTS = False
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "node_tracker": {
-            "return_master_cells_connection_configs_on_node_registration": False,
-            "return_master_cells_connection_configs_on_node_heartbeat": False,
-        },
-    }
 
 
 class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeRpcProxy(TestMasterCellAdditionWithRemoteClustersWithoutDowntime):
