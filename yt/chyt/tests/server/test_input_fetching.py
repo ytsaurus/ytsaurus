@@ -2882,45 +2882,50 @@ class TestInputFetchingYPath(ClickHouseTestBaseWithSharedClique):
             table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text").decode())
             expected_rows = read_table(table_path)
             actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
-            assert actual_rows == expected_rows
+            assert actual_rows == expected_rows, table_path
 
-        for lower_limit in (
-                {},
-                {"row_index": 3},
-                {"row_index": 12},
-                {"key": []},
-                {"key": [0]},
-                {"key": [0, "def"]},
-                {"key": [1]},
-                {"key": [1, "def"]},
-                {"key": [0, yson_max]},
-                {"key": [0, yson_min]},
-                {"key": [0, yson_null]},
-                {"key": [1, yson_max]},
-                {"key": [1, yson_min]},
-                {"key": [1, yson_null]},
-        ):
-            # Empty exact range is invalid.
-            if lower_limit != {}:
-                check_complex(lower_limit, None)
-            for upper_limit in (
+        futures = []
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for lower_limit in (
                     {},
-                    {"row_index": 24},
-                    {"row_index": 15},
+                    {"row_index": 3},
+                    {"row_index": 12},
                     {"key": []},
-                    {"key": [2]},
-                    {"key": [2, "ghi"]},
+                    {"key": [0]},
+                    {"key": [0, "def"]},
                     {"key": [1]},
-                    {"key": [1, "ghi"]},
-                    {"key": [2, yson_max]},
-                    {"key": [2, yson_min]},
-                    {"key": [2, yson_null]},
+                    {"key": [1, "def"]},
+                    {"key": [0, yson_max]},
+                    {"key": [0, yson_min]},
+                    {"key": [0, yson_null]},
                     {"key": [1, yson_max]},
                     {"key": [1, yson_min]},
                     {"key": [1, yson_null]},
             ):
-                check_complex(lower_limit, upper_limit)
-                check_complex(upper_limit, lower_limit)
+                # Empty exact range is invalid.
+                if lower_limit != {}:
+                    futures.append(executor.submit(check_complex, lower_limit, None))
+                for upper_limit in (
+                        {},
+                        {"row_index": 24},
+                        {"row_index": 15},
+                        {"key": []},
+                        {"key": [2]},
+                        {"key": [2, "ghi"]},
+                        {"key": [1]},
+                        {"key": [1, "ghi"]},
+                        {"key": [2, yson_max]},
+                        {"key": [2, yson_min]},
+                        {"key": [2, yson_null]},
+                        {"key": [1, yson_max]},
+                        {"key": [1, yson_min]},
+                        {"key": [1, yson_null]},
+                ):
+                    futures.append(executor.submit(check_complex, lower_limit, upper_limit))
+                    futures.append(executor.submit(check_complex, upper_limit, lower_limit))
+
+            for future in futures:
+                future.result()
 
 
 @enable_sequoia

@@ -1,6 +1,7 @@
 from yt_commands import (create, authors, print_debug, write_table)
 
 from base import ClickHouseTestBase, Clique, enable_sequoia
+from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt.common import YtError, wait
 
@@ -15,7 +16,8 @@ class TestQueryRegistry(ClickHouseTestBase):
     def test_query_registry(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 0}])
-        with Clique(1, config_patch={"yt": {"process_list_snapshot_update_period": 100}}) as clique:
+        config_patch = {"yt": {"query_registry": {"process_list_snapshot_update_period": 100}}}
+        with Clique(1, config_patch=config_patch) as clique:
             monitoring_port = clique.get_active_instances()[0].attributes["monitoring_port"]
 
             def check_query_registry():
@@ -39,9 +41,16 @@ class TestQueryRegistry(ClickHouseTestBase):
                     return False
                 return True
 
-            t = clique.make_async_query('select sleep(3) from "//tmp/t"')
-            wait(lambda: check_query_registry())
-            t.join()
+            settings = {
+                "chyt.testing.source_generate_call_breakpoint": get_breakpoint_node("query_registry"),
+            }
+            t = clique.make_async_query('select * from "//tmp/t"', settings=settings)
+            wait_breakpoint("query_registry")
+            try:
+                wait(check_query_registry)
+            finally:
+                release_breakpoint("query_registry")
+                t.join()
 
     @authors("max42")
     def test_codicils(self):
