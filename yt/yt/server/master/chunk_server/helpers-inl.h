@@ -29,9 +29,7 @@ void VisitUniqueAncestors(TChunkTree* chunkTree, F&& functor, TChunkTree* child)
 
         functor(chunkTree, child);
 
-        TRange<TChunkTreeRawPtr> parents;
-        parents = chunkTree->AsChunkList()->Parents();
-
+        auto parents = chunkTree->AsChunkList()->Parents();
         if (parents.Empty())
             break;
         YT_VERIFY(parents.Size() == 1);

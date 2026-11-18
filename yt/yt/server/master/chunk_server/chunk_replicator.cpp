@@ -2973,7 +2973,10 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
             }
 
             default:
-                YT_ABORT();
+                YT_TLOG_ALERT("Found unexpected chunk ancestor type while computing chunk requisition")
+                    .With("ChunkId", chunk->GetId())
+                    .With("ChunkTreeId", chunkTree->GetId())
+                    .With("ChunkTreeType", chunkTree->GetType());
         }
     }
 
