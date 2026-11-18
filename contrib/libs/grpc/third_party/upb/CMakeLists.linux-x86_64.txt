@@ -36,7 +36,6 @@ target_link_libraries(grpc-third_party-upb PUBLIC
 )
 
 target_sources(grpc-third_party-upb PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/base/status.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/hash/common.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json/decode.c
@@ -49,6 +48,10 @@ target_sources(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mem/arena.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/accessors.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/array.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/compat.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/copy.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/internal/extension.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/internal/message.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map_sorter.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/message.c
@@ -79,23 +82,15 @@ target_sources(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/service_def.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text/encode.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode_fast.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/encode.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/eps_copy_input_stream.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/internal/decode_fast.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/reader.c
 )
 
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/base/status.c
   APPEND
   PROPERTY
@@ -185,6 +180,38 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/array.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/compat.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/copy.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/internal/extension.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/internal/message.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -432,14 +459,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode_fast.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/encode.c
   APPEND
   PROPERTY
@@ -449,6 +468,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/eps_copy_input_stream.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/internal/decode_fast.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
