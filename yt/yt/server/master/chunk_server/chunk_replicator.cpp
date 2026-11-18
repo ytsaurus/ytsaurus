@@ -1909,8 +1909,11 @@ void TChunkReplicator::RefreshChunk(
                                 continue;
                             }
 
-                            if (!IsReplicaDecommissioned(location) ||
-                                (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost) &&
+                            if (!IsReplicaDecommissioned(location)) {
+                                continue;
+                            }
+
+                            if ((Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost) &&
                                     replica.GetEffectiveMediumIndex() != mediumIndex) ||
                                 statistics.ReplicaCount[replica.GetReplicaIndex()] > 0)
                             {
