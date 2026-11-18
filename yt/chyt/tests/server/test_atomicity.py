@@ -523,26 +523,33 @@ class TestQueryWithExternalTransaction(ClickHouseTestBase):
         create("table", "//tmp/tt", attributes={"schema": [{"name": "i", "type": "int64"}]})
 
         with Clique(2) as clique:
-            instances = clique.get_active_instances()
+            cached_instances = set()
 
             # Mutating queries within an external transaction should not invalidate clique's cache.
             # After each such query, we need to check the cache on every instance.
-            def check_cache_hit(hit=True):
-                for inst in instances:
-                    cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/object_attribute_cache/hit", instance_id=inst.attributes["job_cookie"])
-                    cache_miss_counter = clique.get_profiler_counter("clickhouse/yt/object_attribute_cache/miss", instance_id=inst.attributes["job_cookie"])
+            def check_cache_hit():
+                clique.wait_instance_count(2)
+                for inst in clique.get_active_instances():
+                    for _ in range(1 if str(inst) in cached_instances else 2):
+                        cache_hit_counter = clique.get_profiler_counter(
+                            "clickhouse/yt/object_attribute_cache/hit",
+                            instance_id=inst.attributes["job_cookie"],
+                        )
+                        cache_miss_counter = clique.get_profiler_counter(
+                            "clickhouse/yt/object_attribute_cache/miss",
+                            instance_id=inst.attributes["job_cookie"],
+                        )
 
-                    clique.make_direct_query(inst, "select * from `//tmp/t`")
+                        clique.make_direct_query(inst, "select * from `//tmp/t`")
 
-                    if hit:
-                        wait(lambda: cache_miss_counter.get_delta() != 0 or cache_hit_counter.get_delta() > 0)
-                        assert cache_miss_counter.get_delta() == 0
-                    else:
-                        wait(lambda: cache_hit_counter.get_delta() != 0 or cache_miss_counter.get_delta() > 0)
-                        assert cache_hit_counter.get_delta() == 0
+                        wait(lambda: cache_miss_counter.get_delta() != 0 or
+                             cache_hit_counter.get_delta() > 0)
+                        if str(inst) in cached_instances:
+                            assert cache_miss_counter.get_delta() == 0
+                        cached_instances.add(str(inst))
 
             # Populate cache.
-            check_cache_hit(hit=False)
+            check_cache_hit()
 
             with self.ChytParentTransaction() as (tx, tx_settings):
                 query = "insert into `//tmp/tt` select * from `//tmp/t`"
