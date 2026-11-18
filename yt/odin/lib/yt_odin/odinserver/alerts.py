@@ -27,6 +27,8 @@ from enum import Enum
 
 MAIL_SERVER = "outbound-relay.yandex.net"
 
+RECORDS_OVERFETCH_FACTOR = 1.5
+
 # Logger of odin runner
 odin_logger = logging.getLogger("Odin")
 
@@ -213,10 +215,14 @@ class AlertsManager(object):
             if not self._checks_results[check] or (check in self._max_periods and self._max_periods[check] < max_period):
                 self._checks_results[check].clear()
 
-                records = self._storage.get_records(check, timestamp - max_period * 60, timestamp)
-                odin_logger.info("Retrieved %d historical records for check %s", len(records), check)
+                fetch_period = int(max_period * RECORDS_OVERFETCH_FACTOR)
+                records = sorted(
+                    self._storage.get_records(check, timestamp - fetch_period * 60, timestamp),
+                    key=lambda record: record.timestamp)
+                odin_logger.info("Retrieved %d historical records for check %s, keeping last %d",
+                                 len(records), check, min(len(records), max_period))
 
-                for record in records:
+                for record in records[-max_period:]:
                     self._checks_results[check].append(record.state)
 
             self._max_periods[check] = max_period
