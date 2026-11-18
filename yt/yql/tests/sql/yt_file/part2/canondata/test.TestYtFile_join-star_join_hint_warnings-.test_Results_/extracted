@@ -6,9 +6,9 @@
     <tmp_path>/program.sql:<main>:12:16: Warning: Join side "a" is not suitable for star join - duplicated join keys
     	from Input1 as a
 	               ^
-    <tmp_path>/program.sql:<main>:5:1: Warning: Join side "d" cannot be added to a star join chain - must be effectively unique
-    	select
-	^
+    <tmp_path>/program.sql:<main>:12:6: Warning: Join side "d" cannot be added to a star join chain - must be effectively unique
+    	from Input1 as a
+	     ^
     <tmp_path>/program.sql:<main>:12:16: Warning: Join side "d" cannot be added to a star join chain
     	from Input1 as a
 	               ^
