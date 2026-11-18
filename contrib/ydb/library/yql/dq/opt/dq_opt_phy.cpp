@@ -13,7 +13,6 @@
 #include <contrib/ydb/library/yql/providers/dq/expr_nodes/dqs_expr_nodes.h>
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_stat.h>
 #include <yql/essentials/core/yql_cost_function.h>
-#include <util/generic/hash_set.h>
 
 
 namespace NYql::NDq {

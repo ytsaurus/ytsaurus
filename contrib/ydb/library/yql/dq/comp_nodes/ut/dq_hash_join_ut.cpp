@@ -7,8 +7,7 @@
 #include <contrib/ydb/library/yql/dq/comp_nodes/ut/join_perf/construct_join_graph.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_block_hash_join.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_join_common.h>
-#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_registrar.h>
-#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_setup.h>
+#include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
 #include <yql/essentials/minikql/computation/mock_spiller_factory_ut.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
@@ -378,11 +377,11 @@ TJoinTestData SerializedListKeySpillingTestData() {
     TJoinTestData td;
     auto& setup = *td.Setup;
 
-    TVector<ui64> leftCol0 = {100, 200, 300, 400, 500};
+    TVector<ui64> leftCol0 = {100, 200, 300, 400, 500};                              
     TVector<std::optional<ui64>> leftCol1 = {10, std::nullopt, 30, std::nullopt, 50};
-    TVector<ui64> leftCol2 = {1, 2, 3, 4, 5};
-    TVector<ui64> leftCol3 = {11, 22, 33, 44, 55};
-    TVector<ui64> leftCol4 = {1000, 2000, 3000, 4000, 5000};
+    TVector<ui64> leftCol2 = {1, 2, 3, 4, 5};                                        
+    TVector<ui64> leftCol3 = {11, 22, 33, 44, 55};                                   
+    TVector<ui64> leftCol4 = {1000, 2000, 3000, 4000, 5000};                         
 
     constexpr int rightSize = 200000;
     TVector<ui64> rightCol0(rightSize);
