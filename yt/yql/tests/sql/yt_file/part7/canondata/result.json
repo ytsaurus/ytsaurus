@@ -1051,6 +1051,27 @@
             "uri": "https://{canondata_backend}/1781765/3c463e6e68e723be4e5eb4b6e340bc60a38f34b8/resource.tar.gz#test.test_join-mapjoin_sharded-default.txt-Results_/results.txt"
         }
     ],
+    "test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test[Debug]": [
+        {
+            "checksum": "0246c02f30f4cf2405f95a31f1565d56",
+            "size": 3503,
+            "uri": "https://{canondata_backend}/1599023/fa1aac4772c36003a16bd8324a36fef15d884365/resource.tar.gz#test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test[Plan]": [
+        {
+            "checksum": "3d006c0ceba7eeccae39d9a7d9eba0bf",
+            "size": 8749,
+            "uri": "https://{canondata_backend}/1031349/b5037faa76604654847e43fd6cff93c4a42af641/resource.tar.gz#test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test[Results]": [
+        {
+            "checksum": "0a31c3648a7c1358f4569b7305160eea",
+            "size": 3885,
+            "uri": "https://{canondata_backend}/995452/db1394ec73b7d74849e016ccf6961985dc2ac5fb/resource.tar.gz#test.TestYtFile_join-mapjoin_with_empty_read-prunekeys-keepworld.test_Results_/results.txt"
+        }
+    ],
     "test.TestYtFile_join-premap_common_right_tablecontent-.test[Debug]": [
         {
             "checksum": "8af7e302f4abe86800d97d14daa571a4",

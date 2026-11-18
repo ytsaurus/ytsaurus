@@ -1257,6 +1257,27 @@
             "uri": "https://{canondata_backend}/1936947/f3fdce513ee7689676373693033adba1201e24ee/resource.tar.gz#test.test_multicluster-pull-default.txt-Results_/results.txt"
         }
     ],
+    "test.TestYtFile_optimizers-bypass_merge_section_settings-.test[Debug]": [
+        {
+            "checksum": "5433b069eba1badf4a520502ab16ddac",
+            "size": 2451,
+            "uri": "https://{canondata_backend}/1600758/782c7cf4e1bfaafd61a90b1221653e4dab611f30/resource.tar.gz#test.TestYtFile_optimizers-bypass_merge_section_settings-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_optimizers-bypass_merge_section_settings-.test[Plan]": [
+        {
+            "checksum": "f76f83050e88de1b8a1e95d71bf117bd",
+            "size": 4350,
+            "uri": "https://{canondata_backend}/1031349/1759c95f23fc597dba58ff549925ed59c044dbee/resource.tar.gz#test.TestYtFile_optimizers-bypass_merge_section_settings-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_optimizers-bypass_merge_section_settings-.test[Results]": [
+        {
+            "checksum": "1d29bbe57104dfd184e4c10e42a322d9",
+            "size": 771,
+            "uri": "https://{canondata_backend}/1031349/1759c95f23fc597dba58ff549925ed59c044dbee/resource.tar.gz#test.TestYtFile_optimizers-bypass_merge_section_settings-.test_Results_/results.txt"
+        }
+    ],
     "test.TestYtFile_optimizers-flatmap_with_non_struct_out-.test[Debug]": [
         {
             "checksum": "c12a131df3955b7c9b1d7f045d68ff2b",
