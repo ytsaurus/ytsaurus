@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="260" viewBox="0 0 840 260" role="img" aria-labelledby="title">
+<title id="title">Data nodes — JobProxy — UserJob</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#334155"/></marker></defs>
+<rect x="1" y="1" width="838" height="258" rx="8" fill="#ffffff"/>
+<rect x="295" y="30" width="525" height="205" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+<g font-family="sans-serif" font-size="17" text-anchor="middle" fill="#0f172a">
+<text x="557" y="60">Execution node</text>
+<rect x="20" y="95" width="160" height="90" rx="8" fill="#e2e8f0" stroke="#334155"/>
+<text x="100" y="146">Data nodes</text>
+<rect x="320" y="95" width="160" height="90" rx="8" fill="#dbeafe" stroke="#334155"/>
+<text x="400" y="146">JobProxy</text>
+<rect x="620" y="95" width="160" height="90" rx="8" fill="#dcfce7" stroke="#334155"/>
+<text x="700" y="146">UserJob</text>
+<text x="250" y="112" font-size="14">Input data</text>
+<text x="550" y="112" font-size="14">Input data</text>
+<text x="250" y="177" font-size="14">Results</text>
+<text x="550" y="177" font-size="14">Results</text>
+</g>
+<g fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrow)">
+<path d="M180 125 H315"/><path d="M480 125 H615"/>
+<path d="M620 155 H485"/><path d="M320 155 H185"/>
+</g>
+</svg>

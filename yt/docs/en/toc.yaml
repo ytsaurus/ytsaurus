@@ -242,6 +242,9 @@ items:
                href: user-guide/data-processing/operations/remote-copy.md
              - name: Vanilla
                href: user-guide/data-processing/operations/vanilla.md
+         - name: Jobs
+           when: audience == "public"
+           href: user-guide/data-processing/operations/jobs.md
          - name: Operation options
            when: audience == "public"
            href: user-guide/data-processing/operations/operations-options.md
