@@ -111,20 +111,24 @@ private:
 
     static std::string GetNativeTypeName(const DB::DataTypePtr& dataType)
     {
-        if (const auto* customName = dataType->getCustomName()) {
-            return customName->getName();
+        if (!dataType->getCustomName()) {
+            switch (dataType->getTypeId()) {
+                case DB::TypeIndex::Nullable:
+                case DB::TypeIndex::Array:
+                case DB::TypeIndex::Tuple:
+                case DB::TypeIndex::LowCardinality:
+                case DB::TypeIndex::Map:
+                    return dataType->getFamilyName();
+                default:
+                    break;
+            }
         }
 
-        switch (dataType->getTypeId()) {
-            case DB::TypeIndex::Nullable:
-            case DB::TypeIndex::Array:
-            case DB::TypeIndex::Tuple:
-            case DB::TypeIndex::LowCardinality:
-            case DB::TypeIndex::Map:
-                return dataType->getFamilyName();
-            default:
-                return dataType->getName();
+        auto name = dataType->getName();
+        if (name.size() > MaxColumnNameLength) {
+            return dataType->getFamilyName();
         }
+        return name;
     }
 };
 
@@ -393,7 +397,7 @@ class TNullableConverter
     : public TConverterBase
 {
 public:
-    TNullableConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+    TNullableConverter(const DB::DataTypePtr& dataType, TConverterPtr underlyingConverter)
         : TConverterBase(dataType)
         , UnderlyingConverter_(std::move(underlyingConverter))
     { }
@@ -458,7 +462,7 @@ class TArrayConverter
     : public TConverterBase
 {
 public:
-    TArrayConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+    TArrayConverter(const DB::DataTypePtr& dataType, TConverterPtr underlyingConverter)
         : TConverterBase(dataType)
         , UnderlyingConverter_(std::move(underlyingConverter))
     { }
@@ -522,7 +526,7 @@ class TMapConverter
 {
 public:
     TMapConverter(
-        DB::DataTypePtr dataType,
+        const DB::DataTypePtr& dataType,
         TConverterPtr keyConverter,
         TConverterPtr valueConverter,
         TConverterPtr nestedConverter)
@@ -572,7 +576,7 @@ class TTupleConverter
 {
 public:
     TTupleConverter(
-        DB::DataTypePtr dataType,
+        const DB::DataTypePtr& dataType,
         std::vector<TConverterPtr> underlyingConverters,
         std::optional<std::vector<std::string>> elementNames)
         : TConverterBase(dataType)
@@ -659,7 +663,7 @@ public:
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
     static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
 
-    TDecimalConverter(DB::DataTypePtr dataType, int precision, int scale)
+    TDecimalConverter(const DB::DataTypePtr& dataType, int precision, int scale)
         : TConverterBase(dataType)
         , Precision_(precision)
         , Scale_(scale)
@@ -896,7 +900,7 @@ class TLowCardinalityConverter
     : public TConverterBase
 {
 public:
-    TLowCardinalityConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+    TLowCardinalityConverter(const DB::DataTypePtr& dataType, TConverterPtr underlyingConverter)
         : TConverterBase(dataType)
         , UnderlyingConverter_(std::move(underlyingConverter))
     { }
