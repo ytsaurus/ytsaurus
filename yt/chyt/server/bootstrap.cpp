@@ -272,6 +272,7 @@ void TBootstrap::InitializeConnection()
         auto staticPatch = Config_->ClusterConnectionDynamicConfigPolicy == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
             ? cachePatch
             : PatchNode(clusterConnectionNode, cachePatch);
+
         SetupClusterConnectionDynamicConfigUpdate(
             Connection_,
             EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
