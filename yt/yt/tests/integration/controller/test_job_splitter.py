@@ -455,6 +455,7 @@ done
                 },
                 "job_splitter": {
                     "enable_job_speculation": False,
+                    "exec_to_prepare_time_ratio": 0,
                 },
             },
         )
