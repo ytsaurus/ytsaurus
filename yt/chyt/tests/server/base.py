@@ -39,6 +39,7 @@ import copy
 import re
 import string
 import pathlib
+from typing import List
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -843,34 +844,52 @@ class Clique(object):
         return select_rows(query, verbose=True)
 
     def wait_and_get_query_log_rows(self, query_id, include_secondary_queries=True):
-        def validate_query_log_rows(rows):
-            initial_queries = [row for row in rows if row["is_initial_query"] == 1]
-            if len(initial_queries) == 0:
-                return False
+        return self.wait_and_get_query_log_rows_batch(
+            [query_id], include_secondary_queries=include_secondary_queries,
+        )
 
-            assert len(initial_queries) == 1
-
-            if not include_secondary_queries:
-                assert len(rows) == 1
-                return True
-
-            secondary_query_count = len(initial_queries[0]["chyt_secondary_query_ids"])
-            assert len(rows) <= secondary_query_count + 1
-
-            return len(rows) == secondary_query_count + 1
-
-        result = []
-
-        def get_and_validate_query_log_rows():
-            nonlocal result
-            result = self.get_query_log_rows(query_id, include_secondary_queries)
-            return validate_query_log_rows(result)
+    def wait_and_get_query_log_rows_batch(
+        self,
+        query_ids: List[str],
+        include_secondary_queries: bool = True,
+    ) -> List[dict]:
+        """Wait for initial query finish entries and their declared secondary queries."""
+        if not query_ids:
+            return []
 
         self.wait_for_query_log_table()
 
-        wait(get_and_validate_query_log_rows)
+        def wait_for_entries(ids, is_initial):
+            ids = set(ids)
+            if not ids:
+                return []
+            id_list = ", ".join(f'"{query_id}"' for query_id in sorted(ids))
+            rows = []
 
-        return result
+            def check():
+                nonlocal rows
+                rows = select_rows(
+                    f"* from [{self.query_log_table_path}] "
+                    f"where [query_id] in ({id_list}) "
+                    f'and [is_initial_query] = {int(is_initial)} and [type] = "QueryFinish"',
+                    verbose=False,
+                )
+                actual_ids = {row["query_id"] for row in rows}
+                assert len(rows) == len(actual_ids)
+                return actual_ids == ids
+
+            wait(check)
+            return rows
+
+        initial_rows = wait_for_entries(query_ids, is_initial=True)
+        if not include_secondary_queries:
+            return initial_rows
+        secondary_ids = {
+            query_id
+            for row in initial_rows
+            for query_id in row["chyt_secondary_query_ids"]
+        }
+        return initial_rows + wait_for_entries(secondary_ids, is_initial=False)
 
     def attach_gdb(self, ex, instance_cookie=0, autoresume=True):
         instances = self.get_active_instances()

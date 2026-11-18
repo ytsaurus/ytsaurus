@@ -2562,11 +2562,14 @@ class TestInferReadRange(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t_str", [{"a": "ba"}, {"a": "bb"}])
 
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
+            query_checks = {}
+
             def base_check(table, predicate, exact, expected=None):
                 query = f"select * from '{table}' where {predicate}"
-                res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
+                response = clique.make_query(query, full_response=True)
+                query_checks[response.headers["X-ClickHouse-Query-Id"]] = (query, exact)
                 if expected is not None:
-                    assert_items_equal(res, expected)
+                    assert_items_equal(response.json()["data"], expected)
 
             # Validation of the case of working with a timestamp type whose conversion differs between YT <-> CH.
             base_check(
@@ -2620,6 +2623,19 @@ class TestInferReadRange(ClickHouseTestBase):
                 check(f"ts IN {set_template.format(data=', '.join(set_data))}", 3, expected=expected)
 
                 base_check("//tmp/t_str", f"a IN {set_template.format(data="\'ab\', \'bb\'")}", 2, [{"a": "ab"}, {"a": "bb"}])
+
+            rows = clique.wait_and_get_query_log_rows_batch(list(query_checks))
+            for query_id, (query, expected_rows) in query_checks.items():
+                block_rows = sum(
+                    row.get("chyt_query_statistics", {})
+                    .get("secondary_query_source", {})
+                    .get("block_rows", {})
+                    .get("sum", 0)
+                    for row in rows if row["initial_query_id"] == query_id
+                )
+                assert block_rows == expected_rows, (
+                    f"{query}: expected {expected_rows} rows, got {block_rows}"
+                )
 
     @with_tablet_cell
     @authors("buyval01")
