@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc/cypresspath"
 )
 
 // ExportAccessLogRequest is the body of POST /export-access-log.
@@ -113,29 +113,6 @@ func normalizeTimestamp(value float64) (int64, error) {
 	return int64(value), nil
 }
 
-// isCanonicalCypressPath accepts "/" or an absolute Cypress path like //a/b without YPath operators whose node
-// names are written in the canonical escaping.
-func isCanonicalCypressPath(path string) bool {
-	if path == "/" {
-		return true
-	}
-	tokens, err := ypath.SplitTokens(path)
-	if err != nil || len(tokens) < 2 || tokens[0] != "/" || strings.Join(tokens, "") != path {
-		return false
-	}
-	for _, token := range tokens[1:] {
-		name, isChild := strings.CutPrefix(token, "/")
-		if !isChild {
-			return false
-		}
-		literal, err := ypath.UnescapeLiteral(name)
-		if err != nil || literal == "" || ypath.EscapeLiteral(literal) != name {
-			return false
-		}
-	}
-	return true
-}
-
 // isSchedulerName accepts a single pool or pool tree name without YPath operators.
 // The cluster's configurable pool name regex is enforced by YT.
 func isSchedulerName(name string) bool {
@@ -179,13 +156,13 @@ func (r *ExportAccessLogRequest) Parameters(defaultPool string) (ExportParameter
 		}
 		parameters.End = end
 	}
-	if !isCanonicalCypressPath(r.OutputPath) {
+	if !cypresspath.IsCanonical(r.OutputPath) {
 		return ExportParameters{}, yterrors.Err("the output_path must be an absolute Cypress path of a table in the canonical YPath escaping")
 	}
 	if r.OutputPath == "/" {
 		return ExportParameters{}, yterrors.Err("the output_path must not be the Cypress root")
 	}
-	if !isCanonicalCypressPath(r.Path) {
+	if !cypresspath.IsCanonical(r.Path) {
 		return ExportParameters{}, yterrors.Err("path must be / or an absolute Cypress path in the canonical YPath escaping")
 	}
 	if r.Pool != nil && *r.Pool == "" {
