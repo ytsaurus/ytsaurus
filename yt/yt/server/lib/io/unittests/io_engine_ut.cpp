@@ -220,8 +220,10 @@ TEST(TFairShareHierarchicalIOEngineTest, RequestsWithLowerWeightedConsumptionAre
     const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
         {"root", 1.0},
     };
-    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
-    auto higherWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
+        .ValueOrThrow();
+    auto higherWeightedConsumptionSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
+        .ValueOrThrow();
 
     const auto compareRequests = [&] (
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
@@ -252,9 +254,11 @@ TEST(TFairShareHierarchicalIOEngineTest, EqualRequestStatisticsPreserveFifoOrder
     const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
         {"root", 1.0},
     };
-    auto firstSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    auto firstSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
+        .ValueOrThrow();
     Sleep(TDuration::MilliSeconds(1));
-    auto secondSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    auto secondSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
+        .ValueOrThrow();
 
     const auto compareRequests = [&] (
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,

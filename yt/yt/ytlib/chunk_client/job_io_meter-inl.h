@@ -32,17 +32,17 @@ void SetRequestIoFairShareWeight(
 }
 
 template <class TRequestPtr>
-void SetRequestReadIoFairShareState(
+void SetRequestReadIOFairShareState(
     const TRequestPtr& req,
     const TClientChunkReadOptions& options,
     std::optional<double> configuredWeight)
 {
-    if (const auto& state = options.ForwardedIoFairShareState) {
-        if (state->IoConsumed) {
-            req->set_io_consumed(*state->IoConsumed);
+    if (const auto& state = options.ForwardedIOFairShareState) {
+        if (state->IOConsumed) {
+            req->set_io_consumed(*state->IOConsumed);
         }
-        if (state->IoFairShareWeight) {
-            req->set_io_fair_share_weight(*state->IoFairShareWeight);
+        if (state->IOFairShareWeight) {
+            req->set_io_fair_share_weight(*state->IOFairShareWeight);
         }
         return;
     }

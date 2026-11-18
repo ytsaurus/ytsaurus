@@ -177,9 +177,9 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
-        jobInputCacheOptions.ClientOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
-            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
-            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
         };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -229,9 +229,9 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
-        jobInputCacheOptions.ClientOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
-            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
-            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
         };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -275,9 +275,9 @@ private:
 
         TClientChunkReadOptions jobInputCacheOptions;
         jobInputCacheOptions.WorkloadDescriptor = workloadDescriptor;
-        jobInputCacheOptions.ForwardedIoFairShareState = TForwardedIoFairShareState{
-            .IoConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
-            .IoFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+        jobInputCacheOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
         };
 
         auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTags, extensionTags);

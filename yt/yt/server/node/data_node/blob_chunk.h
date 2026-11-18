@@ -70,33 +70,6 @@ private:
     {
         struct TBlockEntry
         {
-            TBlockEntry() = default;
-
-            TBlockEntry(TBlockEntry&& other) noexcept
-                : BlockIndex(other.BlockIndex)
-                , EntryIndex(other.EntryIndex)
-                , Cached(other.Cached)
-                , Cookie(std::move(other.Cookie))
-                , Block(other.Block.Exchange(NChunkClient::TBlock()))
-                , BeginOffset(other.BeginOffset)
-                , EndOffset(other.EndOffset)
-            { }
-
-            TBlockEntry& operator=(TBlockEntry&& other) noexcept
-            {
-                if (this != &other) {
-                    BlockIndex = other.BlockIndex;
-                    EntryIndex = other.EntryIndex;
-                    Cached = other.Cached;
-                    Cookie = std::move(other.Cookie);
-                    Block.Store(other.Block.Exchange(NChunkClient::TBlock()));
-                    BeginOffset = other.BeginOffset;
-                    EndOffset = other.EndOffset;
-                }
-
-                return *this;
-            }
-
             int BlockIndex = -1;
             //! Index of this entry before sorting by block index.
             int EntryIndex = -1;
@@ -105,6 +78,10 @@ private:
             TAtomicObject<NChunkClient::TBlock> Block;
             i64 BeginOffset = -1;
             i64 EndOffset = -1;
+
+            TBlockEntry() = default;
+            TBlockEntry(TBlockEntry&& other) noexcept;
+            TBlockEntry& operator=(TBlockEntry&& other) noexcept;
         };
 
         IInvokerPtr Invoker;
@@ -202,7 +179,7 @@ private:
     void DoReadBlockSetInBatches(
         const TReadBlockSetSessionPtr& session,
         std::vector<TReadBlocksRequest> requests);
-    TReadBlocksRequestBatch GetReadBlocksRequestsToRun(
+    TReadBlocksRequestBatch TakeReadBlocksRequestsToRun(
         const TReadBlockSetSessionPtr& session,
         const TReadBlockSetBatchStatePtr& state);
     bool IsReadBlockSetBatchFinished(

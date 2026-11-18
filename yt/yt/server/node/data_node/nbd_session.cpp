@@ -191,10 +191,11 @@ TFuture<void> TNbdSession::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Create().Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-        StartCounters_->Update(error);
-        return error;
-    }));
+    return Create()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            StartCounters_->Update(error);
+            return error;
+        }));
 }
 
 void TNbdSession::Cancel(const TError& error)

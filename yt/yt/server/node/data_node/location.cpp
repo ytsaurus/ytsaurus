@@ -376,6 +376,7 @@ std::vector<std::pair<std::string, double>> TChunkLocation::BuildFairShareTags(
     if (groupWeight && category != EWorkloadCategory::Idle) {
         tags.emplace_back(isSystem ? "system" : "user", *groupWeight);
     }
+
     tags.emplace_back(
         ToString(category),
         GetFairShareWorkloadCategoryWeight(category));
@@ -404,7 +405,7 @@ double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
     return config->MemoryLimitFractionForStartingNewSessions;
 }
 
-bool TChunkLocation::ShouldUseUncategorizedThrottler() const
+bool TChunkLocation::IsUncategorizedThrottlerEnabled() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -933,7 +934,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDes
             return Throttlers_[EChunkLocationThrottlerKind::TabletStoreFlushIn];
 
         default:
-            if (ShouldUseUncategorizedThrottler()) {
+            if (IsUncategorizedThrottlerEnabled()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedInThrottler_;
@@ -966,7 +967,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDe
             return Throttlers_[EChunkLocationThrottlerKind::TabletRecoveryOut];
 
         default:
-            if (ShouldUseUncategorizedThrottler()) {
+            if (IsUncategorizedThrottlerEnabled()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedOutThrottler_;

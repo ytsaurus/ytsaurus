@@ -1060,7 +1060,7 @@ struct TDataNodeConfig
     //! Maximum amount of data simultaneously read by IO requests in one read session.
     i64 MaxInFlightReadDataSize;
 
-    //! If |true| then if error occuried during chunk's blocks reading, already read blocks are returned.
+    //! If |true| then blocks read so far are returned when the read session fails.
     bool ReturnBlocksIfSessionFails;
 
     //! If |true| then read session will be failed if it is not completed before deadline.

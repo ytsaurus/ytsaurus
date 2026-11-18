@@ -125,7 +125,7 @@ struct TTestCase
     std::optional<double> IoFairShareWeight = 2.5;
     std::optional<double> JobIoFairShareWeight = 3.5;
     bool EnableJobIoStatistics = true;
-    std::optional<TForwardedIoFairShareState> ForwardedIoFairShareState;
+    std::optional<TForwardedIOFairShareState> ForwardedIOFairShareState;
     bool ExpectUnbatchedReads = false;
     bool IOFairShareEnabled = true;
 };
@@ -449,9 +449,11 @@ private:
         }
         statistics->WastedDataBytesReadFromDisk = statistics->DataBytesReadFromDisk.load() / 2;
         statistics->MetaBytesReadFromDisk = 17;
+
         if (IOFairShareEnabled_.load()) {
             statistics->IOConsumed = statistics->DataBytesReadFromDisk.load() + statistics->MetaBytesReadFromDisk.load();
         }
+
         return statistics;
     }
 };
@@ -649,7 +651,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
     }
     readBlockOptions.ClientOptions.JobIoMeter = jobIoMeter;
-    readBlockOptions.ClientOptions.ForwardedIoFairShareState = testCase.ForwardedIoFairShareState;
+    readBlockOptions.ClientOptions.ForwardedIOFairShareState = testCase.ForwardedIOFairShareState;
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
         std::vector<TFuture<std::vector<TBlock>>> futures;
 
@@ -724,12 +726,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_EQ(statistics->IOConsumed.load(), expectedReportedIoConsumed);
     EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(), expectedIoConsumed);
 
-    // Forwarded fields take precedence over the local meter and reader config.
     auto expectedHasIoConsumed = testCase.EnableJobIoStatistics;
     std::optional<double> expectedIoFairShareWeight;
-    if (const auto& state = testCase.ForwardedIoFairShareState) {
-        expectedHasIoConsumed = state->IoConsumed.has_value();
-        expectedIoFairShareWeight = state->IoFairShareWeight;
+    if (const auto& state = testCase.ForwardedIOFairShareState) {
+        expectedHasIoConsumed = state->IOConsumed.has_value();
+        expectedIoFairShareWeight = state->IOFairShareWeight;
     } else if (testCase.EnableJobIoStatistics) {
         expectedIoFairShareWeight = testCase.IoFairShareWeight
             ? testCase.IoFairShareWeight
@@ -743,8 +744,8 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
         dataRequestObserved = true;
         EXPECT_EQ(service->GetLastHasIoConsumed(), expectedHasIoConsumed);
-        if (testCase.ForwardedIoFairShareState && expectedHasIoConsumed) {
-            EXPECT_EQ(service->GetLastIoConsumed(), *testCase.ForwardedIoFairShareState->IoConsumed);
+        if (testCase.ForwardedIOFairShareState && expectedHasIoConsumed) {
+            EXPECT_EQ(service->GetLastIoConsumed(), *testCase.ForwardedIOFairShareState->IOConsumed);
         }
         EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedIoFairShareWeight.value_or(-1));
     }
@@ -768,7 +769,7 @@ INSTANTIATE_TEST_SUITE_P(
             .RequestInBatch = 3,
             .BlockInRequest = 1,
             .EnableChunkProber = true,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{12345, 1.25},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{12345, 1.25},
             .ExpectUnbatchedReads = true,
         },
         TTestCase{
@@ -777,12 +778,12 @@ INSTANTIATE_TEST_SUITE_P(
             .RequestInBatch = 3,
             .BlockInRequest = 1,
             .EnableChunkProber = true,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{0, 0.0},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{0, 0.0},
             .ExpectUnbatchedReads = true,
         },
         TTestCase{
             .EnableChunkProber = true,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{},
         },
         TTestCase{
             .EnableChunkProber = true,
@@ -790,11 +791,11 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TTestCase{
             .EnableChunkProber = true,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{12345, std::nullopt},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{12345, std::nullopt},
         },
         TTestCase{
             .EnableChunkProber = true,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{std::nullopt, 1.25},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{std::nullopt, 1.25},
         },
         TTestCase{
             .NodeCount = 1,
@@ -803,7 +804,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockInRequest = 1,
             .EnableChunkProber = true,
             .EnableJobIoStatistics = false,
-            .ForwardedIoFairShareState = TForwardedIoFairShareState{12345, 1.25},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{12345, 1.25},
             .ExpectUnbatchedReads = true,
         },
         TTestCase{
@@ -1263,55 +1264,54 @@ INSTANTIATE_TEST_SUITE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequest>
-class TForwardedIoFairShareStateTest
+class TForwardedIOFairShareStateTest
     : public ::testing::Test
 { };
 
 using TReadRequestTypes = ::testing::Types<
     NProto::TReqGetBlockSet,
     NProto::TReqGetBlockRange,
-    NProto::TReqGetChunkMeta>;
-TYPED_TEST_SUITE(TForwardedIoFairShareStateTest, TReadRequestTypes);
+    NProto::TReqGetChunkMeta
+>;
+TYPED_TEST_SUITE(TForwardedIOFairShareStateTest, TReadRequestTypes);
 
-TYPED_TEST(TForwardedIoFairShareStateTest, PreservesSnapshotAndLocalFallback)
+TYPED_TEST(TForwardedIOFairShareStateTest, PreservesSnapshotAndLocalFallback)
 {
     TClientChunkReadOptions options;
     options.JobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
     options.JobIoMeter->Account(999);
     options.JobIoMeter->SetIoFairShareWeight(3.5);
 
-    // Requests without forwarding retain the configured-weight-over-meter policy.
     TypeParam directRequest;
-    SetRequestReadIoFairShareState(&directRequest, options, 2.5);
+    SetRequestReadIOFairShareState(&directRequest, options, /*configuredWeight*/ 2.5);
     ASSERT_TRUE(directRequest.has_io_consumed());
     EXPECT_EQ(directRequest.io_consumed(), 999);
     ASSERT_TRUE(directRequest.has_io_fair_share_weight());
     EXPECT_EQ(directRequest.io_fair_share_weight(), 2.5);
 
     for (const auto& state : {
-        TForwardedIoFairShareState{12345, 1.25},
-        TForwardedIoFairShareState{0, 0.0},
-        TForwardedIoFairShareState{},
-        TForwardedIoFairShareState{12345, std::nullopt},
-        TForwardedIoFairShareState{std::nullopt, 1.25},
+        TForwardedIOFairShareState{12345, 1.25},
+        TForwardedIOFairShareState{0, 0.0},
+        TForwardedIOFairShareState{},
+        TForwardedIOFairShareState{12345, std::nullopt},
+        TForwardedIOFairShareState{std::nullopt, 1.25},
     }) {
-        // A separate read's snapshot must not change the original options/meter.
         auto forwardedOptions = options;
-        forwardedOptions.ForwardedIoFairShareState = state;
+        forwardedOptions.ForwardedIOFairShareState = state;
         TypeParam forwardedRequest;
-        SetRequestReadIoFairShareState(&forwardedRequest, forwardedOptions, 2.5);
-        EXPECT_EQ(forwardedRequest.has_io_consumed(), state.IoConsumed.has_value());
-        EXPECT_EQ(forwardedRequest.has_io_fair_share_weight(), state.IoFairShareWeight.has_value());
-        if (state.IoConsumed) {
-            EXPECT_EQ(forwardedRequest.io_consumed(), *state.IoConsumed);
+        SetRequestReadIOFairShareState(&forwardedRequest, forwardedOptions, /*configuredWeight*/ 2.5);
+        EXPECT_EQ(forwardedRequest.has_io_consumed(), state.IOConsumed.has_value());
+        EXPECT_EQ(forwardedRequest.has_io_fair_share_weight(), state.IOFairShareWeight.has_value());
+        if (state.IOConsumed) {
+            EXPECT_EQ(forwardedRequest.io_consumed(), *state.IOConsumed);
         }
-        if (state.IoFairShareWeight) {
-            EXPECT_EQ(forwardedRequest.io_fair_share_weight(), *state.IoFairShareWeight);
+        if (state.IOFairShareWeight) {
+            EXPECT_EQ(forwardedRequest.io_fair_share_weight(), *state.IOFairShareWeight);
         }
     }
 
     TypeParam nextDirectRequest;
-    SetRequestReadIoFairShareState(&nextDirectRequest, options, std::nullopt);
+    SetRequestReadIOFairShareState(&nextDirectRequest, options, std::nullopt);
     EXPECT_EQ(nextDirectRequest.io_consumed(), 999);
     EXPECT_EQ(nextDirectRequest.io_fair_share_weight(), 3.5);
 }

@@ -19,10 +19,10 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A snapshot received from an upstream reader, including absent fields.
-struct TForwardedIoFairShareState
+struct TForwardedIOFairShareState
 {
-    std::optional<i64> IoConsumed;
-    std::optional<double> IoFairShareWeight;
+    std::optional<i64> IOConsumed;
+    std::optional<double> IOFairShareWeight;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,7 @@ struct TClientChunkReadOptions
     TJobIoMeterPtr JobIoMeter;
 
     //! When present, overrides locally computed I/O fair-share fields in read RPCs.
-    std::optional<TForwardedIoFairShareState> ForwardedIoFairShareState;
+    std::optional<TForwardedIOFairShareState> ForwardedIOFairShareState;
 
     // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is
     // performed, relevant statistics will be updated within
