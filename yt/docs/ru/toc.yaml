@@ -247,6 +247,9 @@ items:
               href: user-guide/data-processing/operations/remote-copy.md
             - name: Vanilla
               href: user-guide/data-processing/operations/vanilla.md
+        - name: Джобы
+          when: audience == "public"
+          href: user-guide/data-processing/operations/jobs.md
         - name: Настройки операций
           when: audience == "public"
           href: user-guide/data-processing/operations/operations-options.md
