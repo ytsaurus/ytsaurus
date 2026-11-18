@@ -144,7 +144,7 @@ class Clique(object):
                     "version": 2,
                     "heartbeat_period": 400,
                     "attribute_update_period": 2000,
-                    "lease_timeout": 1000,
+                    "lease_timeout": 5000,
                 },
                 "user_defined_sql_objects_storage": {
                     "update_period": 300,
