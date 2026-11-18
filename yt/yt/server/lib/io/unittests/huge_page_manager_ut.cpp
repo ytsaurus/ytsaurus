@@ -16,7 +16,7 @@ TEST(THugePageManagerTest, ResizeReleasesCachedBlobs)
     config->Type = EHugeManagerType::Transparent;
     config->Enabled = true;
     config->PagesPerBlob = 2;
-    auto manager = CreateHugePageManager(config, /*profiler*/ {}, tracker);
+    auto manager = CreateHugePageManager(config, tracker, /*profiler*/ {});
     auto pageSize = manager->GetHugePageSize();
     if (pageSize == 0) {
         GTEST_SKIP() << "System huge page size is unavailable";
@@ -42,7 +42,7 @@ TEST(THugePageManagerTest, DestroyPreservesOutstandingReferences)
     config->Type = EHugeManagerType::Transparent;
     config->Enabled = true;
     config->PagesPerBlob = 2;
-    auto manager = CreateHugePageManager(config, /*profiler*/ {}, tracker);
+    auto manager = CreateHugePageManager(config, tracker, /*profiler*/ {});
     auto pageSize = manager->GetHugePageSize();
     if (pageSize == 0) {
         GTEST_SKIP() << "System huge page size is unavailable";
