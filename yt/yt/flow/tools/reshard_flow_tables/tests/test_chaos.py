@@ -1,6 +1,8 @@
 import logging
 import sys
 
+from types import SimpleNamespace
+
 import pytest
 import yt.wrapper as yt
 
@@ -10,11 +12,16 @@ from yt.yt.flow.tools.reshard_flow_tables.lib import (
     TMP_SUFFIX,
     ReshardRequest,
     build_compact_input_message_pivot_key,
+    computation_tablet_counts,
+    configured_min_tablet_count,
     planned_tablet_count,
     uniform_pivot_keys,
     apply_reshard_plans,
     current_tablet_count,
     get_args,
+    plan_computation_key_table,
+    plan_pipeline_tables,
+    plan_partition_table,
     reshard_timer_table,
     get_reshard_targets,
     recreate_replication_log,
@@ -49,7 +56,14 @@ class FakeClient:
     # noise to tests that are not about the tablet layout.
     DEFAULT_ATTRIBUTES = {"@sorted": True, "@schema": HASH_SCHEMA, "@tablet_count": 1}
 
-    def get(self, path):
+    def get(self, path, attributes=None):
+        if attributes is not None:
+            assert path.endswith("/@")
+            return {
+                attribute: self.attributes[f"{path}{attribute}"]
+                for attribute in attributes
+                if f"{path}{attribute}" in self.attributes
+            }
         if path not in self.attributes:
             if path.endswith("/@pivot_keys"):
                 count = self.attributes.get(
@@ -391,6 +405,33 @@ def test_chaos_table_width_is_read_from_its_replicas():
     }
 
     assert current_tablet_count(client, crt, make_client=clients.get) == 40
+
+
+def test_plain_table_minimum_is_read_from_its_tablet_balancer_config():
+    table = "//pipeline/states"
+    client = FakeClient(
+        {
+            f"{table}/@type": "table",
+            f"{table}/@tablet_balancer_config": {"min_tablet_count": 30},
+        }
+    )
+
+    assert configured_min_tablet_count(client, table) == 30
+
+
+def test_chaos_table_minimum_does_not_change_the_plan():
+    crt = "//pipeline/states"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "id-1": {"cluster_name": "pythia", "replica_path": crt, "content_type": "data"},
+                "id-2": {"cluster_name": "zeno", "replica_path": "//replica/states", "content_type": "data"},
+            },
+        }
+    )
+
+    assert configured_min_tablet_count(client, crt) == 0
 
 
 def test_failed_mount_restores_the_previous_layout():
@@ -1519,8 +1560,6 @@ def test_uniform_reshard_skips_matching_boundaries(caplog, dry_run):
 
 @pytest.mark.parametrize("compact", [False, True])
 def test_computation_counts_include_shared_tablets_and_first_computation(caplog, compact):
-    from yt.yt.flow.tools.reshard_flow_tables.lib import plan_computation_key_table
-
     table = "//pipeline/states"
     schema = [
         {
@@ -1537,6 +1576,149 @@ def test_computation_counts_include_shared_tablets_and_first_computation(caplog,
     assert "computation_id='a': 1 => 2 tablets" in caplog.text
     assert "computation_id='b': 1 => 2 tablets" in caplog.text
     assert client.calls == []
+
+
+@pytest.mark.parametrize(
+    "computations, min_tablet_count, expected_per_computation",
+    [
+        (["a"], 30, 30),
+        (["a", "b"], 30, 15),
+        (["a", "b"], 15, 10),
+        (["a", "b"], 31, 16),
+    ],
+)
+def test_minimum_is_distributed_equally_between_computations(
+    computations,
+    min_tablet_count,
+    expected_per_computation,
+):
+    request = plan_computation_key_table(
+        computations,
+        {},
+        "//pipeline/states",
+        tablet_count=10,
+        min_tablet_count=min_tablet_count,
+    )
+    pivots = request.parameters["pivot_keys"]
+
+    assert len(pivots) == expected_per_computation * len(computations)
+    assert computation_tablet_counts(pivots, computations) == {
+        computation: expected_per_computation for computation in computations
+    }
+
+
+@pytest.mark.parametrize("tablet_count", [0, -1])
+@pytest.mark.parametrize("source_keys", [{}, {"a": [[0], [1]]}])
+def test_computation_key_table_rejects_non_positive_tablet_count(tablet_count, source_keys):
+    with pytest.raises(ValueError, match="Tablet count must be positive"):
+        plan_computation_key_table(["a"], source_keys, "//pipeline/states", tablet_count)
+
+
+def test_compact_hash_pivots_exactly_match_the_effective_tablet_count():
+    from yt.yt.flow.tools.reshard_flow_tables.lib import plan_compact_input_table
+
+    request = plan_compact_input_table(["Reducer"], "//pipeline", tablet_count=10, min_tablet_count=30)
+    pivots = request.parameters["pivot_keys"]
+
+    assert len(pivots) == 30
+    assert pivots[0] == []
+    assert pivots[1] == build_compact_input_message_pivot_key("Reducer", 2**64 // 30)
+    assert pivots[-1] == build_compact_input_message_pivot_key("Reducer", 2**64 * 29 // 30)
+
+
+def test_pipeline_plan_reads_the_table_minimum():
+    table = "//pipeline/compact_input_messages"
+    client = FakeClient(
+        {
+            f"{table}/@type": "table",
+            f"{table}/@tablet_balancer_config": {"min_tablet_count": 30},
+        }
+    )
+    client.get_pipeline_spec = lambda path: {
+        "spec": {
+            "computations": {
+                "Reducer": {
+                    "input_stream_ids": ["input"],
+                    "output_stream_ids": [],
+                    "timer_streams": [],
+                    "source_streams": [],
+                    "group_by_schema": [{"type": "uint64"}],
+                }
+            }
+        }
+    }
+    client.get_flow_view = lambda path, view, cache: {}
+    args = SimpleNamespace(
+        pipeline_path="//pipeline",
+        tablet_count=10,
+        table="compact_input_messages",
+    )
+
+    [request] = plan_pipeline_tables(client, args)
+
+    assert len(request.parameters["pivot_keys"]) == 30
+
+
+@pytest.mark.parametrize(
+    "min_tablet_count, expected_tablet_count",
+    [(30, 30), (15, 20), (31, 32)],
+)
+def test_partition_table_rounds_the_minimum_up_to_equal_computation_widths(
+    min_tablet_count,
+    expected_tablet_count,
+):
+    _, parameters = plan_partition_table(
+        ["a", "b"],
+        "//pipeline/partition_states",
+        tablet_count=10,
+        min_tablet_count=min_tablet_count,
+    )
+
+    assert parameters["tablet_count"] == expected_tablet_count
+
+
+@pytest.mark.parametrize("tablet_count", [0, -1])
+def test_partition_table_rejects_non_positive_tablet_count(tablet_count):
+    with pytest.raises(ValueError, match="Tablet count must be positive"):
+        plan_partition_table(["a"], "//pipeline/partition_states", tablet_count)
+
+
+def test_source_key_pivots_do_not_create_an_extra_tablet():
+    source_keys = {"source": [[index] for index in range(35)]}
+    request = plan_computation_key_table(
+        ["source"],
+        source_keys,
+        "//pipeline/states",
+        tablet_count=10,
+    )
+
+    assert len(request.parameters["pivot_keys"]) == 10
+
+
+def test_source_key_table_rejects_an_unreachable_minimum():
+    with pytest.raises(ValueError, match="without splitting rows of a source key"):
+        plan_computation_key_table(
+            ["source"],
+            {"source": [[0], [1], [2]]},
+            "//pipeline/states",
+            tablet_count=10,
+            min_tablet_count=30,
+        )
+
+
+def test_hash_computation_absorbs_source_key_minimum_shortfall():
+    computations = ["source", "worker"]
+    request = plan_computation_key_table(
+        computations,
+        {"source": [[0], [1], [2]]},
+        "//pipeline/states",
+        tablet_count=10,
+        min_tablet_count=30,
+    )
+    pivots = request.parameters["pivot_keys"]
+
+    assert len(pivots) == 30
+    assert computation_tablet_counts(pivots, computations) == {"source": 3, "worker": 27}
 
 
 def test_binary_compact_pivot_keys_are_counted(caplog):
@@ -1826,6 +2008,18 @@ def test_cli_defaults_to_dry_run(caplog, monkeypatch, flags, applies):
     assert "//pipeline/states: 3 => 5 tablets" in caplog.text
     assert ("Dry run: no tables will be modified" in caplog.text) == (not applies)
     assert "Running without --commit" not in caplog.text
+
+
+@pytest.mark.parametrize("target", [["--pipeline-path", "//pipeline"], ["--external-table", "//table"]])
+@pytest.mark.parametrize("tablet_count", ["0", "-1"])
+def test_cli_rejects_non_positive_tablet_count(monkeypatch, capsys, target, tablet_count):
+    monkeypatch.setattr(sys, "argv", ["reshard_flow_tables", *target, "--tablet-count", tablet_count, "--commit"])
+
+    with pytest.raises(SystemExit) as error:
+        get_args()
+
+    assert error.value.code == 2
+    assert "--tablet-count must be positive" in capsys.readouterr().err
 
 
 def test_cli_commit_and_dry_run_are_mutually_exclusive(monkeypatch):

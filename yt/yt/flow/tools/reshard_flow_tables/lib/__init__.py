@@ -53,8 +53,9 @@ def get_args():
         type=int,
         required=False,
         default=10,
-        help="tablets per computation for pipeline tables (per key visitor stream for key_visitor_states); the total"
-        " tablet count for an --external-table (which has no computations)",
+        help="base tablets per computation for pipeline tables (per key visitor stream for key_visitor_states);"
+        " the total tablet count for an --external-table (which has no computations). Raised when needed"
+        " to honor a plain table's tablet_balancer_config.min_tablet_count",
     )
     parser.add_argument(
         "--table",
@@ -109,6 +110,9 @@ def get_args():
     parser.add_argument("-v", "--verbose", action="store_true", help="enable debug output")
 
     args = parser.parse_args()
+
+    if args.tablet_count <= 0:
+        parser.error("--tablet-count must be positive")
 
     if args.pipeline_path is None and not args.external_table:
         parser.error("at least one of --pipeline-path and --external-table is required")
@@ -867,6 +871,16 @@ def current_tablet_count(client, table, make_client=None):
     )
 
 
+def configured_min_tablet_count(client, table):
+    """Return a plain table's min_tablet_count, or zero when it does not apply."""
+    attributes = client.get(f"{table}/@", attributes=["type", "tablet_balancer_config"])
+    if attributes["type"] == "chaos_replicated_table":
+        # A chaos node has no tablets of its own. Applying one floor consistently to its physical
+        # data and log replicas requires a separate policy.
+        return 0
+    return attributes.get("tablet_balancer_config", {}).get("min_tablet_count", 0)
+
+
 def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_client=None, dry_run=False):
     """Analyze once, log the resulting layouts, then optionally apply them, smallest growth first."""
     make_client = make_client or _replica_cluster_client
@@ -926,15 +940,52 @@ def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_c
         execute_replication_log(plan)
 
 
-def plan_computation_key_table(computations, source_keys, table, tablet_count, compact_key=False):
+def tablets_per_range(range_count, tablet_count, min_tablet_count=0):
+    """Return an equal width per key range satisfying the requested width and table minimum."""
+    if not range_count:
+        return tablet_count
+    minimum = (min_tablet_count + range_count - 1) // range_count
+    return max(tablet_count, minimum)
+
+
+def plan_computation_key_table(
+    computations,
+    source_keys,
+    table,
+    tablet_count,
+    compact_key=False,
+    min_tablet_count=0,
+):
     if len(computations) == 0:
         logging.info(f"Skip {table} because there are no computations")
         return None
 
-    hash_step = 2**64 // tablet_count
+    if tablet_count <= 0:
+        raise ValueError(f"Tablet count must be positive for {table}")
+    tablet_count = tablets_per_range(len(computations), tablet_count, min_tablet_count)
+    computations = sorted(computations)
+    tablet_counts = {}
+    hash_computations = []
+    for computation_id in computations:
+        if computation_id in source_keys:
+            tablet_counts[computation_id] = max(1, min(tablet_count, len(source_keys[computation_id])))
+        else:
+            tablet_counts[computation_id] = tablet_count
+            hash_computations.append(computation_id)
+
+    shortfall = max(0, min_tablet_count - sum(tablet_counts.values()))
+    if shortfall and not hash_computations:
+        raise ValueError(
+            f"Cannot honor min_tablet_count={min_tablet_count} for {table} without splitting rows" " of a source key"
+        )
+    if shortfall:
+        quotient, remainder = divmod(shortfall, len(hash_computations))
+        for index, computation_id in enumerate(hash_computations):
+            tablet_counts[computation_id] += quotient + (index < remainder)
 
     pivot_keys = []
-    for computation_id in sorted(computations):
+    for computation_id in computations:
+        computation_tablet_count = tablet_counts[computation_id]
         if pivot_keys:
             if compact_key:
                 pivot_keys.append(build_compact_input_message_pivot_key(computation_id))
@@ -944,63 +995,93 @@ def plan_computation_key_table(computations, source_keys, table, tablet_count, c
             pivot_keys.append([])
         if computation_id in source_keys:
             keys = [[computation_id, key] for key in source_keys[computation_id]]
-            source_step = max(1, len(keys) // tablet_count)
             keys.sort(key=lambda item: (item[0], key_sort_value(item[1])))
-            pivot_keys.extend(keys[source_step::source_step])
+            # Keep all rows for a source key within one tablet: splitting them would require
+            # table-specific knowledge of the trailing key columns. Thus at most len(keys) nonempty
+            # ranges are useful; choose their internal pivots at evenly spaced source keys.
+            pivot_keys.extend(
+                keys[len(keys) * index // computation_tablet_count] for index in range(1, computation_tablet_count)
+            )
         else:
-            for i in range(hash_step, 2**64, hash_step):
+            # Divide this computation's uint64 hash space into computation_tablet_count ranges.
+            # Internal pivots lie at floor(2**64 * index / computation_tablet_count), so the
+            # resulting ranges differ in width by at most one.
+            for index in range(1, computation_tablet_count):
+                key_hash = 2**64 * index // computation_tablet_count
                 if compact_key:
-                    pivot_keys.append(build_compact_input_message_pivot_key(computation_id, i))
+                    pivot_keys.append(build_compact_input_message_pivot_key(computation_id, key_hash))
                 else:
-                    pivot_keys.append([computation_id, yson.YsonList([yson.YsonUint64(i)])])
+                    pivot_keys.append([computation_id, yson.YsonList([yson.YsonUint64(key_hash)])])
     return ReshardRequest(table, {"pivot_keys": pivot_keys}, tuple(computations))
 
 
-def plan_partition_table(computations, table, tablet_count):
+def plan_partition_table(computations, table, tablet_count, min_tablet_count=0):
     if len(computations) == 0:
         logging.info(f"Skip {table} because there are no computations")
         return None
+    if tablet_count <= 0:
+        raise ValueError(f"Tablet count must be positive for {table}")
+    tablet_count = tablets_per_range(len(computations), tablet_count, min_tablet_count)
     return table, {"tablet_count": tablet_count * len(computations), "uniform": True}
 
 
-def plan_input_table(computations, path, tablet_count):
-    return plan_computation_key_table(computations, {}, f"{path}/input_messages", tablet_count)
-
-
-def plan_compact_input_table(computations, path, tablet_count):
+def plan_input_table(computations, path, tablet_count, min_tablet_count=0):
     return plan_computation_key_table(
-        computations, {}, f"{path}/compact_input_messages", tablet_count, compact_key=True
+        computations,
+        {},
+        f"{path}/input_messages",
+        tablet_count,
+        min_tablet_count=min_tablet_count,
     )
 
 
-def plan_timer_table(computations, path, tablet_count):
-    return plan_computation_key_table(computations, {}, f"{path}/timers", tablet_count)
+def plan_compact_input_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_computation_key_table(
+        computations,
+        {},
+        f"{path}/compact_input_messages",
+        tablet_count,
+        compact_key=True,
+        min_tablet_count=min_tablet_count,
+    )
 
 
-def plan_computation_uint64_table(computations, table, tablet_count):
+def plan_timer_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_computation_key_table(
+        computations,
+        {},
+        f"{path}/timers",
+        tablet_count,
+        min_tablet_count=min_tablet_count,
+    )
+
+
+def plan_computation_uint64_table(computations, table, tablet_count, min_tablet_count=0):
     """Pivots for a table keyed by (computation_id, uint64 hash, ...): every computation gets
     ``tablet_count`` tablets cut uniformly over the uint64 column."""
     if len(computations) == 0:
         logging.info(f"Skip {table} because there are no computations")
         return None
 
-    hash_step = 2**64 // tablet_count
+    if tablet_count <= 0:
+        raise ValueError(f"Tablet count must be positive for {table}")
+    tablet_count = tablets_per_range(len(computations), tablet_count, min_tablet_count)
 
     pivot_keys = []
     for computation_id in sorted(computations):
         pivot_keys.append([computation_id] if pivot_keys else [])
         for i in range(1, tablet_count):
-            pivot_keys.append([computation_id, yson.YsonUint64(i * hash_step)])
+            pivot_keys.append([computation_id, yson.YsonUint64(2**64 * i // tablet_count)])
     return ReshardRequest(table, {"pivot_keys": pivot_keys}, tuple(computations))
 
 
-def plan_timer_pages_table(computations, path, tablet_count):
+def plan_timer_pages_table(computations, path, tablet_count, min_tablet_count=0):
     # The first key column is the mixed family id, uniform over the whole uint64 range.
-    return plan_partition_table(computations, f"{path}/timer_pages", tablet_count)
+    return plan_partition_table(computations, f"{path}/timer_pages", tablet_count, min_tablet_count)
 
 
-def plan_timer_page_meta_table(computations, path, tablet_count):
-    return plan_computation_uint64_table(computations, f"{path}/timer_page_meta", tablet_count)
+def plan_timer_page_meta_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_computation_uint64_table(computations, f"{path}/timer_page_meta", tablet_count, min_tablet_count)
 
 
 def reshard_timer_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
@@ -1010,21 +1091,38 @@ def reshard_timer_table(client, computations, path, tablet_count, also_chaos_rep
     how much each one grows. This entry point reshards the one table on its own and keeps its
     original signature for the caller outside the tool
     (alice/wonderlogs/flow/rt_dwh/tools/ensure_flow_sharding)."""
-    plan = plan_timer_table(computations, path, tablet_count)
+    if not computations:
+        return
+    table = f"{path}/timers"
+    plan = plan_timer_table(
+        computations,
+        path,
+        tablet_count,
+        min_tablet_count=configured_min_tablet_count(client, table),
+    )
     if plan is None:
         return
     apply_reshard_plans(client, [plan], also_chaos_replication_logs=also_chaos_replication_logs)
 
 
-def plan_compact_partition_output_table(computations, path, tablet_count):
-    return plan_partition_table(computations, f"{path}/compact_partition_output_messages", tablet_count)
+def plan_compact_partition_output_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_partition_table(
+        computations,
+        f"{path}/compact_partition_output_messages",
+        tablet_count,
+        min_tablet_count,
+    )
 
 
-def plan_key_visitor_states_table(computation_streams, path, tablet_count):
+def plan_key_visitor_states_table(computation_streams, path, tablet_count, min_tablet_count=0):
     table = f"{path}/key_visitor_states"
     if len(computation_streams) == 0:
         logging.info(f"Skip {table} because there are no key visitor streams")
         return None
+
+    if tablet_count <= 0:
+        raise ValueError(f"Tablet count must be positive for {table}")
+    tablet_count = tablets_per_range(len(computation_streams), tablet_count, min_tablet_count)
 
     # Keyed by (computation_id, stream_id, key, is_lower): every stream gets its own range, split uniformly over the
     # key hash.
@@ -1048,28 +1146,42 @@ def plan_key_visitor_states_table(computation_streams, path, tablet_count):
     )
 
 
-def plan_compact_output_table(computations, source_keys, path, tablet_count):
-    return plan_computation_key_table(computations, source_keys, f"{path}/compact_output_messages", tablet_count)
+def plan_compact_output_table(computations, source_keys, path, tablet_count, min_tablet_count=0):
+    return plan_computation_key_table(
+        computations,
+        source_keys,
+        f"{path}/compact_output_messages",
+        tablet_count,
+        min_tablet_count=min_tablet_count,
+    )
 
 
-def plan_state_table(computations, source_keys, path, tablet_count):
-    return plan_computation_key_table(computations, source_keys, f"{path}/states", tablet_count)
+def plan_state_table(computations, source_keys, path, tablet_count, min_tablet_count=0):
+    return plan_computation_key_table(
+        computations,
+        source_keys,
+        f"{path}/states",
+        tablet_count,
+        min_tablet_count=min_tablet_count,
+    )
 
 
-def plan_partition_state_table(computations, path, tablet_count):
-    return plan_partition_table(computations, f"{path}/partition_states", tablet_count)
+def plan_partition_state_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_partition_table(computations, f"{path}/partition_states", tablet_count, min_tablet_count)
 
 
-def plan_partition_transactions_table(computations, path, tablet_count):
-    return plan_partition_table(computations, f"{path}/partition_transactions", tablet_count)
+def plan_partition_transactions_table(computations, path, tablet_count, min_tablet_count=0):
+    return plan_partition_table(computations, f"{path}/partition_transactions", tablet_count, min_tablet_count)
 
 
-def plan_leases_table(client, computations, path, tablet_count, infer_unused=True):
+def plan_leases_table(client, computations, path, tablet_count, infer_unused=True, min_tablet_count=0):
     table = f"{path}/leases"
     # Same write profile as partition_transactions -- tiny rows rewritten at a high rate, keyed by
     # farm_hash(key) -- so spread it over the same width. A single tablet cannot compact the lease
     # churn of every partition and hits "too many overlapping stores, writes disabled" (code 1703).
-    full_width = plan_partition_table(computations, table, tablet_count)
+    full_width = plan_partition_table(computations, table, tablet_count, min_tablet_count)
+    if full_width is None:
+        return None
     if not infer_unused:
         return full_width
 
@@ -1078,8 +1190,9 @@ def plan_leases_table(client, computations, path, tablet_count, infer_unused=Tru
     # contents. A dyntable-backed controller rewrites the pipeline-wide deadline row
     # ("", "expiration") every cycle (TDyntableLeases::TouchLeaseDeadline) and nothing deletes it,
     # so once such a controller has led the pipeline the table never becomes empty again, not even
-    # when the pipeline is stopped and every partition row has been revoked. Until then a single
-    # tablet is enough, and the tablets an earlier run spread over an unused table are taken back.
+    # when the pipeline is stopped and every partition row has been revoked. Until then one tablet
+    # is enough unless min_tablet_count requires more; in that case use the smallest multiple of the
+    # computation count that satisfies the minimum, consistently with the other partition tables.
     # After switching the backend rerun the tool: the table stays empty until the first controller
     # with the dyntable backend leads the pipeline. `--table leases` bypasses this inference and
     # always plans the full width.
@@ -1092,8 +1205,10 @@ def plan_leases_table(client, computations, path, tablet_count, infer_unused=Tru
         logging.warning(f"Cannot tell whether {table} is empty, planning the full width: {ex}")
         return full_width
     if empty:
-        logging.info(f"Plan a single tablet for {table} because it is empty")
-        return table, {"tablet_count": 1, "uniform": True}
+        minimum = tablets_per_range(len(computations), 0, min_tablet_count) * len(computations)
+        target = max(1, minimum)
+        logging.info(f"Plan {target} tablet{'s' if target != 1 else ''} for {table} because it is empty")
+        return table, {"tablet_count": target, "uniform": True}
     return full_width
 
 
@@ -1110,7 +1225,8 @@ def reshard_tables(args):
     for external_table in args.external_table:
         # An external table has no computations, so it is resharded to --tablet-count tablets
         # uniformly (over its leading hash key column), just like a pipeline partition table.
-        plans.append((external_table, {"tablet_count": args.tablet_count, "uniform": True}))
+        tablet_count = max(args.tablet_count, configured_min_tablet_count(client, external_table))
+        plans.append((external_table, {"tablet_count": tablet_count, "uniform": True}))
     apply_reshard_plans(
         client,
         plans,
@@ -1158,35 +1274,76 @@ def plan_pipeline_tables(client, args):
 
     path = args.pipeline_path
     tablet_count = args.tablet_count
+
+    def minimum(table, ranges):
+        return configured_min_tablet_count(client, f"{path}/{table}") if ranges else 0
+
     plans = []
     if args.table is None or args.table == "input_messages":
-        plans.append(plan_input_table(inputs, path, tablet_count))
+        plans.append(plan_input_table(inputs, path, tablet_count, minimum("input_messages", inputs)))
     if args.table is None or args.table == "compact_input_messages":
-        plans.append(plan_compact_input_table(inputs, path, tablet_count))
+        plans.append(plan_compact_input_table(inputs, path, tablet_count, minimum("compact_input_messages", inputs)))
     if args.table is None or args.table == "compact_output_messages":
-        plans.append(plan_compact_output_table(sources, source_keys, path, tablet_count))
+        plans.append(
+            plan_compact_output_table(
+                sources,
+                source_keys,
+                path,
+                tablet_count,
+                minimum("compact_output_messages", sources),
+            )
+        )
     if args.table is None or args.table == "compact_partition_output_messages":
-        plans.append(plan_compact_partition_output_table(outputs, path, tablet_count))
+        plans.append(
+            plan_compact_partition_output_table(
+                outputs,
+                path,
+                tablet_count,
+                minimum("compact_partition_output_messages", outputs),
+            )
+        )
     if args.table is None or args.table == "timers":
-        plans.append(plan_timer_table(timers, path, tablet_count))
+        plans.append(plan_timer_table(timers, path, tablet_count, minimum("timers", timers)))
     if args.table is None or args.table == "timer_pages":
-        plans.append(plan_timer_pages_table(timers, path, tablet_count))
+        plans.append(plan_timer_pages_table(timers, path, tablet_count, minimum("timer_pages", timers)))
     if args.table is None or args.table == "timer_page_meta":
-        plans.append(plan_timer_page_meta_table(timers, path, tablet_count))
+        plans.append(plan_timer_page_meta_table(timers, path, tablet_count, minimum("timer_page_meta", timers)))
     if args.table is None or args.table == "states":
-        plans.append(plan_state_table(computations, source_keys, path, tablet_count))
+        plans.append(plan_state_table(computations, source_keys, path, tablet_count, minimum("states", computations)))
     if args.table is None or args.table == "partition_states":
-        plans.append(plan_partition_state_table(computations, path, tablet_count))
+        plans.append(
+            plan_partition_state_table(computations, path, tablet_count, minimum("partition_states", computations))
+        )
     if args.table is None or args.table == "partition_transactions":
-        plans.append(plan_partition_transactions_table(computations, path, tablet_count))
+        plans.append(
+            plan_partition_transactions_table(
+                computations,
+                path,
+                tablet_count,
+                minimum("partition_transactions", computations),
+            )
+        )
     if args.table is None or args.table == "leases":
-        plans.append(plan_leases_table(client, computations, path, tablet_count, infer_unused=args.table is None))
+        plans.append(
+            plan_leases_table(
+                client,
+                computations,
+                path,
+                tablet_count,
+                infer_unused=args.table is None,
+                min_tablet_count=minimum("leases", computations),
+            )
+        )
     if args.table is None or args.table == "key_visitor_states":
         for computation_id in {computation_id for computation_id, _ in key_visitor_streams}:
             assert (
                 spec["spec"]["computations"][computation_id]["group_by_schema"][0]["type"] == "uint64"
             ), "First column in group_by_schema should have type equal to 'uint64' with hash value"
-        plans.append(plan_key_visitor_states_table(key_visitor_streams, path, tablet_count))
+        plans.append(
+            plan_key_visitor_states_table(
+                key_visitor_streams, path, tablet_count, minimum("key_visitor_states", key_visitor_streams)
+            )
+        )
     return [plan for plan in plans if plan is not None]
 
 

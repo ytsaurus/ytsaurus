@@ -5,6 +5,7 @@ import pytest
 from yt.wrapper import yson
 
 from yt.yt.flow.tools.reshard_flow_tables.lib import (
+    computation_tablet_counts,
     key_sort_value,
     plan_key_visitor_states_table,
     plan_leases_table,
@@ -81,6 +82,21 @@ def test_empty_leases_table_is_planned_to_a_single_tablet():
     assert client.queries == ["* FROM [//pipeline/leases] LIMIT 1"]
 
 
+def test_empty_leases_table_honors_minimum_with_equal_computation_widths():
+    client = FakeClient([])
+
+    assert plan_leases_table(
+        client,
+        ["a", "b"],
+        "//pipeline",
+        3,
+        min_tablet_count=30,
+    ) == (
+        "//pipeline/leases",
+        {"tablet_count": 30, "uniform": True},
+    )
+
+
 def test_populated_leases_table_is_planned_to_the_full_width():
     client = FakeClient([{"key": "", "subkey": "expiration"}])
 
@@ -111,6 +127,14 @@ def test_leases_table_of_a_pipeline_without_computations_is_skipped():
     client = FakeClient([{"key": "", "subkey": "expiration"}])
 
     assert plan_leases_table(client, [], "//pipeline", 20) is None
+    assert client.queries == []
+
+
+def test_empty_leases_table_of_a_pipeline_without_computations_is_skipped_with_a_minimum():
+    client = FakeClient([])
+
+    assert plan_leases_table(client, [], "//pipeline", 20, min_tablet_count=30) is None
+    assert client.queries == []
 
 
 def test_key_visitor_states_pivots_are_keyed_by_computation_and_stream():
@@ -142,8 +166,15 @@ def test_key_visitor_states_table_of_a_pipeline_without_such_streams_is_skipped(
 
 
 class FakeSpecClient:
-    def __init__(self, computations):
+    def __init__(self, computations, minimums=None):
         self.computations = computations
+        self.minimums = minimums or {}
+        self.attribute_reads = []
+
+    def get(self, path, attributes=None):
+        assert attributes == ["type", "tablet_balancer_config"]
+        self.attribute_reads.append(path)
+        return {"type": "table", "tablet_balancer_config": {"min_tablet_count": self.minimums.get(path, 0)}}
 
     def get_pipeline_spec(self, path):
         return {"spec": {"computations": self.computations}}
@@ -243,3 +274,82 @@ def test_timer_pages_table_is_uniform_over_the_family_id():
         {"tablet_count": 6, "uniform": True},
     )
     assert plan_timer_pages_table([], "//pipeline", 3) is None
+
+
+@pytest.mark.parametrize(
+    "table, expected_count, expected_computations",
+    [
+        ("key_visitor_states", 33, {"first": 22, "second": 11}),
+        ("timer_pages", 32, None),
+        ("timer_page_meta", 32, {"first": 16, "second": 16}),
+    ],
+)
+def test_pipeline_plan_honors_minimum_for_key_visitors_and_paged_timers(table, expected_count, expected_computations):
+    first = make_key_visitor_computation("uint64")
+    first["key_visitor_streams"]["other"] = {}
+    first["timer_streams"] = {"timer": {}}
+    second = make_key_visitor_computation("uint64")
+    second["timer_streams"] = {"timer": {}}
+    client = FakeSpecClient({"first": first, "second": second}, {f"//pipeline/{table}/@": 31})
+    args = argparse.Namespace(pipeline_path="//pipeline", tablet_count=2, table=table)
+
+    (request,) = plan_pipeline_tables(client, args)
+
+    assert client.attribute_reads == [f"//pipeline/{table}/@"]
+    if table == "timer_pages":
+        assert request == ("//pipeline/timer_pages", {"tablet_count": expected_count, "uniform": True})
+    else:
+        assert request.table == f"//pipeline/{table}"
+        pivots = request.parameters["pivot_keys"]
+        assert len(pivots) == expected_count
+        assert computation_tablet_counts(pivots, expected_computations) == expected_computations
+
+
+def test_key_visitor_minimum_is_distributed_equally_between_streams():
+    streams = [("b", "visit"), ("a", "visit"), ("a", "other")]
+
+    request = plan_key_visitor_states_table(streams, "//pipeline", 2, min_tablet_count=31)
+
+    pivots = request.parameters["pivot_keys"]
+    assert len(pivots) == 33
+    for computation, stream in streams:
+        hashes = [key[2][0] for key in pivots if len(key) == 3 and key[:2] == [computation, stream]]
+        assert hashes == [(2**64 * k) // 11 for k in range(1, 11)]
+        assert all(isinstance(value, yson.YsonUint64) for value in hashes)
+
+
+@pytest.mark.parametrize("table", [None, "key_visitor_states", "timer_pages", "timer_page_meta"])
+def test_pipeline_without_computations_does_not_read_table_attributes(table):
+    client = FakeSpecClient({})
+    args = argparse.Namespace(pipeline_path="//pipeline", tablet_count=2, table=table)
+
+    assert plan_pipeline_tables(client, args) == []
+    assert client.attribute_reads == []
+
+
+@pytest.mark.parametrize("table", ["key_visitor_states", "timer_pages", "timer_page_meta"])
+def test_unused_key_visitor_and_paged_timer_tables_do_not_read_attributes(table):
+    computation = make_key_visitor_computation("uint64")
+    computation["key_visitor_streams"] = {}
+    client = FakeSpecClient({"comp": computation})
+    args = argparse.Namespace(pipeline_path="//pipeline", tablet_count=2, table=table)
+
+    assert plan_pipeline_tables(client, args) == []
+    assert client.attribute_reads == []
+
+
+@pytest.mark.parametrize("tablet_count", [0, -1])
+@pytest.mark.parametrize("planner", [plan_key_visitor_states_table, plan_timer_pages_table, plan_timer_page_meta_table])
+def test_key_visitor_and_paged_timer_planners_reject_non_positive_width(planner, tablet_count):
+    ranges = [("comp", "visit")] if planner is plan_key_visitor_states_table else ["comp"]
+
+    with pytest.raises(ValueError, match="Tablet count must be positive"):
+        planner(ranges, "//pipeline", tablet_count, min_tablet_count=30)
+
+
+def test_timer_page_meta_pivots_distribute_the_hash_space_evenly():
+    plan = plan_timer_page_meta_table(["comp"], "//pipeline", 10)
+
+    hashes = [pivot[1] for pivot in plan.parameters["pivot_keys"][1:]]
+    assert hashes == [(2**64 * k) // 10 for k in range(1, 10)]
+    assert all(isinstance(value, yson.YsonUint64) for value in hashes)
