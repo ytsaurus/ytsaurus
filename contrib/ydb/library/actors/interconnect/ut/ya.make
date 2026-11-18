@@ -16,6 +16,7 @@ SRCS(
     direct_session_ut.cpp
     event_holder_pool_ut.cpp
     event_output_channel_ut.cpp
+    interconnect_nameserver_dynamic_ut.cpp
     interconnect_session_pool_mapping_ut.cpp
     interconnect_uring_engine_client_ut.cpp
     interconnect_uring_engine_ut.cpp
@@ -40,6 +41,7 @@ ENDIF()
 
 PEERDIR(
     contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/dnsresolver
     contrib/ydb/library/actors/interconnect
     contrib/ydb/library/actors/interconnect/ut/lib
     contrib/ydb/library/actors/interconnect/ut/lib/port_manager

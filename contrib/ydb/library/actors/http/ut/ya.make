@@ -7,6 +7,7 @@ PEERDIR(
     contrib/libs/poco/Crypto
     contrib/libs/poco/Foundation
     contrib/libs/poco/Net
+    library/cpp/monlib/consumers
     contrib/ydb/core/security/certificate_check/test_utils
     contrib/ydb/library/actors/testlib
     contrib/ydb/library/actors/async

@@ -5,9 +5,8 @@
 
 #include <util/generic/size_literals.h>
 
-#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_registrar.h>
-#include <yql/essentials/minikql/comp_nodes/test_support/mkql_test_setup.h>
 #include <yql/essentials/minikql/mkql_alloc.h>
+#include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
 
 #include <limits>
 
