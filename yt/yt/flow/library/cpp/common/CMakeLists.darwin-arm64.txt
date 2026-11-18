@@ -52,6 +52,7 @@ target_link_libraries(library-cpp-common PUBLIC
   yt-library-formats
   yt-library-heavy_schema_validation
   library-cpp-file_storage
+  library-query-base
   library-query-engine_api
   library-tvm-service
   cpp-yt-memory

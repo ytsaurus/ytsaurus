@@ -89,6 +89,7 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/heavy_schema_validation
     yt/yt/flow/library/cpp/file_storage
+    yt/yt/library/query/base
     yt/yt/library/query/engine_api
     yt/yt/library/tvm/service
     library/cpp/yt/memory

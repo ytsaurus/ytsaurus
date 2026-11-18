@@ -24,8 +24,8 @@ std::string FormatValueAsSelectLiteral(const NTableClient::TUnversionedValue& va
 //! comma-separated tuple of SELECT literals.
 std::string BuildLiteralTuple(const TKey& key, const NTableClient::TTableSchema& schema);
 
-//! Renders the first |count| column names of |schema| as a parenthesized
-//! comma-separated tuple.
+//! Renders the first |count| column names of |schema|, quoted where needed, as
+//! a parenthesized comma-separated tuple.
 std::string BuildColumnTuple(const NTableClient::TTableSchema& schema, int count);
 
 //! Renders every column of |schema| as a parenthesized comma-separated tuple.

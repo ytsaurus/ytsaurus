@@ -100,6 +100,23 @@ TEST(TSelectPlaceholdersTest, NullBoundParsesToNullLiteral)
         ParseAndFormat(R"((a,b) FROM [//t] WHERE (a,b) > (1u,null))"));
 }
 
+TEST(TSelectPlaceholdersTest, QuotesColumnNames)
+{
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("routing-hash", EValueType::Uint64),
+        TColumnSchema("b", EValueType::String),
+    });
+
+    TSelectPlaceholders placeholders;
+    auto query = Format("%v FROM [//t] WHERE %v",
+        BuildColumnTuple(*schema),
+        placeholders.BindKeyBound(*schema, ">", "offset", MakeKey(ui64{1}, "y")));
+
+    EXPECT_EQ(
+        ParseAndFormat(query, placeholders.Build()),
+        ParseAndFormat(R"((`routing-hash`,b) FROM [//t] WHERE (`routing-hash`,b) > (1u,"y"))"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
