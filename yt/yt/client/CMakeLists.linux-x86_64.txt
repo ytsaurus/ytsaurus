@@ -239,6 +239,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/partition_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/producer_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/queue_export.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/queue_rowset.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/ypath/rich_constrained.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/ypath/parser_detail.cpp

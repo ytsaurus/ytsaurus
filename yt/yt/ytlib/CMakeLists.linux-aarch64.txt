@@ -115,6 +115,8 @@ target_link_libraries(yt-yt-ytlib PUBLIC
 
 target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/internal_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/internal_proxy/export_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp

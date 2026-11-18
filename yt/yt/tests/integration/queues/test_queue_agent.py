@@ -4741,6 +4741,42 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    @authors("apachee")
+    def test_invalid_cron_schedule(self):
+        orchid = QueueAgentOrchid()
+
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
+
+        _, queue_id = self._create_queue(queue_path)
+
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows(queue_path, [{"data": "foo"}])
+        self._flush_table(queue_path)
+
+        # NB: An invalid CRON schedule must only be reported as an error, without crashing any YT component.
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron_schedule": "61 * * * *",
+            },
+        })
+
+        wait(lambda: "not well-formed" in str(orchid.get_queue_orchid(f"primary:{queue_path}").get_status()["error"]), ignore_exceptions=True)
+        assert len(ls(export_dir)) == 0
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+            },
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        self.remove_export_destination(export_dir)
+
 
 # COMPAT(apachee): Same tests, but use old implementation.
 class TestQueueStaticExportOldImpl(TestQueueStaticExport):

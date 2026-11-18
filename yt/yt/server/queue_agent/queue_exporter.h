@@ -61,7 +61,12 @@ struct TQueueExportProgress
     //! Queue id corresponding to this export progress.
     NObjectClient::TObjectId QueueObjectId;
 
-    void Update(i64 tabletIndex, NChunkClient::TChunkId chunkId, NHiveClient::TTimestamp maxTimestamp, i64 rowCount);
+    void Update(
+        i64 tabletIndex,
+        NChunkClient::TChunkId chunkId,
+        NHiveClient::TTimestamp maxTimestamp,
+        i64 chunkCount,
+        i64 rowCount);
 
     REGISTER_YSON_STRUCT(TQueueExportProgress);
 

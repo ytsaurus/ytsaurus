@@ -9,6 +9,8 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     api/connection.cpp
+    api/internal_proxy/config.cpp
+    api/internal_proxy/export_queue.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
