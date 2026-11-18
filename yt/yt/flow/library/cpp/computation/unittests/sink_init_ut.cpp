@@ -589,6 +589,8 @@ class TProductionWiredSinkInitComputation
     : public TUniversalComputationBase
 {
 public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
     TProductionWiredSinkInitComputation(
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext)

@@ -1037,6 +1037,11 @@ const auto& GetDescriptor(TStringBuf mapType, auto& descriptorMap, TStringBuf ty
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EInputAcknowledgementPolicy TRegistry::GetInputAcknowledgementPolicy(TStringBuf typeName) const
+{
+    return GetComputationDescriptor(typeName).InputAcknowledgementPolicy;
+}
+
 const TRegistry::TComputationDescriptor& TRegistry::GetComputationDescriptor(TStringBuf typeName) const
 {
     return GetDescriptor("computation", TypeNameToComputationDescriptor_, typeName);

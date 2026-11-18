@@ -4,6 +4,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
+#include <yt/yt/flow/library/cpp/common/stream_buffer_duration.h>
 #include <yt/yt/flow/library/cpp/common/stream_inflight_limits.h>
 
 #include <yt/yt/flow/library/cpp/buffers/public.h>
@@ -36,7 +37,9 @@ struct IBufferStateManager
     //! Whether the v2 strategy is on; the warmup machinery is a no-op otherwise.
     virtual bool IsV2Enabled() = 0;
     virtual TDuration GetWarmupRefreshPeriod() = 0;
-    virtual void Reconfigure(TDynamicBufferStateManagerSpecPtr dynamicSpec) = 0;
+    virtual void Reconfigure(
+        TDynamicBufferStateManagerSpecPtr dynamicSpec,
+        TStreamBufferDurationSnapshotPtr durationSnapshot) = 0;
     virtual void ManageBuffers() = 0;
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
 };

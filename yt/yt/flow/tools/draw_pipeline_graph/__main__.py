@@ -9,8 +9,8 @@ from yt.wrapper import yson
 
 from yt.ypath.rich import RichYPath
 
-from yt.yt.flow.tools.draw_pipeline_graph.dot_graph import get_dot_binary_path, render_dot_graph
-from yt.yt.flow.tools.draw_pipeline_graph.graph_model import fetch_describe, get_graph
+from yt.yt.flow.tools.draw_pipeline_graph.lib.dot_graph import get_dot_binary_path, render_dot_graph
+from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_model import fetch_describe, get_graph
 from yt.yt.flow.tools.draw_pipeline_graph.mermaid_graph import escape_html_text, render_mermaid_graph
 from yt.yt.flow.library.python.client.flow_view import get_flow_view
 

@@ -3,6 +3,23 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
+Input or output buffer settings. The default window is `max_duration`. In V2 ([`enable_v2`](./all_yson_structs#NYT_NFlow_TDynamicBufferStateManagerSpec)), set `min_duration` below `max_duration` to select a window automatically for each stream within these bounds. Input buffers use the reading computation’s configured [`batch_duration`](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec). Output buffers use an estimate of how long a message needs to wait in the buffer, based on the computations’ `batch_duration`. This time is multiplied by `duration_multiplier`. An omitted `min_duration` follows the current `max_duration`; an equal or larger value also uses `max_duration`. V1 always uses `max_duration`.
+
+Configure input and output buffers independently in the pipeline dynamic spec:
+
+```yson
+job_tracker = {
+    buffer_state_manager = {
+        input_buffer = {max_duration = "15m"; min_duration = "60s";};
+        output_buffer = {max_duration = "15m"; min_duration = "60s";};
+    };
+};
+```
+
+Changes to these settings and `batch_duration` apply to running jobs on the next buffer-management tick. The window is a sizing estimate, not a waiting-time guarantee or a hard bound on resident memory. Upgrade the controller, workers and configuration-writing tools before using the new fields. Remove `min_duration` and `duration_multiplier` before downgrading binaries or tools; binary releases require a completed pipeline drain.
+
+### Parameters {#one-side-buffer-parameters}
+
 #|
 || **Parameter** | **Description** ||
 || `fair_share_pool` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
@@ -19,7 +36,12 @@ Minimum buffer size for a single job. ||
 Maximum buffer size for a single job. ||
 || `max_duration` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
-Assume that a buffer need not hold more than `max_duration` of job work (the rate is estimated heuristically). With `enable_v2`, it also caps the measured job epoch-cycle estimate. A producing output may probe up to its equal share of half `fair_share_pool` because producer epochs do not reveal the downstream acknowledgement period. `job_limit` and the worker pool remain hard bounds. ||
+Upper bound of the time window used to calculate buffer size, also used by V1. Increase it explicitly when long batches need larger windows. ||
+|| `min_duration` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+Lower bound of the time window used to calculate buffer size in V2. If omitted, follows the current `max_duration`. A positive value smaller than `max_duration` selects automatic per-stream sizing; equality or a larger value uses the configured `max_duration`. ||
+|| `duration_multiplier` | **Type**: `double`
+**Default value**: `3.0`
+Positive finite multiplier of the estimated message waiting time in the buffer in V2. Does not activate automatic sizing by itself. ||
 || `job_overrides` | **Type**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
 **Default value**: `{}`
 Ability to manually override the buffer size for a computation stream. ||

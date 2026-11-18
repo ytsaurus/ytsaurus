@@ -14,7 +14,7 @@ class Test(TestBase):
     CUT_OUTPUT_BUFFER_LIMIT = "32Ki"
     CUT_OUTPUT_BUFFER_LIMIT_BYTES = 32 * 1024
 
-    def _get_transform_a_output_buffers(self):
+    def _get_transform_a_job_status(self):
         view = self.client.get_flow_view(self.pipeline_path, cache=False)
         partitions = view["state"]["execution_spec"]["layout"]["partitions"]
         statuses = view["feedback"]["partition_job_statuses"]
@@ -24,8 +24,11 @@ class Test(TestBase):
             job_status = statuses.get(partition_id, {}).get("current_job_status", {})
             output_limits = job_status.get("output_limits", {}).get("output_buffer_bytes", {})
             if "ta1" in output_limits and "ta2" in output_limits:
-                return output_limits
+                return job_status
         return {}
+
+    def _get_transform_a_output_buffers(self):
+        return self._get_transform_a_job_status().get("output_limits", {}).get("output_buffer_bytes", {})
 
     def _wait_output_buffers_warm(self):
         def output_buffers_are_warm():
@@ -96,3 +99,47 @@ class Test(TestBase):
                 assert row["count"] == EVENT_COUNT
             else:
                 assert row["count"] >= EVENT_COUNT
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_automatic_duration_reconfigures_downstream_batch(self):
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config(
+            throttled_computation="swift_map_a",
+            automatic_duration=True,
+        )
+        with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}):
+
+            def output_is_backlogged():
+                output = self._get_transform_a_output_buffers().get("ta1", {})
+                return output.get("limit", 0) > 8 * 1024 and output.get("used", 0) > 8 * 1024
+
+            wait(output_is_backlogged, timeout=180)
+            job_id = self._get_transform_a_job_status()["job_id"]
+            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+            dynamic_spec["spec"]["computations"]["transform_b"]["batch_duration"] = "0s"
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                dynamic_spec["spec"],
+                expected_version=dynamic_spec["version"],
+            )
+            self.wait_dynamic_spec_sync()
+
+            def output_has_shrunk_and_independent_exit_is_writable():
+                outputs = self._get_transform_a_output_buffers()
+                output = outputs.get("ta1", {})
+                independent_output = outputs.get("ta2", {})
+                return (
+                    0 < output.get("limit", 0) <= 1024
+                    and output.get("used", 0) > output.get("limit", 0)
+                    and independent_output.get("limit", 0) > independent_output.get("used", 0)
+                )
+
+            # Observe headroom on the independent exit while ta1 remains above its new limit.
+            wait(output_has_shrunk_and_independent_exit_is_writable, timeout=180)
+            assert self._get_transform_a_job_status()["job_id"] == job_id
+            self.release_input_throttler("swift_map_a")
+            self.wait_pipeline_state("completed", timeout=180)
+            rows = list(self.client.select_rows(f"* from [{self.state}]"))
+            assert len(rows) == 1
+            assert rows[0]["count"] == EVENT_COUNT
+            assert rows[0]["data"] == "payload"

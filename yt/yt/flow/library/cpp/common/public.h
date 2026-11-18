@@ -129,6 +129,12 @@ DEFINE_ENUM(EPartitionState,
     ((Interrupted)     (5))
 );
 
+DEFINE_ENUM(EInputAcknowledgementPolicy,
+    ((Unknown)               (0))
+    ((PersistAfterEpoch)     (1))
+    ((AfterDependentOutputs) (2))
+);
+
 DEFINE_ENUM(EBufferManagementStrategy,
     ((Uniform)        (0))
     ((FairShare)      (1))

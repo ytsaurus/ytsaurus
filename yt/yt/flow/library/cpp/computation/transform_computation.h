@@ -41,6 +41,8 @@ public:
     YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
 
 public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
     TTransformComputation(
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);

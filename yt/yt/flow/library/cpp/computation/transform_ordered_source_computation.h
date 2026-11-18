@@ -19,6 +19,9 @@ public:
 
     using TOrderedSourceComputationBase::TOrderedSourceComputationBase;
 
+public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
 protected:
     TMessageId GetMaxPersistedMessageIdExclusive();
 

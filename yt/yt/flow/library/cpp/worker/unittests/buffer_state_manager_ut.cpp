@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <deque>
 
 namespace NYT::NFlow::NWorker {
@@ -961,37 +963,316 @@ TEST_F(TBufferManagerTest, SparseOutputProbeUsesHalfPoolShareAndShrinks)
     Spec_->OutputBuffer->JobLimit = NYTree::TSize(JobLimit);
     Spec_->OutputBuffer->FairSharePool = NYTree::TSize(128_MB);
 
-    auto manager = CreateManager();
-    std::vector<TStreamId> outputStreamIds = {TStreamId("output")};
-    for (int index = 0; index < 15; ++index) {
-        outputStreamIds.push_back(TStreamId(Format("inactive_%v", index)));
-    }
-    auto output = manager->RegisterJob(
-        TJobId(TGuid::Create()),
-        CreateJobSpec(TStreamId("input"), outputStreamIds))
-        .Output.at(TStreamId("output"));
-    output->SetOfferedRawRate(Rate, 0);
+    for (int variant = 0; variant < 6; ++variant) {
+        Spec_->OutputBuffer->MinDuration.reset();
+        Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+        if (variant == 1) {
+            Spec_->OutputBuffer->MinDuration = Spec_->OutputBuffer->MaxDuration;
+        } else if (variant == 2) {
+            Spec_->OutputBuffer->MinDuration = TDuration::Seconds(3);
+        }
 
-    TStreamUsage usage;
+        if (variant >= 4) {
+            Spec_->OutputBuffer->MinDuration = TDuration::Seconds(1);
+        }
+
+        auto manager = CreateManager();
+        auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+        snapshot->Streams[TStreamId("output")].ChainSeconds = 0;
+        manager->Reconfigure(Spec_, snapshot);
+
+        if (variant == 3) {
+            auto changed = NYTree::CloneYsonStruct(Spec_);
+            changed->OutputBuffer->MaxDuration = TDuration::Seconds(3);
+            manager->Reconfigure(changed, snapshot);
+            Spec_ = changed;
+            EXPECT_FALSE(Spec_->OutputBuffer->MinDuration);
+        }
+
+        if (variant >= 4) {
+            auto changed = NYTree::CloneYsonStruct(Spec_);
+            if (variant == 4) {
+                changed->OutputBuffer->MinDuration.reset();
+            } else {
+                changed->OutputBuffer->MinDuration = changed->OutputBuffer->MaxDuration;
+            }
+
+            manager->Reconfigure(changed, snapshot);
+            Spec_ = changed;
+        }
+
+        std::vector<TStreamId> outputStreamIds = {TStreamId("output")};
+        for (int index = 0; index < 15; ++index) {
+            outputStreamIds.push_back(TStreamId(Format("inactive_%v", index)));
+        }
+
+        auto output = GetOrCrash(
+            manager->RegisterJob(
+                TJobId(TGuid::Create()),
+                CreateJobSpec(TStreamId("input"), outputStreamIds))
+                .Output,
+            TStreamId("output"));
+        output->SetOfferedRawRate(Rate, 0);
+
+        TStreamUsage usage;
+        for (int second = 0; second < 30; ++second) {
+            while (output->IsUsageWithinLimits(usage) && usage.CumulativeByteIn < JobLimit) {
+                usage.CumulativeByteIn += 1_MB;
+                output->Update(usage);
+            }
+
+            Manage(manager);
+        }
+
+        EXPECT_GT(output->GetLimitBytes(), 4 * Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
+        EXPECT_LE(output->GetLimitBytes(), JobLimit);
+        EXPECT_EQ(output->GetDemandBytes(), Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
+
+        usage.CumulativeByteOut = usage.CumulativeByteIn;
+        output->SetOfferedRawRate(0, 0);
+        output->Update(usage);
+        for (int second = 0; second < 180; ++second) {
+            Manage(manager);
+        }
+
+        EXPECT_LE(output->GetLimitBytes(), static_cast<i64>(Spec_->V2Floor));
+    }
+}
+
+TEST_F(TBufferManagerTest, AutomaticDurationCapsSparseProbeAndUpdatesEqualSpec)
+{
+    constexpr i64 Rate = 1_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(100);
+    Spec_->OutputBuffer->MinDuration = TDuration::Seconds(1);
+    Spec_->OutputBuffer->DurationMultiplier = 1;
+    auto manager = CreateManager();
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("fast")].ChainSeconds = 2;
+    snapshot->Streams[TStreamId("slow")].ChainSeconds = 200;
+    manager->Reconfigure(Spec_, snapshot);
+    auto jobId = TJobId(TGuid::Create());
+    auto states = manager->RegisterJob(
+        jobId,
+        CreateJobSpec(TStreamId("input"), {TStreamId("fast"), TStreamId("slow")}));
+    TPartitionBufferWarmup warmup;
+    warmup.EpochCycleSeconds = 1000;
+    warmup.OutputSpeeds = {{TStreamId("fast"), Rate}, {TStreamId("slow"), Rate}};
+    manager->SeedJob(jobId, warmup);
+    THashMap<TStreamId, TStreamUsage> usages;
     for (int second = 0; second < 30; ++second) {
-        while (output->IsUsageWithinLimits(usage) && usage.CumulativeByteIn < JobLimit) {
-            usage.CumulativeByteIn += 1_MB;
+        for (const auto& [streamId, output] : states.Output) {
+            auto& usage = usages[streamId];
+            usage.CumulativeByteIn = std::max(usage.CumulativeByteIn, output->GetLimitBytes());
+            output->SetOfferedRawRate(Rate, 0);
             output->Update(usage);
         }
+
+        Manage(manager);
+        EXPECT_LE(GetOrCrash(states.Output, TStreamId("fast"))->GetLimitBytes(), 2 * Rate);
+        EXPECT_LE(GetOrCrash(states.Output, TStreamId("slow"))->GetLimitBytes(), 100 * Rate);
+    }
+
+    EXPECT_EQ(GetOrCrash(states.Output, TStreamId("fast"))->GetDemandBytes(), 2 * Rate);
+    EXPECT_EQ(GetOrCrash(states.Output, TStreamId("slow"))->GetDemandBytes(), 100 * Rate);
+    auto shorter = std::make_shared<TStreamBufferDurationSnapshot>(*snapshot);
+    shorter->Streams[TStreamId("slow")].ChainSeconds = 3;
+    manager->Reconfigure(Spec_, shorter);
+    Manage(manager);
+    EXPECT_LE(GetOrCrash(states.Output, TStreamId("slow"))->GetLimitBytes(), 3 * Rate);
+    EXPECT_EQ(GetOrCrash(states.Output, TStreamId("fast"))->GetDemandBytes(), 2 * Rate);
+    auto newStates = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), TStreamId("slow")));
+    GetOrCrash(newStates.Output, TStreamId("slow"))->SetOfferedRawRate(Rate, 0);
+    Manage(manager);
+    EXPECT_LE(GetOrCrash(newStates.Output, TStreamId("slow"))->GetDemandBytes().value(), 3 * Rate);
+}
+
+TEST_F(TBufferManagerTest, AutomaticWarmupKeepsDistinctInputAndOutputDurations)
+{
+    constexpr i64 Rate = 1_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+
+    for (const auto& side : {Spec_->InputBuffer, Spec_->OutputBuffer}) {
+        side->MaxDuration = TDuration::Seconds(100);
+        side->MinDuration = TDuration::Seconds(1);
+        side->DurationMultiplier = 1;
+    }
+
+    Spec_->InputBuffer->MaxDuration = TDuration::Seconds(10);
+    auto manager = CreateManager();
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("input")].ChainSeconds = 1000;
+    snapshot->InputDurations[TComputationId("computation")].ChainSeconds = 2;
+    snapshot->InputDurations[TComputationId("second_consumer")].ChainSeconds = 7;
+    snapshot->Streams[TStreamId("output")].ChainSeconds = 20;
+    manager->Reconfigure(Spec_, snapshot);
+    auto jobId = TJobId(TGuid::Create());
+    auto states = manager->RegisterJob(jobId, CreateJobSpec(TStreamId("input"), TStreamId("output")));
+    auto secondJobId = TJobId(TGuid::Create());
+    auto secondJobSpec = CreateJobSpec(TStreamId("input"), std::vector<TStreamId>{});
+    secondJobSpec->Partition->ComputationId = TComputationId("second_consumer");
+    auto secondStates = manager->RegisterJob(secondJobId, secondJobSpec);
+    TPartitionBufferWarmup warmup;
+    warmup.EpochCycleSeconds = 1000;
+    warmup.InputSpeeds[TStreamId("input")] = Rate;
+    warmup.OutputSpeeds[TStreamId("output")] = Rate;
+    manager->SeedJob(jobId, warmup);
+    manager->SeedJob(secondJobId, warmup);
+    EXPECT_EQ(manager->GetJobWarmup(jobId).EpochCycleSeconds, 100);
+    GetOrCrash(states.Input, TStreamId("input"))->Update(TStreamUsage{.CumulativeByteIn = 1_MB});
+    GetOrCrash(secondStates.Input, TStreamId("input"))->Update(TStreamUsage{.CumulativeByteIn = 1_MB});
+    Manage(manager);
+    EXPECT_EQ(GetOrCrash(states.Input, TStreamId("input"))->GetLimitBytes(), 2 * Rate);
+    EXPECT_EQ(GetOrCrash(states.Output, TStreamId("output"))->GetLimitBytes(), 20 * Rate);
+    EXPECT_EQ(GetOrCrash(secondStates.Input, TStreamId("input"))->GetLimitBytes(), 7 * Rate);
+
+    auto updatedSnapshot = std::make_shared<TStreamBufferDurationSnapshot>(*snapshot);
+    GetOrCrash(updatedSnapshot->InputDurations, TComputationId("computation")).ChainSeconds = 1;
+    manager->Reconfigure(Spec_, updatedSnapshot);
+    Manage(manager);
+    EXPECT_EQ(GetOrCrash(states.Input, TStreamId("input"))->GetLimitBytes(), Rate);
+    EXPECT_EQ(GetOrCrash(secondStates.Input, TStreamId("input"))->GetLimitBytes(), 7 * Rate);
+}
+
+TEST_F(TBufferManagerTest, AutomaticSideSettingsReconfigureWithoutResettingWarmup)
+{
+    constexpr i64 Rate = 1_MB;
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(100);
+    Spec_->OutputBuffer->MinDuration = TDuration::Seconds(1);
+    Spec_->OutputBuffer->DurationMultiplier = 1;
+    auto manager = CreateManager();
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("output")].ChainSeconds = 2;
+    manager->Reconfigure(Spec_, snapshot);
+    auto jobId = TJobId(TGuid::Create());
+    auto output = GetOrCrash(
+        manager->RegisterJob(jobId, CreateJobSpec(TStreamId("input"), TStreamId("output"))).Output,
+        TStreamId("output"));
+    TPartitionBufferWarmup warmup;
+    warmup.OutputSpeeds[TStreamId("output")] = Rate;
+    warmup.EpochCycleSeconds = 100;
+    manager->SeedJob(jobId, warmup);
+    Manage(manager);
+    EXPECT_EQ(output->GetLimitBytes(), 2 * Rate);
+
+    auto changed = NYTree::CloneYsonStruct(Spec_);
+    changed->OutputBuffer->DurationMultiplier = 3;
+    manager->Reconfigure(changed, snapshot);
+    Manage(manager);
+    EXPECT_EQ(output->GetLimitBytes(), 6 * Rate);
+    changed = NYTree::CloneYsonStruct(changed);
+    changed->OutputBuffer->MinDuration = TDuration::Seconds(10);
+    manager->Reconfigure(changed, snapshot);
+    Manage(manager);
+    EXPECT_EQ(output->GetLimitBytes(), 10 * Rate);
+    changed = NYTree::CloneYsonStruct(changed);
+    changed->OutputBuffer->MaxDuration = TDuration::Seconds(4);
+    manager->Reconfigure(changed, snapshot);
+    Manage(manager);
+    EXPECT_EQ(output->GetLimitBytes(), 4 * Rate);
+    EXPECT_GT(GetOrCrash(manager->GetJobWarmup(jobId).OutputSpeeds, TStreamId("output")), 0);
+}
+
+TEST_F(TBufferManagerTest, AutomaticDefaultAndEqualMinimumPreserveLegacyWarmup)
+{
+    constexpr i64 Rate = 1_MB;
+    Spec_->InputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(20);
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("output")].ChainSeconds = 0;
+    std::optional<i64> baselineLimit;
+    std::optional<double> baselineCycle;
+    for (int variant = 0; variant < 3; ++variant) {
+        if (variant > 0) {
+            Spec_->OutputBuffer->MinDuration = TDuration::Seconds(variant == 1 ? 20 : 30);
+        }
+
+        auto manager = CreateManager();
+        manager->Reconfigure(Spec_, snapshot);
+        auto jobId = TJobId(TGuid::Create());
+        auto output = GetOrCrash(
+            manager->RegisterJob(jobId, CreateJobSpec(TStreamId("input"), TStreamId("output"))).Output,
+            TStreamId("output"));
+        TPartitionBufferWarmup warmup;
+        warmup.EpochCycleSeconds = 100;
+        warmup.OutputSpeeds[TStreamId("output")] = Rate;
+        manager->SeedJob(jobId, warmup);
+        Manage(manager);
+        auto cycle = manager->GetJobWarmup(jobId).EpochCycleSeconds;
+        if (variant == 0) {
+            baselineLimit = output->GetLimitBytes();
+            baselineCycle = cycle;
+        } else {
+            EXPECT_EQ(output->GetLimitBytes(), baselineLimit);
+            EXPECT_EQ(cycle, baselineCycle);
+        }
+    }
+}
+
+TEST_F(TBufferManagerTest, AutomaticPolicyIsIgnoredByV1)
+{
+    Spec_->EnableV2 = false;
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(100);
+    auto legacy = CreateManager();
+    auto automaticSpec = NYTree::CloneYsonStruct(Spec_);
+    automaticSpec->OutputBuffer->MinDuration = TDuration::Seconds(1);
+    auto automatic = CreateManager();
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("output")].ChainSeconds = 0;
+    automatic->Reconfigure(automaticSpec, snapshot);
+    auto jobSpec = CreateJobSpec(TStreamId("input"), TStreamId("output"));
+    auto legacyOutput = GetOrCrash(legacy->RegisterJob(TJobId(TGuid::Create()), jobSpec).Output, TStreamId("output"));
+    auto automaticOutput = GetOrCrash(automatic->RegisterJob(TJobId(TGuid::Create()), jobSpec).Output, TStreamId("output"));
+    TStreamUsage usage;
+    for (int second = 0; second < 10; ++second) {
+        usage.CumulativeByteIn += 1_MB;
+        usage.CumulativeByteOut = usage.CumulativeByteIn;
+        legacyOutput->Update(usage);
+        automaticOutput->Update(usage);
+        Manage(legacy);
+        Manage(automatic);
+        EXPECT_EQ(legacyOutput->GetLimitBytes(), automaticOutput->GetLimitBytes());
+    }
+}
+
+TEST_F(TBufferManagerTest, AutomaticColdOutputRemainsLive)
+{
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(64_MB);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(128_MB);
+    Spec_->OutputBuffer->MinDuration = TDuration::Seconds(1);
+    auto manager = CreateManager();
+    auto snapshot = std::make_shared<TStreamBufferDurationSnapshot>();
+    snapshot->Streams[TStreamId("automatic")].ChainSeconds = 0;
+    manager->Reconfigure(Spec_, snapshot);
+    auto states = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), TStreamId("automatic")));
+    auto automatic = GetOrCrash(states.Output, TStreamId("automatic"));
+    Manage(manager);
+    EXPECT_GT(automatic->GetLimitBytes(), 0);
+    TStreamUsage automaticUsage;
+    for (int second = 0; second < 200; ++second) {
+        if (automatic->IsUsageWithinLimits(automaticUsage)) {
+            automaticUsage.CumulativeByteIn += 1_MB;
+            automatic->Update(automaticUsage);
+        }
+
+        if (second % 10 == 9) {
+            automaticUsage.CumulativeByteOut = automaticUsage.CumulativeByteIn;
+            automatic->Update(automaticUsage);
+        }
+
         Manage(manager);
     }
 
-    EXPECT_GT(output->GetLimitBytes(), 4 * Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
-    EXPECT_LE(output->GetLimitBytes(), JobLimit);
-    EXPECT_EQ(output->GetDemandBytes(), Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
-
-    usage.CumulativeByteOut = usage.CumulativeByteIn;
-    output->SetOfferedRawRate(0, 0);
-    output->Update(usage);
-    for (int second = 0; second < 180; ++second) {
-        Manage(manager);
-    }
-    EXPECT_LE(output->GetLimitBytes(), static_cast<i64>(Spec_->V2Floor));
+    EXPECT_GT(automatic->GetLimitBytes(), 0);
+    EXPECT_LE(automatic->GetLimitBytes(), static_cast<i64>(Spec_->OutputBuffer->JobLimit));
+    EXPECT_GE(automaticUsage.CumulativeByteOut, 20_MB);
+    EXPECT_GT(automatic->GetEstimatedInflatedSpeed(), 0);
 }
 
 TEST_F(TBufferManagerTest, HighDemandOutputIsNotCappedAtEqualProbeShare)
@@ -1131,21 +1412,21 @@ TEST_F(TBufferManagerTest, DemandClearsOnReconfiguration)
 
     auto overridden = CloneYsonStruct(Spec_);
     overridden->OutputBuffer->JobOverrides[TComputationId("computation")][TStreamId("output")] = NYTree::TSize(100_MB);
-    manager->Reconfigure(overridden);
+    manager->Reconfigure(overridden, nullptr);
     EXPECT_FALSE(output->GetDemandBytes());
     Manage(manager);
     EXPECT_FALSE(output->GetDemandBytes());
 
     auto disabled = CloneYsonStruct(Spec_);
     disabled->EnableV2 = false;
-    manager->Reconfigure(disabled);
+    manager->Reconfigure(disabled, nullptr);
     EXPECT_FALSE(input->GetDemandBytes());
     EXPECT_FALSE(output->GetDemandBytes());
     Manage(manager);
     EXPECT_FALSE(input->GetDemandBytes());
     EXPECT_FALSE(output->GetDemandBytes());
 
-    manager->Reconfigure(CloneYsonStruct(Spec_));
+    manager->Reconfigure(CloneYsonStruct(Spec_), nullptr);
     EXPECT_FALSE(output->GetDemandBytes());
     Manage(manager);
     EXPECT_EQ(input->GetDemandBytes(), 0);
@@ -1576,12 +1857,12 @@ TEST_F(TBufferManagerTest, StrategyToggleDoesNotStrandLimits)
 
     auto v1Spec = CloneYsonStruct(Spec_);
     v1Spec->EnableV2 = false;
-    manager->Reconfigure(v1Spec);
+    manager->Reconfigure(v1Spec, nullptr);
     runSeconds(5);
 
     // On again with nothing pending: the fresh issuance must release the
     // reservation, not inherit whatever the v1 path left behind.
-    manager->Reconfigure(CloneYsonStruct(Spec_));
+    manager->Reconfigure(CloneYsonStruct(Spec_), nullptr);
     usage.PendingInflatedBytes = 0;
     usage.CumulativeByteOut = usage.CumulativeByteIn;
     state->Update(usage);

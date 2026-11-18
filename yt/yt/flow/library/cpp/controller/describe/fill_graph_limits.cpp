@@ -1,7 +1,9 @@
 #include "fill_graph_limits.h"
 #include "graph_entity_id.h"
 
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/common/stream_buffer_duration.h>
 
 #include <library/cpp/yt/string/format.h>
 #include <library/cpp/yt/string/string_builder.h>
@@ -497,6 +499,26 @@ std::string MakeEdgeLabel(
 void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pipeline)
 {
     const auto& pipelineSpec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
+    const auto& dynamicSpec = flowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue();
+    const auto& bufferSpec = dynamicSpec->JobTracker->BufferStateManager;
+    const auto computationTypeNames = TRegistry::Get()->GetComputationTypeNames();
+    const THashSet<std::string> knownComputationTypes(computationTypeNames.begin(), computationTypeNames.end());
+    const bool hasDurationMetadata = std::all_of(pipelineSpec->Computations.begin(), pipelineSpec->Computations.end(), [&] (const auto& item) {
+        const auto& computation = item.second;
+        return computation->InputStreamIds.empty() || knownComputationTypes.contains(computation->ComputationClassName);
+    });
+
+    TStreamBufferDurationSnapshotPtr durationSnapshot;
+    THashMap<TGraphEntityId, const TStreamBufferDurationEstimate*> durationEstimates;
+    // Local graph tools may not register custom classes from the controller's execution spec.
+    // ValidateSpecs already reports those unavailable classes; do not guess their acknowledgement policy.
+    if (hasDurationMetadata) {
+        durationSnapshot = BuildStreamBufferDurationSnapshot(pipelineSpec, dynamicSpec);
+
+        for (const auto& [streamId, estimate] : durationSnapshot->Streams) {
+            durationEstimates.emplace(MakeStreamGraphId(streamId), &estimate);
+        }
+    }
 
     // Map graphEntityId -> stream state, recorded on the producing (output) side.
     THashMap<TGraphEntityId, EStreamState> streamStates;
@@ -519,9 +541,11 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
     auto writerBlockedShares = ComputeWriterBlockedTimeShares(pipeline);
 
     auto makeEdge = [&] (
+        const TComputationId& computationId,
         const TGraphEntityId& streamId,
         const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
-        bool isReaderSide) -> TStreamEdge {
+        bool isReaderSide,
+        bool hasBuffer = false) -> TStreamEdge {
         TStreamEdge edge;
         edge.StreamGraphEntityId = streamId;
         if (auto it = streamStates.find(streamId); it != streamStates.end()) {
@@ -551,12 +575,47 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
             return sb.Flush();
         };
 
-        auto label = appendWriterBlocked(MakeEdgeLabel(limitStats, streamId), /*bold*/ false);
+        std::string durationInfo;
+        if (hasBuffer && durationSnapshot) {
+            const TStreamBufferDurationEstimate* estimate = nullptr;
+            if (isReaderSide) {
+                estimate = durationSnapshot->InputDurations.FindPtr(computationId);
+            } else if (auto it = durationEstimates.find(streamId); it != durationEstimates.end()) {
+                estimate = it->second;
+            }
+
+            if (estimate) {
+                const auto& side = isReaderSide ? bufferSpec->InputBuffer : bufferSpec->OutputBuffer;
+                const bool automatic = bufferSpec->EnableV2 && IsAutomaticBufferDurationEnabled(side);
+                const double window = bufferSpec->EnableV2
+                    ? ComputeBufferDurationSeconds(side, estimate)
+                    : side->MaxDuration.SecondsFloat();
+                durationInfo = Format("Buffer sizing window: %gs (%v); %v: %gs",
+                    window,
+                    automatic ? "automatic" : "configured",
+                    isReaderSide ? "Batch duration" : "Cumulative batch duration",
+                    estimate->ChainSeconds);
+            }
+        }
+
+        auto appendDuration = [&] (std::string label) {
+            if (!durationInfo.empty()) {
+                if (!label.empty()) {
+                    label += "; ";
+                }
+
+                label += durationInfo;
+            }
+
+            return label;
+        };
+
+        auto label = appendDuration(appendWriterBlocked(MakeEdgeLabel(limitStats, streamId), /*bold*/ false));
         if (!label.empty()) {
             auto& message = edge.Messages.emplace_back();
             message.Text = "buffers: " + label;
             message.MarkdownText = "buffers: " +
-                appendWriterBlocked(MakeEdgeLabel(limitStats, streamId, /*boldOverThreshold*/ true), /*bold*/ true);
+                appendDuration(appendWriterBlocked(MakeEdgeLabel(limitStats, streamId, /*boldOverThreshold*/ true), /*bold*/ true));
             message.Level = edge.BackpressureDetected ? ELogLevel::Warning : ELogLevel::Info;
         }
         return edge;
@@ -570,16 +629,16 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
 
     for (auto& [computationId, computation] : pipeline.Computations) {
         for (const auto& streamId : sortedStreams(computation.InputStreams)) {
-            computation.ExtendedInputStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
+            computation.ExtendedInputStreams.push_back(makeEdge(computationId, streamId, computation.InputLimitStats, /*isReaderSide*/ true, /*hasBuffer*/ true));
         }
         for (const auto& streamId : sortedStreams(computation.SourceStreams)) {
-            computation.ExtendedSourceStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
+            computation.ExtendedSourceStreams.push_back(makeEdge(computationId, streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
         for (const auto& streamId : sortedStreams(computation.OutputStreams)) {
-            computation.ExtendedOutputStreams.push_back(makeEdge(streamId, computation.OutputLimitStats, /*isReaderSide*/ false));
+            computation.ExtendedOutputStreams.push_back(makeEdge(computationId, streamId, computation.OutputLimitStats, /*isReaderSide*/ false, /*hasBuffer*/ true));
         }
         for (const auto& streamId : sortedStreams(computation.TimerStreams)) {
-            computation.ExtendedTimerStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
+            computation.ExtendedTimerStreams.push_back(makeEdge(computationId, streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
 
         if (auto message = BuildBuffersAndBackpressureMessage(computation, writerBlockedShares)) {

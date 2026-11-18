@@ -101,6 +101,8 @@ public:
         const TComputationContextPtr& context,
         const TDynamicComputationContextPtr& dynamicContext);
 
+    EInputAcknowledgementPolicy GetInputAcknowledgementPolicy(TStringBuf typeName) const;
+
     //! Instantiates the process function registered under |name|. Throws if |name| is unknown.
     IProcessFunctionBasePtr CreateProcessFunction(
         const std::string& name,
@@ -319,6 +321,7 @@ private:
         bool RequiresProcessingFunction = false;
         //! The computation runs the hosted function's sync phase (validated at spec-parse time).
         bool InvokesProcessFunctionSync = false;
+        EInputAcknowledgementPolicy InputAcknowledgementPolicy = EInputAcknowledgementPolicy::Unknown;
     };
 
     struct TProcessFunctionDescriptor

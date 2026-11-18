@@ -128,6 +128,8 @@ private:
         double UsedInflatedBytes = 0;
         double PendingInflatedBytes = 0;
         double EpochCycleSeconds = 0;
+        double MaxDurationSeconds = 0;
+        bool AutomaticDurationApplied = false;
         i64 WantedLimit = 0;
         i64 DemandBackedWantedLimit = 0;
         double SpeculativeResident = 0;
@@ -301,7 +303,11 @@ public:
         // huge value that would poison the sizing math or overflow TDuration.
         const double epochCycleSeconds =
             std::isfinite(warmup.EpochCycleSeconds) && warmup.EpochCycleSeconds > 0
-            ? std::min(warmup.EpochCycleSeconds, DynamicSpec_->InputBuffer->MaxDuration.SecondsFloat())
+            ? std::min(
+                warmup.EpochCycleSeconds,
+                (IsAutomaticBufferDurationEnabled(DynamicSpec_->InputBuffer) || IsAutomaticBufferDurationEnabled(DynamicSpec_->OutputBuffer))
+                    ? std::max(DynamicSpec_->InputBuffer->MaxDuration.SecondsFloat(), DynamicSpec_->OutputBuffer->MaxDuration.SecondsFloat())
+                    : DynamicSpec_->InputBuffer->MaxDuration.SecondsFloat())
             : 0.0;
         const double epochSeconds = std::max(epochCycleSeconds, DynamicSpec_->ManagePeriod.SecondsFloat());
         if (epochCycleSeconds > 0) {
@@ -313,14 +319,15 @@ public:
             TSideState& sideState,
             const TStreamId& streamId,
             double demand,
-            const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& spec) {
+            const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& spec,
+            bool isInput) {
             // The guard also rejects NaN from a hand-corrupted persisted warmup.
             if (!(demand > 0) || !std::isfinite(demand)) {
                 return;
             }
             const i64 jobLimit = std::max<i64>(spec->JobGuarantee, spec->JobLimit);
             issuance.Headroom = static_cast<i64>(std::min<double>(
-                DynamicSpec_->V2GainEpochs * demand * std::min(epochSeconds, spec->MaxDuration.SecondsFloat()),
+                DynamicSpec_->V2GainEpochs * demand * std::min(epochSeconds, ComputeBufferDurationSeconds(spec, FindDurationEstimate(streamId, jobState.ComputationId, isInput))),
                 static_cast<double>(jobLimit)));
             issuance.LastProbeDemand = demand;
             issuance.SeedDemand = demand;
@@ -333,10 +340,10 @@ public:
             }
         };
         for (auto& [streamId, issuance] : jobState.InputIssuance) {
-            seedIssuance(issuance, jobState.Input, streamId, GetOrDefault(warmup.InputSpeeds, streamId, 0.0), DynamicSpec_->InputBuffer);
+            seedIssuance(issuance, jobState.Input, streamId, GetOrDefault(warmup.InputSpeeds, streamId, 0.0), DynamicSpec_->InputBuffer, /*isInput*/ true);
         }
         for (auto& [streamId, issuance] : jobState.OutputIssuance) {
-            seedIssuance(issuance, jobState.Output, streamId, GetOrDefault(warmup.OutputSpeeds, streamId, 0.0), DynamicSpec_->OutputBuffer);
+            seedIssuance(issuance, jobState.Output, streamId, GetOrDefault(warmup.OutputSpeeds, streamId, 0.0), DynamicSpec_->OutputBuffer, /*isInput*/ false);
         }
     }
 
@@ -347,9 +354,13 @@ public:
         EraseOrCrash(JobIdToState_, jobId);
     }
 
-    void Reconfigure(TDynamicBufferStateManagerSpecPtr dynamicSpec) override
+    void Reconfigure(
+        TDynamicBufferStateManagerSpecPtr dynamicSpec,
+        TStreamBufferDurationSnapshotPtr durationSnapshot) override
     {
         auto guard = Guard(Lock_);
+
+        std::swap(DurationSnapshot_, durationSnapshot);
 
         if (AreNodesEqual(ConvertToNode(DynamicSpec_), ConvertToNode(dynamicSpec))) {
             return;
@@ -411,6 +422,22 @@ public:
     }
 
 private:
+    const TStreamBufferDurationEstimate* FindDurationEstimate(
+        const TStreamId& streamId,
+        const TComputationId& computationId,
+        bool isInput) const
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        if (!DurationSnapshot_) {
+            return nullptr;
+        }
+
+        return isInput
+            ? DurationSnapshot_->InputDurations.FindPtr(computationId)
+            : DurationSnapshot_->Streams.FindPtr(streamId);
+    }
+
     void UpdatePoolCapacityGauges()
     {
         InputCapacityGauge_.Update(DynamicSpec_->EnableV2 ? EffectiveFairSharePool(DynamicSpec_->InputBuffer) : 0);
@@ -553,7 +580,10 @@ private:
 
         // Phase B: assemble per-stream limit plans.
         //! Returns the planned demand of the stream.
-        auto planStream = [&] (TStreamMeasurements& streamMeasurements,
+        auto planStream = [&] (
+            const TStreamId& streamId,
+            const TComputationId& computationId,
+            TStreamMeasurements& streamMeasurements,
             TIssuanceState* issuance,
             const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& spec,
             bool isInput,
@@ -561,7 +591,12 @@ private:
             double* totalDemand) -> double {
             // Distrust guard: the measured cycle never acts beyond the configured
             // buffered-time cap of this side.
-            epochCycleSeconds = std::min(epochCycleSeconds, spec->MaxDuration.SecondsFloat());
+            const auto* estimate = FindDurationEstimate(streamId, computationId, isInput);
+            const bool automaticApplied = issuance && IsAutomaticBufferDurationEnabled(spec) && estimate;
+            const double maxDurationSeconds = issuance
+                ? ComputeBufferDurationSeconds(spec, estimate)
+                : spec->MaxDuration.SecondsFloat();
+            epochCycleSeconds = std::min(epochCycleSeconds, maxDurationSeconds);
             double demand = streamMeasurements.V1Demand;
             if (issuance) {
                 issuance->MaxDrainRate.SetBucketCount(DynamicSpec_->MaxRateEstimatorBuckets);
@@ -602,6 +637,8 @@ private:
                 .UsedInflatedBytes = streamMeasurements.UsedInflatedBytes,
                 .PendingInflatedBytes = streamMeasurements.PendingInflatedBytes,
                 .EpochCycleSeconds = epochCycleSeconds,
+                .MaxDurationSeconds = maxDurationSeconds,
+                .AutomaticDurationApplied = automaticApplied,
             });
             return demand;
         };
@@ -627,7 +664,7 @@ private:
             double jobInputDemand = 0;
             for (auto& [streamId, streamMeasurements] : inputMeasurements) {
                 auto* issuance = DynamicSpec_->EnableV2 ? &jobState.InputIssuance[streamId] : nullptr;
-                jobInputDemand += planStream(streamMeasurements, issuance, DynamicSpec_->InputBuffer, /*isInput*/ true, epochCycleSeconds, &totalInputDemand);
+                jobInputDemand += planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->InputBuffer, /*isInput*/ true, epochCycleSeconds, &totalInputDemand);
             }
 
             double totalInputRawRate = 0;
@@ -656,7 +693,7 @@ private:
                 // output drain cycle is a different downstream process): it only
                 // raises the BDP floor. Resident-driven probing is separately
                 // bounded by a share of the worker pool, so precision is not critical.
-                planStream(streamMeasurements, issuance, DynamicSpec_->OutputBuffer, /*isInput*/ false, epochCycleSeconds, &totalOutputDemand);
+                planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->OutputBuffer, /*isInput*/ false, epochCycleSeconds, &totalOutputDemand);
             }
 
             for (auto& [streamId, streamData] : jobState.Output.Streams) {
@@ -693,6 +730,7 @@ private:
         };
         auto isProbingOutput = [] (const TStreamPlan& entry) {
             return !entry.IsInput &&
+                !entry.AutomaticDurationApplied &&
                 !entry.OverrideLimit.has_value() &&
                 std::max(entry.PeakInflightBytes, entry.UsedInflatedBytes) > 0;
         };
@@ -726,7 +764,7 @@ private:
             const i64 demandDrainCap = static_cast<i64>(std::min<double>(
                 static_cast<double>(jobLimit),
                 std::max(
-                    entry.Demand * (*entry.Spec)->MaxDuration.SecondsFloat(),
+                    entry.Demand * entry.MaxDurationSeconds,
                     entry.PendingInflatedBytes)));
             const i64 drainCap = static_cast<i64>(std::min<double>(
                 static_cast<double>(jobLimit),
@@ -917,6 +955,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TDynamicBufferStateManagerSpecPtr DynamicSpec_;
+    TStreamBufferDurationSnapshotPtr DurationSnapshot_;
     std::optional<TInstant> LastManageInstant_;
     const TPeriodicExecutorPtr BufferManagementExecutor_;
 

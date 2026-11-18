@@ -142,6 +142,9 @@ void TRegistry::EmplaceDescriptorOrCrash(THashMap<std::string, TDescriptor>& des
 template <class T>
 void TRegistry::RegisterComputation()
 {
+    static_assert(T::InputAcknowledgementPolicy != EInputAcknowledgementPolicy::Unknown,
+        "Computation must define its input acknowledgement policy");
+
     static_assert(std::is_base_of_v<IComputationController, typename T::TComputationController>,
         "Computation must define the controller");
 
@@ -164,6 +167,7 @@ void TRegistry::RegisterComputation()
             },
             .RequiresProcessingFunction = TComputationRequiresProcessingFunction<T>::value,
             .InvokesProcessFunctionSync = TComputationInvokesProcessFunctionSync<T>::value,
+            .InputAcknowledgementPolicy = T::InputAcknowledgementPolicy,
         });
     if (!success) {
         YT_TLOG_FATAL(

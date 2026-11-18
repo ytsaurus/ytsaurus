@@ -66,6 +66,9 @@ public:
 
     using TOrderedSourceComputationBase::TOrderedSourceComputationBase;
 
+public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::AfterDependentOutputs;
+
     TComputationStatusPtr GetStatus() override;
 
 private:

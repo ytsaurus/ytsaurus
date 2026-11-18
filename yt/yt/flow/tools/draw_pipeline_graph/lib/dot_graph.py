@@ -8,8 +8,8 @@ import pydot
 from library.python import resource
 from yt.wrapper import yson
 
-from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
-from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
+from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_model import EdgeLimitInfo
+from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_utils import (
     MIN_VISIBLE_BLOCKED_TIME_SHARE,
     format_limit_entry,
     is_computation_warning,
@@ -137,6 +137,8 @@ def make_dot_edge_attributes(edge: EdgeLimitInfo):
             label_parts.append(format_limit_entry(limit_type, status))
 
     attributes["label"] = "\n---------\n".join(label_parts)
+    if edge.buffer_info:
+        attributes["tooltip"] = edge.buffer_info
 
     if is_edge_warning(edge):
         attributes["color"] = "red"

@@ -2042,6 +2042,88 @@ TEST_F(TDescribeTest, MermaidGraphShowsDataChannelEdges)
     }
 }
 
+TEST_F(TDescribeTest, BufferSizingWindowsUsePerSideSettingsWithoutFeedback)
+{
+    Prepare();
+    FlowView->Feedback->PartitionJobStatuses.clear();
+    Spec->Computations.clear();
+    DynamicSpec->Computations.clear();
+    auto producer = New<TComputationSpec>();
+    producer->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    producer->OutputStreamIds.insert(TStreamId("stream"));
+    producer->SourceStreams[TStreamId("source")] = New<TSourceSpec>();
+    GetOrCrash(producer->SourceStreams, TStreamId("source"))->SourceClassName = TypeName<TRandomSource>();
+    producer->StreamsDependency[TStreamId("stream")].insert(TStreamId("source"));
+    Spec->Computations[TComputationId("producer")] = producer;
+    auto consumer = New<TComputationSpec>();
+    consumer->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    consumer->InputStreamIds.insert(TStreamId("stream"));
+    consumer->TimerStreams[TStreamId("timer")] = New<TTimerSpec>();
+    consumer->StreamsDependency[TStreamId("timer")].insert(TStreamId("stream"));
+    Spec->Computations[TComputationId("consumer")] = consumer;
+    auto secondConsumer = New<TComputationSpec>();
+    secondConsumer->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    secondConsumer->InputStreamIds.insert(TStreamId("stream"));
+    Spec->Computations[TComputationId("second_consumer")] = secondConsumer;
+    auto secondConsumerDynamic = New<TDynamicComputationSpec>();
+    secondConsumerDynamic->BatchDuration = TDuration::Seconds(7);
+    DynamicSpec->Computations[TComputationId("second_consumer")] = secondConsumerDynamic;
+    auto producerDynamic = New<TDynamicComputationSpec>();
+    producerDynamic->BatchDuration = TDuration::Seconds(100);
+    DynamicSpec->Computations[TComputationId("producer")] = producerDynamic;
+    auto consumerDynamic = New<TDynamicComputationSpec>();
+    consumerDynamic->BatchDuration = TDuration::Seconds(3);
+    DynamicSpec->Computations[TComputationId("consumer")] = consumerDynamic;
+    const auto& buffers = DynamicSpec->JobTracker->BufferStateManager;
+    buffers->InputBuffer->MinDuration = TDuration::Seconds(1);
+    buffers->InputBuffer->MaxDuration = TDuration::Seconds(100);
+    buffers->InputBuffer->DurationMultiplier = 1;
+    buffers->OutputBuffer->MinDuration = TDuration::Seconds(1);
+    buffers->OutputBuffer->MaxDuration = TDuration::Seconds(6);
+    buffers->OutputBuffer->DurationMultiplier = 2;
+    auto describeEdges = [&] {
+        TPipelineDescription result;
+        for (const auto& [computationId, spec] : Spec->Computations) {
+            RegisterStreams(Spec, computationId, result, result.Computations[computationId], TDescribeTraitsContext{});
+        }
+
+        FillExtendedStreams(FlowView, result);
+        return result;
+    };
+
+    auto description = describeEdges();
+    const auto& input = GetOrCrash(description.Computations, TComputationId("consumer")).ExtendedInputStreams.front();
+    const auto& output = GetOrCrash(description.Computations, TComputationId("producer")).ExtendedOutputStreams.front();
+    ASSERT_EQ(input.Messages.size(), 1u);
+    ASSERT_EQ(output.Messages.size(), 1u);
+    EXPECT_THAT(input.Messages.front().Text, HasSubstr("buffers: Buffer sizing window: 3s (automatic)"));
+    EXPECT_THAT(output.Messages.front().Text, HasSubstr("Buffer sizing window: 6s (automatic)"));
+    EXPECT_THAT(output.Messages.front().Text, HasSubstr("Cumulative batch duration: 107s"));
+    EXPECT_THAT(input.Messages.front().Text, HasSubstr("Batch duration: 3s"));
+    const auto& secondInput = GetOrCrash(description.Computations, TComputationId("second_consumer")).ExtendedInputStreams.front();
+    EXPECT_TRUE(MessagesContain(secondInput.Messages, "Buffer sizing window: 7s (automatic)"));
+    EXPECT_EQ(output.Messages.front().Level, ELogLevel::Info);
+    EXPECT_FALSE(output.BackpressureDetected);
+    EXPECT_TRUE(GetOrCrash(description.Computations, TComputationId("producer")).ExtendedSourceStreams.front().Messages.empty());
+    EXPECT_TRUE(GetOrCrash(description.Computations, TComputationId("consumer")).ExtendedTimerStreams.front().Messages.empty());
+
+    buffers->OutputBuffer->MinDuration.reset();
+    description = describeEdges();
+    EXPECT_TRUE(MessagesContain(GetOrCrash(description.Computations, TComputationId("producer")).ExtendedOutputStreams.front().Messages, "6s (configured)"));
+    buffers->EnableV2 = false;
+    description = describeEdges();
+    EXPECT_TRUE(MessagesContain(GetOrCrash(description.Computations, TComputationId("consumer")).ExtendedInputStreams.front().Messages, "100s (configured)"));
+
+    producer->ComputationClassName = "remote_custom_source";
+    description = describeEdges();
+    EXPECT_TRUE(MessagesContain(GetOrCrash(description.Computations, TComputationId("consumer")).ExtendedInputStreams.front().Messages, "Buffer sizing window"));
+
+    consumer->ComputationClassName = "remote_custom_transform";
+    description = describeEdges();
+    EXPECT_TRUE(GetOrCrash(description.Computations, TComputationId("consumer")).ExtendedInputStreams.front().Messages.empty());
+    EXPECT_TRUE(GetOrCrash(description.Computations, TComputationId("producer")).ExtendedOutputStreams.front().Messages.empty());
+}
+
 TEST_F(TDescribeTest, BlockedTimeShareReachesDescribeFromJobStatus)
 {
     Prepare();
