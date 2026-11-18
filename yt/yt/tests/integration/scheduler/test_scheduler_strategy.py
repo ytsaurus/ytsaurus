@@ -3232,12 +3232,10 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         if not running_jobs:
             assert False, "Failed to have running jobs"
 
-        time.sleep(5)
-
         job_id = next(iter(running_jobs.keys()))
 
-        # Most part of the time we should be suspicious, let's check that
-        for i in range(30):
+        # Job preparation (incl. job proxy spawn) counts as activity and may take several seconds.
+        for i in range(300):
             suspicious = get(op.get_path() + "/controller_orchid/running_jobs/{}/suspicious".format(job_id))
             if suspicious:
                 break
