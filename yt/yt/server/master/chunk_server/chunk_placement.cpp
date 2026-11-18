@@ -37,12 +37,20 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkPlacement::TWeightedRandomNodeChooser::InsertNodeOrCrash(TNodeId nodeId, double weight, double loadFactor)
+void TChunkPlacement::TWeightedRandomNodeChooser::InsertNodeOrCrash(TNodeId nodeId, double unscaledWeight, double loadFactor)
 {
+    // NB: IO unscaledWeight are in [0, 1], but the zero weights were skipped earlier, check #IsValidWriteTargetToInsert.
+    YT_VERIFY(unscaledWeight > 0);
+
+    // Keep every eligible node selectable when scaling would truncate its weight to zero.
+    auto scaledWeight = Max<i64>(1, static_cast<i64>(unscaledWeight * WeightMultiplier_));
+    // Overflow is not expected, but it's paranoia.
+    YT_VERIFY(scaledWeight <= Max<i64>() - TotalSumOfWeights_);
+
     auto lastPosition = NodeDescriptors_.size();
-    NodeDescriptors_.emplace_back(nodeId, weight, loadFactor);
-    WeightedNodes_.EmplaceBack(weight);
-    TotalSumOfWeights_ += weight;
+    NodeDescriptors_.emplace_back(nodeId, scaledWeight, loadFactor);
+    WeightedNodes_.EmplaceBack(scaledWeight);
+    TotalSumOfWeights_ += scaledWeight;
     EmplaceOrCrash(NodeToIndex_, nodeId, lastPosition);
 }
 
@@ -56,6 +64,7 @@ void TChunkPlacement::TWeightedRandomNodeChooser::RemoveNode(TNodeId nodeId)
     auto nodeToRemoveWeight = nodeToRemoveIt->Weight;
     auto lastNodeIt = NodeDescriptors_.begin() + lastNodeIndex;
 
+    WeightedNodes_.PopBack();
     WeightedNodes_.Increment(nodeIndex, NodeDescriptors_[lastNodeIndex].Weight - NodeDescriptors_[nodeIndex].Weight);
     NodeToIndex_[lastNodeIt->NodeId] = nodeIndex;
     std::iter_swap(nodeToRemoveIt, lastNodeIt);
@@ -63,7 +72,6 @@ void TChunkPlacement::TWeightedRandomNodeChooser::RemoveNode(TNodeId nodeId)
     TotalSumOfWeights_ -= nodeToRemoveWeight;
     NodeToIndex_.erase(nodeIt);
     NodeDescriptors_.pop_back();
-    WeightedNodes_.PopBack();
 }
 
 bool TChunkPlacement::TWeightedRandomNodeChooser::Contains(TNodeId nodeId) const
@@ -83,19 +91,19 @@ i64 TChunkPlacement::TWeightedRandomNodeChooser::Size() const
     return NodeDescriptors_.size();
 }
 
-TNodeId TChunkPlacement::TWeightedRandomNodeChooser::GetNode(double weight) const
+TNodeId TChunkPlacement::TWeightedRandomNodeChooser::GetNode(i64 weight) const
 {
     auto index = WeightedNodes_.UpperBound(weight);
     return NodeDescriptors_[index - 1].NodeId;
 }
 
-double TChunkPlacement::TWeightedRandomNodeChooser::GetLeftBound(TNodeId nodeId) const
+i64 TChunkPlacement::TWeightedRandomNodeChooser::GetLeftBound(TNodeId nodeId) const
 {
     auto index = GetOrCrash(NodeToIndex_, nodeId);
     return WeightedNodes_.GetCumulativeSum(index);
 }
 
-double TChunkPlacement::TWeightedRandomNodeChooser::GetWeight(TNodeId nodeId) const
+i64 TChunkPlacement::TWeightedRandomNodeChooser::GetWeight(TNodeId nodeId) const
 {
     auto index = GetIteratorOrCrash(NodeToIndex_, nodeId)->second;
     return NodeDescriptors_[index].Weight;
@@ -119,7 +127,7 @@ TChunkPlacement::TAllocationSession TChunkPlacement::TWeightedRandomNodeChooser:
 
 TChunkPlacement::TAllocationSession::TAllocationSession(
     TWeightedRandomNodeChooser* weightedRandomNodeChooser,
-    double totalSumOfWeights,
+    i64 totalSumOfWeights,
     int nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
     : WeightedRandomNodeChooser_(weightedRandomNodeChooser)
     , RemainingSumOfWeights_(totalSumOfWeights)
@@ -133,7 +141,7 @@ bool TChunkPlacement::TAllocationSession::HasFailed() const
 
 TNodeId TChunkPlacement::TAllocationSession::PickOneNode()
 {
-    auto currentWeight = RandomNumber<double>() * RemainingSumOfWeights_;
+    auto currentWeight = static_cast<i64>(RandomNumber<ui64>(RemainingSumOfWeights_));
     for (auto removedNodeIt = RemovedNodes_.begin(); removedNodeIt != RemovedNodes_.end(); ++removedNodeIt) {
         if (removedNodeIt->LeftBound <= currentWeight) {
             currentWeight += removedNodeIt->Weight;
